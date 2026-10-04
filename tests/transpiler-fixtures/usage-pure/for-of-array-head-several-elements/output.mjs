@@ -6,7 +6,6 @@ import _Math$cosh from "@core-js/pure/actual/math/cosh";
 import _Math$imul from "@core-js/pure/actual/math/imul";
 import _Math$sinh from "@core-js/pure/actual/math/sinh";
 import _Math$tanh from "@core-js/pure/actual/math/tanh";
-var _ref;
 // a call element beside a BOUND sibling runs once into a memo the sibling reads off, while a REST
 // beside the claim keeps the level to the routes that carry a rest (the head takes the slot's own
 // default); a head over SEVERAL elements mirrors each of its own - a bound container, a call, an IIFE,
@@ -14,9 +13,9 @@ var _ref;
 const pairing = () => [Math, 1];
 for (const [{
   clz32: viaCallSibling
-}, next] of [(_ref = pairing(), [{
+}, next] of [[{
   clz32: _Math$clz32
-}, _ref[1]])]) use(viaCallSibling(1), next);
+}, pairing()[1]]]) use(viaCallSibling(1), next);
 for (const [{
   imul: viaCallRest = _Math$imul
 }, ...afterCall] of [pairing()]) use(viaCallRest(2, 3), afterCall);

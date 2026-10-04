@@ -2,10 +2,10 @@
 // (`(c++, g.self).Array.prototype.flat`) must drop the hop and keep the alias name: reading `g.self` off
 // engine is undefined (`_globalThis.self` on ie:11 / Node, which throws before the call). babel inlines the
 // alias to the pure root while the unplugin keeps `g` (its declaration is rewritten to the pure root), so
-// the receiver shapes diverge COSMETICALLY (output-unplugin sidecar) - but both drop the dead hop, which is
-// the lock. the `?.` row keeps its guard and memo: a NESTED sequence value stays unproven, so the kept-guard
-// canon owns the shape, and the memo is a VALUE slot - the alias root folds to the leaf ponyfill there
-// on BOTH legs; only a NAV-position claimless read keeps the alias.
+// any receiver spelling must preserve the alias value and drop the dead hop, which is
+// the lock. the `?.` row keeps its guard: both prefixes run once in its test, while the stable
+// ponyfill tail can be read again without a memo. the alias root folds to that leaf in the VALUE
+// slot on BOTH legs; only a NAV-position claimless read keeps the alias.
 // lines vary by nesting depth and hop count; each binds a DISTINCT method and the counters prove order.
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
@@ -14,15 +14,14 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 
-var _ref;
 const g = _globalThis;
 let c = 0, d = 0;
 const single = _flatMaybeArray((c++, g).Array.prototype).call([1, [2]]);
 const nested = _atMaybeArray((c++, (d++, g)).Array.prototype).call([1], 0);
 const doubleHop = _includesMaybeArray((c++, g).Array.prototype).call([1], 1);
 
-const optional = null == (_ref = (c++, (d++, _self)))
+const optional = null == (c++, (d++, _self))
 	? void 0
-	: _mapMaybeArray(_ref.Array.prototype).call([1], (x) => x);
+	: _mapMaybeArray(_self.Array.prototype).call([1], (x) => x);
 
 export { single, nested, doubleHop, optional, c, d };

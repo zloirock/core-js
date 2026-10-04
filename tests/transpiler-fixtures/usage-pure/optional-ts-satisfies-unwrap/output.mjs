@@ -1,3 +1,2 @@
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-var _ref;
-null == (_ref = x satisfies string) ? void 0 : _includesMaybeString(_ref).call(_ref, "o");
+null == x satisfies string ? void 0 : _includesMaybeString(x satisfies string).call(x satisfies string, "o");

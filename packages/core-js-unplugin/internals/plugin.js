@@ -7,7 +7,6 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   collectFileCensus,
   createTypeAnnotationChecker,
-  extractIndirectRequireSEPrefix,
   isForXWriteTarget,
   isMemberWriteHost,
   isMutatedStaticMeta,
@@ -16,6 +15,7 @@ import {
   memberKeyNamesReducer,
   methodReadsUsageCensus,
   withMemberContextCache,
+  runsWithoutOwnVarSlot,
   mutatedGlobalSlotNames,
   namespaceScopedBindingBlock,
   peelParenAndTSParentPath,
@@ -68,7 +68,7 @@ import { minifierSequenceReducer, planMinifierSequenceSplit } from '@core-js/pol
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
-import applyEntryProgram, { injectImportStatements } from './entry.js';
+import applyEntryProgram, { extractEntrySideEffectPrefixes, injectImportStatements } from './entry.js';
 import { printProgram } from './print.js';
 import ImportInjector, { flushIntoProgram } from './import-injector.js';
 import createAstDestructureEmitter from './destructure.js';
@@ -377,6 +377,7 @@ export default function createPlugin(options) {
     // lazy: `packages` is destructured from the resolver below; transforms run after
     getPackages: () => packages,
     parameterCallSites: (...args) => typeResolvers.parameterCallSites(...args),
+    collectBindingReferences: (...args) => typeResolvers.collectBindingReferences(...args),
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin
@@ -828,9 +829,10 @@ export default function createPlugin(options) {
           // AST re-pointed at that prefix, so the syntax visitor still polyfills any usage inside the kept
           // prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
           const kept = new Set();
+          const prefixes = extractEntrySideEffectPrefixes(ast, removed, estreeAdapter);
           for (const node of removed) {
-            const sePrefix = extractIndirectRequireSEPrefix(node);
-            if (!sePrefix.length) continue;
+            const sePrefix = prefixes.get(node);
+            if (!sePrefix?.length) continue;
             kept.add(node);
             node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
           }
@@ -949,6 +951,7 @@ export default function createPlugin(options) {
           importStyle,
           pkg: injector.pkg,
           absoluteImports: injector.absoluteImports,
+          adapter: estreeAdapter,
         });
         outputDebug();
         return finalizeAst();
@@ -1107,6 +1110,7 @@ export default function createPlugin(options) {
         const astRefNames = [];
         const astRenameOnly = [];
         const astRefOrder = [];
+        let memoProgramPath;
         let astRewrote = false;
         // the `var` block lands at the top of the nearest enclosing BLOCK (babel's scope.push
         // placement - an if/catch body hosts its own refs); an expression-bodied arrow has no
@@ -1150,8 +1154,8 @@ export default function createPlugin(options) {
           // an `_unused` sentinel for an ASSIGNMENT-position rename: it needs a real
           // declaration (`var _unused;`), which the flush hosts like any declared ref
           declareUnusedRef(metaPath) {
-            const name = injector.uniqueName('_unused');
-            astRefNames.push({ name, ...refHostOf(metaPath) });
+            const name = injector.generateUnusedName();
+            astRefNames.push({ name, ...refHostOf(metaPath), varless: runsWithoutOwnVarSlot(metaPath), path: metaPath });
             return name;
           },
           // a DUPLICATED subtree (a destructure receiver copy) carries the refs the walk
@@ -1193,7 +1197,7 @@ export default function createPlugin(options) {
             // the host is recorded as a NODE (block or function), never a body: the emission
             // may still replace an expression-bodied arrow's direct body node, so which body
             // hosts the `var` block is the flush's decision, made on the final tree
-            astRefNames.push({ name, ...refHostOf(metaPath) });
+            astRefNames.push({ name, ...refHostOf(metaPath), varless: runsWithoutOwnVarSlot(metaPath), path: metaPath });
             return name;
           },
         };
@@ -1278,7 +1282,10 @@ export default function createPlugin(options) {
         };
         traverse(ast, mergeVisitors({
           $: { scope: true },
-          Program(path) { injector.rootScope = path.scope; },
+          Program(path) {
+            injector.rootScope = path.scope;
+            memoProgramPath = path;
+          },
           CatchClause(path) { destructureEmit.extractCatchClause(path); },
           ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
@@ -1307,12 +1314,16 @@ export default function createPlugin(options) {
           else outputDebug();
           return null;
         }
+        // Final receiver proofs must see the surviving reads, including moved captures,
+        // rather than the source patterns kept by the scope tracker's reference lists.
+        typeResolvers.reset({ currentTreeReferences: true });
         flushIntoProgram({
           injector,
           program: ast,
           refNames: astRefNames,
           renameOnly: astRenameOnly,
           refOrder: astRefOrder,
+          memoReuseContext: { adapter: estreeAdapter, path: memoProgramPath },
         });
         // a moved head no claim took up goes back, once the flush has placed its refs
         restoreIdleRelocations(ast);

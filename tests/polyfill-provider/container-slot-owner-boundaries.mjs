@@ -281,6 +281,14 @@ for (const parser of adapters) for (const [name, body, source, keyPath, expected
   ['reader result is retained', 'function reader(t) { return t.k; }', 'const box = { k: Object }; const value = reader(box); use(value);', ['k'], false],
   ['reader exposes descendants', 'function reader(t) { return t.k; }', 'const box = { k: { value: Object } }; use(reader(box));', ['k', 'value'], true],
   ['body writer', 'function reader(t) { t.k = {}; return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['arguments writer', 'function reader({ k }) { arguments[0].k = {}; return k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  [
+    'arguments in parameter default',
+    'function reader({ k }, extra = (arguments[0].k = {})) { return k; }',
+    'const box = { k: Object }; reader(box);',
+    ['k'],
+    true,
+  ],
   ['receiver method', 'function reader(t) { return t.k(); }', 'const box = { k() { this.value = {}; }, value: Object }; reader(box);', ['value'], true],
   ['getter read', 'function reader(t) { return t.k; }', 'const box = { get k() { this.value = {}; return Object; }, value: Object }; reader(box);', ['value'], true],
   [

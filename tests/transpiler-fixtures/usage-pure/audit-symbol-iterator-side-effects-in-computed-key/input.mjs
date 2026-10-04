@@ -1,6 +1,6 @@
-// comma expression in the computed key carries side effects that the
-// `_getIteratorMethod(obj)` rewrite must preserve. transformer keeps the prefix in source
-// verbatim and lets the inner `Symbol.iterator` resolve via the static polyfill.
+// A computed symbol key carries effects after the receiver has been selected.
+// Iterator reads and calls use that unchanged receiver, including argument-call this.
+// Optional access skips the key effects when the receiver is nullish.
 export const a = obj[(probe(), Symbol.iterator)];
 export const b = obj[(probe(), Symbol.iterator)]();
 export const c = obj[(probe(), Symbol.iterator)](42);

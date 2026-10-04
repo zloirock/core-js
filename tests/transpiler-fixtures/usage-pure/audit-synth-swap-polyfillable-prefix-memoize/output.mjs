@@ -1,6 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-var _ref2;
 // intersection of two collapse behaviors: a `||` fallback receiver whose left has a POLYFILLABLE
 // instance-method prefix (`[1].at(0)`) AND an UNRESOLVED sibling key (`isArray`). the receiver is
 // memoized (the prefix runs once inside the memo argument and is itself polyfilled), the unresolved
@@ -8,12 +7,13 @@ var _ref2;
 function g({
   from,
   isArray
-} = function (_ref) {
-  return {
+} = (() => {
+  var _ref;
+  return _atMaybeArray(_ref = [1]).call(_ref, 0), Array, {
     from: _Array$from,
-    isArray: _ref.isArray
+    isArray: Array.isArray
   };
-}((_atMaybeArray(_ref2 = [1]).call(_ref2, 0), Array))) {
+})()) {
   return [from([1]), isArray([])];
 }
 g();

@@ -4,6 +4,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // sibling (`for (let a = globalThis.foo, { from } = (eff(), Array), b = later(); ...)`): the lifted SE
 // sink must land at ITS declarator slot in the comma-list - after `a`, before `b` - preserving source
 // evaluation order, not hoisted to the head where `eff()` would run before `a` is bound
-for (let a = _globalThis.foo, _ref = (eff(), Array), from = _Array$from, b = later(); cond;) {
+for (let a = _globalThis.foo, from = (eff(), _Array$from), b = later(); cond;) {
   use(a, from, b);
 }

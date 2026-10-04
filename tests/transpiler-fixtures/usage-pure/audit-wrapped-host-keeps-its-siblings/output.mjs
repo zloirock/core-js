@@ -1,7 +1,7 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 // Native captures preserve the bindings beside a nested hop.
-// A shared receiver is read once before its leaf properties; unsupported hosts stay native.
+// Each nested property is read once; stable source names need no capture.
 const nested = {
   lead: 5,
   y: _Object$assign([1, [2]], {
@@ -10,48 +10,48 @@ const nested = {
   top: 4
 };
 // Siblings on both sides keep their reads around the nested hop.
-const [_ref] = [nested],
+const [,] = [nested],
   {
     lead
-  } = _ref,
+  } = nested,
   {
-    y: _ref2
-  } = _ref,
-  flat = _flatMaybeArray(_ref2),
+    y: _ref
+  } = nested,
+  flat = _flatMaybeArray(_ref),
   {
     extra
-  } = _ref2,
+  } = _ref,
   {
     top
-  } = _ref;
+  } = nested;
 // A following sibling retains its native read after the captured nested properties.
-const [_ref3] = [nested];
+const [,] = [nested];
 const {
-  y: _ref4
-} = _ref3;
-const flatA = _flatMaybeArray(_ref4);
+  y: _ref2
+} = nested;
+const flatA = _flatMaybeArray(_ref2);
 const {
   extra: extraA
-} = _ref4;
+} = _ref2;
 const {
   top: topA
-} = _ref3;
+} = nested;
 // A preceding sibling reads before the nested hop.
-const [_ref5] = [nested],
+const [,] = [nested],
   {
     lead: leadB
-  } = _ref5,
+  } = nested,
   {
-    y: _ref6
-  } = _ref5,
-  flatB = _flatMaybeArray(_ref6),
+    y: _ref3
+  } = nested,
+  flatB = _flatMaybeArray(_ref3),
   {
     extra: extraB
-  } = _ref6;
+  } = _ref3;
 // ... and the SOLE-hop host still normalizes: the element takes the nav, the pattern the leaf
-const _ref7 = nested.y;
-const flatSole = _flatMaybeArray(_ref7);
+const _ref4 = nested.y;
+const flatSole = _flatMaybeArray(_ref4);
 const [{
   extra: extraSole
-}] = [_ref7];
+}] = [_ref4];
 export { lead, flat, extra, top, flatA, extraA, topA, leadB, flatB, extraB, flatSole, extraSole };

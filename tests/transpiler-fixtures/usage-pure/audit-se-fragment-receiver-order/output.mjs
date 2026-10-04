@@ -3,32 +3,32 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 // a receiver peeled from under an SE-bearing sequence prefix must not be read ahead of the
-// prefix. TOP-LEVEL init: the whole-init memo captures prefix + receiver in source order
-var _ref = (se1(), arr),
-  at = null == _ref ? _ref[""] : (k1(), _at(_ref)),
+// prefix. The complete top-level initializer runs before any key effect or property read.
+var {} = (se1(), arr),
+  at = (k1(), _at(arr)),
   {
     other
-  } = _ref;
+  } = arr;
 // A nested fragment captures the initializer before any key effect or claimed read.
-const _ref3 = {
+const _ref2 = {
     y: (se2(), arr2),
     q: 1
   },
   {
-    y: _ref2
-  } = _ref3,
-  flat = null == _ref2 ? _ref2[""] : (k2(), _flatMaybeArray(_ref2)),
+    y: _ref
+  } = _ref2,
+  flat = null == _ref ? _ref[""] : (k2(), _flatMaybeArray(_ref)),
   {
     q
-  } = _ref3;
-const _ref4 = {
+  } = _ref2;
+const _ref3 = {
   z: (se3(), arr3),
   w: 1
 };
-const inc = _includes(_ref4.z);
+const inc = _includes(_ref3.z);
 const {
   w
-} = _ref4; // assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
+} = _ref3; // assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
 // polyfill overwrite survives
 let m;
 ({

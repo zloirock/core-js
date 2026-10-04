@@ -6,7 +6,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+var _ref, _ref2, _ref3, _ref4, _ref5;
 // kept-assign / reused-guard roots with a nested instance-GET: the guard, the composition and the
 // resolution degree all agree - the memo's registered write re-types the tail on both emitters,
 // so typed dispatch survives the capture (only a primitive value-read widens to the common
@@ -21,11 +21,11 @@ let s;
 let m;
 let g;
 let f;
-export const keptProto = null == (_ref = n = _globalThis.window) ? void 0 : _nameMaybeFunction(_atMaybeArray(_ref.Array.prototype));
-export const iifeStatic = null == (() => _globalThis)() ? void 0 : _at(_ref2 = _nameMaybeFunction(_Set)).call(_ref2, 0);
-export const keptTriple = null == (_ref3 = t = _globalThis.window) ? void 0 : _at(_ref4 = _nameMaybeFunction(_atMaybeArray(_ref3.Array.prototype))).call(_ref4, 0);
-export const keptCallTail = null == (c = _globalThis.window) ? void 0 : _atMaybeArray(_ref5 = _Array$from([2])).call(_ref5, 0);
-export const keptCtorLeaf = null == (s = _globalThis.window) ? void 0 : _includes(_ref6 = _nameMaybeFunction(_Set)).call(_ref6, 'S');
+export const keptProto = null == (n = _globalThis.window) ? void 0 : _nameMaybeFunction(_atMaybeArray(n.Array.prototype));
+export const iifeStatic = null == (() => _globalThis)() ? void 0 : _at(_ref = _nameMaybeFunction(_Set)).call(_ref, 0);
+export const keptTriple = null == (t = _globalThis.window) ? void 0 : _at(_ref2 = _nameMaybeFunction(_atMaybeArray(t.Array.prototype))).call(_ref2, 0);
+export const keptCallTail = null == (c = _globalThis.window) ? void 0 : _atMaybeArray(_ref3 = _Array$from([2])).call(_ref3, 0);
+export const keptCtorLeaf = null == (s = _globalThis.window) ? void 0 : _includes(_ref4 = _nameMaybeFunction(_Set)).call(_ref4, 'S');
 export const keptNonOptional = _nameMaybeFunction((m = _globalThis.window, _Map));
 export const keptResolvable = _nameMaybeFunction((g = _globalThis, _Set));
-export const keptResolvableCall = _atMaybeArray(_ref7 = (f = _globalThis, _Array$from)([3])).call(_ref7, -1);
+export const keptResolvableCall = _atMaybeArray(_ref5 = (f = _globalThis, _Array$from)([3])).call(_ref5, -1);

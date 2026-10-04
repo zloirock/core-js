@@ -6,12 +6,12 @@ import _Set from "@core-js/pure/actual/set";
 const anchor = [1, 2];
 export { anchor };
 
-// An effectful neighbour evaluates before the extracted property reads,
-// so both extractions follow the capture of the original elements.
-const [_ref, _ref2] = [arr, effect()];
-const at = _at(_ref);
-const keys = _keys(_ref);
-const viaCall = _ref2;
+// An effectful neighbour evaluates before the extracted property reads.
+// Both extractions follow the original RHS; the unchanged receiver needs no capture.
+const [, _ref] = [arr, effect()];
+const at = _at(arr);
+const keys = _keys(arr);
+const viaCall = _ref;
 export { at, keys, viaCall };
 
 // ... a receiver-LESS static neither reads the element nor reorders anything, so the same

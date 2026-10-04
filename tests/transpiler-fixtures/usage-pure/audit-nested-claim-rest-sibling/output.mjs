@@ -21,11 +21,10 @@ const withRest = function () {
   return [flat, rest.keep];
 }();
 const withoutRest = function () {
-  const _ref = box;
-  const flat = _flatMaybeArray(_ref.inner);
+  const flat = _flatMaybeArray(box.inner);
   const {
     keep
-  } = _ref;
+  } = box;
   return [flat, keep];
 }();
 let assignedFlat, assignedRest;

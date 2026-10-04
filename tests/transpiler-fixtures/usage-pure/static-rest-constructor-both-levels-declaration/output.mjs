@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise";
 // Only the constructor level reads the index; outer rest keeps its realm source.
-const _ref = _globalThis,
+const {} = _globalThis,
   {
     any,
     ...inner
@@ -9,5 +9,5 @@ const _ref = _globalThis,
   {
     Promise: _unused,
     ...outer
-  } = _ref;
+  } = _globalThis;
 export { any, inner, outer };

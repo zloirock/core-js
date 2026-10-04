@@ -42,5 +42,5 @@ for (const [{
 // A reading claim captures the stored wrapper element before dispatching, so the store
 // and its effect run once in the loop header.
 let out4;
-for (const [_ref] = [kw = (eff('t'), _globalThis)], soleAt = _atMaybeArray(_globalThis.Array.prototype); !out4;) out4 = soleAt;
+for (const [_ref] = [kw = (eff('t'), _globalThis)], soleAt = _atMaybeArray(_ref.Array.prototype); !out4;) out4 = soleAt;
 export { out1, out2, out3, out4, seen, kw };

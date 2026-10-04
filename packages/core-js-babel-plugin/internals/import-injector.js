@@ -1,20 +1,25 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   isInitlessVarDecl,
+  emptyMemoActivationValue,
   isNonReferencePosition,
+  markGeneratedMemoDeclarator,
   reEvaluationObservable,
   isPrologueDirectiveStatement,
   isTopLevelImportLike,
+  invalidateScopeVarIndex,
   programPrologueEndIndex,
   requireCallSource,
+  runsWithoutOwnVarSlot,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
+import { hostSlot, renderInjectedImportNodes, renderMemoActivation } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './estree-to-babel.js';
 import ImportInjectorState, {
   buildCanonicalRenameMap,
   collectInjectorCensus,
   createPureImportLiveness,
   isCanonicalSlotOrder,
+  localizeVarlessMemos,
   refDeclarationOrder,
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
@@ -89,6 +94,7 @@ export default class ImportInjector extends ImportInjectorState {
   #scopeReferences;
   #scopeUids;
   #sourcePrologueNodes = new Set();
+  #memoReuseContext;
 
   constructor({
     t,
@@ -99,10 +105,12 @@ export default class ImportInjector extends ImportInjectorState {
     importStyle,
     absoluteImports = false,
     emitsGlobalModules = true,
+    adapter = null,
   }) {
     super({ absoluteImports, mode, pkg, importStyle, packages, emitsGlobalModules });
     this.#t = t;
     this.#programPath = programPath;
+    this.#memoReuseContext = adapter ? { adapter } : null;
     const program = programPath.scope.getProgramParent();
     this.#scopeReferences = makeScopeBag(program, 'referencesSet', 'references');
     this.#scopeUids = makeScopeBag(program, 'uidsSet', 'uids');
@@ -183,13 +191,42 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   generateDeclaredRef(scope, useNode, id = this.#generateRefId(scope)) {
+    this.declaredRefNames.add(id.name);
     // `scope.push` unshifts `var _ref;` into the scope's own block. when the use site sits in a
     // HEADER/SIGNATURE position - a loop header or a function parameter list - that block-hosted var
     // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
-    // enclosing-scope anchor); see #refUseEscapesScopeBlock for the two cases
+    // enclosing-scope anchor); see #refUseEscapesScopeBlock for the two cases. Signature/field
+    // refs receive their own lexical activation after the host renders settle.
     const target = this.#refUseEscapesScopeBlock(scope, useNode) ? scope.parent : this.#varSlotBlockHost(scope) ?? scope;
+    if (runsWithoutOwnVarSlot(scope.path) || scope.path.isClass()
+      || scope.path.isFunction() && this.#refUseEscapesScopeBlock(scope, useNode)) this.#varlessRefs.add(id.name);
     this.#pushRefDeclarator(target, id);
     return id;
+  }
+
+  #varlessRefs = new Set();
+  // Actual lexical arrows minted by the allocator. A dead ref can leave its activation
+  // empty after later guard composition; return shape alone cannot identify a user IIFE.
+  #memoActivations = new WeakSet();
+
+  // After host/synth renders settle and before sibling lowerings clone their parameters,
+  // move signature/field memos from enclosing vars into each expression's lexical frame.
+  localizeVarlessRefs() {
+    if (!this.#varlessRefs.size) return;
+    const localized = localizeVarlessMemos(this.#programPath.node, this.#varlessRefs, (expression, refs) => {
+      const rendered = estreeToBabel(renderMemoActivation(hostSlot(expression), refs));
+      this.#memoActivations.add(rendered.callee);
+      for (const declarator of rendered.callee.body.body[0].declarations) {
+        markGeneratedMemoDeclarator(declarator);
+        this.#memoDeclarators.set(declarator.id.name, declarator);
+      }
+      return rendered;
+    });
+    this.#varlessRefs.clear();
+    if (localized.size) {
+      this.#declaredRefHosts.clear();
+      this.#programPath.scope.crawl();
+    }
   }
 
   // a block the PLUGIN minted around a bodyless `var` host - a lift needed a statement slot - is no
@@ -224,7 +261,7 @@ export default class ImportInjector extends ImportInjectorState {
       // memo-dense files), name collisions are guarded by the injector's own `usedNames`
       // (not scope lookups), and `pruneUnusedRefs` re-crawls the scope at programExit
       // before anything reads these bindings
-      const declarator = this.#t.variableDeclarator(id);
+      const declarator = markGeneratedMemoDeclarator(this.#t.variableDeclarator(id));
       host.node.declarations.push(declarator);
       this.#memoDeclarators.set(id.name, declarator);
       return;
@@ -235,8 +272,10 @@ export default class ImportInjector extends ImportInjectorState {
     // land the id as a trailing PARAM), so `target.path` is not the landing node
     const bindingPath = target.getBinding(id.name)?.path;
     const parent = bindingPath?.parentPath;
-    if (parent?.isVariableDeclaration()) this.#declaredRefHosts.set(target, parent);
-    else {
+    if (parent?.isVariableDeclaration()) {
+      markGeneratedMemoDeclarator(bindingPath.node);
+      this.#declaredRefHosts.set(target, parent);
+    } else {
       this.#hasParamLandedRef = true;
       // a param-landed ref has no declarator until the post-pass normalizer materializes the
       // `var` - synthesize one over the SAME id node so the memo-provenance follow sees the
@@ -318,7 +357,7 @@ export default class ImportInjector extends ImportInjectorState {
         bodyPath = path.get('body');
       }
       bodyPath.unshiftContainer('body', t.variableDeclaration('var',
-        refParams.map(p => t.variableDeclarator(t.cloneNode(p)))));
+        refParams.map(p => markGeneratedMemoDeclarator(t.variableDeclarator(t.cloneNode(p))))));
     }
     this.#programPath.traverse({
       ArrowFunctionExpression: normalize,
@@ -350,7 +389,7 @@ export default class ImportInjector extends ImportInjectorState {
   // walk plugin-shape bindings under one name; remove declarators with no references AND
   // no SE-bearing init AND no constantViolations. returns true iff any binding stays alive.
   // multi-declarator `var _ref, _refOther` removes only the dead declarator, leaving siblings
-  static #removeDeadBindings(bindings) {
+  #removeDeadBindings(bindings) {
     let survivor = false;
     for (const binding of bindings) {
       // referenced / mutated declarators MUST stay, and so must an init whose EVALUATION is
@@ -376,8 +415,12 @@ export default class ImportInjector extends ImportInjectorState {
         survivor = true;
         continue;
       }
+      const block = declPath.parentPath;
       if (declPath.node.declarations.length === 1) declPath.remove();
       else binding.path.remove();
+      const call = block?.parentPath?.parentPath;
+      const returned = emptyMemoActivationValue(call?.node, this.#memoActivations);
+      if (returned) call.replaceWith(returned);
     }
     return survivor;
   }
@@ -458,12 +501,31 @@ export default class ImportInjector extends ImportInjectorState {
     const census = collectInjectorCensus(this.#programPath.node, {
       mintedRefNames,
       pureNames: new Set(this.pureImports.values()),
+      memoReuse: !!this.#memoReuseContext,
+      memoActivations: this.#memoActivations,
     });
     // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
     // is write-only: the read it once served was replaced by a receiver-independent claim,
     // which only exists after every claim landed - so the unwrap lives here, ahead of the
     // slot rank's consumers. a TOP-LEVEL guard keeps its memo (the locked kept-swap canon)
-    unwrapWriteOnlyGuardMemos(census);
+    const rewrittenAncestors = new WeakSet();
+    unwrapWriteOnlyGuardMemos(census, {
+      injectorState: this,
+      contextForMemo: (name, write, occurrence) => {
+        let path = this.#programPath;
+        for (let i = 1; i < occurrence.ancestors.length; i++) {
+          const key = occurrence.keys[i];
+          const listKey = occurrence.listKeys[i];
+          const node = occurrence.ancestors[i];
+          const container = listKey ? path.node[listKey] : path.node;
+          if (container?.[key] !== node) return null;
+          path = path.constructor.get({ parentPath: path, parent: path.node, container, listKey, key });
+          path.setContext(path.parentPath.context);
+        }
+        invalidateScopeVarIndex(path, rewrittenAncestors);
+        return this.#memoReuseContext ? { ...this.#memoReuseContext, scope: path.scope, path } : null;
+      },
+    });
     this.#exitCensus = census;
     return census;
   }
@@ -530,7 +592,7 @@ export default class ImportInjector extends ImportInjectorState {
         this.generatedRefFamilies().get('_ref').delete(name);
         continue;
       }
-      if (!ImportInjector.#removeDeadBindings(bindings)) {
+      if (!this.#removeDeadBindings(bindings)) {
         this.declaredRefNames.delete(name);
         this.generatedRefFamilies().get('_ref').delete(name);
         byName.delete(name);
@@ -548,7 +610,7 @@ export default class ImportInjector extends ImportInjectorState {
       for (const name of [...names]) {
         if (this.declaredRefNames.has(name)) continue;
         const bindings = byName.get(name);
-        if (!bindings?.length || ImportInjector.#removeDeadBindings(bindings)) continue;
+        if (!bindings?.length || this.#removeDeadBindings(bindings)) continue;
         names.delete(name);
         byName.delete(name);
         prunedNames.add(name);
@@ -739,16 +801,14 @@ export default class ImportInjector extends ImportInjectorState {
     if (kept.length !== previous.trailingComments.length) previous.trailingComments = kept;
   }
 
-  // `scope.push({ id: _ref })` in handlers schedules a top-level `var _ref;` that lands
-  // ahead of our later-unshifted imports in Babel's final body. sweep the program body
-  // once (called from programExit after all pushes settle) and move the ref-only decls
-  // past the import header. keeps source order lint-clean without touching pruneUnusedRefs
   // the body-resident prologue the SOURCE carried, recorded before any of our head insertions or
   // an entry replacement moved things around - membership, not shape, decides what may be hoisted back
   recordSourcePrologue(body) {
     this.#sourcePrologueNodes = new Set((body ?? []).slice(0, programPrologueEndIndex(body ?? [])));
   }
 
+  // Move declared refs below the import header after all scope pushes settle.
+  // This includes explicitly supplied rest-exclusion sentinels.
   reorderRefsAfterImports() {
     if (!this.#importRegionSorted) {
       throw new Error(brand('import-injector: reorderRefsAfterImports() must follow reorderImportRegion()'));

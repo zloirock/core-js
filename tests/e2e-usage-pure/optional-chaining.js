@@ -1302,6 +1302,19 @@ QUnit.test('optional chaining: effect order through the collapsed guard', assert
   delete globalThis.e2eSeBox;
 });
 
+QUnit.test('optional chaining: chained sequence receivers polyfill both argument calls', assert => {
+  globalThis.probeGen = { arr: [3, [1, 2]] };
+  // eslint-disable-next-line unicorn/consistent-function-style -- retain the original fixpoint source's bound arrow
+  const nr = () => globalThis;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- retain the original fixpoint source's expression wrapper
+  const r = (
+    (nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat()
+      .concat((nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat() ?? [])
+  );
+  assert.deepEqual(r, WINDOW_PRESENT ? [3, 1, 2, 3, 1, 2] : undefined);
+  delete globalThis.probeGen;
+});
+
 // ECMA evaluates a member call's RECEIVER before its computed KEY. no accessor is needed to see the
 // order: let the key effect REPLACE the property the receiver was read from - the call then runs on
 // whichever array the order picked, so the returned value is the discriminator
@@ -1471,4 +1484,102 @@ QUnit.test('optional chain: a sealed receiver throws instead of short-circuiting
   // a defined sealed value runs the dispatch for real
   assert.deepEqual((filled.items?.at(0)).flat?.(), [1], 'a present sealed value dispatches');
   /* eslint-enable no-unsafe-optional-chaining, sonarjs/no-redundant-parentheses -- end of the sealed receiver forms */
+});
+
+QUnit.test('optional call: resumed and escaped writers preserve the selected receiver', assert => {
+  {
+    const events = [];
+    const other = ['other'];
+    let changed;
+    const first = ['held'];
+    Object.defineProperty(first, 'at', {
+      get() {
+        events.push('get');
+        cursor.next();
+        return function (index) {
+          events.push(this[index]);
+          return this[index];
+        };
+      },
+    });
+    function * owner() {
+      let receiver = first;
+      yield () => {
+        const value = receiver.at?.(0);
+        return [value, receiver[0]];
+      };
+      events.push('write');
+      receiver = other;
+      // eslint-disable-next-line prefer-destructuring -- the live binding read is part of the regression
+      changed = receiver[0];
+    }
+    const cursor = owner();
+    const read = cursor.next().value;
+    assert.deepEqual(read(), ['held', 'other']);
+    assert.same(changed, 'other');
+    assert.deepEqual(events, ['get', 'write', 'held']);
+  }
+  {
+    const events = [];
+    const other = { tag: 'other' };
+    let stored;
+    let receiver;
+    const first = {
+      tag: 'held',
+      get at() {
+        events.push('get');
+        stored(true);
+        return function () {
+          events.push(this.tag);
+          return this.tag;
+        };
+      },
+    };
+    receiver = first;
+    const value = (function owner(write) {
+      if (write) {
+        events.push('write');
+        receiver = other;
+        return;
+      }
+      stored = owner;
+      const result = receiver.at?.(0);
+      receiver = other;
+      return [result, receiver.tag];
+    })(false);
+    assert.deepEqual(value, ['held', 'other']);
+    assert.deepEqual(events, ['get', 'write', 'held']);
+  }
+  {
+    const events = [];
+    const other = { tag: 'other' };
+    let instance;
+    let receiver;
+    const first = {
+      tag: 'held',
+      get at() {
+        events.push('get');
+        // eslint-disable-next-line new-cap -- the instance exposes its escaped constructor
+        new instance.constructor(true);
+        return function () {
+          events.push(this.tag);
+          return this.tag;
+        };
+      },
+    };
+    receiver = first;
+    function Owner(write) {
+      if (write) {
+        events.push('write');
+        receiver = other;
+        return;
+      }
+      instance = this;
+      const value = receiver.at?.(0);
+      receiver = other;
+      this.value = value;
+    }
+    assert.deepEqual([new Owner(false).value, receiver.tag], ['held', 'other']);
+    assert.deepEqual(events, ['get', 'write', 'held']);
+  }
 });

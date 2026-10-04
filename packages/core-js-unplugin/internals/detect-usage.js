@@ -36,11 +36,13 @@ import {
   recomputedBindingWrites,
   syntheticNodeAncestry,
   synthHoistedBinding,
+  synthOwnerStrictlyInsideScope,
   unwrapExportedDeclaration,
   usableAliasInfo,
   useAnchorStart,
   walkPatternIdentifiers,
   unwrapTransparentSeq,
+  wrapScopeBindingLookup,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -448,19 +450,6 @@ export function closestVisibleNativeBinding(scope, name, path) {
   return native;
 }
 
-// the synth var-hoist twin recovers a function-scoped `var` estree failed to hoist, so it only
-// exists for a lookup taken from INSIDE its owner function. `synthHoistedBinding` walks the use
-// `path`, which can descend into a nested function whose `var name` is invisible from the lookup
-// `scope` a resolver explicitly threaded (an alias's own declaration scope, resolved with a
-// deeper use-site path). true when the owner sits STRICTLY BELOW the lookup scope in the scope
-// tree - the only relation that proves its var invisible there. every other relation (scope IS
-// the owner, scope nested inside it, or an opaque wrapper off the scope chain) keeps the
-// established synth-preference, so frame / non-estree scopes stay on their existing path
-function synthOwnerStrictlyInsideScope(scope, synth) {
-  for (let cur = synth.ownerScope?.parent; cur; cur = cur.parent) if (cur === scope) return true;
-  return false;
-}
-
 // closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
 // shares the same primitives and branch order): forward `path` so a makeFrameScope lookup
 // stays position-aware; walk past a native binding invisible at the use (over-hoisted namespace /
@@ -469,13 +458,13 @@ function synthOwnerStrictlyInsideScope(scope, synth) {
 // binding there (estree-toolkit neither hoists it nor lets it shadow the outer name), while a
 // declaration INSIDE the owner (a param, a nearer lexical shadow) keeps the native view. a
 // native resolution of the SAME declarator keeps the native view too (richer info channel)
-function resolveClosestBinding(scope, name, path) {
-  return memoizeBindingLookup(scope, name, path, () => resolveClosestBindingUncached(scope, name, path));
+function resolveClosestBinding(scope, name, path, getScopeBinding) {
+  return memoizeBindingLookup(scope, name, path, () => resolveClosestBindingUncached(scope, name, path, getScopeBinding));
 }
 
 // ... the resolution itself, run once per (scope, name, use node) through the memo above
-function resolveClosestBindingUncached(scope, name, path) {
-  const native = closestVisibleNativeBinding(scope, name, path);
+function resolveClosestBindingUncached(scope, name, path, getScopeBinding) {
+  const native = getScopeBinding(scope, name, path);
   const synth = path ? synthHoistedBinding(path, name) : null;
   if (!synth || synthOwnerStrictlyInsideScope(scope, synth)) return { native, synth: null };
   if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
@@ -502,6 +491,7 @@ function resolveClosestBindingUncached(scope, name, path) {
 // runTransform try/finally - early-returns before the save leave the outer injector intact.
 export function createEstreeAdapter(options = {}) {
   const { getInjector = () => null } = options;
+  const getScopeBinding = wrapScopeBindingLookup(closestVisibleNativeBinding);
   return createDetectionAdapter(options, adapter => ({
     hasBinding(scope, name, path = null) {
       // a MINTED pure-import name answers like the printed tree will (see getBinding below):
@@ -521,7 +511,7 @@ export function createEstreeAdapter(options = {}) {
         && ((minted.minted && !POSSIBLE_GLOBAL_OBJECTS.has(minted.hint)) || (minted.source && !minted.userNamed)));
     },
     getBinding(scope, name, path = null) {
-      const { native: b, synth } = resolveClosestBinding(scope, name, path);
+      const { native: b, synth } = resolveClosestBinding(scope, name, path, getScopeBinding);
       // var-hoist branch (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var` from a
       // nested non-function block to its function scope, so `function f(){ if (c) { var g =
       // globalThis } g.Map.groupBy(...) }` either finds no native binding or resolves to an OUTER
@@ -660,11 +650,9 @@ export function createEstreeAdapter(options = {}) {
         importKind,
         // READ count of the binding - estree-toolkit keeps reference paths (writes excluded)
         references: b.references?.length ?? 0,
-        // the scope the DECLARATOR is written in - see the babel twin. here it IS `b.scope`: unlike
-        // babel, estree-toolkit never hoists a `var` out of its block, so a binding it DOES report
-        // already sits in the scope the declarator was written in (a use that outruns the block
-        // finds nothing here and takes the synthesized hoisted twin above instead)
-        scope: b.scope,
+        // Initializers resolve in the declaration's scope. A canonical hoisted binding
+        // carries its owner's scope separately; a class path opens the inner class-name scope.
+        scope: b.path.node.type === 'ClassDeclaration' ? b.scope : b.path.scope ?? b.scope,
         // the declarator's own PATH - see the babel twin
         declarationPath: b.path,
         polyfillHint,
@@ -721,7 +709,7 @@ export function createEstreeAdapter(options = {}) {
       // use-invisible native binding must not report its declarator type (else the resolver
       // type-gates into resolveVariableBindingToGlobal with the null binding getBinding
       // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
-      const { native, synth } = resolveClosestBinding(scope, name, path);
+      const { native, synth } = resolveClosestBinding(scope, name, path, getScopeBinding);
       return synth ? synth.node.type : native?.path?.node?.type ?? null;
     },
     // estree-toolkit registers no binding for TSImportEquals at all (see hasTSRuntimeBinding) -

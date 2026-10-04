@@ -5,6 +5,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 // generic helper - a kept string-specific helper is the wrong variant once the callback retypes
 // the value to an array. the shadow WITHOUT a discriminant write keeps the narrow
 export function widens(mk) {
+  var _ref;
   let x = "ab";
   switch (mk(() => {
     x = [5];
@@ -13,7 +14,7 @@ export function widens(mk) {
       let x = 0;
       mk(x);
   }
-  return _at(x).call(x, 0);
+  return _at(_ref = x).call(_ref, 0);
 }
 export function keepsNarrow(mk) {
   let y = "cd";

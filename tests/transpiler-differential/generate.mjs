@@ -3857,9 +3857,9 @@ function * generateProxyGlobalSEReceiver() {
     + ' Object: { keys: box[(log.push(from === pureFrom, "x".at(0)), "value")] } }'
     + ' = (log.push("source"), globalThis.window?.self));'
     + ' return [from === pureFrom, typeof box.value]; } catch (error) { return [error.name, from]; } })()';
-  // Same native member-target boundary, with the optional-source probe and its passthrough base.
-  yield { ...snippet('proxy-global-se-receiver/native-target-guarded-member', partialGuard), strip: false };
-  yield { ...snippet('proxy-global-se-receiver/native-target-guarded-member-rigged', partialGuard, { rig: true }), strip: false };
+  // The native Object target stays native; the preceding Array binding must still be polyfilled.
+  yield { ...snippet('proxy-global-se-receiver/native-target-guarded-member', partialGuard), strip: true };
+  yield { ...snippet('proxy-global-se-receiver/native-target-guarded-member-rigged', partialGuard, { rig: true }), strip: true };
 }
 
 // --- Proxy-global HOP + pure constructor + no-meta-leaf terminal ---
@@ -15076,12 +15076,9 @@ function * generateOpenRealmPatternWrites() {
   }
 }
 
-// Effectful sibling reads await the common receiver-mirror order/repetition fix.
-// Quoted keys use the same data slots as identifier keys; keep each pending host enumerable.
+// Effectful native sibling reads keep their key order and repeat independently on every host.
 function * generateQuotedMirrorSiblingReads() {
-  const skipHosts = new Set(['decl', 'assign', 'catch', 'forof', 'objkey', 'param-expr', 'param-stmt']);
   for (const [host, wrap] of Object.entries(INNER_DEFAULT_FALLBACK_HOSTS)) {
-    if (skipHosts.has(host)) continue;
     const pattern = 'Array: { of }, [(log.push("key"), "with-dash")]: d, fc587Sibling: y, fc587Sibling: alias';
     const body = wrap(pattern).replace('READ', '[of(7)[0], y, alias]');
     const expr = '(() => { let reads = 0; const previous = Object.getOwnPropertyDescriptor(globalThis, "fc587Sibling");'
@@ -15739,6 +15736,553 @@ function * generateWrittenPatternReturnUnions() {
   };
 }
 
+// A computed key runs after the receiver value was selected, even when the key replaces
+// a source binding. Dispatch selection and the call's this value share that one receiver.
+function * generateComputedReceiverKeyCaptures() {
+  const receivers = [
+    ['identifier', 'arr'],
+    ['sequence-prefix', '(log.push("receiver"), arr)'],
+    ['array-literal', '[arr]'],
+    ['object-literal', '({ flat: Array.prototype.flat, 0: arr, length: 1 })'],
+    ['getter', 'box.rows'],
+  ];
+  const consumers = [
+    ['call', (receiver, key) => `${ receiver }[${ key }]()`],
+    ['optional-member-call', (receiver, key) => `${ receiver }?.[${ key }]()`],
+    ['optional-method-call', (receiver, key) => `${ receiver }[${ key }]?.()`],
+    ['optional-both-call', (receiver, key) => `${ receiver }?.[${ key }]?.()`],
+    ['sealed-optional-call', (receiver, key) => `(${ receiver }?.[${ key }])()`],
+  ];
+  for (const [receiverName, receiver] of receivers) for (const [consumerName, consume] of consumers) yield {
+    name: `computed-receiver-key-capture/${ receiverName }/${ consumerName }`,
+    code: `const log = []; let arr = [3, [1, 2]]; const other = [9, [8]];
+      const box = { get rows() { log.push("receiver"); return arr; } };
+      export const r = ${ consume(receiver, '(() => (log.push("key"), arr = other, "flat"))()') };
+      export const effects = log;`,
+    strip: true,
+  };
+  for (const [consumerName, consume] of consumers) yield {
+    name: `computed-receiver-key-capture/const-control/${ consumerName }`,
+    code: `const log = []; const arr = [3, [1, 2]];
+      export const r = ${ consume('arr', '(() => (log.push("key"), "flat"))()') };
+      export const effects = log;`,
+    strip: true,
+  };
+  for (const optional of [false, true]) yield {
+    name: `computed-receiver-key-capture/builtin-lookup/${ optional }`,
+    code: `const log = [];
+      export function read(input, replacement) {
+        let arr = input; const receiver = arr;
+        const value = arr${ optional ? '?.' : '' }[(() => (log.push("key"), arr = replacement, "flat"))()];
+        return value.call(receiver);
+      }
+      export const r = read([3, [1, 2]], [9, [8]]); export const effects = log;`,
+    strip: true,
+  };
+  for (const keyEffects of [false, true]) for (const spelling of ['computed', 'dot']) {
+    if (keyEffects && spelling === 'dot') continue;
+    for (const optional of [false, true]) for (const consumer of ['read', 'call', 'optional-call']) {
+      const call = consumer !== 'read';
+      const member = spelling === 'dot' ? `arr${ optional ? '?.' : '.' }flat`
+        : `arr${ optional ? '?.' : '' }[${ keyEffects ? '(() => (log.push("key"), arr = replacement, "flat"))()' : '"flat"' }]`;
+      yield {
+        name: `computed-receiver-key-capture/getter-lookup/${ keyEffects ? 'effectful-key' : `quiet-${ spelling }` }/${ optional }/${ consumer }`,
+        code: `const log = []; let replace;
+          const old = { tag: "old", get flat() { log.push("old-get"); replace(); return function () { log.push(this.tag); return this.tag; }; } };
+          const other = { tag: "other", get flat() { log.push("other-get"); return function () { log.push(this.tag); return this.tag; }; } };
+          export function read(input, replacement) {
+            let arr = input; replace = () => { arr = replacement; };
+            const value = ${ member }${ call ? consumer === 'optional-call' ? '?.()' : '()' : '' };
+            return ${ call ? 'value' : 'value.call(old)' };
+          }
+          export const r = read(old, other); export const effects = log;`,
+        strip: false,
+      };
+    }
+  }
+  for (const [consumerName, consume] of consumers) {
+    if (consumerName !== 'optional-member-call' && consumerName !== 'optional-both-call') continue;
+    yield {
+      name: `computed-receiver-key-capture/null-control/${ consumerName }`,
+      code: `const log = []; const arr = null;
+        export const r = ${ consume('arr', '(() => (log.push("key"), "flat"))()') };
+        export const effects = log;`,
+      strip: false,
+    };
+  }
+}
+
+// Synthetic slots preserve their receiver/key/read/write order in both mirror and capture hosts.
+function * generateMirrorReceiverReadOrder() {
+  for (const effects of [false, true]) {
+    const key = effects ? "[(log.push('key'), siblingValue = 2, 'Array')]" : 'Array';
+    for (const repeated of [false, true]) {
+      const pattern = `${ key }: { from }, fc551Sibling: first${ repeated ? ', fc551Sibling: second' : '' }`;
+      const row = snippet(`mirror-receiver-read-order/sibling/${ effects ? 'effect' : 'quiet' }/${ repeated ? 'repeated' : 'single' }`,
+        `(() => { let reads = 0; let siblingValue = 1;
+          const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc551Sibling');
+          restoreProperty(globalThis, 'fc551Sibling', { configurable: true,
+            get() { log.push('sibling'); reads++; return siblingValue + reads; } });
+          try { const { ${ pattern } } = globalThis;
+            return [from([7])[0], first${ repeated ? ', second' : '' }, reads];
+          } finally { restoreProperty(globalThis, 'fc551Sibling', previous); }
+        })()`);
+      yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+    }
+    const row = snippet(`mirror-receiver-read-order/assignment/${ effects ? 'effect' : 'quiet' }`,
+      `(() => { let from, of = 'old';
+        ({ of, ${ effects ? "[(log.push(['key', typeof of]), 'from')]" : 'from' }: from }
+          = ${ effects ? "(log.push(['rhs', of]), Array)" : 'Array' });
+        return [of(7)[0], from([8])[0]]; })()`);
+    yield { ...row, strip: true };
+  }
+  for (const open of [false, true]) for (const [shape, pattern, safe] of [
+    ['native-before-key', "fc551Sibling: sibling, [(log.push('key'), 'Array')]: { of }", true],
+    ['descendant-before-native', "Array: { [(log.push('key'), 'of')]: of }, fc551Sibling: sibling", false],
+    ['repeated-native', 'Array: { of }, fc551Sibling: sibling, fc551Sibling: again', false],
+  ]) {
+    yield {
+      name: `mirror-receiver-read-order/default/${ shape }/${ open ? 'open' : 'closed' }`,
+      code: `${ RESTORE_IMPORT }
+const log = [];
+let reads = 0;
+const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc551Sibling');
+restoreProperty(globalThis, 'fc551Sibling', { configurable: true,
+  get() { log.push('get'); return ++reads; } });
+${ open ? 'export ' : '' }function read([{ ${ pattern } } = globalThis]) {
+  return [of(7)[0], sibling${ shape === 'repeated-native' ? ', again' : '' }];
+}
+export const r = (() => { try { return read([]); }
+  finally { restoreProperty(globalThis, 'fc551Sibling', previous); } })();
+export const effects = log;`,
+      // Open callers cannot move unsafe patterns into the body; their native fallback is deliberate.
+      strip: !open || safe,
+    };
+  }
+  yield {
+    ...snippet('mirror-receiver-read-order/default/opaque-iterator', `(() => {
+      const iterable = { [Symbol.iterator]() {
+        log.push('iterator');
+        return { next() { log.push('next'); return { done: false, value: undefined }; },
+          return() { log.push('close'); return {}; } };
+      } };
+      const [{ Array: { of }, [(log.push('key'), 'missing')]: value } = globalThis] = iterable;
+      return [of(7)[0], value];
+    })()`),
+    strip: false,
+  };
+  for (const supplied of [false, true]) {
+    yield {
+      ...snippet(`mirror-receiver-read-order/default/known-static/${ supplied ? 'supplied' : 'empty' }`, `(() => {
+        const choose = log.length ${ supplied ? '===' : '!==' } 0;
+        function select() { return { k: choose ? Array : undefined }; }
+        const { k: { of, [(log.push('key'), 'missing')]: value } = Array } = select();
+        return [of(3), value];
+      })()`),
+      // A selecting factory's supplied static is outside pure's existing receiver proof.
+      strip: !supplied,
+    };
+  }
+  for (const guarded of [false, true]) {
+    const row = snippet(`mirror-receiver-read-order/partial-assignment/${ guarded ? 'guarded' : 'direct' }`, `(() => {
+      const pureFrom = Array.from;
+      const nativeObject = Object;
+      const previous = Object.getOwnPropertyDescriptor(globalThis, 'Object');
+      const box = {};
+      let from = 'old';
+      let observing = false;
+      restoreProperty(globalThis, 'Object', { configurable: true,
+        get() { if (observing) log.push(['native', from === pureFrom]); return nativeObject; } });
+      try {
+        observing = true;
+        ({ Array: { [(log.push('key'), 'from')]: from },
+          Object: { keys: box[(log.push('target', from === pureFrom), 'value')] } }
+          = (log.push('source'), ${ guarded ? 'globalThis.window?.self' : 'globalThis' }));
+        return [from([7])[0], box.value({ x: 1 })[0]];
+      } finally {
+        observing = false;
+        restoreProperty(globalThis, 'Object', previous);
+      }
+    })()`, { rig: true });
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+}
+
+// Adjacent receiver reuse stays inside a closed execution frame; resumed or escaped
+// writers can replace the source binding while a method getter selects its callee.
+function * generateAdjacentReceiverExecutionFrames() {
+  const ownMethod = `const log = []; const other = { tag: "other" };
+    const first = { tag: "held", get at() { log.push("get");
+      return function () { log.push(this.tag); return this.tag; }; } };`;
+  const cases = [
+    [
+      'historical-function-read',
+      `const log = []; let receiver = ["held"];
+      function read() { log.push("read"); return receiver.at(0); }
+      const before = read(); receiver = ["other"];
+      export const r = [before, read()]; export const effects = log;`,
+      true,
+    ],
+    [
+      'historical-default-read',
+      `const log = []; let receiver = ["held"];
+      function read(value = (log.push("default"), receiver.at(0))) { return value; }
+      const before = read(); receiver = ["other"];
+      export const r = [before, read()]; export const effects = log;`,
+      true,
+    ],
+    [
+      'historical-field-read',
+      `const log = []; let receiver = ["held"];
+      class Reader { value = (log.push("field"), receiver.at(0)); }
+      const before = new Reader().value; receiver = ["other"];
+      export const r = [before, new Reader().value]; export const effects = log;`,
+      true,
+    ],
+    [
+      'closed-function-writer',
+      `${ ownMethod }
+      export const r = (function () { let receiver = first;
+        const value = receiver.at(0); receiver = other; return [value, receiver.tag]; })();
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'closed-arrow-writer',
+      `${ ownMethod }
+      export const r = (() => { let receiver = first;
+        const value = receiver.at(0); receiver = other; return [value, receiver.tag]; })();
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'closed-tagged-writer',
+      `${ ownMethod }
+      export const r = (function () { let receiver = first;
+        const value = receiver.at(0); receiver = other; return [value, receiver.tag]; })\`\`;
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'async-before-await-writer',
+      `${ ownMethod }
+      export const r = await (async function () { let receiver = first;
+        const value = receiver.at(0); receiver = other; return [value, receiver.tag]; })();
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'resumed-generator-writer',
+      `const log = []; const other = ["other"];
+      let cursor, changed;
+      const first = ["held"];
+      Object.defineProperty(first, "at", { get() { log.push("get"); cursor.next();
+        return function (index) { log.push(this[index]); return this[index]; }; } });
+      function * owner() { let receiver = first;
+        yield () => { const value = receiver.at?.(0); return [value, receiver[0]]; };
+        log.push("write"); receiver = other; changed = receiver[0]; }
+      cursor = owner(); const read = cursor.next().value;
+      export const r = [read(), changed]; export const effects = log;`,
+      false,
+    ],
+    [
+      'escaped-named-iife-writer',
+      `const log = []; const other = { tag: "other" };
+      let stored, receiver;
+      const first = { tag: "held", get at() { log.push("get"); stored(true);
+        return function () { log.push(this.tag); return this.tag; }; } };
+      receiver = first;
+      export const r = (function owner(write) {
+        if (write) { log.push("write"); receiver = other; return; }
+        stored = owner; const value = receiver.at?.(0);
+        receiver = other; return [value, receiver.tag]; })(false);
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'escaped-constructed-owner-writer',
+      `const log = []; const other = { tag: "other" };
+      let instance, receiver;
+      const first = { tag: "held", get at() { log.push("get"); new instance.constructor(true);
+        return function () { log.push(this.tag); return this.tag; }; } };
+      receiver = first;
+      function Owner(write) {
+        if (write) { log.push("write"); receiver = other; return; }
+        instance = this; const value = receiver.at?.(0);
+        receiver = other; this.value = [value, receiver.tag]; }
+      export const r = new Owner(false).value; export const effects = log;`,
+      false,
+    ],
+    [
+      'primitive-direct-writer',
+      `const log = []; let receiver = "held";
+      const before = receiver.at(0); receiver = "other";
+      export const r = [before, receiver.at(0)]; export const effects = log;`,
+      true,
+    ],
+    // A supplied runtime parameter key remains native; the direct sibling still arms global.
+    [
+      'primitive-default-key-writer',
+      `const log = [];
+      function read(key = "at") { let receiver = "held";
+        const before = receiver[key](0); receiver = "other"; return [before, receiver.at(0)]; }
+      export const r = read(); export const effects = log;`,
+      false,
+    ],
+    [
+      'primitive-parameter-default-key',
+      `const log = [];
+      function read({ ["held".at(0)]: value } = { h: 7 }) { return value; }
+      export const r = read(); export const effects = log;`,
+      true,
+    ],
+    [
+      'computed-optional-method-rebind',
+      `${ ownMethod } let receiver = first;
+      export const r = receiver[(log.push("key"), receiver = other, "at")]?.(0);
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'computed-double-optional-rebind',
+      `${ ownMethod } let receiver = first;
+      export const r = receiver?.[(log.push("key"), receiver = other, "at")]?.(0);
+      export const effects = log;`,
+      false,
+    ],
+    [
+      'quiet-mutable-optional-control',
+      `${ ownMethod } let receiver = first;
+      const before = receiver.at?.(0); receiver = other;
+      export const r = [before, receiver.tag]; export const effects = log;`,
+      false,
+    ],
+    [
+      'getter-direct-binding-write',
+      `const log = []; const other = { tag: "other" };
+      let receiver;
+      const first = { tag: "held", get at() { log.push("get"); receiver = other;
+        return function () { log.push(this.tag); return this.tag; }; } };
+      receiver = first; const value = receiver.at(0);
+      export const r = [value, receiver.tag]; export const effects = log;`,
+      false,
+    ],
+  ];
+  for (const [name, code, strip] of cases) yield { name: `adjacent-receiver-execution-frame/${ name }`, code, strip };
+}
+
+// Type-only receiver wrappers preserve the same scoped reuse proof as their runtime value.
+function * generateTransparentTsReadonlyReceivers() {
+  const wrappers = [
+    ['as', expression => `(${ expression } as string[])`],
+    ['satisfies', expression => `(${ expression } satisfies string[])`],
+    ['non-null', expression => `(${ expression }!)`],
+  ];
+  for (const [wrapper, wrap] of wrappers) {
+    const ownMethod = 'const first = ["held"], other = ["other"];';
+    function getter(action) {
+      return `Object.defineProperty(first, "at", { get() {
+      log.push("get"); ${ action }
+      return function (index) { log.push(this[index]); return this[index]; }; } });`;
+    }
+    const cases = [
+      [
+        'const',
+        `const log = []; const receiver = ["held"];
+        export const r = ${ wrap('receiver') }.at?.(0); export const effects = log;`,
+        true,
+      ],
+      [
+        'local-parameter',
+        `const log = [];
+        function read(receiver: string[]) { return ${ wrap('receiver') }.at?.(0); }
+        export const r = read(["held"]); export const effects = log;`,
+        true,
+      ],
+      [
+        'this',
+        `const log = [];
+        function read(this: string[]) { return ${ wrap('this') }.at?.(0); }
+        export const r = read.call(["held"]); export const effects = log;`,
+        true,
+      ],
+      [
+        'rotating-unbound',
+        `const log = []; ${ ownMethod }
+        ${ getter('') }
+        let reads = 0;
+        const previous = Object.getOwnPropertyDescriptor(globalThis, "wrappedReceiver");
+        Object.defineProperty(globalThis, "wrappedReceiver", { configurable: true,
+          get() { log.push("receiver"); return reads++ ? other : first; } });
+        export const r = (() => { try { return ${ wrap('wrappedReceiver') }.at?.(0); }
+          finally { if (previous) Object.defineProperty(globalThis, "wrappedReceiver", previous);
+            else delete globalThis.wrappedReceiver; } })();
+        export const effects = log;`,
+        false,
+      ],
+      [
+        'computed-key-rebind',
+        `const log = []; ${ ownMethod }
+        ${ getter('') }
+        let receiver = first;
+        const value = ${ wrap('receiver') }[(log.push("key"), receiver = other, "at")]?.(0);
+        export const r = [value, receiver[0]]; export const effects = log;`,
+        false,
+      ],
+      [
+        'getter-deferred-writer',
+        `const log = []; ${ ownMethod }
+        let receiver = first;
+        function write() { log.push("write"); receiver = other; }
+        ${ getter('write();') }
+        const value = ${ wrap('receiver') }.at?.(0);
+        export const r = [value, receiver[0]]; export const effects = log;`,
+        false,
+      ],
+    ];
+    for (const [shape, code, strip] of cases) yield { name: `transparent-ts-readonly-receivers/${ wrapper }/${ shape }`, code, ts: true, strip };
+  }
+}
+
+function * generateClosedReceiverSnapshots() {
+  for (const [shape, body] of [
+    ['array-slot', 'const holder = [["held"]]; return holder[0].at(0);'],
+    ['object-slot', 'const holder = { rows: ["held"] }; return holder.rows.at(0);'],
+    ['numeric-object-slot', 'const holder = { 0: ["held"] }; return holder[0].at(0);'],
+    [
+      'constructor-guard-store',
+      `const later = { Map: "later" };
+      let realm = { get Map() { log.push("get"); realm = later; return "held"; } };
+      const absent = null; absent?.[realm = globalThis];
+      const { w: { Map: selected } } = { w: realm }; return [selected, realm === later];`,
+    ],
+    ['unknown-data-key', 'const key = log.length ? "other" : "rows"; const holder = { rows: ["held"], [key]: ["selected"] }; return holder.rows.at(0);'],
+    ['spread-data-key', 'const holder = { rows: ["held"], ...{ rows: ["selected"] } }; return holder.rows.at(0);'],
+    ['nested-slot', 'const holder = [[["held"]]]; return holder[0][0].at(0);'],
+    ['completed-slot-write', 'const holder = [[]]; holder[0] = ["held"]; return holder[0].at(0);'],
+    ['completed-holder-write', 'let holder = [[]]; holder = [["held"]]; return holder[0].at(0);'],
+    [
+      'accessor-slot',
+      `const held = ["held"], other = ["other"], holder = {};
+      let reads = 0;
+      Object.defineProperty(holder, "rows", { get() { log.push("slot"); return reads++ ? other : held; } });
+      return [holder.rows.at(0), reads];`,
+    ],
+    [
+      'method-writes-slot',
+      `const held = ["held"], other = ["other"], holder = [held];
+      Object.defineProperty(held, "at", { get() { log.push("method"); holder[0] = other;
+        return function (index) { log.push(this[index]); return this[index]; }; } });
+      return [holder[0].at(0), holder[0][0]];`,
+    ],
+    ['source-store', 'let saved; const result = (saved = ["held"]).at(0); return [result, saved[0]];'],
+    [
+      'source-store-writer',
+      `let saved; const held = ["held"], other = ["other"];
+      Object.defineProperty(held, "at", { get() { log.push("method"); saved = other;
+        return function (index) { log.push(this[index]); return this[index]; }; } });
+      return [(saved = held).at(0), saved[0]];`,
+    ],
+    [
+      'outer-store-reentry',
+      `let saved, reentered = false; const held = ["held"], other = ["other"];
+      Object.defineProperty(held, "at", { get() { log.push("method");
+        if (!reentered) { reentered = true; log.push(read(true)); }
+        return function (index) { log.push(this[index]); return this[index]; }; } });
+      function read(nested = false) { return (saved = nested ? other : held).at(0); }
+      return [read(), saved[0]];`,
+    ],
+    [
+      'native-sibling',
+      `const [{ at: method }, tail] = [["held"], 2];
+      return [method.call(["receiver"], 0), tail];`,
+    ],
+    [
+      'forwarded-getters',
+      `const holder = { get w() { log.push("w"); return Object; },
+        get y() { log.push("y"); return ["held"]; } };
+      const [{ w: { values }, y: { at } }] = [0, [holder]][1];
+      return [values({ first: 1 }), at.call(["receiver"], 0)];`,
+    ],
+    [
+      'observed-sibling',
+      `const holder = { get at() { log.push("method");
+        try { log.push(tail); } catch (error) { log.push(error.name); }
+        return function () { return "held"; }; } };
+      const [{ at: method }, tail] = [holder, 2]; return [method(), tail];`,
+    ],
+  ]) yield { ...snippet(`closed-receiver-snapshots/${ shape }`, `(() => { ${ body } })()`), strip: true };
+}
+
+// Coercing a private function can invoke it through a conversion hook during receiver lookup.
+// Non-coercing controls keep the same writer private; call hosts own separate activation frames.
+function * generateCoercingFunctionReceivers() {
+  for (const [operator, expression] of [
+    ['equality', 'write == 1'],
+    ['arithmetic', 'write + 0'],
+    ['relational', 'write < 2'],
+    // eslint-disable-next-line no-template-curly-in-string -- the generated source contains a template
+    ['template', '`${ write }`'],
+    ['key', '({ [write]: 1 })'],
+    ['void', 'void write'],
+    ['identity', 'write === 1'],
+    ['null', 'write == null'],
+    ['undefined', 'write != void 0'],
+  ]) for (const [host, call] of [
+    ['plain', 'rows.at(0)'],
+    ['optional', 'rows?.at?.(0)'],
+    ['parameter', '(function read(value = rows.at(0)) { return value; })()'],
+    ['field', '(new class Reader { value = rows.at(0); }()).value'],
+  ]) {
+    const row = snippet(`coercing-function-receivers/${ operator }/${ host }`, `(() => {
+      const previous = Object.getOwnPropertyDescriptor(Function.prototype, Symbol.toPrimitive);
+      const held = ['held'], other = ['other']; let rows = held;
+      function write() { log.push('write'); rows = other; }
+      Object.defineProperty(Function.prototype, Symbol.toPrimitive, {
+        configurable: true, value() { log.push('coerce'); this(); return 1; }
+      });
+      Object.defineProperty(held, 'at', {
+        get() { log.push('get'); void (${ expression }); return function (index) { return this[index]; }; }
+      });
+      try { return [${ call }, rows === other]; }
+      finally { restoreProperty(Function.prototype, Symbol.toPrimitive, previous); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: false };
+  }
+}
+
+// A conversion hook is an unspelled caller with arbitrary arguments. The opposite receiver
+// family makes a default-only narrow observable when that family's native method is absent.
+function * generateCoercingParameterCallers() {
+  for (const [operator, expression] of [
+    ['equality', 'read == 1'],
+    ['arithmetic', 'read + 0'],
+    ['relational', 'read < 2'],
+    // eslint-disable-next-line no-template-curly-in-string -- the generated source contains a template
+    ['template', '`${ read }`'],
+    ['key', '({ [read]: 1 })'],
+    ['void', 'void read'],
+    ['identity', 'read === 1'],
+    ['null', 'read == null'],
+    ['undefined', 'read != void 0'],
+  ]) for (const [family, fallback, supplied] of [
+    ['array', '[1]', '"foreign"'],
+    ['string', '"abc"', '[9]'],
+  ]) {
+    const row = snippet(`coercing-parameter-callers/${ operator }/${ family }`, `(() => {
+      const previous = Object.getOwnPropertyDescriptor(Function.prototype, Symbol.toPrimitive);
+      let observed;
+      function read(value = ${ fallback }) { log.push('read'); return value.at(0); }
+      Object.defineProperty(Function.prototype, Symbol.toPrimitive, {
+        configurable: true, value() { log.push('coerce'); observed = this(${ supplied }); return 1; }
+      });
+      try { void (${ expression }); return [observed, read()]; }
+      finally { restoreProperty(Function.prototype, Symbol.toPrimitive, previous); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -16014,4 +16558,11 @@ export function * generate() {
   yield * generateContainerSlotReaders();
   yield * generateWrittenFunctionCallUnions();
   yield * generateWrittenPatternReturnUnions();
+  yield * generateComputedReceiverKeyCaptures();
+  yield * generateMirrorReceiverReadOrder();
+  yield * generateAdjacentReceiverExecutionFrames();
+  yield * generateTransparentTsReadonlyReceivers();
+  yield * generateClosedReceiverSnapshots();
+  yield * generateCoercingFunctionReceivers();
+  yield * generateCoercingParameterCallers();
 }

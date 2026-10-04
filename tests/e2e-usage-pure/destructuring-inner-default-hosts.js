@@ -39,6 +39,11 @@ export function readRest(source) {
   return [Ctor, of, rest];
 }
 
+const openMirrorEvents = [];
+export function readNativeBeforeKey([{ fc587Sibling: sibling, [(openMirrorEvents.push('key'), 'Array')]: { of } } = globalThis]) {
+  return [of, sibling];
+}
+
 QUnit.test('inner default: an assignment mirrors statics beside a quoted key', assert => {
   const result = withPatchedDefaults(() => {
     let Ctor, dash, of;
@@ -133,8 +138,7 @@ QUnit.test('inner default: an explicit undefined receiver takes the mirrored def
   assert.deepEqual(result, [[1], [2], [3]]);
 });
 
-// Pending the common receiver-mirror read-order fix, shared with identifier keys.
-QUnit.skip('inner default: a symbol-label getter follows its effectful key', assert => {
+QUnit.test('inner default: a symbol-label getter follows its effectful key', assert => {
   const events = [];
   const row = [0, 1, 2];
   Object.defineProperty(row, '[@@iterator]', {
@@ -151,7 +155,7 @@ QUnit.skip('inner default: a symbol-label getter follows its effectful key', ass
   assert.deepEqual(events, ['key', 'tag']);
 });
 
-QUnit.skip('inner default: an aliased symbol-label getter follows its effectful key', assert => {
+QUnit.test('inner default: an aliased symbol-label getter follows its effectful key', assert => {
   const events = [];
   const row = [0, 1, 2];
   const { iterator: symbolKey } = Symbol;
@@ -169,8 +173,24 @@ QUnit.skip('inner default: an aliased symbol-label getter follows its effectful 
   assert.deepEqual(events, ['key', 'tag']);
 });
 
-// Pending the common receiver-mirror read-order fix, shared with identifier keys.
-QUnit.skip('inner default: quoted passthrough getters run after their key and preceding write', assert => {
+QUnit.test('inner default: a symbol claim evaluates its own computed key once', assert => {
+  const events = [];
+  const row = [0, 1, 2];
+  Object.defineProperty(row, '[@@iterator]', {
+    get() {
+      events.push('tag');
+      return 7;
+    },
+  });
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the row owns this test property
+  function read({ [(events.push('iter-key'), Symbol.iterator)]: iter, [(events.push('key'), '[@@iterator]')]: tag, at } = row) {
+    return [tag, at.call(row, -1), iter.call(row).next().value];
+  }
+  assert.deepEqual(read(), [7, 2, 0]);
+  assert.deepEqual(events, ['iter-key', 'key', 'tag']);
+});
+
+QUnit.test('inner default: quoted passthrough getters run after their key and preceding write', assert => {
   let Ctor = 0;
   let dash;
   let of;
@@ -199,8 +219,7 @@ QUnit.test('inner default: a prototype key is an own mirror property', assert =>
   assert.deepEqual(of(13), [13]);
 });
 
-// Pending the common receiver-mirror read-order and repeated-read fix.
-QUnit.skip('inner default: a quoted mirror preserves repeated identifier getters and key order', assert => {
+QUnit.test('inner default: a quoted mirror preserves repeated identifier getters and key order', assert => {
   const events = [];
   let reads = 0;
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc587Sibling');
@@ -223,6 +242,110 @@ QUnit.skip('inner default: a quoted mirror preserves repeated identifier getters
     restoreProperty(globalThis, 'fc587Sibling', previous);
     restoreProperty(globalThis, 'fc587Receiver', previousMarker);
   }
+});
+
+QUnit.test('inner default: ordered native reads retain supplied getters and defaults', assert => {
+  const events = [];
+  let reads = 0;
+  const supplied = {
+    get Array() {
+      events.push('array');
+      return {
+        get of() {
+          events.push('of');
+          return undefined;
+        },
+      };
+    },
+    get fc587Sibling() {
+      events.push(`sibling${ ++reads }`);
+      return reads;
+    },
+    'with-dash': 13,
+  };
+  function read(source) {
+    const [{ Array: { of = 'own-default' }, [(events.push('key'), 'with-dash')]: dash, fc587Sibling: first, fc587Sibling: second } = globalThis] = source;
+    return [of, dash, first, second];
+  }
+  assert.deepEqual(read([supplied]), ['own-default', 13, 1, 2]);
+  assert.deepEqual(events, ['array', 'of', 'key', 'sibling1', 'sibling2']);
+  events.length = 0;
+  assert.throws(() => read([null]), TypeError);
+  assert.deepEqual(events, []);
+});
+
+QUnit.test('inner default: a bodyless loop captures its receiver for each iteration', assert => {
+  const events = [];
+  const results = [];
+  let reads = 0;
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc587Sibling');
+  restoreProperty(globalThis, 'fc587Sibling', {
+    configurable: true,
+    get() {
+      events.push(++reads);
+      return reads;
+    },
+  });
+  try {
+    for (const [
+      { Array: { of }, [(events.push('key'), 'with-dash')]: dash, fc587Sibling: first, fc587Sibling: second } = globalThis,
+    ] of [[], []]) results.push([of(3), dash, first, second]);
+    assert.deepEqual(results, [[[3], undefined, 1, 2], [[3], undefined, 3, 4]]);
+    assert.deepEqual(events, ['key', 1, 2, 'key', 3, 4]);
+  } finally {
+    restoreProperty(globalThis, 'fc587Sibling', previous);
+  }
+});
+
+QUnit.test('inner default: a descendant key effect precedes the next native read', assert => {
+  const events = [];
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc587Sibling');
+  restoreProperty(globalThis, 'fc587Sibling', {
+    configurable: true,
+    get() {
+      events.push('sibling');
+      return 17;
+    },
+  });
+  try {
+    const [{ Array: { [(events.push('key'), 'of')]: of }, fc587Sibling: sibling } = globalThis] = [];
+    assert.deepEqual([of(3), sibling], [[3], 17]);
+    assert.deepEqual(events, ['key', 'sibling']);
+  } finally {
+    restoreProperty(globalThis, 'fc587Sibling', previous);
+  }
+});
+
+QUnit.test('inner default: an open parameter keeps the mirror before a later key effect', assert => {
+  openMirrorEvents.length = 0;
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc587Sibling');
+  restoreProperty(globalThis, 'fc587Sibling', {
+    configurable: true,
+    get() {
+      openMirrorEvents.push('sibling');
+      return 17;
+    },
+  });
+  try {
+    const [of, sibling] = readNativeBeforeKey([]);
+    assert.deepEqual([of(3), sibling], [[3], 17]);
+    assert.deepEqual(openMirrorEvents, ['sibling', 'key']);
+  } finally {
+    restoreProperty(globalThis, 'fc587Sibling', previous);
+  }
+});
+
+QUnit.test('inner default: an empty returned slot keeps its default static claim', assert => {
+  const events = [];
+  const choose = events.length !== 0;
+  function select() {
+    return { k: choose ? Array : undefined };
+  }
+  // eslint-disable-next-line es/no-nonstandard-array-properties -- the native passthrough is the tested sibling
+  const { k: { of, [(events.push('key'), 'missing')]: value } = Array } = select();
+  assert.deepEqual(of(3), [3]);
+  assert.same(value, undefined);
+  assert.deepEqual(events, ['key']);
 });
 
 QUnit.test('inner default: bracket-shaped string keys remain literal and preserve defaults', assert => {

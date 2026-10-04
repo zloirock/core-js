@@ -20,7 +20,7 @@ null == (_ref3 = _flatMaybeArray(arr)?.call(arr)) || null == (_ref4 = (eff2(), _
 
 // inner computed-key SE + hop-key SE replay in native order: the receiver memo hoists
 // AHEAD of the key effects even under the inner chain's guard
-null == (_ref5 = (k1(), _flatMaybeArray(arr))) || null == (_ref6 = (
+null == (_ref5 = (arr, k1(), _flatMaybeArray(arr))) || null == (_ref6 = (
 	_ref7 = _ref5.call(arr),
 	k2(),
 	_findLastMaybeArray(_ref7).call(_ref7, q)

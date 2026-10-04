@@ -9,17 +9,17 @@ const nb = {
   y: [1, 2]
 };
 const nested = function () {
-  const [[_ref]] = [[nb]];
-  const at = _at(_ref.y);
+  const [[,]] = [[nb]];
+  const at = _at(nb.y);
   return at;
 }();
 // ... and the ORDER questions read every level too: a neighbour after the slot at the INNER level
 // is evaluated after the slot just like an outer one, so the extraction stays behind the residual
 const log = [];
 const besideAnInnerEffect = function () {
-  const [[_ref2, _ref3]] = [[nb, _pushMaybeArray(log).call(log, 'n')]];
-  const at = _at(_ref2.y);
-  const zn = _ref3;
+  const [[, _ref]] = [[nb, _pushMaybeArray(log).call(log, 'n')]];
+  const at = _at(nb.y);
+  const zn = _ref;
   return [at, zn, _joinMaybeArray(log).call(log)];
 }();
 export { nested, besideAnInnerEffect };

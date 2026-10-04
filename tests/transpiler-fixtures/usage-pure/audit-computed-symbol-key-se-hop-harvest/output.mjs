@@ -9,15 +9,15 @@ let a = 0;
 let b = 0;
 const log = [];
 const arr = [1, 2];
-a++, _getIteratorMethod(arr);
-b++, _getIteratorMethod(arr);
+arr, a++, _getIteratorMethod(arr);
+arr, b++, _getIteratorMethod(arr);
 // an SE-bearing call at the Symbol chain ROOT evaluates BEFORE the buried hop-key effect - the
 // rescued call must interleave ahead of the harvested key SE, not append after it
-(() => (_pushMaybeArray(log).call(log, 'call'), _globalThis))(), _pushMaybeArray(log).call(log, 'key'), _getIteratorMethod(arr);
+arr, (() => (_pushMaybeArray(log).call(log, 'call'), _globalThis))(), _pushMaybeArray(log).call(log, 'key'), _getIteratorMethod(arr);
 // same call-rooted receiver without hop-key effects - the root call alone still re-emits
-(() => (_pushMaybeArray(log).call(log, 'only'), _globalThis))(), _getIteratorMethod(arr);
+arr, (() => (_pushMaybeArray(log).call(log, 'only'), _globalThis))(), _getIteratorMethod(arr);
 // full order across the chain: root call, receiver hop key, inner computed key
-(() => (_pushMaybeArray(log).call(log, 'deep'), _globalThis))(), _pushMaybeArray(log).call(log, 'deep-key'), _pushMaybeArray(log).call(log, 'deep-ikey'), _getIteratorMethod(arr);
+arr, (() => (_pushMaybeArray(log).call(log, 'deep'), _globalThis))(), _pushMaybeArray(log).call(log, 'deep-key'), _pushMaybeArray(log).call(log, 'deep-ikey'), _getIteratorMethod(arr);
 a;
 b;
 log;

@@ -1,6 +1,9 @@
+import { traverse } from 'estree-toolkit';
 import {
   extractIndirectRequireSEPrefix,
+  peelSequenceTail,
   programPrologueEndIndex,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
@@ -21,15 +24,37 @@ function buildImportNodes({ modules, importStyle, pkg, absoluteImports }) {
   });
 }
 
+// Bind only removed entry statements carrying a comma prefix before body surgery. Plain entry
+// imports and direct requires need no scoped walk; decisions about observable reads stay shared.
+export function extractEntrySideEffectPrefixes(program, removed, adapter) {
+  const candidates = new Set([...removed].filter(node => {
+    const expression = unwrapRuntimeExpr(node.expression);
+    const call = peelSequenceTail(expression, { step: unwrapRuntimeExpr });
+    return expression?.type === 'SequenceExpression'
+      || unwrapRuntimeExpr(call?.callee)?.type === 'SequenceExpression';
+  }));
+  const prefixes = new Map();
+  if (!candidates.size) return prefixes;
+  traverse(program, {
+    $: { scope: true },
+    ExpressionStatement(path) {
+      if (!candidates.has(path.node)) return;
+      prefixes.set(path.node, extractIndirectRequireSEPrefix(path.node, { scope: path.scope, adapter, path }));
+    },
+  });
+  return prefixes;
+}
+
 // anchored after the CURRENT prologue's end as a body INDEX
 export function injectImportStatements({ program, modules, importStyle, pkg, absoluteImports }) {
   const prologueEnd = programPrologueEndIndex(program.body);
   program.body.splice(prologueEnd, 0, ...buildImportNodes({ modules, importStyle, pkg, absoluteImports }));
 }
 
-export default function applyEntryProgram({ program, plan, modules, importStyle, pkg, absoluteImports }) {
+export default function applyEntryProgram({ program, plan, modules, importStyle, pkg, absoluteImports, adapter }) {
   const removed = new Set(plan.toRemove);
   const nooped = new Set(plan.toReplaceWithNoop);
+  const prefixes = extractEntrySideEffectPrefixes(program, removed.union(nooped), adapter);
   // the import anchor is computed on the ORIGINAL body: a removal can pull a
   // directive-shaped string up against the prologue, and an anchor computed on the rebuilt
   // body would slide past it - promoting it into a directive, exactly what the disposition
@@ -40,15 +65,15 @@ export default function applyEntryProgram({ program, plan, modules, importStyle,
   for (let idx = 0; idx < program.body.length; idx++) {
     if (idx === prologueEnd) body.push(anchor);
     const node = program.body[idx];
+    if (prefixes.get(node)?.length) {
+      for (const element of prefixes.get(node)) body.push(expressionStatement(element));
+      continue;
+    }
     if (nooped.has(node)) {
       body.push(expressionStatement({ type: 'Literal', value: 0, raw: '0' }));
       continue;
     }
-    if (!removed.has(node)) {
-      body.push(node);
-      continue;
-    }
-    for (const element of extractIndirectRequireSEPrefix(node)) body.push(expressionStatement(element));
+    if (!removed.has(node)) body.push(node);
   }
   if (prologueEnd === program.body.length) body.push(anchor);
   const anchorIndex = body.indexOf(anchor);

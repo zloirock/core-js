@@ -1,6 +1,5 @@
-// the deoptionalize-needle comment skip must terminate cleanly when a `//` line comment
-// runs to EOF without a trailing newline. the indexOf walk for newline returns -1 in
-// that case and the helper returns src.length so `?.` classification falls through.
+// Line comments between optional tokens and member names end at newlines.
+// Both calls must remain recognizable across the comment.
 // distinct methods on each line: at / endsWith
 const a = arr?. // hint at
 at(0);

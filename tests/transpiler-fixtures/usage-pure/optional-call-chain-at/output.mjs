@@ -1,3 +1,3 @@
 import _at from "@core-js/pure/actual/instance/at";
-var _ref;
-a == null ? void 0 : _at(_ref = a()).call(_ref, 0);
+var _ref, _ref2;
+null == (_ref = a) ? void 0 : _at(_ref2 = _ref()).call(_ref2, 0);

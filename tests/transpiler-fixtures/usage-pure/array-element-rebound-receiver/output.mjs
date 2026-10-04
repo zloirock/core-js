@@ -7,8 +7,8 @@ export function read(first, second) {
   const earlier = first(() => {
     later = replacement();
   });
-  const [_ref, _ref2] = [earlier, later];
-  const at = _at(_ref);
-  const includes = _includes(_ref2);
+  const [, _ref] = [earlier, later];
+  const at = _at(earlier);
+  const includes = _includes(_ref);
   return [at, includes];
 }

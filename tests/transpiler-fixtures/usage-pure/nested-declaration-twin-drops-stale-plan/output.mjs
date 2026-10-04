@@ -6,10 +6,7 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 for (const row of [{
   w: Array
 }]) {
-  const {
-      w: _ref
-    } = row,
-    name = _nameMaybeFunction(_ref),
+  const name = _nameMaybeFunction(row.w),
     from = _Array$from;
   use(name, from);
 }

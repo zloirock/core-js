@@ -8,6 +8,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/entries.js';
 import {
   isKnownGlobalName,
+  isSourcedSymbolIteratorMeta,
   KNOWN_FUNCTION_GLOBALS,
   KNOWN_NAMESPACE_GLOBALS,
   staticReceiverHint,
@@ -39,7 +40,6 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import {
   computedPropKeyHostsMachinery,
-  isSourcedSymbolIteratorMeta,
   landRunOnDeepestBackedSpan,
   planClaimlessCallRootedNav,
   proxyRunLandingPure,

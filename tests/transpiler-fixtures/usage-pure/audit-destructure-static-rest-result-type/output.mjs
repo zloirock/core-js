@@ -4,12 +4,11 @@ import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-with
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
-const _ref = Array,
-  from = _Array$from,
+const from = _Array$from,
   {
     from: _unused,
     ...rest
-  } = _ref;
+  } = Array;
 const arr = from('hi');
 _atMaybeArray(arr).call(arr, -1);
 _findLastMaybeArray(arr).call(arr, p => p);

@@ -3,4 +3,4 @@ import _getIterator from "@core-js/pure/actual/get-iterator";
 // side-effect prefix. native evaluates the receiver before the computed key, so `first()`
 // (receiver) and `third()` (key) must each run exactly once, in source order, ahead of the
 // get-iterator call - the receiver is peeled to its tail and both prefixes re-emit around it.
-for (const x of (first(), third(), _getIterator(arr))) sink(x);
+for (const x of (first(), arr, third(), _getIterator(arr))) sink(x);

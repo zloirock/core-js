@@ -6,7 +6,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 const log = [];
 const out = [];
 for (const e of [Array]) {
-  const [_ref] = [e];
+  const [{}] = [e];
   const of = (_pushMaybeArray(log).call(log, 'k'), _Array$of);
   const from = _Array$from;
   _pushMaybeArray(out).call(out, of, from);

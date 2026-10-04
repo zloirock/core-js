@@ -12,35 +12,37 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref4, _ref5, _ref7, _ref8;
+var _ref2, _ref3;
 // Kept proxy stores retain the value and nullish guard observed by their consumers.
 // These hosts exercise nested stores, defaults, class members, async bodies and
 // computed keys. A stored terminal probe must not become an always-defined realm
 // value merely because another proxy hop follows the store.
 let n;
-export const nestedKeptRoot = null == (_ref = n = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
+export const nestedKeptRoot = null == (n = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(n.Array.prototype).call([1, [2]]);
 let p;
 export const inDestructureDefault = (({
-  x = null == (_ref2 = p = _globalThis.window) ? void 0 : _includesMaybeArray(_ref2.Array.prototype)
+  x = (() => {
+    var _ref;
+    return null == (_ref = p = _globalThis.window) ? void 0 : _includesMaybeArray(_ref.Array.prototype);
+  })()
 } = {}) => x)();
 class Probe {
   static read() {
-    var _ref3;
     let q;
-    return null == (_ref3 = q = _globalThis.window) ? void 0 : _findLastMaybeArray(_ref3.Array.prototype).call([1], it => it);
+    return null == (q = _globalThis.window) ? void 0 : _findLastMaybeArray(q.Array.prototype).call([1], it => it);
   }
 }
 export const inClassStatic = Probe.read();
 let r;
 export const inAsyncArrow = (async () => (r = _globalThis.window)?.Array.prototype.some.call([1], it => it))();
 let s;
-export const computedLeafKey = null == (_ref4 = s = _globalThis.window) ? void 0 : _atMaybeArray(_ref4['Array'].prototype).call([1], 0);
+export const computedLeafKey = null == (s = _globalThis.window) ? void 0 : _atMaybeArray(s['Array'].prototype).call([1], 0);
 // the remaining syntactic contexts, each reaching the migration through its own visitor
 let c = 0;
 let fh;
 for (const v of (null == (fh = _globalThis.window) ? void 0 : (c++, _Array$of(1, 2))) ?? []) void v;
 let tp;
-export const inTemplate = `${null == (_ref5 = tp = _globalThis.window) ? void 0 : _findIndexMaybeArray(_ref5[c++, "Array"].prototype).call([7], v => v === 7)}`;
+export const inTemplate = `${null == (tp = _globalThis.window) ? void 0 : _findIndexMaybeArray(tp[c++, "Array"].prototype).call([7], v => v === 7)}`;
 let sp;
 export const spreadOut = [...((null == (sp = _globalThis.window) ? void 0 : (c++, _Array$from))?.([3]) ?? [])];
 class KeptHost {
@@ -57,9 +59,8 @@ class KeptHost {
   endHopSeKey = null == _globalThis.window ? void 0 : _self[c++, 'window'];
   field = (_globalThis.window ?? _globalThis)[c++, 'self']?.Array;
   static {
-    var _ref6;
     let sb;
-    void (null == (_ref6 = sb = _globalThis.window) ? void 0 : _findLastIndexMaybeArray(_ref6[c++, "Array"].prototype).call([1], v => v));
+    void (null == (sb = _globalThis.window) ? void 0 : _findLastIndexMaybeArray(sb[c++, "Array"].prototype).call([1], v => v));
   }
 }
 export const keptHost = new KeptHost();
@@ -77,12 +78,12 @@ export const nullishCarrier = (null == _globalThis.window ? void 0 : (c++, _self
 
 // SE-keyed hop under a claimed static + instance dispatch: the dispatch's guard memoizes the
 // probe root only, so the hop-key SE rides the claim body on the non-null branch
-export const seKeyClaimDispatch = null == _globalThis.window ? void 0 : _flatMaybeArray(_ref7 = (c++, _Array$of)(8)).call(_ref7);
+export const seKeyClaimDispatch = null == _globalThis.window ? void 0 : _flatMaybeArray(_ref2 = (c++, _Array$of)(8)).call(_ref2);
 
 // bare-probe INSTANCE guard-memo spellings: the prototype-method call keeps the raw nav in
 // the guard body (the locked alias/kept canon), the call-argument SE stays put; the SE-key
 // claimless `new`-callee renders the pony guard inside the callee parens
-export const bareProtoCall = null == (_ref8 = _globalThis.window) ? void 0 : _findMaybeArray((c++, _ref8).Array.prototype).call([5], v => v === (c++, 5));
+export const bareProtoCall = null == (_ref3 = _globalThis.window) ? void 0 : _findMaybeArray((c++, _ref3).Array.prototype).call([5], v => v === (c++, 5));
 export const bareProtoUnpolyfilled = null == _globalThis.window ? void 0 : (c++, _self).Array.prototype.indexOf.call([5], 5);
 export const bareSeKeyNewCallee = new (null == _globalThis.window ? void 0 : (c++, _self).CustomThing)();
 export async function awaited() {
@@ -96,15 +97,13 @@ switch ((sw = _globalThis.window)?.[c++, "Array"]) {
 }
 export const holder = {
   get val() {
-    var _ref9;
     let gt;
-    return null == (_ref9 = gt = _globalThis.window) ? void 0 : _mapMaybeArray(_ref9[c++, "Array"].prototype).call([9], v => v);
+    return null == (gt = _globalThis.window) ? void 0 : _mapMaybeArray(gt[c++, "Array"].prototype).call([9], v => v);
   }
 };
 export function* keptGen() {
-  var _ref10;
   let yv;
-  yield null == (_ref10 = yv = _globalThis.window) ? void 0 : _flatMapMaybeArray(_ref10[c++, "Array"].prototype).call([2], v => [v]);
+  yield null == (yv = _globalThis.window) ? void 0 : _flatMapMaybeArray(yv[c++, "Array"].prototype).call([2], v => [v]);
 }
 
 // a param-default synth twin without a SE key: the wrapper default stays the synth target

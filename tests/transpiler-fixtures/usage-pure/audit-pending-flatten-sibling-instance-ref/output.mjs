@@ -14,7 +14,7 @@ let {
       from: _Array$from
     }
   },
-  x = (sideEffect(), _atMaybeArray(_ref = [1, 2, 3]).call(_ref, -1));
+  x = _atMaybeArray(_ref = (sideEffect(), [1, 2, 3])).call(_ref, -1);
 let {
     Array: {
       of
@@ -24,5 +24,5 @@ let {
       of: _Array$of
     }
   },
-  y = (sideEffect(), _findLastMaybeArray(_ref2 = [4, 5, 6]).call(_ref2, v => v > 0));
+  y = _findLastMaybeArray(_ref2 = (sideEffect(), [4, 5, 6])).call(_ref2, v => v > 0);
 export { from, x, of, y };

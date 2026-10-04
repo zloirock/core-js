@@ -53,7 +53,7 @@ var U;
 U = _Map;
 U++;
 export const r6 = _flatMapMaybeArray(U).call(U, x => x);
-// a case-consequent lexical is outside the recovery's block climb - conservative generic
+// a case-consequent lexical binding keeps its own assigned Array receiver
 switch (_globalThis.k) {
   case 1:
     let S;

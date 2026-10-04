@@ -8,7 +8,7 @@ import _Iterator$zip from "@core-js/pure/actual/iterator/zip";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
-var _ref, _ref2, _ref3;
+var _ref, _ref2;
 // a receiver-less static extracted off a call into a MEMBER target: the target takes the polyfill
 // like a binding would - beside an instance sibling that reads the call's value, in either order, and
 // beside a second member target or a binding, which the residual count sees as surely as a binding
@@ -28,9 +28,9 @@ const ob = {};
 make();
 ob.a = _Iterator$from;
 let sn;
-_ref = make(), ob.b = _Iterator$concat, sn = _nameMaybeFunction(_ref), _ref, _ref;
-_ref2 = make(), ob.n = _nameMaybeFunction(_ref2), ob.c = _Iterator$zip, _ref2;
-_ref3 = makeArray(), ob.d = _Array$from, ob.e = _Array$of, _ref3;
+_ref = make(), ob.b = _Iterator$concat, sn = _nameMaybeFunction(_ref);
+_ref2 = make(), ob.n = _nameMaybeFunction(_ref2), ob.c = _Iterator$zip;
+makeArray(), ob.d = _Array$from, ob.e = _Array$of;
 let x;
 makePromise();
 x = _Promise$try;

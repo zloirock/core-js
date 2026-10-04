@@ -8,11 +8,10 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // Sibling statics must not hide instance properties read from that value.
 const name = _nameMaybeFunction(_getIteratorMethod(_globalThis));
 const viaAlias = _nameMaybeFunction(_getIteratorMethod(_globalThis));
-const _ref = _globalThis;
 const {
   customQ
 } = _Set;
-const viaSibling = _nameMaybeFunction(_getIteratorMethod(_ref)); // NEGATIVES. two leaves keep the destructure: each polyfilled leaf would need the receiver again,
+const viaSibling = _nameMaybeFunction(_getIteratorMethod(_globalThis)); // NEGATIVES. two leaves keep the destructure: each polyfilled leaf would need the receiver again,
 // and the receiver is the synth CALL - re-running it re-reads the source's `Symbol.iterator`
 const {
   name: twoA,
@@ -24,18 +23,18 @@ const {
 const plain = _getIteratorMethod(_globalThis); // a non-proxy receiver reaches the synth through the emitters' own symbol route rather than the
 // plan - it asks the SAME shared helper, so the leaf resolves there too, with or without a sibling
 const viaCtor = _nameMaybeFunction(_getIteratorMethod(Array));
-const _ref2 = {
+const _ref = {
     of: _Array$of,
     [_Symbol$iterator]: _getIteratorMethod(Array)
   },
   {
     of
-  } = _ref2,
+  } = _ref,
   {
     [_Symbol$iterator]: {
       name: viaSiblingCtor
     }
-  } = _ref2;
+  } = _ref;
 // NEGATIVE: a DEFAULTED leaf keeps the destructure - binding the dispatcher result directly would
 // drop the user's default, and guarding it is the instance-default channel's own shape
 const {

@@ -1,4 +1,4 @@
-// A nested instance-method assignment writes the helper result after capturing its receiver.
+// A nested instance-method assignment writes the helper result after evaluating its RHS.
 // A defaulted binding (`m = []`) is an AssignmentPattern; it still receives the method read.
 // The guard evaluates its fallback only if the helper result is undefined.
 declare const a: number[];

@@ -6,4 +6,4 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // `(`-leading replacement, not just optional-chain ones.
 const arr = [1, 2, 3];
 foo;
-bar(), _atMaybeArray(arr).call(arr, 0);
+arr, bar(), _atMaybeArray(arr).call(arr, 0);

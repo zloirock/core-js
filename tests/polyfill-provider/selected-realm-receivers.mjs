@@ -5,6 +5,7 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
+import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { ownEmittedNavClaim, ownEmittedPatternClaim, ownOutputTests } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -177,5 +178,100 @@ for (const parser of adapters) for (const [name, source, funnel, pick, expected]
   const tests = { isPureImportSource: s => s.startsWith('@core-js/pure/'), isOwnPassBinding: () => false };
   check(`${ parser.name }: minted key census: ${ name }`,
     funnel === 'nav' ? ownEmittedNavClaim(path.node, path, tests) : ownEmittedPatternClaim(path, tests), expected);
+}
+
+// Lowering can hide an owned guard behind captures. Only unique values written before
+// each capture preserve that verdict; a native receiver never gains ownership by its name.
+for (const parser of adapters) for (const [name, source, expected] of [
+  ['declaration captures', 'const held = null == probe ? void 0 : realm; const copied = held; copied.Object.keys;', true],
+  ['assignment captures', 'var held, copied; try { (held = (effect(), null == probe ? void 0 : realm), copied = held, copied.Object.keys); } finally {}', true],
+  ['captured outer scope', 'const held = null == probe ? void 0 : realm; function read(realm) { held.Object.keys; }', true],
+  ['direct payload guard', '(null == probe ? void 0 : realm.payload).keys;', true],
+  ['declaration payload guard', 'const held = null == probe ? void 0 : realm.payload; held.keys;', false],
+  ['assignment payload guard', 'var held; try { (held = (effect(), null == probe ? void 0 : realm.payload), held.keys); } finally {}', false],
+  ['payload after guard', 'const held = (null == probe ? void 0 : realm).payload; held.keys;', false],
+  ['nonpure conditional guard', 'const held = flag ? (null == probe ? void 0 : realm) : other; held.keys;', false],
+  ['discarded guard prefix', 'const held = (null == probe ? void 0 : realm, other); held.keys;', false],
+  ['foreign terminal import', 'const held = null == probe ? void 0 : foreign; held.Object.keys;', false],
+  ['shadowed terminal import', 'function read(realm) { const held = null == probe ? void 0 : realm; held.Object.keys; }', false],
+  ['conditional write', 'var held; if (flag) held = null == probe ? void 0 : realm; held.Object.keys;', false],
+  ['multiple writes', 'var held; held = null == probe ? void 0 : realm; held = other; held.Object.keys;', false],
+  ['capture before write', 'var held; const copied = held; held = null == probe ? void 0 : realm; copied.Object.keys;', false],
+  ['read before write', 'var held; held.Object.keys; held = null == probe ? void 0 : realm;', false],
+  ['unguarded realm', 'const held = realm; held.Object.keys;', false],
+  ['member producer', 'const source = null == probe ? void 0 : realm; const held = source.container; held.Object.keys;', false],
+  ['conditional producer', 'const source = null == probe ? void 0 : realm; const held = flag ? source : other; held.Object.keys;', false],
+  ['call producer', 'const source = null == probe ? void 0 : realm; const held = select(source); held.Object.keys;', false],
+  ['cyclic captures', 'var held, copied; held = copied; copied = held; copied.Object.keys;', false],
+]) {
+  const program = parser.parseAndScope(`
+    import realm from '@core-js/pure/actual/self';
+    import foreign from './realm.mjs';
+    ${ source }
+  `);
+  const path = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'keys');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  const tests = { isPureImportSource: s => s.startsWith('@core-js/pure/'), isOwnPassBinding: () => false };
+  check(`${ parser.name }: captured guard: ${ name }`, ownEmittedNavClaim(path.node, path, tests, adapter), expected);
+  if (expected) check(`${ parser.name }: captured guard: ${ name }: current import`, ownEmittedNavClaim(path.node, path,
+    { ...tests, isOwnPassBinding: () => true }, adapter), false);
+}
+
+// The same prior realm guard settles its native static read, while an arbitrary
+// instance payload remains live. Both candidates have prototype placement; only
+// the producer's native constructor hint names an existing own static definition.
+// A const capture without that hint keeps ordinary dispatch and its one getter read.
+for (const parser of adapters) for (const [name, source, key, hint, expected] of [
+  ['native static alias', 'var held, copied; try { (held = (effect(), null == probe ? void 0 : realm), copied = held, copied.Object.keys); } finally {}', 'keys', 'Object', true],
+  ['const without static proof', 'const held = null == probe ? void 0 : realm; held.Object.keys;', 'keys', undefined, false],
+  ['initializer payload', 'const held = null == probe ? void 0 : realm.payload; held.flat;', 'flat', 'payload', false],
+  ['payload after realm alias', 'const held = null == probe ? void 0 : realm; held.e2eSeqBox.arr.flat;', 'flat', undefined, false],
+  ['direct payload', '(null == probe ? void 0 : realm.payload).flat;', 'flat', undefined, false],
+  ['same key payload', 'const held = null == probe ? void 0 : realm; held.e2eSeqBox.arr.keys;', 'keys', undefined, false],
+  ['direct same key payload', '(null == probe ? void 0 : realm.payload).keys;', 'keys', undefined, false],
+]) {
+  const program = parser.parseAndScope(`import realm from '@core-js/pure/actual/self'; ${ source }`);
+  const path = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === key);
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  const meta = handleMemberExpressionNode({
+    node: path.node,
+    path,
+    scope: path.scope,
+    adapter,
+    resolvePure: resolve,
+    handledObjects: new WeakSet(),
+    suppressProxyGlobals: new WeakSet(),
+  });
+  const tests = { isPureImportSource: s => s.startsWith('@core-js/pure/'), isOwnPassBinding: () => false };
+  check(`${ parser.name }: rendered guard domain: ${ name }: placement`, meta?.placement, 'prototype');
+  check(`${ parser.name }: rendered guard domain: ${ name }: static hint`, meta?.guardedAliasHint, hint);
+  check(`${ parser.name }: rendered guard domain: ${ name }: ownership`,
+    ownEmittedNavClaim(path.node, path, tests, adapter, meta), expected);
+}
+
+// A real pre/post handoff retains the emission map while the post source census
+// registers the old binding. Both source and name must match to preserve its verdict.
+for (const parser of adapters) for (const [name, minted, priorSource, priorName, shadow, expected] of [
+  ['current import', true, null, null, false, false],
+  ['inherited source import', true, 'self', '_self', false, true],
+  ['user source import', false, 'self', '_self', false, true],
+  ['different alias', true, 'self', 'otherRealm', false, false],
+  ['different source', true, 'global-this', '_self', false, false],
+  ['shadowed source binding', true, 'self', '_self', true, false],
+]) {
+  const program = parser.parseAndScope(`
+    import _self from '@core-js/pure/actual/self';
+    function read(${ shadow ? '_self' : '' }) {
+      var held, copied;
+      try { (held = null == probe ? void 0 : _self, copied = held, copied.Object.keys); } finally {}
+    }
+  `);
+  const path = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'keys');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  const injector = new ImportInjectorState({ pkg: '@core-js/pure', mode: 'actual' });
+  if (minted) injector.pureImports.set('actual/self', '_self');
+  if (priorSource) injector.registerUserPureImport(priorSource, priorName);
+  check(`${ parser.name }: captured guard source ownership: ${ name }`,
+    ownEmittedNavClaim(path.node, path, ownOutputTests(injector), adapter), expected);
 }
 finish();

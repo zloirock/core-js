@@ -5,8 +5,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // static-sibling destructure: the SE prefix is preserved on the memoized receiver, and the sibling static
 // still re-polyfills (`from` -> the pure static) - the receiver is peeled to its runtime tail to resolve
 // the ctor, so the SE wrapper doesn't hide the proxy-global member
-const _ref = (eff(), _globalThis.Array);
-const it = _getIteratorMethod(_ref);
+const it = _getIteratorMethod((eff(), _globalThis.Array));
 const from = _Array$from;
 it;
 from([1]);

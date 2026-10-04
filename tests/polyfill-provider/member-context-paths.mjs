@@ -3,8 +3,15 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 import { createUsageGlobalCallback } from '../../packages/core-js-polyfill-provider/plugin-options/usage-callback.js';
 import {
-  enclosingParameterListOwner, findNearestVarScopeOwner, findTSRuntimeBindingInPath,
-  isForXWriteTarget, isTSTypeOnlyIdentifierPath, memberContextPath, nonEmittedExpressionAncestor, withMemberContextCache,
+  enclosingParameterListOwner,
+  findNearestVarScopeOwner,
+  findTSRuntimeBindingInPath,
+  isForXWriteTarget,
+  isTSTypeOnlyIdentifierPath,
+  memberContextPath,
+  nonEmittedExpressionAncestor,
+  staticMemberKeyName,
+  withMemberContextCache,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -173,6 +180,87 @@ for (const parser of adapters) {
       const reference = declaration?.moduleReference;
       check(`${ parser.name }/${ name }/${ pass }/import source`, reference?.expression?.value ?? reference?.right?.name ?? null, expected);
     }
+  }
+
+  // Skipping a member run must preserve the actual nearest declaration and the
+  // constructor's definition-time boundaries, in both read-only and live walks.
+  const access = `value${ '.self'.repeat(16) }.at`;
+  for (const [name, source, expected, outerLookup = false] of [
+    ['constructor property', `const value = 'outer'; class C { constructor(public value: any) { ${ access }; } }`, 'property'],
+    ['constructor default', `import value from 'outer'; class C { constructor(public value: any = []) { ${ access }; } }`, 'default'],
+    ['computed member key', `const value = 'outer'; class C { constructor(public value: any) { host[${ access }].tail; } }`, 'property'],
+    ['ordinary parameter', `const value = 'outer'; class C { constructor(public value: any) { function read(value) { ${ access }; } } }`, 'parameter'],
+    ['nearest lexical', `const value = 'outer'; class C { constructor(public value: any) { { const value = []; ${ access }; } } }`, 'lexical'],
+    ['method key', `const value = 'outer'; class C { [${ access }]() {} constructor(public value: any) {} }`, 'outer'],
+    ['parameter decorator', `import value from 'outer'; class C { constructor(@dec(${ access }) public value: any) {} }`, 'import'],
+    ['explicit outer lookup', `const value = 'outer'; class C { constructor(public value: any) { ${ access }; } }`, 'outer', true],
+  ]) {
+    for (const readOnly of [false, true]) {
+      const program = parser.parseAndScope(source, 'module', ['decorators-legacy']);
+      // Babel's parameter-property visitor omits its decorator children.
+      const paths = name === 'parameter decorator'
+        ? parser.pickPath(program, 'TSParameterProperty').get('decorators')[0].get('expression').get('arguments')
+        : parser.collectPaths(program, 'MemberExpression', path => path.node.property.name === 'at');
+      const [path] = paths;
+      const label = `${ parser.name }/deep binding/${ name }/${ readOnly }`;
+      check(`${ label }/one probe`, paths.length, 1);
+      let declaration;
+      switch (expected) {
+        case 'property':
+          declaration = parser.pickPath(program, 'TSParameterProperty').get('parameter');
+          break;
+        case 'default':
+          declaration = parser.pickPath(program, 'AssignmentPattern', p => p.node.left.name === 'value');
+          break;
+        case 'parameter':
+          [declaration] = parser.pickPath(program, 'FunctionDeclaration', p => p.node.id.name === 'read').get('params');
+          break;
+        case 'import':
+          declaration = parser.pickPath(program, 'ImportDefaultSpecifier');
+          break;
+        default:
+          declaration = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'value'
+            && (expected === 'lexical' ? p.node.init.type === 'ArrayExpression' : p.node.init.value === 'outer'));
+      }
+      checkTruthy(`${ label }/source declaration`, declaration);
+      const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+      const scope = outerLookup ? program.scope : path.scope;
+      withMemberContextCache(readOnly, () => {
+        const binding = adapter.getBinding(scope, 'value', path);
+        check(`${ label }/nearest source node`, binding?.node, declaration.node);
+        check(`${ label }/nearest declaration path`, binding?.declarationPath?.node, declaration.node);
+        check(`${ label }/node type agrees`, adapter.getBindingNodeType(scope, 'value', path), declaration.node.type);
+        if (expected === 'property' || expected === 'default' || expected === 'parameter') check(`${ label }/parameter kind`, binding?.kind, 'param');
+      });
+    }
+  }
+
+  // A chain wrapper changes short-circuiting, but not which static supplies its receiver.
+  for (const [name, source, subsumed] of [
+    ['plain static', 'globalThis.Number.MAX_SAFE_INTEGER;', true],
+    ['sealed optional receiver', '(globalThis?.Number).MAX_SAFE_INTEGER;', true],
+    ['optional static', '(globalThis?.Number)?.MAX_SAFE_INTEGER;', true],
+    ['typed optional receiver', '((globalThis?.Number) as any).MAX_SAFE_INTEGER;', true],
+    ['computed static', "(globalThis?.[(n++, 'Number')])[(n++, 'MAX_SAFE_INTEGER')];", true],
+    ['generic member', '(globalThis?.Number).name;', false],
+    ['dynamic member', '(globalThis?.Number)[key];', false],
+    ['static write', '(globalThis?.Number).MAX_SAFE_INTEGER = value;', false],
+    ['prototype read', '(globalThis?.Number).prototype;', false],
+  ]) {
+    const program = parser.parseAndScope(source);
+    const types = parser.name === 'babel' ? ['MemberExpression', 'OptionalMemberExpression'] : ['MemberExpression'];
+    const paths = types.flatMap(type => parser.collectPaths(program, type, candidate => staticMemberKeyName(candidate.node) === 'Number'));
+    check(`${ parser.name }/${ name }/one receiver`, paths.length, 1);
+    const [path] = paths;
+    const resolved = [];
+    const dispatch = createUsageGlobalCallback({
+      isDisabled: () => false,
+      isProposalEntry: () => false,
+      resolveUsage(meta) { resolved.push(meta); return []; },
+      injectModulesForModeEntry: () => undefined,
+    });
+    dispatch({ kind: 'property', placement: 'static', object: 'globalThis', key: 'Number' }, path);
+    check(`${ parser.name }/${ name }/receiver subsumption`, resolved.length === 0, subsumed);
   }
 
   // Parent reads are counted only here, after parsing. The real handler must share its

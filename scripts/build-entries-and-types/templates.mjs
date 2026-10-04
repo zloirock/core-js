@@ -351,10 +351,12 @@ export const $instanceArray = p => ({
     var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
 
     var ArrayPrototype = Array.prototype;
+    var nativeArrayMethod = ArrayPrototype.${ p.name };
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
-      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
+      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it)
+        && ownProperty === (ownProperty === undefined ? ArrayPrototype.${ p.name } : nativeArrayMethod))) return arrayMethod;
       return ownProperty;
     };
   `,
@@ -367,11 +369,13 @@ export const $instanceNumber = p => ({
     var numberMethod = require('${ '../'.repeat(p.level - 1) }number/prototype/${ basename(p.entry) }');
 
     var NumberPrototype = Number.prototype;
+    var nativeNumberMethod = NumberPrototype.${ p.name };
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (typeof it == 'number' || it === NumberPrototype
-        || (isPrototypeOf(NumberPrototype, it) && ownProperty === NumberPrototype.${ p.name })) return numberMethod;
+        || (isPrototypeOf(NumberPrototype, it)
+          && ownProperty === (ownProperty === undefined ? NumberPrototype.${ p.name } : nativeNumberMethod))) return numberMethod;
       return ownProperty;
     };
   `,
@@ -384,11 +388,13 @@ export const $instanceString = p => ({
     var stringMethod = require('${ '../'.repeat(p.level - 1) }string/prototype/${ basename(p.entry) }');
 
     var StringPrototype = String.prototype;
+    var nativeStringMethod = StringPrototype.${ p.name };
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (typeof it == 'string' || it === StringPrototype
-        || (isPrototypeOf(StringPrototype, it) && ownProperty === StringPrototype.${ p.name })) return stringMethod;
+        || (isPrototypeOf(StringPrototype, it)
+          && ownProperty === (ownProperty === undefined ? StringPrototype.${ p.name } : nativeStringMethod))) return stringMethod;
       return ownProperty;
     };
   `,
@@ -401,10 +407,12 @@ export const $instanceFunction = p => ({
     var functionMethod = require('${ '../'.repeat(p.level - 1) }function/prototype/${ basename(p.entry) }');
 
     var FunctionPrototype = Function.prototype;
+    var nativeFunctionMethod = FunctionPrototype.${ p.name };
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
-      if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it) && ownProperty === FunctionPrototype.${ p.name })) {
+      if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it)
+        && ownProperty === (ownProperty === undefined ? FunctionPrototype.${ p.name } : nativeFunctionMethod))) {
         return functionMethod;
       } return ownProperty;
     };
@@ -453,12 +461,16 @@ export const $instanceArrayString = p => ({
 
     var ArrayPrototype = Array.prototype;
     var StringPrototype = String.prototype;
+    var nativeArrayMethod = ArrayPrototype.${ p.name };
+    var nativeStringMethod = StringPrototype.${ p.name };
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
-      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
+      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it)
+        && ownProperty === (ownProperty === undefined ? ArrayPrototype.${ p.name } : nativeArrayMethod))) return arrayMethod;
       if (typeof it == 'string' || it === StringPrototype
-        || (isPrototypeOf(StringPrototype, it) && ownProperty === StringPrototype.${ p.name })) return stringMethod;
+        || (isPrototypeOf(StringPrototype, it)
+          && ownProperty === (ownProperty === undefined ? StringPrototype.${ p.name } : nativeStringMethod))) return stringMethod;
       return ownProperty;
     };
   `,
@@ -475,6 +487,7 @@ export const $instanceArrayDOMIterable = p => ({
     var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
 
     var ArrayPrototype = Array.prototype;
+    var nativeArrayMethod = ArrayPrototype.${ p.name };
 
     var DOMIterables = {
       DOMTokenList: true,
@@ -484,7 +497,8 @@ export const $instanceArrayDOMIterable = p => ({
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (it === ArrayPrototype || ((isPrototypeOf(ArrayPrototype, it)
-        || hasOwn(DOMIterables, classof(it))) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
+        || hasOwn(DOMIterables, classof(it)))
+          && ownProperty === (ownProperty === undefined ? ArrayPrototype.${ p.name } : nativeArrayMethod))) return arrayMethod;
       return ownProperty;
     };
   `,

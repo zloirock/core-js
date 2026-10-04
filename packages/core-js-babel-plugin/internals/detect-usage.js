@@ -27,6 +27,7 @@ import {
   buildOwnerWritePathIndex,
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
+  getDirectStatementBody,
   memberContextPath,
   recomputedBindingWrites,
   useAnchorStart,
@@ -36,6 +37,7 @@ import {
   usableAliasInfo,
   CHAIN_HOP_WRAPPER_TYPES,
   unwrapTransparentSeq,
+  wrapScopeBindingLookup,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -99,6 +101,7 @@ export function collectMutationPrePass(programPath, adapter, census = null, reso
 // `babelAdapter` below is the stateless view the entry-detection path shares
 export function createBabelAdapter(options = {}) {
   const { getInjector = () => null } = options;
+  const getScopeBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
   // the injector's declarator registry serves plugin-minted memo refs whose scope model
   // misrepresents the binding: scope-invisible on the memo-dense append path, or param-landed
   // by babel's `scope.push` on a callable scope (binding node = bare Identifier until the
@@ -195,7 +198,7 @@ export function createBabelAdapter(options = {}) {
       // per-binding registry (identity route) stays reachable. adopted ONLY on an identity hit:
       // a plugin-minted memo (`_ref`) has no per-binding entry and must keep the hint-only
       // BLIND fallback below - a rebuilt binding would strand it on the shape/dominance gates
-      let b = scope.getBinding(name);
+      let b = getScopeBinding(scope, name, path);
       if (!b && path) {
         const rebuilt = rebuildLaggedScopeBinding(path, name);
         if (rebuilt && getInjector()?.getBindingAliasInfo?.(rebuilt.path.node, name)) b = rebuilt;
@@ -342,14 +345,14 @@ export function createBabelAdapter(options = {}) {
         : soleAliasWrite({ binding: { ...b, constantViolations: violations }, assignNode }))
         ? assignNode : null;
     },
-    getBindingNodeType(scope, name) {
+    getBindingNodeType(scope, name, path = null) {
       // `?.path` defense - virtual bindings (plugin-injected pure imports before scope.crawl)
       // may have `.path` undefined; without `?.` the inner `.node` access throws TypeError.
       // unplug-side adapter already had this defense; aligning shape across adapters.
       // registry-backed memo refs (append-path scope-invisible / param-landed) report their
       // registered declarator over the scope's misrepresented shape
       if (scopedMemoDeclarator(scope, name)) return 'VariableDeclarator';
-      return scope.getBinding(name)?.path?.node?.type ?? null;
+      return getScopeBinding(scope, name, path)?.path?.node?.type ?? null;
     },
     isStringLiteral,
     getStringValue: stringLiteralValue,
@@ -396,9 +399,9 @@ function lexicalDeclIndex(containerNode) {
   let index = lexicalDeclIndexCache.get(containerNode);
   if (index) return index;
   index = new Map();
-  for (const stmt of containerNode.body ?? []) {
+  for (const stmt of getDirectStatementBody(containerNode) ?? []) {
     const decl = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
-    if (decl?.type !== 'VariableDeclaration') continue;
+    if (decl?.type !== 'VariableDeclaration' || decl.kind === 'var') continue;
     for (const d of decl.declarations) {
       walkPatternIdentifiers(d.id, id => {
         if (!index.has(id.name)) index.set(id.name, d);
@@ -420,18 +423,23 @@ export function rebuildLaggedScopeBinding(path, name) {
   // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
   // stay in lockstep across substrates
   const varOwner = findVarOwnerDeclaring(path, name);
-  let declaratorNode = varOwner?.declarator ?? null;
-  let ownerPath = varOwner?.owner ?? null;
-  if (!declaratorNode) {
-    // block-scoped `let` / `const`: by definition body-level of an enclosing block, so the
-    // per-container lexical index answers each level in one lookup - no descent. the climb
-    // starts AT `path`: a scope-host anchor (the guard machinery asks with the block / Program
-    // path itself) must see its OWN body-level declarations, not only enclosing ones
-    for (let p = memberContextPath(path); p && !declaratorNode; p = memberContextPath(p.parentPath)) {
-      if (!p.isProgram() && !p.isBlockStatement() && !p.isStaticBlock()) continue;
+  let declaratorNode = null;
+  let ownerPath = null;
+  // The nearest lexical declaration shadows a hoisted outer var. Search only as far
+  // as that var's owner; a declaration above it cannot shadow the nearer var.
+  // A switch's cases share one scope, while its discriminant runs outside it.
+  // Starting at an owner anchor must still see that owner's own declarations.
+  for (let p = memberContextPath(path), child = null; p && !declaratorNode; child = p, p = memberContextPath(p.parentPath)) {
+    if (p.isProgram() || p.isBlockStatement() || p.isStaticBlock()
+      || (p.isSwitchStatement() && (!child || child.listKey === 'cases'))) {
       declaratorNode = lexicalDeclIndex(p.node).get(name) ?? null;
       if (declaratorNode) ownerPath = p;
     }
+    if (p.node === varOwner?.owner.node) break;
+  }
+  if (!declaratorNode && varOwner) {
+    declaratorNode = varOwner.declarator;
+    ownerPath = varOwner.owner;
   }
   if (!declaratorNode || !ownerPath) return null;
   // memoized per (owner PATH, name): the recovery is re-asked for the same lagged binding at

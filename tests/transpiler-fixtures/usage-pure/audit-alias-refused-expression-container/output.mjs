@@ -5,22 +5,18 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref2;
 // a ctor-alias write nested in an EXPRESSION CONTAINER (a conditional branch, a logical
 // short-circuit, an expression-body arrow) runs on one path / an unknown call, so the
 // static narrow is refused and the member read gets the RUNTIME ctor guard - the value swap
 // still lands wherever the native write would, so the imports stay live (no dead guard)
 let M;
-Math.random() > 2 ? (_ref = _globalThis, M = _Map, _ref) : 0;
+Math.random() > 2 ? (M = _Map, _globalThis) : 0;
 export const viaTernary = (M === _Map ? _Map$groupBy : M.groupBy.bind(M))([1, 2], x => x);
 let S;
-Math.random() > 2 && (_ref2 = _globalThis, S = _Set, _ref2);
+Math.random() > 2 && (S = _Set, _globalThis);
 export const viaLogical = S.difference(new _Set());
 let P;
-const assign = () => {
-  var _ref3;
-  return _ref3 = _globalThis, P = _Promise, _ref3;
-};
+const assign = () => (P = _Promise, _globalThis);
 assign();
 export const viaArrowBody = (P === _Promise ? _Promise$try : P.try.bind(P))(() => 1);
 

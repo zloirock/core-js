@@ -1,6 +1,6 @@
 // A proxy-global receiver carries its side effects into the function-name read exactly once.
-// The helper consumes one receiver argument, so the effects stay inside it without a memo or
-// a duplicate prefix. A chain-root call keeps its own global rewrite. The rows cover a hop key,
+// The receiver effects run before the name read without a memo or a duplicate prefix.
+// A chain-root call keeps its own global rewrite. The rows cover a hop key,
 // an inline call root, a top-level sequence and an effect-free control.
 let n = 0;
 const hopKey = globalThis[(n += 1, 'self')].Map.name;

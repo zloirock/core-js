@@ -1,9 +1,5 @@
-// An ASSIGNMENT host answers for every slot it leaves on its minted memo: a static sibling and a
-// key the SCOPE-AWARE canon names - an effect-bearing one, a bound one - alike read the ponyfill,
-// the key's own effect replayed where it stood. What the memo holds is the value the init YIELDS,
-// so a receiver spelled behind its own effect names the same constructor - and that effect,
-// performed by the memo leading the rebuilt expression, keeps the claims INSIDE it, which a memo
-// reading past them would drop.
+// All assignment slots share the captured receiver and keep their key/write order.
+// Receiver effects run once, before the first static binding; bound keys keep their claims.
 const log = [];
 const K = 'of';
 let a, b, c, d, e, f, g, h, held;

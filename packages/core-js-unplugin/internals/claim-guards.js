@@ -22,6 +22,7 @@ import {
   invocationCalleeOf,
   isPristineProxyGlobal,
   memberKeyName,
+  navComputedKeyEffects,
   nodeCarriesSourceSpan,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -45,11 +46,7 @@ import {
   memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
-import {
-  markSubtreeSkipped,
-  navComputedKeyEffects,
-  optionalHeirAbove,
-} from './nav-spine.js';
+import { markSubtreeSkipped, optionalHeirAbove } from './nav-spine.js';
 
 // does the receiver below a member hop end on an optional CALL (`arr.flat?.()`)? that segment
 // renders as one inline `?.call` value, and the disjunct chain joins it with the hop above -
@@ -749,10 +746,11 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const planRoute = !!plan && !plan.topAssign && plan.kind === 'nested' && !!plan.leafPure;
   const leafPlan = planRoute ? null
     : sealedClaimLeafGuardPlan(boundary.inner, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
+  const leafKeyEffects = leafPlan ? navComputedKeyEffects(boundary.inner) : [];
   // the hops ABOVE the collapse respell over the ponyfill leaf, each keeping the `?.` the plan's
   // own tail verdict gives it. a plain REALM hop is not among them - the plan folded it onto the
   // leaf, so what reaches here is a computed key and its effects
-  const alternate = planRoute
+  let alternate = planRoute
     ? plan.hops.slice(plan.collapseIdx + 1).reduce(
       (base, hop) => memberFromKeyName(base, hop.name, { optional: !!hop.liveOptional }),
       withSideEffects(identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)),
@@ -767,6 +765,8 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   // a seal the guard renders nothing for (a value-transparent layer over a bare alias -
   // `(held).of`) hides no short-circuit: the alias question stands
   if (!alternate) return aliasHeldClaimProbeNode(boundary.member, aliasCtx, { resolveGlobalPolyfill, skippedNodes });
+  if (leafPlan) alternate = withSideEffects(alternate,
+    leafKeyEffects.filter(expr => !subtreeContainsNode(leafPlan.guardObject, expr)));
   const test = planRoute ? ctx.buildNavGuardTest(plan, { metaPath, aliasCtx, resolveHere })
     : probeSpelling(leafPlan.guardObject, { resolveHere, aliasCtx, substituteProbeProxyRoot: ctx.substituteProbeProxyRoot });
   if (!planRoute) markSubtreeSkipped(skippedNodes, test);
@@ -780,7 +780,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   // replaying the claim's own effect list must skip them, or the source's single run doubles
   return {
     node: read,
-    consumed: [...planRoute ? plan.keySeExprs : [], ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
+    consumed: [...planRoute ? plan.keySeExprs : leafKeyEffects, ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
   };
 }
 

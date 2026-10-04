@@ -9,8 +9,8 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // its body or arguments carry any. the kept-write question is the chain-assign canon's `outer`
 // answer: the identity spelling read the peeled sequence as a write and lost `_self` outright
 const dh = () => _globalThis;
-export const seq = null == _self ? void 0 : _atMaybeArray(_ref = _Array$of(1)).call(_ref, 0);
-export const bare = null == _self ? void 0 : _atMaybeArray(_ref2 = _Array$of(1)).call(_ref2, 0);
+export const seq = _self == null ? void 0 : _atMaybeArray(_ref = _Array$of(1)).call(_ref, 0);
+export const bare = _self == null ? void 0 : _atMaybeArray(_ref2 = _Array$of(1)).call(_ref2, 0);
 let c = 0;
 const eff = () => {
   c++;

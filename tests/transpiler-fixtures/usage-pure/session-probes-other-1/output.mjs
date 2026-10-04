@@ -97,8 +97,7 @@ function mark(t, v) {
 }
 {
   eff();
-  const _ref3 = getArr();
-  const ci = _at(_ref3);
+  const ci = _at(getArr());
   use(ci);
 }
 {
@@ -114,12 +113,12 @@ function mark(t, v) {
   use(m);
 }
 {
-  const [, _ref4] = [, pick ? {
+  const [, _ref3] = [, pick ? {
     from: _Array$from
   } : userObj];
   const {
     from: f
-  } = _ref4;
+  } = _ref3;
 }
 {
   const [, {
@@ -141,12 +140,12 @@ function mark(t, v) {
   }];
 }
 {
-  const [, _ref5] = [eff(), pick ? {
+  const [, _ref4] = [eff(), pick ? {
     from: _Array$from
   } : userObj];
   const {
     from: f
-  } = _ref5;
+  } = _ref4;
 }
 {
   eff();
@@ -155,24 +154,24 @@ function mark(t, v) {
   [values, at];
 }
 {
-  const [, _ref6] = [eff(), {
+  const [, _ref5] = [eff(), {
     y: (mark(), getArr())
   }];
-  const ci = _at(_ref6.y);
+  const ci = _at(_ref5.y);
+  use(ci);
+}
+{
+  const [, _ref6] = [eff(), {
+    y: arr
+  }];
+  const ci = _atMaybeArray(_ref6.y);
   use(ci);
 }
 {
   const [, _ref7] = [eff(), {
-    y: arr
-  }];
-  const ci = _atMaybeArray(_ref7.y);
-  use(ci);
-}
-{
-  const [, _ref8] = [eff(), {
     y: getArr()
   }];
-  const ci = _at(_ref8.y);
+  const ci = _at(_ref7.y);
   use(ci);
 }
 {
@@ -188,9 +187,9 @@ function mark(t, v) {
   } : userObj]];
 }
 {
-  const [[_ref9]] = [[r]];
-  const values = _values(_ref9.w);
-  const at = _at(_ref9.y);
+  const [[,]] = [[r]];
+  const values = _values(r.w);
+  const at = _at(r.y);
   [values, at];
 }
 {
@@ -248,32 +247,32 @@ function mark(t, v) {
   }] = [, [1, 2]];
 }
 {
-  const [_ref10] = [...rest, [1, 2]];
-  const at = _at(_ref10);
+  const [_ref8] = [...rest, [1, 2]];
+  const at = _at(_ref8);
 }
 {
-  const [_ref11] = [...rest, [1]];
-  const at = _at(_ref11);
+  const [_ref9] = [...rest, [1]];
+  const at = _at(_ref9);
 }
 {
   const at = _atMaybeArray([1, 2]);
 }
 {
-  const [_ref12] = [[1], eff()];
-  const at = _atMaybeArray(_ref12);
+  const [_ref10] = [[1], eff()];
+  const at = _atMaybeArray(_ref10);
 }
 {
-  const [_ref13] = [[eff()], ...rest];
-  const at = _atMaybeArray(_ref13);
+  const [_ref11] = [[eff()], ...rest];
+  const at = _atMaybeArray(_ref11);
 }
 {
-  const [_ref14, _ref15] = [arr, pick ? {
+  const [, _ref12] = [arr, pick ? {
     from: _Array$from
   } : userObj];
-  const a = _atMaybeArray(_ref14);
+  const a = _atMaybeArray(arr);
   const {
     from: f
-  } = _ref15;
+  } = _ref12;
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);
 }
 {

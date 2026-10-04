@@ -15,7 +15,7 @@ function k(name) {
   _pushMaybeArray(log).call(log, name);
 }
 const staticConcat = (k('a'), _Array$from)([1, 2]);
-const instanceConcat = (k('b'), _atMaybeArray(_ref = [3, 4]).call(_ref, 0));
+const instanceConcat = (_ref = [3, 4], k('b'), _atMaybeArray(_ref).call(_ref, 0));
 const staticTemplate = (k('c'), _Object$entries)({
   x: 1
 });

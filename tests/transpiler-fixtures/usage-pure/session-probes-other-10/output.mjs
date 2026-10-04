@@ -37,52 +37,51 @@ function mark(t, v) {
   return v;
 }
 {
+  let e;
+  [,] = [(g(), arr)];
+  e = _atMaybeArray(arr);
+  use(e);
+}
+{
   var _ref;
   let e;
-  [_ref] = [(g(), arr)];
-  e = _atMaybeArray(_ref);
+  [_ref] = [(g(), f())];
+  e = _at(_ref);
   use(e);
 }
 {
   var _ref2;
   let e;
-  [_ref2] = [(g(), f())];
+  [_ref2] = [(_at(x).call(x, 0), f())];
   e = _at(_ref2);
   use(e);
 }
 {
   var _ref3;
-  let e;
-  [_ref3] = [(_at(x).call(x, 0), f())];
-  e = _at(_ref3);
-  use(e);
-}
-{
-  var _ref5, _ref4;
   let f17;
-  _ref4 = {
+  ({
+    [(eff('k'), 'w')]: _ref3
+  } = {
     w: [1]
-  }, {
-    [(eff('k'), 'w')]: _ref5
-  } = null == _ref4 ? _ref4[""] : _ref4, f17 = _atMaybeArray(_ref5), _ref5, _ref4;
+  }), f17 = _atMaybeArray(_ref3);
 }
 {
-  var _ref6;
+  var _ref4;
   let f3;
   ({
-    w: _ref6
+    w: _ref4
   } = {
     w: Array,
     ...o
-  }), f3 = _ref6 === Array ? _Array$from : _ref6.from;
+  }), f3 = _ref4 === Array ? _Array$from : _ref4.from;
 }
 {
-  var _ref7, _ref8, _unused;
+  var _unused;
   let f4;
-  _ref7 = _globalThis, _ref8 = _ref7.Array, f4 = _Array$from, _ref8, {
+  ({} = _globalThis), _globalThis.Array, f4 = _Array$from, {
     Array: _unused,
     ...r4
-  } = _ref7, _ref7;
+  } = _globalThis;
 }
 {
   let f9;
@@ -117,12 +116,12 @@ function mark(t, v) {
   } : userObj];
 }
 {
-  var _ref9, _ref10, _unused2;
+  var _unused2;
   let from, rest;
-  _ref9 = _globalThis, _ref10 = _ref9.Array, from = _Array$from, _ref10, {
+  ({} = _globalThis), _globalThis.Array, from = _Array$from, {
     Array: _unused2,
     ...rest
-  } = _ref9, _ref9;
+  } = _globalThis;
   use(from, rest);
 }
 {
@@ -200,21 +199,21 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  var _ref11;
+  var _ref5;
   let m;
-  [_ref11] = [{
+  [_ref5] = [{
     w: (mark(), arr)
   }];
-  m = _atMaybeArray(_ref11.w);
+  m = _atMaybeArray(_ref5.w);
   use(m);
 }
 {
-  var _ref12;
+  var _ref6;
   let m;
-  [_ref12] = [{
+  [_ref6] = [{
     w: (_at(x).call(x, 0), arr)
   }];
-  m = _atMaybeArray(_ref12.w);
+  m = _atMaybeArray(_ref6.w);
   use(m);
 }
 {
@@ -237,31 +236,30 @@ function mark(t, v) {
   use(m);
 }
 {
-  var _ref13;
+  var _ref7;
   let out, e;
-  [_ref13] = [(out = 1, _flatMaybeArray(arr).call(arr))];
-  e = _atMaybeArray(_ref13);
+  [_ref7] = [_flatMaybeArray((out = 1, arr)).call(arr)];
+  e = _atMaybeArray(_ref7);
   use(e, out);
 }
 {
-  var _ref14;
   let out, e;
-  [_ref14] = [(out = 1, arr)];
-  e = _atMaybeArray(_ref14);
+  [,] = [(out = 1, arr)];
+  e = _atMaybeArray(arr);
   use(e, out);
 }
 {
-  var _ref15;
+  var _ref8;
   let out, e;
-  [_ref15] = [(out = 1, _flatMaybeArray(arr).call(arr))];
-  e = _atMaybeArray(_ref15);
+  [_ref8] = [(out = 1, _flatMaybeArray(arr).call(arr))];
+  e = _atMaybeArray(_ref8);
   use(e, out);
 }
 {
-  var _ref16;
+  var _ref9;
   let out, e;
-  [_ref16] = [(out = 1, f())];
-  e = _at(_ref16);
+  [_ref9] = [(out = 1, f())];
+  e = _at(_ref9);
   use(e, out);
 }
 {
@@ -289,21 +287,20 @@ function mark(t, v) {
   });
 }
 {
-  let _ref17 = eff();
-  let values = _values(_ref17.w);
-  let at = _at(_ref17.y);
+  let _ref10 = eff();
+  let values = _values(_ref10.w);
+  let at = _at(_ref10.y);
   [values, at];
 }
 {
-  let _ref18 = r ?? {};
-  let values = _values(_ref18.w);
-  let at = _at(_ref18.y);
+  let _ref11 = r ?? {};
+  let values = _values(_ref11.w);
+  let at = _at(_ref11.y);
   [values, at];
 }
 {
-  let _ref19 = r;
-  let values = _values(_ref19.w);
-  let at = _at(_ref19.y);
+  let values = _values(r.w);
+  let at = _at(r.y);
   [values, at];
 }
 {
@@ -316,14 +313,14 @@ function mark(t, v) {
   at;
 }
 {
-  var _ref20;
+  var _ref12;
   o[eff(), 'data'] = 'str';
-  const r2 = _at(_ref20 = o.data).call(_ref20, 0);
+  const r2 = _at(_ref12 = o.data).call(_ref12, 0);
 }
 {
-  var _ref21;
+  var _ref13;
   o[eff(), 'data'] = 'str';
-  const r2 = _at(_ref21 = o[eff(), 'data']).call(_ref21, 0);
+  const r2 = _at(_ref13 = o[eff(), 'data']).call(_ref13, 0);
 }
 {
   try {
@@ -347,19 +344,18 @@ function mark(t, v) {
 {
   try {
     throw 0;
-  } catch (_ref22) {
-    let entries = _entries(_ref22.w);
+  } catch (_ref14) {
+    let entries = _entries(_ref14.w);
     entries;
   }
 }
 {
   try {
     throw [r];
-  } catch (_ref23) {
-    let [_ref24] = _ref23;
-    let _ref25 = _ref24.w;
-    let values = _values(_ref25);
-    let at = _at(_ref24.y);
+  } catch (_ref15) {
+    let [_ref16] = _ref15;
+    let values = _values(_ref16.w);
+    let at = _at(_ref16.y);
     [values, at];
   }
 }

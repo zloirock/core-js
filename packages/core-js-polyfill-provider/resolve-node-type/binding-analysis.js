@@ -60,6 +60,7 @@ import {
   propertyKeyName,
   resolveCallArgument,
   valueMayBeCallable,
+  valueIsDroppedAt,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
   isDestructurePattern,
@@ -399,6 +400,7 @@ export function createBindingAnalysis({
   // index). visitor keys across contributions are disjoint - the factory owns that invariant.
   // without the sharing, each lazy index re-walked the whole program on its own first query
   let programCensusCache = new WeakMap();
+  let currentTreeReferences = false;
   function programCensus(programPath) {
     return memoize(programCensusCache, programPath.node, () => {
       const referenceIdentifierPaths = [];
@@ -461,7 +463,7 @@ export function createBindingAnalysis({
       // emitter replaced its parent. A cloned receiver passed to our helper is still the
       // original member read, rather than a new handout to an unknown call.
       for (const [binding, indexed] of identifierByBinding) {
-        if (!Array.isArray(binding.references)) continue;
+        if (currentTreeReferences || !Array.isArray(binding.references)) continue;
         const references = new Map();
         for (const ref of binding.references) references.set(nodeSpan(ref.node)?.start ?? ref.node, ref);
         for (const ref of indexed) {
@@ -495,7 +497,7 @@ export function createBindingAnalysis({
     // "not enumerable" rather than the shorter list
     if (annexBHoistOutrunsBinding(binding.path)) return null;
     const { referencePaths } = binding;
-    if (Array.isArray(referencePaths)) {
+    if (!currentTreeReferences && Array.isArray(referencePaths)) {
       return referencePaths.some(overReportedJsxReference)
         ? referencePaths.filter(p => !overReportedJsxReference(p)) : referencePaths;
     }
@@ -766,22 +768,7 @@ export function createBindingAnalysis({
       if (pair.constructor !== 'JSON' && !(pair.constructor === 'Reflect' && pair.method === 'has'
         && unwrapRuntimeExpr(parent.arguments[1]) === unwrapRuntimeExpr(refNode))) return false;
     }
-    if (positionDisposition(parent, refNode, refPath.parentPath) !== POSITION_CONSUMES) return true;
-    switch (parent?.type) {
-      case 'UnaryExpression': return parent.operator === '+' || parent.operator === '-' || parent.operator === '~';
-      case 'BinaryExpression': return parent.operator !== '===' && parent.operator !== '!=='
-        && !(parent.operator === 'in' && parent.right === refNode);
-      case 'CallExpression':
-      case 'OptionalCallExpression':
-      case 'NewExpression':
-      case 'UpdateExpression':
-      case 'TemplateLiteral':
-      case 'ObjectProperty':
-      case 'Property':
-      case 'MemberExpression':
-      case 'OptionalMemberExpression': return true;
-      default: return false;
-    }
+    return !valueIsDroppedAt(refPath);
   }
 
   // does a member READ off the tracked object hand out an own-this method? a resolvable key leaks
@@ -1223,7 +1210,8 @@ export function createBindingAnalysis({
     return closure;
   }
 
-  function reset() {
+  function reset({ currentTreeReferences: current = false } = {}) {
+    currentTreeReferences = current;
     localCallMemberReadCache = new WeakMap();
     parameterMemberReadCache = new WeakMap();
     exportedNamesCache = new WeakMap();
@@ -1232,13 +1220,14 @@ export function createBindingAnalysis({
   }
 
   // cluster-private helpers (used only by other cluster functions, not by the factory
-  // or other clusters): `getExportedNames` / `isBindingExportedByName` / `isMemberRefReceiver` /
+  // or other clusters): `getExportedNames` / `isMemberRefReceiver` /
   // `resolveStaticCalleePair` / `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
   // `defaultAliasRefClassifier` / `isTypePositionParent`
   return {
     buildProgramIndex,
     programCensus,
     collectBindingReferences,
+    isBindingExportedByName,
     resolveStaticCalleePair,
     classBindingName,
     isClassExported,

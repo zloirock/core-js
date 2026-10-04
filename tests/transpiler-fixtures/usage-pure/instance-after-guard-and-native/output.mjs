@@ -10,9 +10,8 @@ if (flag) M = {
   groupBy: 7
 };
 const method = M === _Map ? _Map$groupBy : M.groupBy,
-  _ref = M,
   {
     at: other
-  } = _ref,
-  nm = _nameMaybeFunction(_ref);
+  } = M,
+  nm = _nameMaybeFunction(M);
 use(method, other, nm);

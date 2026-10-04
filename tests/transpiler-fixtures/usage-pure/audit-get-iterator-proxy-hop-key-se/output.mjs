@@ -1,31 +1,23 @@
 import _getIterator from "@core-js/pure/actual/get-iterator";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3;
-// proxy-global hop get-iterator (`globalThis[(eff(), 'self')][Symbol.iterator]`): the `.self` hop collapses
-// to the root pure import (`_globalThis`), but the hop's OWN side effect must survive. when a computed
-// iterator-key SE follows, a NON-optional receiver is peeled - so the dropped-hop SE is routed through the SE
-// channel ahead of the key SE (native order: hop then key); with no key SE it stays inline in the collapsed
-// receiver; an OPTIONAL receiver keeps the inline sequence (its null-guard memoize replays the hop SE)
+// Proxy receiver hops collapse to a pure realm value while retaining their own effects.
+// Receiver effects precede the computed iterator-key effects and run once.
+// Optional lookup guards its key effects; sealed receiver prefixes still run once.
 
-// hop SE + computed iterator-key SE, non-optional: both run, hop before key (routed through the SE channel)
+// A non-optional hop effect runs before the iterator-key effect.
 const a = (hop(), key(), _getIterator(_self));
 
-// hop SE, no iterator-key SE: the hop SE stays inline in the collapsed receiver (no peel)
+// Without iterator-key effects, the receiver owns its hop effect inline.
 const b = _getIterator((probe(), _self));
 
-// OPTIONAL access + iterator-key SE: NOT routed - the receiver keeps its `(hopSE, _root)` sequence memoized in
-// the null guard (a bare collapsed root would have nothing to replay), so both emitters keep the same memo form
-const c = (null == (_ref = (mark(), _self)) ? void 0 : (tag(), void 0), _getIterator(_ref));
+// A sealed optional lookup guards the key effect before unconditional consumption.
+const c = (null == (mark(), _self) ? void 0 : (tag(), void 0), _getIterator(_self));
 
-// MID-CHAIN optional (`?.` two-plus hops below the symbol access): the optional verdict is decided
-// ONCE by the provider (flag-based chain walk), so both emitters keep the inline `(hopSE, _root)`
-// memo form - an emitter-local one-hop probe would route the hop SE flat and diverge
-const d = (_ref2 = (hop2(), _globalThis), key2(), _getIterator(_ref2));
-const e = (_ref3 = (hop3(), _self), key3(), _getIterator(_ref3));
+// A mid-chain optional receiver runs its hop effect before the iterator key.
+const d = (hop2(), key2(), _getIterator(_globalThis));
+const e = (hop3(), key3(), _getIterator(_self));
 
-// SEALED `?.` (paren-terminated, sequence-buried, cast-sealed): the optional is not live for this
-// access - the flag walk stops at the seal, both emitters take the FLAT route and the hop SE
-// survives in the SE channel (an aggregating walk would mis-route babel into a peel that drops it)
+// Parentheses seal the receiver's optional chain; its prefix and hop effect run before the key.
 const f = (hop4(), key4(), _getIterator(_globalThis));
 const g = (eff5(), hop5(), key5(), _getIterator(_globalThis));
