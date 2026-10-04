@@ -1,6 +1,6 @@
-// chained polyfill in a TS parameter-property default: BOTH memoize refs must hoist above the class,
-// not into the constructor body. a body var is invisible to the parameter default, which evaluates
-// in the parameter scope - it would throw a ReferenceError once the parameter-property is desugared
+// Chained dispatches in a parameter-property default share that evaluation's local memos.
+// Constructor-body vars are invisible from the parameter list; enclosing vars would
+// share receiver state across reentrant constructions.
 function getArr() {
   return [1, [2]];
 }

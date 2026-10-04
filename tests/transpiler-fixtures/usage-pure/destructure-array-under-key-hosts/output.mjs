@@ -21,14 +21,13 @@ const {
 };
 use(viaAlias(1.5));
 const {
-  k: _ref
+  k: [_ref, _ref2]
 } = held;
-const [_ref2, _ref3] = _ref;
 const {
   sign: _unused
-} = _ref2;
+} = _ref;
 const viaSibling = _Math$sign;
-const beside = _ref3;
+const beside = _ref2;
 use(viaSibling(-1), beside);
 let viaAssign;
 ({

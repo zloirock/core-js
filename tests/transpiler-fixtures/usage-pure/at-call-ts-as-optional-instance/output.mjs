@@ -1,3 +1,2 @@
 import _at from "@core-js/pure/actual/instance/at";
-var _ref;
-null == (_ref = obj as any) ? void 0 : _at(_ref)?.call(_ref, -1);
+null == obj as any ? void 0 : _at(obj as any)?.call(obj as any, -1);

@@ -5,19 +5,19 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-var _ref, _ref2, _ref3, _unused;
+var _ref, _ref2, _unused;
 // Bodyless assignments preserve conditional receiver evaluation and ordered property reads.
 // Static and instance claims receive polyfills while sibling reads, rest and receiver stores survive.
 const log = [];
 let from, rest, keyed, other, nested, sibling, kw, prefixed;
-if (log.length >= 0) _ref = Array, from = _Array$from, {
+if (log.length >= 0) from = _Array$from, {
   from: _unused,
   ...rest
-} = _ref, _ref;
+} = Array;
 // A computed key runs before its property read and before the following sibling read.
-if (log.length >= 0) _ref2 = [3, [7]], null == _ref2 ? _ref2[""] : (_pushMaybeArray(log).call(log, "k"), keyed = _atMaybeArray(_ref2)), {
+if (log.length >= 0) _ref = [3, [7]], null == _ref ? _ref[""] : (_pushMaybeArray(log).call(log, "k"), keyed = _atMaybeArray(_ref)), {
   other
-} = _ref2, _ref2;
+} = _ref;
 // An unconsumed sibling remains a native read while the nested static receives its polyfill.
 if (log.length >= 0) ({
   Map: {
@@ -39,7 +39,7 @@ if (log.length >= 0) {
 // must not run when the control condition is false.
 let kwWrap, wrapped;
 if (log.length < 0) {
-  [_ref3] = [kwWrap = _globalThis];
-  wrapped = _withMaybeArray(_ref3.Array.prototype);
+  [_ref2] = [kwWrap = _globalThis];
+  wrapped = _withMaybeArray(_ref2.Array.prototype);
 }
 export { from, rest, keyed, other, nested, sibling, kw, prefixed, kwWrap, wrapped, log };

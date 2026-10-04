@@ -15,15 +15,14 @@ const { [Symbol.iterator]: { [Symbol.toPrimitive]: tp } } = [1];
 // A computed key and iterator pattern share one receiver and execute their reads in source order.
 let c = 0;
 const { [(c++, 'of')]: of, [Symbol.iterator]: { name: iterName2 } } = Array;
-// memoize-class receivers extract through a shared `_ref` (single read): a CONST-LITERAL
-// receiver with a multi-binding pattern, a MEMBER receiver (getter fires once), a BRANCHING
-// receiver, and a CALL init (whole-init memo - the call runs once)
+// Each nested iterator pattern reads its receiver once: an array literal, a member,
+// a conditional receiver and a call result. Sibling reads share the selected value.
 const { [Symbol.iterator]: { length: litArity, call: litCall } } = [7];
 const { [Symbol.iterator]: { length: memArity }, sib } = holder.p;
 const { [Symbol.iterator]: { length: brArity }, alt } = cond ? [8] : [];
 const { [Symbol.iterator]: { length: callArity }, q } = mk();
 // The member receiver is evaluated once before the computed-key and iterator reads.
 const { [(k2(), 'toSorted')]: ts, [Symbol.iterator]: { length: mixArity } } = holder2.p;
-// EXPORT host: the memo plants as a bare statement before the export (never exported itself)
+// Exported destructuring evaluates the receiver once and exports only the source bindings.
 export const { [Symbol.iterator]: { length: expArity }, expQ } = holder3.p;
 export { from, next, done, name, restOfMethod, customQ, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };

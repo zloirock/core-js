@@ -15,10 +15,10 @@ let c = 0;
 typeof (null == (_ref3 = (c++, _globalThis).foo) ? void 0 : _getIteratorMethod(_ref3));
 typeof (null == (_ref4 = (c++, _globalThis)['foo-bar']) ? void 0 : _getIteratorMethod(_ref4));
 
-// a claimless nav on a DEFINED-yield call root collapses onto the ROOT ponyfill - the
-// identifier twin's canon - with a sequence prefix re-emitted ahead of the base; the
-// PROBE-yield twin keeps the leaf collapse (its value never reached the root), and an
-// effect-bearing call keeps the leaf too - the fold has no slot to replay what it did
+// a claimless nav on a DEFINED-yield call root collapses onto the deepest ponyfill-backed
+// realm hop, like its identifier twin, with a sequence prefix re-emitted ahead of the base;
+// the PROBE-yield twin keeps the same leaf collapse, and an effect-bearing call keeps the
+// leaf too, retaining the call once before the user property read
 export const viaDefinedCallRoot = _self.userSlot;
 export const viaDefinedCallRootClaim = _Array$of(3);
 let sq = 0;

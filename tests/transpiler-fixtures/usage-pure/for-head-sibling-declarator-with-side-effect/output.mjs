@@ -18,8 +18,8 @@ for (const {
     Array: {
       from: _Array$from
     }
-  }, _ref = bump(), parse = _JSON$parse; flag;) break;
+  }, parse = (bump(), _JSON$parse); flag;) break;
 for (const {
     of
-  } = _Set, _ref2 = bump(), stringify = _JSON$stringify, z = 1; flag;) break;
+  } = _Set, stringify = (bump(), _JSON$stringify), z = 1; flag;) break;
 console.log(calls, from, parse, of, stringify, z);

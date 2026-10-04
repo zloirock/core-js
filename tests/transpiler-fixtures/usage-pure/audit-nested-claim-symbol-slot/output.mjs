@@ -16,35 +16,33 @@ const symbolSibling = function () {
     inner: [1],
     keep: 2
   };
-  const _ref = box;
-  const it = _getIteratorMethod(_ref.inner);
+  const it = _getIteratorMethod(box.inner);
   const {
     keep
-  } = _ref;
+  } = box;
   return [it, keep];
 }();
 const symbolDefault = function () {
-  var _ref2;
+  var _ref;
   const box = {
     inner: [1],
     keep: 2
   };
-  const _ref3 = box;
-  const it = _getIteratorMethod((_ref2 = _ref3.inner) === void 0 ? [] : _ref2);
+  const it = _getIteratorMethod((_ref = box.inner) === void 0 ? [] : _ref);
   const {
     keep
-  } = _ref3;
+  } = box;
   return [it, keep];
 }();
 const symbolLeafDefault = function () {
-  var _ref4;
+  var _ref2;
   const box = {
     inner: [1]
   };
   function fallback() {
     return null;
   }
-  const it = (_ref4 = _getIteratorMethod(box.inner)) === void 0 ? fallback : _ref4;
+  const it = (_ref2 = _getIteratorMethod(box.inner)) === void 0 ? fallback : _ref2;
   return it;
 }();
 export { symbolSole, symbolSibling, symbolDefault, symbolLeafDefault };

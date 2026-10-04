@@ -14,9 +14,8 @@ const foldedComputedKey = (function ({ ['flat' + 'Map']: fm } = [1, 2]) {
 const templateKey = (function ({ [`findLa${ 'st' }`]: fl } = [1, 2]) {
   return fl;
 })();
-// an effect-BEARING key folds to its name too: the effect stays on the pattern and runs once at
-// destructure, while the literal spells the plain name. a param host has nowhere to put a separate
-// binding, so this routes to the receiver synth like every other shape here
+// An effectful folded key runs once before the method lookup. This closed default caller
+// admits an ordered body capture, while the literal carries the key's stable spelling.
 let effects = 0;
 const sideEffectingKey = (function ({ [(effects++, 'findIndex')]: fi } = [1, 2]) {
   return fi;

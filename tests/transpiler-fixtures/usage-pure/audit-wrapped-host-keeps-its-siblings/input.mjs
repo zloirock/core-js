@@ -1,5 +1,5 @@
 // Native captures preserve the bindings beside a nested hop.
-// A shared receiver is read once before its leaf properties; unsupported hosts stay native.
+// Each nested property is read once; stable source names need no capture.
 const nested = { lead: 5, y: Object.assign([1, [2]], { extra: 7 }), top: 4 };
 // Siblings on both sides keep their reads around the nested hop.
 const [{ lead, y: { flat, extra }, top }] = [nested];

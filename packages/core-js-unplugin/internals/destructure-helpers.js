@@ -440,7 +440,8 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   if (sentinelKept) {
     if (seqPrefix?.length || mayHaveSideEffects(bodylessAssign.right)) return;
     const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
-    const seKeyFirst = jobs.some(job => job.sentinel && job.prop.computed && computedKeyHasSideEffects(job.prop));
+    const seKeyFirst = jobs.some(job => job.sentinel && job.prop.computed
+      && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter: memoCtx?.adapter }));
     // the sentinel `var` LEADS the block whatever the order below: it declares, it does not run, and
     // that is where the other leg plants it
     const body = seKeyFirst
@@ -714,7 +715,7 @@ export function chainAssignOverPureNav(node, guardCtx = null) {
   // here the nav question steps it through the canon peel: stopping at it called the stored value
   // rootless, the lift declined, and the pattern then read its slots off the raw realm object
   return assign?.type === 'AssignmentExpression' && assign.operator === '='
-    && isPureNavAfterSePrefix(assign.right, guardCtx, { throughSequenceTails: true }) ? assign : null;
+    && isPureNavAfterSePrefix(peelChainRootValue(assign), guardCtx, { throughSequenceTails: true }) ? assign : null;
 }
 
 // the shared "conditional destructure left untouched" debug-warn, emitted where the per-branch
@@ -785,7 +786,7 @@ export function climbPatternChain(patternPath, keyCtx = null) {
     // hop, and the effect would go with it (`{ [(eff(), 'Array')]: { prototype: { at } } }`)
     const foldedComputedKey = hopProp.computed ? consumableHopSlotName(hopProp, keyCtx) : null;
     if ((hopProp.computed && typeof foldedComputedKey !== 'string') || hopValue !== hostPatternPath.node) return;
-    chain.push({ hopProp, outerPattern, outerRest: hasRestSibling(outerPattern), foldedKey: foldedComputedKey || null });
+    chain.push({ hopProp, outerPattern, outerRest: hasRestSibling(outerPattern, keyCtx), foldedKey: foldedComputedKey || null });
     hostPatternPath = up.parentPath;
   }
   let hostParent = hostPatternPath.parentPath;
@@ -816,6 +817,7 @@ export function chainThroughNamedDefaults(chain) {
 // the residual is DEAD when this extraction takes every binding of a single-declarator
 // declaration - the shared plan's `soleBindingInDeclaration`
 export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, declaration, pureNav, adapter = null }) {
+  const patternCtx = { ...nodeSite(prop, metaPath), adapter };
   const declaratorConsumedWhole = patternBindingCount(declarator.id) === patternBindingCount(prop.value);
   const soleBinding = declaration.declarations.length === 1 && declaratorConsumedWhole;
   let literalReceiver = null;
@@ -844,7 +846,7 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
       // already performs (`const { y: { at } } = { y: nb.y }, zn = 1`)
       // ... and only where the residual DIES: a level an effectful hop key keeps would run the
       // carried effect a second time beside the dispatch
-      if (!literalReceiver && declaratorConsumedWhole && !sentinel && !hostLevelSurvives(declarator)) {
+      if (!literalReceiver && declaratorConsumedWhole && !sentinel && !hostLevelSurvives(declarator, { ctx: patternCtx })) {
         const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
         if (carried && receiverPerformsEveryInitEffect(declarator.init, carried,
           adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null)) {
@@ -865,7 +867,8 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   // observable property stands BEFORE the slot: hoisting the read would fire its getter ahead of
   // that property, so the memo is written in the slot instead
   // ... a level an effectful hop key keeps is a residual beside the claim exactly like a rest's
-  const memoCandidate = (!literalReceiver || relaxedReceiver) && (!declaratorConsumedWhole || hostLevelSurvives(declarator))
+  const memoCandidate = (!literalReceiver || relaxedReceiver)
+    && (!declaratorConsumedWhole || hostLevelSurvives(declarator, { ctx: patternCtx }))
     && chain.length > 0 ? nestedSlotMemoPlan(metaPath, { adapter }) : null;
   const slotMemo = memoCandidate && (!literalReceiver || !memoCandidate.hoist) ? memoCandidate : null;
   if (slotMemo) {
@@ -1648,10 +1651,10 @@ export function isPlainConsumableProp(prop, {
 // only a REST sibling blocks: it reads "everything the pattern did not consume", so a
 // removed prop changes what it collects (babel renames to `_unused` sentinels - staged).
 // computed / defaulted siblings keep their own routing and survive in the residual
-export function hasRestSibling(pattern) {
+export function hasRestSibling(pattern, ctx = null) {
   // ... and a HOP whose key carries an effect keeps its level exactly as a rest does: the hop
   // retires to a sentinel, the key runs once where it stands (the provider plan's own rule)
-  return hasRestSiblingExcept(pattern.properties, null) || patternLevelKeepsEffectfulHop(pattern);
+  return hasRestSiblingExcept(pattern.properties, null) || patternLevelKeepsEffectfulHop(pattern, ctx);
 }
 
 // a DECLINED mirror's leaf defaults still take the sound polyfill (the slot fires only where
@@ -2062,11 +2065,13 @@ export function divergingSelection(node, ctx) {
 // place (the block-hosted rule). SEVERAL plain dispatches - or one beside a SURVIVING
 // residual - must read ONE evaluation of the init the same way: the memo is a sibling
 // declarator and every reader spells the ref (babel's head shape)
-export function forInitMemoVerdicts(byDeclarator, mintRefName) {
+export function forInitMemoVerdicts(byDeclarator, mintRefName, ctx = null) {
   const memoRefs = new Map();
   for (const [declarator, declJobs] of byDeclarator) {
     const init = declarator?.init;
-    const reusableInit = init?.type === 'Identifier' || init?.type === 'ThisExpression';
+    const [{ metaPath }] = declJobs;
+    const reusableInit = init?.type === 'ThisExpression' || init?.type === 'Identifier'
+      && isReReferenceableAcrossReads(init, { scope: metaPath?.scope, path: metaPath, adapter: ctx?.adapter });
     if (!init || reusableInit || declJobs.some(job => job.chain?.length)) continue;
     const readers = declJobs.filter(job => job.readsReceiver).length;
     const consumed = declJobs.reduce((total, job) => total + patternBindingCount(job.prop.value), 0);
@@ -2152,15 +2157,16 @@ export function declinedWrapperTakesDefault(args, ctx) {
 }
 
 // do the jobs of one declarator all keep an SE-KEY sentinel - the claims the sibling join serves?
-export function seKeySentinelJobs(declJobs) {
-  return declJobs.every(job => job.sentinel && computedKeyHasSideEffects(job.prop));
+export function seKeySentinelJobs(declJobs, adapter = null) {
+  return declJobs.every(job => job.sentinel
+    && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter }));
 }
 
 // the bodyless `var` slot's sentinel memo join: the memo the LEADING declarator, the residual, its
 // extractions (segmented per key) and the trailing siblings in ONE statement (`if (c) var _ref =
 // eff(), { [k]: _unused, z } = _ref, s = _at(_ref), q = 2;`) - a `var` slot takes the memo as a
 // declarator whatever the residual holds, since a statement of its own would brace the slot
-function joinBodylessSentinelMemo({ declaration, byDeclarator }, { mintRefName, removeConsumedProps, markRewrite }) {
+function joinBodylessSentinelMemo({ declaration, byDeclarator, adapter }, { mintRefName, removeConsumedProps, markRewrite }) {
   const declarators = [];
   for (const declarator of declaration.declarations) {
     const declJobs = byDeclarator.get(declarator) ?? [];
@@ -2177,7 +2183,7 @@ function joinBodylessSentinelMemo({ declaration, byDeclarator }, { mintRefName, 
     const values = declJobs.map(job => job.value(memoRef));
     removeConsumedProps(declJobs);
     if (declarator.id.type !== 'ObjectPattern' || declarator.id.properties.length !== 0) {
-      declarators.push(...seKeySegmentedDeclarators(declarator, declJobs, memoRef));
+      declarators.push(...seKeySegmentedDeclarators(declarator, declJobs, memoRef, adapter));
     } else declarators.push(...declJobs.map((job, at) => variableDeclarator(jobBindingTarget(job), values[at])));
   }
   declaration.declarations = declarators;
@@ -2189,7 +2195,7 @@ function joinBodylessSentinelMemo({ declaration, byDeclarator }, { mintRefName, 
 // residual OWES, the statement host's rule: an SE key runs before the dispatch that reads its
 // receiver, so that residual leads (`var first = init, { [SE]: _unused } = rows, fm = _flatMap(rows);`);
 // a claim reading nothing off it (a static, a ctor, a flatten leaf) binds ahead, where the split prints it
-export function joinBodylessSiblingExtractions({ declaration, jobs }, { removeConsumedProps, markRewrite }) {
+export function joinBodylessSiblingExtractions({ declaration, jobs, adapter = null }, { removeConsumedProps, markRewrite }) {
   const byDeclarator = Map.groupBy(jobs, job => job.declarator);
   const declarators = [];
   for (const declarator of declaration.declarations) {
@@ -2197,17 +2203,18 @@ export function joinBodylessSiblingExtractions({ declaration, jobs }, { removeCo
     const extracted = declJobs.map(job => ({ job, item: variableDeclarator(jobBindingTarget(job), job.value()) }));
     removeConsumedProps(declJobs);
     const emptied = declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0;
-    declarators.push(...extracted.filter(({ job }) => !bodylessExtractionFollows(job)).map(({ item }) => item));
+    declarators.push(...extracted.filter(({ job }) => !bodylessExtractionFollows(job, adapter)).map(({ item }) => item));
     if (!emptied) declarators.push(declarator);
-    declarators.push(...extracted.filter(({ job }) => bodylessExtractionFollows(job)).map(({ item }) => item));
+    declarators.push(...extracted.filter(({ job }) => bodylessExtractionFollows(job, adapter)).map(({ item }) => item));
   }
   declaration.declarations = declarators;
   markRewrite();
 }
 
 // ... the claims that follow their residual there (asked of the prop: a bodyless job carries no `seKey`)
-function bodylessExtractionFollows(job) {
-  return !!(job.sentinel && job.readsReceiver && job.prop?.computed && computedKeyHasSideEffects(job.prop));
+function bodylessExtractionFollows(job, adapter) {
+  return !!(job.sentinel && job.readsReceiver && job.prop?.computed
+    && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter }));
 }
 
 // the bodyless MULTI-declarator slot whose jobs need a memo: SE-key sentinels over a `var` take the
@@ -2221,9 +2228,9 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
     if (!byDeclarator.has(job.declarator)) byDeclarator.set(job.declarator, []);
     byDeclarator.get(job.declarator).push(job);
   }
-  if (declaration.kind === 'var' && byDeclarator.values().every(declJobs => seKeySentinelJobs(declJobs)
+  if (declaration.kind === 'var' && byDeclarator.values().every(declJobs => seKeySentinelJobs(declJobs, adapter)
     && (declJobs.some(job => job.needsMemo) || !declJobs[0].seqPrefix?.length))) {
-    return joinBodylessSentinelMemo({ declaration, byDeclarator }, { mintRefName, removeConsumedProps, markRewrite });
+    return joinBodylessSentinelMemo({ declaration, byDeclarator, adapter }, { mintRefName, removeConsumedProps, markRewrite });
   }
   const statements = [];
   for (const declarator of declaration.declarations) {
@@ -2252,7 +2259,7 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
     const residualLives = declarator.id.type !== 'ObjectPattern' || declarator.id.properties.length !== 0;
     // a REST-kept residual follows its extraction, each a statement of its own - the split shape
     // (`var s = _at(_ref); var { at: _unused, ...r } = _ref;`)
-    if (residualLives && !seKeySentinelJobs(declJobs)) {
+    if (residualLives && !seKeySentinelJobs(declJobs, adapter)) {
       statements.push(
         ...declJobs.map((job, at) => variableDeclaration(declaration.kind, [variableDeclarator(jobBindingTarget(job), values[at])])),
         variableDeclaration(declaration.kind, [declarator]),
@@ -2263,10 +2270,11 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
     const extracted = declJobs.map((job, at) => ({ job, item: variableDeclarator(jobBindingTarget(job), values[at]) }));
     const joined = [
       ...residualLives ? [declarator] : [],
-      ...extracted.filter(({ job }) => bodylessExtractionFollows(job)).map(({ item }) => item),
+      ...extracted.filter(({ job }) => bodylessExtractionFollows(job, adapter)).map(({ item }) => item),
     ];
     statements.push(
-      ...extracted.filter(({ job }) => !bodylessExtractionFollows(job)).map(({ item }) => variableDeclaration(declaration.kind, [item])),
+      ...extracted.filter(({ job }) => !bodylessExtractionFollows(job, adapter))
+        .map(({ item }) => variableDeclaration(declaration.kind, [item])),
       ...joined.length ? [variableDeclaration(declaration.kind, joined)] : [],
     );
   }
@@ -2474,23 +2482,24 @@ export function sentinelMemoInitShape(init, allProxyInit) {
 
 // the residual + extractions of ONE declarator: segmented when the source reads props past the
 // last job's own slot (or when several jobs interleave), else the plain residual-then-extractions
-export function seKeySegmentedDeclarators(declarator, jobs, refName) {
+export function seKeySegmentedDeclarators(declarator, jobs, refName, adapter = null) {
   // ... never around a REST: it gathers by exclusion of its own pattern's keys, and a segment of its
   // own would gather the claimed keys too (babel keeps the batch there, a documented boundary)
   const rest = declarator.id.type === 'ObjectPattern' && declarator.id.properties.some(item => item.type === 'RestElement');
-  if (!rest && (jobs.some(job => job.consumeKey) || jobs.length > 1 || patternHasSeveralSeKeys(declarator.id)
+  if (!rest && (jobs.some(job => job.consumeKey) || jobs.length > 1
+    || patternHasSeveralSeKeys(declarator.id, 2, { ...nodeSite(declarator.id, jobs[0]?.metaPath), adapter })
     || (jobs.length === 1 && trailingSeKeyProps(declarator, jobs[0])))) {
-    return interleavedSeKeySegments(declarator, jobs, refName);
+    return interleavedSeKeySegments(declarator, jobs, refName, adapter);
   }
   return [declarator, ...jobs.map(job => variableDeclarator(job.bindingTarget, job.value(refName)))];
 }
 
 // the segments of a residual whose SE-key claims bind by NAME (a bodyless host, no export to route
 // them through): the consume runs here, ahead of the split that reads the props it leaves
-export function seKeySegmentedResidual(declarator, jobs, refName, removeConsumedProps) {
+export function seKeySegmentedResidual(declarator, jobs, refName, removeConsumedProps, adapter = null) {
   for (const job of jobs) job.bindingTarget = jobBindingTarget(job);
   removeConsumedProps(jobs);
-  return seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(jobs), refName);
+  return seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(jobs), refName, adapter);
 }
 
 // props the source reads PAST the job's own slot - and only ORDINARY ones: a REST read takes the
@@ -2503,7 +2512,7 @@ export function trailingSeKeyProps(declarator, job) {
   return after.length > 0 && after.every(prop => prop.type === 'Property');
 }
 
-export function interleavedSeKeySegments(declarator, jobs, refName) {
+export function interleavedSeKeySegments(declarator, jobs, refName, adapter = null) {
   const jobByProp = new Map(jobs.map(job => [job.prop, job]));
   const declarators = [];
   let buffered = [];
@@ -2516,7 +2525,8 @@ export function interleavedSeKeySegments(declarator, jobs, refName) {
         { type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init),
       ));
       const receiverName = refName ?? declarator.init.name;
-      const keys = destructureKeyReadPlan({ node: prop, parentPath: { node: declarator.id } })?.keys ?? [];
+      const keys = destructureKeyReadPlan({ node: prop, parentPath: { node: declarator.id } },
+        { ...nodeSite(prop, job.metaPath), adapter })?.keys ?? [];
       declarators.push(renderKeyedDestructureRead({
         receiverName, receiver: identifier(receiverName), binding: job.bindingTarget,
         keys, read: job.value(receiverName),
@@ -2564,6 +2574,7 @@ export function joinSeKeySiblingDeclarator({
   statements,
   markRewrite,
   refName = null,
+  adapter = null,
 }) {
   if (!declJobsHere.length || declarator.init?.type !== 'Identifier') return false;
   // a SOLE declarator with ONE job joins only when that job is DEFAULTED: its guard must read
@@ -2571,7 +2582,7 @@ export function joinSeKeySiblingDeclarator({
   // extraction ahead. SEVERAL jobs join either way - the interleave gives each its own segment,
   // and so do several EFFECTFUL keys whoever claims them
   if (hostNode.declarations.length <= 1 && declJobsHere.length === 1 && !declJobsHere[0].defaulted
-    && !patternHasSeveralSeKeys(declarator.id)) {
+    && !patternHasSeveralSeKeys(declarator.id, 2, { ...nodeSite(declarator.id, declJobsHere[0].metaPath), adapter })) {
     return false;
   }
   // ... and a REST-kept sole declarator keeps the split too: no segment may take the rest - unless a
@@ -2585,7 +2596,7 @@ export function joinSeKeySiblingDeclarator({
     // ... and props AFTER the job's own read segment the same way: the source reads them past
     // the extraction, so they follow it in their own declarator (`{ [k]: _unused } = _ref, m =
     // ..., { other } = _ref`)
-    seKeySegmentedDeclarators(declarator, jobs, refName)),
+    seKeySegmentedDeclarators(declarator, jobs, refName, adapter)),
   exported));
   markRewrite();
   return true;

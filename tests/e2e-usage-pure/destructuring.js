@@ -5,7 +5,8 @@
 // asserts never fires there, and the extraction keeps its native-faithful behavior (an
 // unbound this-sensitive static throws). the fold itself stays locked by the other legs
 import { withWindowWithoutSelf } from './window-without-self-host.js';
-import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+import { withWindowPresence } from './unbacked-window-host.cjs';
+import { restoreProperty, withTemporaryProperty } from '../helpers/restore-property.cjs';
 
 const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
 
@@ -166,6 +167,155 @@ QUnit.test('destructuring: guarded assignments separate pure bindings and native
     assert.deepEqual(box.value({ x: 1 }), ['x']);
     assert.deepEqual(events, ['source', 'first', true, 'x']);
   }
+});
+
+QUnit.test('destructuring: a guarded partial assignment polyfills its preceding binding in both hosts', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    const pureFrom = Array.from;
+    const box = {};
+    let from = 'old';
+    let error;
+    try {
+      ({ Array: { [(events.push('first'), 'from')]: from },
+        // eslint-disable-next-line no-sequences -- this native target observes the pure binding write
+        Object: { keys: box[events.push(from === pureFrom, 'x'.at(0)), 'value'] } }
+        // eslint-disable-next-line no-unsafe-optional-chaining -- absence rejects before either target write
+        = (events.push('source'), globalThis.window?.self));
+    } catch (error_) {
+      error = error_.name;
+    }
+    if (live) {
+      assert.same(error, undefined);
+      assert.same(from, pureFrom);
+      assert.deepEqual(from([7]), [7]);
+      assert.deepEqual(box.value({ x: 1 }), ['x']);
+      assert.deepEqual(events, ['source', 'first', true, 'x']);
+    } else {
+      assert.same(error, 'TypeError');
+      assert.same(from, 'old');
+      assert.same(box.value, undefined);
+      assert.deepEqual(events, ['source']);
+    }
+  });
+});
+
+// Standalone Babel lowering evaluates a computed member target before its nested source read.
+// The modern differential keeps this exact order claim active; the next tests cover lowered captures.
+QUnit.skip('destructuring: partial static assignments read native siblings after the binding write', assert => {
+  withWindowPresence(true, () => {
+    const events = [];
+    const pureFrom = Array.from;
+    const nativeObject = Object;
+    const previous = Object.getOwnPropertyDescriptor(globalThis, 'Object');
+    const box = {};
+    let from = 'old';
+    let observing = false;
+    restoreProperty(globalThis, 'Object', {
+      configurable: true,
+      get() {
+        if (observing) events.push(['native', from === pureFrom]);
+        return nativeObject;
+      },
+    });
+    try {
+      observing = true;
+      ({ Array: { [(events.push('key'), 'from')]: from },
+        // eslint-disable-next-line no-sequences -- this native target observes the preceding binding write
+        Object: { keys: box[events.push('target', from === pureFrom), 'value'] } }
+        // eslint-disable-next-line no-unsafe-optional-chaining -- the foreign host supplies both aliases
+        = (events.push('source'), globalThis.window?.self));
+    } finally {
+      observing = false;
+      restoreProperty(globalThis, 'Object', previous);
+    }
+    assert.same(from, pureFrom);
+    assert.deepEqual(from([7]), [7]);
+    assert.deepEqual(box.value({ x: 1 }), ['x']);
+    assert.deepEqual(events, ['source', 'key', ['native', true], 'target', true]);
+  });
+});
+
+QUnit.test('destructuring: guarded partial captures read native sibling bindings in source order', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    const pureFrom = Array.from;
+    const nativeObject = Object;
+    const previous = Object.getOwnPropertyDescriptor(globalThis, 'Object');
+    let from = 'old';
+    let length = 'old';
+    let error;
+    let observing = false;
+    restoreProperty(globalThis, 'Object', {
+      configurable: true,
+      get() {
+        if (observing) events.push(['native', from === pureFrom]);
+        return nativeObject;
+      },
+    });
+    try {
+      observing = true;
+      ({ Array: { [(events.push('key'), 'from')]: from }, Object: { length } }
+        // eslint-disable-next-line no-unsafe-optional-chaining -- absence rejects before both binding writes
+        = (events.push('source'), globalThis.window?.self));
+    } catch (error_) {
+      error = error_.name;
+    } finally {
+      observing = false;
+      restoreProperty(globalThis, 'Object', previous);
+    }
+    if (live) {
+      assert.same(error, undefined);
+      assert.same(from, pureFrom);
+      assert.deepEqual(from([7]), [7]);
+      assert.same(length, nativeObject.length);
+      assert.deepEqual(events, ['source', 'key', ['native', true]]);
+    } else {
+      assert.same(error, 'TypeError');
+      assert.same(from, 'old');
+      assert.same(length, 'old');
+      assert.deepEqual(events, ['source']);
+    }
+  });
+});
+
+QUnit.test('destructuring: a partial static member target reads its native constructor once', assert => {
+  withWindowPresence(true, () => {
+    const events = [];
+    const pureFrom = Array.from;
+    const nativeObject = Object;
+    const previous = Object.getOwnPropertyDescriptor(globalThis, 'Object');
+    const box = {};
+    let from = 'old';
+    let reads = 0;
+    let observing = false;
+    restoreProperty(globalThis, 'Object', {
+      configurable: true,
+      get() {
+        if (observing) {
+          reads++;
+          events.push(from === pureFrom);
+        }
+        return nativeObject;
+      },
+    });
+    try {
+      observing = true;
+      ({ Array: { [(events.push('key'), 'from')]: from },
+        // eslint-disable-next-line no-sequences -- keep the member target in the original source form
+        Object: { keys: box[events.push('target'), 'value'] } }
+        // eslint-disable-next-line no-unsafe-optional-chaining -- the foreign host supplies both aliases
+        = (events.push('source'), globalThis.window?.self));
+    } finally {
+      observing = false;
+      restoreProperty(globalThis, 'Object', previous);
+    }
+    assert.same(from, pureFrom);
+    assert.deepEqual(from([7]), [7]);
+    assert.deepEqual(box.value({ x: 1 }), ['x']);
+    assert.same(reads, 1);
+    assert.deepEqual(events.filter(value => typeof value === 'boolean'), [true]);
+  });
 });
 
 QUnit.test('destructuring: nested bindings consume the static value and keep their keys live', assert => {
@@ -4261,7 +4411,7 @@ QUnit.test('destructuring: array-wrapper element is read once per key', assert =
 
 // an array-wrapper NEIGHBOUR that runs code pins the evaluation order: native evaluates every
 // element of the literal before reading a property off any of them, so a hoisted extraction
-// would move the read ahead of the neighbour. the claim stays native there
+// would move the read ahead of the neighbour. extraction follows the original RHS
 QUnit.test('destructuring: an effectful array-wrapper neighbour keeps the order', assert => {
   const order = [];
   // an ARRAY receiver, so the claims actually resolve - on a plain object neither `at` nor
@@ -4287,6 +4437,26 @@ QUnit.test('destructuring: an effectful array-wrapper neighbour keeps the order'
   assert.deepEqual(order, ['neighbour', 'at', 'keys']);
   // the read COUNT is the second half of the claim: one per key, like native
   assert.same(order.length, 3);
+});
+
+// Babel's prior literal lowering loses this RHS order before post-only detection.
+testUnlessDetectLowered('destructuring: a stable array receiver keeps sibling assignment order', assert => {
+  const order = [];
+  let tail = 'before';
+  let at;
+  let keys;
+  const src = [1, 2];
+  for (const key of ['at', 'keys']) Object.defineProperty(src, key, {
+    get() {
+      order.push([key, tail]);
+      return function own() { return key; };
+    },
+  });
+  [{ at, keys }, tail] = [src, (order.push('rhs'), 'after')];
+  assert.same(at(), 'at');
+  assert.same(keys(), 'keys');
+  assert.same(tail, 'after');
+  assert.deepEqual(order, ['rhs', ['at', 'before'], ['keys', 'before']]);
 });
 
 // an ARRAY receiver carrying own getters for the claimed keys: the claims resolve (a plain object
@@ -4374,6 +4544,29 @@ QUnit.test('destructuring: an unclaimed wrapper element keeps coercing', assert 
     const [{}, { at }] = [null, [1, 2]];
     return at;
   }, TypeError);
+});
+
+QUnit.test('destructuring: an empty wrapper element throws before a later getter', assert => {
+  const reads = [];
+  const receiver = orderedSource(reads, ['at']);
+  assert.throws(() => {
+    // eslint-disable-next-line no-empty-pattern -- the first element must throw before the method read
+    const [{}, { at }] = [null, receiver];
+    return at;
+  }, TypeError);
+  assert.deepEqual(reads, []);
+});
+
+// The later source read is already reordered by Babel in the post-only input.
+testUnlessDetectLowered('destructuring: every array source reads before the first method getter', assert => {
+  const reads = [];
+  const receiver = orderedSource(reads, ['at']);
+  assert.throws(() => {
+    // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- the later RHS read must throw before the first getter
+    const [{ at }, { keys }] = [receiver, missingDestructureReceiver];
+    return [at, keys];
+  }, ReferenceError);
+  assert.deepEqual(reads, []);
 });
 
 // a REST element keeps the residual, so the wrapper element has a SECOND reader: re-running the

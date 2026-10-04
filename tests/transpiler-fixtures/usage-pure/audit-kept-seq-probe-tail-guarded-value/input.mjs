@@ -1,5 +1,5 @@
 // Nested sequence tails ending in the backed self hop store and read that ponyfill.
-// The plain window hop adds no guard; each sequence prefix and kept assignment survives once.
+// The window hop is plain; each sequence prefix and kept assignment survives once.
 // Static, instance and aliased roots obey the same value rule, including deeper consumers.
 const ga = globalThis;
 let c = 0, d = 0, k;

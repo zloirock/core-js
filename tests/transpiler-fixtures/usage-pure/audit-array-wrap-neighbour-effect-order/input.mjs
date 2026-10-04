@@ -2,8 +2,8 @@
 const anchor = [1, 2];
 export { anchor };
 
-// An effectful neighbour evaluates before the extracted property reads,
-// so both extractions follow the capture of the original elements.
+// An effectful neighbour evaluates before the extracted property reads.
+// Both extractions follow the original RHS; the unchanged receiver needs no capture.
 const [{ at, keys }, viaCall] = [arr, effect()];
 export { at, keys, viaCall };
 

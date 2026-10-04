@@ -4,7 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-var _ref, _ref2, _ref3, _ref4, _ref5;
+var _ref, _ref2, _ref4, _ref5;
 // two surfaces the probe-nav corpus had never covered: CONSTRUCT positions (the parenthesized
 // callee of `new`, a class heritage clause, a `super` static call) and PATTERN defaults (object /
 // array / nested / parameter). the nav's value survives into each of them, so the guard render
@@ -43,7 +43,10 @@ const {
   } = {}
 } = {};
 function withParamDefault({
-  missParam = null == (_ref3 = null == _globalThis.window ? void 0 : _self.ctorBox.list) ? void 0 : _at(_ref3).call(_ref3, 0)
+  missParam = (() => {
+    var _ref3;
+    return null == (_ref3 = null == _globalThis.window ? void 0 : _self.ctorBox.list) ? void 0 : _at(_ref3).call(_ref3, 0);
+  })()
 } = {}) {
   return missParam;
 }

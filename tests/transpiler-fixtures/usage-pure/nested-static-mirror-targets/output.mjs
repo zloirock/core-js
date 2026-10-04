@@ -4,13 +4,10 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-var _ref, _ref2, _ref3, _ref4, _ref5;
-// Identifier slots receive pure statics; a nested pattern under a static rides the MIRROR SLOT where
-// the host holds more than that one prop - the statement stands and no key effect crosses another -
-// while member assignment targets retain native slots. The slot DESCENDS where a leaf under the
-// pattern carries a claim of its own, spelling it off the static's ponyfill. Only a host the pattern
-// occupies ALONE is lifted out as an extraction. Computed keys and target effects stay live on both
-// paths, and both legs print the same shape.
+// Identifier targets receive pure statics, including leaves nested below another static.
+// Member assignment targets keep native property reads and default behavior. Mixed hosts
+// must preserve receiver reads and coercions, computed-key effects, and target evaluation
+// in source order; binding and parameter patterns keep their initialization order.
 const events = [];
 const pureFrom = _Array$from;
 const box = {};
@@ -22,7 +19,7 @@ let defaults = 0;
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0)), 'bind')]: bind
+      [(_pushMaybeArray(events).call(events, _atMaybeString('x').call('x', 0)), 'bind')]: bind
     }
   }
 } = {
@@ -34,31 +31,19 @@ let defaults = 0;
   }
 });
 ({
-  Array: {
-    [(_pushMaybeArray(events).call(events, 'second'), 'from')]: from
-  },
+  Array: {}
+} = _globalThis), _pushMaybeArray(events).call(events, 'second'), from = _Array$from, {
   Object: {
-    keys: box[_pushMaybeArray(events).call(events, _atMaybeString(_ref2 = 'y').call(_ref2, 0)), 'value']
+    keys: box[_pushMaybeArray(events).call(events, _atMaybeString('y').call('y', 0)), 'value']
   }
-} = {
-  Array: {
-    from: _Array$from
-  },
-  Object: _globalThis.Object
-});
+} = _globalThis;
 ({
-  Array: {
-    [(_pushMaybeArray(events).call(events, 'third'), 'from')]: from
-  },
+  Array: {}
+} = _globalThis), _pushMaybeArray(events).call(events, 'third'), from = _Array$from, {
   Object: {
-    keys: box[_pushMaybeArray(events).call(events, _atMaybeString(_ref3 = 'z').call(_ref3, 0)), 'value'] = (defaults++, null)
+    keys: box[_pushMaybeArray(events).call(events, _atMaybeString('z').call('z', 0)), 'value'] = (defaults++, null)
   }
-} = {
-  Array: {
-    from: _Array$from
-  },
-  Object: _globalThis.Object
-});
+} = _globalThis;
 export const result = [from([7])[0], from === pureFrom, typeof bind, typeof box.value, defaults, events];
 function observe() {
   try {
@@ -73,7 +58,7 @@ const {
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref4 = 'a').call(_ref4, 0)), 'bind')]: boundBind
+      [(_pushMaybeArray(events).call(events, _atMaybeString('a').call('a', 0)), 'bind')]: boundBind
     }
   }
 } = {
@@ -90,7 +75,7 @@ function read({
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref5 = 'b').call(_ref5, 0)), 'bind')]: bound
+      [(_pushMaybeArray(events).call(events, _atMaybeString('b').call('b', 0)), 'bind')]: bound
     }
   }
 } = {

@@ -2,7 +2,6 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-var _ref3;
 // the prototype-routed read rule has to hold wherever the `super` sits, not just in a plain method:
 // an arrow keeps the enclosing super binding, a static block reads the parent CONSTRUCTOR (so a
 // static field is visible there), an instance field initializer reads the parent prototype like any
@@ -34,7 +33,10 @@ class InStaticBlock extends StaticBase {
   }
 }
 class InFieldInit extends Base {
-  c = _atMaybeString(_ref3 = super.a).call(_ref3, 0);
+  c = (() => {
+    var _ref3;
+    return _atMaybeString(_ref3 = super.a).call(_ref3, 0);
+  })();
 }
 class Middle extends StaticBase {}
 class TwoLevels extends Middle {

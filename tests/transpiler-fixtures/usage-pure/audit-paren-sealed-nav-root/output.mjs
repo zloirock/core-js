@@ -23,7 +23,7 @@ import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13;
+var _ref, _ref2, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 // a PAREN-SEALED undefinable nav as a chain root: the seal ends the inner chain, so the outer
 // `?.` guards the sealed VALUE - which CAN be undefined (the live inner `?.` tests an
 // unresolvable window read). the claim renders GUARDED with the canonical nested test; eating
@@ -31,7 +31,7 @@ var _ref, _ref2, _ref3, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref1
 export const viaSealedOptTail = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _atMaybeArray(_ref = _Array$of(3)).call(_ref, 0);
 
 // the same shape as a parameter default renders identically
-export function viaParamDefault(x = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _toFixedMaybeNumber(_ref2 = _Number$MAX_SAFE_INTEGER).call(_ref2, 2)) {
+export function viaParamDefault(x = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _toFixedMaybeNumber(_Number$MAX_SAFE_INTEGER).call(_Number$MAX_SAFE_INTEGER, 2)) {
   return x;
 }
 
@@ -56,7 +56,7 @@ export const viaSealedCtorRead = null == _globalThis.window ? void 0 : _Map;
 // the source performs on the sealed VALUE as a THROW probe ahead of the claim: an absent
 // `window` throws at the probe exactly as the source does, a present one reads through the
 // ponyfill and drops the value - call, destructure and the claimable ctor value-use alike
-export const viaSealedPlainCall = _atMaybeArray(_ref3 = ((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(6)).call(_ref3, 0);
+export const viaSealedPlainCall = _atMaybeArray(_ref2 = ((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(6)).call(_ref2, 0);
 export const viaSealedPlainDestructure = _atMaybeArray(((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(7));
 export const viaSealedPlainCtorRead = ((null == _globalThis.window ? void 0 : _self.window).Promise, _Promise);
 
@@ -150,10 +150,10 @@ let c7 = 0;
 export function viaSealedSeKeyResidualBail({
   getOwnPropertyNames: nb1,
   customK: nb2
-} = function (_ref4) {
+} = function (_ref3) {
   return {
     getOwnPropertyNames: _Object$getOwnPropertyNames,
-    customK: _ref4.customK
+    customK: _ref3.customK
   };
 }((null == _globalThis.window ? void 0 : (c7++, _self)).Object)) {
   return [nb1, nb2];
@@ -174,33 +174,33 @@ let c8 = 0;
 export const [viaSealedArrayPattern] = ((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(12);
 const aliasKey = 'getOwnPropertyDescriptor';
 export const viaSealedAliasKey = ((null == _globalThis.window ? void 0 : _self.window).Object, _Object$getOwnPropertyDescriptor);
-export const viaSealedSeKeyResidual = (_ref5 = (null == _globalThis.window ? void 0 : _self.window).Object, null == _ref5 ? _ref5[""] : (c8++, _Object$defineProperty));
+export const viaSealedSeKeyResidual = (_ref4 = (null == _globalThis.window ? void 0 : _self.window).Object, null == _ref4 ? _ref4[""] : (c8++, _Object$defineProperty));
 export { c8 };
 
 // dead `?.` chains over VALUE-DEFINED navs erase whole: the sealed ALL-PLAIN nav (declared
 // env) and the hop-order spelling (dead optionals over pony-backed reads, deeper window
 // reads are realm self-references)
-export const viaSealedAllPlain = _atMaybeArray(_ref6 = _Array$of(8)).call(_ref6, 0);
-export const viaHopOrderDead = _atMaybeArray(_ref7 = _Array$of(10)).call(_ref7, 0);
+export const viaSealedAllPlain = _atMaybeArray(_ref5 = _Array$of(8)).call(_ref5, 0);
+export const viaHopOrderDead = _atMaybeArray(_ref6 = _Array$of(10)).call(_ref6, 0);
 
-// SE-key residual variants: a LIVE `?.` probe rides the guard with an optionalized tail
-// (short-circuit preserved), a claimable CTOR leaf keeps the plain read above the seal
-// (the residual claims nothing), a DEFINED hop nav keeps its plain collapse (no guard)
+// Computed-key destructures retain the optional probe and plain read above a seal.
+// A missing receiver throws before the pattern key effect runs.
+// The defined-hop case keeps its plain receiver and one key effect.
 let c9 = 0;
-export const viaProbeSeKeyResidual = (_ref8 = null == _globalThis.window ? void 0 : _self.Object, null == _ref8 ? _ref8[""] : (c9++, _Object$getOwnPropertyNames));
-export const viaSealedCtorLeafResidual = (_ref9 = (null == _globalThis.window ? void 0 : _self).Array, null == _ref9 ? _ref9[""] : (c9++, _Array$from));
+export const viaProbeSeKeyResidual = (_ref7 = null == _globalThis.window ? void 0 : _self.Object, null == _ref7 ? _ref7[""] : (c9++, _Object$getOwnPropertyNames));
+export const viaSealedCtorLeafResidual = (_ref8 = (null == _globalThis.window ? void 0 : _self).Array, null == _ref8 ? _ref8[""] : (c9++, _Array$from));
 export const {
   [(c9++, 'isArray')]: viaDefinedHopSeKeyResidual
 } = _self.Array;
 export { c9 };
 
-// ASSIGNMENT-host SE-key destructures keep the whole pattern in place (no declaration to
-// split) - the kept init rides the same guard canon as the declarator residual
+// Computed-key destructuring assignments preserve receiver coercion before key effects.
+// Sealed and live optional receivers keep their throwing and short-circuit boundaries.
 let ca = 0;
 let viaSealedAssignSeKey;
-_ref10 = (null == _globalThis.window ? void 0 : _self).Object, null == _ref10 ? _ref10[""] : (ca++, viaSealedAssignSeKey = _Object$entries), _ref10;
+_ref9 = (null == _globalThis.window ? void 0 : _self).Object, null == _ref9 ? _ref9[""] : (ca++, viaSealedAssignSeKey = _Object$entries);
 let viaProbeAssignSeKey;
-_ref11 = null == _globalThis.window ? void 0 : _self.Object, null == _ref11 ? _ref11[""] : (ca++, viaProbeAssignSeKey = _Object$keys), _ref11;
+_ref10 = null == _globalThis.window ? void 0 : _self.Object, null == _ref10 ? _ref10[""] : (ca++, viaProbeAssignSeKey = _Object$keys);
 export { viaSealedAssignSeKey, viaProbeAssignSeKey, ca };
 
 // ALIAS-rooted probe navs ride the same canon with the alias identifier kept verbatim in
@@ -210,7 +210,7 @@ let cb = 0;
 export const viaAliasKeptSealed = (null == gAlias.window ? void 0 : _self).Object;
 export const viaAliasKeptLive = null == gAlias.window ? void 0 : _self.Object;
 export const viaAliasSealedClaim = ((null == gAlias.window ? void 0 : _self).Array, _Array$of)(3);
-export const viaAliasSealedSeKey = (_ref12 = (null == gAlias.window ? void 0 : _self).Object, null == _ref12 ? _ref12[""] : (cb++, _Object$values));
+export const viaAliasSealedSeKey = (_ref11 = (null == gAlias.window ? void 0 : _self).Object, null == _ref11 ? _ref11[""] : (cb++, _Object$values));
 export const viaAliasDefinedHopDrop = gAlias.Object;
 export const viaAliasDefinedCtorSwap = (cb++, _Map);
 export { cb };
@@ -223,5 +223,5 @@ const dheCombo = () => {
   cc1++;
   return _globalThis;
 };
-export const viaSeKeySeCallRoot = _atMaybeArray(_ref13 = ((null == dheCombo().window ? void 0 : (kc1++, _self)).Array, _Array$of)(5)).call(_ref13, 0);
+export const viaSeKeySeCallRoot = _atMaybeArray(_ref12 = ((null == dheCombo().window ? void 0 : (kc1++, _self)).Array, _Array$of)(5)).call(_ref12, 0);
 export { cc1, kc1 };

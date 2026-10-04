@@ -28,14 +28,10 @@ const {
     from: _Array$from
   }
 };
-const _ref2 = _globalThis,
-  {
-    [(eff('nav'), 'Array')]: _ref
-  } = null == _ref2 ? _ref2[""] : _ref2,
-  {
-    prototype: _ref3
-  } = _ref,
-  viaNav = _valuesMaybeArray(_ref3);
+const {
+  [(eff('nav'), 'Array')]: _ref
+} = null == _globalThis ? _globalThis[""] : _globalThis;
+const viaNav = _valuesMaybeArray(_ref.prototype);
 const {
   [(eff('literal'), 'w')]: {
     of: viaLiteral
@@ -45,32 +41,24 @@ const {
     of: _Array$of
   }
 };
-const _ref5 = {
+const {
+    [(eff('alias'), 'w')]: _ref2
+  } = {
     w: src
   },
-  {
-    [(eff('alias'), 'w')]: _ref4
-  } = null == _ref5 ? _ref5[""] : _ref5,
-  viaAliasSlot = _at(_ref4);
+  viaAliasSlot = _at(_ref2);
 // An instance leaf uses the captured selected slot, so the hop and method are not reread.
-const _ref7 = {
+const {
+    [(eff('memo'), 'w')]: _ref3
+  } = {
     w: [1]
   },
-  {
-    [(eff('memo'), 'w')]: _ref6
-  } = null == _ref7 ? _ref7[""] : _ref7,
-  viaLiteralSlot = _includesMaybeArray(_ref6);
+  viaLiteralSlot = _includesMaybeArray(_ref3);
+const viaSibling = _Object$entries;
 const {
-  [(eff('sibling'), 'Object')]: {
-    entries: viaSibling
-  },
+  [(eff('sibling'), 'Object')]: _unused,
   z
-} = {
-  Object: {
-    entries: _Object$entries
-  },
-  z: _globalThis.z
-};
+} = _globalThis;
 const {
   [(eff('pair'), 'Object')]: {
     keys: viaPairA,
@@ -84,7 +72,7 @@ const {
 };
 const viaRest = _Object$fromEntries;
 const {
-  [(eff('rest'), 'Object')]: _unused,
+  [(eff('rest'), 'Object')]: _unused2,
   ...rest
 } = _globalThis;
 let viaAssign;
@@ -143,20 +131,18 @@ const {
     assign: _Object$assign
   }
 };
-const _ref9 = _globalThis,
-  {
-    [(eff('symbol'), 'Array')]: _ref8
-  } = null == _ref9 ? _ref9[""] : _ref9,
-  viaSymbol = _getIteratorMethod(_ref8);
+const {
+    [(eff('symbol'), 'Array')]: _ref4
+  } = null == _globalThis ? _globalThis[""] : _globalThis,
+  viaSymbol = _getIteratorMethod(_ref4);
 export { order, viaStatic, viaNav, viaLiteral, viaAliasSlot, viaLiteralSlot, viaSibling, z, viaPairA, viaPairB, viaRest, rest, viaAssign, viaParam, viaProxyHop, viaDeep, viaDefault, viaSymbol };
 
 // An effectful receiver slot is evaluated once before its hop key; the selected instance
 // method is then read once from that captured slot.
-const _ref11 = {
+const {
+    [(eff('call'), 'w')]: _ref5
+  } = {
     w: make()
   },
-  {
-    [(eff('call'), 'w')]: _ref10
-  } = null == _ref11 ? _ref11[""] : _ref11,
-  viaEffectfulSlot = _at(_ref10);
+  viaEffectfulSlot = _at(_ref5);
 export { viaEffectfulSlot };

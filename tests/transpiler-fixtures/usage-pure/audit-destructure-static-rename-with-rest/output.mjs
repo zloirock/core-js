@@ -4,12 +4,11 @@ import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-l
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
-const _ref = Array,
-  customFrom = _Array$from,
+const customFrom = _Array$from,
   {
     from: _unused,
     ...rest
-  } = _ref;
+  } = Array;
 const xs = customFrom('hi');
 _atMaybeArray(xs).call(xs, 0);
 _findLastIndexMaybeArray(xs).call(xs, p => p);

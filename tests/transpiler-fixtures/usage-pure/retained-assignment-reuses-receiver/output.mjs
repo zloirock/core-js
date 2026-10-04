@@ -10,9 +10,8 @@ const _ref2 = _globalThis.vv || Object;
 name = _nameMaybeFunction(_ref2);
 values = _ref2 === Object ? _Object$values : _values(_ref2);
 let _ref = source;
-const _ref3 = _ref,
-  {
+const {
     other
-  } = _ref3,
-  at = _at(_ref3);
+  } = _ref,
+  at = _at(_ref);
 use(name, values, other, at);
