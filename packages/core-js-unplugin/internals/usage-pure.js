@@ -4,13 +4,14 @@ import {
   navValueCanShortCircuit,
   navHasUnresolvableProxyHop,
   probeRenderedReceiver,
+  peelReceiverSequenceTail,
   sealedChainBoundary,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
+import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   dispatchConsumesRun,
-  isSourcedSymbolIteratorMeta,
   planClaimlessCallRootedNav,
   planProxyReceiver,
   resolveSymbolIteratorEntry,
@@ -26,6 +27,8 @@ import {
   isTaggedTemplateTag,
   mayHaveSideEffects,
   mutatedSlotLeftNativeWarning,
+  observableSequenceElements,
+  peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
@@ -71,7 +74,7 @@ import {
 import { collapseSymbolProxyRoot, emitSealedKeySeConsume, isSealedDirectSymbolCall } from './se-dispatch.js';
 import createProxySpineChannel from './proxy-spine.js';
 import createOptionalDispatchChannel from './optional-dispatch.js';
-import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
+import { isSourcedSymbolIteratorMeta, SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
 // the AST engine's usage-pure emission - a STAGED port of the babel leg's
 // `usagePureCallback` (the design's blueprint): the mainstream classes land first and every
@@ -217,6 +220,8 @@ export default function createAstUsagePureCallback({
   const typeStampCtx = { resolveNodeType, resolvedType };
   // what the module-scope bare-optional SE dispatch needs
   const bareOptionalCtx = {
+    adapter,
+    injectorState,
     isReusableReceiver,
     injectPureImport,
     markRewrite,
@@ -228,6 +233,9 @@ export default function createAstUsagePureCallback({
   // what the module-scope SE-key read memo needs (the builder rides along:
   // the assignment builder is the one slot this closure owns)
   const seKeyReadCtx = {
+    adapter,
+    injectorState,
+    isReusableReceiver,
     injectPureImport,
     injector,
     markRewrite,
@@ -358,17 +366,21 @@ export default function createAstUsagePureCallback({
   // `_getIteratorMethod(x)?.call(x, args)`, receiver memoized when not reusable; the own
   // chain wrapper appears only when the source chain does not continue above
   function emitSymbolIteratorOptionalCall({ metaPath, id, object, parent, memberOptional = false }) {
-    // the doubly-optional spelling (`arr?.[S]?.()`) guards the ROOT and keeps the dispatch
-    // `?.call` inside the alternate - reusable receivers only, the memo twin is staged
-    if (memberOptional && !isReusableReceiver(object)) return;
+    const receiverCore = unwrapRuntimeExpr(object);
+    const receiver = receiverCore?.type === 'SequenceExpression' ? peelReceiverSequenceTail(receiverCore) : object;
+    const reusable = isReusableReceiver(receiver, { ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState } });
+    // The doubly-optional spelling guards the receiver before the lookup can invoke a getter.
     let lookupArg;
     let callReceiver;
-    if (isReusableReceiver(object)) {
-      lookupArg = cloneNode(object);
-      callReceiver = cloneNode(object);
+    let receiverCheck = null;
+    if (reusable) {
+      lookupArg = cloneNode(memberOptional ? receiver : object);
+      callReceiver = cloneNode(receiver);
     } else {
       const ref = injector.generateDeclaredRef(metaPath);
-      lookupArg = assignmentExpression('=', identifier(ref), cloneNode(object));
+      const capture = assignmentExpression('=', identifier(ref), cloneNode(object));
+      if (memberOptional) receiverCheck = capture;
+      lookupArg = memberOptional ? identifier(ref) : capture;
       callReceiver = identifier(ref);
     }
     const dispatch = callExpression(
@@ -381,7 +393,7 @@ export default function createAstUsagePureCallback({
       && ((upNode.type === 'MemberExpression' && upNode.object === parent)
         || (upNode.type === 'CallExpression' && upNode.callee === parent));
     if (memberOptional) {
-      const testRead = cloneNode(object);
+      const testRead = receiverCheck ?? cloneNode(object);
       probeTestClones.add(testRead);
       replaceGuardedHop({ hopPath: callPath, test: nullGuardTest(testRead), built: dispatch, skippedNodes });
       return;
@@ -436,33 +448,53 @@ export default function createAstUsagePureCallback({
   // returns false when the shape stays staged
   function routeSymbolReceiverEffects(metaPath, state) {
     const { pendingEffects, pendingReceiverOnly, proxyPlanFired } = state;
+    // The first value owns every source prefix, including quiet reads absent from the effect list.
+    // A sole helper read needs no separate slot when a constant literal cannot escape through its key.
+    const caller = climbToCallerPath(metaPath)?.node;
+    const singleReceiverRead = resolveSymbolIteratorEntry(metaPath.node, caller) === 'get-iterator'
+      || caller?.type !== 'CallExpression' || unwrapRuntimeExpr(caller.callee) !== metaPath.node;
+    if (!state.memberOptional && !state.liveOptionalReceiver && !state.callOptional
+      && (pendingReceiverOnly && pendingEffects.every(effect => subtreeContainsNode(state.object, effect))
+        || singleReceiverRead && isConstantLiteralReceiver(unwrapRuntimeExpr(state.object)))) {
+      state.effects = pendingEffects.filter(effect => !subtreeContainsNode(state.object, effect));
+      return true;
+    }
     if (state.callOptional) return false; // an optional CALL under SE - staged
     // the member's own `?.` splits the effects by side: the KEY's run inside the alternate,
     // where native order puts them, and the RECEIVER's stay spelled in the memo the guard
     // test builds (`(r(), recv)?.[(k(), S)]()` -> `null == (_ref = (r(), recv)) ? void 0 :
     // (k(), _getIterator(_ref))`). a receiver effect the spelling does NOT carry has no
     // slot before the test - staged
-    if (state.memberOptional) {
+    if (state.memberOptional || (state.liveOptionalReceiver && isSealedDirectSymbolCall(metaPath))) {
       const peeled = unwrapRuntimeExpr(state.object);
       const recvSe = pendingEffects.filter(effect => state.receiverSe.has(effect));
-      if (!recvSe.length && isReusableReceiver(peeled)) state.object = peeled;
+      if (!recvSe.length && isReusableReceiver(peeled, {
+        interveningEffects: pendingEffects.length > 0,
+        ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+      })) state.object = peeled;
       else if (recvSe.some(effect => !subtreeContainsNode(state.object, effect))) return false;
       state.effects = pendingEffects.filter(effect => !state.receiverSe.has(effect));
       return true;
     }
-    let receiver = proxyPlanFired ? state.object : unwrapRuntimeExpr(state.object);
-    if (!proxyPlanFired && receiver?.type === 'SequenceExpression') receiver = receiver.expressions.at(-1);
+    let receiver = proxyPlanFired ? state.object : peelReceiverSequenceTail(state.object);
+    const interveningEffects = pendingEffects.some(effect => !state.receiverSe.has(effect));
+    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
+    const receiverPure = instanceSynthReceiverPure(receiver, { ...receiverCtx, resolvePure: m => resolvePure(m, metaPath) });
+    if (receiverPure) receiver = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
 
     // a reusable / pure tail rides the helper argument behind the hoisted effects
-    if (isReusableReceiver(receiver) || (!pendingReceiverOnly && !mayHaveSideEffects(receiver))) {
-      state.effects = pendingEffects;
+    if (isReusableReceiver(receiver, { interveningEffects, ctx: receiverCtx })
+      || (!interveningEffects && !mayHaveSideEffects(receiver))) {
+      // A stable binding can still throw on its first read, before the key runs.
+      state.effects = receiverPure || interveningEffects ? [
+        ...pendingEffects.filter(effect => state.receiverSe.has(effect) && !subtreeContainsNode(state.object, effect)),
+        ...observableSequenceElements([state.object], receiverCtx, { preserveSourceReads: true }),
+        ...pendingEffects.filter(effect => !state.receiverSe.has(effect)),
+      ] : pendingEffects;
       state.object = receiver;
     } else if (pendingReceiverOnly) {
-      // a PROXY-NAV tail keeps the sequence inside the helper argument: its own claim
-      // substitutes in place and the nav collapse renders `(n += 1, _globalThis)`. every
-      // other tail hoists the effects ahead of the helper and rides the argument bare
-      // (`(n++, [1, 2, 3])[S]()` -> `(n++, _getIterator([1, 2, 3]))`) - receiver-only
-      // effects already run first in source order, so no memo is owed
+      // A receiver-only harvest already carried by its source stays in that first value above.
+      // Effects outside the current spelling still use the existing replay channel.
       if (!holdsProxySurface(receiver, metaPath)) {
         state.effects = pendingEffects;
         state.object = receiver;
@@ -472,23 +504,29 @@ export default function createAstUsagePureCallback({
       // dropped hop's own effect, it runs ahead of the key effects exactly as native ran it, and
       // the always-defined tail is re-readable, so no memo is owed (`globalThis[(hop(), 'self')]
       // [(key(), S)]` -> `(hop(), key(), _getIterator(_globalThis))`)
-      const seqTail = !state.liveOptionalReceiver && receiver?.type === 'SequenceExpression'
-        ? unwrapRuntimeExpr(receiver.expressions.at(-1)) : null;
-      if (seqTail && isReusableReceiver(seqTail)) {
-        state.effects = [...receiver.expressions.slice(0, -1), ...pendingEffects];
-        state.object = seqTail;
+      const renderedSequence = receiver?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(receiver) : null;
+      if (renderedSequence && isReusableReceiver(renderedSequence.tail, { interveningEffects, ctx: receiverCtx })) {
+        state.effects = [...observableSequenceElements([state.object], receiverCtx, { preserveSourceReads: true }),
+          ...pendingEffects.filter(effect => !subtreeContainsNode(state.object, effect))];
+        state.object = renderedSequence.tail;
       } else {
-        // an effectful receiver evaluates FIRST (source order): memo ahead of the key
-        // effects - `(_ref = getObj(), p(), _getIterator(_ref))`
+        // The capture owns the complete first receiver; only effects outside it replay separately.
         const seRef = injector.generateDeclaredRef(metaPath);
-        state.effects = [assignmentExpression('=', identifier(seRef), cloneNode(receiver)), ...pendingEffects];
+        state.effects = [
+          ...pendingEffects.filter(effect => state.receiverSe.has(effect)
+            && !subtreeContainsNode(state.object, effect)),
+          assignmentExpression('=', identifier(seRef), cloneNode(state.object)),
+          ...pendingEffects.filter(effect => !state.receiverSe.has(effect)),
+        ];
         state.object = identifier(seRef);
       }
     }
+    state.effects = observableSequenceElements(state.effects, receiverCtx, { preserveSourceReads: true });
     return true;
   }
 
   // `obj[Symbol.iterator]()` -> `_getIterator(obj)`; the read form -> `_getIteratorMethod(obj)`
+  // eslint-disable-next-line max-statements -- ordered receiver, key and iterator lookup stages of one claim
   function handleSymbolIterator(meta, metaPath) {
     const { node } = metaPath;
     if (node.object?.type === 'Super') return;
@@ -512,6 +550,23 @@ export default function createAstUsagePureCallback({
       effects: null,
     };
     if (!proxyRootFired) collapseSymbolReceiver(meta, metaPath, state);
+    const receiverCore = unwrapRuntimeExpr(state.object);
+    const receiverSequence = receiverCore?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(receiverCore) : null;
+    const receiverPure = instanceSynthReceiverPure(receiverSequence?.tail ?? state.object, {
+      scope: metaPath.scope,
+      path: metaPath,
+      adapter,
+      injectorState,
+      resolvePure: m => resolvePure(m, metaPath),
+    });
+    if (receiverPure) {
+      const receiver = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
+      // This pending view keeps source effect identities; the final receiver emission clones it.
+      state.object = receiverSequence ? sequenceExpression([...receiverSequence.prefix, receiver]) : receiver;
+      if (state.pendingEffects.length && !state.memberOptional && !receiverSequence) {
+        state.pendingEffects = [state.object, ...state.pendingEffects];
+      }
+    }
     if (state.pendingEffects.length || (!state.proxyPlanFired && meta.receiverEffectCount)) {
       if (!state.pendingEffects.length) return;
       if (!routeSymbolReceiverEffects(metaPath, state)) return;
@@ -577,11 +632,14 @@ export default function createAstUsagePureCallback({
     // runs, so the effect rides a guard of its own while the helper call stays unconditional -
     // it throws on null exactly like `(undefined)()` (`(arr?.[(log(), S)])()` ->
     // `(arr == null ? void 0 : (log(), void 0), _getIterator(arr))`)
-    if (sealedDirectCall && (memberOptional || state.liveOptionalReceiver) && effects?.length) {
-      return emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects, methodCallConsume }, {
+    if ((sealedDirectCall || (sealed && methodCallConsume))
+      && (memberOptional || state.liveOptionalReceiver)
+      && (effects?.length || methodCallConsume || meta.sideEffects?.length)) {
+      return emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects: effects ?? [], methodCallConsume }, {
         guardObject,
         composeGuardTest,
         buildSymbolConsumeCore,
+        injectorState,
         skippedNodes,
       });
     }
@@ -602,18 +660,22 @@ export default function createAstUsagePureCallback({
 
   // the consume CORE: the helper call, and for the method form its `.call` dispatch -
   // a non-reusable receiver memoizes into the helper argument
-  function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone }) {
-    if (methodCallConsume && !isReusableReceiver(object)) {
+  function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone, lookup = null }) {
+    const receiverCore = unwrapRuntimeExpr(object);
+    const receiver = receiverCore?.type === 'SequenceExpression' ? peelReceiverSequenceTail(receiverCore) : object;
+    if (methodCallConsume && !lookup && !isReusableReceiver(receiver, {
+      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+    })) {
       const recvRef = injector.generateDeclaredRef(metaPath);
       return callExpression(memberExpression(
         callExpression(identifier(id), [assignmentExpression('=', identifier(recvRef), receiverClone())]),
         identifier('call'),
       ), [identifier(recvRef), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
     }
-    let core = callExpression(identifier(id), [receiverClone()]);
+    let core = lookup ?? callExpression(identifier(id), [receiverClone()]);
     if (methodCallConsume) {
       core = callExpression(memberExpression(core, identifier('call')),
-        [cloneNode(object), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
+        [cloneNode(receiver), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
     }
     return core;
   }
@@ -621,7 +683,7 @@ export default function createAstUsagePureCallback({
   // `x?.[S]` / `x?.[S]()` - the null test guards the whole consumed shape; a non-reusable
   // receiver memoizes through the shared guard
   function emitGuardedSymbolConsume({ metaPath, id, object, effects, methodCallConsume, callerPath, hopPath }) {
-    const guard = guardObject(object, metaPath);
+    const guard = guardObject(object, metaPath, { interveningEffects: !!effects?.length });
     let guardedCore = callExpression(identifier(id), [guard.makeBase()]);
     if (methodCallConsume) {
       guardedCore = callExpression(memberExpression(guardedCore, identifier('call')),
@@ -716,7 +778,7 @@ export default function createAstUsagePureCallback({
     // the shadow-alias guard's kept raw read (`h === Ctor ? _X : h.of`) is already ours -
     // and so is a nav whose SE spells a minted pure call (a prior pass's spent claim)
     if (claimIsInert({ node, path: metaPath, isDisabled, skippedNodes, isInTypeAnnotation })
-      || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState)))
+      || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState), adapter, meta))
       || (node.type === 'Property' && (destructureEmit.sentinelAlreadyProcessed({ metaPath, meta })
         || destructureEmit.overwriteRebindEmitted({ metaPath })))) return;
     if (node.type === 'MemberExpression' && !deleteHostedSpines.has(sourceSpanKey(node))

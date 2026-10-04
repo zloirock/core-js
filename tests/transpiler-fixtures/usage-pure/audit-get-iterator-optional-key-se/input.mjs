@@ -4,7 +4,7 @@
 // unconditional (it throws on null like native `(undefined)()`, which a whole-expression guard would swallow
 // into void 0). so the key SE is guarded behind the receiver's nullishness, the call is not
 
-// bare-Identifier receiver: re-reference is free, no memo
+// Quiet unbound receiver: test it before the guarded key effect without a capture.
 const a = (arr?.[(log(), Symbol.iterator)])();
 
 // member receiver: re-read by both the guard test and the call, so memoized once into a _ref

@@ -13,7 +13,7 @@ import _Set from "@core-js/pure/actual/set";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-var _ref13, _ref14;
+var _ref11;
 // A sole-key object hop pairs with the slot it names, like an array wrapper with its element.
 // Pure getters may collapse; effectful getters keep their reads and use the actual slot's identity
 // to select the ponyfill. A later spread or unknown key keeps the runtime override in that choice.
@@ -130,8 +130,8 @@ function seqPrefixKeepsLiteral(bump) {
   };
   return viaPrefix;
 }
+// The spread reads precede the symbol extraction, as they preceded the native pattern read.
 function symbolBehindSpread(extra) {
-  const aheadSymbol = _getIteratorMethod(_globalThis);
   const {
     w: {
       [_Symbol$iterator]: _unused2
@@ -140,6 +140,7 @@ function symbolBehindSpread(extra) {
     ...extra,
     w: _globalThis
   };
+  const aheadSymbol = _getIteratorMethod(_globalThis);
   return aheadSymbol;
 }
 // ... a STATIC claim behind the same spread keeps it too: the extraction takes the pure binding
@@ -406,12 +407,10 @@ const {
 const maybeNull = null;
 let underOptional = other;
 maybeNull?.[underOptional = _globalThis];
-const {
-    w: _ref6
-  } = {
-    w: underOptional
-  },
-  noClaimUnderOptionalWrite = _ref6 === _globalThis ? _Map : _ref6.Map;
+({
+  w: underOptional
+});
+const noClaimUnderOptionalWrite = underOptional === _globalThis ? _Map : underOptional.Map;
 const outerSrc = _globalThis;
 var shadowed = outerSrc;
 {
@@ -529,11 +528,11 @@ const viaIifeWrappedStatic = (([{
 }]);
 function forOfWrapped() {
   const out = [];
-  for (const _ref8 of [[{
+  for (const _ref7 of [[{
     w: [1, 2]
   }]]) {
-    const [_ref7] = _ref8;
-    const viaWrappedHead = _atMaybeArray(_ref7.w);
+    const [_ref6] = _ref7;
+    const viaWrappedHead = _atMaybeArray(_ref6.w);
     _pushMaybeArray(out).call(out, viaWrappedHead);
   }
   return out;
@@ -601,35 +600,33 @@ function viaBoundHopIdent(box) {
 }
 function viaBoundHopHeads(list) {
   const out = [];
-  for (const _ref9 of list) {
-    const headAt = _at(_ref9.w);
+  for (const _ref8 of list) {
+    const headAt = _at(_ref8.w);
     _pushMaybeArray(out).call(out, headAt);
   }
   const thrown = new Error('x');
   thrown.w = [10];
   try {
     throw thrown;
-  } catch (_ref10) {
-    let caughtAt = _at(_ref10.w);
+  } catch (_ref9) {
+    let caughtAt = _at(_ref9.w);
     _pushMaybeArray(out).call(out, caughtAt);
   }
   return out;
 }
 const {
-  [hopSlot]: _ref11
+  [hopSlot]: [_ref10]
 } = {
   w: [[1, 2]]
 };
-const [_ref12] = _ref11;
-const viaKeyedWrapper = _atMaybeArray(_ref12);
+const viaKeyedWrapper = _atMaybeArray(_ref10);
 let assignKeyedWrapper;
 ({
-  [hopSlot]: _ref13
+  [hopSlot]: [_ref11]
 } = {
   w: [[1, 2]]
 });
-[_ref14] = _ref13;
-assignKeyedWrapper = _atMaybeArray(_ref14);
+assignKeyedWrapper = _atMaybeArray(_ref11);
 function restAssignSentinel() {
   let restAt;
   let restRest;
@@ -649,10 +646,10 @@ function restAssignSentinel() {
 // an array wrapper. A claim inside the prefix is rewritten where it stands.
 function viaSeqSlot(mark, arr) {
   const viaSeq = _at((mark(), arr));
-  const [_ref15] = [{
+  const [_ref12] = [{
     w: (mark(), arr)
   }];
-  const viaSeqWrapped = _at(_ref15.w);
+  const viaSeqWrapped = _at(_ref12.w);
   const viaSeqClaim = _at((_at(arr).call(arr, 0), arr));
   return [viaSeq, viaSeqWrapped, viaSeqClaim];
 }
@@ -700,42 +697,40 @@ function ctorUnderRest() {
 }
 // The discarded array element still runs before the nested property read.
 function liftedHusk(eff, eff2) {
-  const [_ref16] = [{
+  const [_ref13] = [{
     w: eff()
   }, eff2()];
-  const liftedAt = _at(_ref16.w);
+  const liftedAt = _at(_ref13.w);
   return liftedAt;
 }
 function literalBehindSpread(extra) {
-  const _ref17 = [1, 2];
-  const behindSpreadAt = _atMaybeArray(_ref17);
+  const _ref14 = [1, 2];
   const {
-    w: {
-      at: _unused3
-    }
+    w: {}
   } = {
     ...extra,
-    w: _ref17
+    w: _ref14
   };
+  const behindSpreadAt = _atMaybeArray(_ref14);
   return behindSpreadAt;
 }
 function slotMemoHoist(eff, holder) {
-  const _ref18 = {
+  const _ref15 = {
     w: eff(),
     z: 1
   };
-  const slotHoist = _at(_ref18.w);
+  const slotHoist = _at(_ref15.w);
   const {
     z
-  } = _ref18;
-  const _ref19 = {
+  } = _ref15;
+  const _ref16 = {
     a: eff(),
     w: eff()
   };
   const {
     a
-  } = _ref19;
-  const slotInSlot = _at(_ref19.w);
+  } = _ref16;
+  const slotInSlot = _at(_ref16.w);
   const {
     w: {
       at: slotRest
@@ -745,93 +740,93 @@ function slotMemoHoist(eff, holder) {
     w: eff(),
     z: 2
   };
-  const _ref20 = {
+  const _ref17 = {
     p: {
       w: eff()
     },
     q: 3
   };
-  const slotNested = _at(_ref20.p.w);
+  const slotNested = _at(_ref17.p.w);
   const {
     q
-  } = _ref20;
-  const _ref21 = {
+  } = _ref17;
+  const _ref18 = {
     b: eff(),
     w: holder.p
   };
   const {
     b
-  } = _ref21;
-  const slotMember = _at(_ref21.w);
+  } = _ref18;
+  const slotMember = _at(_ref18.w);
   return [slotHoist, z, slotInSlot, a, slotRest, slotRestRest, slotNested, q, slotMember, b];
 }
 
 // A hole keeps its initializer effect ahead of the captured nested property read.
 function holeThenSlot(eff, getArr) {
-  const [, _ref22] = [eff(), {
+  const [, _ref19] = [eff(), {
     y: getArr()
   }];
-  const holeAt = _at(_ref22.y);
+  const holeAt = _at(_ref19.y);
   return holeAt;
 }
 
 // A sibling declarator and the captured array positions keep their source order;
-// two leaves off one slot share the one write (`w: _ref = eff()`, both dispatches reading `_ref`)
+// two leaves off one slot share its value without reevaluating its initializer.
 function slotMemoSiblingDecl(eff) {
-  const _ref23 = {
+  const _ref20 = {
     w: eff(),
     z: 1
   };
-  const sibHoist = _at(_ref23.w);
+  const sibHoist = _at(_ref20.w);
   const {
     z
-  } = _ref23;
+  } = _ref20;
   const sibQ = 2;
-  const _ref24 = {
+  const _ref21 = {
     a: eff(),
     w: eff()
   };
   const {
     a
-  } = _ref24;
-  const sibInSlot = _at(_ref24.w);
+  } = _ref21;
+  const sibInSlot = _at(_ref21.w);
   const sibQ2 = 3;
-  const _ref25 = {
+  const _ref22 = {
       b: eff(),
       w: eff()
     },
     {
       b
-    } = _ref25,
+    } = _ref22,
     {
-      w: _ref26
-    } = _ref25,
-    twinAt = _at(_ref26),
-    twinFlat = _flatMaybeArray(_ref26);
+      w: _ref23
+    } = _ref22,
+    twinAt = _at(_ref23),
+    twinFlat = _flatMaybeArray(_ref23);
   return [sibHoist, z, sibQ, sibInSlot, a, sibQ2, twinAt, twinFlat, b];
 }
 
 // Native bindings on either side of a claimed slot retain their order, including array rest.
 function inSlotFlatFamily(eff, eff2, eff3) {
-  const [_ref27, _ref28] = [eff(), eff()];
-  const fa = _ref27;
-  const flatInSlot = _at(_ref28);
-  const [_ref29, _ref30, ..._ref31] = [eff(), eff()];
-  const fb = _ref29;
-  const flatRestSlot = _at(_ref30);
-  const flatRest = _ref31;
+  const [_ref24, _ref25] = [eff(), eff()];
+  const fa = _ref24;
+  const flatInSlot = _at(_ref25);
+  const [_ref26, _ref27, ..._ref28] = [eff(), eff()];
+  const fb = _ref26;
+  const flatRestSlot = _at(_ref27);
+  const flatRest = _ref28;
   eff();
-  const _ref32 = eff();
-  const liftedThenSlot = _at(_ref32);
-  const [, {}, fz] = [, _ref32, 1];
-  const [_ref33,, _ref34] = [1, eff2(), eff3()];
-  const fx = _ref33;
-  const boundThenHole = _at(_ref34);
-  const [, _ref35, _ref36] = [eff(), {
+  const _ref29 = eff();
+  const liftedThenSlot = _at(_ref29);
+  const [, {}, fz] = [, _ref29, 1];
+  const [_ref30,, _ref31] = [1, eff2(), eff3()];
+  const fx = _ref30;
+  const boundThenHole = _at(_ref31);
+  const [, _ref32, _ref33] = [eff(), {
     y: eff()
   }, 1];
-  const liftedHopSlot = _at(_ref35.y);
-  const fz2 = _ref36;
+  const liftedHopSlot = _at(_ref32.y);
+  const fz2 = _ref33;
   return [fa, flatInSlot, fb, flatRestSlot, flatRest, liftedThenSlot, fz, fx, boundThenHole, liftedHopSlot, fz2];
 }
 
@@ -842,35 +837,35 @@ function tick(value) {
   ticks += 1;
   return value;
 }
-const _ref37 = {
+const _ref34 = {
   ea: tick(1),
   w: tick([1, 2])
 };
 const {
   ea
-} = _ref37;
-const exportInSlot = _atMaybeArray(_ref37.w);
+} = _ref34;
+const exportInSlot = _atMaybeArray(_ref34.w);
 const exportQ = 2;
 export { ea, exportInSlot, exportQ };
-const [_ref38, _ref39] = [tick(2), tick([3, 4])],
-  eb = _ref38,
-  exportFlatInSlot = _atMaybeArray(_ref39),
+const [_ref35, _ref36] = [tick(2), tick([3, 4])],
+  eb = _ref35,
+  exportFlatInSlot = _atMaybeArray(_ref36),
   exportQ2 = ticks;
 export { eb, exportFlatInSlot, exportQ2 };
 // ... and a hoisted memo behind a LEADING sibling's own init stays behind it under the wrapper as well
 export const exportLead = tick(3);
-const _ref40 = tick([5, 6]);
-export const exportBehindLead = _atMaybeArray(_ref40),
-  [{}, ec] = [_ref40, 1];
+const _ref37 = tick([5, 6]);
+export const exportBehindLead = _atMaybeArray(_ref37),
+  [{}, ec] = [_ref37, 1];
 const exportLead2 = tick(4);
-const _ref41 = {
+const _ref38 = {
   w: tick([7, 8]),
   ed: 1
 };
-const exportHopBehindLead = _atMaybeArray(_ref41.w);
+const exportHopBehindLead = _atMaybeArray(_ref38.w);
 const {
   ed
-} = _ref41;
+} = _ref38;
 export { exportLead2, exportHopBehindLead, ed }; // ... and a wrapped STATIC beside its sibling declarator joins the same way, exported with its host
 // - two of them, one per host; a mixed pair splits by declarator, the static joining its own host
 export const [{
@@ -905,41 +900,41 @@ export const {
 // written ahead of its host and the join retaining binding order; a symbol leaf under a hop beside a
 // sibling takes the slot memo like the instance leaf of the same slot
 function twoHostsOneDeclaration(eff) {
-  const _ref42 = {
+  const _ref39 = {
       a: eff(),
       w: eff()
     },
     {
       a
-    } = _ref42,
-    hostObjAt = _at(_ref42.w);
-  const _ref43 = eff();
-  const hostArrFlat = _flatMaybeArray(_ref43),
-    [{}, hz] = [_ref43, 1];
-  const _ref44 = eff();
-  const firstFlat = _flatMaybeArray(_ref44),
-    [{}, fz] = [_ref44, 1],
+    } = _ref39,
+    hostObjAt = _at(_ref39.w);
+  const _ref40 = eff();
+  const hostArrFlat = _flatMaybeArray(_ref40),
+    [{}, hz] = [_ref40, 1];
+  const _ref41 = eff();
+  const firstFlat = _flatMaybeArray(_ref41),
+    [{}, fz] = [_ref41, 1],
     mid = 3;
-  const _ref45 = eff();
-  const secondAt = _at(_ref45),
-    [{}, sz] = [_ref45, 2],
+  const _ref42 = eff();
+  const secondAt = _at(_ref42),
+    [{}, sz] = [_ref42, 2],
     tail = 4;
-  const _ref46 = {
+  const _ref43 = {
     b: eff(),
     w: eff()
   };
   const {
     b
-  } = _ref46;
-  const symInSlot = _getIteratorMethod(_ref46.w);
-  const _ref47 = {
+  } = _ref43;
+  const symInSlot = _getIteratorMethod(_ref43.w);
+  const _ref44 = {
     w: eff(),
     c: 1
   };
-  const symHoist = _getIteratorMethod(_ref47.w);
+  const symHoist = _getIteratorMethod(_ref44.w);
   const {
     c
-  } = _ref47;
+  } = _ref44;
   const symQ = 2;
   return [a, hostObjAt, hostArrFlat, hz, firstFlat, fz, mid, secondAt, sz, tail, b, symInSlot, symHoist, c, symQ];
 }
@@ -1030,14 +1025,14 @@ function defaultKeepsGuard() {
   return [dfMap, z, dfFrom, dfOf, y, dfDeep];
 }
 function siblingKeepsResidual(hit) {
-  const _ref48 = {
+  const _ref45 = {
     w: _globalThis,
     z: (hit(), 1)
   };
-  const deepBeside = _atMaybeArray(_ref48.w.Array.prototype);
+  const deepBeside = _atMaybeArray(_ref45.w.Array.prototype);
   const {
     z: sibZ
-  } = _ref48;
+  } = _ref45;
   const {
     w: {
       Array: {
@@ -1050,54 +1045,53 @@ function siblingKeepsResidual(hit) {
     w: _globalThis,
     z: (hit(), 2)
   };
-  const _ref49 = {
+  const _ref46 = {
     w: _globalThis,
     y: (hit(), 3)
   };
   const symBeside = _getIteratorMethod(_globalThis);
   const {
     y: sibY
-  } = _ref49;
+  } = _ref46;
   return [deepBeside, sibZ, deepAlone, symBeside, sibY];
 }
 
-// a leaf that NAVIGATES on from a memoized slot dispatches on the surface spelled off the ref
-// (`_ref.Array.prototype`) - written in its slot behind an observable property, hoisted otherwise,
-// two leaves sharing the one write; an ASSIGNMENT host with the same nav reads the surface off the
-// realm's pure binding, its residual keeping the sibling and every effect the literal holds
+// Navigation below a captured slot uses that slot's Array.prototype surface.
+// Initializer effects retain their source order, two leaves share the surface, and
+// assignment preserves sibling bindings and initializer effects.
 function navBelowMemoSlot(hit) {
-  const _ref50 = {
+  const _ref47 = {
     z: (hit(), 1),
     w: (hit(), _globalThis)
   };
-  const navInSlot = _atMaybeArray(_ref50.w.Array.prototype);
+  const navInSlot = _atMaybeArray(_ref47.w.Array.prototype);
   const {
     z: nz
-  } = _ref50;
-  const _ref51 = {
+  } = _ref47;
+  const _ref48 = {
     w: (hit(), _globalThis),
     y: 2
   };
-  const navHoist = _atMaybeArray(_ref51.w.Array.prototype);
+  const navHoist = _atMaybeArray(_ref48.w.Array.prototype);
   const {
     y: ny
-  } = _ref51;
-  const _ref53 = {
+  } = _ref48;
+  const _ref50 = {
       x: (hit(), 3),
       w: (hit(), _globalThis)
     },
     {
       w: {
         Array: {
-          prototype: _ref52
+          prototype: _ref49
         }
       }
-    } = _ref53,
-    navTwinAt = _atMaybeArray(_ref52),
-    navTwinFlat = _flatMaybeArray(_ref52),
+    } = _ref50,
+    navTwinAt = _atMaybeArray(_ref49),
+    navTwinFlat = _flatMaybeArray(_ref49),
     {
       x: nx
-    } = _ref53;
+    } = _ref50;
   let navAssign, na, navAssignAlone, navAssignEffect, ne;
   ({
     a: na
@@ -1117,8 +1111,8 @@ function navBelowMemoSlot(hit) {
   return [navInSlot, nz, navHoist, ny, navTwinAt, navTwinFlat, nx, navAssign, na, navAssignAlone, navAssignEffect, ne];
 }
 
-// a declaration hosting an object hop AND a wrapped static: the hop's declarator splits off, and
-// the static still joins the host it was written beside (the split does not undo the join)
+// An object hop and an array wrapper select constructors in one declaration,
+// preserving the sibling bindings and their order.
 function mixedHopAndWrappedStatic() {
   const {
       w: {

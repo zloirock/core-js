@@ -2,7 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-var _ref2;
+var _ref;
 // Known static imports are defined, so their user defaults remain dead.
 // Instance leaves still test the dispatch result before choosing a fallback.
 const fb = 0;
@@ -21,12 +21,11 @@ for (const viaForInit = _Array$from;;) {
   viaForInit;
   break;
 }
-const _ref = Array,
-  viaRestSibling = _Array$from,
+const viaRestSibling = _Array$from,
   {
     from: _unused,
     ...restOf
-  } = _ref;
+  } = Array;
 const viaComputed = _Array$from;
 const viaComputedSibling = _Array$from;
 const ofBeside = _Array$of;
@@ -101,6 +100,6 @@ const {
     }
   }
 };
-const viaInstance = (_ref2 = _atMaybeArray([1])) === void 0 ? fb : _ref2;
+const viaInstance = (_ref = _atMaybeArray([1])) === void 0 ? fb : _ref;
 const viaSeKey = (k(), _Array$from);
 export { viaAlias, of, viaAssign, viaRestSibling, restOf, viaComputed, viaComputedSibling, ofBeside, viaStringKey, viaHop, viaHopComputed, viaBesideSibling, z, viaWrapped, viaPatternDefault, viaAssignPatternDefault, viaHopPatternDefault, viaInstance, viaSeKey };

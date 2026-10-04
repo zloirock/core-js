@@ -4,7 +4,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-var _ref, _ref2;
+var _ref;
 // an SE-bearing hop key MIGRATES into the next surviving key when the pristine hop over a kept
 // proxy root drops. Where that surviving key names a CONSTRUCTOR the pure package spells, the
 // substitution owns it and the migrated effects ride as its PREFIX: respelled computed instead,
@@ -28,10 +28,10 @@ export const noWriteSameSubstitution = null == _globalThis.window ? void 0 : _na
 // NEGATIVE: `Array` names no pure constructor here, so the surviving key stays a live read off
 // the memo and the migrated effects respell it computed - the shape the ctor rows must not take
 let d;
-export const noCtorKeyRespellsComputed = null == (_ref = d = _globalThis.window) ? void 0 : _nameMaybeFunction(_ref[c++, "Array"]);
+export const noCtorKeyRespellsComputed = null == (d = _globalThis.window) ? void 0 : _nameMaybeFunction(d[c++, "Array"]);
 
 // NEGATIVE: no pure ctor AND no kept write - nothing drops, and the hop keeps its own key
-export const undroppedHopKeepsItsKey = null == (_ref2 = _globalThis.window) ? void 0 : _nameMaybeFunction((c++, _ref2).Array);
+export const undroppedHopKeepsItsKey = null == (_ref = _globalThis.window) ? void 0 : _nameMaybeFunction((c++, _ref).Array);
 
 // NEGATIVE: the pristine twin of the first row - nothing to migrate, same substitution
 let e;

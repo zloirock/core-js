@@ -3,12 +3,12 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // Native siblings stay between distinct claimed property reads.
 // Repeated keys keep separate getter results.
 export function read(receiver) {
-  const [_ref] = [receiver];
-  const first = _at(_ref);
+  const [,] = [receiver];
+  const first = _at(receiver);
   const {
     other
-  } = _ref;
-  const second = _at(_ref);
-  const includes = _includes(_ref);
+  } = receiver;
+  const second = _at(receiver);
+  const includes = _includes(receiver);
   return [first, other, second, includes];
 }

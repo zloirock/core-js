@@ -10,10 +10,10 @@ let c = 0;
 typeof (() => globalThis)()[(c++, 'window')].foo?.[Symbol.iterator];
 typeof (() => globalThis)()[(c++, 'window')]['foo-bar']?.[Symbol.iterator];
 
-// a claimless nav on a DEFINED-yield call root collapses onto the ROOT ponyfill - the
-// identifier twin's canon - with a sequence prefix re-emitted ahead of the base; the
-// PROBE-yield twin keeps the leaf collapse (its value never reached the root), and an
-// effect-bearing call keeps the leaf too - the fold has no slot to replay what it did
+// a claimless nav on a DEFINED-yield call root collapses onto the deepest ponyfill-backed
+// realm hop, like its identifier twin, with a sequence prefix re-emitted ahead of the base;
+// the PROBE-yield twin keeps the same leaf collapse, and an effect-bearing call keeps the
+// leaf too, retaining the call once before the user property read
 export const viaDefinedCallRoot = (() => globalThis)().window.self.userSlot;
 export const viaDefinedCallRootClaim = (() => globalThis)().window.self.Array.of(3);
 let sq = 0;

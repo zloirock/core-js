@@ -292,6 +292,27 @@ checkDeep('base/no static resolver, no static answer',
     });
 }
 
+// Guard-only candidates survive a capture without freezing an unresolved primary.
+runBoth('nested receiver/guard candidates survive capture',
+  'const known = { get w() { mark(); return Object; } }; const [{ w: { is } }] = [known];',
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const outer = parser.pickPath(program, type, path => path.node.key?.name === 'w' && path.parentPath.node.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const original = [];
+    check(`${ label }/original primary`, resolveNestedDestructureReceiver(outer, adapter, original), null);
+    checkDeep(`${ label }/original candidates`, original, ['Object']);
+    const host = outer.findParent(path => path.node.type === 'VariableDeclarator');
+    host.node.init = { type: 'Identifier', name: 'captured' };
+    const retained = [];
+    check(`${ label }/captured primary`, resolveNestedDestructureReceiver(outer, adapter, retained), null);
+    checkDeep(`${ label }/captured candidates`, retained, ['Object']);
+    const independent = [];
+    const another = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    resolveNestedDestructureReceiver(outer, another, independent);
+    checkDeep(`${ label }/another instance`, independent, []);
+  });
+
 // --- resolveNestedDestructureReceiver: an ARRAY PATTERN under a key ---
 
 // the wrapper indexes the level the key reached, so the hops descend in runtime order (the key,

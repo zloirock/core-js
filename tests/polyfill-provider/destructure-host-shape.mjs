@@ -29,16 +29,175 @@ import {
   SINGLE_STATEMENT_SLOTS,
   walkAstNodes,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { buildDestructuringInitMeta, destructureKeyReadPlan, resolveNestedReceiverChain } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  buildDestructuringInitMeta,
+  destructureKeyReadPlan,
+  destructurePatternHostPath,
+  resolveNestedReceiverChain,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { hostSlot, identifier, renderInstanceDefaultGuard } from '../../packages/core-js-polyfill-provider/render.js';
-
+import {
+  assignmentExpression,
+  callExpression,
+  hostSlot,
+  identifier,
+  renderInstanceDefaultGuard,
+} from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { hasConstructorEntry, resolve } from '../../packages/core-js-polyfill-provider/index.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
+
+const orderedStaticParameter = "{ of: a, [(log.push('key'), 'from')]: b, length: c }";
+for (const [name, parameter, argument, body, expected] of [
+  ['nested literal default', `{ w: { v: { Array: ${ orderedStaticParameter } } } } = { w: { v: globalThis } }`, '', 'return [a, b, c];', true],
+  ['array literal default', `[[${ orderedStaticParameter }]] = [[Array]]`, '', 'return [a, b, c];', true],
+  ['nested default with repeated native siblings', '[{ Array: { of: a }, extra: b, extra: c } = globalThis]', '[]', 'return [a, b, c];', true],
+  ['repeated native default overridden by caller', '[{ Array: { of: a }, extra: b, extra: c } = globalThis]', '[user]', 'return [a, b, c];', false],
+  ['nested default with unknown sibling key', '[{ Array: { of: a }, [unknown]: b, extra: c } = globalThis]', '[]', 'return [a, b, c];', false],
+  [
+    'array default retains a deferred default body',
+    `[${ orderedStaticParameter.replace('length: c', 'length: c, fallback: value = () => opaque()') }] = [Array]`,
+    '',
+    'return [a, b, c];',
+    true,
+  ],
+  ['partial conditional default', `{ Array: ${ orderedStaticParameter } } = flag ? globalThis : { Array: {} }`, '', 'return [a, b, c];', false],
+  ['claim-only array default', "[{ [(log.push('key'), 'of')]: a }] = [Array]", '', 'return a;', false],
+  ['supplied builtin', orderedStaticParameter, 'Array', 'return [a, b, c];', true],
+  ['supplied nested realm', `{ w: [{ Array: ${ orderedStaticParameter } }] }`, '{ w: [globalThis] }', 'return [a, b, c];', true],
+  ['custom caller', orderedStaticParameter, 'Array); g(user', 'return [a, b, c];', false],
+  ['mixed builtin callers', orderedStaticParameter, 'Array); g(Uint8Array', 'return [a, b, c];', false],
+  ['mixed array wrapped custom callers', `[${ orderedStaticParameter }]`, '[Array]); g([user]', 'return [a, b, c];', false],
+  ['mixed array wrapped builtin callers', `[${ orderedStaticParameter }]`, '[Array]); g([Uint8Array]', 'return [a, b, c];', false],
+  ['unknown spread caller', orderedStaticParameter, '...args', 'return [a, b, c];', false],
+  ['another parameter', `${ orderedStaticParameter }, other`, 'Array', 'return [a, b, c];', false],
+  ['arguments read', orderedStaticParameter, 'Array', 'return arguments[0];', false],
+  ['body lexical binding', orderedStaticParameter, 'Array', 'const local = 1; return [a, b, c, local];', false],
+  ['key reads parameter binding', '{ of: a, [(log.push(a), "from")]: b, length: c }', 'Array', 'return [a, b, c];', false],
+  ['array key reads parameter binding', '[{ of: a, [(log.push(a), "from")]: b, length: c }] = [Array]', '', 'return [a, b, c];', false],
+  ['array default reads parameter binding', `[${ orderedStaticParameter.replace('length: c', 'length: c, fallback: value = a') }] = [Array]`, '', 'return [a, b, c];', false],
+  ['supplied overrides default', `${ orderedStaticParameter } = Array`, 'user', 'return [a, b, c];', false],
+]) for (const deferred of name === 'supplied builtin' ? ['', 'async ', '*'] : ['']) {
+  runBoth(`ordered parameter capture/${ name }/${ deferred || 'direct' }`,
+    `const log = []; ${ deferred === '*' ? 'function*' : `${ deferred }function` } g(${ parameter }) { ${ body } } g(${ argument });`,
+    (parser, program, label) => {
+      const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', p => p.node.value.name === 'a');
+      check(`${ label }/claimed property selected`, !!prop, true);
+      const resolver = parser.makeResolver();
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', collectBindingReferences: resolver.collectBindingReferences });
+      function resolvePure(meta) {
+        return ['Array', 'Uint8Array'].includes(meta.object) && ['of', 'from'].includes(meta.key)
+          ? { kind: 'static', entry: `${ meta.object }/${ meta.key }`, hintName: meta.key } : null;
+      }
+      const plan = planRetainedObjectCapture({
+        propPath: prop,
+        adapter,
+        meta: { kind: 'property', object: 'Array', key: 'of', placement: 'static' },
+        parameterCallSites: resolver.parameterCallSites,
+        resolvePure,
+      });
+      check(`${ label }/admission`, !!plan?.defaultCapture, expected && !deferred);
+      if (!plan?.defaultCapture) return;
+      check(`${ label }/caller host`, plan.defaultCapture.host.node, destructurePatternHostPath(prop).node);
+      check(`${ label }/target pattern`, plan.defaultCapture.pattern.type, 'ObjectPattern');
+    });
+}
+
+for (const [name, before, after, expected, mutation] of [
+  ['quiet closed append', '', 'g(); export const effects = log;', true],
+  ['immediate caller precedes observation', '', '(() => g())(); export const effects = log;', true],
+  ['own push function', 'log.push = function () {};', 'g();', false],
+  ['own push getter', "Object.defineProperty(log, 'push', { get() { return function () {}; } });", 'g();', false],
+  ['own primitive push', 'log.push = 1;', 'g();', false],
+  ['own length write', 'log.length = 0;', 'g();', false],
+  ['alias handout', 'const alias = log;', 'g();', false],
+  ['unknown handout', 'mutate(log);', 'g();', false],
+  ['deferred handout after source call', '', 'observe(); g(); function observe() { mutate(log); }', false],
+  ['hoisted write after source call', '', 'patch(); g(); function patch() { log.push = function () {}; }', false],
+  ['loop handout feeds next call', '', 'for (let i = 0; i < 2; i++) { g(); mutate(log); }', false],
+  ['linking export after source call', '', 'g(); export { log };', false],
+  ['prototype numeric setter', '', 'g();', false, 'Array.prototype.0'],
+  ['prototype push change', '', 'g();', false, 'Array.prototype.push'],
+  ['prototype iterator replacement', '', 'g();', false, 'Array.prototype.Symbol.iterator'],
+  ['visible iterator return accessor', "Object.defineProperty(Object.getPrototypeOf([][Symbol.iterator]()), 'return', { get() { return close; } });", 'g();', false],
+  ['claimed leaf default', 'unknown(log);', 'g();', false],
+  ['optional call', '', 'g();', false],
+]) runBoth(`iterator-close capture closure/${ name }`, `const log = []; ${ before }
+  function g([${ name === 'optional call' ? orderedStaticParameter.replace('log.push(', 'log.push?.(')
+    : name === 'claimed leaf default' ? orderedStaticParameter.replace('of: a', 'of: a = fallback()') : orderedStaticParameter }] = [Array]) {
+    return [a, b, c];
+  } ${ after }`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.value.name === 'a'
+    || path.node.value.left?.name === 'a');
+  check(`${ label }/claimed property selected`, !!prop, true);
+  const resolver = parser.makeResolver();
+  const census = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer(null)]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    collectBindingReferences: resolver.collectBindingReferences,
+    getMutatedStatics: () => new Set(mutation ? [mutation] : []),
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  const refs = resolver.collectBindingReferences(prop, 'log', { closed: true });
+  check(`${ label }/reference hook available`, Array.isArray(refs), name !== 'linking export after source call');
+  if (name === 'visible iterator return accessor') check(`${ label }/generic return veto`, adapter.isWrittenContainerSlot('', ['return']), true);
+  const plan = planRetainedObjectCapture({
+    propPath: prop,
+    adapter,
+    meta: { kind: 'property', object: 'Array', key: 'of', placement: 'static' },
+    parameterCallSites: resolver.parameterCallSites,
+    resolvePure: meta => meta.object === 'Array' && ['of', 'from'].includes(meta.key)
+      ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
+  });
+  check(`${ label }/iterator-moving admission`, !!plan?.defaultCapture && !plan.defaultCapture.retainedHead, expected);
+  const retained = !expected && name !== 'prototype iterator replacement' && name !== 'claimed leaf default';
+  check(`${ label }/post-close static handoff`, !!plan?.defaultCapture?.retainedHead, retained);
+  if (retained) {
+    const source = JSON.stringify(plan.defaultCapture.root);
+    const spent = [];
+    const rendered = renderRetainedObjectCapture(plan, { injectImport: entry => entry.replaceAll('/', '_'), claimProperties: props => spent.push(...props) });
+    checkDeep(`${ label }/positional rebinds`, rendered.statements.map(statement => statement.expression.left.name), ['a', 'b']);
+    checkDeep(`${ label }/pure static values`, rendered.statements.map(statement => statement.expression.right.name), ['array_of', 'array_from']);
+    check(`${ label }/original parameter unchanged`, JSON.stringify(plan.defaultCapture.root), source);
+    checkDeep(`${ label }/source claims spent once`, spent.map(item => item.value.name), ['a', 'b']);
+    check(`${ label }/computed key remains live`, spent.includes(prop.parentPath.node.properties[1].key), false);
+    check(`${ label }/native head is retained`, rendered.head, undefined);
+  }
+});
+
+for (const [source, closed] of [
+  ['export const log = []; use(log);', false],
+  ['const log = []; use(log); export { log };', false],
+  ['export const log = []; function f() { const log = []; use(log); }', true],
+  ['export const log = []; { const log = []; use(log); }', true],
+]) runBoth('closed reference census preserves declaration identity', source, (parser, program, label) => {
+  const [ref] = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'use').get('arguments');
+  const resolver = parser.makeResolver();
+  check(`${ label }/ordinary references remain available`, Array.isArray(resolver.collectBindingReferences(ref)), true);
+  check(`${ label }/closed exported owner`, Array.isArray(resolver.collectBindingReferences(ref, 'log', { closed: true })), closed);
+  check(`${ label }/unknown binding is incomplete`, resolver.collectBindingReferences(ref, 'missing'), null);
+});
+
+for (const [prefix, callee, descriptor, expected] of [
+  ['', 'Object.defineProperty(target(), "return",', '{ get() { return close; } }', true],
+  ['', 'Reflect.defineProperty(target(), "return",', '{ value: close }', true],
+  ['', 'Object.defineProperties(target(),', '{ return: { get() { return close; } }, quiet: { value: 1 } }', true],
+  ['const Object = foreign;', 'Object.defineProperty(target(), "return",', '{ get() { return close; } }', false],
+  ['const Reflect = foreign;', 'Reflect.defineProperty(target(), "return",', '{ value: close }', false],
+]) runBoth('unnamed explicit stores retain generic written keys', `${ prefix } ${ callee } ${ descriptor });`, (parser, program, label) => {
+  const census = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer(null)]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  check(`${ label }/return is written`, adapter.isWrittenContainerSlot('', ['return']), expected);
+  check(`${ label }/unrelated keys remain quiet`, adapter.isWrittenContainerSlot('', ['other']), false);
+});
 
 {
   const expression = { type: 'ExpressionStatement', expression: identifier('effect') };
@@ -320,11 +479,144 @@ runBoth('retained static capture through an array element path',
       method: 'usage-pure',
     };
     const plan = planRetainedObjectCapture({
-      pattern: pattern.node, patternPath: pattern, init: host.node.init.elements[0], hostPath: host,
-      adapter: bindingAdapter, resolveNodeType: adapter.makeResolver().resolveNodeType, kind: 'static',
+      pattern: pattern.node,
+      patternPath: pattern,
+      init: host.node.init.elements[0],
+      hostPath: host,
+      adapter: bindingAdapter,
+      resolveNodeType: adapter.makeResolver().resolveNodeType,
+      kind: 'static',
     });
     check(label, !!plan, false);
   });
+
+for (const [receiver, expected, changedIterator] of [['Array', true], ['(sourceEffect(), Array)', true], ['custom', false], ['Array', false, true]]) {
+  runBoth('retained array static capture serves a computed sibling in its own slot',
+    `const [{ of: a, [(effect(), "from")]: b, length: c }, tail] = [${ receiver }, 7];`, (parser, program, label) => {
+      const host = parser.pickPath(program, 'VariableDeclarator');
+      const [pattern] = host.node.id.elements;
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      if (changedIterator) adapter.isMutatedStatic = (object, key) => object === 'Array.prototype' && key === 'Symbol.iterator';
+      const plan = planRetainedObjectCapture({
+        pattern: host.node.id,
+        init: host.node.init,
+        prop: pattern.properties[0],
+        hostPath: host,
+        adapter,
+        kind: 'static',
+        entry: 'array/of',
+        meta: { object: 'Array', key: 'of', placement: 'static' },
+        resolvePure: meta => meta.object === 'Array' && ['of', 'from'].includes(meta.key)
+          ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
+        resolveStaticProp: resolvePolyfillableStaticProp,
+      });
+      check(`${ label }/canonical source proof`, !!plan, expected);
+      if (!plan) return;
+      check(`${ label }/computed sibling is served`, plan.elementPlan.siblingStatics.get(pattern.properties[1])?.entry, 'array/from');
+      let refs = 0;
+      const rendered = renderRetainedObjectCapture(plan, { mintRef: () => `memo${ ++refs }`, injectImport: entry => entry.replace('/', '$'), entry: 'array/of' });
+      const fromIndex = rendered.declarations.findIndex(item => item.id.name === 'b');
+      check(`${ label }/computed binding follows first binding`, fromIndex,
+        rendered.declarations.findIndex(item => item.id.name === 'a') + 1);
+      check(`${ label }/native sibling follows computed binding`, rendered.declarations[fromIndex + 1].id.properties[0], pattern.properties[2]);
+      let sourceCalls = 0;
+      walkAstNodes({
+        root: { type: 'Program', body: rendered.declarations },
+        visit(node) {
+          sourceCalls += node.type === 'CallExpression' && node.callee.name === 'sourceEffect';
+        },
+      });
+      check(`${ label }/source prefix runs once`, sourceCalls, receiver.startsWith('(') ? 1 : 0);
+    });
+}
+
+for (const [name, before, receiver, after, reusable] of [
+  ['constant sibling', 'const source = unknown;', 'source', '', true],
+  ['constant sibling prefix', 'const source = unknown;', '(before(), source)', '', true],
+  ['member sibling', '', 'holder.source', '', false],
+  ['getter writer', 'let source = unknown; const holder = { get at() { source = other; } };', 'source', '', false],
+  ['later RHS writer', 'let source = unknown;', 'source', ', source = other', false],
+  ['imported sibling', 'import source from "other";', 'source', '', false],
+]) runBoth(`retained array capture/stable sibling ${ name }`,
+  `${ before } const [{ [(effect(), "of")]: of, from }, { at, length }] = [Array, ${ receiver }${ after }];`,
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ArrayPattern');
+    const original = JSON.stringify(host.node);
+    const [pattern, sibling] = host.node.id.elements;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.id, init: host.node.init, prop: pattern.properties[0], hostPath: host, adapter,
+      kind: 'static', entry: 'array/of', meta: { object: 'Array', key: 'of', placement: 'static' },
+      resolveStaticProp: resolvePolyfillableStaticProp,
+      resolvePure: meta => ['of', 'from'].includes(meta.key)
+        ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
+    });
+    check(`${ label }/retained wrapper selected`, !!plan?.arrayCapture, true);
+    if (!plan?.arrayCapture) return;
+    check(`${ label }/sibling reuse`, !!plan.arrayCapture.elements[1].receiver, reusable);
+    let refs = 0;
+    const rendered = renderRetainedObjectCapture(plan, {
+      mintRef: () => `memo${ ++refs }`, injectImport: entry => entry.replace('/', '$'), entry: 'array/of',
+    });
+    check(`${ label }/required captures`, refs, Number(!reusable));
+    check(`${ label }/full RHS evaluated first`, rendered.declarations[0].init, host.node.init);
+    check(`${ label }/native sibling pattern retained`, rendered.declarations.at(-1).id, sibling);
+    check(`${ label }/native sibling receiver`, rendered.declarations.at(-1).init.name, reusable ? 'source' : 'memo1');
+    check(`${ label }/original host unchanged`, JSON.stringify(host.node), original);
+  });
+
+for (const [name, source, expected, mutation] of [
+  ['paired object array', 'let a, b, c; ({ w: [{ of: a, [(effect(), "from")]: b, length: c }] } = { w: [Array] });', true],
+  ['opaque object array', 'let a, b, c; ({ w: [{ of: a, [(effect(), "from")]: b, length: c }] } = { w: custom });', false],
+  ['changed paired iterator', 'let a, b, c; ({ w: [{ of: a, [(effect(), "from")]: b, length: c }] } = { w: [Array] });', false, 'iterator'],
+  ['pristine realm hop', 'const [{ Array: { of: a, [(effect(), "from")]: b, length: c } }] = [globalThis];', true],
+  ['foreign realm hop', 'const [{ Array: { of: a, [(effect(), "from")]: b, length: c } }] = [custom];', false],
+  ['changed realm hop', 'const [{ Array: { of: a, [(effect(), "from")]: b, length: c } }] = [globalThis];', false, 'realm'],
+]) runBoth(`retained nested static source handoff/${ name }`, source, (parser, program, label) => {
+  const assignment = source.startsWith('let');
+  const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key.name === 'of');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  if (mutation) adapter.isMutatedStatic = (object, key) => mutation === 'iterator'
+    ? object === 'Array.prototype' && key === 'Symbol.iterator' : object === 'globalThis' && key === 'Array';
+  const plan = planRetainedObjectCapture({
+    pattern: assignment ? host.node.left : host.node.id,
+    init: assignment ? host.node.right : host.node.init,
+    prop: prop.node,
+    hostPath: host,
+    assignment,
+    adapter,
+    kind: 'static',
+    entry: 'array/of',
+    meta: { object: 'Array', key: 'of', placement: 'static' },
+    resolvePure: meta => meta.object === 'Array' && ['of', 'from'].includes(meta.key)
+      ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
+    resolveStaticProp: resolvePolyfillableStaticProp,
+  });
+  check(`${ label }/canonical paired or pristine source proof`, !!plan, expected);
+  if (!plan) return;
+  let refs = 0;
+  const rendered = renderRetainedObjectCapture(plan, {
+    mintRef: () => `memo${ ++refs }`,
+    mintDeclaredRef: () => `memo${ ++refs }`,
+    injectImport: entry => entry.replace('/', '$'),
+    entry: 'array/of',
+  });
+  let keyCalls = 0;
+  let realmReads = 0;
+  let fromBindings = 0;
+  walkAstNodes({
+    root: rendered.expression ?? { type: 'Program', body: rendered.declarations },
+    visit(node) {
+      keyCalls += node.type === 'CallExpression' && node.callee.name === 'effect';
+      realmReads += ['Property', 'ObjectProperty'].includes(node.type) && node.key.name === 'Array';
+      fromBindings += node.type === 'Identifier' && node.name === 'array$from';
+    },
+  });
+  check(`${ label }/computed key runs once`, keyCalls, 1);
+  check(`${ label }/native realm hop runs once`, realmReads, name === 'pristine realm hop' ? 1 : 0);
+  check(`${ label }/computed sibling claim survives`, fromBindings, 1);
+});
 
 for (const [key, kind] of [['of', 'static'], ['Set', 'global']]) {
   runBoth(`static beside iterator pattern/${ kind }`, `const { ${ key }, [Symbol.iterator]: { name } } = source;`,
@@ -654,10 +946,7 @@ runBoth('isForInitDeclaration/init vs body slot', 'for (var { from } = Array; ;)
     check(`${ lbl }/body`, isForInitDeclaration(body.parentPath.node, body.node), false);
   });
 
-for (const source of [
-  'const [{ inner: { [(key(), "flat")]: method } }] = [box];',
-  'const [{ y: { at, ...rest } }] = source;',
-]) {
+for (const source of ['const [{ inner: { [(key(), "flat")]: method } }] = [box];', 'const [{ y: { at, ...rest } }] = source;']) {
   runBoth('array wrapper capture/retained key or rest keeps native iteration', source, (adapter, prog, lbl) => {
     const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
     const restPattern = pattern.elements[0].properties[0].value;
@@ -694,9 +983,11 @@ for (const source of [
     mintDeclaredRef: () => 'memo', injectImport: () => 'ofImport',
   });
   const { expressions } = rendered.expression;
-  check(`${ lbl }/RHS evaluates first`, expressions[0].right === init, true);
+  const consumed = source.startsWith('const held');
+  check(`${ lbl }/RHS evaluates first`, (consumed ? expressions[0].right : expressions[0]) === init, true);
   check(`${ lbl }/the claim follows`, expressions[1].right.name, 'ofImport');
-  check(`${ lbl }/the result is the captured receiver`, expressions.at(-1).name, 'memo');
+  check(`${ lbl }/only a consumed result is retained`, expressions.length, consumed ? 3 : 2);
+  if (consumed) check(`${ lbl }/the result is the captured receiver`, expressions.at(-1).name, 'memo');
 });
 
 runBoth('array wrapper capture/effects before a nested pattern and its sibling',
@@ -1193,9 +1484,7 @@ for (const [source, kind, expected] of [
   const host = parser.pickPath(program, 'VariableDeclarator');
   const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
     path => ['at', 'from', 'Map'].includes(path.node.value?.name));
-  const capture = planNestedKeyedPatternCapture({
-    pattern: host.node.id, init: host.node.init, prop: prop.node, kind,
-  });
+  const capture = planNestedKeyedPatternCapture({ pattern: host.node.id, init: host.node.init, prop: prop.node, kind });
   check(`${ label }/${ kind }`, !!capture, expected);
   if (capture) check(`${ label }/capture serves its own leaf`, capture.leafPattern.properties.includes(prop.node), true);
 });
@@ -1208,14 +1497,40 @@ runBoth('nested capture declines an ancestor claim',
     }), null);
   });
 
+for (const [key, options, mismatch, expected] of [
+  ['[(effect(), "from")]', { kind: 'static', leafKeyRuns: true }, false, true],
+  ['[(effect(), "from")]', { kind: 'static' }, false, false],
+  ['from', { kind: 'static', leafKeyRuns: true }, false, false],
+  ['[(effect(), "from")]', { kind: 'instance', leafKeyRuns: true }, false, false],
+  ['[(effect(), "from")]', { kind: 'static', leafKeyRuns: true, force: true }, false, false],
+  ['[(effect(), "from")]', { kind: 'static', leafKeyRuns: true }, true, false],
+]) runBoth(`ordered capture selects its distinct hop/${ key }/${ JSON.stringify(options) }/${ mismatch }`,
+  `let method; const box = {}; const { from: unrelated } = source;
+   ({ Array: { ${ key }: method }, Object: { keys: box.value } } = source);`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.value?.name === (mismatch ? 'unrelated' : 'method'));
+    const capture = planNestedKeyedPatternCapture({ pattern: host.node.left, init: host.node.right, prop: prop.node, ...options });
+    check(`${ label } admission`, !!capture, expected);
+    if (capture) {
+      check(`${ label } own leaf`, capture.leafPattern.properties.includes(prop.node), true);
+      check(`${ label } retained siblings split in order`, capture.splitCapture, true);
+      check(`${ label } own outer hop`, capture.ancestors[0].prop.key.name, 'Array');
+    }
+  });
+
 for (const anchored of [false, true]) runBoth(`nested symbol capture/${ anchored }`,
   'const { Set: { [(effect(), Symbol.iterator)]: iterator } } = globalThis;', (parser, program, label) => {
     const host = parser.pickPath(program, 'VariableDeclarator');
     const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
       path => path.node.value?.name === 'iterator');
     check(label, !!planNestedKeyedPatternCapture({
-      pattern: host.node.id, init: host.node.init, prop: prop.node, kind: 'instance',
-      entry: 'get-iterator-method', anchored,
+      pattern: host.node.id,
+      init: host.node.init,
+      prop: prop.node,
+      kind: 'instance',
+      entry: 'get-iterator-method',
+      anchored,
     }), !anchored);
   });
 
@@ -1243,12 +1558,12 @@ for (const [constructor, expected] of [[null, true], ['Function', true], ['Objec
 for (const [source, minted, expected, native] of [
   ['const { other, [(effect(), "at")]: method } = memo;', true, 'memo', false],
   ['const { other, [(effect(), "at")]: method } = memo;', false, undefined, false],
-  ['const { other, [(effect(), "at")]: method } = (effect(), memo);', true, undefined, false],
+  ['const { other, [(effect(), "at")]: method } = (effect(), memo);', true, 'memo', false],
   ['const { other, [(effect(), "at")]: method } = getter.value;', true, undefined, false],
   ['const { other, [(effect(), "at")]: method } = get();', true, undefined, false],
   ['({ [(effect(), "at")]: method } = memo);', true, 'memo', false],
-  ['function f(value = ({ [(effect(), "at")]: method } = memo)) {}', true, undefined, true],
-  ['class C { value = ({ [(effect(), "at")]: method } = memo); }', true, undefined, true],
+  ['function f(value = ({ [(effect(), "at")]: method } = memo)) {}', true, undefined, false],
+  ['class C { value = ({ [(effect(), "at")]: method } = memo); }', true, undefined, false],
 ]) runBoth('retained receiver reuse preserves capture ownership', source, (parser, program, label) => {
   const host = parser.pickPath(program, 'VariableDeclarator') ?? parser.pickPath(program, 'AssignmentExpression');
   const assignment = host.node.type === 'AssignmentExpression';
@@ -1273,6 +1588,9 @@ for (const [source, minted, expected, native] of [
   });
   check(`${ label }: capture count`, mintedCount, expected ? 0 : 1);
   check(`${ label }: dispatched receiver`, rendered.refName, expected ?? 'newMemo');
+  if (source.includes('(effect(), memo)')) {
+    check(`${ label }: the prefixed initializer remains first`, rendered.declarations[0].init, host.node.init);
+  }
 });
 
 for (const order of ['other, at', 'at, other']) runBoth('retained dispatch itself rejects null without key effects',
@@ -1324,6 +1642,8 @@ for (const assignment of [false, true]) runBoth('retained array elements reuse t
     });
     check(`${ label }: retained leaf`, !!retained, true);
     let refs = 0;
+    let unused = 0;
+    let declaredUnused = 0;
     const rendered = renderArrayDestructurePlan(
       {
         array: {
@@ -1334,8 +1654,17 @@ for (const assignment of [false, true]) runBoth('retained array elements reuse t
             : { node: element.pattern, kind: 'verbatim' }),
         },
       },
-      { kind: 'const', init, embed: node => node, injectImport: () => 'ofImport', mintRef: () => `memo${ ++refs }`, mintDeclaredRef: () => `memo${ ++refs }` },
+      {
+        kind: 'const', init, embed: node => node, injectImport: () => 'ofImport',
+        mintRef: () => `memo${ ++refs }`, mintDeclaredRef: () => `memo${ ++refs }`,
+        mintUnused: declared => {
+          if (declared) declaredUnused++;
+          return `unused${ ++unused }`;
+        },
+      },
     );
+    check(`${ label }: rest exclusion uses the sentinel minter`, unused, 1);
+    check(`${ label }: assignment sentinel needs a declaration`, declaredUnused, assignment ? 1 : 0);
     const copies = [];
     for (const root of rendered) walkAstNodes({
       root,
@@ -1547,6 +1876,352 @@ for (const moved of [false, true]) {
       });
       check(`${ label }: source proof stays phase stable/${ moved }`, plan.receiverNeverNullish, !moved);
     });
+}
+
+for (const [source, reusable, consumed] of [
+  ['const source = [1]; let method; ({ [(key(), "at")]: method } = source);', true, false],
+  ['const source = [1]; let method; const result = ({ [(key(), "at")]: method } = source);', true, true],
+  ['const source = [1]; let method; ({ [(key(), "at")]: method } = (before(), source));', true, false],
+  ['const source = [1]; let method; const result = ({ [(key(), "at")]: method } = (before(), source) as any);', true, true],
+  ['let source = [1]; let method; ({ [(source = [2], "at")]: method } = (before(), source));', false, false],
+  ['let method; ({ [(key(), "at")]: method } = (before(), holder.rows));', false, false],
+  ['let source = [1]; let method; ({ [(source = [2], "at")]: method } = source);', false, false],
+  ['let method; ({ [(key(), "at")]: method } = source);', true, false],
+  ['import source from "foreign"; let method; ({ [(key(), "at")]: method } = source);', false, false],
+]) runBoth('ordered source receiver reuse keeps its first coercion slot', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.left,
+    init: host.node.right,
+    assignment: true,
+    prop: host.node.left.properties[0],
+    hostPath: host,
+    adapter,
+    kind: 'instance',
+    entry: 'array/instance/at',
+  });
+  check(`${ label }: reuse`, !!plan.reuseReceiver, reusable);
+  check(`${ label }: result consumption`, plan.preserveResult, consumed);
+  let minted = 0;
+  const rendered = renderRetainedObjectCapture(plan, {
+    mintDeclaredRef: () => {
+      minted++; return 'memo';
+    },
+    injectImport: () => 'atImport',
+    entry: 'array/instance/at',
+  });
+  check(`${ label }: captures`, minted, reusable ? 0 : 1);
+  const [first] = rendered.expression.expressions;
+  check(`${ label }: initializer stays first`, first.right, host.node.right);
+  if (reusable) {
+    check(`${ label }: native coercion precedes the key`, first.left.type, 'ObjectPattern');
+    check(`${ label }: no replacement binding`, first.left.properties.length, 0);
+  }
+});
+
+for (const key of ['from', '[(key(), "from")]']) {
+  runBoth('a reusable pristine constructor needs no redundant coercion',
+    `let method; const result = ({ ${ key }: method } = Array);`, (parser, program, label) => {
+      const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const plan = planRetainedObjectCapture({
+        pattern: host.node.left, init: host.node.right, assignment: true, prop: host.node.left.properties[0],
+        hostPath: host, adapter, kind: 'static', resolvePure: () => ({}), provenCtorName: 'Array',
+        resolveStaticProp: () => ({ pure: { kind: 'static', entry: 'array/from' }, localName: 'method', key: 'from' }),
+      });
+      check(`${ label }/reuses constructor`, !!plan.reuseReceiver, true);
+      check(`${ label }/nonnull constructor proof`, plan.provenReceiver, true);
+      const rendered = renderRetainedObjectCapture(plan, {
+        mintDeclaredRef: () => { throw new Error('pristine constructor needs no memo'); },
+        injectImport: () => 'fromImport',
+      });
+      check(`${ label }/no empty coercion`, rendered.expression.expressions.some(item => item.left?.type === 'ObjectPattern'), false);
+      check(`${ label }/result identity`, rendered.expression.expressions.at(-1).name, 'Array');
+    });
+}
+
+runBoth('ordered source declaration reuses its leading native coercion',
+  'const source = [1]; const { length, [(key(), "at")]: method } = source;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.id, init: host.node.init, prop: host.node.id.properties[1], hostPath: host, adapter,
+      kind: 'instance', entry: 'array/instance/at',
+    });
+    check(`${ label }/reuses source`, !!plan.reuseReceiver, true);
+    const rendered = renderRetainedObjectCapture(plan, {
+      mintRef: () => 'memo', injectImport: () => 'atImport', entry: 'array/instance/at',
+    });
+    const [first] = rendered.declarations;
+    check(`${ label }/native pattern already coerces`, first.id.properties[0]?.key.name, 'length');
+    check(`${ label }/source read remains first`, first.init.name, 'source');
+  });
+
+runBoth('ordered static-only assignment evaluates an effectful RHS without storing its discarded result',
+  'let of, from; ({ of, [(key(), "from")]: from } = (effect(), Array));', (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.left,
+      init: host.node.right,
+      assignment: true,
+      prop: host.node.left.properties[1],
+      hostPath: host,
+      adapter,
+      kind: 'static',
+      resolvePure: () => ({}),
+      provenCtorName: 'Array',
+      resolveStaticProp: ({ prop }) => ({ pure: { kind: 'static', entry: `array/${ prop.value.name }` }, localName: prop.value.name, key: prop.value.name }),
+    });
+    let minted = 0;
+    const rendered = renderRetainedObjectCapture(plan, {
+      mintDeclaredRef: () => {
+        minted++; return 'memo';
+      },
+      injectImport: entry => entry.replace('/', '_'),
+      entry: 'array/from',
+    });
+    check(`${ label }: no unused receiver capture`, minted, 0);
+    check(`${ label }: RHS remains first`, rendered.expression.expressions[0], host.node.right);
+    check(`${ label }: no terminal receiver read`, rendered.expression.expressions.at(-1).type, 'SequenceExpression');
+  });
+
+for (const supplied of [false, true]) runBoth('retained default certainty needs a flag only for a live native arm',
+  'const { at: method } = source;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const [prop] = host.node.id.properties;
+    let minted = 0;
+    const rendered = renderRetainedObjectCapture({
+      defaultCapture: {
+        supplied,
+        pattern: host.node.id,
+        root: host.node.id,
+        host,
+        target: { claimedProperties: [] },
+        entries: [{ prop, slot: 'at', instance: { entry: 'array/instance/at' } }],
+        ctx: { scope: host.scope },
+      },
+    }, { mintRef: () => `memo${ ++minted }`, injectImport: () => 'atImport' });
+    check(`${ label }: mutable flags/${ supplied }`, rendered.mutable.length, supplied ? 0 : 1);
+    check(`${ label }: receiver is retained/${ supplied }`, minted, supplied ? 1 : 2);
+    check(`${ label }: mirror selection/${ supplied }`, rendered.declarations.at(-1).init.type,
+      supplied ? 'ObjectExpression' : 'ConditionalExpression');
+  });
+
+for (const [receiver, key, consumed, inline] of [
+  ['[1]', '(key(), "at")', false, true],
+  ['{ value: 1 }', '(key(), "at")', false, true],
+  ['[effect()]', '(key(), "at")', false, false],
+  ['[...values]', '(key(), "at")', false, false],
+  ['[1]', '(key(), "at")', true, false],
+  ['source.value', '"at"', false, true],
+]) runBoth('a sole retained dispatch needs no forwarding capture',
+  `let method; ${ consumed ? 'const result =' : '' } ({ [${ key }]: method } = ${ receiver });`,
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.left,
+      init: host.node.right,
+      assignment: true,
+      prop: host.node.left.properties[0],
+      hostPath: host,
+      adapter,
+      kind: 'instance',
+      entry: 'array/instance/at',
+    });
+    check(`${ label }: quiet leaf keeps the flat route`, !!plan, key !== '"at"');
+    if (!plan) return; // A quiet sole leaf stays on the existing flat extraction route.
+    check(`${ label }: single use/${ receiver }`, !!plan.inlineReceiver, inline);
+    let minted = 0;
+    renderRetainedObjectCapture(plan, {
+      mintDeclaredRef: () => {
+        minted++; return 'memo';
+      },
+      injectImport: () => 'atImport',
+      entry: 'array/instance/at',
+    });
+    check(`${ label }: capture count/${ receiver }`, minted, inline ? 0 : 1);
+  });
+
+runBoth('a spent nested static receiver retains its native coercion without an alias',
+  'let from; const box = {}; ({ Array: { [(key(), "from")]: from }, Object: { keys: box.value } } = source);',
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+    const [prop] = host.node.left.properties[0].value.properties;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.left,
+      init: host.node.right,
+      assignment: true,
+      prop,
+      hostPath: host,
+      adapter,
+      kind: 'static',
+      meta: { kind: 'property', object: 'Array', key: 'from', placement: 'static' },
+      resolveStaticProp: () => ({ pure: { kind: 'static', entry: 'array/from' } }),
+    });
+    check(`${ label }: ordered native capture`, !!plan.capture, true);
+    let minted = 0;
+    const rendered = renderRetainedObjectCapture(plan, { mintDeclaredRef: () => `memo${ ++minted }`, injectImport: () => 'fromImport', entry: 'array/from' });
+    check(`${ label }: only the root is captured`, minted, 1);
+    const coercion = rendered.expression.expressions[1].left.properties[0].value;
+    check(`${ label }: native leaf coercion`, coercion.type, 'ObjectPattern');
+    check(`${ label }: no bound alias in the coercion`, coercion.properties.length, 0);
+  });
+
+for (const callback of [false, true]) runBoth('a sole final instance read needs no forwarding slot before its ordered dispatch',
+  'let first, method, last; ({ before: first, y: { flat: method }, after: last } = source);',
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+    const [, hop] = host.node.left.properties;
+    const [prop] = hop.value.properties;
+    const plan = planNestedKeyedPatternCapture({
+      pattern: host.node.left,
+      init: host.node.right,
+      force: true,
+      plansLeaf: true,
+      prop,
+      kind: 'instance',
+      entry: 'array/instance/flat',
+      ancestors: [{ pattern: host.node.left, prop: hop }],
+    });
+    check(`${ label }: sole ordinary dispatch admission`, plan.inlineLeaf, true);
+    let minted = 0;
+    const rendered = renderNestedKeyedPatternCapture(plan, { mintRef: () => `memo${ ++minted }`, assignment: true,
+      ...callback ? {
+        renderLeaf: receiver => assignmentExpression('=', identifier('method'),
+          callExpression(identifier('flatImport'), [receiver])),
+      } : {} });
+    check(`${ label }: stored receiver count/${ callback }`, minted, callback ? 1 : 2);
+    const [, before, leaf, after] = rendered.expression.expressions;
+    check(`${ label }: first native binding stays before dispatch`, before.left.properties[0].value.name, 'first');
+    if (callback) {
+      check(`${ label }: direct claimed target`, leaf.left.name, 'method');
+      check(`${ label }: receiver property is read once by dispatch`, leaf.right.arguments[0].property.name, 'y');
+      check(`${ label }: receiver uses the original root capture`, leaf.right.arguments[0].object.name, 'memo1');
+      check(`${ label }: final native binding stays after dispatch`, after.left.properties[0].value.name, 'last');
+    }
+  });
+
+for (const observed of [false, true]) runBoth('a retained array assignment stores its result only when the host consumes it',
+  `let at; ${ observed ? 'const result =' : '' } ([{ [(key(), "at")]: at }] = [source]);`,
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ArrayPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const [prop] = host.node.left.elements[0].properties;
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.left,
+      init: host.node.right,
+      assignment: true,
+      prop,
+      hostPath: host,
+      adapter,
+      kind: 'instance',
+      entry: 'array/instance/at',
+    });
+    check(`${ label }: native array capture`, !!plan.arrayCapture, true);
+    let minted = 0;
+    const rendered = renderRetainedObjectCapture(plan, { mintDeclaredRef: () => `memo${ ++minted }`, injectImport: () => 'atImport', entry: 'array/instance/at' });
+    const [capture] = rendered.expression.expressions;
+    check(`${ label }: result storage/${ observed }`, capture.right.type, observed ? 'AssignmentExpression' : 'ArrayExpression');
+    check(`${ label }: original RHS is evaluated once/${ observed }`, observed ? capture.right.right : capture.right, host.node.right);
+    check(`${ label }: only the observed assignment result needs storage/${ observed }`, minted, Number(observed));
+    check(`${ label }: result use/${ observed }`, rendered.expression.expressions.at(-1).type === 'Identifier', observed);
+  });
+
+for (const [source, assignment, observed, direct] of [
+  ['const { [(key(), "w")]: { at } } = { w: source };', false, false, true],
+  ['const { [(key(), "w")]: { at } } = { w: make() };', false, false, true],
+  ['const { [(key(), "w")]: { at } } = { ...spread, w: make() };', false, false, true],
+  ['let at; ({ [(key(), "w")]: { at } } = { w: source });', true, false, true],
+  ['let at; const value = ({ [(key(), "w")]: { at } } = { w: source });', true, true, false],
+  ['const { before, [(key(), "w")]: { at } } = { before: other(), w: make() };', false, false, false],
+  ['const { [(key(), "w")]: { at } } = make();', false, false, false],
+]) runBoth('a sole native wrapper capture keeps its RHS without storing the allocation', source,
+  (parser, program, label) => {
+    const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator',
+      path => (assignment ? path.node.left : path.node.id).type === 'ObjectPattern');
+    const pattern = assignment ? host.node.left : host.node.id;
+    const init = assignment ? host.node.right : host.node.init;
+    const plan = planNestedKeyedPatternCapture({ pattern, init });
+    let minted = 0;
+    const rendered = renderNestedKeyedPatternCapture(plan, { mintRef: () => `memo${ ++minted }`, assignment, preserveResult: observed });
+    const capture = assignment ? rendered.expression.expressions[0] : rendered.capture;
+    const target = assignment ? capture.left : capture.id;
+    check(`${ label }: direct native capture/${ source }`, target.type === 'ObjectPattern', direct);
+    check(`${ label }: leaf and required root storage/${ source }`, minted, direct ? 1 : 2);
+    check(`${ label }: original RHS remains before key/${ source }`, assignment ? capture.right === init : capture.init === init, true);
+    if (direct) {
+      check(`${ label }: native key remains`, target.properties[0].key === pattern.properties[0].key, true);
+      check(`${ label }: selected value still has its own capture`, target.properties[0].value.name, 'memo1');
+      check(`${ label }: no separate root read`, rendered.elements.length, 1);
+    }
+  });
+
+for (const assignment of [false, true]) for (const nested of [false, true]) {
+  const keyedPattern = '{ [(effect(), "w")]: { at: method } }';
+  const sourcePattern = nested ? `{ outer: ${ keyedPattern } }` : keyedPattern;
+  const source = assignment ? `let method; ([${ sourcePattern }] = [src]);` : `const [${ sourcePattern }] = [src];`;
+  runBoth('an ordered array element keeps its capture through the nested keyed render', source, (parser, program, label) => {
+    const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator');
+    const pattern = assignment ? host.node.left : host.node.id;
+    const init = assignment ? host.node.right : host.node.init;
+    const capture = planArrayWrapperCapture({ pattern, init, force: true });
+    const [element] = pattern.elements;
+    const keyedSource = nested ? element.properties[0].value : element;
+    const keyedCapture = planNestedKeyedPatternCapture({ pattern: keyedSource, init: init.elements[0], force: true, plansLeaf: true });
+    let minted = 0;
+    const rendered = renderArrayDestructurePlan({ array: {
+      capture, assignment,
+      elements: [{ node: element, nestedKeys: nested ? ['outer'] : [], children: [{
+        keyedCapture, children: [{ extractions: [{ targetNode: keyedCapture.leaf.value, kind: 'instance' }] }],
+      }] }],
+    } }, {
+      kind: 'const', init, embed: node => node, mintRef: () => `capture${ ++minted }`,
+      read: (extraction, receiver) => callExpression(identifier('atImport'), [receiver]),
+    });
+    check(`${ label }/element and property captures only`, minted, nested ? 3 : 2);
+    const copies = [];
+    for (const root of rendered) walkAstNodes({ root, visit(node) {
+      const left = node.type === 'VariableDeclarator' ? node.id : node.left;
+      const right = node.type === 'VariableDeclarator' ? node.init : node.right;
+      if (left?.type === 'Identifier' && right?.type === 'Identifier') copies.push(node);
+    } });
+    check(`${ label }/no copy of an existing capture`, copies.length, 0);
+  });
+}
+
+for (const [source, owned, reusable] of [
+  ['const { [(effect(), "w")]: { at: method } } = memo;', true, true],
+  ['const memo = { w: [1] }; const { [(effect(), "w")]: { at: method } } = memo;', false, true],
+  ['let memo = { w: [1] }; const { [(memo = other, "w")]: { at: method } } = memo;', false, false],
+  ['const { [(effect(), "w")]: { at: method } } = memo;', false, true],
+  ['import memo from "foreign"; const { [(effect(), "w")]: { at: method } } = memo;', false, false],
+]) {
+  runBoth('nested ordered declaration reuses a proven root without copying its binding', source, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+    const pattern = host.node.id;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planRetainedObjectCapture({
+      pattern, init: host.node.init,
+      prop: pattern.properties[0].value.properties[0], hostPath: host, adapter,
+      kind: 'instance', entry: 'instance/at', injectorState: { isOwnPassGeneratedName: name => owned && name === 'memo' },
+    });
+    check(`${ label }/root reuse proof`, plan.receiverRef, reusable ? 'memo' : undefined);
+    let minted = 0;
+    const rendered = renderRetainedObjectCapture(plan, {
+      mintRef: () => `capture${ ++minted }`, mintDeclaredRef: () => `capture${ ++minted }`,
+      injectImport: () => 'atImport', entry: 'instance/at',
+    });
+    check(`${ label }/only the property value needs a new capture`, minted, reusable ? 1 : 2);
+    const nodes = rendered.declarations;
+    const native = nodes.find(node => node.id.type === 'ObjectPattern');
+    check(`${ label }/null rejection still precedes the computed key`, native.init.type, 'ConditionalExpression');
+    check(`${ label }/source key stays in its native pattern`, native.id.properties[0].key, pattern.properties[0].key);
+    if (reusable) check(`${ label }/native pattern is the first receiver read`, nodes[0], native);
+  });
 }
 
 finish();

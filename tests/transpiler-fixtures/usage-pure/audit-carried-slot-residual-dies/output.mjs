@@ -45,7 +45,7 @@ keptKey = _atMaybeArray(_ref2);
 });
 // A sequence in the source element runs its prefix once before the method read.
 let out, seqElement;
-[_ref3] = [(out = 1, _flatMaybeArray(arr).call(arr))];
+[_ref3] = [_flatMaybeArray((out = 1, arr)).call(arr)];
 // A discarded assignment inside a sequence keeps its own source read before the final value.
 seqElement = _atMaybeArray(_ref3);
 let viaSeqElement, seqTail;

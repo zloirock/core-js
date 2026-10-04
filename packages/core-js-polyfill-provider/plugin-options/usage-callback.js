@@ -7,9 +7,16 @@
 //   - `cond ? Array : Iterator` destructure (per-branch fallback)
 // also handles `class extends Array { foo() { this.at(0) } }` shadow check
 import {
-  isForXWriteTarget, isMemberWriteHost, isThisReceiver, isTSTypeOnlyIdentifierPath,
-  nonEmittedExpressionAncestor, peelParenAndTSParentPath, staticMemberKeyName, unwrapRuntimeExpr,
+  isForXWriteTarget,
+  isMemberWriteHost,
+  isThisReceiver,
+  isTSTypeOnlyIdentifierPath,
+  nonEmittedExpressionAncestor,
+  peelParenAndTSParentPath,
+  staticMemberKeyName,
+  unwrapRuntimeExpr,
   POSSIBLE_GLOBAL_OBJECTS,
+  SKIPPABLE_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 import { symbolKeyToEntry } from '../detect-usage/globals.js';
 import { hasOwnStaticDefinition } from '../index.js';
@@ -76,7 +83,7 @@ export function createUsageGlobalCallback({
   function subsumedByOuterMemberRead(meta, path) {
     if (meta.kind !== 'property' || meta.placement !== 'static') return false;
     if (!POSSIBLE_GLOBAL_OBJECTS.has(meta.object) || POSSIBLE_GLOBAL_OBJECTS.has(meta.key)) return false;
-    const outer = peelParenAndTSParentPath(path);
+    const outer = peelParenAndTSParentPath(path, SKIPPABLE_WRAPPER_TYPES);
     const outerNode = outer?.node;
     if (outerNode?.type !== 'MemberExpression' && outerNode?.type !== 'OptionalMemberExpression') return false;
     // the outer member's object slot may hold a this-transparent wrapper over the hop value

@@ -1,4 +1,4 @@
-import { isValidIdentifierName, markRenderedStoredValue, unwrapRuntimeExpr } from './helpers/ast-patterns.js';
+import { isValidIdentifierName, markGeneratedMemoDeclarator, markRenderedStoredValue, unwrapRuntimeExpr } from './helpers/ast-patterns.js';
 // the render canon's node factory - the one place emitted nodes take shape, in the
 // canonical ESTree dialect. unplugin inserts these nodes as is; the babel binding converts
 // them at the insertion boundary (its `internals/estree-to-babel.js`, total over exactly
@@ -64,6 +64,21 @@ export function variableDeclaration(kind, declarations) {
 
 export function variableDeclarator(id, init = null) {
   return { type: 'VariableDeclarator', id, init };
+}
+
+// A lexical activation for memos in a parameter expression or instance-field initializer.
+// The source expression stays in one return slot and every ref belongs to this evaluation.
+export function renderMemoActivation(expression, names) {
+  return callExpression({
+    type: 'ArrowFunctionExpression',
+    params: [],
+    async: false,
+    expression: false,
+    body: blockStatement([
+      variableDeclaration('var', names.map(name => markGeneratedMemoDeclarator(variableDeclarator(identifier(name))))),
+      { type: 'ReturnStatement', argument: expression },
+    ]),
+  }, []);
 }
 
 export function binaryExpression(operator, left, right) {
@@ -516,10 +531,13 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
   );
 }
 
-// A sole computed-key extraction captures the initializer before the key runs. The
+// A sole computed-key extraction evaluates the initializer before the key runs. The
 // dispatch owns the single property read; keeping a sentinel would read that slot twice.
+// A proven reusable identifier supplies the null test and dispatch without another binding.
 // Both bindings pass embedded source nodes and their already-built default guard.
-export function renderKeyedDestructureRead({ receiverName, receiver, binding, keys, read, storeReceiver = false, proven = false }) {
+export function renderKeyedDestructureRead({
+  receiverName, receiver, binding, keys, read, storeReceiver = false, proven = false, reuseReceiver = false,
+}) {
   const keyed = keys.length ? sequenceExpression([...keys, read]) : read;
   const value = proven ? keyed : conditionalExpression(
     nullFirstGuardTest(identifier(receiverName)),
@@ -527,7 +545,7 @@ export function renderKeyedDestructureRead({ receiverName, receiver, binding, ke
     keyed,
   );
   return [
-    ...storeReceiver || (proven && hostSlotNode(receiver)?.type === 'Identifier') ? []
+    ...reuseReceiver || storeReceiver || (proven && hostSlotNode(receiver)?.type === 'Identifier') ? []
       : [variableDeclarator(identifier(receiverName), receiver)],
     variableDeclarator(binding, storeReceiver
       ? sequenceExpression([assignmentExpression('=', identifier(receiverName), receiver), value]) : value),

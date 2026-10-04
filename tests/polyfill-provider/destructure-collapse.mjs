@@ -5,21 +5,91 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { buildNestedDestructurePlan, planCatchClauseExtraction } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { buildNestedDestructurePlan, planCatchClauseExtraction, resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
   destructurePropLeafMeta,
+  isReReferenceableAcrossReads,
   leafTakesSlotDefault,
   residualInitRunsEffects,
   resolvePositionalElementSlot,
+  seKeyStaticOwesTheMirror,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
-import { HOST_SLOT, hostSlot, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
-import { planArrayWrapperCapture } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { HOST_SLOT, hostSlot, renderProxyReceiverPlan, callExpression, identifier } from '../../packages/core-js-polyfill-provider/render.js';
+import {
+  planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderArrayDestructurePlan,
+} from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { isPropertyNode, patternFullyConsumed, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
+
+for (const [name, source, expected, mutations = []] of [
+  ['free source identifier', 'const [{ at, keys }] = [arr];', true],
+  ['constant source identifier', 'const arr = []; const [{ at, keys }] = [arr];', true],
+  ['completed source write', 'let arr = []; arr = other; const [{ at, keys }] = [arr];', true],
+  ['getter can rebind source', 'let arr = []; const holder = { get at() { arr = other; } }; const [{ at, keys }] = [arr];', false],
+  ['live import', 'import arr from "other"; const [{ at, keys }] = [arr];', false],
+  ['written global source', 'arr = other; const [{ at, keys }] = [arr];', false, ['globalThis.arr']],
+  ['member source', 'const [{ at, keys }] = [holder.rows];', false],
+]) runBoth(`pattern receiver reuse/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ArrayPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(mutations),
+  });
+  check(label, isReReferenceableAcrossReads(path.node.init.elements[0], { path, scope: path.scope, adapter }), expected);
+});
+
+// Mirror ownership depends on the key's scoped effects, the constructor hop and the root's throw.
+for (const [name, source, expected, kind = 'static', placement = 'static'] of [
+  ['effectful declaration', 'const { Array: { [(effect(), "from")]: from } } = globalThis;', true],
+  ['effectful assignment', 'let from; ({ Array: { [(effect(), "from")]: from } } = globalThis);', true],
+  ['scoped getter key', 'const box = { get key() { effect(); return "from"; } }; '
+    + 'const { Array: { [(box.key, "from")]: from } } = globalThis;', true],
+  ['scoped data key', 'const box = { key: "from" }; const { Array: { [(box.key, "from")]: from } } = globalThis;', false],
+  ['quiet bound key', 'const key = "from"; const { Array: { [key]: from } } = globalThis;', false],
+  ['quiet literal key', 'const { Array: { from } } = globalThis;', false],
+  ['flat pattern', 'const { [(effect(), "from")]: from } = Array;', false],
+  ['unknown constructor', 'const { Foreign: { [(effect(), "from")]: from } } = globalThis;', false],
+  ['nullable root', 'const { Array: { [(effect(), "from")]: from } } = globalThis?.window;', false],
+  ['instance claim', 'const { Array: { [(effect(), "from")]: from } } = globalThis;', false, 'instance'],
+  ['prototype placement', 'const { Array: { [(effect(), "from")]: from } } = globalThis;', false, 'static', 'prototype'],
+]) runBoth(`static key mirror/${ name }`, source, (parser, program, label) => {
+  const propPath = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    node => node.node.value?.name === 'from');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(label, seKeyStaticOwesTheMirror({
+    propPath,
+    meta: { placement },
+    kind,
+    adapter,
+    resolvePure: meta => meta.kind === 'global' && meta.name === 'Array' ? { entry: 'array' } : null,
+  }), expected);
+});
+
+for (const [source, reusable] of [
+  ['const [{ at }, tail] = [[1], 2]; use(at, tail);', true],
+  ['let [{ at }, tail] = [[1], 2]; use(at, tail);', true],
+  ['const [{ at }, [tail]] = [[1], [2]]; use(at, tail);', true],
+  ['export const [{ at }, tail] = [[1], 2];', false],
+  ['var [{ at }, tail] = [[1], 2]; use(at, tail);', false],
+  ['const [{ at }, tail] = [[1], observe(() => tail)]; use(at, tail);', false],
+  ['observe(tail); const [{ at }, tail] = [[1], 2];', false],
+]) runBoth('array capture/native sibling binding', source, (parser, program, label) => {
+  const arrayPath = parser.pickPath(program, 'VariableDeclarator');
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ collectBindingReferences: resolver.collectBindingReferences });
+  const original = JSON.stringify(arrayPath.node);
+  const plan = planArrayWrapperCapture({ pattern: arrayPath.node.id, init: arrayPath.node.init, force: true, adapter, ctx: { path: arrayPath, scope: arrayPath.scope } });
+  checkTruthy(`${ label }/capture retains iteration`, plan);
+  const sibling = plan?.elements.find(element => element.pattern.name === 'tail');
+  check(`${ label }/closed lexical sibling`, !!sibling?.nativeBinding, reusable);
+  let refs = 0;
+  const rendered = renderArrayWrapperCapture(plan, { mintRef: () => `_ref${ ++refs }` });
+  check(`${ label }/no forwarding declaration`, rendered.elements.find(element => element.pattern.name === 'tail')?.declarator === null, reusable);
+  check(`${ label }/source unchanged`, JSON.stringify(arrayPath.node), original);
+});
 
 for (const [source, captured] of [
   ['const [{ a, y: { at } }] = [{ a: effect(), y: [1, 2] }, effect()];', true],
@@ -194,6 +264,26 @@ for (const [pattern, init, admitted] of [
   check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
+// A constant lexical receiver uses the same compact route as an unwritten free identifier.
+// Its own declaration supplies the stable binding proof independently of ambient lookup.
+for (const init of ['[source]', '[source, effect()]', '[effect(), source]']) runBoth(
+  'array plan/closed receiver keeps compact nested reads',
+  `const source = { w: [], y: [] }; const ${ init.startsWith('[effect()') ? '[, { w: { values }, y: { at } }]' : '[{ w: { values }, y: { at } }]' } = ${ init };`,
+  (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ArrayPattern');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const plan = buildNestedDestructurePlan({
+      arrayPath,
+      adapter,
+      resolvePure: meta => ['values', 'at'].includes(meta.key)
+        ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null,
+    });
+    checkDeep(`${ label } ordered claims`, plan?.extractions.map(extraction => extraction.localName), ['values', 'at']);
+    check(`${ label } compact source host`, plan?.array.dropsResidual, true);
+    check(`${ label } no receiver capture`, !!plan?.array.capture, false);
+  },
+);
+
 runBoth(
   'array plan/nested same-frame receiver write',
   'let source = first; const [{ w: { values }, y: { at } }] = [source, source = second];',
@@ -330,7 +420,8 @@ for (const source of [
     adapter,
     resolvePure: meta => meta.key === 'sign' ? { kind: 'static', entry: 'actual/math/sign', hintName: 'sign' } : null,
   });
-  checkTruthy(`${ label } retains the key selection`, plan?.array.objectCapture);
+  check(`${ label } retains the key selection in its native position`, plan?.array.capture.pattern, arrayPath.node.id);
+  checkTruthy(`${ label } keeps the outer native key`, plan?.array.capture.keyed.has(arrayPath.node.id));
   checkTruthy(`${ label } native static getter`, plan?.array.elements[0].children.at(0).nativeStatic);
   check(`${ label } keeps the neighbouring binding`, plan?.array.elements[1].node.name, 'tail');
 });
@@ -493,6 +584,28 @@ for (const [source, captured] of [
   }
 });
 
+// Guarded constructors and computed static siblings keep their original per-property owner.
+for (const [name, source, expected] of [
+  ['constructor guard', 'function read(flag, user) { const [[{ entries }], tail] = [[flag ? Object : user], 0]; return entries; }', false],
+  ['nested guard', 'function read(flag, user) { const [{ w: { entries } }] = [{ w: flag ? Object : user }]; return entries; }', false],
+  ['static sibling', 'let of, from, length, tail; [{ of, [(effect(), "from")]: from, length }, tail] = [Array, 31];', false],
+  ['ordinary static', 'const [{ of }] = [Array];', true],
+]) runBoth(`array plan/per-property owner/${ name }`, source, (parser, program, label) => {
+  const arrayPath = parser.pickPath(program, source.startsWith('let') ? 'AssignmentExpression' : 'VariableDeclarator',
+    item => item.node.id?.type === 'ArrayPattern' || item.node.left?.type === 'ArrayPattern');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    item => ['of', 'entries'].includes(item.node.key.name));
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = buildNestedDestructurePlan({
+    arrayPath,
+    arrayProp: prop,
+    adapter,
+    resolvePure: meta => meta.key === 'entries' ? { kind: 'instance', entry: 'actual/instance/entries', hintName: 'entries' }
+      : ['of', 'from'].includes(meta.key) ? { kind: 'static', entry: `actual/array/${ meta.key }`, hintName: meta.key } : null,
+  });
+  check(`${ label } full array admission`, !!plan, expected);
+});
+
 for (const source of [
   'const wrapper = [globalThis]; const [{ Object: { fromEntries } }] = wrapper;',
   'const make = value => [value]; export const [{ Object: { fromEntries } }] = make(globalThis);',
@@ -559,6 +672,9 @@ for (const source of [
 for (const source of [
   'const { w: [{ at }] } = { w: [[1]] };',
   'const { w: [{ at: method }] } = { w: [[1, 2]] };',
+  'export const { w: [{ at }] } = { w: [[1, 2]] };',
+  'const before = effect(), { w: [{ at }] } = { w: [[1, 2]] }, after = effect();',
+  'for (const { w: [{ at }] } = { w: [[1, 2]] }; test();) {}',
   'const key = "w"; const { [key]: [{ at }] } = { w: [[1]] };',
   'const { [(effect(), "w")]: [{ at }] } = { w: [[1]] };',
   'let at; ({ w: [{ at }] } = { w: [[1]] });',
@@ -578,8 +694,16 @@ for (const source of [
     resolvePure: meta => meta.key === 'at'
       ? { kind: 'instance', entry: 'actual/array/instance/at', hintName: 'at' } : null,
   });
-  check(`${ label } captures the object key`, plan?.array.objectCapture?.leafPattern, (assignment ? arrayPath.node.left : arrayPath.node.id).properties[0].value);
-  check(`${ label } captures the selected array`, plan?.array.capture?.init, (assignment ? arrayPath.node.right : arrayPath.node.init).properties[0].value);
+  const sourcePattern = assignment ? arrayPath.node.left : arrayPath.node.id;
+  check(`${ label } keeps the object key in the native capture`, plan?.array.capture?.pattern, sourcePattern);
+  check(`${ label } evaluates the complete source once`, plan?.array.capture?.init, assignment ? arrayPath.node.right : arrayPath.node.init);
+  check(`${ label } does not separately store the selected array`, !!plan?.array.objectCapture, false);
+  checkTruthy(`${ label } descends through the original object key`, plan?.array.capture?.keyed.has(sourcePattern));
+  let minted = 0;
+  const rendered = renderArrayWrapperCapture(plan.array.capture, { mintRef: () => `held${ ++minted }` });
+  check(`${ label } keeps the native array pattern`, rendered.capture.id.properties[0].value.type, 'ArrayPattern');
+  check(`${ label } stores only the method receiver`, minted, 1);
+  check(`${ label } retains the original computed key`, rendered.capture.id.properties[0].key, sourcePattern.properties[0].key);
   checkDeep(`${ label } claims one method read`, plan?.extractions.map(read => read.localName), [source.includes('method') ? 'method' : 'at']);
 });
 
@@ -1012,6 +1136,7 @@ for (const init of ['source', '[original]']) runBoth(
 // a source-written empty pattern still coerces, and repeated keys remain two claims.
 for (const [pattern, init, count, drops, after, effects, capture = false] of [
   ['[{ at, keys }]', '[arr]', 2, true, false, 0],
+  ['[{ at }, { keys }]', '[arr, other]', 2, true, false, 2],
   ['[{ at, keys }, other]', '[arr, effect()]', 2, undefined, undefined, 0, true],
   ['[{ at, keys }]', '[arr, effect()]', 2, undefined, undefined, 0, true],
   ['[{ at, keys }, {}]', '[arr, other]', 2, false, false, 0],
@@ -1034,7 +1159,7 @@ for (const [pattern, init, count, drops, after, effects, capture = false] of [
   check(`${ label } captured source positions`, !!plan.array.capture, capture);
   if (capture) checkDeep(
     `${ label } existing capture descriptor`,
-    plan.array.capture,
+    { ...plan.array.capture, elements: plan.array.capture.elements.map(({ receiver, ...element }) => element) },
     planArrayWrapperCapture({ pattern: arrayPath.node.id, init: arrayPath.node.init, force: true }),
   );
   check(`${ label } drops residual`, plan.array.dropsResidual, drops);
@@ -1044,12 +1169,97 @@ for (const [pattern, init, count, drops, after, effects, capture = false] of [
   check(`${ label } distinct property occurrences`, new Set(plan.extractions.map(item => item.prop)).size, count);
 });
 
+for (const [name, source, reusable] of [
+  ['quiet free name', 'const [{ at, keys }, tail] = [arr, effect()];', true],
+  ['quiet lexical name', 'const arr = []; const [{ at, keys }, tail] = [arr, effect()];', true],
+  ['completed frame write', 'let arr = []; arr = other; const [{ at, keys }, tail] = [arr, effect()];', true],
+  ['RHS write', 'let arr = []; const [{ at, keys }, tail] = [arr, arr = other];', false],
+  ['getter writer', 'let arr = []; const box = { get at() { arr = other; } }; const [{ at, keys }, tail] = [arr, effect()];', false],
+  ['live binding', 'import arr from "other"; const [{ at, keys }, tail] = [arr, effect()];', false],
+  ['property read', 'const [{ at, keys }, tail] = [box.rows, effect()];', false],
+  ['nested property read', 'const [{ y: { at, keys } }, tail] = [box, effect()];', true],
+]) runBoth(`array capture/stable receiver ${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = buildNestedDestructurePlan({
+    arrayPath: path, adapter,
+    resolvePure: meta => ['at', 'keys'].includes(meta.key)
+      ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null,
+  });
+  checkTruthy(`${ label }/ordered capture`, plan?.array.capture);
+  if (!plan?.array.capture) return;
+  check(`${ label }/reuse verdict`, !!plan.array.capture.elements[0].receiver, reusable);
+  let minted = 0;
+  const rendered = renderArrayWrapperCapture(plan.array.capture, { mintRef: () => `held${ ++minted }` });
+  check(`${ label }/one fewer capture`, minted, reusable ? 1 : 2);
+  check(`${ label }/pristine RHS before property reads`, rendered.capture.init, path.node.init);
+  check(`${ label }/receiver capture slot`, rendered.capture.id.elements[0]?.type ?? null, reusable ? null : 'Identifier');
+  check(`${ label }/sibling binding still follows extracted reads`, rendered.elements[1].declarator.id.name, 'tail');
+});
+
+for (const [name, source, reusable] of [
+  ['constant source', 'const box = { lead: 0, y: [] }; const [{ lead, y: { at, keep } }] = [box];', true],
+  ['constant source prefix', 'const box = { lead: 0, y: [] }; const [{ lead, y: { at, keep } }] = [(before(), box)];', true],
+  ['mutable source with getter writer', 'let box = {}; const holder = { get lead() { box = other; } }; const [{ lead, y: { at, keep } }] = [box];', false],
+  ['member source', 'const [{ lead, y: { at, keep } }] = [holder.box];', false],
+]) runBoth(`normalized array capture/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = buildNestedDestructurePlan({
+    arrayPath: path, arrayProp: prop, adapter,
+    resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
+  });
+  checkTruthy(`${ label }/normalization plan`, plan?.array.normalize);
+  if (!plan?.array.normalize) return;
+  check(`${ label }/reuse verdict`, !!plan.array.capture.elements[0].receiver, reusable);
+  let minted = 0;
+  const output = renderArrayDestructurePlan(plan, { kind: 'const', embed: node => node, mintRef: () => `held${ ++minted }` });
+  check(`${ label }/capture count`, minted, Number(!reusable));
+  check(`${ label }/capture RHS identity`, output[0].declarations[0].init, path.node.init);
+  check(`${ label }/native pattern preserved`, output[1].declarations[0].id, path.node.id.elements[0]);
+  check(`${ label }/native pattern receiver`, output[1].declarations[0].init.name, reusable ? 'box' : 'held1');
+});
+
+for (const [source, nestedCapture] of [
+  ['const [{ y: { at }, z: { keys } }, tail] = [box, effect()];', false],
+  ['const [{ y: { at }, z: { keys } }, tail] = [(before(), box), effect()];', false],
+  ['const [{ y: { at, keys } }, tail] = [box, effect()];', true],
+]) runBoth('array capture/shared nested receiver', source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+  const plan = buildNestedDestructurePlan({
+    arrayPath: path,
+    adapter,
+    resolvePure: meta => ['at', 'keys'].includes(meta.key)
+      ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null,
+  });
+  let minted = 0;
+  const rendered = renderArrayDestructurePlan(plan, {
+    kind: 'const', embed: hostSlot, retain: hostSlot,
+    read: (extraction, receiver) => callExpression(identifier('dispatch'), [receiver]),
+    injectImport: () => 'dispatch', mintRef: () => `held${ ++minted }`, mintDeclaredRef: () => `held${ ++minted }`,
+  });
+  check(`${ label }/only sibling and shared property captures`, minted, nestedCapture ? 2 : 1);
+  check(`${ label }/original RHS still evaluates first`, rendered[0].declarations[0].init.node, path.node.init);
+});
+
+runBoth('array capture/outer sequence retains fallback ownership',
+  'const [{ y: { at }, z: { keys } }, tail] = (before(), [box, effect()]);', (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    check(label, buildNestedDestructurePlan({ arrayPath, adapter,
+      resolvePure: meta => ['at', 'keys'].includes(meta.key)
+        ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null }), null);
+  });
+
 for (const [pattern, init, accepted, capture = false] of [
   ['[{ y: { at, other } }]', '[box]', true],
   ['[{ y: { at, keys } }]', '[box]', true],
   ['[{ y: { at, keys } }, other]', '[box, 1]', true],
   ['[{ y: { at, other } }]', '[box, effect()]', true, true],
   ['[{ y: { other, at } }]', '[box]', true, true],
+  // A sole leaf owns this one receiver read; its live default stays in the capture.
   ['[{ y: { at = fallback() } }]', '[box]', true, true],
   ['[{ [(effect(), "y")]: { at, other } }]', '[box]', true, true],
   ['[{ y: { at, other }, beside }]', '[box]', true, true],
@@ -1070,6 +1280,29 @@ for (const [pattern, init, accepted, capture = false] of [
   check(`${ label } capture placement`, !!plan.array.capture, capture);
   check(`${ label } shared memo`, plan.array.memos?.length ?? 0, capture ? 0 : 1);
 });
+
+for (const [pattern, init, capture = false] of [
+  ['[{ y: { at, other } }]', '[box]'],
+  ['[{ y: { at, keys } }]', '[box]'],
+  ['[{ y: { at, keys } }, other]', '[box, 1]'],
+  ['[{ y: { at, other } }]', '[box, effect()]', true],
+  ['[{ y: { other, at } }]', '[box]', true],
+  ['[{ y: { at = fallback() } }]', '[box]', true],
+]) runBoth('array plan/closed nested receiver slot', `const box = { y: {} }; const ${ pattern } = ${ init };`,
+  (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ArrayPattern');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const plan = buildNestedDestructurePlan({
+      arrayPath,
+      adapter,
+      resolvePure: meta => ['at', 'keys'].includes(meta.key)
+        ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null,
+    });
+    checkTruthy(`${ label } plans every original claim`, plan);
+    check(`${ label } source property retained`, plan?.extractions[0].receiver.type, 'MemberExpression');
+    check(`${ label } capture placement`, !!plan?.array.capture, capture);
+    check(`${ label } shared hop memo`, plan?.array.memos?.length ?? 0, capture ? 0 : 1);
+  });
 
 for (const [code, memoCount, split] of [
   ['const [{ at, keys }] = [choose ? first : second];', 1, false],
@@ -1290,9 +1523,6 @@ function injectImport(entry, hintName) {
   return `_${ hintName ?? entry }`;
 }
 
-function identifier(name) {
-  return { type: 'Identifier', name };
-}
 function collapsePlan(extra = {}) {
   return {
     kind: 'collapse',
@@ -1750,6 +1980,48 @@ runBoth('leaf-default route/loop receiver', 'for (const { Array: { from } } of r
     chain: [{}], sentinel: false, kind: 'static' };
   check(`${ label }/static`, leafTakesSlotDefault(leaf, adapter, route), true);
   check(`${ label }/instance`, leafTakesSlotDefault(leaf, adapter, { ...route, kind: 'instance' }), false);
+});
+
+for (const [source, unused, positions, reused] of [
+  ['const [{ [(effect(), "of")]: of, from }] = [Array];', true, 1, 0],
+  ['const [{ [(effect(), "of")]: of, from }, { at, length }] = [Array, unknown];', true, 2, 1],
+  ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, from }] = [e]; }', true, 1, 0],
+  ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, fromAsync: from }, { at, length }] = [e, unknown]; }', true, 2, 1],
+  ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, isArray }] = [e]; }', false, 1, 1],
+  ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, from, ...rest }] = [e]; }', false, 1, 1],
+]) runBoth('array static capture/unused receiver keeps native coercion', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value?.name === 'of');
+  const original = JSON.stringify(host.node);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id,
+    init: host.node.init,
+    prop: prop.node,
+    hostPath: host,
+    adapter,
+    kind: 'static',
+    entry: 'actual/array/of',
+    resolveStaticProp: resolvePolyfillableStaticProp,
+    resolvePure: meta => ['of', 'from', 'fromAsync'].includes(meta.key)
+      ? { kind: 'static', entry: `actual/array/${ meta.key }`, hintName: meta.key } : null,
+    meta: { kind: 'property', object: 'Array', key: 'of', placement: 'static' },
+  });
+  checkTruthy(`${ label } admits an ordered native capture`, !!plan?.arrayCapture);
+  const capture = plan.arrayCapture;
+  check(`${ label } retains every native iterator position`, capture.elements.length, positions);
+  check(`${ label } stores a receiver only for remaining reads`, !!capture.elements[0].receiverUnused, unused);
+  let minted = 0;
+  const rendered = renderArrayWrapperCapture(capture, { mintRef: () => `held${ ++minted }` });
+  const [first] = rendered.capture.id.elements;
+  check(`${ label } keeps the coercion or reusable receiver slot`, first?.type ?? null, unused ? 'ObjectPattern' : null);
+  if (unused) {
+    check(`${ label } retains an empty native pattern`, first.properties.length, 0);
+    check(`${ label } first position has no storage`, rendered.elements[0].ref, null);
+    check(`${ label } first position has no forwarding declarator`, rendered.elements[0].declarator, null);
+  }
+  check(`${ label } only required receiver snapshots mint bindings`, minted, positions - Number(unused) - reused);
+  check(`${ label } original host unchanged`, JSON.stringify(host.node), original);
 });
 
 finish();

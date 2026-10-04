@@ -1,9 +1,7 @@
-// an OPAQUE inline-call proxy-nav root (`f()?.window`, `f = () => globalThis`) navigating an unponyfilled
-// window hop: the guard test keeps the RAW source (its SE + short-circuit), while the guarded branch
-// COLLAPSES onto the ponyfill - a memoized ref that provably holds the proxy-global carries the
-// provenance, so a ctor-static / prototype / fallback chain resolves instead of reading native off
-// the ref (native `MAX_SAFE_INTEGER` on ie11 = undefined). the instance dispatch keeps its
-// prototype-navigated receiver off the ref by placement design. distinct method per line.
+// A call returning the proxy global keeps its optional window guard.
+// Static, prototype and fallback reads resolve to ponyfills in the guarded branch.
+// MAX_SAFE_INTEGER must remain available on IE11; instance dispatch retains the selected
+// window value for its prototype navigation. Each row uses a distinct method.
 const f = () => globalThis;
 const g = () => globalThis;
 export const knownStatic = f()?.window?.Array.from?.([1]);

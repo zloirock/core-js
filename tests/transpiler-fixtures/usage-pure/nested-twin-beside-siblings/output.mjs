@@ -197,53 +197,49 @@ const {
   },
   junk: Array.junk
 };
-const _ref2 = box,
-  {
+const {
     y: _ref
-  } = _ref2,
+  } = box,
   userFirst = _atMaybeArray(_ref),
   {
     other: o1
   } = _ref,
   {
     junk: j10
-  } = _ref2;
-const _ref3 = box,
-  {
+  } = box;
+const {
     junk: j11
-  } = _ref3,
+  } = box,
   {
-    y: _ref4
-  } = _ref3,
-  userLast = _atMaybeArray(_ref4),
+    y: _ref2
+  } = box,
+  userLast = _atMaybeArray(_ref2),
   {
     other: o2
-  } = _ref4;
-const _ref5 = box,
-  {
+  } = _ref2;
+const {
     junk: j12
-  } = _ref5,
+  } = box,
   {
-    y: _ref6 = []
-  } = _ref5,
-  userDefault = _atMaybeArray(_ref6),
+    y: _ref3 = []
+  } = box,
+  userDefault = _atMaybeArray(_ref3),
   {
     other: o3
-  } = _ref6;
-const _ref7 = box,
-  {
+  } = _ref3;
+const {
     junk: j13
-  } = _ref7,
+  } = box,
   {
-    y: _ref8
-  } = _ref7,
-  userMiddle = _atMaybeArray(_ref8),
+    y: _ref4
+  } = box,
+  userMiddle = _atMaybeArray(_ref4),
   {
     other: o4
-  } = _ref8,
+  } = _ref4,
   {
     more: m2
-  } = _ref7;
+  } = box;
 const {
   y: {
     z: {
@@ -306,11 +302,10 @@ const {
   },
   junk: _globalThis.junk
 };
-const _ref9 = box;
-const soleUserBesideJunk = _atMaybeArray(_ref9.y);
+const soleUserBesideJunk = _atMaybeArray(box.y);
 const {
   junk: j25
-} = _ref9;
+} = box;
 const {
   junk: j15,
   of: {

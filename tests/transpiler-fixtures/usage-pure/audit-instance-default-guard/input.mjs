@@ -7,7 +7,7 @@ const { [(e2(), 'flat')]: f = dfltB() } = recvB, other = 1;
 // A literal receiver is captured once before its key effect and extraction.
 const { [(e3(), 'includes')]: i = dfltC() } = [7, 8];
 
-// An array element with a live default is captured before the guarded extraction.
+// An array element with a live default is evaluated before the guarded extraction.
 const [{ toReversed = dfltD() }] = [recvD];
 
 // Destructuring evaluates each key, read and default before the next property.

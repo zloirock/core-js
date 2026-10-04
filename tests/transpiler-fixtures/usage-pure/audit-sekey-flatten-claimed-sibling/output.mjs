@@ -64,11 +64,10 @@ var {
       from: _Array$from
     }
   },
-  _ref5 = Array,
   of4 = (k4++, _Array$of),
   {
     other4
-  } = _ref5;
+  } = Array;
 export const r4 = [typeof f4, typeof of4, k4];
 // A bodyless declaration keeps both computed keys and their method reads inside the condition,
 // with one receiver evaluation and source order preserved.
@@ -77,11 +76,10 @@ let k5 = 0,
 if (1) var {
     keys: ks5
   } = _globalThis.Array,
-  _ref6 = Array.prototype,
-  a5 = null == _ref6 ? _ref6[""] : (k5++, _atMaybeArray(_ref6)),
-  _ref7 = _ref6,
-  b5 = null == _ref7 ? _ref7[""] : (j5++, _flatMaybeArray(_ref7)),
+  _ref5 = Array.prototype,
+  a5 = null == _ref5 ? _ref5[""] : (k5++, _atMaybeArray(_ref5)),
+  b5 = null == _ref5 ? _ref5[""] : (j5++, _flatMaybeArray(_ref5)),
   {
     other5
-  } = _ref6;
+  } = _ref5;
 export const r5 = [typeof ks5, typeof a5, typeof b5, k5, j5];

@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
 import { builders, traverse } from 'estree-toolkit';
@@ -20,10 +22,13 @@ import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helper
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
+import createOptionalDispatchChannel from '../../packages/core-js-unplugin/internals/optional-dispatch.js';
+import { climbToCallerPath } from '../../packages/core-js-unplugin/internals/nav-spine.js';
 import createPlugin, {
   formatLabelLocation,
   formatParseErrorForThrow,
   formatParseErrorForWarn,
+  neutralizeUnwalkedParamPatterns,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
 import { drainSequenceAssignments, liveTailOf, probeCarriesWrite } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
@@ -41,8 +46,9 @@ import {
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
 import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
-import { unwrapRuntimeExpr as unwrapNode, isTopLevelImportLike, walkAstNodes } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { unwrapRuntimeExpr as unwrapNode, isTopLevelImportLike, walkAstNodes, isReusableReceiver } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
 function programOf(src, sourceType = 'module') {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
@@ -1752,6 +1758,222 @@ function checkPhaseSnapshotFlow() {
 }
 checkPhaseSnapshotFlow();
 
+// Whole-value optional captures keep receiver effects inside their memo. An outer
+// key still owns its replay, and a staged receiver belongs to its existing consumer.
+function checkOptionalReceiverCaptureBoundaries() {
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  function execute(source) {
+    const module = { exports: null };
+    runInNewContext(source, { module, require, globalThis });
+    return module.exports;
+  }
+  withTemporaryProperty(globalThis, 'window', globalThis, () => {
+    withTemporaryProperty(globalThis, 'self', globalThis, () => {
+      for (const [label, source, expected, declinedEntry] of [
+        [
+          'external key effects',
+          "let trace = '';\n"
+          + "const box = { get list() { trace += 'list;'; return [[1], [2]]; } };\n"
+          + "const r = (trace += 'receiver;', box?.list)?.[(trace += 'key;', 'flat')]((trace += 'argument;', 1));\n"
+          + 'module.exports = [r, trace];',
+          [[1, 2], 'receiver;list;key;argument;'],
+          'array/instance/flat',
+        ],
+        // The scoped alias names Object, but the staged split keeps its dynamic
+        // spelling after migrating the self key. Calling Object.name still throws.
+        [
+          'staged dynamic receiver',
+          'let held, hop = 0, failed, r;\n'
+          + "const dynamic = 'Object';\n"
+          + "try { r = (held = globalThis.window)?.[(hop++, 'self')][dynamic]?.name(); }\n"
+          + 'catch { failed = true; }\nmodule.exports = [typeof r, hop, failed];',
+          ['undefined', 1, true],
+          'function/instance/name',
+        ],
+      ]) {
+        const code = createPlugin(options).transform(source, '/optional-capture-boundary.cjs')?.code ?? source;
+        checkDeep(`optional receiver capture/${ label }/native`, execute(source), expected);
+        checkDeep(`optional receiver capture/${ label }/runtime`, execute(code), expected);
+        check(`optional receiver capture/${ label }/no premature dispatch`, code.includes(`/actual/${ declinedEntry }`), false);
+      }
+      for (const [label, source, expected, memos] of [
+        [
+          'sealed symbol key write',
+          "let arr = ['held'];\n"
+          + "const value = (arr?.[(arr = ['swapped'], Symbol.iterator)])().next().value;\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'optional symbol key write',
+          "let arr = ['held'];\n"
+          + "const value = arr?.[(arr = ['swapped'], Symbol.iterator)]().next().value;\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'optional symbol read before key write',
+          "let arr = ['held'];\n"
+          + "const method = arr?.[(arr = { [Symbol.iterator]() { return 'swapped'; } }, Symbol.iterator)];\n"
+          + "module.exports = [method.call(['check']).next().value, arr[Symbol.iterator]()];",
+          ['check', 'swapped'],
+          1,
+        ],
+        [
+          'aliased symbol key write',
+          "const key = Symbol.iterator; let arr = ['held'];\n"
+          + "const value = (arr?.[(arr = ['swapped'], key)])().next().value;\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'quiet mutable symbol receiver',
+          "let arr = ['discarded']; arr = ['held'];\n"
+          + 'module.exports = arr?.[Symbol.iterator]().next().value;',
+          'held',
+          0,
+        ],
+        [
+          'constant receiver across symbol key effects',
+          "const arr = ['held']; let keys = 0;\n"
+          + 'module.exports = [(arr?.[(keys++, Symbol.iterator)])().next().value, keys];',
+          ['held', 1],
+          0,
+        ],
+        [
+          'optional method key write',
+          "let arr = ['held'];\n"
+          + "const value = arr?.[(arr = ['swapped'], 'at')](0);\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'doubly optional method key write',
+          "let arr = ['held'];\n"
+          + "const value = arr?.[(arr = ['swapped'], 'at')]?.(0);\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'quiet mutable doubly optional method',
+          "let arr = ['discarded']; arr = ['held'];\n"
+          + 'module.exports = arr?.at?.(0);',
+          'held',
+          0,
+        ],
+        [
+          'closed callback writer',
+          "let arr = ['discarded'];\n"
+          + "(fn => fn())(() => { arr = ['held']; });\n"
+          + 'module.exports = arr.at(0);',
+          'held',
+          0,
+        ],
+        [
+          'escaped callback writer in method getter',
+          "let arr = ['discarded']; let saved = null;\n"
+          + "(fn => (saved = fn, fn()))(() => { arr = ['swapped']; }); arr = ['held'];\n"
+          + "Object.defineProperty(arr, 'at', { get() { saved(); return function (index) { return this[index]; }; } });\n"
+          + 'const value = arr.at(0); module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'sealed null symbol skips key',
+          'let arr = null; let keys = 0; let threw = false;\n'
+          + 'try { (arr?.[(keys++, Symbol.iterator)])(); } catch { threw = true; }\n'
+          + 'module.exports = [keys, threw];',
+          [0, true],
+          0,
+        ],
+      ]) {
+        const code = createPlugin(options).transform(source, '/optional-symbol-key.cjs')?.code ?? source;
+        checkDeep(`optional receiver capture/${ label }/native`, execute(source), expected);
+        checkDeep(`optional receiver capture/${ label }/runtime`, execute(code), expected);
+        // Every source declaration is initialized; only allocated expression memos are initless.
+        const memoDeclarations = programOf(code).body.flatMap(statement => statement.type === 'VariableDeclaration'
+          ? statement.declarations : []);
+        check(`optional receiver capture/${ label }/memos`, memoDeclarations.filter(declarator => !declarator.init).length, memos);
+      }
+    });
+  });
+}
+checkOptionalReceiverCaptureBoundaries();
+
+// A var's name hoists, while its initializer still evaluates in the declaring block.
+// A native-shaped hoisted twin must expose that block to the detection alias walkers.
+for (const [label, source, name] of [
+  ['block initializer', 'const root = Promise; function read() { { const root = {}; var held = root; } return held.race([]); }', 'held'],
+  ['for initializer', 'const root = Map; function read() { { const root = {}; for (var held = root; once;) {} } return held.groupBy([]); }', 'held'],
+  ['arrow callee', 'const Object = globalThis.Object; function read() { { const Object = {}; var held = () => Object; } return held().keys([]); }', 'held'],
+]) {
+  const ast = programOf(source);
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  let use;
+  traverse(ast, { $: { scope: true }, ReturnStatement(path) { use = path.get('argument'); } });
+  const binding = adapter.getBinding(use.scope, name, use);
+  check(`hoisted declaration scope/${ label }/scope`, binding.scope, binding.declarationPath.scope);
+  const local = adapter.getBinding(binding.scope, label === 'arrow callee' ? 'Object' : 'root', use);
+  check(`hoisted declaration scope/${ label }/initializer shadow`, local.node.init.type, 'ObjectExpression');
+}
+
+{
+  const source = 'const root = Promise; function read() { { const root = {}; var held = root; }\n'
+    + 'let threw = false; try { const { race } = held; race([]); } catch { threw = true; } return threw; }\n'
+    + 'module.exports = read();';
+  const code = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/hoisted-init-shadow.cjs')?.code ?? source;
+  const module = { exports: null };
+  runInNewContext(code, { module, require: createRequire(import.meta.url), globalThis });
+  check('hoisted declaration scope/runtime keeps native TypeError', module.exports, true);
+  check('hoisted declaration scope/no foreign static claim', code.includes('/actual/promise/race'), false);
+}
+
+{
+  const ast = programOf("var rows = 'outer'; function read() { var rows = 'inner'; return rows.at(0); }");
+  let declarationProgram;
+  let use;
+  traverse(ast, { $: { scope: true }, Program(path) { declarationProgram = path; } });
+  traverse(ast, { $: { scope: true }, MemberExpression(path) { use = path; } });
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  const binding = adapter.getBinding(declarationProgram.scope, 'rows', use);
+  check('hoisted declaration scope/outer lookup across traversal views', binding.node.init.value, 'outer');
+  check('hoisted declaration scope/actual inner lookup', adapter.getBinding(use.scope, 'rows', use).node.init.value, 'inner');
+}
+
+// Runtime constructor parameters must reach the receiver proof through the same
+// binding funnel as ordinary parameters, including their nearest native shadows.
+for (const [label, source, expectedKind, expectedType, writes] of [
+  ['bare', 'class C { constructor(private value: any) { value.at(0); } }', 'param', 'Identifier', 0],
+  ['defaulted', 'class C { constructor(private value: any = []) { value.at(0); } }', 'param', 'AssignmentPattern', 0],
+  ['written', 'class C { constructor(private value: any) { value = []; value.at(0); } }', 'param', 'Identifier', 1],
+  ['outer constant', 'const value = []; class C { constructor(private value: any) { value.at(0); } }', 'param', 'Identifier', 0],
+  ['outer live import', 'import value from "foreign"; class C { constructor(private value: any) { value.at(0); } }', 'param', 'Identifier', 0],
+  ['nearer lexical', 'class C { constructor(private value: any) { { const value = []; value.at(0); } } }', 'const', 'VariableDeclarator', 0],
+  ['nearer ordinary parameter', 'class C { constructor(private value: any) { function read(value) { value.at(0); } } }', 'param', 'Identifier', 0],
+  ['computed class key', 'const value = []; class C { [value.at(0)] = 0; constructor(private value: any) {} }', 'const', 'VariableDeclarator', 0],
+  ['parameter decorator', 'const value = []; class C { constructor(@decorate(value.at(0)) private value: any) {} }', 'const', 'VariableDeclarator', 0],
+]) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const ast = parseSync('/property-parameter.ts', source, { sourceType: 'module' }).program;
+  neutralizeUnwalkedParamPatterns(ast);
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  let use;
+  traverse(ast, { $: { scope: true }, MemberExpression(path) { if (path.node.property.name === 'at') use = path; } });
+  const binding = adapter.getBinding(use.scope, 'value', use);
+  check(`property parameter/${ label }/kind`, binding?.kind, expectedKind);
+  check(`property parameter/${ label }/declaration`, binding?.declarationPath?.node.type, expectedType);
+  check(`property parameter/${ label }/writes`, binding?.constantViolations?.length, writes);
+  check(`property parameter/${ label }/node type`, adapter.getBindingNodeType(use.scope, 'value', use), expectedType);
+  check(`property parameter/${ label }/receiver reuse`, isReusableReceiver(use.node.object, { ctx: { scope: use.scope, adapter, path: use } }), true);
+}
+
 // --- AST-engine internals: builders and emit-shared contracts ---
 async function checkAstInternalsCore() {
   const b = await import('../../packages/core-js-polyfill-provider/render.js');
@@ -1848,7 +2070,10 @@ async function checkAstPrintContracts() {
   const membersParse = parseSync('/p.mjs', membersSrc, { sourceType: 'module' });
   const [useStatement, objectDecl, classDecl] = membersParse.program.body;
   const anchoredMembers = printProgram({
-    program: membersParse.program, comments: membersParse.comments, source: membersSrc, id: '/p.mjs',
+    program: membersParse.program,
+    comments: membersParse.comments,
+    source: membersSrc,
+    id: '/p.mjs',
     anchoredComments: new Map([
       [useStatement, ['// core-js-disable-next-line']],
       [objectDecl.declarations[0].init.properties[1], ['// core-js-disable-next-line']],
@@ -1919,6 +2144,29 @@ async function checkAstFlushContracts() {
     ['foreign = Array;', 'ExpressionStatement'],
   ]) check(`flush prunes only an unread inert memo: ${ source }`,
     flushOver(source, memoInjector, { refNames: [{ name: '_ref', registrationIndex: 0 }] }), expected);
+
+  for (const [label, expression, withRef, expectedActivation, expectedRefs, expected] of [
+    ['dead owned activation', 'null == (_ref = false) ? "skip" : (() => "held")()', true, false, 0, 'held'],
+    ['live owned activation', 'null == (_ref = false) ? "skip" : _ref', true, true, 1, false],
+    ['source activation', '(() => { return "held"; })()', false, true, 0, 'held'],
+  ]) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+    const ref = withRef && state.generateDeclaredRef();
+    const source = `function read(x = ${ expression }) { return x; } read();`;
+    const program = programOf(source);
+    flushIntoProgram({ injector: state, program, refNames: ref ? [{ name: ref, varless: true }] : [] });
+    const value = program.body[0].params[0].right;
+    check(`flush/${ label } keeps the expected lexical frame`, unwrapNode(value)?.type === 'CallExpression', expectedActivation);
+    let refs = 0;
+    walkAstNodes({ root: value, visit(node) { if (node.type === 'VariableDeclarator') refs++; } });
+    check(`flush/${ label } remaining memo declarations`, refs, expectedRefs);
+    check(`flush/${ label } return semantics`, runInNewContext(printProgram({ program, comments: [], source }).code), expected);
+    if (!expectedActivation) {
+      let sourceArrow = false;
+      walkAstNodes({ root: value, visit(node) { if (node.type === 'ArrowFunctionExpression') sourceArrow = true; } });
+      check(`flush/${ label } preserves the source arrow`, sourceArrow, true);
+    }
+  }
 
   const aliasInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
   const refs = Array.from({ length: 3 }, () => aliasInjector.generateLocalRef());
@@ -3300,21 +3548,34 @@ function checkTypedOuterInnerDefault() {
   check('typed-outer inner default/composes the two-step extraction',
     composed.includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? {} : _ref)'), true);
   check('typed-outer inner default/both steps import', importCount('const { at: { name } = {} } = src;'), 2);
-  // a sibling prop keeps its residual beside the extraction
+  // A stable source binding keeps the ordered native coercion and sibling read
+  // without another copy of the receiver's identity.
   const withSibling = transformed('const { at: { name } = {}, other } = src;');
   const siblingDecls = programOf(withSibling).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
-  const captures = siblingDecls.filter(node => node.init?.type === 'Identifier' && node.init.name === 'src');
-  const [capture] = captures;
+  const captures = siblingDecls.filter(node => node.id.type === 'Identifier'
+    && node.init?.type === 'Identifier' && node.init.name === 'src');
   const leaf = siblingDecls.find(node => node.id.name === 'name');
+  const coercion = siblingDecls.find(node => node.id.type === 'ObjectPattern' && !node.id.properties.length);
   const residual = siblingDecls.find(node => node.id.type === 'ObjectPattern' && node.id.properties[0]?.key.name === 'other');
   check('typed-outer inner default/multi-prop keeps the residual',
-    captures.length === 1 && residual?.init.name === capture.id.name
-      && siblingDecls.indexOf(capture) < siblingDecls.indexOf(leaf) && siblingDecls.indexOf(leaf) < siblingDecls.indexOf(residual), true);
+    captures.length === 0 && coercion?.init.name === 'src' && residual?.init.name === 'src'
+      && siblingDecls.indexOf(coercion) < siblingDecls.indexOf(leaf) && siblingDecls.indexOf(leaf) < siblingDecls.indexOf(residual), true);
   const guarded = unwrapNode(leaf.init.arguments[0]);
   const dispatch = unwrapNode(guarded.test.left).right;
-  check('typed-outer inner default/captured source keeps its array type',
+  check('typed-outer inner default/reused source keeps its array type',
     leaf.init.callee.name === '_nameMaybeFunction' && guarded.type === 'ConditionalExpression' && guarded.test.operator === '==='
-      && dispatch?.callee?.name === '_atMaybeArray' && dispatch.arguments[0].name === capture.id.name, true);
+      && dispatch?.callee?.name === '_atMaybeArray' && dispatch.arguments[0].name === 'src', true);
+  const runtimeSource = 'const src = [1, [2]]; const { at: { name } = {}, other } = src; module.exports = [name, other];';
+  const runtimeCode = createPlugin({ ...OPTIONS, importStyle: 'require' })
+    .transform(runtimeSource, '/typed-outer-default.cjs')?.code ?? runtimeSource;
+  for (const [leg, program] of [['native', runtimeSource], ['transformed', runtimeCode]]) {
+    const module = { exports: null };
+    runInNewContext(`const trace = [];
+      Object.defineProperty(Array.prototype, 'at', { get() { trace.push('at'); return function held() {}; } });
+      Object.defineProperty(Array.prototype, 'other', { get() { trace.push('other'); return 'sibling'; } });
+      ${ program }\nmodule.exports.push(trace);`, { module, require: createRequire(import.meta.url) });
+    checkDeep(`typed-outer inner default/${ leg }/getter order`, module.exports, ['held', 'sibling', ['at', 'other']]);
+  }
   // the receiver-bearing default folds through the SAME guard (the climb's carriesReceiver
   // answers false on the typed outer, so the hop stays and the composition owns the claim)
   check('typed-outer inner default/receiver default folds into the guard',
@@ -4657,6 +4918,1645 @@ for (const receiver of ['arr', '(arr)', '(arr as number[][][])']) {
   check('sequence drain keeps its initialized declaration after that effect', program.body[1].declarations[0].init.callee.name, 'capture');
   check('sequence drain retains the later effect', program.body[2].expression.expressions.at(-1).callee.name, 'after');
   check('sequence drain records its rewrite', rewrites, 1);
+}
+
+// Call-result stamps are unnecessary at discarded-value positions. A retained call
+// and a bare method read still transfer the source type to their replacements.
+for (const [source, typed] of [
+  ['rows.at(0);', false],
+  ['void rows.at(0);', false],
+  ['if (rows.at(0)) {}', false],
+  ['rows.at?.(0);', false],
+  ['(rows?.at)(0);', false],
+  ['consume(rows.at(0));', true],
+  ['consume(rows.at?.(0));', true],
+  ['consume((rows?.at)(0));', true],
+  ['rows.at(0) + 0;', true],
+  ['rows.at;', true],
+]) {
+  const ast = programOf(`const rows = [[1]]; ${ source }`);
+  let use;
+  traverse(ast, { $: { scope: true }, MemberExpression(path) { if (path.node.property.name === 'at') use = path; } });
+  const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+  const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => injector });
+  const resolvedType = new WeakMap();
+  const resultType = { constructor: source === 'rows.at;' ? 'Function' : 'Array' };
+  const sourceValue = source === 'rows.at;' ? use.node : climbToCallerPath(use).node;
+  let queries = 0;
+  let rewrites = 0;
+  const channel = createOptionalDispatchChannel({
+    adapter, injector, injectorState: injector, resolvedType,
+    skippedNodes: new WeakSet(), memoValueClones: new WeakSet(), guardCommaMemos: new WeakSet(),
+    resolveGlobalPolyfill: () => null, resolvePure: () => null,
+    peelNonNullWraps: node => ({ splitSource: node, rewrapNonNull: value => value }),
+    markRewrite() { rewrites++; },
+    resolveNodeType(path) {
+      if (path.node !== sourceValue) return { constructor: 'Array' };
+      queries++;
+      return resultType;
+    },
+  });
+  check(`call-result stamp/${ source }/dispatch succeeds`, channel.replaceInstanceLike({ metaPath: use, id: '_at' }), true);
+  check(`call-result stamp/${ source }/type queried only when retained`, queries, Number(typed));
+  check(`call-result stamp/${ source }/one rewrite`, rewrites, 1);
+  let stamped = false;
+  walkAstNodes({ root: ast, visit(node) { if (resolvedType.get(node) === resultType) stamped = true; } });
+  check(`call-result stamp/${ source }/replacement carries the retained type`, stamped, typed);
+}
+
+// Rendered sequence receivers evaluate their prefix once and reuse a stable tail.
+// A prior import, a foreign live binding and a nearer written shadow still capture.
+{
+  for (const [label, declaration, expression, ownImport, priorImport, capture] of [
+    ['pending own import', '', '(before(), (middle(), _held))', true, false, false],
+    ['flushed own import', 'import _held from "@core-js/pure/actual/array";', '(before(), _held)', true, false, false],
+    ['prior pure import', 'import _held from "@core-js/pure/actual/array";', '(before(), _held)', true, true, true],
+    ['foreign live import', 'import _held from "foreign";', '(before(), _held)', true, false, true],
+    ['nearer written shadow', 'function read(_held) { const mutate = () => { _held = []; };', '(before(), _held)', true, false, true],
+    ['unbound tail', '', '(before(), unknown)', false, false, false],
+    ['getter tail', 'const box = { get held() { return []; } };', '(before(), box.held)', false, false, true],
+    ['completed local write', 'let held = []; held = [1];', '(before(), held)', false, false, false],
+  ]) {
+    const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+    if (ownImport) injector.addPureImport('array', 'held');
+    if (priorImport) injector.registerUserPureImport('array', '_held');
+    const ast = programOf(`${ declaration } const result = ${ expression };${ label.startsWith('nearer') ? ' }' : '' }`);
+    let use;
+    traverse(ast, { $: { scope: true }, VariableDeclarator(path) { if (path.node.id.name === 'result') use = path.get('init'); } });
+    const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => injector });
+    const channel = createOptionalDispatchChannel({
+      adapter,
+      injector,
+      injectorState: injector,
+      memoValueClones: new WeakSet(),
+      resolvedType: new WeakMap(),
+      resolveGlobalPolyfill: () => null,
+      resolvePure: () => null,
+      resolveNodeType: () => null,
+    });
+    const guard = channel.guardObject(use.node, use, { interveningEffects: true });
+    const [checkNode] = guard.disjuncts;
+    check(`rendered sequence guard/${ label }/captures`, checkNode.type === 'AssignmentExpression', capture);
+    const firstRead = capture ? checkNode.right : checkNode;
+    check(`rendered sequence guard/${ label }/prefix retained`, unwrapNode(firstRead).type, 'SequenceExpression');
+    check(`rendered sequence guard/${ label }/first prefix retained`, unwrapNode(firstRead).expressions[0].callee.name, 'before');
+    check(`rendered sequence guard/${ label }/later read is bare`, guard.makeBase().type, 'Identifier');
+    check(`rendered sequence guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
+  }
+
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  {
+    const source = 'const dh = () => globalThis; const held = [1];\n'
+      + 'module.exports = dh().self?.Array.prototype.at.call(held, 0);';
+    const code = createPlugin(options).transform(source, '/rendered-bare-receiver.cjs')?.code ?? source;
+    withTemporaryProperty(globalThis, 'self', globalThis, () => {
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        runInNewContext(program, { module, require, globalThis });
+        check(`rendered bare guard/${ leg }/value`, module.exports, 1);
+      }
+    });
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check('rendered bare guard/actual realm import', code.includes('@core-js/pure/actual/self'), true);
+    check('rendered bare guard/actual method import', code.includes('/instance/at'), true);
+    check('rendered bare guard/no receiver capture', captures, 0);
+  }
+  for (const [label, declaration, capture] of [['foreign live import', 'import held from "foreign";', true], ['completed local write', 'let held = []; held = [1];', false]]) {
+    const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+    const ast = programOf(`${ declaration } const result = held;`);
+    let use;
+    traverse(ast, { $: { scope: true }, VariableDeclarator(path) { if (path.node.id.name === 'result') use = path.get('init'); } });
+    const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => injector });
+    const channel = createOptionalDispatchChannel({
+      adapter,
+      injector,
+      injectorState: injector,
+      memoValueClones: new WeakSet(),
+      resolvedType: new WeakMap(),
+      resolveGlobalPolyfill: () => null,
+      resolvePure: () => null,
+      resolveNodeType: () => null,
+    });
+    const guard = channel.guardObject(use.node, use, { interveningEffects: true });
+    check(`rendered bare guard/${ label }/captures`, guard.disjuncts[0].type, capture ? 'AssignmentExpression' : 'Identifier');
+    const first = capture ? guard.disjuncts[0].right : guard.disjuncts[0];
+    check(`rendered bare guard/${ label }/first read retained`, first.name, 'held');
+    check(`rendered bare guard/${ label }/later reads selected value`, guard.makeBase().name, capture ? guard.disjuncts[0].left.name : 'held');
+    check(`rendered bare guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
+  }
+  // Runtime wrappers and static object/key prefixes reach the same scoped handoff.
+  // A failed proof still snapshots the original value before the method reads it again.
+  {
+    let effects;
+    function flat() {
+      effects.push(this === globalThis ? 'realm' : 'wrong-this');
+      return [1];
+    }
+    withTemporaryProperty(globalThis, 'flat', flat, () => withTemporaryProperty(globalThis, 'window', globalThis,
+      () => withTemporaryProperty(globalThis, 'self', globalThis, () => {
+        for (const [label, source, expected, expectedEffects, expectedCaptures, entry, windowAbsent] of [
+          ['TS realm continuation', 'module.exports = (globalThis as any).flat?.().includes(1);', true, ['lookup', 'realm'], 2, '/instance/flat'],
+          ['TS realm threaded hop', 'module.exports = (globalThis as any).flat?.().map(x => x * 2).at?.(0);', 2, ['lookup', 'realm'], 3, '/instance/flat'],
+          [
+            'static leaf key',
+            'let u = null; module.exports = (u = globalThis.window)?.Number[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '9007199254740991.00',
+            ['probe', 'key'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'static object key',
+            'let u = null; module.exports = (u = globalThis.window)?.[(hop(), "Number")].MAX_SAFE_INTEGER.toFixed(2);',
+            '9007199254740991.00',
+            ['probe', 'hop'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'static object and leaf prefixes',
+            'module.exports = (objectPrefix(), Number)[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '9007199254740991.00',
+            ['object', 'key'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'static hop and leaf prefixes',
+            'let u = null;\n'
+            + 'module.exports = (u = globalThis.window)?.[(hop(), "Number")][(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '9007199254740991.00',
+            ['probe', 'hop', 'key'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'TS getter continuation',
+            'const box = { get held() { objectPrefix(); return [1]; } };\n'
+            + 'module.exports = (box.held as any).flat?.().includes(1);',
+            true,
+            ['object'],
+            3,
+            '/instance/flat',
+          ],
+          [
+            'TS key rebinding continuation',
+            'let held = [1]; function key() { keyEffect(); held = [2]; return "flat"; }\n'
+            + 'module.exports = (held as any)[key()]?.().includes(1);',
+            true,
+            ['key'],
+            3,
+            '/instance/flat',
+          ],
+          ['TS live probe continuation', 'module.exports = (globalThis.window as any).flat?.().includes(1);', true, ['probe'], 3, '/instance/flat'],
+          [
+            'TS unbound getter continuation',
+            'Object.defineProperty(globalThis, "unknown", { configurable: true, get: unknownGetter });\n'
+            + 'module.exports = (unknown as any).flat?.().includes(1);',
+            true,
+            ['unbound'],
+            3,
+            '/instance/flat',
+          ],
+          [
+            'TS receiver TDZ',
+            'let threw = false; try { (held as any).flat?.().includes(1); }\n'
+            + 'catch (error) { threw = error instanceof ReferenceError; } const held = [1]; module.exports = threw;',
+            true,
+            [],
+            2,
+            '/instance/flat',
+          ],
+          [
+            'static getter object',
+            'const box = { get held() { objectPrefix(); return { MAX_SAFE_INTEGER: 1 }; } };\n'
+            + 'module.exports = box.held[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '1.00',
+            ['object', 'key'],
+            1,
+            '/instance/to-fixed',
+          ],
+          [
+            'static key rebinding object',
+            'let held = { MAX_SAFE_INTEGER: 1 };\n'
+            + 'function key() { keyEffect(); held = { MAX_SAFE_INTEGER: 2 }; return "MAX_SAFE_INTEGER"; }\n'
+            + 'module.exports = held[key()].toFixed(2);',
+            '1.00',
+            ['key'],
+            1,
+            '/instance/to-fixed',
+          ],
+          [
+            'static object TDZ',
+            'let threw = false; try { (objectPrefix(), held)[(key(), "MAX_SAFE_INTEGER")].toFixed(2); }\n'
+            + 'catch (error) { threw = error instanceof ReferenceError; } const held = { MAX_SAFE_INTEGER: 1 }; module.exports = threw;',
+            true,
+            ['object'],
+            1,
+            '/instance/to-fixed',
+          ],
+          [
+            'sealed optional static object',
+            'let threw = false;\n'
+            + 'try { (globalThis.window?.[(hop(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+            + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            true,
+            ['probe'],
+            0,
+            '/instance/to-fixed',
+            true,
+          ],
+          [
+            'nullable optional static object',
+            'module.exports = globalThis.window?.[(hop(), "Number")][(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            undefined,
+            ['probe'],
+            0,
+            '/instance/to-fixed',
+            true,
+          ],
+          [
+            'sealed static present',
+            'let threw = false;\n'
+            + 'try { (globalThis.window?.[(hop(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+            + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            false,
+            ['probe', 'hop'],
+            0,
+            '/instance/to-fixed',
+          ],
+          ...[false, true].map(absentValue => [
+            `sealed grouped keys/${ absentValue ? 'null' : 'present' }`,
+            'let threw = false;\n'
+              + 'try { ((objectPrefix(), globalThis).window?.[(hop(), keyEffect(), "self")][(ctorFirst(), ctorLast(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+              + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            absentValue,
+            absentValue ? ['object', 'probe'] : ['object', 'probe', 'hop', 'key', 'ctor-first', 'ctor-last'],
+            0,
+            '/instance/to-fixed',
+            absentValue,
+          ]),
+          ...[false, true].map(absentValue => [
+            `sealed test-owned key/${ absentValue ? 'null' : 'present' }`,
+            'let threw = false;\n'
+              + 'try { ((objectPrefix(), globalThis)[(testFirst(), testLast(), "window")]?.[(hop(), keyEffect(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+              + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            absentValue,
+            absentValue ? ['object', 'test-first', 'test-last', 'probe'] : ['object', 'test-first', 'test-last', 'probe', 'hop', 'key'],
+            0,
+            '/instance/to-fixed',
+            absentValue,
+          ]),
+          ...[false, true].map(absentValue => [
+            `sealed independent prefix claim/${ absentValue ? 'null' : 'present' }`,
+            'let threw = false, value = null;\n'
+              + 'try { (globalThis.window?.[(value = Math.cbrt(8), keyEffect(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+              + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw + ":" + value;',
+            absentValue ? 'true:null' : 'false:2',
+            absentValue ? ['probe'] : ['probe', 'key'],
+            0,
+            '/instance/to-fixed',
+            absentValue,
+          ]),
+          ...['0', '?.', 'v_-1'].map(key => [
+            `static nonidentifier key ${ key }`,
+            `module.exports = (objectPrefix(), { '${ key }': 1 })[(key(), '${ key }')].toFixed(2);`,
+            '1.00',
+            ['object', 'key'],
+            1,
+            '/instance/to-fixed',
+          ]),
+        ]) {
+          const code = createPlugin(options).transform(source, '/rendered-receiver-handoff.cts')?.code ?? source;
+          for (const [leg, program] of [['native', source], ['transformed', code]]) {
+            effects = [];
+            let unknownReads = 0;
+            Object.defineProperties(globalThis, {
+              flat: {
+                configurable: true,
+                get() {
+                  effects.push('lookup');
+                  return flat;
+                },
+              },
+              window: {
+                configurable: true,
+                get() {
+                  effects.push('probe');
+                  return label === 'TS live probe continuation' ? [1] : windowAbsent ? null : globalThis;
+                },
+              },
+            });
+            const module = { exports: null };
+            const context = {
+              module,
+              require,
+              globalThis,
+              objectPrefix() { effects.push('object'); },
+              hop() { effects.push('hop'); },
+              key() { effects.push('key'); },
+              keyEffect() { effects.push('key'); },
+              ctorFirst() { effects.push('ctor-first'); },
+              ctorLast() { effects.push('ctor-last'); },
+              testFirst() { effects.push('test-first'); },
+              testLast() { effects.push('test-last'); },
+            };
+            function unknownGetter() {
+              effects.push('unbound');
+              return [++unknownReads];
+            }
+            Object.defineProperty(context, 'unknown', { configurable: true, get: unknownGetter });
+            if (label === 'TS unbound getter continuation') {
+              // The accessor belongs to the compiled source's global-slot census.
+              // Its globalThis ponyfill must address the same VM realm as the bare name.
+              context.unknownGetter = unknownGetter;
+              context.globalThis = context;
+              // eslint-disable-next-line import/no-dynamic-require -- delegate injected entries to the VM's realm
+              context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
+            }
+            runInNewContext(program.replaceAll(' as any', ''), context);
+            check(`actual receiver handoff/${ label }/${ leg }/value`, module.exports, expected);
+            checkDeep(`actual receiver handoff/${ label }/${ leg }/order`, effects, expectedEffects);
+          }
+          let captures = 0;
+
+          walkAstNodes({
+            // eslint-disable-next-line node/no-sync -- oxc-parser only exposes its synchronous parse API
+            root: parseSync('/rendered-receiver-handoff.ts', code, { sourceType: 'module' }).program,
+            visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; },
+          });
+          check(`actual receiver handoff/${ label }/required captures`, captures, expectedCaptures);
+          check(`actual receiver handoff/${ label }/actual helper`, code.includes(entry), true);
+          if (label.startsWith('sealed independent prefix claim/')) {
+            check(`actual receiver handoff/${ label }/independent helper`, code.includes('/math/cbrt'), true);
+          }
+        }
+      })));
+    for (const [label, source, expectedCaptures] of [
+      ['TS foreign live receiver', 'import held from "foreign"; export const r = (held as any).flat?.().includes(1);', 3],
+      [
+        'foreign static object',
+        'import held from "foreign";\n'
+        + 'export const r = (objectPrefix(), held)[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+        1,
+      ],
+    ]) {
+      const code = createPlugin({ ...options, importStyle: 'import' }).transform(source, '/foreign-rendered-receiver.ts')?.code ?? source;
+      let captures = 0;
+
+      walkAstNodes({
+        // eslint-disable-next-line node/no-sync -- oxc-parser only exposes its synchronous parse API
+        root: parseSync('/foreign-rendered-receiver.ts', code, { sourceType: 'module' }).program,
+        visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; },
+      });
+      check(`actual receiver handoff/${ label }/required captures`, captures, expectedCaptures);
+      check(`actual receiver handoff/${ label }/foreign import retained`, code.includes('"foreign"'), true);
+    }
+  }
+  for (const [label, source, expectedCaptures] of [
+    ['bare realm method', 'export const r = globalThis.flat?.().includes(1);', 2],
+    ['parenthesized realm method', 'export const r = (globalThis).flat?.().includes(1);', 2],
+    ['constructor method', 'export const r = Promise.noSuchStatic?.().includes(0);', 2],
+    ['known static value', 'export const r = Number.MAX_SAFE_INTEGER.toFixed(2);', 0],
+    [
+      'guarded default value',
+      'function probe(value = (globalThis.window?.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(2)) { return value; }\n'
+      + 'export const r = probe();',
+      0,
+    ],
+    ['optional symbol method', 'export const r = Promise[Symbol.iterator]?.(1);', 0],
+    ['symbol receiver and key effects', 'export const r = (prefix(), Promise)[(key(), Symbol.iterator)](1);', 0],
+    ['sequence realm optional method', 'export const r = (prefix(), globalThis).flat?.().includes(1);', 2],
+    ['quiet sequence symbol constructor', 'export const r = (quiet, Promise)[Symbol.iterator](1);', 0],
+    ['sequence constructor direct optional call', 'export const r = (prefix(), Promise)?.().includes(1);', 1],
+  ]) {
+    const code = createPlugin({ ...options, importStyle: 'import' }).transform(source, '/rendered-receiver-value.mjs')?.code ?? source;
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`rendered receiver value/${ label }/only required captures`, captures, expectedCaptures);
+  }
+  for (const [label, expression, expectedTrace] of [
+    ['key effect', 'Number.MAX_SAFE_INTEGER[(key(), "toFixed")](2)', ['key']],
+    ['optional call key effect', 'Number.MAX_SAFE_INTEGER[(key(), "toFixed")]?.(2)', ['key']],
+    ['optional member key effect', 'Number.MAX_SAFE_INTEGER?.[(key(), "toFixed")](2)', ['key']],
+    ['receiver and key effects', '(prefix(), Number.MAX_SAFE_INTEGER)[(key(), "toFixed")](2)', ['prefix', 'key']],
+  ]) {
+    const source = `module.exports = ${ expression };`;
+    const code = createPlugin(options).transform(source, '/rendered-static-key.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const effects = [];
+      const module = { exports: null };
+      runInNewContext(program, {
+        module,
+        require,
+        globalThis,
+        key() { effects.push('key'); },
+        prefix() { effects.push('prefix'); },
+      });
+      check(`rendered static key/${ label }/${ leg }/value`, module.exports, '9007199254740991.00');
+      checkDeep(`rendered static key/${ label }/${ leg }/order`, effects, expectedTrace);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`rendered static key/${ label }/no receiver memo`, captures, 0);
+  }
+  let trace;
+  for (const [label, source, expected, expectedCaptures] of [
+    [
+      'symbol receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)[(events.push("key"), Symbol.iterator)](); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'instance receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)[(events.push("key"), "at")](0); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'optional call receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)[(events.push("key"), "at")]?.(0); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'optional member receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)?.[(events.push("key"), "at")](0); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'initialized optional member receiver',
+      'const events = []; const held = ["held"];\n'
+      + 'module.exports = [(events.push("prefix"), held)?.[(events.push("key"), "at")](0), events];',
+      ['held', ['prefix', 'key']],
+      0,
+    ],
+    [
+      'primitive receiver prefix read',
+      'let reads = 0; const box = { get value() { reads++; return 0; } };\n'
+      + 'module.exports = [(box.value, "b").at(-1), reads];',
+      ['b', 1],
+      0,
+    ],
+    [
+      'unbound primitive receiver prefix',
+      'let threw = false;\n'
+      + 'try { (unknown, "b").at(-1); } catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'module.exports = threw;',
+      true,
+      0,
+    ],
+    [
+      'null optional member sequence',
+      'const events = []; const held = null;\n'
+      + 'module.exports = [(events.push("prefix"), held)?.[(events.push("key"), "at")](0), events];',
+      [undefined, ['prefix']],
+      0,
+    ],
+    [
+      'quiet sequence iterator method',
+      'let reads = 0; const box = { get value() { reads++; return 0; } };\n'
+      + 'module.exports = [(box.value, "b")[Symbol.iterator](1).next().value, reads];',
+      ['b', 1],
+      0,
+    ],
+    [
+      'quiet sequence optional iterator method',
+      'let reads = 0; const box = { get value() { reads++; return 0; } };\n'
+      + 'module.exports = [(box.value, "b")[Symbol.iterator]?.(1).next().value, reads];',
+      ['b', 1],
+      0,
+    ],
+    [
+      'derived receiver before super',
+      'const events = []; let threw = false;\n'
+      + 'class Child extends Array { constructor() {\n'
+      + 'try { (events.push("prefix"), this)[(events.push("key"), Symbol.iterator)](); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; } super(); } }\n'
+      + 'new Child(); module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/receiver-before-key.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`first receiver evaluation/${ label }/${ leg }`, module.exports, expected);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`first receiver evaluation/${ label }/only required captures`, captures, expectedCaptures);
+  }
+  for (const [label, source, expected, expectedCaptures] of [
+    [
+      'stable direct optional continuation',
+      'const events = []; const held = () => [1];\n'
+      + 'module.exports = [(events.push("prefix"), held)?.().includes(1), events];',
+      [true, ['prefix']],
+      1,
+    ],
+    [
+      'null direct optional continuation',
+      'const events = []; const held = null;\n'
+      + 'module.exports = [(events.push("prefix"), held)?.().includes(1), events];',
+      [undefined, ['prefix']],
+      1,
+    ],
+    [
+      'primitive direct optional continuation',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), "b")?.().includes(1); } catch (error) { threw = error instanceof TypeError; }\n'
+      + 'module.exports = [threw, events];',
+      [true, ['prefix']],
+      1,
+    ],
+    [
+      'stable sequence continuation',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [(events.push("prefix"), held).flat?.().includes(1), events];',
+      [true, ['prefix']],
+      2,
+    ],
+    [
+      'stable nested sequence continuation',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [(events.push("prefix"), (events.push("middle"), held)).flat?.().includes(1), events];',
+      [true, ['prefix', 'middle']],
+      2,
+    ],
+    [
+      'getter sequence continuation',
+      'const events = []; const box = { get held() { events.push("get"); return [1]; } };\n'
+      + 'module.exports = [(events.push("prefix"), box.held).flat?.().includes(1), events];',
+      [true, ['prefix', 'get']],
+      3,
+    ],
+    [
+      'key rebind sequence continuation',
+      'const events = []; let held = [1];\n'
+      + 'function key() { events.push("key"); held = [2]; return "flat"; }\n'
+      + 'module.exports = [(events.push("prefix"), held)[key()]?.().includes(1), events];',
+      [true, ['prefix', 'key']],
+      3,
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/optional-sequence-continuation.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`sequence optional continuation/${ label }/${ leg }`, module.exports, expected);
+    }
+    let captures = 0;
+    const stores = [];
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'VariableDeclarator' && !node.init) captures++;
+        if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') stores.push(unwrapNode(node.right));
+      },
+    });
+    check(`sequence optional continuation/${ label }/required captures`, captures, expectedCaptures);
+    if (label.startsWith('stable') && expectedCaptures === 2) {
+      check(`sequence optional continuation/${ label }/method lookup captured`,
+        stores.filter(node => {
+          const value = unwrapNode(node.type === 'SequenceExpression' ? node.expressions.at(-1) : node);
+          return value.type === 'CallExpression' && value.callee.type === 'Identifier';
+        }).length, 1);
+      check(`sequence optional continuation/${ label }/call result captured`,
+        stores.filter(node => node.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+          && node.callee.property.name === 'call').length, 1);
+    }
+  }
+  for (const [label, source, expectedCaptures] of [
+    ['foreign live tail', 'import held from "foreign"; export const r = (prefix(), held).flat?.().includes(1);', 3],
+    ['unbound tail', 'export const r = (prefix(), unknown).flat?.().includes(1);', 2],
+    [
+      'written shadow tail',
+      'export function read(held) { function key() { held = [2]; return "flat"; }\n'
+      + 'return (prefix(), held)[key()]?.().includes(1); }',
+      3,
+    ],
+  ]) {
+    const code = createPlugin({ ...options, importStyle: 'import' }).transform(source, '/optional-sequence-boundary.mjs')?.code ?? source;
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`sequence optional continuation/${ label }/required captures`, captures, expectedCaptures);
+  }
+  for (const [label, source, expected, expectedCaptures, entry, expectedImport = true] of [
+    [
+      'ordinary const read',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [typeof (events.push("prefix"), held)[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'optional const read',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [typeof (events.push("prefix"), held)?.[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'quiet primitive accessor read',
+      'const events = []; const box = { get value() { events.push("prefix"); return 0; } };\n'
+      + 'module.exports = [typeof (box.value, "b")[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'quiet primitive unbound read',
+      'const events = []; let threw = false;\n'
+      + 'try { (unknown, "b")[(events.push("key"), "at")]; } catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'module.exports = [threw, events];',
+      [true, []],
+      0,
+      '/instance/at',
+    ],
+    [
+      'own static read',
+      'const events = [];\n'
+      + 'module.exports = [typeof (events.push("prefix"), Number.MAX_SAFE_INTEGER)[(events.push("key"), "toFixed")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/to-fixed',
+    ],
+    [
+      'null optional read',
+      'const events = []; const held = null;\n'
+      + 'module.exports = [typeof (events.push("prefix"), held)?.[(events.push("key"), "at")], events];',
+      ['undefined', ['prefix']],
+      0,
+      '/instance/at',
+      false,
+    ],
+    [
+      'nullable typed optional read',
+      'function probe(held = [1]) { const events = [];\n'
+      + 'return [typeof (events.push("prefix"), held)?.[(events.push("key"), "at")], events]; }\n'
+      + 'module.exports = probe(null);',
+      ['undefined', ['prefix']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'allocation read',
+      'const events = [];\n'
+      + 'module.exports = [typeof (events.push("prefix"), [1])[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      1,
+      '/instance/at',
+    ],
+    [
+      'getter tail read',
+      'const events = []; const box = { get held() { events.push("get"); return [1]; } };\n'
+      + 'module.exports = [typeof (events.push("prefix"), box.held)[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'get', 'key']],
+      1,
+      '/instance/at',
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/sequence-receiver-read.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`sequence receiver read/${ label }/${ leg }`, module.exports, expected);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`sequence receiver read/${ label }/required captures`, captures, expectedCaptures);
+    check(`sequence receiver read/${ label }/actual helper import`, code.includes(entry), expectedImport);
+  }
+  {
+    const source = 'const events = []; const held = [1];\n'
+      + 'module.exports = [(events.push("prefix"), (events.push("middle"), held))[(events.push("key"), "at")]?.(0), events];';
+    const code = createPlugin(options).transform(source, '/nested-optional-receiver.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`nested sequence optional call/${ leg }`, module.exports, [1, ['prefix', 'middle', 'key']]);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check('nested sequence optional call/required captures', captures, 0);
+  }
+  function iterator() {
+    trace.push(this === globalThis ? 'realm' : 'wrong-this');
+    return { next() { return { value: 'held' }; } };
+  }
+  withTemporaryProperty(globalThis, 'window', globalThis, () => withTemporaryProperty(globalThis, 'self', globalThis, () => {
+    withTemporaryProperty(globalThis, Symbol.iterator, iterator, () => {
+      Object.defineProperty(globalThis, Symbol.iterator, {
+        configurable: true,
+        get() {
+          trace.push('lookup');
+          return iterator;
+        },
+      });
+      for (const [label, expression] of [
+        ['sealed proxy prefix', '(globalThis?.[(hop(), "self")][(key(), Symbol.iterator)])()'],
+        ['middle proxy prefix', 'globalThis?.[(hop(), "self")].window[(key(), Symbol.iterator)]()'],
+        ['deep proxy prefix', 'globalThis?.[(hop(), "self")].window.self[(key(), Symbol.iterator)]()'],
+      ]) {
+        const source = `module.exports = ${ expression }.next().value;`;
+        const code = createPlugin(options).transform(source, '/rendered-sequence-receiver.cjs')?.code ?? source;
+        for (const [leg, program] of [['native', source], ['transformed', code]]) {
+          trace = [];
+          const module = { exports: null };
+          runInNewContext(program, {
+            module,
+            require,
+            globalThis,
+            hop() { trace.push('hop'); },
+            key() { trace.push('key'); },
+          });
+          check(`rendered sequence receiver/${ label }/${ leg }/value`, module.exports, 'held');
+          checkDeep(`rendered sequence receiver/${ label }/${ leg }/order`, trace, ['hop', 'key', 'lookup', 'realm']);
+        }
+        const receiverDeclarations = programOf(code).body.flatMap(statement => statement.type === 'VariableDeclaration' ? statement.declarations : []);
+        check(`rendered sequence receiver/${ label }/no receiver memo`, receiverDeclarations.filter(declarator => !declarator.init).length, 0);
+      }
+    });
+  }));
+
+  // The final tree owns late receiver captures. Whole first evaluations survive,
+  // while import tails and same-activation secondary copies need no extra storage.
+  {
+    const source = 'const { y: { at, includes }, k } = { y: [Promise], k: 1 };'
+      + ' module.exports = [at.call([7], 0), includes.call([7], 7), k];';
+    const code = createPlugin(options).transform(source, '/late-member-reuse.cjs')?.code ?? source;
+    const unresolved = [];
+    traverse(programOf(code), {
+      $: { scope: true },
+      Identifier(path) {
+        if (/^_ref\d*$/.test(path.node.name) && !path.scope.getBinding(path.node.name)) unresolved.push(path.node.name);
+      },
+    });
+    checkDeep('late member reuse/cloned roots retain their renamed binding', unresolved, []);
+    const module = { exports: null };
+    runInNewContext(code, { module, require });
+    checkDeep('late member reuse/both methods retain their selected receiver', module.exports, [7, true, 1]);
+  }
+  for (const flag of [false, true]) {
+    const source = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/guarded-static-between-instance-and-native/input.mjs',
+      import.meta.url), 'utf8');
+    const code = createPlugin(options).transform(source, '/pending-guard.cjs')?.code ?? source;
+    for (const [leg, body] of [['native', source], ['transformed', code]]) {
+      const results = [];
+      runInNewContext(body, { flag, require, use(name, method, other) { results.push(name, typeof method, other); } });
+      checkDeep(`pending destructure guard/${ flag }/${ leg }/source order and static branch`, results,
+        [flag ? 'user' : 'Map', flag ? 'number' : 'function', undefined]);
+    }
+  }
+  {
+    const { collectInjectorCensus, unwrapWriteOnlyGuardMemos } = await import('../../packages/core-js-polyfill-provider/injector-base.js');
+    for (const [label, body, declaration, prior, captures, expected] of [
+      ['whole first lookup', '_at(_ref = (first(), (second(), _held))).call(_ref, 0);', '', false, 0, ['first', 'second', 'lookup', 'held']],
+      ['first before key', '(_ref = (first(), _held), key(), _at(_ref).call(_ref, 0));', '', false, 0, ['first', 'key', 'lookup', 'held']],
+      [
+        'guarded defined tail',
+        'null == (_ref = (first(), null == probe() ? void 0 : _held)) ? void 0 : _at(_ref).call(_ref, 0);',
+        '',
+        false,
+        0,
+        ['first', 'probe', 'lookup', 'held'],
+      ],
+      ['guarded absent tail', 'null == (_ref = (first(), null == absent() ? void 0 : _held)) ? void 0 : _at(_ref).call(_ref, 0);', '', false, 0, ['first', 'probe']],
+      ['foreign live tail', '_at(_ref = (first(), _held)).call(_ref, 0);', 'import _held from "foreign";', false, 1, null],
+      ['prior pure tail', '_at(_ref = (first(), _held)).call(_ref, 0);', 'import _held from "@core-js/pure/actual/array";', true, 1, null],
+      ['nearer readonly shadow tail', 'function read(_held) { _at(_ref = (first(), _held)).call(_ref, 0); } read(other);', '', false, 0, ['first', 'lookup', 'other']],
+      ['local constant tail', '_at(_ref = (first(), _held)).call(_ref, 0);', 'const _held = other;', false, 0, ['first', 'lookup', 'other']],
+      [
+        'nearer written shadow tail',
+        'function read(_held) { function write() { _held = other; } expose(write); _at(_ref = (first(), _held)).call(_ref, 0); } read(other);',
+        '',
+        false,
+        1,
+        null,
+      ],
+      ['callback writer', '_at(_ref = (first(), _held)).call(_ref, 0); function mutate() { _ref = other; }', '', false, 1, ['first', 'lookup', 'held']],
+      ['skipped writer', 'if (false) _ref = _held; consume(_ref);', '', false, 1, ['undefined']],
+      ['read before writer', 'consume(_ref); _ref = _held;', '', false, 1, ['undefined']],
+      ['nullable value outside guard', '_ref = (first(), null == absent() ? void 0 : _held); consume(_ref);', '', false, 1, ['first', 'probe', 'undefined']],
+      ['read in null arm', 'null == (_ref = (first(), null == absent() ? void 0 : _held)) ? consume(_ref) : void 0;', '', false, 1, ['first', 'probe', 'undefined']],
+      ['observable getter tail', '_at(_ref = (first(), box.held)).call(_ref, 0);', '', false, 1, ['first', 'getter', 'lookup', 'held']],
+      ['allocation tail', '_at(_ref = (first(), [1])).call(_ref, 0);', '', false, 1, ['first', 'lookup', 'other']],
+    ]) {
+      const state = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+      state.addPureImport('array', 'held');
+      if (prior) state.registerUserPureImport('array', '_held');
+      const ref = state.generateDeclaredRef();
+      const source = `${ declaration } var ${ ref }; ${ body }`;
+      const program = programOf(source);
+      let writerPath;
+      traverse(program, {
+        $: { scope: true },
+        AssignmentExpression(path) {
+          if (path.node.left.name === ref && !writerPath) writerPath = path;
+        },
+      });
+      const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => state });
+      const census = collectInjectorCensus(program, { mintedRefNames: new Set([ref]), pureNames: new Set(state.pureImports.values()), memoReuse: true });
+      unwrapWriteOnlyGuardMemos(census, { injectorState: state, contextForMemo: () => ({ adapter, scope: writerPath.scope, path: writerPath }) });
+      let writes = 0;
+      walkAstNodes({
+        root: program,
+        visit(node) {
+          if (node.type === 'AssignmentExpression' && node.left.name === ref) writes++;
+        },
+      });
+      check(`late receiver census/${ label }/capture`, writes > 0 ? 1 : 0, captures);
+      if (!expected) continue;
+      const output = printProgram({ program, comments: [], source }).code;
+      for (const [leg, code] of [['native', source], ['final', output]]) {
+        const lateTrace = [];
+        const held = [1];
+        const other = [2];
+        runInNewContext(code, {
+          _held: held,
+          other,
+          first() { lateTrace.push('first'); },
+          second() { lateTrace.push('second'); },
+          key() { lateTrace.push('key'); },
+          probe() { lateTrace.push('probe'); return held; },
+          absent() { lateTrace.push('probe'); return null; },
+          consume(value) { lateTrace.push(value === undefined ? 'undefined' : 'defined'); },
+          box: { get held() { lateTrace.push('getter'); return held; } },
+          _at() {
+            lateTrace.push('lookup');
+            return function () { lateTrace.push(this === held ? 'held' : 'other'); };
+          },
+        });
+        checkDeep(`late receiver census/${ label }/${ leg }/order and identity`, lateTrace, expected);
+      }
+    }
+    {
+      const source = 'class Box { value = (first(), (second(), globalThis))?.Array.prototype.at; }'
+        + ' module.exports = typeof new Box().value;';
+      const code = createPlugin(options).transform(source, '/late-empty-activation.cjs')?.code ?? source;
+      let refs = 0;
+      let arrows = 0;
+      walkAstNodes({
+        root: programOf(code),
+        visit(node) {
+          if (node.type === 'VariableDeclarator' && !node.init && /^_ref\d*$/.test(node.id.name)) refs++;
+          if (node.type === 'ArrowFunctionExpression') arrows++;
+        },
+      });
+      check('late receiver census/orphan activation/no receiver declaration', refs, 0);
+      check('late receiver census/orphan activation/no empty compiler arrow', arrows, 0);
+      check('late receiver census/orphan activation/actual import', code.includes('/actual/global-this'), true);
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        const lateEffects = [];
+        runInNewContext(program, {
+          module,
+          require,
+          globalThis,
+          first() { lateEffects.push('first'); },
+          second() { lateEffects.push('second'); },
+        });
+        check(`late receiver census/orphan activation/${ leg }/value`, module.exports, 'function');
+        checkDeep(`late receiver census/orphan activation/${ leg }/first effects once`, lateEffects, ['first', 'second']);
+      }
+    }
+    for (const [label, source, expectedRefs, expected] of [
+      [
+        'field primary call',
+        'let at, flat, calls = 0, keys = 0; function built() { calls++; return [1, [2]]; }\n'
+        + 'class Box { value = ({ [(keys++, "at")]: at, flat } = built()); } const box = new Box();\n'
+        + 'module.exports = [at.call(box.value, 0), flat.call(box.value), calls, keys];',
+        1,
+        [1, [1, 2], 1, 1],
+      ],
+      [
+        'parameter primary call',
+        'let at, flat, calls = 0, keys = 0; function built() { calls++; return [1, [2]]; }\n'
+        + 'function read(value = ({ [(keys++, "at")]: at, flat } = built())) { return [at.call(value, 0), flat.call(value), calls, keys]; }\n'
+        + 'module.exports = read();',
+        1,
+        [1, [1, 2], 1, 1],
+      ],
+      [
+        'mutable callback receiver',
+        'let held = [1]; const other = [2];\n'
+        + 'function key() { held = other; return "at"; } module.exports = [(first(), held)[key()](0), held[0]];',
+        1,
+        [1, 2],
+      ],
+    ]) {
+      const code = createPlugin(options).transform(source, '/late-capture.cjs')?.code ?? source;
+      let refs = 0;
+      walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init && /^_ref\d*$/.test(node.id.name)) refs++; } });
+      check(`late receiver census/${ label }/mandatory refs`, refs, expectedRefs);
+      check(`late receiver census/${ label }/actual helper`, code.includes('/instance/at'), true);
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        runInNewContext(program, { module, require, first() { return 0; } });
+        checkDeep(`late receiver census/${ label }/${ leg }/value and effects`, module.exports, expected);
+      }
+    }
+  }
+}
+
+// A captured literal's method is read by its dispatch once; an observable wrapper
+// still performs its native spread, outer keys and empty nested-pattern coercion.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, method, prefix] of [
+    ['positional spread', 'const { 0: { toSpliced: method } } = [...[[1]]]; module.exports = method;', 'toSpliced', ['iterate']],
+    ['object spread', 'const { w: { at: method } } = { ...spread, w: [1, 2] }; module.exports = method;', 'at', ['spread']],
+    ['outer computed key', "const { [(mark(), 'w')]: { includes: method } } = { ...spread, w: [1, 2] }; module.exports = method;", 'includes', ['spread', 'key']],
+    ['bodyless wrapper', 'if (ok) var { w: { findLast: method } } = { ...spread, w: [1, 2] }; module.exports = method;', 'findLast', ['spread']],
+  ]) {
+    const setup = `const trace = []; let reads = 0; const selected = function () {}; const ok = true;
+      Object.defineProperty(Array.prototype, ${ JSON.stringify(method) }, {
+        configurable: true,
+        get() { trace.push('lookup'); reads++; return reads === 1 ? selected : function () {}; }
+      });
+      const iterator = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function () { trace.push('iterate'); return iterator.call(this); };
+      const spread = { get own() { trace.push('spread'); return 1; } };
+      function mark() { trace.push('key'); }
+      `;
+    const code = createPlugin(options).transform(source, '/captured-instance-leaf.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup }${ program }\nmodule.exports = [module.exports === selected, reads, trace];`, { module, require });
+      checkDeep(`captured instance leaf/${ label }/${ leg }`, module.exports, [true, 1, [...prefix, 'lookup']]);
+    }
+    check(`captured instance leaf/${ label }/actual helper`, code.includes(`/array/instance/${ method.replaceAll(/[A-Z]/g, char => `-${ char.toLowerCase() }`) }`), true);
+  }
+  for (const [label, pattern, siblingValue] of [['outer rest', '{ w: { at: method }, ...rest }', '1'], ['empty sibling', '{ w: { at: method }, z: {} }', '{}']]) {
+    const source = `const ${ pattern } = { ...spread, w: [1], get z() { mark(); return ${ siblingValue }; } };`;
+    const setup = `const trace = []; let reads = 0;
+      Object.defineProperty(Array.prototype, 'at', {
+        configurable: true,
+        get() { reads++; trace.push('lookup'); return function () {}; }
+      });
+      const spread = { get own() { trace.push('spread'); return 1; } };
+      function mark() { trace.push('sibling'); throw new RangeError('later sibling'); }
+      `;
+    const code = createPlugin(options).transform(source, '/captured-instance-negative.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup }try { ${ program } } catch (error) {
+        module.exports = [error.name, error.message, reads, trace];
+      }`, { module, require });
+      checkDeep(`captured instance leaf/${ label }/${ leg }/earlier read survives later throw`,
+        module.exports, ['RangeError', 'later sibling', 1, ['spread', 'lookup', 'sibling']]);
+    }
+  }
+}
+
+// Captured sibling grouping keeps each method Get beside the native properties
+// that precede or follow it, including a throwing native property.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, pattern, throws, expected] of [
+    ['method first', 'at: method, length', false, [true, 2, ['key', 'at', 'length']]],
+    ['native first', 'length, at: method', false, [true, 2, ['key', 'length', 'at']]],
+    ['later native throw', 'at: method, length', true, ['RangeError', ['key', 'at', 'length']]],
+    ['earlier native throw', 'length, at: method', true, ['RangeError', ['key', 'length']]],
+  ]) {
+    const source = `for (const e of [Array]) {
+      const [{ [(mark(), 'of')]: of, from }, { ${ pattern } }] = [e, unknown];
+      module.exports = [method === selected, length];
+    }`;
+    const setup = `const trace = []; const selected = function () {};
+      function mark() { trace.push('key'); }
+      const unknown = {
+        get at() { trace.push('at'); return selected; },
+        get length() { trace.push('length'); ${ throws ? "throw new RangeError('length');" : 'return 2;' } }
+      };`;
+    const code = createPlugin(options).transform(source, '/captured-sibling-order.cjs')?.code ?? source;
+    check(`captured sibling order/${ label }/actual helper`, code.includes('/instance/at'), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup }try { ${ program } module.exports.push(trace); }
+        catch (error) { module.exports = [error.name, trace]; }`, { module, require });
+      checkDeep(`captured sibling order/${ label }/${ leg }`, module.exports, expected);
+    }
+  }
+}
+
+// A reused pristine constructor does not need an extra native coercion. A source
+// empty pattern and the consumed assignment's result keep their original meaning.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, expected, emptyPatterns] of [
+    ['chained bindings', 'let a, b; ({ from: a } = { from: b } = Array); module.exports = [typeof a, a === b];', ['function', true], 0],
+    ['ordered keys', `const trace = []; let a, b;
+      ({ [(trace.push(typeof b), 'from')]: a } = { [(trace.push('inner'), 'from')]: b } = (trace.push('rhs'), Array));
+      module.exports = [a === b, trace];`, [true, ['rhs', 'inner', 'function']], 0],
+    ['consumed result', 'let b; const result = ({ from: b } = Array); module.exports = [result === Array, typeof b];', [true, 'function'], 0],
+    ['source empty pattern', 'let a, b; ({ from: a } = ({} = { from: b } = Array)); module.exports = [a === b];', [true], 1],
+    ['source empty throw', 'let a; ({ from: a } = ({} = null, Array));', ['TypeError'], 1],
+  ]) {
+    const code = createPlugin(options).transform(source, '/retained-pristine-constructor.cjs')?.code ?? source;
+    let empty = 0;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'AssignmentExpression' && node.left.type === 'ObjectPattern' && !node.left.properties.length) empty++;
+    } });
+    check(`retained pristine constructor/${ label }/native empty patterns`, empty, emptyPatterns);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`try { ${ program } } catch (error) { module.exports = [error.name]; }`, { module, require });
+      checkDeep(`retained pristine constructor/${ label }/${ leg }`, module.exports, expected);
+    }
+  }
+}
+
+// Sloppy callbacks can escape through Function.caller without an explicit self reference.
+// Memo cleanup must keep their receiver snapshot after the callback has already run.
+for (const [label, invocation, captured = true] of [
+  ['forEach function', '[0].forEach(function () { steal(); rows = ["changed"]; });'],
+  ['forEach arrow', '[0].forEach(() => { steal(); rows = ["changed"]; });'],
+  ['direct IIFE', '(function () { steal(); rows = ["changed"]; })();'],
+  ['closed named call', 'function write() { steal(); rows = ["changed"]; } write();'],
+  ['closed forwarder', '(fn => fn())(() => { steal(); rows = ["changed"]; });'],
+  ['generator resume', '(function* () { steal(); rows = ["changed"]; })().next();'],
+  ['discarded generator default', '(function* (value = steal()) { rows = ["changed"]; })();'],
+  ['discarded async generator default', '(async function* (value = steal()) { rows = ["changed"]; })();'],
+  ['strict callback', '[0].forEach(function () { "use strict"; steal(); rows = ["changed"]; });', false],
+]) {
+  const source = `let rows = ["held"], original = rows, saved;
+function steal() { saved = steal.caller; }
+${ invocation }
+rows = original;
+Object.defineProperty(original, "at", { get() {
+  if (saved) { const value = saved(); if (value?.next) value.next(); }
+  return function () { return this[0]; };
+} });
+module.exports = rows.at(0);`;
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const code = createPlugin(options).transform(source, '/caller-escape.cjs')?.code ?? source;
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require: createRequire(import.meta.url) });
+  check(`caller escape/${ label }/native held receiver`, original.exports, 'held');
+  check(`caller escape/${ label }/transformed held receiver`, transformed.exports, original.exports);
+  check(`caller escape/${ label }/receiver snapshot`, /_ref\w*\s*=\s*rows/u.test(code), captured);
+}
+
+// A source getter feeding nested own helpers has one immediate consumer.
+{
+  const source = `let reads = 0;
+class Source { static get A() { reads++; return [1]; } }
+const { [Symbol.iterator]: { name } } = Source.A;
+module.exports = [name, reads];`;
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const code = createPlugin(options).transform(source, '/nested-helper-consumer.cjs')?.code ?? source;
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require });
+  checkDeep('nested helper consumer/getter and method name', transformed.exports, original.exports);
+  check('nested helper consumer/no receiver declaration', /_ref\d*\s*=\s*Source\.A/u.test(code), false);
+}
+
+// Loop-header effects ride their first consumer without an unread receiver binding.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, memberSnapshot = false] of [
+    ['one claim', 'for (var { from } = (mark("init"), Array); once; once = false) trace.push(from([1])[0]);'],
+    ['adjacent claims', 'for (const { from, of } = (mark("init"), Array), tail = mark("tail"); once; once = false) trace.push(from(of(1))[0]);'],
+    ['two patterns', 'for (var { from } = (mark("first"), Array), { keys } = (mark("second"), Object); once; once = false) trace.push(from(keys({ x: 1 }))[0]);'],
+    ['carried getter', 'for (var { y: { includes } } = { y: holder.y }; once; once = false) trace.push(includes.call([1], 1));'],
+    ['single nested leaf', 'const [{ y: { includes } }] = [holder]; trace.push(includes.call([1], 1));'],
+    ['single object leaf', 'const { y: { includes } } = holder; trace.push(includes.call([1], 1));'],
+    ['private defaulted slot', 'const box = { y: [1], keep: 2 }; const { y: { includes } = [], keep } = box; trace.push(includes.call([1], 1), keep);', true],
+    ['private optional slot', 'const box = { y: [1] }; trace.push(box?.y.includes(1));', true],
+    ['own constructor import', 'let gb, it; ({ Map: { groupBy: gb }, Symbol: { [Symbol.iterator]: it } } = globalThis.window ?? globalThis); trace.push(typeof gb, it);'],
+    ['quiet optional call', 'trace.push(rows.flat?.().length);'],
+  ]) {
+    const code = createPlugin(options).transform(source, '/loop-header-effects.cjs')?.code ?? source;
+    const results = [];
+    for (const program of [source, code]) {
+      const trace = [];
+      const holder = {
+        get y() { trace.push('getter'); return [1]; },
+      };
+      runInNewContext(program, {
+        trace,
+        once: true,
+        rows: [1, [2]],
+        holder,
+        mark(value) { trace.push(value); return value; },
+        require,
+      });
+      results.push(JSON.stringify(trace));
+    }
+    check(`loop-header effects/${ label }/effects and values`, results[1], results[0]);
+    check(`loop-header effects/${ label }/member snapshot`, /_(?:ref|unused)\d*\s*=/u.test(code), memberSnapshot);
+    if (memberSnapshot) {
+      let reads = 0;
+      walkAstNodes({ root: programOf(code), visit(node) {
+        if (node.type === 'MemberExpression' && node.object.name === 'box' && node.property.name === 'y') reads++;
+      } });
+      check(`loop-header effects/${ label }/one member read`, reads, 1);
+    }
+    check(`loop-header effects/${ label }/polyfill retained`, code.includes('@core-js/pure/actual/'), true);
+  }
+}
+
+// A binding pattern declares its own exclusion sentinel; assignment patterns need a hoisted one.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const kind of ['const', 'let', 'var', 'assignment']) {
+    const source = `${ kind === 'assignment' ? 'let of, rest;' : '' }
+function collect(observe) {
+  for (${ kind === 'assignment' ? '' : `${ kind } ` }[{ Array: { of }, ...rest }] = [(observe(() => of), globalThis)];;) {
+    return [of(3), 'Array' in rest];
+  }
+}
+const callbacks = [];
+module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(4)];`;
+    const code = createPlugin(options).transform(source, '/array-rest-sentinel.cjs')?.code ?? source;
+    let hoisted = 0;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) hoisted++;
+    } });
+    check(`array rest sentinel/${ kind }/declaration owner`, hoisted > 0, kind === 'assignment');
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`array rest sentinel/${ kind }/${ leg }`, module.exports, [[[3], false], [4]]);
+    }
+  }
+}
+
+// Quiet unbound receivers retain their instance/default claims and property order
+// on the first transformation and remain stable on the second pass.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, setup, expected, entry] of [
+    [
+      'ordered assignment',
+      'const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); module.exports = [m === selected, n.call(a2)];',
+      'const trace = []; const selected = function () {}; '
+        + "Object.defineProperty(globalThis, 'arr', { get() { trace.push('arr'); "
+        + "return { get flat() { trace.push('flat'); return selected; } }; } });",
+      [true, [3, 4], ['arr', 'flat']],
+      'array/instance/flat',
+    ],
+    [
+      'sole assignment',
+      'let m; ({ y: { flat: m } } = { y: arr }); module.exports = [m === selected];',
+      'const trace = []; const selected = function () {}; '
+        + "Object.defineProperty(globalThis, 'arr', { get() { trace.push('arr'); "
+        + "return { get flat() { trace.push('flat'); return selected; } }; } });",
+      [true, ['arr', 'flat']],
+      'array/instance/flat',
+    ],
+    [
+      'nested default',
+      "const [{ y: { at = fallback() } }] = [box]; module.exports = [at.call({ marker: 'call-this' }, 3)];",
+      "const trace = []; Object.defineProperty(globalThis, 'box', { get() { trace.push('box'); "
+        + "return { get y() { trace.push('y'); return { get at() { trace.push('at'); return undefined; } }; } }; } }); "
+        + "function fallback() { trace.push('default'); return function (index) { return [this.marker, index]; }; }",
+      [['call-this', 3], ['box', 'y', 'at', 'default']],
+      'instance/at',
+    ],
+  ]) {
+    // Keep the getter setup in the source so its global-slot writes are visible.
+    const fullSource = `${ setup }\n${ source }`;
+    const code = createPlugin(options).transform(fullSource, '/unbound-destructure-fallback.cjs')?.code ?? fullSource;
+    for (const [leg, program] of [['native', fullSource], ['transformed', code]]) {
+      const module = { exports: null };
+      const context = { module };
+      context.globalThis = context;
+      // eslint-disable-next-line import/no-dynamic-require -- delegate injected entries to the VM's realm
+      context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
+      runInNewContext(`${ program }\nmodule.exports.push(trace);`, context);
+      checkDeep(`unbound destructure fallback/${ label }/${ leg }`, module.exports, expected);
+    }
+    check(`unbound destructure fallback/${ label }/first-pass helper`, code.includes(`/actual/${ entry }`), true);
+    if (label === 'ordered assignment') check('unbound destructure fallback/both claims survive', code.match(/_flatMaybeArray\(/gu)?.length, 2);
+    const twice = createPlugin(options).transform(code, '/unbound-destructure-fallback.cjs')?.code ?? code;
+    check(`unbound destructure fallback/${ label }/fixed point`, twice, code);
+    if (label === 'sole assignment') {
+      const fallbackDeclarations = programOf(code).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
+      check('unbound destructure fallback/sole assignment has no capture',
+        fallbackDeclarations.filter(node => !node.init && ORPHAN_REF_PATTERN.test(node.id.name)).length, 0);
+    }
+  }
+}
+
+// A discarded sequence tail keeps earlier receiver captures and member-target assignments.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source] of [
+    ['mixed claims', 'const target = {}; let name; ({ from: target.method, name } = make()); module.exports = [target.method([2])[0], typeof name, trace];'],
+    ['source prefix', 'let from; (trace.push("prefix"), ({ from } = make())); module.exports = [from([2])[0], trace];'],
+  ]) {
+    const program = `const trace = []; function make() { trace.push('make'); return Array; } ${ source }`;
+    const code = createPlugin(options).transform(program, '/discarded-sequence-tail.cjs')?.code ?? program;
+    const original = { exports: null };
+    const transformed = { exports: null };
+    runInNewContext(program, { module: original });
+    runInNewContext(code, { module: transformed, require });
+    checkDeep(`discarded sequence tail/${ label }`, transformed.exports, original.exports);
+    check(`discarded sequence tail/${ label }/static claim retained`, code.includes('/actual/array/from'), true);
+    if (label === 'mixed claims') check('discarded sequence tail/instance claim retained', code.includes('/actual/function/instance/name'), true);
+  }
+}
+
+// Removing a discarded memo read must keep a shared surviving tail in the rename census.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const source = 'let from, rest; const source = { w: Array, extra: 1 }; '
+    + 'const held = ({ w: { from }, ...rest } = ({ w: { from }, ...rest } = source)); '
+    + 'use(held === source, from([1]), rest);';
+  const code = createPlugin(options).transform(source, '/nested-assignment-tail.cjs')?.code ?? source;
+  for (const [leg, program] of [['native', source], ['transformed', code]]) {
+    let result;
+    runInNewContext(program, {
+      require,
+      use(identity, value, rest) { result = [identity, value[0], rest.extra]; },
+    });
+    checkDeep(`nested assignment tail/${ leg }/identity and values`, result, [true, 1, 1]);
+  }
+}
+
+// A wrapper's native sibling is bound in the capture and has no separate declaration.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, pattern, neighbour] of [
+    ['mixed properties', 'at, [(log.push("key"), "flat")]: flat, length', 'log.push("rhs")'],
+    ['defaulted method', '[(log.push("key"), "flat")]: flat = (log.push("default"), 0)', '7'],
+    ['sole method', '[(log.push("key"), "at")]: at', '7'],
+  ]) {
+    const source = `const log = []; const [{ ${ pattern } }, neighbour] = [Array.prototype, ${ neighbour }]; `
+      + 'module.exports = [neighbour, log];';
+    const code = createPlugin(options).transform(source, '/native-captured-sibling.cjs')?.code ?? source;
+    const original = { exports: null };
+    const transformed = { exports: null };
+    runInNewContext(source, { module: original });
+    runInNewContext(code, { module: transformed, require });
+    checkDeep(`native captured sibling/${ label }/order and binding`, transformed.exports, original.exports);
+    check(`native captured sibling/${ label }/method polyfilled`, code.includes('/actual/array/instance/'), true);
+  }
+}
+
+// Adjacent optional results absorb the method guard without repeating its getter.
+// A plain continuation still distinguishes an absent method from an absent result.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, declaration, call] of [
+    ['stable method', 'const arr', 'arr.at?.(0)'],
+    ['stable quiet computed method', 'const arr', "arr['at']?.(0)"],
+    ['stable optional member', 'const arr', 'arr?.at?.(0)'],
+    ['first receiver prefix', 'const arr', '(mark(), arr).at?.(0)'],
+  ]) {
+    const source = `const events = []; ${ declaration } = [['outer']];
+      Object.defineProperty(arr, 'at', { get() { events.push('lookup'); return function () { return this[0]; }; } });
+      function mark() { events.push('prefix'); }
+      module.exports = [${ call }?.includes('outer'), events];`;
+    const code = createPlugin(options).transform(source, '/stable-optional-result.cjs')?.code ?? source;
+    let refs = 0;
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) refs++;
+      },
+    });
+    check(`adjacent optional result/${ label }/only result capture`, refs, 1);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`adjacent optional result/${ label }/${ leg }`, module.exports,
+        [true, [...label === 'first receiver prefix' ? ['prefix'] : [], 'lookup']]);
+    }
+  }
+  for (const [form, expression, optionalRoot, computedTail] of [
+    ['method call', "arr.at?.(argument())?.[(key(), 'includes')]('outer')", false, true],
+    ['optional member and call', "arr?.at?.(argument())?.[(key(), 'includes')]('outer')", true, true],
+    ['quiet computed member', "arr?.['at']?.(argument())?.includes('outer')", true, false],
+    ['quiet computed call', "arr['at']?.(argument())?.includes('outer')", false, false],
+  ]) {
+    for (const [label, method, returned, rootAbsent, keyThrows, expectedValue, expectedError, effects] of [
+      ['method null', 'null', 'this[0]', false, false, undefined, null, ['lookup']],
+      ['method undefined', 'void 0', 'this[0]', false, false, undefined, null, ['lookup']],
+      ['result null', 'selected', 'null', false, false, undefined, null, ['lookup', 'argument', 'before']],
+      ['result undefined', 'selected', 'void 0', false, false, undefined, null, ['lookup', 'argument', 'before']],
+      ['receiver getter writes', 'selected', 'this[0]', false, false, true, null, ['lookup', 'argument', 'before', ...computedTail ? ['key'] : []]],
+      [
+        'outer key throws',
+        'selected',
+        'this[0]',
+        false,
+        true,
+        computedTail ? undefined : true,
+        computedTail ? 'Error' : null,
+        ['lookup', 'argument', 'before', ...computedTail ? ['key'] : []],
+      ],
+      ['null root', 'selected', 'this[0]', true, false, undefined, optionalRoot ? null : 'TypeError', []],
+    ]) {
+      const source = `const events = []; let arr = [['outer']]; const before = arr; const after = [['inner']];
+        function selected() { events.push(this === before ? 'before' : 'after'); return ${ returned }; }
+        Object.defineProperty(arr, 'at', { get() { events.push('lookup'); arr = after; return ${ method }; } });
+        function argument() { events.push('argument'); return 0; }
+        function key() { events.push('key'); ${ keyThrows ? 'throw new Error("key");' : '' } return 'includes'; }
+        ${ rootAbsent ? 'arr = null;' : '' }
+        let value, error = null;
+        try { value = ${ expression }; } catch (caught) { error = caught.name; }
+        module.exports = [value, error, events];`;
+      const code = createPlugin(options).transform(source, '/adjacent-optional-result.cjs')?.code ?? source;
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        runInNewContext(program, { module, require });
+        checkDeep(`adjacent optional result/${ form }/${ label }/${ leg }`, module.exports,
+          [expectedValue, expectedError, effects]);
+      }
+      let refs = 0;
+      walkAstNodes({
+        root: programOf(code),
+        visit(node) {
+          if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) refs++;
+        },
+      });
+      check(`adjacent optional result/${ form }/${ label }/root and result captures`, refs, 2);
+      check(`adjacent optional result/${ form }/${ label }/actual lookup`, code.includes('/instance/at'), true);
+    }
+  }
+  for (const [label, expression, method, returned, expectedError, effects] of [
+    ['plain absent method', "arr.at?.(argument()).includes('outer')", 'null', 'this[0]', null, ['lookup']],
+    ['plain undefined result', "arr.at?.(argument()).includes('outer')", 'selected', 'void 0', 'TypeError', ['lookup', 'argument', 'before']],
+    ['intermediate absent method', "arr.at?.(argument()).map(x => x)?.includes('outer')", 'null', 'this[0]', null, ['lookup']],
+    ['intermediate undefined result', "arr.at?.(argument()).map(x => x)?.includes('outer')", 'selected', 'void 0', 'TypeError', ['lookup', 'argument', 'before']],
+    ['sealed absent method', "(arr.at?.(argument())).includes('outer')", 'null', 'this[0]', 'TypeError', ['lookup']],
+    ['sealed undefined result', "(arr.at?.(argument())).includes('outer')", 'selected', 'void 0', 'TypeError', ['lookup', 'argument', 'before']],
+  ]) {
+    const source = `const events = []; let arr = [['outer']]; const before = arr; const after = [['inner']];
+      function selected() { events.push(this === before ? 'before' : 'after'); return ${ returned }; }
+      Object.defineProperty(arr, 'at', { get() { events.push('lookup'); arr = after; return ${ method }; } });
+      function argument() { events.push('argument'); return 0; }
+      let value, error = null;
+      try { value = ${ expression }; } catch (caught) { error = caught.name; }
+      module.exports = [value, error, events];`;
+    const code = createPlugin(options).transform(source, '/optional-result-boundary.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`optional result boundary/${ label }/${ leg }`, module.exports, [undefined, expectedError, effects]);
+    }
+  }
+  {
+    const source = `const events = []; let arr = [['outer']]; const before = arr; const after = [['inner']];
+      Object.defineProperty(before, 'at', {
+        get() { events.push('outer lookup'); arr = after; return function () { events.push('outer call'); return this[0]; }; }
+      });
+      Object.defineProperty(after, 'at', {
+        get() { events.push('inner lookup'); return function () { events.push('inner call'); return this[0]; }; }
+      });
+      function read(depth) { return arr?.at?.(depth ? 0 : argument())?.includes(depth ? 'inner' : 'outer'); }
+      function argument() { events.push('argument'); events.push(read(1) ? 'nested true' : 'nested false'); return 0; }
+      module.exports = [read(0), events];`;
+    const code = createPlugin(options).transform(source, '/optional-result-reentry.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`adjacent optional result/argument reentry/${ leg }`, module.exports,
+        [true, ['outer lookup', 'argument', 'inner lookup', 'inner call', 'nested true', 'outer call']]);
+    }
+  }
+}
+
+// Receiver prefixes stay in the first rendered value, before the key and method lookup.
+// A quiet prefix can throw even when the effect harvest carries only its later call.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, expectedRefs, expected, entry] of [
+    [
+      'stable method prefix',
+      `const trace = []; const arr = [1, 2];
+      function prefix() { trace.push('prefix'); }
+      module.exports = [(prefix(), arr).at(0), trace];`,
+      0,
+      [1, ['prefix']],
+      '/instance/at',
+    ],
+    [
+      'stable method key',
+      `const trace = []; const arr = [1, 2];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), arr)[(key(), 'at')](0), trace];`,
+      0,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'completed local write before key',
+      `const trace = []; let arr = [1, 2]; arr = [3, 4];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), arr)[(key(), 'at')](0), trace];`,
+      0,
+      [3, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'nested quiet method prefix',
+      `const trace = []; const quiet = 1, arr = [1, 2];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), (quiet, arr))[(key(), 'at')](0), trace];`,
+      0,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'optional method key',
+      `const trace = []; const arr = [1, 2];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), arr)[(key(), 'at')]?.(0), trace];`,
+      0,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'method getter replaces receiver',
+      `const trace = []; let arr = [1, 2]; const before = arr, after = [3];
+      Object.defineProperty(before, 'at', { get() { trace.push('lookup'); arr = after;
+        return function (index) { trace.push(this === before ? 'held' : 'other'); return this[index]; }; } });
+      function prefix() { trace.push('prefix'); }
+      module.exports = [(prefix(), arr).at(0), arr[0], trace];`,
+      1,
+      [1, 3, ['prefix', 'lookup', 'held']],
+      '/instance/at',
+    ],
+    [
+      'computed key replaces receiver',
+      `const trace = []; let arr = [1, 2]; const before = arr, after = [3];
+      Object.defineProperty(before, 'at', { get() { trace.push('lookup');
+        return function (index) { trace.push(this === before ? 'held' : 'other'); return this[index]; }; } });
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); arr = after; }
+      module.exports = [(prefix(), arr)[(key(), 'at')](0), arr[0], trace];`,
+      1,
+      [1, 3, ['prefix', 'key', 'lookup', 'held']],
+      '/instance/at',
+    ],
+    [
+      'allocation method keeps one identity',
+      `const trace = [];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), [1, 2])[(key(), 'at')](0), trace];`,
+      1,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'guard owns receiver prefix',
+      `const trace = []; const obj = { list: [1, 2] };
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), obj)?.list[(key(), 'at')](0), trace];`,
+      1,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'iterator prefix',
+      `const trace = []; const arr = [1, 2]; const S = Symbol.iterator;
+      function prefix() { trace.push('prefix'); }
+      const it = (prefix(), arr)[S](); module.exports = [it.next().value, trace];`,
+      0,
+      [1, ['prefix']],
+      '/get-iterator',
+    ],
+    [
+      'literal iterator prefix',
+      `const trace = []; function prefix() { trace.push('prefix'); }
+      const it = (prefix(), [1, 2])[Symbol.iterator](); module.exports = [it.next().value, trace];`,
+      0,
+      [1, ['prefix']],
+      '/get-iterator',
+    ],
+    [
+      'iterator key replaces receiver',
+      `const trace = []; let arr = [1, 2]; const after = [3];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); arr = after; }
+      const it = (prefix(), arr)[Symbol[(key(), 'iterator')]](); module.exports = [it.next().value, arr[0], trace];`,
+      1,
+      [1, 3, ['prefix', 'key']],
+      '/get-iterator',
+    ],
+    [
+      'sole constant iterator read',
+      `const trace = []; function key() { trace.push('key'); }
+      const it = [1, 2][Symbol[(key(), 'iterator')]](); module.exports = [it.next().value, trace];`,
+      0,
+      [1, ['key']],
+      '/get-iterator',
+    ],
+    [
+      'sole constant iterator method read',
+      `const trace = []; function key() { trace.push('key'); }
+      const method = [1, 2][(key(), Symbol.iterator)]; module.exports = [method.call([4]).next().value, trace];`,
+      0,
+      [4, ['key']],
+      '/get-iterator-method',
+    ],
+    [
+      'sole lookup with an effectful element',
+      `const trace = []; function value() { trace.push('value'); return 1; }
+      function key() { trace.push('key'); }
+      const it = [value()][Symbol[(key(), 'iterator')]](); module.exports = [it.next().value, trace];`,
+      1,
+      [1, ['value', 'key']],
+      '/get-iterator',
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/receiver-prefix.cjs')?.code ?? source;
+    let refs = 0;
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) refs++;
+      },
+    });
+    check(`receiver prefix/${ label }/required captures`, refs, expectedRefs);
+    check(`receiver prefix/${ label }/actual helper`, code.includes(entry), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`receiver prefix/${ label }/${ leg }`, module.exports, expected);
+    }
+  }
+  for (const [label, expression, expectedPrefix = []] of [
+    ['method prefix', '(quiet, prefix(), arr).at(0)'],
+    ['method key', "(quiet, prefix(), arr)[(key(), 'at')](0)"],
+    ['nested method key', "(prefix(), (quiet, arr))[(key(), 'at')](0)", ['prefix']],
+    ['optional call key', "(quiet, prefix(), arr)[(key(), 'at')]?.(0)"],
+    ['optional member key', "(quiet, prefix(), arr)?.[(key(), 'at')](0)"],
+    ['iterator prefix', '(quiet, prefix(), arr)[Symbol.iterator]()'],
+    ['iterator key', "(quiet, prefix(), arr)[Symbol[(key(), 'iterator')]]()"],
+    ['iterator method read', '(quiet, prefix(), arr)[(key(), Symbol.iterator)]'],
+  ]) {
+    const source = `const trace = []; const arr = [1, 2]; let error = null;
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      try { ${ expression }; const quiet = 1; } catch (caught) { error = caught.name; }
+      module.exports = [error, trace];`;
+    const code = createPlugin(options).transform(source, '/receiver-prefix-tdz.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`receiver prefix TDZ/${ label }/${ leg }`, module.exports, ['ReferenceError', expectedPrefix]);
+    }
+  }
+  for (const [label, source, helper, expectedArgument, hasCapture] of [
+    ['method receiver only', 'const arr = [1, 2]; (first(), arr).at(0);', '_atMaybeArray', 'SequenceExpression', false],
+    ['iterator receiver only', 'const arr = [1, 2]; (first(), arr)[Symbol.iterator]();', '_getIterator', 'SequenceExpression', false],
+    ['literal iterator receiver only', '(first(), [1, 2])[Symbol.iterator]();', '_getIterator', 'SequenceExpression', false],
+    ['iterator receiver and key', "(first(), second(), arr)[Symbol[(third(), 'iterator')]]();", '_getIterator', 'Identifier', false],
+    ['method receiver and key', "(first(), box.list)[(third(), 'at')](0);", '_at', 'Identifier', true],
+    ['optional method receiver and key', "(first(), arr)[(third(), 'flat')]?.();", '_flatMaybeArray', 'Identifier', false],
+  ]) {
+    const code = createPlugin(options).transform(source, '/receiver-prefix-canon.cjs')?.code ?? source;
+    let lookupArgument = null,
+        wholeCapture = false;
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'CallExpression' && node.callee?.name === helper) lookupArgument = unwrapNode(node.arguments[0])?.type;
+        if (node.type === 'AssignmentExpression' && ORPHAN_REF_PATTERN.test(node.left?.name ?? '')
+        && unwrapNode(node.right)?.type === 'SequenceExpression') wholeCapture = true;
+      },
+    });
+    check(`receiver prefix canon/${ label }/first lookup slot`, lookupArgument, expectedArgument);
+    check(`receiver prefix canon/${ label }/whole first capture`, wholeCapture, hasCapture);
+  }
 }
 
 // the tally reads `counts` at the moment it runs, so it belongs AFTER the last section: standing

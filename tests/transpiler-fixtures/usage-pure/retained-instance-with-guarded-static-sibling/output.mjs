@@ -1,9 +1,7 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-var _ref;
 // A retained instance capture keeps the constructor guard of its later static sibling.
 // A supplied object keeps its own getters and values in source property order.
 const log = [];
@@ -23,5 +21,7 @@ if (supplied) M = {
   }
 };
 let nm, method, other;
-_ref = M, other = _at(_ref), _ref, nm = _nameMaybeFunction(_ref), method = _ref === _Map ? _Map$groupBy : _ref.groupBy, _ref;
+({} = M), {
+  at: other
+} = M, nm = _nameMaybeFunction(M), method = M === _Map ? _Map$groupBy : M.groupBy;
 use(nm, method, other, log);

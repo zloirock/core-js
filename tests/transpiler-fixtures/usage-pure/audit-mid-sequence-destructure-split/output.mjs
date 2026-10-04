@@ -6,7 +6,7 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-var _ref, _ref2, _ref3, _ref4, _ref5, _unused;
+var _ref, _ref2, _ref3, _unused;
 // a destructure assignment in ANY slot of a statement-position SequenceExpression is
 // split into per-expression statements by the shared minifier-shape pre-pass (statement
 // context discards every slot's value, so the split is sound at any position) - the
@@ -22,19 +22,19 @@ of2 = _Array$of;
 post();
 export const r2 = _atMaybeArray(_ref2 = of2(4)).call(_ref2, 0);
 let keys, rest;
-_ref3 = Object, keys = _Object$keys, {
+keys = _Object$keys, {
   keys: _unused,
   ...rest
-} = _ref3, _ref3;
+} = Object;
 use(rest);
 // a destructure buried in a NESTED sequence slot splits too (fixpoint over the products)
 let entries2;
 x();
 entries2 = _Object$entries;
 use();
-export const r3 = _atMaybeArray(_ref4 = entries2({
+export const r3 = _atMaybeArray(_ref3 = entries2({
   b: 2
-})).call(_ref4, 0);
+})).call(_ref3, 0);
 // every statement-list host splits, including a switch-case consequent
 let groupBy2;
 switch (cond) {
@@ -55,4 +55,4 @@ class K {
 }
 export { K };
 // A value-position sequence keeps its tail value while a discarded assignment may be rewritten.
-export const v = (_ref5 = Array, from = _Array$from, _ref5, from([5]));
+export const v = (from = _Array$from, from([5]));
