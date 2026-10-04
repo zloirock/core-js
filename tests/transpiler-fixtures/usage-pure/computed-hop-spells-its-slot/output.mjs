@@ -19,14 +19,10 @@ const [{
   }
 }] = [_globalThis];
 const map = _mapMaybeArray([1]);
-const _ref2 = _globalThis,
-  {
-    [(eff(1), 'Array')]: _ref
-  } = null == _ref2 ? _ref2[""] : _ref2,
-  {
-    prototype: _ref3
-  } = _ref,
-  values = _valuesMaybeArray(_ref3);
+const {
+  [(eff(1), 'Array')]: _ref
+} = null == _globalThis ? _globalThis[""] : _globalThis;
+const values = _valuesMaybeArray(_ref.prototype);
 const {
   [(eff(2), 'Array')]: {
     of

@@ -7,8 +7,8 @@ export const memberReceiver = globalThis.window?.self.orderBox.list[(k++, 'at')]
 export const memberReceiverPlain = globalThis.orderBox.list[(k++, 'at')](0);
 export const deepMemberReceiver = globalThis.window?.self.orderBox.list[(k++, 'includes')]('a');
 
-// a receiver that CANNOT run anything stays in place: a literal builds its value without invoking
-// user code, and a binding is just a read - the negatives that keep the hoist off the common path
+// A literal receiver is constructed before its computed key and reused for the call.
+// An initialized, unchanged local binding can be read directly without a receiver capture.
 const bound = ['ab', 'cd'];
 export const literalReceiver = ['ab', 'cd'][(k++, 'at')](0);
 export const bindingReceiver = bound[(k++, 'at')](0);

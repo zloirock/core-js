@@ -3,7 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref2;
+var _ref;
 // what a chain-assign store hands on is its VALUE, and the name of that value comes from the
 // resolution canon - so an ALIAS of the realm proves the `?.` dead exactly as its literal spelling
 // does, with a receiver-DEPENDENT tail as much as a receiver-independent one. definedness is the
@@ -16,4 +16,4 @@ const plain = {
 };
 export const dependentTail = _atMaybeArray(_ref = (w = gw, _Array$of)(5)).call(_ref, 0);
 export const overProbeAlias = null == (a = probe) ? void 0 : _nameMaybeFunction(_Set.prototype.add);
-export const overPlainAlias = null == (_ref2 = u = plain) ? void 0 : _nameMaybeFunction(_ref2.self.WeakMap.prototype.get);
+export const overPlainAlias = null == (u = plain) ? void 0 : _nameMaybeFunction(u.self.WeakMap.prototype.get);

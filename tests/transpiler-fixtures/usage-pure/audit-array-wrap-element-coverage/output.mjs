@@ -9,14 +9,16 @@ export { anchor };
 
 // every element claimed: the wrapper binds nothing observable and leaves whole, each extraction
 // repeating the coercion its own element performed
+a;
+b;
 const at = _at(a);
 const keys = _keys(b);
 export { at, keys };
 
 // NEGATIVE: an element the claim never touched still COERCES its value (`{}` over a nullish `x`
 // throws), and no extraction repeats that - the wrapper stays
-const at2 = _at(arr);
 const [{}, {}] = [x, arr];
+const at2 = _at(arr);
 export { at2 };
 
 // The surviving binding reads before the following extraction. Its emptied trailing element

@@ -408,6 +408,7 @@ function mark(t, v) {
 }
 {
   function f() {
+    r;
     eff('n');
     const values = _values(r.w);
     const at = _at(r.y);

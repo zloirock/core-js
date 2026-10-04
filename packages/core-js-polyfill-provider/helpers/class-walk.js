@@ -1153,14 +1153,17 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
     if (member.kind === 'get') getterSink?.push(member);
     // ... a getter the proof cannot settle still hands an injecting caller the returns it spells
     const returns = candidateSink && !spreadVetoes && member.kind === 'get' ? [] : null;
-    // the body's own reads are asked in the container's scope: a getter reading another getter runs it
-    const settled = staticMemberReadValue(member,
-      { preservesRead: !spreadVetoes, returnSink: returns, ctx: { scope, adapter, path: null } });
+    // A rescue query must prove the body quiet even for an injecting caller: preserving the getter's
+    // value cannot skip recording the read the caller is about to discard.
+    // The body's own reads are asked in the container's scope: a getter reading another getter runs it.
+    let settled = staticMemberReadValue(member,
+      { preservesRead: !spreadVetoes && !rescuesRead, returnSink: returns, ctx: { scope, adapter, path: null } });
+    if (!settled && rescuesRead) {
+      settled = staticMemberReadValue(member, { preservesRead: true, returnSink: returns });
+      if (settled) rescueSink?.push(member);
+    }
     if (!settled && returns?.length) candidateSink.push(...returns);
-    if (settled || !rescuesRead) return settled;
-    const rescued = staticMemberReadValue(member, { preservesRead: true });
-    if (rescued) rescueSink?.push(member);
-    return rescued;
+    return settled;
   }
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
     let members = container.body?.body ?? [];

@@ -1,3 +1,2 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-var _ref;
-_atMaybeString(_ref = "foo").call(_ref, -1);
+_atMaybeString("foo").call("foo", -1);

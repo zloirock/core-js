@@ -4,15 +4,14 @@ import _at from "@core-js/pure/actual/instance/at";
 // The unknown prototype still needs generic dispatch after the claims move.
 export function read(flag, unknown) {
   for (const R of [flag ? Array : unknown]) {
-    const _ref2 = R,
-      {
+    const {
         prototype: _ref
-      } = _ref2,
+      } = R,
       at = _at(_ref),
       {
         length
       } = _ref,
-      from = _ref2 === Array ? _Array$fromAsync : _ref2.fromAsync;
+      from = R === Array ? _Array$fromAsync : R.fromAsync;
     use(at, length, from);
   }
 }

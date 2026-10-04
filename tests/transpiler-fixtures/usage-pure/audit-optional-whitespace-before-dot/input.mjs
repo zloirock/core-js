@@ -1,5 +1,4 @@
-// whitespace between the optional `?.` and the next member name: the rewrite must
-// round-trip the whitespace preserved.
+// Line breaks before optional and subsequent member hops must not prevent call rewriting.
 a
   ?.b
   .at(0);

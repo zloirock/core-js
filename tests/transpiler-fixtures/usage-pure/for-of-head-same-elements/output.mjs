@@ -267,13 +267,13 @@ for (const viaLater of [{
 
 // an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour
 // element that runs lifts as a statement ahead, in source order (the `push` claims are carriers)
-let _ref8 = rec;
-let viaEmptiedObject = _entries(_ref8.w);
-let viaEmptiedObjectAt = _at(_ref8.y);
+let viaEmptiedObject = _entries(rec.w);
+let viaEmptiedObjectAt = _at(rec.y);
 [viaEmptiedObject, viaEmptiedObjectAt];
 const viaEmptiedWrap = _values(rec.w);
 const viaEmptiedWrapAt = _at(rec.y);
 [viaEmptiedWrap, viaEmptiedWrapAt];
+rec;
 _pushMaybeArray(log).call(log, 'n');
 const viaEmptiedEffect = _keys(rec.w);
 const viaEmptiedEffectAt = _at(rec.y);
@@ -287,13 +287,13 @@ const known = {
   w: Object,
   y: [1]
 };
-const [_ref9] = [known, _pushMaybeArray(log).call(log, 's')];
+const [,] = [known, _pushMaybeArray(log).call(log, 's')];
 const {
   w: {
     is: _unused
   }
-} = _ref9;
+} = known;
 const viaEmptiedStatic = _Object$is;
-const viaEmptiedStaticAt = _atMaybeArray(_ref9.y);
+const viaEmptiedStaticAt = _atMaybeArray(known.y);
 [viaEmptiedStatic, viaEmptiedStaticAt];
 export { viaEmptiedObject, viaEmptiedWrap, viaEmptiedEffect, viaEmptiedLead, viaEmptiedStatic };

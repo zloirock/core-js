@@ -6,30 +6,27 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _at from "@core-js/pure/actual/instance/at";
-var _ref2, _ref4, _ref6, _ref8, _ref10, _ref13;
+var _ref, _ref2, _ref4, _ref5, _ref6, _ref8;
 // A single property keeps its key effect before the extraction and default.
-const _ref = recvA,
-  a = null == _ref ? _ref[""] : (e1(), (_ref2 = _at(_ref)) === void 0 ? dfltA() : _ref2);
+const a = null == recvA ? recvA[""] : (e1(), (_ref = _at(recvA)) === void 0 ? dfltA() : _ref);
 
 // The key, extraction and default all run before the following sibling declarator.
-const _ref3 = recvB,
-  f = null == _ref3 ? _ref3[""] : (e2(), (_ref4 = _flatMaybeArray(_ref3)) === void 0 ? dfltB() : _ref4),
+const f = null == recvB ? recvB[""] : (e2(), (_ref2 = _flatMaybeArray(recvB)) === void 0 ? dfltB() : _ref2),
   other = 1;
 
 // A literal receiver is captured once before its key effect and extraction.
-const _ref5 = [7, 8],
-  i = null == _ref5 ? _ref5[""] : (e3(), (_ref6 = _includesMaybeArray(_ref5)) === void 0 ? dfltC() : _ref6);
+const _ref3 = [7, 8],
+  i = null == _ref3 ? _ref3[""] : (e3(), (_ref4 = _includesMaybeArray(_ref3)) === void 0 ? dfltC() : _ref4);
 
-// An array element with a live default is captured before the guarded extraction.
-const [_ref7] = [recvD];
-const toReversed = (_ref8 = _toReversedMaybeArray(_ref7)) === void 0 ? dfltD() : _ref8;
+// An array element with a live default is evaluated before the guarded extraction.
+const [,] = [recvD];
+const toReversed = (_ref5 = _toReversedMaybeArray(recvD)) === void 0 ? dfltD() : _ref5;
 
 // Destructuring evaluates each key, read and default before the next property.
 // The first default therefore runs before the second key effect.
-const _ref9 = recvE,
-  fl = null == _ref9 ? _ref9[""] : (e4(), (_ref10 = _findLastMaybeArray(_ref9)) === void 0 ? dfltE() : _ref10),
-  _ref11 = _ref9,
-  fli = null == _ref11 ? _ref11[""] : (e5(), _findLastIndexMaybeArray(_ref11));
+const {} = recvE,
+  fl = (e4(), (_ref6 = _findLastMaybeArray(recvE)) === void 0 ? dfltE() : _ref6),
+  fli = null == recvE ? recvE[""] : (e5(), _findLastIndexMaybeArray(recvE));
 const {
   [(e6(), 'toSorted')]: ts = dfltF(),
   ...restF
@@ -37,8 +34,7 @@ const {
 
 // Multiple properties share one captured receiver and retain their native key, read
 // and default order in the declaration.
-const _ref12 = [9],
-  w7 = null == _ref12 ? _ref12[""] : (e7(), (_ref13 = _withMaybeArray(_ref12)) === void 0 ? dfltG() : _ref13),
-  _ref14 = _ref12,
-  t8 = null == _ref14 ? _ref14[""] : (e8(), _toSplicedMaybeArray(_ref14));
+const _ref7 = [9],
+  w7 = null == _ref7 ? _ref7[""] : (e7(), (_ref8 = _withMaybeArray(_ref7)) === void 0 ? dfltG() : _ref8),
+  t8 = null == _ref7 ? _ref7[""] : (e8(), _toSplicedMaybeArray(_ref7));
 export { a, f, i, toReversed, other, fl, fli, ts, restF, w7, t8 };

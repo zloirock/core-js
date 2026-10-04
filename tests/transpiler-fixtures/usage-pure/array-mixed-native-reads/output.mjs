@@ -8,24 +8,24 @@ const numbers = {
   methods: Object,
   value: [4, 8]
 };
-const [_ref] = [numbers, mark()];
+const [,] = [numbers, mark()];
 const {
   methods: {
     is: _unused
   }
-} = _ref;
+} = numbers;
 const is = _Object$is;
-const at = _atMaybeArray(_ref.value);
+const at = _atMaybeArray(numbers.value);
 const text = {
   value: 'abc',
   methods: Math
 };
-const [_ref2] = [text, mark()];
-const includes = _includesMaybeString(_ref2.value);
+const [,] = [text, mark()];
+const includes = _includesMaybeString(text.value);
 const {
   methods: {
     sign: _unused2
   }
-} = _ref2;
+} = text;
 const sign = _Math$sign;
 export { is, at, includes, sign };

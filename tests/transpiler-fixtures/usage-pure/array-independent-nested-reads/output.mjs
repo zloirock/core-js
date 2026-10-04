@@ -2,6 +2,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
 // Independent nested reads retain source order and separate repeated getters.
 export function read(source, effect) {
+  source;
   effect();
   const values = _values(source.w);
   const at = _at(source.y);
