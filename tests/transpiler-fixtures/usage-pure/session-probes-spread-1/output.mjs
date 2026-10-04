@@ -62,11 +62,11 @@ function mark(t, v) {
   _atMaybeArray(x).call(x, 0);
 }
 {
-  const [[_ref2]] = [[[1, 2]]];
+  const [[_ref2]] = [...[[...[[1, 2]]]]];
   const at = _atMaybeArray(_ref2);
 }
 {
-  const [[_ref3]] = [[[1, 2]]];
+  const [[_ref3]] = [[...[[1, 2]]]];
   const at = _atMaybeArray(_ref3);
 }
 {
@@ -119,14 +119,14 @@ function mark(t, v) {
   const at = _at(_ref5);
 }
 {
-  const [_ref6] = [[1, 2], eff()];
+  const [_ref6] = [...[[1, 2]], eff()];
   const at = _atMaybeArray(_ref6);
 }
 {
   const at = _atMaybeArray([1, 2]);
 }
 {
-  const [_ref7] = [[1], eff()];
+  const [_ref7] = [...[[1]], eff()];
   const at = _atMaybeArray(_ref7);
 }
 {

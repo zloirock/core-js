@@ -30,27 +30,25 @@ const {
   extra
 } = _ref2;
 const [_ref3] = pair;
-const _ref4 = _ref3.y;
-const concat = _concatMaybeArray(_ref4);
+const concat = _concatMaybeArray(_ref3.y);
 const {
   keep
 } = _ref3;
-const [_ref5] = pair;
+const [_ref4] = pair;
 // two named siblings beside the claim, one of them a NUMERIC key - the residual re-emits both
 const {
   keep: leadKeep
-} = _ref5;
-const _ref6 = _ref5.y;
-const findLastIndex = _findLastIndexMaybeArray(_ref6);
-const [_ref7] = pair;
+} = _ref4;
+const findLastIndex = _findLastIndexMaybeArray(_ref4.y);
+const [_ref5] = pair;
 // NEGATIVE: a COMPUTED claim key is spelled by its own channel, so the residual cannot re-emit it -
 // the shape keeps its own destructure
-const _ref8 = _ref7.y;
-const findLast = _findLastMaybeArray(_ref8);
+const _ref6 = _ref5.y;
+const findLast = _findLastMaybeArray(_ref6);
 const {
   extra: extra2,
   0: first
-} = _ref8;
+} = _ref6;
 const [{
   y: {
     [_Symbol$iterator]: it,

@@ -1,7 +1,6 @@
-// Reading claims beside a neighbour: a spread keeps its native wrapper, while a finite literal
-// captures the element before dispatch. An effectful computed key retains its native sentinel;
-// a leaf reached only through named hops stays native. Re-readable elements are captured when
-// their neighbours would otherwise move ahead of the property read.
+// Reading claims beside a neighbour: the RHS and its spread run before property dispatch.
+// Stable names need no capture; member reads keep one. An effectful computed key retains
+// its native sentinel, while a leaf reached only through named hops stays native.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const xs = [1];

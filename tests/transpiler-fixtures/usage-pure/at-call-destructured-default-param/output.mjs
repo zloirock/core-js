@@ -1,7 +1,11 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-var _ref;
+// A nested parameter default keeps its receiver memo local to that evaluation.
+// Supplied properties still bypass the default and its dispatch.
 function f({
-  a = _atMaybeArray(_ref = [1]).call(_ref, 0)
+  a = (() => {
+    var _ref;
+    return _atMaybeArray(_ref = [1]).call(_ref, 0);
+  })()
 }) {
   return a;
 }

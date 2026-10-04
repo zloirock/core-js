@@ -1,13 +1,118 @@
 // Context queries must stop at the boundary that answers them. Count syntax-slot
 // and parent reads after parsing, outside the parser's own traversal and scope setup.
 import {
-  collectFileCensus, isForXWriteTarget, isTopLevelThisContext, walkAstNodes,
+  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, walkAstNodes, wrapScopeBindingLookup,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { adapters, createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // Re-emitting each write in a wide scope must not rebuild every sibling path per binding.
+  // Carry the source write under a fresh statement, preserving its source span and ancestry.
+  for (const size of [32, 128]) {
+    for (const deferred of [false, true]) {
+      const names = Array.from({ length: size }, (unused, i) => `rows${ i }`);
+      const source = names.map(name => `${ deferred ? `const holder${ name } = { get value() { ` : '' }
+        ${ name } = [2]; ${ deferred ? '} };' : '' } ${ name }.at(0);`).join('\n');
+      const program = parser.parseAndScope(`let ${ names.join(', ') }; ${ source }`);
+      const writes = parser.collectPaths(program, 'AssignmentExpression');
+      const reads = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'at');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const bindings = reads.map((read, i) => adapter.getBinding(read.scope, names[i], read));
+      const descriptor = Object.getOwnPropertyDescriptor(program, 'get');
+      const originalGet = program.get;
+      let materialized = 0;
+      program.get = function (key, ...args) {
+        const result = originalGet.call(this, key, ...args);
+        if (key === 'body') materialized += result.length;
+        return result;
+      };
+      const label = `${ parser.name }/${ deferred ? 'getter' : 'same' } frame/${ size }`;
+      try {
+        program.get('body');
+        checkTruthy(`${ label }/path counter control`, materialized >= size, `${ materialized } paths`);
+        materialized = 0;
+        writes.forEach((write, i) => {
+          let statement = write;
+          while (statement.parentPath?.node !== program.node) statement = statement.parentPath;
+          statement.replaceWith({ ...statement.node });
+          check(`${ label }/writer ${ i }`, bindingWrittenBeyondItsFrame(bindings[i]), deferred);
+        });
+        checkTruthy(`${ label }/bounded sibling paths`, materialized <= 4 * program.node.body.length, `${ materialized } paths`);
+      } finally {
+        if (descriptor) Object.defineProperty(program, 'get', descriptor);
+        else delete program.get;
+      }
+    }
+  }
+
+  // A receiver's write-frame proof must find its writes without traversing unrelated bodies.
+  // Scope and the canonical write census are prepared before counting this placement query.
+  for (const size of [32, 128]) {
+    const padding = Array.from({ length: size }, (unused, i) => `function padding${ i }() { return [${ i }]; }`).join('\n');
+    for (const [name, source, deferred, cloned] of [
+      ['same frame', 'rows = [2];', false],
+      ['getter frame', 'const holder = { get at() { rows = [2]; } };', true],
+      ['cloned getter frame', 'const holder = { get at() { rows = [2]; } };', true, true],
+    ]) {
+      const program = parser.parseAndScope(`let rows = [1]; ${ padding } ${ source } rows.at(0);`);
+      const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+      const bodies = parser.collectPaths(program, 'FunctionDeclaration', p => p.node.id.name.startsWith('padding'));
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const binding = adapter.getBinding(path.scope, 'rows', path);
+      if (cloned) {
+        check(`${ parser.name }/${ name }/${ size }/original writer frame`, bindingWrittenBeyondItsFrame(binding), deferred);
+        const write = parser.pickPath(program, 'AssignmentExpression');
+        write.replaceWith({ ...write.node, left: { ...write.node.left }, right: { ...write.node.right } });
+      }
+      const descriptors = bodies.map(body => Object.getOwnPropertyDescriptor(body.node, 'body'));
+      let reads = 0;
+      bodies.forEach((body, index) => Object.defineProperty(body.node, 'body', {
+        configurable: descriptors[index].configurable,
+        enumerable: descriptors[index].enumerable,
+        get() { reads++; return descriptors[index].value; },
+      }));
+      try {
+        walkAstNodes({ root: program.node, visit() { return true; } });
+        checkTruthy(`${ parser.name }/${ name }/${ size }/body counter control`, reads >= size, `${ reads } body reads`);
+        reads = 0;
+        check(`${ parser.name }/${ name }/${ size }/writer frame`, bindingWrittenBeyondItsFrame(binding), deferred);
+        check(`${ parser.name }/${ name }/${ size }/no unrelated body scans`, reads, 0);
+      } finally {
+        bodies.forEach((body, index) => Object.defineProperty(body.node, 'body', descriptors[index]));
+      }
+    }
+  }
+
+  // An outer binding cannot be shadowed by a function with no matching parameter property.
+  // Its declaration ancestry must not be walked at every node above every reference.
+  for (const size of [32, 128]) {
+    const program = parser.parseAndScope(`const rows = [1]; function read() { ${ 'rows.at(0);'.repeat(size) } }`);
+    const paths = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'at');
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    const native = paths[0].scope.getBinding('rows');
+    const declaration = native.path;
+    const descriptor = Object.getOwnPropertyDescriptor(declaration, 'parentPath');
+    const { parentPath } = declaration;
+    let reads = 0;
+    Object.defineProperty(declaration, 'parentPath', {
+      configurable: true,
+      get() { reads++; return parentPath; },
+    });
+    try {
+      for (const path of paths) check(`${ parser.name }/outer binding/${ size }/declaration`,
+        lookup(path.scope, 'rows', path)?.path?.node, declaration.node);
+      checkTruthy(`${ parser.name }/outer binding/${ size }/bounded declaration ancestry`, reads > 0 && reads <= 2 * (size + 1), `${ reads } parent reads`);
+    } finally {
+      if (descriptor) Object.defineProperty(declaration, 'parentPath', descriptor);
+      else delete declaration.parentPath;
+    }
+  }
+
   // Repeated calls of one wide reader must inspect its parameter shape once, not per call.
   for (const size of [32, 128]) {
     const params = ['o', ...Array.from({ length: size }, (unused, i) => `p${ i }`)];
@@ -16,6 +121,13 @@ for (const parser of adapters) {
       const box = { rows: [8, 9] }; ${ calls } const result = box.rows;`);
     const fn = parser.pickPath(program, 'FunctionDeclaration', p => p.node.id.name === 'pick').node;
     const result = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result').get('init');
+    const box = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'box');
+    const census = collectFileCensus(program.node, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-pure',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    });
     const descriptors = fn.params.map(param => Object.getOwnPropertyDescriptor(param, 'type'));
     let reads = 0;
     fn.params.forEach((param, index) => Object.defineProperty(param, 'type', {
@@ -27,6 +139,10 @@ for (const parser of adapters) {
       const resolver = parser.makeResolver();
       check(`${ parser.name }/local reader/${ size }/field type`, resolver.resolveNodeType(result)?.constructor, 'Array');
       checkTruthy(`${ parser.name }/local reader/${ size }/bounded parameter scans`, reads > 0 && reads <= 40 * (size + 1), `${ reads } parameter reads`);
+      reads = 0;
+      check(`${ parser.name }/local reader/${ size }/own slot remains unwritten`,
+        adapter.isWrittenContainerSlot('box', ['rows'], box.node, result, result.node), false);
+      checkTruthy(`${ parser.name }/local reader/${ size }/bounded escape scans`, reads > 0 && reads <= 40 * (size + 1), `${ reads } parameter reads`);
     } finally {
       fn.params.forEach((param, index) => Object.defineProperty(param, 'type', descriptors[index]));
     }

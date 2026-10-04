@@ -9,16 +9,14 @@ import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers"
 // must bind the receiver exactly like a call callee, or the raw method runs with
 // `this = undefined` instead of the alias.
 function viaTag(c) {
-  var _ref;
   let M;
-  c ? (_ref = _globalThis, M = _Map, _ref) : 0;
+  c ? (M = _Map, _globalThis) : 0;
   return (M === _Map ? _Map$groupBy : M.groupBy.bind(M))`items`;
 }
 // a sequence-detached tag drops `this` natively - the raw branch must stay unbound
 function viaDetachedTag(c) {
-  var _ref2;
   let P;
-  c ? (_ref2 = _globalThis, P = _Promise, _ref2) : 0;
+  c ? (P = _Promise, _globalThis) : 0;
   return (0, P === _Promise ? _Promise$withResolvers : P.withResolvers)`x`;
 }
 // a paren-wrapped tag keeps the reference natively - binds like the bare form
@@ -31,9 +29,8 @@ function viaWrappedTag(c) {
 }
 // a bracket-key tag resolves the same static slot and binds the same way
 function viaBracketTag(c) {
-  var _ref3;
   let P;
-  c ? (_ref3 = _globalThis, P = _Promise, _ref3) : 0;
+  c ? (P = _Promise, _globalThis) : 0;
   return (P === _Promise ? _Promise$try : P['try'].bind(P))`x`;
 }
 export const r = [viaTag, viaDetachedTag, viaWrappedTag, viaBracketTag];

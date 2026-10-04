@@ -13970,20 +13970,19 @@ for (const [label, sourceType, code, narrowed] of [
 }
 
 // ... and the references that are NOT calls. A reference that only reads a FACT about the function -
-// its type, its truthiness, its string form - is evaluated where it stands and reaches nothing
-// afterwards, so it adds no caller; the position enumeration says which those are. The one arm it hands
-// back is the MEMBER read, and off a function that is exactly where the invokers live
+// its type, truthiness or identity - adds no caller. Coercion may invoke it through a conversion
+// hook, and a member read can expose an invoker; neither proves a closed caller set.
 for (const [label, code, narrowed] of [
   ['a `typeof` reads the type and drops the value', 'const t = typeof f;', true],
   ['... and through a wrapper the position enumeration does not see', 'const t = typeof (f as any);', true],
   ['a truthiness test drops it too', 'if (f) f();', true],
   ['a bare statement reference', 'f;\nf();', true],
   // eslint-disable-next-line no-template-curly-in-string -- the interpolation belongs to the SOURCE under test
-  ['a string interpolation coerces it', 'const s = `${ f }`;\nf();', true],
+  ['a string interpolation coerces it', 'const s = `${ f }`;\nf();', false],
   ['a non-tail sequence slot is evaluated and dropped', 'sink((f, 1));\nf();', true],
   ['a `for...in` head enumerates keys without calling', 'for (const k in f) sink(k);\nf();', true],
   ['a switch discriminant is compared by identity', 'switch (f) { default: }\nf();', true],
-  ['a computed property KEY coerces it to a string', 'const o = { [f]: 1 };\nf();', true],
+  ['a computed property KEY coerces it to a string', 'const o = { [f]: 1 };\nf();', false],
   ['a RETURN hands it to the caller', 'export function outer() { return f; }', false],
   ['an argument slot is the callee\'s call', 'sink(f);', false],
   ['`instanceof` invokes `Symbol.hasInstance` on it', 'const r = o instanceof f;', false],

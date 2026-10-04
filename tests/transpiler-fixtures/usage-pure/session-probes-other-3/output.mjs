@@ -35,30 +35,32 @@ function mark(t, v) {
 }
 {
   const [_ref] = [eff(), r][1];
-  const _ref2 = _ref.w;
-  const values = _values(_ref2);
+  const values = _values(_ref.w);
   const at = _at(_ref.y);
   [values, at];
 }
 {
+  r;
   eff();
   const values = _values(r.w);
   const at = _at(r.y);
   [values, at];
 }
 {
-  const [_ref3] = [r, ...rest];
-  const values = _values(_ref3.w);
-  const at = _at(_ref3.y);
+  const [,] = [r, ...rest];
+  const values = _values(r.w);
+  const at = _at(r.y);
   [values, at];
 }
 {
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
   [values, at];
 }
 {
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
@@ -66,15 +68,18 @@ function mark(t, v) {
   [values, at, keys];
 }
 {
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
+  r;
   eff('m');
   const keys = _keys(r.w);
   const flat = _flatMaybeArray(r.y);
   [values, at, keys, flat];
 }
 {
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
@@ -82,11 +87,13 @@ function mark(t, v) {
   [values, at, q];
 }
 {
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
 }
 {
+  r;
   eff();
   eff2();
   const values = _values(r.w);
@@ -94,6 +101,7 @@ function mark(t, v) {
   [values, at];
 }
 {
+  r;
   eff();
   const values = _values(r.w);
   const at = _at(r.y);
@@ -105,20 +113,20 @@ function mark(t, v) {
   [values, at];
 }
 {
-  const [_ref4] = [r, eff('n')];
+  const [,] = [r, eff('n')];
   const {
-    w: _ref5
-  } = _ref4;
-  const values = _values(_ref5);
+    w: _ref2
+  } = r;
+  const values = _values(_ref2);
   const {
     is
-  } = _ref5;
-  const at = _at(_ref4.y);
+  } = _ref2;
+  const at = _at(r.y);
   [values, is, at];
 }
 {
-  const [_ref6] = [r, eff('n')];
-  const at = _at(_ref6.y);
+  const [,] = [r, eff('n')];
+  const at = _at(r.y);
   at;
 }
 {
@@ -126,10 +134,10 @@ function mark(t, v) {
   at;
 }
 {
-  const [_ref7] = [{
+  const [_ref3] = [{
     y: getArr()
   }];
-  const ci = _at(_ref7.y);
+  const ci = _at(_ref3.y);
   use(ci);
 }
 {
@@ -160,23 +168,23 @@ function mark(t, v) {
   _atMaybeArray(box).call(box, 0);
 }
 {
-  var _ref8;
+  var _ref4;
   const box = [[1]];
-  _atMaybeArray(_ref8 = box[0]).call(_ref8, 0);
+  _atMaybeArray(_ref4 = box[0]).call(_ref4, 0);
 }
 {
-  var _ref9;
+  var _ref5;
   const box = [[1]];
   const [a] = [...rest, box];
   _pushMaybeArray(a).call(a, 's');
-  _at(_ref9 = box[0]).call(_ref9, 0);
+  _at(_ref5 = box[0]).call(_ref5, 0);
 }
 {
-  var _ref10;
+  var _ref6;
   const box = [[1]];
   const [a] = [box];
   _pushMaybeArray(a).call(a, 's');
-  _at(_ref10 = box[0]).call(_ref10, 0);
+  _at(_ref6 = box[0]).call(_ref6, 0);
 }
 {
   const f = id(Array).from;
@@ -235,21 +243,20 @@ function mark(t, v) {
 }
 {
   const k = 'w';
-  const [_ref11] = [{
+  const [_ref7] = [{
     w: [1, 2]
   }];
-  const m = _atMaybeArray(_ref11.w);
+  const m = _atMaybeArray(_ref7.w);
   use(m);
 }
 {
   const k = 'w';
   const {
-    [k]: _ref12
+    [k]: [_ref8]
   } = {
     w: [[1, 2]]
   };
-  const [_ref13] = _ref12;
-  const m = _atMaybeArray(_ref13);
+  const m = _atMaybeArray(_ref8);
   use(m);
 }
 {
@@ -298,16 +305,14 @@ function mark(t, v) {
 }
 {
   const k = 'w';
-  const _ref14 = [1, 2];
-  const m = _atMaybeArray(_ref14);
+  const _ref9 = [1, 2];
   const {
-    [k]: {
-      at: _unused
-    }
+    [k]: {}
   } = {
     ...spread,
-    w: _ref14
+    w: _ref9
   };
+  const m = _atMaybeArray(_ref9);
   use(m);
 }
 {

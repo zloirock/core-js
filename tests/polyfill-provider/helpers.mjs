@@ -36,17 +36,22 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
   arrayLiteralIterableElements,
+  findNearestVarScopeOwner,
   forOfIterableElements,
   bindingBoundName,
+  bindingWrittenBeyondItsFrame,
   buildScopeReassignmentIndex,
   callArgumentPathAt,
   effectiveArgsLength,
+  emptyMemoActivationValue,
   findIifeArgPath,
   annexBHoistOutrunsBinding,
   isSloppyAtPath,
   classDefinitionTimePaths,
   classOwnThisMethodInfo,
   definitionTimeSlotOf,
+  discardedSequenceElement,
+  discardedSequenceElementPath,
   functionScopeBindsVarOrFunction,
   getDirectStatementBody,
   identifierReferencedInSubtree,
@@ -58,6 +63,8 @@ import {
   isAmbientTypeDeclaration,
   isTSTypeOnlyIdentifierPath,
   nonEmittedExpressionAncestor,
+  navComputedKeyEffects,
+  observableSequenceElements,
   peelTransparentWrapperPath,
   positionalElementPath,
   positionalElements,
@@ -84,10 +91,12 @@ import {
   isDirectiveStatement,
   isStatementPosition,
   programPrologueEndIndex,
+  pruneEmptiedHopProps,
   prologueEndIndex,
   resolveBatchDirectivePromotionPolicy,
   isFunctionParamDestructureParent,
   isReusableReceiver,
+  assignmentValueDiscarded,
   methodReadsUsageCensus,
   memberChainKeys,
   migratableClaimSe,
@@ -106,6 +115,7 @@ import {
   useOutrunsWrite,
   writeOutrunsUse,
   writeSitsInEarlySlot,
+  wrapScopeBindingLookup,
   arrayLiteralSlotValue,
   flattenInlineArraySpreads,
   objectLevelPairedProperty,
@@ -120,6 +130,9 @@ import {
 import { brand, tagError, wrapWithCause } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
 import { adapters, babelAdapter, createChecker, findTypeNode } from './harness.mjs';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 
 const { check, checkDeep, checkTruthy, doesNotThrow, finish, runBoth, throwsWith } = createChecker('helpers');
 
@@ -1744,6 +1757,26 @@ check('extractIndirectRequireSEPrefix/optional call no SE prefix',
     },
   }).length, 0);
 
+for (const [label, prefix, expected] of [
+  ['accessor callee prefix', '(box.g, require)', 1],
+  ['optional accessor callee prefix', '(box.g, require)?.', 1],
+  ['nested accessor callee prefix', '(0, (box.g, require))', 1],
+  ['quiet accessor callee prefix', '(box.quietGetter, require)', 0],
+  ['quiet data callee prefix', '(box.quiet, require)', 0],
+]) runBoth(`extractIndirectRequireSEPrefix/scoped ${ label }`, `
+  const box = { get g() { effect(); return 0; }, get quietGetter() { return 0; }, quiet: 0 };
+  ${ prefix }('core-js/es/array/from');
+`, (parser, program, row) => {
+  const stmt = parser.pickPath(program, 'ExpressionStatement', p => !p.parentPath?.node
+    || p.parentPath.node.type === 'Program');
+  for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    check(`${ row }/${ method }/scope answers accessor`,
+      extractIndirectRequireSEPrefix(stmt.node, { scope: stmt.scope, adapter, path: stmt }).length, expected);
+  }
+  check(`${ row }/context-free answer is not reused`, extractIndirectRequireSEPrefix(stmt.node).length, 0);
+});
+
 // --- peelMemoizeWrappers: peel parens / chain ONLY (TS wrappers kept) - shared memo peel ---
 {
   const inner = { type: 'Identifier', name: 'z' };
@@ -1753,7 +1786,7 @@ check('extractIndirectRequireSEPrefix/optional call no SE prefix',
     peelMemoizeWrappers({ type: 'ChainExpression', expression: inner }), inner);
   check('peelMemoizeWrappers/nested wrappers peeled',
     peelMemoizeWrappers({ type: 'ChainExpression', expression: { type: 'ParenthesizedExpression', expression: inner } }), inner);
-  // TS wrappers deliberately NOT peeled - keeps both emitters' memo decision aligned
+  // Source-shape consumers retain the cast; runtime reuse has its own transparent view.
   const tsWrap = { type: 'TSAsExpression', expression: inner };
   check('peelMemoizeWrappers/TSAsExpression NOT peeled', peelMemoizeWrappers(tsWrap), tsWrap);
   check('peelMemoizeWrappers/null safe', peelMemoizeWrappers(null), null);
@@ -1781,7 +1814,7 @@ check('extractIndirectRequireSEPrefix/optional call no SE prefix',
   check('unwrapRuntimeExpr/null safe', unwrapRuntimeExpr(null), null);
 }
 
-// --- isReusableReceiver: peeled node is a bare Identifier or `this` (no memo `_ref` needed) ---
+// --- isReusableReceiver: runtime value and scoped binding prove adjacent reads ---
 check('isReusableReceiver/Identifier', isReusableReceiver({ type: 'Identifier', name: 'x' }), true);
 check('isReusableReceiver/ThisExpression', isReusableReceiver({ type: 'ThisExpression' }), true);
 check('isReusableReceiver/CallExpression', isReusableReceiver({ type: 'CallExpression' }), false);
@@ -1790,10 +1823,435 @@ check('isReusableReceiver/parenthesized Identifier',
   isReusableReceiver({ type: 'ParenthesizedExpression', expression: { type: 'Identifier', name: 'x' } }), true);
 check('isReusableReceiver/chain-wrapped this',
   isReusableReceiver({ type: 'ChainExpression', expression: { type: 'ThisExpression' } }), true);
-// TS wrapper is NOT peeled, so a TS-wrapped Identifier still needs a memo ref
-check('isReusableReceiver/TS-wrapped Identifier needs ref',
-  isReusableReceiver({ type: 'TSAsExpression', expression: { type: 'Identifier', name: 'x' } }), false);
+check('isReusableReceiver/TS-wrapped Identifier uses the runtime view',
+  isReusableReceiver({ type: 'TSAsExpression', expression: { type: 'Identifier', name: 'x' } }), true);
 check('isReusableReceiver/null safe', isReusableReceiver(null), false);
+check('isReusableReceiver/identifier across key effects',
+  isReusableReceiver({ type: 'Identifier', name: 'x' }, { interveningEffects: true }), false);
+check('isReusableReceiver/this across key effects',
+  isReusableReceiver({ type: 'ThisExpression' }, { interveningEffects: true }), true);
+check('isReusableReceiver/parenthesized identifier across key effects',
+  isReusableReceiver({ type: 'ParenthesizedExpression', expression: { type: 'Identifier', name: 'x' } },
+    { interveningEffects: true }), false);
+for (const [label, source, expected, keyExpected = expected, calleeExpected = expected] of [
+  ['const', 'const rows = []; rows.at(0);', true],
+  ['unchanged let', 'let rows = []; rows.at(0);', true],
+  ['live import', "import { rows } from './rows.js'; rows.at(0);", false],
+  ['getter writes let', 'let rows = []; const box = { get at() { rows = []; } }; rows.at(0);', false, false, true],
+  ['unbound', 'rows.at(0);', true, true, false],
+  ['unbound optional method', 'rows.at?.(0);', true, true, false],
+  ['pristine builtin', 'Array.at(0);', true, true, true],
+]) runBoth(`isReusableReceiver/scoped ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(row, isReusableReceiver(path.node.object, { ctx: { scope: path.scope, adapter, path } }), expected);
+  check(`${ row }/direct callee`, isReusableReceiver(path.node.object, { directCallee: true, ctx: { scope: path.scope, adapter, path } }), calleeExpected);
+  check(`${ row }/key effects require stable binding`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx: { scope: path.scope, adapter, path } }), keyExpected);
+});
+
+for (const [label, source, writes, expected] of [
+  ['written realm name', 'rows.at(0);', ['globalThis.rows'], false],
+  ['unrelated realm write', 'rows.at(0);', ['globalThis.other'], true],
+  ['erased realm name', 'declare const rows: number[]; rows.at(0);', ['globalThis.rows'], false],
+  ['runtime shadow', 'const rows = []; rows.at(0);', ['globalThis.rows'], true],
+  ['written builtin', 'Array.at(0);', ['globalThis.Array'], false],
+]) runBoth(`isReusableReceiver/realm store ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(writes),
+  });
+  check(row, isReusableReceiver(path.node.object, { ctx: { scope: path.scope, adapter, path } }), expected);
+});
+
+for (const [label, source, expected, effectExpected = expected, calleeExpected = effectExpected] of [
+  ['ambient const', 'declare const rows: number[]; rows.at(0);', true, true, false],
+  ['ambient let', 'declare let rows: number[]; rows.at(0);', true, true, false],
+  ['ambient var', 'declare var rows: number[]; rows.at(0);', true, true, false],
+  ['ambient function', 'declare function rows(): number[]; rows.at(0);', true, true, false],
+  ['ambient class', 'declare class rows { static at(index: number): number; } rows.at(0);', true, true, false],
+  ['ambient wrapped', 'declare const rows: number[]; (rows as number[]).at(0);', true, true, false],
+  ['ambient write before read', 'declare let rows: number[]; rows = other; rows.at(0);', true, true, false],
+  ['ambient write after read', 'declare let rows: number[]; rows.at(0); rows = other;', true, true, false],
+  ['ambient deferred writer', 'declare let rows: number[]; function write() { rows = other; } rows.at(0);', false, false],
+  ['runtime const', 'const rows: number[] = []; rows.at(0);', true],
+  ['runtime parameter', 'function probe(rows: number[]) { return rows.at(0); }', true],
+  ['runtime shadow', 'declare const rows: number[]; function probe(rows: number[]) { return rows.at(0); }', true],
+]) runBoth(`isReusableReceiver/runtime declaration ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effect`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), effectExpected);
+  check(`${ row }/direct callee does not revive an erased binding`,
+    isReusableReceiver(path.node.object, { directCallee: true, ctx }), calleeExpected);
+});
+
+runBoth('isReusableReceiver/guarded ambient receiver', 'declare const rows: number[][]; (rows as number[][]).flat?.().includes(1);',
+  (parser, program, row) => {
+    const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'flat');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    check(row, isReusableReceiver(path.node.object, { ctx }), true);
+    check(`${ row }/key effect`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), true);
+  });
+
+for (const [label, source, discarded] of [
+  ['statement tail', 'let x; (before(), ({ x } = source));', true],
+  ['nested statement tail', 'let x; (before(), (inside(), ({ x } = source)));', true],
+  ['sequence prefix', 'let x; consume((({ x } = source), after()));', true],
+  ['used sequence tail', 'let x; const result = (before(), ({ x } = source));', false],
+  ['returned sequence tail', 'let x; function read() { return (before(), ({ x } = source)); }', false],
+]) runBoth(`assignmentValueDiscarded/${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'AssignmentExpression');
+  check(row, assignmentValueDiscarded(path), discarded);
+  check(`${ row }/sequence value`, discardedSequenceElement(path), discarded);
+  check(`${ row }/replacement owns its element`, !!discardedSequenceElementPath(path), discarded);
+});
+
+for (const source of [
+  'const rows = []; rows;',
+  'rows;',
+  'class C extends B { constructor() { this; super(); } }',
+  'Object.value;',
+]) runBoth(`observableSequenceElements/first source read ${ source }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'ExpressionStatement');
+  const ctx = { scope: path.scope, adapter: parser, path };
+  check(row, observableSequenceElements([path.node.expression], ctx, { preserveSourceReads: true }).length, 1);
+});
+
+for (const [label, source, names] of [
+  [
+    'root and key prefixes',
+    '(rootFirst, rootLast, value)[(keyFirst, keyLast, "x")][(leafFirst, leafLast, "y")];',
+    ['rootFirst', 'rootLast', 'keyFirst', 'keyLast', 'leafFirst', 'leafLast'],
+  ],
+  ['optional member spine', '(rootRead, value)?.[(keyRead, "x")].y;', ['rootRead', 'keyRead']],
+  ['nested sequence keys', '(rootRead, (rootInner, value))[(keyRead, (keyInner, "x"))];', ['rootRead', 'rootInner', 'keyRead', 'keyInner']],
+  ['quiet first reads remain', 'value[(quietRead, "x")];', ['quietRead']],
+]) runBoth(`navComputedKeyEffects/${ label }`, source, (parser, program, row) => {
+  const [{ expression }] = program.node.body;
+  const effects = navComputedKeyEffects(expression);
+  checkDeep(row, effects.map(node => node.name), names);
+  for (let i = 0; i < names.length; i++) {
+    const sourcePath = parser.pickPath(program, 'Identifier', p => p.node.name === names[i]);
+    check(`${ row }/source identity ${ i }`, effects[i], sourcePath.node);
+  }
+});
+
+for (const [label, source, expected, mutatedStatics = []] of [
+  ['unused function writer', 'let rows = []; function write() { rows = other; } rows.at(0);', true],
+  ['unused arrow writer', 'let rows = []; const write = () => { rows = other; }; rows.at(0);', true],
+  ['negated function writer', 'let rows = []; (!function () { rows = other; })(); rows.at(0);', true],
+  ['native literal forEach writer', 'let rows = []; [0].forEach(() => { rows = other; }); rows.at(0);', true],
+  ['unknown forEach writer', 'let rows = []; collection.forEach(() => { rows = other; }); rows.at(0);', false],
+  ['replaced forEach writer', 'let rows = []; Array.prototype.forEach = handOut; [0].forEach(() => { rows = other; }); rows.at(0);', false, ['Array.prototype.forEach']],
+  ['completed function writer', 'let rows = []; function write() { rows = other; } write(); rows.at(0);', true],
+  ['later function writer', 'let rows = []; function write() { rows = other; } [rows.at(0), write()];', true],
+  ['closed transitive writer', 'let rows = []; function write() { rows = other; } function invoke() { write(); } invoke(); rows.at(0);', true],
+  ['discarded generator', 'let rows = []; (function* () { rows = other; })(); rows.at(0);', true],
+  ['discarded async generator', 'let rows = []; (async function* () { rows = other; })(); rows.at(0);', true],
+  ['nonconstructible arrow', 'let rows; try { new (() => { rows = other; })(); } catch {} rows.at(0);', true],
+  ['closed discarded construction', 'let rows = []; new function () { rows = other; }(); rows.at(0);', true],
+  ['unused field class', 'let rows = []; class Writer { value = (rows = other); } rows.at(0);', true],
+  ['unused private field class', 'let rows = []; class Writer { #value = (rows = other); } rows.at(0);', true],
+  ['completed field class', 'let rows = []; class Writer { value = (rows = other); } new Writer(); rows.at(0);', true],
+  ['callback consumer', 'let rows = []; function write() { rows = other; } handOut(write); rows.at(0);', false],
+  ['getter caller', 'let rows = []; function write() { rows = other; } const box = { get value() { write(); } }; rows.at(0);', false],
+  ['coerced function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write + 0); } }; rows.at(0);', false],
+  ['compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write == 1); } }; rows.at(0);', false],
+  ['ordered function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write < 2); } }; rows.at(0);', false],
+  // eslint-disable-next-line no-template-curly-in-string -- the test source contains a template
+  ['interpolated function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void `${ write }`; } }; rows.at(0);', false],
+  ['keyed function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void ({ [write]: 1 }); } }; rows.at(0);', false],
+  ['discarded function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void write; } }; rows.at(0);', true],
+  ['identity-compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write === other); } }; rows.at(0);', true],
+  ['null-compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write == null); } }; rows.at(0);', true],
+  ['undefined-compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write != void 0); } }; rows.at(0);', true],
+  ['recursive caller', 'let rows = []; function write() { rows = other; write(); } write(); rows.at(0);', false],
+  ['exported writer', 'let rows = []; export function write() { rows = other; } rows.at(0);', false],
+  ['arguments identity escape', 'let rows = []; function write() { saved = arguments.callee; rows = other; } write(); rows.at(0);', false],
+  ['constructor instance retained', 'let rows = []; const instance = new function () { rows = other; }(); rows.at(0);', false],
+  ['constructor instance coerced', 'let rows = []; void (new function () { rows = other; }() + 0); rows.at(0);', false],
+  ['named constructor instance coerced', 'let rows = []; function Writer() { rows = other; } void (new Writer() + 0); rows.at(0);', false],
+  ['constructor instance escape', 'let rows = []; new function () { save(this); rows = other; }(); rows.at(0);', false],
+  ['constructor self escape', 'let rows = []; new function again() { save(again); rows = other; }(); rows.at(0);', false],
+  ['retained generator', 'let rows = []; const iterator = (function* () { rows = other; })(); iterator.next(); rows.at(0);', false],
+  ['coerced generator result', 'let rows = []; void ((function* () { rows = other; })() + 0); rows.at(0);', false],
+  ['named generator result coerced', 'let rows = []; function* writer() { rows = other; } void (writer() + 0); rows.at(0);', false],
+  ['discarded generator resume', 'let rows = []; (function* () { rows = other; })().next(); rows.at(0);', true],
+  ['discarded suspended generator', 'let rows = []; (function* () { rows = other; yield 1; rows = other; })().next(); rows.at(0);', true],
+  ['yielded writer escapes', 'let rows = []; const write = (function* () { yield () => { rows = other; }; })().next().value; rows.at(0);', false],
+  ['native timeout callback', 'let rows = []; setTimeout(() => { rows = other; }); rows.at(0);', true],
+  ['native interval callback', 'let rows = []; setInterval(() => { rows = other; }); rows.at(0);', true],
+  ['native immediate callback', 'let rows = []; setImmediate(() => { rows = other; }); rows.at(0);', true],
+  ['native microtask callback', 'let rows = []; queueMicrotask(() => { rows = other; }); rows.at(0);', true],
+  ['native animation callback', 'let rows = []; requestAnimationFrame(() => { rows = other; }); rows.at(0);', true],
+  ['native idle callback', 'let rows = []; requestIdleCallback(() => { rows = other; }); rows.at(0);', true],
+  ['shadowed timeout callback', 'let rows = []; function setTimeout(fn) { handOut(fn); } setTimeout(() => { rows = other; }); rows.at(0);', false],
+  ['overwritten timeout callback', 'let rows = []; setTimeout = handOut; setTimeout(() => { rows = other; }); rows.at(0);', false, ['globalThis.setTimeout']],
+  ['class constructed by getter', 'let rows = []; class Writer { value = (rows = other); } const box = { get at() { new Writer(); } }; rows.at(0);', false],
+  ['private class constructed by getter', 'let rows = []; class Writer { #value = (rows = other); } const box = { get at() { new Writer(); } }; rows.at(0);', false],
+  ['class static identity escape', 'let rows = []; class Writer { static { save(this); } value = (rows = other); } rows.at(0);', false],
+]) runBoth(`isReusableReceiver/closed writer ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at' && p.node.object.name === 'rows');
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    collectBindingReferences: resolver.collectBindingReferences,
+    getMutatedStatics: () => new Set(mutatedStatics),
+  });
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effects keep nonlocal writers captured`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), false);
+});
+
+// Function.caller can retain even an anonymous arrow after its closed call completes.
+// Strict code closes that implicit identity channel; an unrun body never opens it.
+for (const [label, invocation, expected] of [
+  ['sloppy forEach function', '[0].forEach(function () { steal(); rows = other; });', false],
+  ['sloppy forEach arrow', '[0].forEach(() => { steal(); rows = other; });', false],
+  ['sloppy direct IIFE', '(function () { steal(); rows = other; })();', false],
+  ['sloppy closed named call', 'function write() { steal(); rows = other; } write();', false],
+  ['sloppy closed forwarder', '(fn => fn())(() => { steal(); rows = other; });', false],
+  ['sloppy generator resume', '(function* () { steal(); rows = other; })().next();', false],
+  ['sloppy discarded generator default', '(function* (value = steal()) { rows = other; })();', false],
+  ['sloppy discarded async generator default', '(async function* (value = steal()) { rows = other; })();', false],
+  ['sloppy scheduler callback', 'setTimeout(function () { steal(); rows = other; });', false],
+  ['quiet sloppy forwarder', '(fn => fn())(() => { rows = ["held"]; });', true],
+  ['quiet sloppy named writer', 'const held = []; function write() { rows = held; } write();', true],
+  ['sloppy parameter default', '[0].forEach(function (value = steal()) { rows = ["held"]; });', false],
+  ['sloppy property read', 'const held = {}; [0].forEach(() => { rows = held.value; });', false],
+  ['sloppy coercion', 'const held = {}; [0].forEach(() => { rows = held + 1; });', false],
+  ['sloppy global store', '[0].forEach(() => { unknown = []; rows = ["held"]; });', false],
+  ['strict callback', '[0].forEach(function () { "use strict"; steal(); rows = other; });', true],
+  ['strict named writer', 'function write() { "use strict"; steal(); rows = other; } write();', true],
+  ['unused sloppy writer', 'function write() { steal(); rows = other; } void write;', true],
+  ['unrun sloppy generator', '(function* () { steal(); rows = other; })();', true],
+  ['unrun sloppy generator literal default', '(function* (value = 1) { steal(); rows = other; })();', true],
+]) runBoth(`isReusableReceiver/caller escape ${ label }`, `let rows = [];
+function steal() { save(steal.caller); }
+${ invocation }
+rows.at(0);`, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    collectBindingReferences: resolver.collectBindingReferences,
+  });
+  check(row, isReusableReceiver(path.node.object, { ctx: { scope: path.scope, adapter, path } }), expected);
+}, undefined, 'script');
+
+for (const [wrapper, wrap] of [
+  ['as', receiver => `(${ receiver } as any)`],
+  ['satisfies', receiver => `(${ receiver } satisfies unknown)`],
+  ['non-null', receiver => `${ receiver }!`],
+]) for (const [label, source, expected, effectsExpected] of [
+  ['constant', receiver => `const rows = []; ${ receiver }.at(0);`, true, true],
+  ['parameter', receiver => `function probe(rows: number[]) { return ${ receiver }.at(0); }`, true, true],
+  ['parameter default', receiver => `function probe(rows: number[], value = ${ receiver }.at(0)) { return value; }`, true, true],
+  ['instance field', receiver => `function probe(rows: number[]) { return class Reader { value = ${ receiver }.at(0); }; }`, true, true],
+  ['completed parameter write', receiver => `function probe(rows: number[]) { rows = other; return ${ receiver }.at(0); }`, true, true],
+  ['unbound adjacent read', receiver => `${ receiver }.at(0);`, true, true],
+  ['live import', receiver => `import { rows } from './rows.js'; ${ receiver }.at(0);`, false, false],
+  ['getter writer', receiver => `let rows = []; const box = { get at() { rows = []; } }; ${ receiver }.at(0);`, false, false],
+  ['deferred writer', receiver => `function probe(rows: number[]) { function write() { rows = other; } return ${ receiver }.at(0); }`, false, false],
+  ['resumable owner', receiver => `function* probe(rows: number[]) { yield () => ${ receiver }.at(0); rows = other; }`, false, false],
+  ['this', () => `function probe() { return ${ wrap('this') }.at(0); }`, true, true],
+  ['allocated receiver', () => `${ wrap('[]') }.at(0);`, false, false],
+]) runBoth(`isReusableReceiver/TS ${ wrapper }/${ label }`, source(wrap('rows')), (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const receiver = path.node.object;
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(receiver, { ctx }), expected);
+  check(`${ row }/key effects use the same binding proof`, isReusableReceiver(receiver, { interveningEffects: true, ctx }), effectsExpected);
+  checkTruthy(`${ row }/source wrapper retained`, receiver !== unwrapRuntimeExpr(receiver));
+});
+
+for (const [label, source, expected, receiverExpected] of [
+  ['mutable local', 'let forward; if (flag) forward = () => []; forward();', true, true],
+  ['live import', "import { forward } from './forward.js'; forward();", false, false],
+  ['unbound accessor', 'forward();', false, true],
+]) runBoth(`isReusableReceiver/direct callee ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'CallExpression', p => p.node.callee.name === 'forward');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(path.node.callee, { directCallee: true, ctx }), expected);
+  check(`${ row }/ordinary receiver uses its frame proof`, isReusableReceiver(path.node.callee, { ctx }), receiverExpected);
+  check(`${ row }/intervening effects use the binding proof`, isReusableReceiver(path.node.callee, { directCallee: true, interveningEffects: true, ctx }), expected);
+});
+check('isReusableReceiver/direct callee keeps this', isReusableReceiver({ type: 'ThisExpression' }, { directCallee: true, interveningEffects: true }), true);
+
+for (const [label, source, expected, writerExpected, effectExpected = expected] of [
+  ['parameter written before lookup', 'function probe(rows) { rows = readAnything(); return rows.at(0); }', true, false],
+  ['local written before lookup', 'function probe() { let rows = []; rows = other; return rows.at(0); }', true, false],
+  ['local written after lookup', 'function probe() { let rows = []; const value = rows.at(0); rows = other; return value; }', true, false],
+  ['conditional local write', 'function probe(rows) { if (flag) rows = other; return rows.at(0); }', true, false],
+  ['loop writes before lookup', 'function probe(rows) { for (let i = 0; i < 2; i++) rows = other; return rows.at(0); }', true, false],
+  ['block lexical write', 'function probe() { { let rows = []; rows = other; return rows.at(0); } }', true, false],
+  ['immediately invoked read', 'function probe(rows) { rows = other; return (() => rows.at(0))(); }', true, false],
+  ['deferred read without deferred writer', 'function probe(rows) { rows = other; return () => rows.at(0); }', true, false],
+  ['module writer before nested reader', 'let rows = []; rows = other; function probe() { return rows.at(0); }', true, false],
+  ['nested parameter default read', 'function outer(rows) { rows = other; function probe(value = rows.at(0)) { return value; } return probe; }', true, false],
+  ['instance field read', 'function outer(rows) { rows = other; return class Probe { value = rows.at(0); }; }', true, false],
+  ['generator deferred reader', 'function* outer(rows) { yield () => rows.at(0); rows = other; }', false, false],
+  ['generator current reader', 'function* outer(rows) { rows = other; yield rows.at(0); }', true, false],
+  ['nested generator lexical block reader', 'function* outer() { { let rows = []; yield () => rows.at(0); rows = other; } }', false, false],
+  ['closed synchronous writer', 'let rows = []; (() => { rows = other; })(); rows.at(0);', true, false, false],
+  ['closed function writer', 'let rows = []; (function () { rows = other; })(); rows.at(0);', true, false, false],
+  ['closed tagged writer', 'let rows = []; (function () { rows = other; })``; rows.at(0);', true, false, false],
+  ['closed callback forwarder', 'let rows = []; (fn => fn())(() => { rows = other; }); rows.at(0);', true, false, false],
+  ['closed block callback forwarder', 'let rows = []; (function (fn) { return fn(); })(() => { rows = other; }); rows.at(0);', true, false, false],
+  ['callback escapes from forwarder', 'let rows = []; let saved; (fn => (saved = fn, fn()))(() => { rows = other; }); rows.at(0);', false, true],
+  ['callback returned from forwarder', 'let rows = []; const saved = (fn => fn)(() => { rows = other; }); rows.at(0);', false, true],
+  ['unknown callback consumer', 'let rows = []; handOut(() => { rows = other; }); rows.at(0);', false, true],
+  ['default callback forwarding parameter', 'let rows = []; ((fn = save()) => fn())(() => { rows = other; }); rows.at(0);', false, true],
+  ['self-escaped forwarded callback', 'let rows = []; let saved; (fn => fn())(function again() { saved = again; rows = other; }); rows.at(0);', false, true],
+  ['arguments-escaped forwarded callback', 'let rows = []; let saved; (fn => fn())(function () { saved = arguments.callee; rows = other; }); rows.at(0);', false, true],
+  ['suspended forwarded callback', 'let rows = []; (fn => fn())(async () => { await pause(); rows = other; }); rows.at(0);', false, true],
+  ['self-named forwarding parameter', 'let rows = []; (function fn(fn) { return fn(); })(() => { rows = other; }); rows.at(0);', false, true],
+  ['closed async writer without suspension', 'let rows = []; (async () => { rows = other; })(); rows.at(0);', true, false, false],
+  ['async writer with suspension', 'let rows = []; (async () => { await first; rows = other; })(); rows.at(0);', false, true],
+  ['escaped named immediate writer', 'let rows = []; let saved; (function again() { saved = again; rows = other; })(); rows.at(0);', false, true],
+  ['arguments immediate writer', 'let rows = []; let saved; (function () { saved = arguments.callee; rows = other; })(); rows.at(0);', false, true],
+  ['constructed writer with callable result', 'let rows = []; const result = new function () { rows = other; }(); rows.at(0);', false, true],
+  ['closure writer', 'function probe(rows) { function write() { rows = other; } return rows.at(0); }', false, true],
+  ['getter writer', 'function probe(rows) { const box = { get value() { rows = other; } }; return rows.at(0); }', false, true],
+  ['method writer', 'function probe(rows) { const box = { write() { rows = other; } }; return rows.at(0); }', false, true],
+  ['instance field writer', 'function probe(rows) { class Writer { value = (rows = other); } return rows.at(0); }', false, true],
+  ['private field writer', 'function probe(rows) { class Writer { #value = (rows = other); } return rows.at(0); }', false, true],
+  ['static field write', 'function probe(rows) { class Writer { static value = (rows = other); } return rows.at(0); }', true, false],
+  ['computed field key write', "function probe(rows) { class Writer { [(rows = other, 'value')] = 0; } return rows.at(0); }", true, false],
+  ['computed method key write', "function probe(rows) { const box = { [(rows = other, 'value')]() {} }; return rows.at(0); }", true, false],
+  ['computed class method key write', "function probe(rows) { class Writer { [(rows = other, 'value')]() {} } return rows.at(0); }", true, false],
+]) runBoth(`isReusableReceiver/adjacent reads ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  const binding = adapter.getBinding(path.scope, path.node.object.name, path);
+  check(`${ row }/writer frame`, bindingWrittenBeyondItsFrame(binding), writerExpected);
+  check(row, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effects use the same activation proof`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), effectExpected);
+  check(`${ row }/missing owner supplies no frame proof`, isReusableReceiver(path.node.object, { ctx: { ...ctx, path: null } }), false);
+});
+
+runBoth('isReusableReceiver/definition-time method decorator write',
+  'function probe(rows) { class Writer { @decorate(rows = other) value() {} } return rows.at(0); }',
+  (parser, program, row) => {
+    const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const binding = adapter.getBinding(path.scope, path.node.object.name, path);
+    check(`${ row }/writer frame`, bindingWrittenBeyondItsFrame(binding), false);
+    check(`${ row }/adjacent reuse`, isReusableReceiver(path.node.object, { ctx }), true);
+    check(`${ row }/key effects use the definition-time proof`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), true);
+  }, ['decorators-legacy']);
+
+for (const key of ["(rows = [2], 'at')", "(() => (rows = [2], 'at'))()"]) {
+  runBoth('isReusableReceiver/store inside the computed read', `let rows = [1]; rows[${ key }](0);`,
+    (parser, program, row) => {
+      const path = parser.pickPath(program, 'MemberExpression', p => p.node.computed);
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      check(row, isReusableReceiver(path.node.object, { interveningEffects: true, ctx: { scope: path.scope, adapter, path } }), false);
+    });
+}
+
+for (const source of ["'held'", '12', 'true', 'null', '1n']) runBoth(`isReusableReceiver/primitive ${ source }`, `void 0; ${ source };`,
+  (parser, program, row) => {
+    const node = program.node.body.at(-1).expression;
+    check(row, isReusableReceiver(node), true);
+    check(`${ row }/key effects`, isReusableReceiver(node, { interveningEffects: true }), true);
+  });
+for (const source of ['/held/', '[]', '({})']) runBoth(`isReusableReceiver/allocated identity ${ source }`, `${ source };`,
+  (parser, program, row) => {
+    const node = program.node.body[0].expression;
+    check(row, isReusableReceiver(node), false);
+    check(`${ row }/key effects`, isReusableReceiver(node, { interveningEffects: true }), false);
+  });
+
+for (const [label, source, dropped, expected, carriedImportHint, priorPass] of [
+  ['matching import', 'import _self from "@core-js/pure/actual/self"; _self.at(0);', false, true],
+  ['prior source import', 'import _self from "@core-js/pure/actual/self"; _self.at(0);', false, false, false, true],
+  ['foreign module replaces import', 'import _self from "foreign-module"; _self.at(0);', false, false],
+  ['another pure entry replaces import', 'import _self from "@core-js/pure/actual/global-this"; _self.at(0);', false, false],
+  ['dropped emission is unbound', '_self.at(0);', true, false],
+  ['mutable local shadow', 'let _self = []; function write() { _self = other; } _self.at(0);', false, false],
+  ['mutable alias carries import source', 'let _self = []; function write() { _self = other; } _self.at(0);', false, false, true],
+  ['pending import', '_self.at(0);', false, true],
+]) runBoth(`isReusableReceiver/own import ${ label }`, source, (parser, program, row) => {
+  const state = new ImportInjectorState({ absoluteImports: false, mode: 'actual', pkg: '@core-js/pure', importStyle: 'import' });
+  check(`${ row }/allocated name`, state.addPureImport('self', 'self'), '_self');
+  if (priorPass) state.registerUserPureImport('self', '_self');
+  if (dropped) state.pureImports.clear();
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const realAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', getInjector: () => state });
+  const adapter = carriedImportHint ? {
+    ...realAdapter,
+    getBinding: (...args) => ({ ...realAdapter.getBinding(...args), importSource: '@core-js/pure/actual/self' }),
+  } : realAdapter;
+  const ctx = { scope: path.scope, adapter, path, injectorState: state };
+  check(`${ row }/receiver reuse`, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effects`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), expected);
+  check(`${ row }/first receiver read`, observableSequenceElements([path.node.object], ctx, { preserveSourceReads: true }).length,
+    expected ? 0 : 1);
+});
+
+// An alias initializer carries its declaration scope even when its consumer path
+// sits below an unrelated hoisted variable or constructor parameter with the same name.
+for (const [label, source] of [
+  ['inner var shadow', 'var rows = []; function read() { var rows = globalThis; return rows.at(0); }'],
+  ['inner parameter property', 'const rows = []; class C { constructor(private rows: any) { rows.at(0); } }'],
+]) runBoth(`wrapScopeBindingLookup/explicit declaration scope ${ label }`, source, (parser, program, row) => {
+  const use = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  const native = program.scope.getBinding('rows');
+  const binding = lookup(program.scope, 'rows', use);
+  check(`${ row }/keeps outer declaration`, binding?.path === native.path, true);
+  check(`${ row }/keeps outer scope`, binding?.scope === native.scope, true);
+  check(`${ row }/actual inner scope still shadows`, lookup(use.scope, 'rows', use)?.path === native.path, false);
+});
+
+// A later sibling can add or remove a parameter property on an existing constructor node.
+// A previous lookup must not freeze that constructor's parameter names.
+runBoth('wrapScopeBindingLookup/current parameter property shape',
+  'const rows = []; class C { constructor() { rows.at(0); } }', (parser, program, row) => {
+    const use = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+    const owner = findNearestVarScopeOwner(use).node;
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    const outer = lookup(use.scope, 'rows', use);
+    const property = parser.pickPath(parser.parseAndScope('class C { constructor(public rows: any) {} }'), 'TSParameterProperty').node;
+    owner.params.push(property);
+    check(`${ row }/new property shadows outer binding`, lookup(use.scope, 'rows', use)?.kind, 'param');
+    owner.params.pop();
+    check(`${ row }/removed property restores outer binding`, lookup(use.scope, 'rows', use)?.path, outer.path);
+  });
+
+// Only the exact empty lexical activation an allocator owns may lose its frame.
+for (const [label, source, expected] of [
+  ['owned lexical return', '(() => { return value; })();', true],
+  ['source lexical return', '(() => { return value; })();', false],
+  ['cloned lexical owner', '(() => { return value; })();', false],
+  ['remaining memo', '(() => { var held; return value; })();', false],
+  ['sibling effect', '(() => { effect(); return value; })();', false],
+  ['sibling directive', '(() => { "use strict"; return value; })();', false],
+  ['own parameter', '((held) => { return value; })();', false],
+  ['call argument', '(() => { return value; })(effect());', false],
+  ['async owner', '(async () => { return value; })();', false],
+  ['nonlexical owner', '(function () { return value; })();', false],
+  ['direct body', '(() => value)();', false],
+  ['empty return', '(() => { return; })();', false],
+  ['optional sibling call', '(() => { return value; })?.();', false],
+]) runBoth(`emptyMemoActivationValue/${ label }`, source, (parser, program, row) => {
+  const type = label === 'optional sibling call' && parser.name === 'babel' ? 'OptionalCallExpression' : 'CallExpression';
+  const activationCall = parser.pickPath(program, type).node;
+  // The allocator emits its arrow directly; parser-required callee parens are not its owner.
+  activationCall.callee = unwrapRuntimeExpr(activationCall.callee);
+  const owned = new WeakSet(label === 'source lexical return' ? [] : [activationCall.callee]);
+  if (label === 'cloned lexical owner') activationCall.callee = structuredClone(activationCall.callee);
+  const value = emptyMemoActivationValue(activationCall, owned);
+  check(row, !!value, expected);
+  if (expected) check(`${ row }/preserves actual return expression`, value === activationCall.callee.body.body[0].argument, true);
+});
 
 // --- canonical spread guards (all positional / object-key spread-bail sites delegate here) ---
 // spreadAtOrBefore: a spread AT or BEFORE the index shifts later positions -> true; accepts paths or nodes
@@ -3139,5 +3597,56 @@ runBoth('walkAstNodes/pruning skips descendants and leave', 'outer(first, inner(
   walkAstNodes({ root, visit: () => false, leave() { rootLeft = true; } });
   check(`${ label }: pruned root has no leave`, rootLeft, false);
 });
+
+for (const [label, source] of [
+  ['closed array slot', 'const holder = [[1]]; holder[0].at(0);'],
+  ['closed nested slot', 'const holder = [[[1]]]; holder[0][0].at(0);'],
+  ['closed object slot', 'const holder = { rows: [1] }; holder.rows.at(0);'],
+  ['numeric object slot', 'const holder = { 0: [1] }; holder[0].at(0);'],
+  ['unknown own data override', 'const holder = { rows: [1], [key]: other }; holder.rows.at(0);'],
+  ['spread data override', 'const holder = { rows: [1], ...other }; holder.rows.at(0);'],
+  ['known slot after unknown key', 'const holder = { [key]: other, rows: [[1]] }; holder.rows[0].at(0);'],
+  ['unknown deeper value', 'const holder = { rows: [[1]], [key]: other }; holder.rows[0].at(0);'],
+  ['own slot destructured', 'const holder = { rows: [1] }; const { rows: alias } = holder; alias.push(2); holder.rows.at(0);'],
+  ['inherited slot destructured', 'const holder = { rows: [1] }; const { other: alias } = holder; holder.rows.at(0);'],
+  ['completed slot write', 'const holder = [1]; holder[0] = "a"; holder[0].at(0);'],
+  ['completed holder write', 'let holder = [[1]]; holder = [[2]]; holder[0].at(0);'],
+  ['length preserves slot', 'const holder = [[1], [2]]; holder.length = 1; holder[0].at(0);'],
+  ['truncated slot', 'const holder = [[1], [2]]; holder.length = 1; holder[1].at(0);'],
+  ['empty slot', 'const holder = [, [2]]; holder[0].at(0);'],
+  ['inherited slot', 'const holder = {}; holder.rows.at(0);'],
+  ['getter slot', 'const holder = { get rows() { return [1]; } }; holder.rows.at(0);'],
+  ['opaque method exposes holder', 'const holder = [[1]]; holder.custom(); holder[0].at(0);'],
+  ['method getter exposes holder', 'const holder = [[1]]; const method = holder.splice; holder[0].at(0);'],
+  ['holder handed out', 'const holder = [[1]]; unknown(holder); holder[0].at(0);'],
+  ['inner holder handed out', 'const holder = [[[1]]]; unknown(holder[0]); holder[0][0].at(0);'],
+  ['only leaf handed out', 'const holder = [[1]]; unknown(holder[0]); holder[0].at(0);'],
+  ['deferred slot writer', 'const holder = [[1]]; function change() { holder[0] = [2]; } holder[0].at(0);'],
+  ['deferred holder writer', 'let holder = [[1]]; function change() { holder = [[2]]; } holder[0].at(0);'],
+  ['exported holder', 'export const holder = [[1]]; holder[0].at(0);'],
+  ['dynamic read', 'const holder = [[1]]; holder[key].at(0);'],
+  ['future write', 'const holder = [[1]]; holder[0].at(0); holder[0] = [2];'],
+]) runBoth(`isReusableReceiver/member read captured ${ label }`, source, (parser, program, row) => {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const ctx = { adapter, path, scope: path.scope };
+  check(row, isReusableReceiver(path.node.object, { ctx }), false);
+  check(`${ row }/intervening key effects`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), false);
+});
+
+for (const adapter of adapters) for (const [label, source] of [
+  ['object sibling', 'const { w: { at: method }, z: {} } = holder;'],
+  ['defaulted sibling', 'const { w: { at: method }, z: {} = fallback } = holder;'],
+  ['array sibling', 'const { w: { at: method }, z: [{}] } = holder;'],
+]) {
+  const program = adapter.parseAndScope(source);
+  const pattern = adapter.pickPath(program, 'VariableDeclarator').node.id;
+  const [first, sibling] = pattern.properties;
+  const changed = first.value;
+  changed.properties = [];
+  pruneEmptiedHopProps(pattern, { mint: () => ({ type: 'Identifier', name: '_unused' }), consumedPatterns: new Set([changed]) });
+  check(`${ label } [${ adapter.name }]: only consumed hop retired`, pattern.properties.length, 1);
+  check(`${ label } [${ adapter.name }]: native empty sibling retained`, pattern.properties[0], sibling);
+}
 
 finish();

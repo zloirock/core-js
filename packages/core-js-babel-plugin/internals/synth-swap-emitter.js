@@ -17,6 +17,7 @@ import {
   peelTransparentWrapperPath,
   isMemberWriteHost,
   isReceiverShapedNode,
+  isReusableReceiver,
   peelNestedSequenceExpressions,
   findIifeArgPath,
   getFallbackBranchSlots,
@@ -837,7 +838,18 @@ export default function createSynthSwapEmitter({
         const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter,
           resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }) }) ?? [])
           .map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
-        const needMemo = pending.callBranch && entries.some(entry => !entry.polyfill);
+        const aliasCtx = { scope: path.scope, adapter, path };
+        const synthGuard = planSynthReceiverGuard({ receiver: path.node, ...aliasCtx, resolvePure });
+        // An unguarded fallback uses its resolved left as the memo argument. Cloning a dead
+        // right operand could inject its polyfill again on re-traversal.
+        const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
+        const memoCandidate = pending.callBranch && entries.some(entry => !entry.polyfill);
+        const memoArg = memoCandidate && !synthGuard ? buildMemoArg(memoReceiver, aliasCtx) : null;
+        const memoTail = memoArg && peelNestedSequenceExpressions(memoArg).tail;
+        const reusableMemo = memoTail && isReusableReceiver(memoTail, {
+          interveningEffects: true, ctx: { ...aliasCtx, injectorState: injector },
+        });
+        const needMemo = memoCandidate && !reusableMemo;
         // the memo param is minted via the injector's raw name generator: it must NOT enter
         // the DECLARED ref-set (the arrow-param normalize post-pass strips trailing ref-set
         // params from every function expression - it would relocate this INTENTIONAL IIFE
@@ -845,10 +857,13 @@ export default function createSynthSwapEmitter({
         // generated slot space - babel's own scope UID generator numbered independently and
         // fragmented the print-order canonicalization's universe
         const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
-        const aliasCtx = { scope: path.scope, adapter, path };
-        const synthGuard = planSynthReceiverGuard({ receiver: path.node, ...aliasCtx, resolvePure });
-        const literal = buildSynthLiteral({ receiver: path.node, entries, memoParam, aliasCtx,
-          guardedReceiverPlan: synthGuard && pending.guardedReceiverPlan });
+        const literal = buildSynthLiteral({
+          receiver: reusableMemo ? memoTail : path.node,
+          entries,
+          memoParam,
+          aliasCtx,
+          guardedReceiverPlan: synthGuard && pending.guardedReceiverPlan,
+        });
         if (synthGuard) {
           let guardedValue = literal;
           if (needMemo) {
@@ -865,12 +880,6 @@ export default function createSynthSwapEmitter({
           path.skip();
           return;
         }
-        // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
-        // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
-        // into the memo argument (cloning the whole logical would re-substitute the right global on
-        // re-traversal, leaking a dead `_Set` import and diverging from the unplugin emitter). matches the
-        // all-resolved leftSe path, which likewise collapses to the left
-        const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
         // a multi-hop proxy rescue receiver is DROPPED (re-emit only the harvested SE): keeping it would
         // collapse `globalThis[(eff(), 'self')].Array` to `_self.Array`, importing a `self` proxy that
         // is undefined off-browser. shared `shouldDropRescueReceiver` keeps the drop decision
@@ -906,7 +915,9 @@ export default function createSynthSwapEmitter({
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
             // the memo argument takes the same canonical re-read target as the direct path
-            [buildMemoArg(memoReceiver, aliasCtx)])
+            [memoArg])
+          // The first rendered receiver retains its effects; later reads use its stable value.
+          : reusableMemo ? t.sequenceExpression([memoArg, literal])
           // a throw probe already CARRIES every rescue node the discard would re-emit (the probe is
           // built from the same key-SE list), so no discard prefix rides ahead of it - the
           // unplugin emitter emits the probe alone here too
@@ -937,7 +948,7 @@ export default function createSynthSwapEmitter({
         // left effect (`[1].at(0)`, an IIFE reading `globalThis`) carries its rewrite. a pure left
         // plans nothing, so the clean collapse is unchanged (no fixture churn). suppressed when
         // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
-        if (!needMemo && path.node.type === 'LogicalExpression') {
+        if (!needMemo && !reusableMemo && path.node.type === 'LogicalExpression') {
           // the probe carries the left's read (and its key SE) - the rescue re-emits only the
           // effects the probe does not already run. harvested HERE, not reused from registration:
           // the tree changes between the two phases (sibling visitors polyfill inside the receiver),

@@ -364,8 +364,9 @@ export default function createProxySpineChannel(ctx) {
         markRewrite();
         return true;
       }
-      const extracted = rendered.elements.map(element => element.declarator);
-      for (const [index, element] of rendered.elements.entries()) {
+      const elements = rendered.elements.filter(element => element.declarator);
+      const extracted = elements.map(element => element.declarator);
+      for (const [index, element] of elements.entries()) {
         if (element.guarded) markSubtreeSkipped(skippedNodes, extracted[index]);
       }
       destructureEmit.retireDeclaratorJobs(nested.host);
@@ -391,7 +392,8 @@ export default function createProxySpineChannel(ctx) {
           prop, pattern, chain: [], ...hostKind === 'declarator' ? { declarator: host } : { assignment: host }, local: bindingName,
           guardDetach: detach,
           metaPath, exported, host: pending.host,
-          value: () => chain,
+          value: receiverName => receiverName ? guardChainNode({ ...plan, recvIdent: identifier(receiverName) },
+            memberExpression(identifier(receiverName), identifier(meta.key))) : chain,
         },
       });
       markRewrite();
@@ -789,7 +791,8 @@ export default function createProxySpineChannel(ctx) {
     // value is not that family's to begin with - the store canon owns the whole navigation there,
     // exactly as the shared marking site exempts it
     const proxyRootName = navRootIsProxyIdentifier(node, metaPath, adapter, { requireBareName: true });
-    const rootIsProxyIdentifier = (!realmRunSplitBySequencePrefix(node) || !!storedUserAssignmentOf(metaPath))
+    const rootIsProxyIdentifier = (!realmRunSplitBySequencePrefix(node, { scope: metaPath.scope, adapter, path: metaPath })
+      || !!storedUserAssignmentOf(metaPath))
       && (typeof proxyRootName === 'string' ? !!resolveGlobalPolyfill(proxyRootName) : proxyRootName);
     // ... and a CALL of this claim is not a consumer at all: it INVOKES the binding the
     // claim substitutes and renders nothing of its own, so standing down there shipped the

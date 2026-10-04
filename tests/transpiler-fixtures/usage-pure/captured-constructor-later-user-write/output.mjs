@@ -6,9 +6,8 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // The capture still returns its original realm and evaluates each effect once.
 const log = [];
 function read() {
-  var _ref;
   let C;
-  const realm = (_ref = (_pushMaybeArray(log).call(log, 'rhs'), _globalThis), _pushMaybeArray(log).call(log, 'key'), C = _Map, _ref);
+  const realm = (_pushMaybeArray(log).call(log, 'rhs'), _pushMaybeArray(log).call(log, 'key'), C = _Map, _globalThis);
   C = {
     groupBy: 9
   };

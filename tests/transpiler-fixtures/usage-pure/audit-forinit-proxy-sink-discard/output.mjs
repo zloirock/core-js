@@ -3,7 +3,6 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _self from "@core-js/pure/actual/self";
@@ -19,29 +18,29 @@ function sf() {
   return _globalThis;
 }
 let out1;
-for (const _ref = (sf(), c++), groupBy = _Map$groupBy; c < 3;) {
+for (const groupBy = (sf(), c++, _Map$groupBy); c < 3;) {
   out1 = typeof groupBy;
   c++;
 }
 export const r1 = [out1, c];
 let d = 0;
 let out2;
-for (const _ref2 = d++, resolve = _Promise$resolve; d < 2;) {
+for (const resolve = (d++, _Promise$resolve); d < 2;) {
   out2 = typeof resolve;
   d++;
 }
 export const r2 = [out2, d];
 let a;
 let out3;
-for (const _ref3 = a = _Array$of(2), iterator = _Symbol$iterator; !out3;) {
+for (const iterator = (a = _Array$of(2), _Symbol$iterator); !out3;) {
   out3 = typeof iterator;
 }
 export const r3 = [out3, a.length];
 let q;
 let out4;
-for (const _ref4 = (q = _Object$entries({
-    k: 1
-  }), Array), from = _Array$from; !out4;) {
+for (const from = (q = _Object$entries({
+  k: 1
+}), _Array$from); !out4;) {
   out4 = typeof from;
 }
 export const r4 = [out4, q.length];
@@ -50,7 +49,7 @@ export const r4 = [out4, q.length];
 // throw at loop init off-engine) - a pure-ctor leaf whole-swaps, a native-static leaf re-roots
 // at the pure global
 let out5;
-for (const _ref5 = _self.Array, of = _Array$of; !out5;) {
+for (const of = (_self.Array, _Array$of); !out5;) {
   out5 = typeof of;
 }
 export const r5 = [out5];
