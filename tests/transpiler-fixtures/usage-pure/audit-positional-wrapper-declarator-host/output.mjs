@@ -7,20 +7,18 @@ const nb = {
   y: [1, [2]]
 };
 const assignHost = function () {
-  var _ref;
   let m;
-  [_ref] = [nb];
-  m = _flatMaybeArray(_ref.y);
+  [,] = [nb];
+  m = _flatMaybeArray(nb.y);
   return m;
 }();
 const nestedWrapper = function () {
   const {
-    pair: _ref2
+    pair: [_ref]
   } = {
     pair: [nb]
   };
-  const [_ref3] = _ref2;
-  const flat = _flatMaybeArray(_ref3.y);
+  const flat = _flatMaybeArray(_ref.y);
   return flat;
 }();
 export { assignHost, nestedWrapper };

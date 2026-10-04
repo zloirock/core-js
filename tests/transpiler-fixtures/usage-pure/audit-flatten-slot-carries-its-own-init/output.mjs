@@ -48,9 +48,9 @@ var {
       entries: _Object$entries
     }
   },
-  _ref3 = (eff(), Array),
+  {} = (eff(), Array),
   of4 = (k4++, _Array$of),
   {
     other4
-  } = _ref3;
+  } = Array;
 export { from, at, concat, of, indexOf, fl, f4, of4, other4 };

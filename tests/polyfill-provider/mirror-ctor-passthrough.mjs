@@ -61,4 +61,35 @@ for (const calls of ['read([[]]);', 'read([[]]); read([[]]);', 'read([[]]); read
     });
 }
 
+// An ordinary data literal cannot advance native reads across keys or merge repeated getters.
+for (const [pattern, safe] of [
+  ['Array: { of }, nativeSlot: value', true],
+  ['Array: { of }, [(hit(), "with-dash")]: other, nativeSlot: value', false],
+  ['nativeSlot: value, [(hit(), "Array")]: { of }', true],
+  ['Array: { [(hit(), "of")]: of }, nativeSlot: value', false],
+  ['Array: { of }, nativeSlot: value, nativeSlot: again', false],
+]) runBoth(`native mirror read order/${ pattern }`,
+  `const [{ ${ pattern } } = globalThis] = [];`, (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern', node => node.node.properties[0]?.value?.name === 'of');
+    const adapter = {
+      method: 'usage-pure',
+      isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
+      getStringValue: node => node.value,
+      hasBinding: (scope, name) => !!scope?.getBinding(name),
+      getBinding: (scope, name) => scope?.getBinding(name),
+    };
+    const options = {
+      leafPatternPath,
+      adapter,
+      meta: { object: 'Array', key: 'of', placement: 'static' },
+      resolvePure: meta => meta.object === 'Array' && meta.key === 'of'
+        ? { kind: 'static', entry: 'array/of', hintName: 'Array$of' } : null,
+    };
+    const ordinary = buildNestedParamSynthPlan(options);
+    check(`${ label } data literal admission`, !!ordinary?.targets?.length, safe);
+    const retained = buildNestedParamSynthPlan({ ...options, retainNativeReads: true });
+    check(`${ label } retained capture keeps the claim`, retained?.targets?.length, 1);
+    check(`${ label } retained proof does not own the ordinary plan`, !!buildNestedParamSynthPlan(options)?.targets?.length, false);
+  });
+
 finish();

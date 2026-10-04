@@ -16,7 +16,7 @@ export var viaGuardVarValues = (_ref2 = probeHeld.Object, m++, _values(_ref2));
 // a BARE identifier receiver evaluates without a get - native runs the key SE before its own
 // get throws, so the plain SE prepend keeps native order (no memo)
 export function viaBareReceiver(arr) {
-  return n++, _flatMaybeArray(arr).call(arr);
+  return arr, n++, _flatMaybeArray(arr).call(arr);
 }
 // a static leaf off the guard-held var stays native (unresolved receiver type - claim bails)
 export var viaStaticLeafBail = probeHeld.Array[n++, 'from']('ab');

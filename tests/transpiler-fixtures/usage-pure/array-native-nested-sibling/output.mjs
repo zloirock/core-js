@@ -19,12 +19,12 @@ const receiver = {
   },
   y: 'abc'
 };
-const [_ref] = [receiver, _pushMaybeArray(events).call(events, 'rhs')];
+const [,] = [receiver, _pushMaybeArray(events).call(events, 'rhs')];
 const {
   w: {
     at,
     other
   }
-} = _ref;
-const includes = _includesMaybeString(_ref.y);
+} = receiver;
+const includes = _includesMaybeString(receiver.y);
 export { at, other, includes, events };

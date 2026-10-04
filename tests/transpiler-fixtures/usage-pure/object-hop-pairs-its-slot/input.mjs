@@ -32,6 +32,7 @@ function seqPrefixKeepsLiteral(bump) {
   const { w: { [Symbol.iterator]: viaPrefix } } = { w: (bump(), globalThis) };
   return viaPrefix;
 }
+// The spread reads precede the symbol extraction, as they preceded the native pattern read.
 function symbolBehindSpread(extra) {
   const { w: { [Symbol.iterator]: aheadSymbol } } = { ...extra, w: globalThis };
   return aheadSymbol;
@@ -257,7 +258,7 @@ function holeThenSlot(eff, getArr) {
 }
 
 // A sibling declarator and the captured array positions keep their source order;
-// two leaves off one slot share the one write (`w: _ref = eff()`, both dispatches reading `_ref`)
+// two leaves off one slot share its value without reevaluating its initializer.
 function slotMemoSiblingDecl(eff) {
   const { w: { at: sibHoist }, z } = { w: eff(), z: 1 }, sibQ = 2;
   const { a, w: { at: sibInSlot } } = { a: eff(), w: eff() }, sibQ2 = 3;
@@ -330,10 +331,9 @@ function siblingKeepsResidual(hit) {
   return [deepBeside, sibZ, deepAlone, symBeside, sibY];
 }
 
-// a leaf that NAVIGATES on from a memoized slot dispatches on the surface spelled off the ref
-// (`_ref.Array.prototype`) - written in its slot behind an observable property, hoisted otherwise,
-// two leaves sharing the one write; an ASSIGNMENT host with the same nav reads the surface off the
-// realm's pure binding, its residual keeping the sibling and every effect the literal holds
+// Navigation below a captured slot uses that slot's Array.prototype surface.
+// Initializer effects retain their source order, two leaves share the surface, and
+// assignment preserves sibling bindings and initializer effects.
 function navBelowMemoSlot(hit) {
   const { w: { Array: { prototype: { at: navInSlot } } }, z: nz } = { z: (hit(), 1), w: (hit(), globalThis) };
   const { w: { Array: { prototype: { at: navHoist } } }, y: ny } = { w: (hit(), globalThis), y: 2 };
@@ -345,8 +345,8 @@ function navBelowMemoSlot(hit) {
   return [navInSlot, nz, navHoist, ny, navTwinAt, navTwinFlat, nx, navAssign, na, navAssignAlone, navAssignEffect, ne];
 }
 
-// a declaration hosting an object hop AND a wrapped static: the hop's declarator splits off, and
-// the static still joins the host it was written beside (the split does not undo the join)
+// An object hop and an array wrapper select constructors in one declaration,
+// preserving the sibling bindings and their order.
 function mixedHopAndWrappedStatic() {
   const { w: { Map: mixedMap }, z: mz } = { w: globalThis, z: 1 }, [{ Set: mixedSet }, my] = [globalThis, 2];
   return [mixedMap, mz, mixedSet, my];

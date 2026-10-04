@@ -100,28 +100,29 @@ function mark(t, v) {
     w: Object,
     y: [1]
   };
-  const [_ref] = [known, _pushMaybeArray(log).call(log, 's')];
+  const [,] = [known, _pushMaybeArray(log).call(log, 's')];
   const {
     w: {
       is: _unused
     }
-  } = _ref;
+  } = known;
   const is = _Object$is;
-  const at = _atMaybeArray(_ref.y);
+  const at = _atMaybeArray(known.y);
   [is, at];
 }
 {
   const m = new (id(_Map))();
 }
 {
-  var _ref2;
+  var _ref;
   const o = {
     data: [1]
   };
-  const r = _atMaybeArray(_ref2 = o[eff(), 'data']).call(_ref2, 0);
+  const r = _atMaybeArray(_ref = o[eff(), 'data']).call(_ref, 0);
 }
 {
   const q = 1;
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
@@ -161,33 +162,33 @@ function mark(t, v) {
   const r = id(Array).from([1]);
 }
 {
+  var _ref2;
+  const r = _at(_ref2 = id(arr)).call(_ref2, 0) + id(Array).isArray(1);
+}
+{
   var _ref3;
-  const r = _at(_ref3 = id(arr)).call(_ref3, 0) + id(Array).isArray(1);
+  const r = _at(_ref3 = id(arr)).call(_ref3, 0);
 }
 {
   var _ref4;
-  const r = _at(_ref4 = id(arr)).call(_ref4, 0);
+  const r = _at(_ref4 = o[eff(), 'data']).call(_ref4, 0);
 }
 {
   var _ref5;
-  const r = _at(_ref5 = o[eff(), 'data']).call(_ref5, 0);
+  const r3 = _at(_ref5 = o[eff(), 's']).call(_ref5, 0);
 }
 {
   var _ref6;
-  const r3 = _at(_ref6 = o[eff(), 's']).call(_ref6, 0);
+  const r4 = _at(_ref6 = o[eff(), E.A]).call(_ref6, 0);
 }
 {
   var _ref7;
-  const r4 = _at(_ref7 = o[eff(), E.A]).call(_ref7, 0);
+  const r5 = o == null ? void 0 : _at(_ref7 = o[eff(), 'data']).call(_ref7, 0);
 }
 {
   var _ref8;
-  const r5 = o == null ? void 0 : _at(_ref8 = o[eff(), 'data']).call(_ref8, 0);
-}
-{
-  var _ref9;
   const t = typeof _valuesMaybeArray(Array.prototype);
-  const raw = Array.prototype[_joinMaybeArray(_ref9 = ['val', 'ues']).call(_ref9, '')];
+  const raw = Array.prototype[_joinMaybeArray(_ref8 = ['val', 'ues']).call(_ref8, '')];
   const raw2 = Function('return Array.prototype.values')();
 }
 {

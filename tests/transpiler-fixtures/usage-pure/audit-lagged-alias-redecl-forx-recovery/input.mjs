@@ -40,7 +40,7 @@ var U;
 ({ Map: U } = globalThis);
 U++;
 export const r6 = U.flatMap(x => x);
-// a case-consequent lexical is outside the recovery's block climb - conservative generic
+// a case-consequent lexical binding keeps its own assigned Array receiver
 switch (globalThis.k) {
   case 1:
     let S;

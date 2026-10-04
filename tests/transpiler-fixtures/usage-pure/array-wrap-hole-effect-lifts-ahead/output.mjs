@@ -7,13 +7,13 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 // Their effects remain in the captured array or lift with a fully consumed wrapper.
 const log = [];
 const rows = [[1, 2]];
-const [, _ref] = [_pushMaybeArray(log).call(log, 'n'), (_pushMaybeArray(log).call(log, 'e'), _globalThis)];
-const viaSurface = _atMaybeArray(_ref.Array.prototype);
-const [, _ref2] = [_pushMaybeArray(log).call(log, 'm'), _flatMaybeArray(rows).call(rows)];
-const viaMemo = _atMaybeArray(_ref2);
+const [,,] = [_pushMaybeArray(log).call(log, 'n'), (_pushMaybeArray(log).call(log, 'e'), _globalThis)];
+const viaSurface = _atMaybeArray(_globalThis.Array.prototype);
+const [, _ref] = [_pushMaybeArray(log).call(log, 'm'), _flatMaybeArray(rows).call(rows)];
+const viaMemo = _atMaybeArray(_ref);
 const {
   length: memoLength
-} = _ref2;
+} = _ref;
 const [, {
   Array: {
     prototype: {

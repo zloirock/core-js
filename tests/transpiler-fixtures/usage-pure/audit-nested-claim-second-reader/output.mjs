@@ -11,11 +11,10 @@ const src = {
   keep: 1
 };
 const hostSibling = function () {
-  const _ref = src;
-  const at = _atMaybeArray(_ref.y);
+  const at = _atMaybeArray(src.y);
   const {
     keep
-  } = _ref;
+  } = src;
   return [at, keep];
 }();
 const innerSibling = function () {

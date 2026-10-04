@@ -11,7 +11,7 @@ import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-var _ref2, _ref3, _ref4, _unused2;
+var _unused2;
 // Effects inside array wrappers survive static extraction and residual capture.
 // Each initializer keeps its effects in source order and runs once.
 const seen = [];
@@ -29,22 +29,23 @@ for (const [{
   }
 })]; !out1;) out1 = from;
 let out2;
-for (const [_ref] = [(eff('b'), _globalThis)], _ref6 = _ref.Array, of = _Array$of, {
+for (const [,] = [(eff('b'), _globalThis)], of = (_globalThis.Array, _Array$of), {
     Array: _unused,
     ...rest2
-  } = _ref; !out2;) out2 = of;
+  } = _globalThis; !out2;) out2 = of;
 
 // assignment-cascade partial consume: the swapped element loses its buried prefix, so
 // the host lifts it as a standalone statement, running exactly once
 let fa;
 let rest3;
-[_ref2] = _ref3 = [(eff('c'), _globalThis)], _ref4 = _ref2.Array, fa = _Array$fromAsync, _ref4, {
-  Array: _unused2,
-  ...rest3
-} = _ref2, _ref2, _ref3;
+[,] = [(eff('c'), _globalThis)];
 
 // a polyfilled call INSIDE the lifted prefix keeps its own substitution (the skip seed
 // leaves the lifted subtree live for the natural visitor)
+_globalThis.Array, fa = _Array$fromAsync, {
+  Array: _unused2,
+  ...rest3
+} = _globalThis;
 const w = "abc";
 const [{
   Map: {
@@ -86,7 +87,7 @@ export { fromEntries, allSettled };
 // declaration keeps the whole array (only the value flows into the destructure), so the
 // extraction proceeds and both effects run exactly once at the alias declaration
 const wrap = [(eff('h'), _globalThis), eff('i')];
-const [_ref5] = wrap;
+const [_ref] = wrap;
 
 // levels BELOW the dereference are exempt too (sticky): the whole nested array lives in the
 // alias's declaration, so the inner trailing effect stays there and the extraction proceeds

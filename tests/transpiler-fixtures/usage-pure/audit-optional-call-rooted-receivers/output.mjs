@@ -1,5 +1,5 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
 // a `?.()` that IS the receiver's root segment memoizes AS WRITTEN - the sole short-circuit
 // is the callee value itself, so the memo carries the source spelling and the dispatch
 // guards on it (no disjunct unfold). an ARGFUL callee memoizes through a ref (the claim
@@ -10,5 +10,5 @@ export const r3 = null == (_ref3 = box.inner.get?.()) ? void 0 : _flatMaybeArray
 export const r4 = null == (_ref4 = pick(1)?.()) ? void 0 : _flatMaybeArray(_ref4).call(_ref4);
 export const r5 = null == (_ref5 = pick(2)) ? void 0 : _flatMaybeArray(_ref6 = _ref5())?.call(_ref6);
 // a REWRITTEN dispatch callee still threads its disjuncts (its guard joins the chain)
-export const r6 = null == (_ref7 = _flatMaybeArray(arr)) || null == (_ref8 = _ref7.call(arr)) ? void 0 : _flatMaybeArray(_ref8).call(_ref8);
+export const r6 = null == (_ref7 = _flatMaybeArray(arr)?.call(arr)) ? void 0 : _flatMaybeArray(_ref7).call(_ref7);
 use(r1, r2, r3, r4, r5, r6);

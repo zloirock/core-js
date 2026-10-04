@@ -74,7 +74,7 @@ const {
   isArray: a7
 } = Array;
 let m8, a8;
-_ref6 = KE.A, m8 = _toReversedMaybeArray(_ref6.prototype), a8 = _Array$of, _ref6;
+_ref6 = KE.A, m8 = _toReversedMaybeArray(_ref6.prototype), a8 = _Array$of;
 const _ref7 = KE.P,
   a9 = _Promise$try,
   {

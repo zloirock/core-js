@@ -1,5 +1,4 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$all from "@core-js/pure/actual/promise/all";
@@ -8,6 +7,7 @@ import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // A static assigned to a local member target receives its pure method.
 // Targets that would mutate a global stay native; residual members keep their constructor.
 // Defaults over a defined pure static remain dead.
@@ -170,6 +170,9 @@ let gb, it;
 ({
   Map: {
     groupBy: gb
+  },
+  Symbol: {
+    [_Symbol$iterator]: it
   }
 } = {
   Map: {
@@ -177,7 +180,6 @@ let gb, it;
   },
   Symbol: _Symbol
 });
-it = _getIteratorMethod(_Symbol);
 let viaAssign;
 ({
   Promise: {

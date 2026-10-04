@@ -9,7 +9,7 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
+var _ref;
 // SIDE-EFFECT ordering around a KEPT proxy root (a chain-assign the collapse may not root through, because
 // its value navigates a hop core-js does not ponyfill). the root re-emits itself, so it must not ALSO be
 // harvested as an effect - but everything else around it must still run, exactly once, in source order.
@@ -19,18 +19,18 @@ let c = 0;
 let a;
 export const effectInsideValue = _flatMaybeArray((a = (c++, _globalThis.window)).Array.prototype).call([1, [2]]);
 let b;
-export const effectAroundAssign = null == (_ref = (c++, b = _globalThis.window)) ? void 0 : _atMaybeArray(_ref.Array.prototype).call([1], 0);
+export const effectAroundAssign = null == (c++, b = _globalThis.window) ? void 0 : _atMaybeArray(b.Array.prototype).call([1], 0);
 let d;
-export const effectInHopKey = null == (_ref2 = d = _globalThis.window) ? void 0 : _includesMaybeArray(_ref2[c++, "Array"].prototype).call([1], 1);
+export const effectInHopKey = null == (d = _globalThis.window) ? void 0 : _includesMaybeArray(d[c++, "Array"].prototype).call([1], 1);
 let e;
-export const effectBothSides = null == (_ref3 = (c++, e = _globalThis.window)) ? void 0 : _findLastMaybeArray(_ref3[c++, "Array"].prototype).call([1], x => x);
+export const effectBothSides = null == (c++, e = _globalThis.window) ? void 0 : _findLastMaybeArray(e[c++, "Array"].prototype).call([1], x => x);
 export { c };
 
 // NEGATIVES for the tail classification. a sequence value whose tail is UNGROUNDED keeps its live guard
 // and its raw value; a tail that is no proxy at all keeps the `.self` untouched too - that `.self` is a
 // property of the user's own object, not a hop
 let n;
-export const seqWindowTail = null == (_ref4 = n = (c++, _globalThis.window)) ? void 0 : _findIndexMaybeArray(_ref4.Array.prototype).call([1], x => x);
+export const seqWindowTail = null == (n = (c++, _globalThis.window)) ? void 0 : _findIndexMaybeArray(n.Array.prototype).call([1], x => x);
 const plain = {
   self: {
     Array
@@ -56,17 +56,17 @@ export const computedLeafAfterSeKey = (x = _globalThis.window)?.[c++, 'Array'].p
 
 // a polyfillable call INSIDE the migrated key: its own rewrite must compose into the moved text
 let y;
-export const polyfillInsideMovedKey = (y = _globalThis.window)?.[_flatMaybeArray(_ref5 = [c]).call(_ref5), "Array"].prototype.some.call([1], v => v);
+export const polyfillInsideMovedKey = (y = _globalThis.window)?.[_flatMaybeArray(_ref = [c]).call(_ref), "Array"].prototype.some.call([1], v => v);
 
 // an ALIAS-carried kept root: the alias identifier is already rewritten by its declaration, and the
 // migrated key composes over it exactly like over the direct spelling
 const alias = _globalThis;
 let z;
-export const aliasKeptSeKey = null == (_ref6 = z = alias.window) ? void 0 : _findLastIndexMaybeArray(_ref6[c++, "Array"].prototype).call([1], v => v);
+export const aliasKeptSeKey = null == (z = alias.window) ? void 0 : _findLastIndexMaybeArray(z[c++, "Array"].prototype).call([1], v => v);
 // an effect in the VALUE and another in the KEY of the same access: the value's stays inside the
 // assignment, the key's rides the migrated key - two channels, native order for each
 let sv;
-export const seqValueAndKey = null == (_ref7 = sv = (c++, _globalThis.window)) ? void 0 : _mapMaybeArray(_ref7[c++, "Array"].prototype).call([1], v => v);
+export const seqValueAndKey = null == (sv = (c++, _globalThis.window)) ? void 0 : _mapMaybeArray(sv[c++, "Array"].prototype).call([1], v => v);
 
 // two SE keys on one UNGUARDED kept root: the assignment (the object) runs first, then both key
 // effects migrate into the surviving key in source order - a pre-root harvest would have run them
@@ -80,7 +80,7 @@ export const unguardedDoubleKey = (ud = _globalThis.window, c++, c++, _Array$of)
 // anchoring the memo at the leaf-nearest `?.` instead buried the raw proxy root (and its redundant
 // hop) inside the memo slot, out of reach of the root substitution and the hop collapse.
 let db;
-export const doubleOptionalSeKey = null == (_ref8 = db = _globalThis.window) ? void 0 : _findIndexMaybeArray(_ref8[c++, c++, "Array"].prototype).call([1], v => v === 1);
+export const doubleOptionalSeKey = null == (db = _globalThis.window) ? void 0 : _findIndexMaybeArray(db[c++, c++, "Array"].prototype).call([1], v => v === 1);
 let dd;
 export const doubleOptionalDotted = (dd = _globalThis.window)?.Array.prototype.indexOf.call([2], 2);
 let tr;
@@ -90,4 +90,4 @@ export const tripleOptionalMixed = null == (tr = _globalThis.window) ? void 0 : 
 // inside the root memo (always runs, as written), the key effect rides the migrated key past the
 // guard - each lands in its native slot.
 let svd;
-export const seBothDoubleOptional = null == (_ref9 = (c++, svd = _globalThis.window)) ? void 0 : _findLastMaybeArray(_ref9[c++, "Array"].prototype).call([6], v => v);
+export const seBothDoubleOptional = null == (c++, svd = _globalThis.window) ? void 0 : _findLastMaybeArray(svd[c++, "Array"].prototype).call([6], v => v);

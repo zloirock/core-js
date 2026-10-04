@@ -1,3 +1,7 @@
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
+/* global fcOptionalCallee -- the optional callee reads a temporary accessor on the realm */
+
 QUnit.test('inline returns: locals and nested calls keep their effects', assert => {
   const log = [];
   const value = (() => {
@@ -93,6 +97,31 @@ QUnit.test('inline returns: conditional container forwarders keep short circuits
     }
     assert.deepEqual(sealed, flag ? [11] : 'TypeError');
     assert.deepEqual(log, flag ? ['arg', 'continuous', 'tail', 'indexed', 'key', 'sealed'] : []);
+  }
+});
+
+QUnit.test('optional callee: an unbound accessor is captured before the call', assert => {
+  const realm = Function('return this')();
+  const key = 'fcOptionalCallee';
+  const previous = Object.getOwnPropertyDescriptor(realm, key);
+  const log = [];
+  let reads = 0;
+  restoreProperty(realm, key, {
+    configurable: true,
+    get() {
+      const read = ++reads;
+      log.push(`get${ read }`);
+      return () => {
+        log.push(`call${ read }`);
+        return [read];
+      };
+    },
+  });
+  try {
+    assert.same(fcOptionalCallee?.().at(0), 1);
+    assert.deepEqual(log, ['get1', 'call1']);
+  } finally {
+    restoreProperty(realm, key, previous);
   }
 });
 

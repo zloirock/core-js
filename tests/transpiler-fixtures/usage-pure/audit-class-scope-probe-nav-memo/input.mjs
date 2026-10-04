@@ -1,7 +1,6 @@
-// a class body holds no `var`, so a nav that needs a receiver memo inside one cannot declare it
-// where it sits. the axis walks every slot the body offers: a field initializer and a computed KEY
-// run in the ENCLOSING scope (their memo hoists past the class), while a static block and a method
-// open their own function scope and take a local declaration
+// Instance field receiver memos belong to each initializer evaluation. Definition-time
+// computed keys and static fields use the enclosing scope; static blocks and methods
+// own their vars. Nested instance fields receive their own initializer activations too.
 globalThis.classBox = { list: ['ab', 'cd'], n: 7, key: 'm' };
 export class Slots {
   inst = globalThis.window?.self.classBox.list?.at(0);

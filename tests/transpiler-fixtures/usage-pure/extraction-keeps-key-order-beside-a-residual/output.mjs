@@ -36,13 +36,13 @@ const ob = {
     log(v);
   }
 };
-_ref = effIterator(), ob.a = _Iterator$from, ob.b = _nameMaybeFunction(_ref), _ref, _ref;
+_ref = effIterator(), ob.a = _Iterator$from, ob.b = _nameMaybeFunction(_ref);
 let s0, nm;
 _ref2 = user(), {
   groupBy: s0
-} = _ref2, nm = _nameMaybeFunction(_ref2), _ref2;
+} = _ref2, nm = _nameMaybeFunction(_ref2);
 let x;
 _ref3 = effArray(), x = _Array$fromAsync, {
   isArray: ob.f
-} = _ref3, _ref3;
+} = _ref3;
 use(s0, nm, x);

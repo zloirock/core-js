@@ -12,46 +12,40 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set/constructor";
 
-var _ref, _ref2, _ref3, _unused;
+var _ref, _ref2, _unused;
 let aP, rP, oP;
 
-for (const _ref6 = (
-		(
-			_ref = { Array: _ref2 } = _globalThis,
-			(
-				{} = _ref2,
-				aP = _Array$fromAsync,
-				{ fromAsync: _unused, ...rP } = _ref2,
-				_ref2
-			),
-			_ref
-		),
-		Object
+for (const isSealed = (
+	(
+		{ Array: _ref } = _globalThis,
+		(aP = _Array$fromAsync, { fromAsync: _unused, ...rP } = _ref)
 	),
-	isSealed = _Object$isSealed; !oP; ) oP = isSealed;
+	_Object$isSealed
+); !oP; ) oP = isSealed;
 
 const recvA = getObj();
-const gA = (_ref3 = _getIteratorMethod(recvA)) === void 0 ? null : _ref3;
+const gA = (_ref2 = _getIteratorMethod(recvA)) === void 0 ? null : _ref2;
 let aQ, rQ, oQ;
 
-for (const _ref7 = (
-		{ Promise: { allSettled: aQ, ...rQ } } = { Promise: _Promise },
-		Object
-	),
-	isFrozen = _Object$isFrozen; !oQ; ) oQ = isFrozen;
+for (const isFrozen = (
+	{ Promise: { allSettled: aQ, ...rQ } } = { Promise: _Promise },
+	_Object$isFrozen
+); !oQ; ) oQ = isFrozen;
 
 // the same pair inside a FUNCTION: push order, no family grouping
 export function inFn() {
-	var _ref4, _ref5;
+	var _ref3, _ref4;
 	const recvB = getObj();
-	const gB = (_ref4 = _getIteratorMethod(recvB)) === void 0 ? null : _ref4;
+	const gB = (_ref3 = _getIteratorMethod(recvB)) === void 0 ? null : _ref3;
 	let aR, rR, oR;
 
-	for (const _ref8 = ({ Map: { groupBy: aR, ...rR } } = { Map: _Map }, Object),
-		getPrototypeOf = _Object$getPrototypeOf; !oR; ) oR = getPrototypeOf;
+	for (const getPrototypeOf = (
+		{ Map: { groupBy: aR, ...rR } } = { Map: _Map },
+		_Object$getPrototypeOf
+	); !oR; ) oR = getPrototypeOf;
 
 	const recvC = getObj();
-	const gC = (_ref5 = _getIteratorMethod(recvC)) === void 0 ? null : _ref5;
+	const gC = (_ref4 = _getIteratorMethod(recvC)) === void 0 ? null : _ref4;
 
 	return [gB, aR, rR, oR, gC];
 }

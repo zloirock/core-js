@@ -46,6 +46,7 @@ import {
   IS_ITERABLE_ENTRY,
   staticReceiverHint,
   SYMBOL_ITERATOR_PURE_RESULT,
+  isSourcedSymbolIteratorMeta,
   symbolKeyToEntry,
 } from './globals.js';
 import {
@@ -511,6 +512,7 @@ export function planGuardedDestructureNarrow({
       init: isDeclarator ? hostNode.init : hostNode.right,
       force: true,
       ancestors: nested.ancestors,
+      ctx: { scope: path.scope, adapter, path },
     }) : null;
   // a DIRECT multi-prop pattern becomes one read per prop, in source order - but only where THIS plan
   // answers for every one of them. a prop it cannot answer would have to reach the claim funnel on
@@ -1220,7 +1222,8 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // and guard its static separately when the realm alias only has candidate values. the
     // root the alias question names is the receiver's VALUE - a sequence's tail, its prefix
     // running once inside the captured receiver (`(eff(), realm).Array.of` reads `realm`)
-    const receiver = !objectName && !keyEffects.length && unwrapRuntimeExpr(classifyTarget);
+    // A prototype-only key cannot produce this static guard, whatever the alias chain names.
+    const receiver = !objectName && !keyEffects.length && hasStaticDefinitionKey(key) && unwrapRuntimeExpr(classifyTarget);
     const receiverRoot = peelReceiverSequenceTail(receiver?.object);
     // ... a chain ROOTED AT A SELECTION (`(c ? realm() : opaque()).Array.of`), read directly or through
     // a const alias of the chain (`const h = (...).Array; h.of`), names its candidates by the ARMS: an
@@ -1399,6 +1402,9 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
       ? readerPattern.properties.map(item => item.type === 'RestElement' ? null : propertyKeyName(item)) : [];
   for (const name of [meta.guardedAliasHint, ...meta.guardedAliasHints ?? [], ...meta.guardedWriteObjects ?? []]) {
     if (!name) continue;
+    // Do not ask the type/target resolver about a candidate with no static or realm entry.
+    const definition = resolveBuiltIn({ kind: 'property', object: name, key: meta.key, placement: 'static' });
+    if (definition?.kind !== 'static' && definition?.kind !== 'global') continue;
     // every realm proxy (`window`, `self`, `globalThis`) names the ONE realm object, so they share
     // one comparator, spelled as the realm root: a bare `window` / `self` would throw where the
     // realm lacks it, while `globalThis` is the realm under every spelling
@@ -1907,12 +1913,6 @@ export function tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, 
     meta.symbolSourced = true;
   }
   return meta;
-}
-
-// the iterator-form consumer gate: a meta keyed `Symbol.iterator` routes through the
-// iterator-method machinery ONLY with real-symbol provenance - a string-spelled key stays raw
-export function isSourcedSymbolIteratorMeta(meta) {
-  return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
 }
 
 // a computed destructure-prop key "hosts machinery" when the rewrite pipeline has work bound

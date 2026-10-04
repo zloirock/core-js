@@ -4,4 +4,4 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 // must precede the key-SE (source order), each exactly once, ahead of `_getIteratorMethod(recv)
 // .call(recv, ...)` - the receiver is peeled and both prefixes prepend. `r()` then `k()`.
 let recv = [1, 2, 3];
-const it = (r(), k(), _getIteratorMethod(recv).call(recv, 42));
+const it = (r(), recv, k(), _getIteratorMethod(recv).call(recv, 42));

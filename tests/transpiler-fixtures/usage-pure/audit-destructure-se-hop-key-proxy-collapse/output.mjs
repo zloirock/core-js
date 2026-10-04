@@ -42,7 +42,7 @@ let q = 0;
 a++;
 const from = _Array$from;
 from([1]);
-for (const _ref = b++, of = _Array$of; false;) of(1);
+for (const of = (b++, _Array$of); false;) of(1);
 d++, e++;
 const keys = _Object$keys;
 keys({});

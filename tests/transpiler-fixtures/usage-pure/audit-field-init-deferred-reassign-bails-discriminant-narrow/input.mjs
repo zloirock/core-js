@@ -1,8 +1,6 @@
-// a binding reassigned inside an instance class-field initializer (which runs at CONSTRUCTION time,
-// deferred from its lexical position) can change before a later use, so a `typeof` discriminant
-// narrow must NOT trust it - the read-side soundness gate has to treat the field-init reassignment
-// like a captured-function one and bail to the generic helper (the array-specific helper would throw
-// on the foreign string value on ie:11)
+// An instance field initializer writes to a union-typed binding before a typeof guard.
+// Type resolution stays conservative across the deferred class-field write.
+// This construction writes a string, so the guarded instance call is skipped.
 function f(v: string | number[]) {
   let x: string | number[] = v;
   class C {

@@ -1,3 +1,5 @@
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
 // Unknown parameter keys retain native reads; a post pass can polyfill the lowered named read.
 const expectedAtType = typeof E2E_POST_LOWERED === 'undefined'
   ? typeof Object.getOwnPropertyDescriptor(Array.prototype, 'at')?.value : 'function';
@@ -121,4 +123,68 @@ QUnit.test('destructuring: ordinary extraction polyfills the named read beside a
     return [at.call([7], 0), other];
   }
   assert.deepEqual(read('length'), [7, 1]);
+});
+
+QUnit.test('destructuring: an assignment evaluates its RHS before writing the first static sibling', assert => {
+  const events = [];
+  let from;
+  let of = 'old';
+  ({ of, [(events.push(['key', typeof of]), 'from')]: from } = (events.push(['rhs', of]), Array));
+  assert.deepEqual(events, [['rhs', 'old'], ['key', 'function']]);
+  assert.deepEqual([of(7), from([8])], [[7], [8]]);
+  let quietFrom, quietOf;
+  // eslint-disable-next-line prefer-const -- the quiet assignment is the control
+  ({ of: quietOf, from: quietFrom } = Array);
+  assert.deepEqual([quietOf(9), quietFrom([10])], [[9], [10]]);
+});
+
+QUnit.test('destructuring: a native sibling getter follows an effectful constructor key', assert => {
+  const events = [];
+  let reads = 0;
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'fc551Sibling');
+  restoreProperty(globalThis, 'fc551Sibling', {
+    configurable: true,
+    get() {
+      events.push('sibling');
+      return ++reads;
+    },
+  });
+  try {
+    const { [(events.push('key'), 'Array')]: { from }, fc551Sibling: sibling } = globalThis;
+    assert.deepEqual([from([11]), sibling, reads], [[11], 1, 1]);
+    assert.deepEqual(events, ['key', 'sibling']);
+    events.length = 0;
+    const { Array: { of }, fc551Sibling: quietSibling } = globalThis;
+    assert.deepEqual([of(12), quietSibling, reads], [[12], 2, 2]);
+    assert.deepEqual(events, ['sibling']);
+  } finally {
+    restoreProperty(globalThis, 'fc551Sibling', previous);
+  }
+});
+
+QUnit.test('destructuring: captured array statics keep a native read after their computed key', assert => {
+  const events = [];
+  // A fresh property can carry the getter even where function length is non-configurable.
+  const previous = Object.getOwnPropertyDescriptor(Array, 'fc551Sibling');
+  restoreProperty(Array, 'fc551Sibling', {
+    configurable: true,
+    get() {
+      events.push('sibling');
+      return 29;
+    },
+  });
+  try {
+    const { w: [{ of, [(events.push('key'), 'from')]: from, fc551Sibling: sibling }] } = { w: [(events.push('rhs'), Array)] };
+    assert.deepEqual([of(7), from([8]), sibling], [[7], [8], 29]);
+    assert.deepEqual(events, ['rhs', 'key', 'sibling']);
+    events.length = 0;
+    let pairedOf, pairedFrom, pairedSibling, tail;
+    // eslint-disable-next-line prefer-const -- the paired assignment owns the captured positions
+    [{ of: pairedOf, [(events.push('key'), 'from')]: pairedFrom, fc551Sibling: pairedSibling }, tail] =
+      [(events.push('rhs'), Array), 31];
+    assert.deepEqual([pairedOf(9), pairedFrom([10]), pairedSibling, tail], [[9], [10], 29, 31]);
+    assert.deepEqual(events, ['rhs', 'key', 'sibling']);
+  } finally {
+    restoreProperty(Array, 'fc551Sibling', previous);
+  }
 });

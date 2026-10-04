@@ -9,7 +9,7 @@ for (const _ref of [[1, 2], [3, 4]]) {
 consume(at);
 const target = {};
 outer: for (const _ref2 of [[5, 6]]) {
-  target.method = _atMaybeArray(_ref2), _ref2;
+  target.method = _atMaybeArray(_ref2);
   consume(target.method);
   continue outer;
 }

@@ -21,18 +21,17 @@ export function direct(flag) {
   return _ref = (flag ? realm() : opaque()).Array, _ref === Array ? _Array$of(1) : _ref.of(1);
 }
 export function aliased(flag) {
-  var _ref2;
   const held = (flag ? realm() : opaque()).Array;
-  return _ref2 = held, _ref2 === Array ? _Array$of(1) : _ref2.of(1);
+  return held, held === Array ? _Array$of(1) : held.of(1);
 }
 export function spelled(flag) {
-  var _ref3;
-  return _ref3 = (flag ? _globalThis : opaque()).Array, _ref3 === Array ? _Array$of(1) : _ref3.of(1);
+  var _ref2;
+  return _ref2 = (flag ? _globalThis : opaque()).Array, _ref2 === Array ? _Array$of(1) : _ref2.of(1);
 }
 // A constructor with a pure entry keeps its statics: the read off the selection is a held slot.
 export function ctorStatic(flag) {
-  var _ref4;
-  return (_ref4 = flag ? realm() : opaque(), _ref4 === _globalThis ? _Map : _ref4.Map).groupBy([1, 2], value => value % 2);
+  var _ref3;
+  return (_ref3 = flag ? realm() : opaque(), _ref3 === _globalThis ? _Map : _ref3.Map).groupBy([1, 2], value => value % 2);
 }
 // No arm names a realm: nothing to test against, the read stays native.
 export function opaqueOnly(flag) {

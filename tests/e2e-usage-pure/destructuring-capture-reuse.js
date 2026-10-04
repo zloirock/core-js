@@ -97,6 +97,48 @@ QUnit.test('destructuring capture: an array wrapper keeps opaque leaf getter ord
   assert.deepEqual(events, ['key', 'at', 'length'], 'the native sibling cannot overtake the instance dispatch');
 });
 
+export function readRetainedArrayWrapperMember(holder, effect) {
+  // eslint-disable-next-line no-unreachable-loop -- the loop head supplies the constructor receiver
+  for (const Ctor of [Array]) {
+    const [{ [(effect(), 'of')]: of, from }, { at, length }] = [Ctor, holder.value];
+    return [of(1)[0], from([2])[0], at, length];
+  }
+}
+
+export function readRetainedArrayWrapperRebound(input, replacement) {
+  function effect() { input = replacement; }
+  // eslint-disable-next-line no-unreachable-loop -- the loop head supplies the constructor receiver
+  for (const Ctor of [Array]) {
+    const [{ [(effect(), 'of')]: of, from }, { at, length }] = [Ctor, input];
+    return [of(1)[0], from([2])[0], at, length];
+  }
+}
+
+QUnit.test('destructuring capture: a retained wrapper snapshots its member source', assert => {
+  const events = [];
+  const input = {
+    get at() { events.push('at'); return 7; },
+    get length() { events.push('length'); return 9; },
+  };
+  const holder = {
+    get value() { events.push('value'); return input; },
+  };
+  assert.deepEqual(readRetainedArrayWrapperMember(holder, () => events.push('key')), [1, 2, 7, 9]);
+  assert.deepEqual(events, ['value', 'key', 'at', 'length'], 'the wrapper member is read once');
+});
+
+// Standalone Babel lowers this literal's second RHS read after the first pattern's key.
+// Post receives that replaced value; detection before lowering must retain the original one.
+QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('destructuring capture: a retained wrapper snapshots a rebound name', assert => {
+  const events = [];
+  const input = {
+    get at() { events.push('at'); return 7; },
+    get length() { events.push('length'); return 9; },
+  };
+  assert.deepEqual(readRetainedArrayWrapperRebound(input, { at: 3, length: 4 }), [1, 2, 7, 9]);
+  assert.deepEqual(events, ['at', 'length'], 'an earlier key cannot replace the captured sibling');
+});
+
 QUnit.test('destructuring capture: native outer reads and iterator dispatch keep their source order', assert => {
   const events = [];
   const row = {
@@ -114,6 +156,46 @@ QUnit.test('destructuring capture: native outer reads and iterator dispatch keep
     assert.throws(() => readRetainedOuterKey(value, () => events.push('unreachable')), TypeError);
   }
   assert.same(events.length, 6, 'the native outer read rejects null before the later key');
+});
+
+export function readNormalizedSiblingReceiver(input) {
+  const source = input;
+  const [{ lead, y: { at, extra }, top }] = [source];
+  return [lead, at, extra, top];
+}
+
+export function readRetainedPrefixedReceiver(input, before, key) {
+  const source = input;
+  const { [(key(), 'at')]: at, length } = (before(), source);
+  return [at, length];
+}
+
+QUnit.test('destructuring capture: a reused name keeps its complete receiver prefix', assert => {
+  const events = [];
+  const input = {
+    get at() { events.push('at'); return 7; },
+    get length() { events.push('length'); return 9; },
+  };
+  assert.deepEqual(readRetainedPrefixedReceiver(input, () => events.push('prefix'), () => events.push('key')), [7, 9]);
+  assert.deepEqual(events, ['prefix', 'key', 'at', 'length']);
+});
+
+QUnit.test('destructuring capture: normalized sibling reads reuse a constant source', assert => {
+  const events = [];
+  const input = {
+    get lead() { events.push('lead'); return 1; },
+    get y() {
+      events.push('y');
+      return {
+        get at() { events.push('at'); return 7; },
+        get extra() { events.push('extra'); return 2; },
+      };
+    },
+    get top() { events.push('top'); return 3; },
+  };
+  assert.deepEqual(readNormalizedSiblingReceiver(input), [1, 7, 2, 3]);
+  assert.deepEqual(events, ['lead', 'y', 'at', 'extra', 'top'], 'every property is read once in source order');
+  for (const source of [null, undefined]) assert.throws(() => readNormalizedSiblingReceiver(source), TypeError);
 });
 
 export function readNestedRetainedReceiver(input, nested) {
@@ -173,6 +255,39 @@ QUnit.test('destructuring capture: catch receiver stays local during getter reen
     }
   }, TypeError, 'the first native read still rejects null before the later key');
   assert.same(events.length, 4, 'the null receiver prevents the later key effect');
+
+  events.length = 0;
+  function readNestedCatch(label) {
+    try {
+      throw {
+        get w() {
+          events.push(`${ label }:w`);
+          if (label === 'outer') readNestedCatch('inner');
+          return {
+            get at() { events.push(`${ label }:at`); return () => label; },
+          };
+        },
+      };
+    } catch ({ [(events.push(`${ label }:key`), 'w')]: { at } }) {
+      return at();
+    }
+  }
+  assert.same(readNestedCatch('outer'), 'outer', 'the nested read keeps this catch activation');
+  assert.deepEqual(events, ['outer:key', 'outer:w', 'inner:key', 'inner:w', 'inner:at', 'outer:at']);
+});
+
+// Standalone Babel lowering runs a catch pattern's first computed key before rejecting null.
+// Post receives that already executed key; the source-level capture keeps the native assertion.
+QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('destructuring capture: null catch receiver rejects its first key', assert => {
+  const events = [];
+  assert.throws(() => {
+    try {
+      throw null;
+    } catch ({ [(events.push('unreachable'), 'w')]: { at } }) {
+      at();
+    }
+  }, TypeError, 'the reused catch receiver rejects null before its first computed key');
+  assert.same(events.length, 0, 'the first key stays unreachable on null');
 });
 
 QUnit.test('destructuring capture: a source alias is snapshotted before a getter rebinds it', assert => {

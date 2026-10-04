@@ -6,19 +6,24 @@
 // babel@8 (default) and babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { constants as vmConstants, createContext, runInContext, runInNewContext } from 'node:vm';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { parse: babelParse } = requireBabel('@babel/parser');
+const { transformSync } = requireBabel('@babel/core');
 const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
 import createASTHelpers, { rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { isValidIdentifierName, peelNestedSequenceExpressions } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
+import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 
 const traverse = traverseModule.default ?? traverseModule;
-const { check, checkTruthy, finish } = createChecker('babel-compat');
+const { check, checkDeep, checkTruthy, finish } = createChecker('babel-compat');
 
 // deterministic identifiers - real `ImportInjector` carries scope-tracking state irrelevant
 // to AST-shape checks. counter resets per-suite for stable output
@@ -38,10 +43,8 @@ function freshStubInjector() {
 }
 
 function makeHelpers({ injector = freshStubInjector(), resolveNodeType = null, resolvedType = null } = {}) {
-  return createASTHelpers(t, {
-    getInjector: () => injector,
-    typeResolvers: { resolveNodeType, resolvedType },
-  });
+  const adapter = createBabelAdapter();
+  return createASTHelpers(t, { getInjector: () => injector, getAdapter: () => adapter, typeResolvers: { resolveNodeType, resolvedType } });
 }
 
 function parseCode(code, plugins = ['typescript'], parserOpts = {}) {
@@ -145,7 +148,7 @@ function runChainCombined(helpers, program, ast, {
 }) {
   const outerType = optional ? 'OptionalMemberExpression' : 'MemberExpression';
   const outerMember = pickPath(program, outerType, p => p.node.property?.name === outerName);
-  const innerCall = ast.program.body[0].expression.callee.object;
+  const innerCall = firstExprStmt(ast.program.body).expression.callee.object;
   helpers.replaceInstanceChainCombined(outerMember, t.identifier(outerId), {
     innerCallee: innerCall.callee,
     innerArgs: innerCall.arguments,
@@ -198,32 +201,21 @@ for (const { name, code, ident, expect } of TYPE_ANNOT_CASES) {
 
 // --- isReusableReceiver (exercised via replaceInstanceLike / optional-chain memoize) ---
 
-// safe receivers reuse the original expression in the guard head, no _ref allocated.
-// the rewritten expression is the SOLE program statement (no `var _ref;` injected above)
+// Constant receiver bindings and `this` reuse the guard head without a generated `var`.
 const SAFE_REUSE_CASES = [
-  {
-    name: 'Identifier no _ref allocation',
-    code: 'arr?.includes(1);',
-    plugins: ['typescript'],
-    headType: 'Identifier',
-    headName: 'arr',
-  },
-  {
-    name: 'ThisExpression no _ref allocation',
-    code: 'this?.includes(1);',
-    plugins: ['typescript'],
-    headType: 'ThisExpression',
-  },
+  { name: 'Identifier no _ref allocation', code: 'const arr = []; arr?.includes(1);', plugins: ['typescript'], headType: 'Identifier', headName: 'arr' },
+  { name: 'unbound Identifier keeps adjacent reads', code: 'arr?.includes(1);', plugins: ['typescript'], headType: 'Identifier', headName: 'arr' },
+  { name: 'ThisExpression no _ref allocation', code: 'this?.includes(1);', plugins: ['typescript'], headType: 'ThisExpression' },
   {
     name: 'ParenthesizedExpression(Identifier) peeled',
-    code: '(arr)?.includes(1);',
+    code: 'const arr = []; (arr)?.includes(1);',
     plugins: ['typescript', ['parenthesizedExpression']],
     headType: 'Identifier',
     headName: 'arr',
   },
   {
     name: 'nested ParenthesizedExpression peeled',
-    code: '((arr))?.includes(1);',
+    code: 'const arr = []; ((arr))?.includes(1);',
     plugins: ['typescript', ['parenthesizedExpression']],
     headType: 'Identifier',
     headName: 'arr',
@@ -237,21 +229,25 @@ for (const { name, code, plugins, headType, headName } of SAFE_REUSE_CASES) {
   let ok = type === 'ConditionalExpression' && test.left.type === headType;
   if (headName) ok &&= test.left.name === headName;
   checkTruthy(`isReusableReceiver/${ name }`, ok);
+  check(`isReusableReceiver/${ name }: no generated var`,
+    program.node.body.some(stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'), false);
 }
 
 // unsafe receivers trigger _ref memoize: `null == (_ref = <receiver>)` guard head.
 // the rewritten expression is the trailing ExpressionStatement, `var _refN;` lands above
 const UNSAFE_REUSE_CASES = [
   {
-    name: 'CallExpression triggers _ref allocation',
-    code: 'getArr()?.includes(1);',
-    rhsCheck: rhs => rhs.type === 'AssignmentExpression' && rhs.left.name.startsWith('_ref'),
+    name: 'mutable Identifier triggers _ref allocation',
+    code: 'let arr = []; function change() { arr = other; } arr?.includes(1);',
+    rhsCheck: rhs => rhs.type === 'AssignmentExpression' && rhs.right.name === 'arr',
   },
   {
-    name: 'MemberExpression triggers _ref allocation',
-    code: 'obj.arr?.includes(1);',
-    rhsCheck: rhs => rhs.type === 'AssignmentExpression' && rhs.left.name.startsWith('_ref'),
+    name: 'live import Identifier triggers _ref allocation',
+    code: 'import { arr } from "fixture"; arr?.includes(1);',
+    rhsCheck: rhs => rhs.type === 'AssignmentExpression' && rhs.right.name === 'arr',
   },
+  { name: 'CallExpression triggers _ref allocation', code: 'getArr()?.includes(1);', rhsCheck: rhs => rhs.type === 'AssignmentExpression' && rhs.left.name.startsWith('_ref') },
+  { name: 'MemberExpression triggers _ref allocation', code: 'obj.arr?.includes(1);', rhsCheck: rhs => rhs.type === 'AssignmentExpression' && rhs.left.name.startsWith('_ref') },
   {
     name: 'BinaryExpression triggers _ref allocation',
     code: '(a + b)?.includes(1);',
@@ -265,6 +261,11 @@ for (const { name, code, rhsCheck } of UNSAFE_REUSE_CASES) {
   const { test } = exprStmt.expression;
   checkTruthy(`isReusableReceiver/${ name }`,
     test.left.type === 'NullLiteral' && rhsCheck(test.right));
+  const { alternate } = exprStmt.expression;
+  check(`isReusableReceiver/${ name }: helper reads the captured receiver`,
+    alternate.callee.object.arguments[0].name, test.right.left.name);
+  check(`isReusableReceiver/${ name }: call binds the captured receiver`,
+    alternate.arguments[0].name, test.right.left.name);
 }
 
 // --- generateRef / generateLocalRef / generateUnusedId (delegation smoke) ---
@@ -396,7 +397,7 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // bare optional member: not wrapped, plain replaceInstanceLike path
 {
-  const { helpers, program } = setup('arr?.includes(1);');
+  const { helpers, program } = setup('const arr = []; arr?.includes(1);');
   const exprStmt = runOptional(helpers, program, '_includes');
   // success path: `arr == null ? void 0 : _includes(arr).call(arr, 1)` shape - the
   // ConditionalExpression head is present, paren-lookup-only branch is NOT taken
@@ -457,7 +458,7 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // identifier-like check head: `x == null` (identifier-first, ASI-safe by token)
 {
-  const { helpers, program } = setup('arr?.includes(1);');
+  const { helpers, program } = setup('const arr = []; arr?.includes(1);');
   const exprStmt = runOptional(helpers, program, '_includes');
   const { test } = exprStmt.expression;
   check('wrapConditional/Identifier check head',
@@ -504,22 +505,21 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // --- extractCheck (via replaceInstanceLike) ---
 
-// `(arr as any)?.at(0)`: top-branch memoizes TSAsExpression - not safe-to-reuse, _ref allocated
+// A type-only receiver wrapper preserves the adjacent-read identifier contract.
 {
   const { helpers, program } = setup('(arr as any)?.at(0);');
   const exprStmt = runOptional(helpers, program, '_at');
-  // top-level ConditionalExpression with `null == (_ref = arr as any)` test
-  checkTruthy('extractCheck/TS as wrapped receiver -> _ref allocation',
+  checkTruthy('extractCheck/TS as wrapped receiver reuses its value without a capture',
     exprStmt.expression.type === 'ConditionalExpression'
     && exprStmt.expression.test.left.type === 'NullLiteral'
-    && exprStmt.expression.test.right.type === 'AssignmentExpression'
-    && exprStmt.expression.test.right.right.type === 'TSAsExpression');
+    && exprStmt.expression.test.right.type === 'TSAsExpression'
+    && exprStmt.expression.test.right.expression.name === 'arr');
 }
 
 // chain-walk via TS NonNull `arr?.b!.includes(2)`: extractCheck enters chain-descent
 // since .includes carries .optional=false. peels TSNonNull at every hop. arr is safe-to-reuse
 {
-  const { helpers, program } = setup('arr?.b!.includes(2);');
+  const { helpers, program } = setup('const arr = []; arr?.b!.includes(2);');
   const exprStmt = runOptional(helpers, program, '_includes',
     { predicate: p => p.node.property?.name === 'includes' });
   checkTruthy('extractCheck/chain-walk peels TSNonNull, identifier check head',
@@ -530,7 +530,7 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // chain-walk: deeper `?.b` deoptionalised after extractCheck; non-optional `.c` stays Member
 {
-  const { helpers, program } = setup('arr?.b.c.includes(2);');
+  const { helpers, program } = setup('const arr = []; arr?.b.c.includes(2);');
   const exprStmt = runOptional(helpers, program, '_includes',
     { predicate: p => p.node.property?.name === 'includes' });
   checkTruthy('extractCheck/chain-walk deopts inner ?. and emits identifier check',
@@ -567,8 +567,8 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // optional-call form `arr.at?.(0)`: outer .optional carried into emitted OptionalCallExpression
 {
-  const { helpers, program } = setup('arr.at?.(0);');
-  const [stmt] = runMember(helpers, program, '_at');
+  const { helpers, program } = setup('const arr = []; arr.at?.(0);');
+  const stmt = firstExprStmt(runMember(helpers, program, '_at'));
   // expected OptionalCallExpression at the top - buildMethodCall observed parent.optional=true
   check('replaceInstanceLike/optional-call form -> OptionalCallExpression',
     stmt.expression.type, 'OptionalCallExpression');
@@ -579,8 +579,8 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // multi-arg call: all args cloned into emitted .call(...)
 {
-  const { helpers, program } = setup('arr.slice(1, 3, foo);');
-  const [stmt] = runMember(helpers, program, '_slice');
+  const { helpers, program } = setup('const arr = []; arr.slice(1, 3, foo);');
+  const stmt = firstExprStmt(runMember(helpers, program, '_slice'));
   // expected `_slice(arr).call(arr, 1, 3, foo)` - 4 args (receiver + 3 user args)
   const callArgs = stmt.expression.arguments;
   check('replaceInstanceLike/multi-arg total argument count', callArgs.length, 4);
@@ -595,9 +595,9 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 // arg cloning: mutating original user-arg after replaceInstanceLike doesn't affect the emit.
 // guards against shared-node aliasing across the synthetic .call argument list
 {
-  const { helpers, program, ast } = setup('arr.includes(x);');
-  const [originalArg] = ast.program.body[0].expression.arguments;
-  const [stmt] = runMember(helpers, program, '_includes');
+  const { helpers, program, ast } = setup('const arr = []; arr.includes(x);');
+  const [originalArg] = firstExprStmt(ast.program.body).expression.arguments;
+  const stmt = firstExprStmt(runMember(helpers, program, '_includes'));
   // mutate the ORIGINAL argument node post-emit
   originalArg.name = 'MUTATED';
   // emit must reflect the cloned `x`, not the mutated `MUTATED`
@@ -607,8 +607,8 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // non-optional outer call produces MemberExpression + CallExpression (no `Optional` prefix)
 {
-  const { helpers, program } = setup('arr.includes(1);');
-  const [stmt] = runMember(helpers, program, '_includes');
+  const { helpers, program } = setup('const arr = []; arr.includes(1);');
+  const stmt = firstExprStmt(runMember(helpers, program, '_includes'));
   check('buildMethodCall/non-optional outer is CallExpression',
     stmt.expression.type, 'CallExpression');
   check('buildMethodCall/non-optional callee is MemberExpression',
@@ -624,7 +624,7 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 // `scope.push({id})` for memoized refs injects `var _refN, ...;` at program top; rewritten
 // expression lives at the trailing ExpressionStatement
 {
-  const { helpers, program, ast } = setup('arr.at(0).includes(1);');
+  const { helpers, program, ast } = setup('const arr = []; arr.at(0).includes(1);');
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', outerId: '_includes', innerId: '_at' });
   // shape: `null == (_m = _at(arr)) ? void 0 : _includes(...).call(...)`
@@ -646,7 +646,7 @@ function countOr(n) {
 // the inner result, but the non-optional inner still folds its receiver - so 2 OR-tests
 // (m-ref null, v-ref null), NOT 3
 {
-  const { helpers, program, ast } = setup('arr.at(0)?.includes(1);');
+  const { helpers, program, ast } = setup('const arr = []; arr.at(0)?.includes(1);');
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', optional: true, outerId: '_includes', innerId: '_at' });
   check('replaceInstanceChainCombined/optional outer adds v-ref test',
@@ -656,7 +656,7 @@ function countOr(n) {
 // optional inner (`arr?.at`) + optional outer: the optional inner access emits its own
 // `null == arr` receiver guard, so the full OR-chain has 3 tests (a-ref, m-ref, v-ref null)
 {
-  const { helpers, program, ast } = setup('arr?.at(0)?.includes(1);');
+  const { helpers, program, ast } = setup('const arr = []; arr?.at(0)?.includes(1);');
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', optional: true, outerId: '_includes', innerId: '_at' });
   check('replaceInstanceChainCombined/optional inner adds receiver test',
@@ -669,7 +669,7 @@ function countOr(n) {
 // inside the alternate the threaded receiver memoizes FIRST (ECMA evaluates the receiver before
 // the computed key), then the key SE, then the dispatch on the memo
 {
-  const { helpers, program, ast } = setup('arr.at(0).includes(1);');
+  const { helpers, program, ast } = setup('const arr = []; arr.at(0).includes(1);');
   const se = [t.callExpression(t.identifier('spy'), [])];
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', outerId: '_includes', innerId: '_at', sideEffects: se });
@@ -701,20 +701,21 @@ function countOr(n) {
 
 // call with sideEffects: wraps the polyfill result in SequenceExpression
 {
-  const { helpers, program } = setup('arr.includes(1);');
+  const { helpers, program } = setup('const arr = []; arr.includes(1);');
   const se = [t.callExpression(t.identifier('spy'), [])];
-  const [stmt] = runSimple(helpers, program, '_includes', { sideEffects: se });
-  // expected: `(spy(), _includes(arr));`
+  const stmt = firstExprStmt(runSimple(helpers, program, '_includes', { sideEffects: se }));
+  // expected: `(arr, spy(), _includes(arr));` - the receiver read precedes the key effect.
   checkTruthy('replaceCallWithSimple/wraps in SequenceExpression when sideEffects',
     stmt.expression.type === 'SequenceExpression'
-    && stmt.expression.expressions[0].callee.name === 'spy'
-    && stmt.expression.expressions[1].callee.name === '_includes');
+    && stmt.expression.expressions[0].name === 'arr'
+    && stmt.expression.expressions[1].callee.name === 'spy'
+    && stmt.expression.expressions[2].callee.name === '_includes');
 }
 
 // optional-chain receiver with non-skipping skipOptional: ternary guard wraps the result
 {
-  const { helpers, program } = setup('arr?.includes(1);');
-  const [stmt] = runSimple(helpers, program, '_includes', { optional: true });
+  const { helpers, program } = setup('const arr = []; arr?.includes(1);');
+  const stmt = firstExprStmt(runSimple(helpers, program, '_includes', { optional: true }));
   // expected: `arr == null ? void 0 : _includes(arr);`
   checkTruthy('replaceCallWithSimple/optional receiver wraps in ConditionalExpression',
     stmt.expression.type === 'ConditionalExpression'
@@ -725,9 +726,9 @@ function countOr(n) {
 
 // optional-chain + sideEffects: SequenceExpression nested INSIDE the ternary's alternate
 {
-  const { helpers, program } = setup('arr?.includes(1);');
+  const { helpers, program } = setup('const arr = []; arr?.includes(1);');
   const se = [t.callExpression(t.identifier('spy'), [])];
-  const [stmt] = runSimple(helpers, program, '_includes', { optional: true, sideEffects: se });
+  const stmt = firstExprStmt(runSimple(helpers, program, '_includes', { optional: true, sideEffects: se }));
   // result built BEFORE replaceAndWrap is `withSideEffects(_includes(arr), [spy()])` =
   // `(spy(), _includes(arr))`. then wrapped: `arr == null ? void 0 : (spy(), _includes(arr));`
   checkTruthy('replaceCallWithSimple/optional + SE keeps SequenceExpression inside ternary',
@@ -739,9 +740,9 @@ function countOr(n) {
 
 // skipOptional returning truthy: null-guard is skipped, no ternary wrap
 {
-  const { helpers, program } = setup('arr?.includes(1);');
-  const [stmt] = runSimple(helpers, program, '_includes',
-    { optional: true, skipOptional: () => true });
+  const { helpers, program } = setup('const arr = []; arr?.includes(1);');
+  const stmt = firstExprStmt(runSimple(helpers, program, '_includes',
+    { optional: true, skipOptional: () => true }));
   // expected `_includes(arr);` - no ternary, polyfill consumed the `?.` short-circuit
   checkTruthy('replaceCallWithSimple/skipOptional truthy drops ternary',
     stmt.expression.type === 'CallExpression'
@@ -825,7 +826,7 @@ function hasDotCallBoundTo(node, matchArg) {
 // so this body never ran. the method is null-guarded while the receiver stays bound via `.call(recv)`.
 // three receiver forks: reusable / super->this / memoized-and-folded
 {
-  const { helpers, program } = setup('obj.m?.().includes(2);');
+  const { helpers, program } = setup('const obj = {}; obj.m?.().includes(2);');
   const member = pickMember(program, 'OptionalMemberExpression', 'includes');
   helpers.replaceInstanceLike({ path: member, id: t.identifier('_includes'), skipOptional: null, sideEffects: null });
   const stmt = firstExprStmt(program.node.body);
@@ -833,6 +834,26 @@ function hasDotCallBoundTo(node, matchArg) {
   // so the reusable receiver `obj` stays bound as `this` (a plain `_ref()` would pass this=undefined)
   checkTruthy('rewriteOptionalMethodCall/reusable receiver bound via .call(obj)',
     hasDotCallBoundTo(stmt.expression, a => a?.type === 'Identifier' && a.name === 'obj'));
+}
+
+// Quiet names need no receiver snapshot. Deferred writers without a closed caller
+// census and source-visible getters still capture before selecting the optional method.
+for (const [name, code, captures] of [
+  ['unbound', 'obj.m?.().includes(2);', false],
+  ['deferred writer', 'let obj = {}; function change() { obj = other; } obj.m?.().includes(2);', true],
+  ['getter writer', 'let obj = { get m() { obj = other; return invoke; } }; obj.m?.().includes(2);', true],
+]) {
+  const { helpers, program } = setup(code);
+  const member = pickMember(program, 'OptionalMemberExpression', 'includes');
+  helpers.replaceInstanceLike({ path: member, id: t.identifier('_includes'), skipOptional: null, sideEffects: null });
+  const { expression } = firstExprStmt(program.node.body);
+  const [receiverMemo, methodMemo] = captures ? expression.test.right.expressions : [null, expression.test.right];
+  check(`rewriteOptionalMethodCall/${ name }: receiver capture`, expression.test.right.type === 'SequenceExpression', captures);
+  if (captures) check(`rewriteOptionalMethodCall/${ name }: receiver captured before method getter`, receiverMemo.right.name, 'obj');
+  const receiverName = receiverMemo?.left.name ?? 'obj';
+  check(`rewriteOptionalMethodCall/${ name }: method reads selected receiver`, methodMemo.right.object.name, receiverName);
+  checkTruthy(`rewriteOptionalMethodCall/${ name }: invocation binds captured receiver`,
+    hasDotCallBoundTo(expression, arg => arg?.type === 'Identifier' && arg.name === receiverName));
 }
 
 // super receiver: `super.m?.()` binds `this` (the call arg cannot be `super`)
@@ -863,23 +884,22 @@ function hasDotCallBoundTo(node, matchArg) {
     && test.right.expressions[0].right.callee.name === 'getObj');
 }
 
-// applyReceiverSeMode 'peel' + receiverEffectCount: a SequenceExpression receiver (`(f(), arr)`)
-// with the SE list replaying the prefix - the receiver is peeled to its tail `arr` and `f()` is
-// replayed as the leading side effect. never driven (drivers passed no receiverEffectCount)
+// The full first receiver retains its prefix once; the later call receiver is its stable tail.
 {
-  const { helpers, program } = setup('(f(), arr).includes(1);');
+  const { helpers, program } = setup('const arr = []; (f(), arr).includes(1);');
   const se = [t.callExpression(t.identifier('f'), [])];
   const stmt = firstExprStmt(runMember(helpers, program, '_includes',
     { sideEffects: se, receiverEffectCount: 1, predicate: p => p.node.property?.name === 'includes' }));
-  // expected `f(), _includes(arr).call(arr, 1)` - the receiver is PEELED to the bare tail `arr`
-  // (not left as the memoized SequenceExpression `_ref = (f(), arr)`, which would re-run `f()`)
-  checkTruthy('replaceInstanceLike/peel mode replays SE prefix on peeled tail receiver',
-    stmt.expression.type === 'SequenceExpression'
-    && stmt.expression.expressions[0].callee.name === 'f'
-    && stmt.expression.expressions[1].callee.property.name === 'call'
-    && stmt.expression.expressions[1].callee.object.callee.name === '_includes'
-    && stmt.expression.expressions[1].callee.object.arguments[0].type === 'Identifier'
-    && stmt.expression.expressions[1].callee.object.arguments[0].name === 'arr');
+  const call = stmt.expression;
+  let prefixCalls = 0;
+  t.traverseFast(call, node => { if (node.type === 'CallExpression' && node.callee.name === 'f') prefixCalls++; });
+  check('replaceInstanceLike/peel mode retains one first receiver prefix', prefixCalls, 1);
+  checkTruthy('replaceInstanceLike/peel mode reuses the stable tail after the complete first read',
+    call.type === 'CallExpression' && call.callee.property.name === 'call'
+    && call.callee.object.callee.name === '_includes'
+    && call.callee.object.arguments[0].type === 'SequenceExpression'
+    && call.callee.object.arguments[0].expressions.at(-1).name === 'arr'
+    && call.arguments[0].name === 'arr');
 }
 
 // hoistReceiverSE memoize + reorder: a side-effecting receiver (`foo()`) with a key-SE - the
@@ -896,6 +916,45 @@ function hasDotCallBoundTo(node, matchArg) {
     && stmt.expression.expressions[0].type === 'AssignmentExpression'
     && stmt.expression.expressions[0].right.callee.name === 'foo'
     && stmt.expression.expressions[1].callee.name === 'k');
+}
+
+// Evaluate a quiet identifier before the key without storing it. A deferred writer
+// reachable across key effects still requires the original receiver value.
+for (const [name, code, captures] of [
+  ['unbound', 'arr.includes(1);', false],
+  ['mutable', 'let arr = []; function change() { arr = other; } arr.includes(1);', true],
+]) {
+  const { helpers, program } = setup(code);
+  const stmt = firstExprStmt(runMember(helpers, program, '_includes', { sideEffects: [t.callExpression(t.identifier('keyEffect'), [])], receiverEffectCount: 0 }));
+  const [receiverRead, keyEffect, call] = stmt.expression.expressions;
+  check(`hoistReceiverSE/${ name }: receiver capture`, receiverRead.type === 'AssignmentExpression', captures);
+  check(`hoistReceiverSE/${ name }: receiver evaluated before key`, (captures ? receiverRead.right : receiverRead).name, 'arr');
+  const receiverName = captures ? receiverRead.left.name : 'arr';
+  check(`hoistReceiverSE/${ name }: key follows capture`, keyEffect.callee.name, 'keyEffect');
+  check(`hoistReceiverSE/${ name }: helper reads selected receiver`, call.callee.object.arguments[0].name, receiverName);
+  check(`hoistReceiverSE/${ name }: call binds selected receiver`, call.arguments[0].name, receiverName);
+}
+
+// A stable value can be reread without a snapshot, but its first evaluation precedes
+// the key. That read can throw for a const in its TDZ or `this` before `super()`.
+for (const [name, code, receiverType] of [
+  ['initialized const', 'const held = []; held.includes(1);', 'Identifier'],
+  ['const before initialization', 'held.includes(1); const held = [];', 'Identifier'],
+  ['this before super', 'class Derived extends Array { constructor() { this.includes(1); super(); } }', 'ThisExpression'],
+]) {
+  const { helpers, program } = setup(code);
+  const member = pickMember(program, 'MemberExpression', 'includes');
+  helpers.replaceInstanceLike({
+    path: member,
+    id: t.identifier('_includes'),
+    skipOptional: null,
+    sideEffects: [t.callExpression(t.identifier('keyEffect'), [])],
+    receiverEffectCount: 0,
+  });
+  const sequence = findNode(program.node, node => node.type === 'SequenceExpression'
+    && node.expressions[0].type === receiverType && node.expressions[1]?.callee?.name === 'keyEffect');
+  checkTruthy(`hoistReceiverSE/${ name }: first read precedes key`, sequence);
+  check(`hoistReceiverSE/${ name }: no receiver snapshot`, refCounter, 0);
 }
 
 // hoistReceiverSE check + receiverEffectCount > 0: an optional side-effecting receiver where the
@@ -946,13 +1005,14 @@ function hasDotCallBoundTo(node, matchArg) {
   const { helpers, program } = setup('(arr?.includes)(1);');
   const se = [t.callExpression(t.identifier('spy'), [])];
   const exprStmt = runOptional(helpers, program, '_includes', { sideEffects: se });
-  // `(arr == null ? void 0 : (spy(), _includes(arr))).call(arr, 1)` - the callee is a conditional
-  // whose alternate is `(spy(), _includes(arr))`
+  // The guard checks the quiet receiver; the key effect stays in its non-null alternate.
   const callee = exprStmt.expression.callee.object;
   checkTruthy('replaceInstanceLike/paren-lookup folds SE into ternary alternate',
     exprStmt.expression.callee.property.name === 'call'
     && callee.type === 'ConditionalExpression'
     && callee.alternate.type === 'SequenceExpression'
+    && callee.test.left.type === 'Identifier'
+    && callee.test.left.name === 'arr'
     && callee.alternate.expressions[0].callee.name === 'spy'
     && callee.alternate.expressions[1].callee.name === '_includes');
 }
@@ -1031,6 +1091,768 @@ function hasDotCallBoundTo(node, matchArg) {
   wrapped.cloneNode(t.callExpression(shared, []), false);
   check('rangePreservingTypes/a shallow clone leaves the shared child unstamped', shared.start, undefined);
   checkTruthy('rangePreservingTypes/one wrapper per types object', rangePreservingTypes(t) === wrapped);
+}
+
+// A receiver already served by this pass is reused in its rendered spelling. Source bindings,
+// getter receivers and guarded environment reads retain their evaluation boundaries.
+for (const [label, source, entry, captures] of [
+  ['bare realm', 'globalThis.flat?.().includes(1);', 'global-this', 0],
+  ['parenthesized realm', '(globalThis).flat?.().includes(1);', 'global-this', 0],
+  ['constructor optional method', 'Promise.noSuchStatic?.().includes(0);', 'promise', 0],
+  ['constructor optional method with two consumers', 'Promise.noSuchStatic?.().flat().at(0);', 'promise', 0],
+  ['static value', 'Number.MAX_SAFE_INTEGER.toFixed(2);', 'number/max-safe-integer', 0],
+  ['computed static value', 'let f = 0; Number[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', 'number/max-safe-integer', 0],
+  ['literal computed static value', 'Number["MAX_SAFE_INTEGER"].toFixed(2);', 'number/max-safe-integer', 0],
+  ['nested computed static value', 'let f = 0, g = 0; Number[(f++, (g++, "MAX_SAFE_INTEGER"))].toFixed(2);', 'number/max-safe-integer', 0],
+  ['guarded computed static value', 'let e = 0, f = 0, u; ((e++, u = globalThis.window))?.Number[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', 'number/max-safe-integer', 0],
+  ['guarded computed object hop', 'let g = 0, u; (u = globalThis.window)?.[(g++, "Number")].MAX_SAFE_INTEGER.toFixed(2);', 'number/max-safe-integer', 0],
+  ['computed object and leaf keys', 'let g = 0, f = 0, u; (u = globalThis.window)?.[(g++, "Number")][(f++, "MAX_SAFE_INTEGER")].toFixed(2);', 'number/max-safe-integer', 0],
+  ['guarded static default', 'function take(x = (globalThis.window?.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(2)) { return x; }', 'number/max-safe-integer', 0],
+  ['stored realm static', 'let c = 0, d = 0, k; (d++, (c++, k = globalThis.window.self))?.Number.MAX_SAFE_INTEGER.toFixed(1);', 'number/max-safe-integer', 0],
+  ['effectful receiver tail', 'globalThis?.[(hop(), "self")].window[(key(), Symbol.iterator)]();', 'global-this', 0],
+  ['sealed receiver tail', '(globalThis?.[(hop(), "self")][(key(), Symbol.iterator)])();', 'self', 0],
+  ['sequence realm optional method', '(before(), globalThis).flat?.().includes(1);', 'global-this', 0],
+  ['alias sequence before call result', 'const g = globalThis; let c = 0, d = 0; (d++, (c++, g.self))?.foo().at(0);', 'self', 0],
+  ['direct sequence before call result', 'let c = 0, d = 0; (d++, (c++, globalThis.self))?.foo().at(0);', 'self', 0],
+  ['alias sequence before prototype read', 'const ga = globalThis; let c = 0, d = 0; (d++, (c++, ga.window.self))?.Array.prototype.at;', 'self', 0],
+  ['alias sequence before explicit prototype call', 'const g = globalThis; let c = 0, d = 0; (c++, (d++, g.self))?.Array.prototype.map.call([1], x => x);', 'self', 0],
+  ['opaque call sequence before guarded static', 'let bodyCount = 0; const db = () => { bodyCount++; return globalThis; }; db()?.self?.window?.Array.of(11).at(0);', 'self', 0],
+  ['sealed aliased symbol call', 'const key = Symbol.iterator; function getRealm() { setup(); return globalThis; } (getRealm()[(hop(), "self")]?.[key])();', 'self', 0],
+  [
+    'sealed aliased symbol argument call',
+    'const key = Symbol.iterator; function getRealm() { setup(); return globalThis; } (getRealm()[(hop(), "self")]?.[key])(42);',
+    'self',
+    0,
+  ],
+  ['foreign constructor import', 'import Promise from "foreign-module"; Promise.noSuchStatic?.().includes(0);', 'foreign-module', 1],
+  ['mutable source alias', 'let P = Promise; function write() { P = other; } P.noSuchStatic?.().includes(0);', 'promise', 0],
+]) {
+  // eslint-disable-next-line node/no-sync -- synchronous AST comparisons keep the unit suite's evaluation order
+  const { ast } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-handoff.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imported = ast.program.body.find(node => node.type === 'ImportDeclaration'
+    && (node.source.value === entry || node.source.value.endsWith(`/actual/${ entry }`)
+      || node.source.value.endsWith(`/actual/${ entry }/constructor`)));
+  checkTruthy(`rendered receiver handoff/${ label }: receiver import survives`, imported);
+  if (!imported) continue;
+  const receiverName = imported.specifiers[0].local.name;
+  let copiedReceiver = 0;
+  t.traverseFast(ast, node => {
+    if (node.type !== 'AssignmentExpression' || node.left.type !== 'Identifier' || !/^_ref\d*$/.test(node.left.name)) return;
+    let value = node.right;
+    while (value.type === 'SequenceExpression') value = value.expressions.at(-1);
+    if (value.type === 'Identifier' && value.name === receiverName) copiedReceiver++;
+  });
+  check(`rendered receiver handoff/${ label }: imported receiver captures`, copiedReceiver, captures);
+}
+
+// The exact fixture is the source oracle. Realm bindings below are VM-local; instance helpers are real.
+{
+  const source = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/audit-synth-memo-live-se-claims/input.mjs',
+    import.meta.url), 'utf8');
+  const optionsText = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/audit-synth-memo-live-se-claims/options.json',
+    import.meta.url));
+  const options = JSON.parse(optionsText);
+  // eslint-disable-next-line node/no-sync -- exact source and native chronology share one AST snapshot
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'synth-receiver-handoff.mjs',
+    parserOpts: options.parserOpts,
+    plugins: [[babelPlugin, options.plugins[0][1]]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const mapImport = imports.find(node => node.source.value.endsWith('/actual/map/constructor'));
+  checkTruthy('synth receiver handoff: own Map import survives', mapImport);
+  const mapName = mapImport.specifiers[0].local.name;
+  let mapCopies = 0;
+  let getObjSnapshots = 0;
+  let proxyParameters = 0;
+  t.traverseFast(ast, node => {
+    const values = node.type === 'AssignmentExpression' ? [node.right]
+      : node.type === 'VariableDeclarator' && node.init ? [node.init]
+      : node.type === 'CallExpression' && node.callee.type === 'FunctionExpression'
+        ? node.arguments.filter((arg, index) => node.callee.params[index]) : [];
+    mapCopies += values.filter(value => peelNestedSequenceExpressions(value).tail?.type === 'Identifier' && peelNestedSequenceExpressions(value).tail.name === mapName).length;
+    if (node.type !== 'CallExpression') return;
+    const helper = node.callee.type === 'MemberExpression' && node.callee.property.name === 'call'
+      ? node.callee.object : null;
+    const assignment = helper?.type === 'CallExpression' ? helper.arguments[0] : null;
+    if (assignment?.type === 'AssignmentExpression' && assignment.right.type === 'CallExpression'
+      && assignment.right.callee.name === 'getObj' && node.arguments[0]?.name === assignment.left.name) {
+      getObjSnapshots++;
+    }
+    if (node.callee.type !== 'FunctionExpression') return;
+    node.arguments.forEach((argument, index) => {
+      const value = peelNestedSequenceExpressions(argument).tail;
+      const parameter = node.callee.params[index];
+      if (value?.type !== 'MemberExpression' || value.property.name !== 'Array' || !parameter) return;
+      let readsUnknownSlot = false;
+      t.traverseFast(node.callee.body, child => {
+        if (child.type === 'MemberExpression' && child.object.name === parameter.name && child.property.name === 'nope') {
+          readsUnknownSlot = true;
+        }
+      });
+      if (readsUnknownSlot) proxyParameters++;
+    });
+  });
+  check('synth receiver handoff: own Map copies including IIFE params', mapCopies, 0);
+  check('synth receiver handoff: mandatory getObj lookup/this snapshots', getObjSnapshots, 2);
+  check('synth receiver handoff: unknown proxy Array parameter', proxyParameters, 1);
+
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const importsByName = Object.fromEntries(imports.map((node, index) => [node.specifiers[0].local.name, values[index]]));
+  // Constructor/self values belong to each VM realm. This checks handoff, not import availability.
+  const bindings = imports.flatMap(node => {
+    const { name } = node.specifiers[0].local;
+    const entry = node.source.value;
+    return entry.endsWith('/actual/map/constructor') ? [`const ${ name } = Map;`]
+      : entry.endsWith('/actual/map/group-by') ? [`const ${ name } = Map.groupBy;`]
+      : entry.endsWith('/actual/self') ? [`const ${ name } = globalThis;`] : [];
+  }).join('\n');
+  const emitted = code.replaceAll(/^import .*;$/gm, '');
+  const ordinary = ['getObj:0', 'at:0', 'call:0:true', 'more:0', 'more2:1', 'getObj:1', 'at:1', 'call:1:true', 'Array:1'];
+  for (const [mode, expectedEvents, expectedError] of [
+    ['ordinary', ordinary, undefined],
+    ['first-prefix-throws', ['getObj:0'], 'TypeError'],
+    ['second-default-throws', ordinary.slice(0, 6), 'TypeError'],
+    ['proxy-array-throws', ordinary, 'TypeError'],
+  ]) {
+    const prelude = `
+      const events = globalThis.vmEvents = [];
+      let calls = 0, useResult;
+      globalThis.self = globalThis;
+      const nativeArray = Array;
+      Object.defineProperty(globalThis, 'Array', { get() {
+        events.push('Array:' + tick);
+        if (__mode === 'proxy-array-throws') throw new TypeError('proxy Array');
+        return nativeArray;
+      } });
+      for (const name of ['more', 'more2']) Object.defineProperty(Map, name, { get() {
+        events.push(name + ':' + tick); return name;
+      } });
+      function getObj() {
+        calls++; events.push('getObj:' + tick);
+        if (__mode === 'first-prefix-throws' && calls === 1
+          || __mode === 'second-default-throws' && calls === 2) throw new TypeError('getObj');
+        const held = { get at() { events.push('at:' + tick); return function () {
+          events.push('call:' + tick + ':' + (this === held)); return 3;
+        }; } };
+        return held;
+      }
+      function use(value) { useResult = value; }
+    `;
+    const observe = 'JSON.stringify([calls, tick, useResult]);';
+    const results = [];
+    for (const [leg, body] of [['native', source], ['emitted', bindings + emitted]]) {
+      // Contextified globals can retry a throwing getter on Node 25.
+      const context = Object.assign(createContext(vmConstants.DONT_CONTEXTIFY),
+        { __mode: mode, ...leg === 'emitted' ? importsByName : {} });
+      let value, error;
+      try {
+        value = JSON.parse(runInContext(prelude + body + observe, context));
+      } catch (error_) {
+        error = error_.name;
+      }
+      results.push({ value, error, events: Array.from(context.vmEvents) });
+    }
+    checkDeep(`synth receiver handoff/${ mode }: native chronology`, results[0].events, expectedEvents);
+    check(`synth receiver handoff/${ mode }: native error`, results[0].error, expectedError);
+    if (mode === 'ordinary') {
+      checkDeep('synth receiver handoff: native call count, tick and proxy result',
+        results[0].value, [2, 1, ['function', 'undefined', 3]]);
+    }
+    checkDeep(`synth receiver handoff/${ mode }: emitted equals native`, results[1], results[0]);
+  }
+}
+
+// The kept-tail renderer retains the environmental probe of a direct nested navigation.
+// Both nullable probes survive; the final backed tail needs no stored copy.
+{
+  // eslint-disable-next-line node/no-sync -- synchronous AST comparisons keep the unit suite's evaluation order
+  const { ast } = transformSync('let c = 0, d = 0; (d++, (c++, globalThis.window.self))?.Array.prototype.at;', {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-handoff-probe.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let captures = 0;
+  let probes = 0;
+  t.traverseFast(ast, node => {
+    if (node.type === 'VariableDeclarator' && !node.init) captures++;
+    if (node.type === 'ConditionalExpression') probes++;
+  });
+  check('rendered receiver handoff/direct window probe: stable guarded tail copies', captures, 0);
+  check('rendered receiver handoff/direct window probe: inner probe and outer guard survive', probes, 2);
+}
+
+// The exact guarded computed-static input keeps its source stores and key effects in both branches.
+{
+  const source = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/audit-optional-outer-guard-computed-static-key/input.mjs',
+    import.meta.url), 'utf8');
+  // eslint-disable-next-line node/no-sync -- compare one unchanged fixture input with its emitted AST
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'computed-static-receiver.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const\b/g, 'const');
+  const native = source.replaceAll(/\bexport const\b/g, 'const');
+  const observe = 'return [seqCtorStaticComputed, e, f, u === globalThis.window];';
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  try {
+    for (const present of [false, true]) {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: present ? globalThis : undefined });
+      const expected = [present ? '9007199254740991.00' : undefined, 1, present ? 1 : 0, true];
+      checkDeep(`computed static receiver/window ${ present }: native guard, store and key`, Function(`${ native } ${ observe }`)(), expected);
+      checkDeep(`computed static receiver/window ${ present }: emitted guard, store and key`,
+        Function(...imports.map(node => node.specifiers[0].local.name), `${ emitted } ${ observe }`)(...values), expected);
+    }
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'window', descriptor); else delete globalThis.window;
+  }
+}
+
+for (const [label, source, capturesExpected = 1] of [
+  ['mutated namespace alias', 'let N = Number; N = other; let f = 0; N[(f++, "MAX_SAFE_INTEGER")].toFixed(2);'],
+  ['foreign namespace', 'import N from "foreign-module"; let f = 0; N[(f++, "MAX_SAFE_INTEGER")].toFixed(2);'],
+  ['unknown namespace', 'let f = 0; foreignNumber[(f++, "MAX_SAFE_INTEGER")].toFixed(2);'],
+  ['getter namespace', 'const box = { get Number() { return Number; } }; let f = 0; box.Number[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', 0],
+  ['opaque getter namespace', 'const box = { get Number() { return foreignNumber; } }; let f = 0; box.Number[(f++, "MAX_SAFE_INTEGER")].toFixed(2);'],
+  ['union namespace', 'const N = flag ? Number : { MAX_SAFE_INTEGER: 12 }; let f = 0; N[(f++, "MAX_SAFE_INTEGER")].toFixed(2);'],
+  ['foreign computed object hop', 'import realm from "foreign-module"; let g = 0; realm[(g++, "Number")].MAX_SAFE_INTEGER.toFixed(2);'],
+  ['unknown computed object hop', 'let g = 0; realm[(g++, "Number")].MAX_SAFE_INTEGER.toFixed(2);'],
+  ['getter computed object hop', 'const box = { get Number() { return Number; } }; let g = 0; box[(g++, "Number")].MAX_SAFE_INTEGER.toFixed(2);', 0],
+  ['mutable computed object hop', 'let realm = globalThis; realm = other; let g = 0; realm[(g++, "Number")].MAX_SAFE_INTEGER.toFixed(2);'],
+]) {
+  // eslint-disable-next-line node/no-sync -- source namespaces cannot inherit an owned static verdict
+  const { ast } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'computed-static-negative.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let captures = 0;
+  t.traverseFast(ast, node => { if (node.type === 'VariableDeclarator' && !node.init) captures++; });
+  check(`computed static receiver/${ label }: final receiver copies`, captures > 0, capturesExpected > 0);
+}
+
+for (const [label, source, reusable] of [
+  ['TS namespace', 'let f = 0; (Number as any)[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', true],
+  ['TS key', 'let f = 0; Number[(f++, ("MAX_SAFE_INTEGER" as const))].toFixed(2);', true],
+  ['TS scalar', 'let f = 0; (Number[(f++, "MAX_SAFE_INTEGER")] as number).toFixed(2);', true],
+  ['TS namespace spine', 'let f = 0; (globalThis as any).Number[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', true],
+  ['TS getter namespace', 'const box: { Number: NumberConstructor } = { get Number() { return Number; } }; let f = 0; box.Number[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', true],
+  ['TS parameter namespace', 'function take(N: NumberConstructor) { let f = 0; return N[(f++, "MAX_SAFE_INTEGER")].toFixed(2); }', false],
+  ['TS sealed optional namespace', 'let f = 0; (globalThis.window?.Number as any)[(f++, "MAX_SAFE_INTEGER")].toFixed(2);', true],
+]) {
+  // eslint-disable-next-line node/no-sync -- type wrappers cannot strengthen a source namespace proof
+  const { ast } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'computed-static-typescript.ts',
+    parserOpts: { plugins: ['typescript'] },
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let captures = 0;
+  t.traverseFast(ast, node => { if (node.type === 'VariableDeclarator' && !node.init) captures++; });
+  check(`computed static receiver/${ label }: runtime namespace decides reuse`, captures === 0, reusable);
+}
+
+// A quiet key view must never construct an Identifier from a numeric or punctuation key.
+for (const key of ['0', '1', '?.', 'v_-1', 'default', '\u03C0']) {
+  const source = `const events = []; const box = { ${ JSON.stringify(key) }: ['held'] }; export const result = [box[(events.push('key'), ${ JSON.stringify(key) })].at(0), events];`;
+  // eslint-disable-next-line node/no-sync -- key-shape regressions must reach both the builder and runtime
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-key-shape.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let invalid = 0;
+  t.traverseFast(ast, node => { if (node.type === 'Identifier' && !isValidIdentifierName(node.name)) invalid++; });
+  check(`receiver key shape/${ key }: valid emitted identifiers`, invalid, 0);
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const result\b/g, 'const result');
+  const native = source.replaceAll(/\bexport const result\b/g, 'const result');
+  checkDeep(`receiver key shape/${ key }: native order`, Function(`${ native } return result;`)(), ['held', ['key']]);
+  checkDeep(`receiver key shape/${ key }: emitted order`, Function(...imports.map(node => node.specifiers[0].local.name),
+    `${ emitted } return result;`)(...values), ['held', ['key']]);
+}
+
+// Object-hop keys and leaf keys stay in their original first evaluation, behind the source guard.
+{
+  const exact = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/audit-ctor-static-collapse-keeps-hop-key-effects/input.mjs',
+    import.meta.url), 'utf8');
+  for (const [label, source, observe, presentResult, absentResult] of [
+    [
+      'exact below/at leaf',
+      exact,
+      '[belowLeaf, atLeaf, g, u === globalThis.window, c, e]',
+      ['9007199254740991.00', '9007199254740991.00', 2, true, 1, 2],
+      [undefined, undefined, 0, true, 1, 2],
+    ],
+    [
+      'ordered object/leaf keys',
+      `const events = [];
+      export const result = ((events.push('outer'), globalThis.window))?.[(events.push('object-key'), 'Number')]
+        [(events.push('leaf-key'), 'MAX_SAFE_INTEGER')].toFixed(2);`,
+      '[result, events]',
+      ['9007199254740991.00', ['outer', 'object-key', 'leaf-key']],
+      [undefined, ['outer']],
+    ],
+  ]) {
+    // eslint-disable-next-line node/no-sync -- native and emitted values use the unchanged first source
+    const { ast, code } = transformSync(source, {
+      ast: true,
+      configFile: false,
+      babelrc: false,
+      filename: 'receiver-object-key.mjs',
+      plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+    });
+    const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+    const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+    const scalar = imports.find(node => node.source.value.endsWith('/actual/number/max-safe-integer'))?.specifiers[0].local.name;
+    let copies = 0;
+    t.traverseFast(ast, node => {
+      if (node.type !== 'AssignmentExpression') return;
+      let value = node.right;
+      while (value.type === 'SequenceExpression') value = value.expressions.at(-1);
+      if (value.type === 'Identifier' && value.name === scalar) copies++;
+    });
+    check(`receiver object key/${ label }: owned scalar snapshots`, copies, 0);
+    const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const\b/g, 'const');
+    const native = source.replaceAll(/\bexport const\b/g, 'const');
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const selfDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'self');
+    try {
+      Object.defineProperty(globalThis, 'self', { configurable: true, value: globalThis });
+      for (const present of [false, true]) {
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: present ? globalThis : undefined });
+        const expected = present ? presentResult : absentResult;
+        checkDeep(`receiver object key/${ label }/${ present }: native`, Function(`${ native } return ${ observe };`)(), expected);
+        checkDeep(`receiver object key/${ label }/${ present }: emitted`, Function(...imports.map(node => node.specifiers[0].local.name),
+          `${ emitted } return ${ observe };`)(...values), expected);
+      }
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'window', descriptor); else delete globalThis.window;
+      if (selfDescriptor) Object.defineProperty(globalThis, 'self', selfDescriptor); else delete globalThis.self;
+    }
+  }
+}
+
+// The source optional object is checked before peeling a typed wrapper or building a quiet view.
+for (const [typed, call] of [[false, "events.push('hop')"], [true, "events.push('hop')"], [false, 'hop()'], [true, 'hop()']]) {
+  const source = `try { (globalThis.window?.[(${ call }, 'Number')]${ typed ? ' as any' : '' }).MAX_SAFE_INTEGER.toFixed(2); }
+    catch (error) { events.push(error.name); } export const result = events;`;
+  // eslint-disable-next-line node/no-sync -- a sealed null object must throw before its computed key
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-object-seal.ts',
+    parserOpts: { plugins: ['typescript'] },
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const\b/g, 'const').replaceAll(' as any', '');
+  const native = source.replaceAll(/\bexport const\b/g, 'const').replaceAll(' as any', '');
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  try {
+    for (const present of [false, true]) {
+      const expected = present ? ['probe', 'hop'] : ['probe', 'TypeError'];
+      for (const [leg, body] of [['native', native], ['emitted', emitted]]) {
+        const events = [];
+        Object.defineProperty(globalThis, 'window', {
+          configurable: true,
+          get() {
+            events.push('probe');
+            return present ? globalThis : null;
+          },
+        });
+        function hop() { events.push('hop'); }
+        const result = leg === 'native' ? Function('events', 'hop', `${ body } return result;`)(events, hop)
+          : Function('events', 'hop', ...imports.map(node => node.specifiers[0].local.name), `${ body } return result;`)(events, hop, ...values);
+        checkDeep(`receiver object seal/${ call }/typed ${ typed }/${ present }/${ leg }: source order`, result, expected);
+      }
+    }
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'window', descriptor); else delete globalThis.window;
+  }
+}
+
+// The sealed static read remains outside the guard; its constructor key precedes that read.
+{
+  const exact = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/sealed-static-receiver-key-prefix/input.mjs',
+    import.meta.url), 'utf8');
+  for (const [label, source] of [
+    ['exact', exact],
+    ['typed seal', exact.replace(').MAX_SAFE_INTEGER', ' as any).MAX_SAFE_INTEGER')],
+    ['nested key', exact.replace("keyReads++, 'Number'", "keyReads++, (keyReads++, 'Number')")],
+    ['unbound key prefix', exact.replace("keyReads++, 'Number'", "notDeclared, keyReads++, 'Number'")],
+    ['TDZ key prefix', `${ exact.replace("keyReads++, 'Number'", "lateKey, keyReads++, 'Number'") }\nconst lateKey = 0;`],
+  ]) {
+    // eslint-disable-next-line node/no-sync -- the unchanged source and folded key need an exact native order oracle
+    const { ast, code } = transformSync(source, {
+      ast: true,
+      configFile: false,
+      babelrc: false,
+      filename: 'sealed-static-key-order.ts',
+      parserOpts: { plugins: ['typescript'] },
+      plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+    });
+    const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+    const bindings = imports.map(node => {
+      const { name } = node.specifiers[0].local;
+      if (node.source.value.endsWith('/global-this')) return `const ${ name } = globalThis;`;
+      if (node.source.value.endsWith('/number/max-safe-integer')) return `const ${ name } = 9007199254740991;`;
+      if (node.source.value.endsWith('/number/instance/to-fixed')) {
+        return `const ${ name } = value => { events.push('dispatch:' + keyReads); return nativeToFixed; };`;
+      }
+      throw new Error(`Unexpected sealed static key import: ${ node.source.value }`);
+    }).join('\n');
+    for (const present of [false, true]) {
+      const results = [];
+      for (const body of [source, code]) {
+        const program = body.replaceAll(/^import .*;$/gm, '').replaceAll('export const value', 'value')
+          .replaceAll('export { keyReads };', '').replaceAll(' as any', '');
+        const observed = runInNewContext(`
+          const events = [];
+          const nativeToFixed = (0).toFixed;
+          const fakeNumber = { get MAX_SAFE_INTEGER() { events.push('MAX:' + keyReads); return 9007199254740991; } };
+          Object.defineProperty(globalThis, 'Number', {
+            get() { events.push('Number:' + keyReads); return fakeNumber; }
+          });
+          Object.defineProperty(globalThis, 'window', {
+            get() { events.push('probe'); return ${ present } ? globalThis : null; }
+          });
+          ${ body === source ? '' : bindings }
+          let value, error;
+          ${ program.replace('value =', 'try { value =').replace(/;\s*$/, '; } catch (caught) { error = caught.name; }') }
+          ({ value, error, keyReads, events: events.filter(event => !event.startsWith('dispatch:')) });
+        `);
+        results.push(structuredClone(Object.fromEntries(Object.entries(observed).filter(([, value]) => value !== undefined))));
+      }
+      const count = label === 'nested key' ? 2 : 1;
+      const throwsBeforeKey = label === 'unbound key prefix' || label === 'TDZ key prefix';
+      checkDeep(`sealed static key order/${ label }/${ present }: native reached key and read`, results[0], present && throwsBeforeKey
+        ? { error: 'ReferenceError', keyReads: 0, events: ['probe'] } : present
+        ? { value: '9007199254740991.00', keyReads: count, events: ['probe', `Number:${ count }`, `MAX:${ count }`] }
+        : { error: 'TypeError', keyReads: 0, events: ['probe'] });
+      checkDeep(`sealed static key order/${ label }/${ present }: emitted matches native`, results[1], results[0]);
+    }
+  }
+}
+
+// These native runtime checks use fresh VM arrays and the actual pure helpers.
+for (const [fixture, needle, method, binding] of [
+  ['positional-read-inline-spread', 'toSpliced: viaIndexKey', 'toSpliced', 'viaIndexKey'],
+  ['session-probes-other-3', 'const { [k]: { at: m } } = { ...spread', 'at', 'm'],
+]) {
+  const input = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
+  const source = input.split('\n').find(line => line.includes(needle));
+  // eslint-disable-next-line node/no-sync -- compare the exact claimed source slot with native getter order
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'destructure-instance-residual.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '');
+  const importsByName = Object.fromEntries(imports.map((node, idx) => [node.specifiers[0].local.name, values[idx]]));
+  const prelude = `const events = []; let reads = 0; const use = () => {};
+    const spread = { get keep() { events.push('spread'); return 1; } };
+    Object.defineProperty(Array.prototype, ${ JSON.stringify(method) }, { configurable: true, get() {
+      const selected = ++reads; events.push('method'); return function () { return selected; };
+    } });`;
+  const observe = `JSON.stringify([${ binding }(), reads, events]);`;
+  checkDeep(`destructure spent instance/${ fixture }: native selected value and getter order`,
+    JSON.parse(runInNewContext(prelude + emitted + observe, importsByName)),
+    JSON.parse(runInNewContext(prelude + source + observe)));
+}
+
+// A closed supplied receiver has no mutable default flag; its emitted source remains parseable.
+{
+  const source = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/closed-caller-parameter-retained-read-order/input.mjs',
+    import.meta.url), 'utf8');
+  // eslint-disable-next-line node/no-sync -- the exact supplied host must compile without an empty declaration
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'destructure-supplied-receiver.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  checkTruthy('retained supplied receiver: emitted source parses', parseCode(code));
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const importsByName = Object.fromEntries(imports.map((node, idx) => [node.specifiers[0].local.name, values[idx]]));
+  const emitted = code.replaceAll(/^import .*;$/gm, '');
+  const prelude = 'let result; const use = (values, events) => { result = [values, events]; };';
+  const observe = 'JSON.stringify(result);';
+  checkDeep('retained supplied receiver: native key and binding order',
+    JSON.parse(runInNewContext(prelude + emitted + observe, importsByName)),
+    JSON.parse(runInNewContext(prelude + source + observe)));
+}
+
+// The guard owns its root and test keys; discarded leaf keys execute only after that guard.
+for (const [label, receiver, nullTrace, presentTrace, independentClaim = false, declarations = ''] of [
+  ['root prefix', '(objectPrefix(), globalThis).window?.[(hop(), "Number")]', ['object', 'probe'], ['object', 'probe', 'hop']],
+  [
+    'folded leaf groups',
+    '(objectPrefix(), globalThis).window?.[(hop(), keyEffect(), "self")][(ctorFirst(), ctorLast(), "Number")]',
+    ['object', 'probe'],
+    ['object', 'probe', 'hop', 'key', 'ctor-first', 'ctor-last'],
+  ],
+  [
+    'test-owned keys',
+    '(objectPrefix(), globalThis)[(testFirst(), testLast(), "window")]?.[(hop(), keyEffect(), "Number")]',
+    ['object', 'test-first', 'test-last', 'probe'],
+    ['object', 'test-first', 'test-last', 'probe', 'hop', 'key'],
+  ],
+  ['independent leaf claim', 'globalThis.window?.[(value = Math.cbrt(8), keyEffect(), "Number")]', ['probe'], ['probe', 'key'], true],
+  ['guard-owned root call', 'getRealm().window?.Number', ['object', 'probe'], ['object', 'probe'], false, 'function getRealm() { objectPrefix(); return globalThis; }'],
+]) {
+  const source = `${ declarations }let threw = false, value = null; try { (${ receiver }).MAX_SAFE_INTEGER.toFixed(2); }
+    catch (error) { threw = error instanceof TypeError; } module.exports = threw + ':' + value;`;
+  // eslint-disable-next-line node/no-sync -- compare the exact guard/effect owners with the native source
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-leaf-guard.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  if (independentClaim) checkTruthy(`receiver leaf guard/${ label }: independent claim retained`,
+    code.includes('/actual/math/cbrt'));
+  const emitted = code.replaceAll(/^import .*;$/gm, '');
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const selfDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'self');
+  try {
+    Object.defineProperty(globalThis, 'self', { configurable: true, value: globalThis });
+    for (const present of [false, true]) {
+      for (const [leg, body] of [['native', source], ['emitted', emitted]]) {
+        const trace = [];
+        const module = { exports: null };
+        Object.defineProperty(globalThis, 'window', {
+          configurable: true,
+          get() {
+            trace.push('probe');
+            return present ? globalThis : null;
+          },
+        });
+        const callbacks = ['objectPrefix', 'hop', 'keyEffect', 'ctorFirst', 'ctorLast', 'testFirst', 'testLast'];
+        const labels = ['object', 'hop', 'key', 'ctor-first', 'ctor-last', 'test-first', 'test-last'];
+        const functions = labels.map(name => () => trace.push(name));
+        Function('module', ...callbacks, ...imports.map(node => node.specifiers[0].local.name), body)(module, ...functions, ...values);
+        check(`receiver leaf guard/${ label }/${ present }/${ leg }: value`, module.exports,
+          `${ !present }:${ present && independentClaim ? 2 : null }`);
+        checkDeep(`receiver leaf guard/${ label }/${ present }/${ leg }: effect owners`, trace, present ? presentTrace : nullTrace);
+      }
+    }
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'window', descriptor); else delete globalThis.window;
+    if (selfDescriptor) Object.defineProperty(globalThis, 'self', selfDescriptor); else delete globalThis.self;
+  }
+}
+
+for (const [label, source, expected] of [
+  [
+    'TDZ object hop',
+    `const events = [];
+    try { realm[(events.push('key'), 'Number')].MAX_SAFE_INTEGER.toFixed(2); } catch (error) { events.push(error.name); }
+    const realm = globalThis; export const result = events;`,
+    ['ReferenceError'],
+  ],
+  [
+    'getter object hop',
+    `const events = [];
+    const box = { get Number() { events.push('getter'); return { MAX_SAFE_INTEGER: { toFixed() { events.push('call'); return 1; } } }; } };
+    box[(events.push('key'), 'Number')].MAX_SAFE_INTEGER.toFixed(2); export const result = events;`,
+    ['key', 'getter', 'call'],
+  ],
+]) {
+  // eslint-disable-next-line node/no-sync -- declined source proofs must keep the complete first read
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-object-negative.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const\b/g, 'const');
+  const native = source.replaceAll(/\bexport const\b/g, 'const');
+  checkDeep(`receiver object negative/${ label }: native order`, Function(`${ native } return result;`)(), expected);
+  checkDeep(`receiver object negative/${ label }: emitted order`, Function(...imports.map(node => node.specifiers[0].local.name),
+    `${ emitted } return result;`)(...values), expected);
+}
+
+// Quiet source prefix reads still precede a computed key, including abrupt completion.
+for (const [label, declarations, expression, expected] of [
+  ['unbound prefix', '', '(a, "b")[(events.push("key"), "at")]', ['ReferenceError']],
+  ['unbound mixed prefix', '', '(a, events.push("before"), "b")[(events.push("key"), "at")]', ['ReferenceError']],
+  ['throwing getter prefix', 'const box = { get value() { events.push("getter"); throw new Error(); } };', '(box.value, "b")[(events.push("key"), "at")]', ['getter', 'Error']],
+  ['initialized quiet prefix', 'const a = 0;', '(a, "b")[(events.push("key"), "at")]', ['key']],
+]) {
+  const source = `const events = []; ${ declarations } try { ${ expression }; } catch (error) { events.push(error.name); } export const result = events;`;
+  // eslint-disable-next-line node/no-sync -- the transformed AST and runtime share one source snapshot
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-first-read.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const result\b/g, 'const result');
+  const native = source.replaceAll(/\bexport const result\b/g, 'const result');
+  checkDeep(`receiver first read/${ label }: native order`, Function(`${ native } return result;`)(), expected);
+  checkDeep(`receiver first read/${ label }: emitted order`, Function(...imports.map(node => node.specifiers[0].local.name),
+    `${ emitted } return result;`)(...values), expected);
+  let captures = 0;
+  t.traverseFast(ast, node => { if (node.type === 'VariableDeclarator' && !node.init) captures++; });
+  check(`receiver first read/${ label }: stable primitive needs no snapshot`, captures, 0);
+}
+
+// A sealed argument call consumes the memo producer's full first value, including an inline root call.
+for (const [label, declaration, key, expectedLog] of [
+  ['alias', 'const S = Symbol.iterator;', 'S', ['inline']],
+  ['destructure', 'const { iterator: S } = Symbol;', 'S', ['inline']],
+  ['alias effect', 'const S = Symbol.iterator;', '(log.push("key"), S)', ['inline', 'key']],
+]) {
+  const source = `
+    const log = []; const arr = ['held']; const box = { get list() { log.push('receiver'); return arr; } };
+    ${ declaration }
+    function getArr() { log.push('named'); return arr; }
+    function getRealm() { log.push('named'); return globalThis; }
+    const realm = Function('return this')();
+    const descriptor = Object.getOwnPropertyDescriptor(realm, 'self');
+    const iterDescriptor = Object.getOwnPropertyDescriptor(realm, Symbol.iterator);
+    Object.defineProperty(realm, 'self', { configurable: true, value: realm });
+    Object.defineProperty(realm, Symbol.iterator, { configurable: true,
+      value: function () { return { next() { return { value: 'realm' }; } }; } });
+    let result;
+    try { result = ((() => { log.push('inline'); return globalThis; })().self?.[${ key }])(0).next().value; }
+    catch (error) { result = error.name; }
+    finally {
+      if (descriptor) Object.defineProperty(realm, 'self', descriptor); else delete realm.self;
+      if (iterDescriptor) Object.defineProperty(realm, Symbol.iterator, iterDescriptor); else delete realm[Symbol.iterator];
+    }
+    export const r = [result, log];`;
+  // eslint-disable-next-line node/no-sync -- keep the exact source and emitted AST in one comparison
+  const { ast, code } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'sealed-inline-receiver.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  const emitted = code.replaceAll(/^import .*;$/gm, '').replaceAll(/\bexport const r\b/g, 'const r');
+  const native = source.replaceAll(/\bexport const r\b/g, 'const r');
+  checkDeep(`sealed inline receiver/${ label }: native result and prefix`, Function(`${ native } return r;`)(), ['realm', expectedLog]);
+  checkDeep(`sealed inline receiver/${ label }: emitted result and prefix`,
+    Function(...imports.map(node => node.specifiers[0].local.name), `${ emitted } return r;`)(...values), ['realm', expectedLog]);
+  const receiver = imports.find(node => node.source.value.endsWith('/actual/self'))?.specifiers[0].local.name;
+  const method = imports.find(node => node.source.value.endsWith('/actual/get-iterator-method'))?.specifiers[0].local.name;
+  checkTruthy(`sealed inline receiver/${ label }: original receiver and argument retained`, receiver && method
+    && someNode(ast, node => node.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+      && node.callee.property.name === 'call' && containsCallee(node.callee.object, method)
+      && node.arguments[0]?.name === receiver && node.arguments[1]?.value === 0));
+  let copies = 0;
+  t.traverseFast(ast, node => {
+    if (node.type !== 'AssignmentExpression') return;
+    let value = node.right;
+    while (value.type === 'SequenceExpression') value = value.expressions.at(-1);
+    if (value.type === 'Identifier' && value.name === receiver) copies++;
+  });
+  check(`sealed inline receiver/${ label }: stable receiver snapshots`, copies, 0);
+}
+
+for (const [label, source, receiver, captures = 1] of [
+  [
+    'getter rebinds local',
+    'let rows = ["held"]; Object.defineProperty(rows, "at", { get() { rows = ["swapped"]; return function (i) { return this[i]; }; } }); rows.at(0);',
+    'rows',
+  ],
+  ['computed key rebinds local', 'let rows = ["held"]; rows[(rows = ["swapped"], "at")](0);', 'rows'],
+  ['foreign live import', 'import { rows } from "./live.mjs"; rows.at(0);', 'rows'],
+  ['unbound receiver', 'foreignRows.at(0);', 'foreignRows', 0],
+  ['completed write before key', 'let rows = [1]; rows = [2]; rows[(key(), "at")](0);', 'rows', 0],
+  [
+    'nested assignment of a constant receiver',
+    'let from, rest; const source = { w: Array, extra: 1 }; const held = ({ w: { from }, ...rest } = ({ w: { from }, ...rest } = source)); use(held);',
+    'source',
+    0,
+  ],
+  ['closed constructor alias', 'let P = Promise; function write() { P = other; } P.noSuchStatic?.().includes(0);', 'P', 0],
+  ['escaped constructor writer', 'let P = Promise; function write() { P = other; } unknown(write); P.noSuchStatic?.().includes(0);', 'P'],
+]) {
+  // eslint-disable-next-line node/no-sync -- synchronous AST comparisons keep the unit suite's evaluation order
+  const { ast } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'receiver-handoff-negative.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let capturedReceiver = 0;
+  t.traverseFast(ast, node => {
+    if (node.type !== 'AssignmentExpression' || node.left.type !== 'Identifier' || !/^_ref\d*$/.test(node.left.name)) return;
+    let value = node.right;
+    while (value.type === 'SequenceExpression') value = value.expressions.at(-1);
+    if (value.type === 'Identifier' && value.name === receiver) capturedReceiver++;
+  });
+  check(`rendered receiver handoff/${ label }: source receiver captures`, capturedReceiver, captures);
+}
+
+for (const [label, source, copies] of [
+  ['module store', 'let saved; (saved = globalThis.window)?.self.Array.prototype.at.call([1], 0);', 0],
+  ['local store', 'function read() { let saved; return (saved = globalThis.window)?.self.Array.prototype.at.call([1], 0); } read();', 0],
+  ['outer store', 'let saved; function read() { return (saved = globalThis.window)?.self.Array.prototype.at.call([1], 0); } read();', 1],
+  ['live export', 'export let saved; (saved = globalThis.window)?.self.Array.prototype.at.call([1], 0);', 1],
+  ['computed writer', 'let saved; (saved = globalThis.window)?.self[(saved = other, "Array")].prototype.at.call([1], 0);', 1],
+  ['deferred writer', 'let saved; function write() { saved = other; } unknown(write); (saved = globalThis.window)?.self.Array.prototype.at.call([1], 0);', 1],
+]) {
+  // eslint-disable-next-line node/no-sync -- synchronous AST inspection of the emitted receiver store
+  const { ast } = transformSync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    filename: 'stored-receiver.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', targets: { ie: 11 } }]],
+  });
+  let captures = 0;
+  t.traverseFast(ast, node => {
+    if (node.type === 'AssignmentExpression' && /^_ref\d*$/.test(node.left.name)
+      && node.right.type === 'AssignmentExpression' && node.right.left.name === 'saved') captures++;
+  });
+  check(`source receiver store/${ label }: additional copies`, captures, copies);
 }
 
 finish();

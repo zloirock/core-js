@@ -17,7 +17,7 @@ import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
 // an inline-call chain root BURIES the proxy-global (an IIFE body, an identity argument), and the
 // only hop is one core-js does not ponyfill, so nothing collapses and the guard test keeps the root
 // text. the buried global carries no rewrite of its own there - the claim replaces the span it sits
@@ -29,8 +29,8 @@ export const iifeRoot = null == (() => _globalThis)()?.window ? void 0 : _atMayb
 export const identityArgRoot = null == (x => x)(_globalThis)?.window ? void 0 : _flatMaybeArray(_ref2 = _Array$from([1, 2])).call(_ref2);
 export const functionExprRoot = null == function () {
   return _globalThis;
-}()?.window ? void 0 : _toFixedMaybeNumber(_ref3 = _Number$MAX_SAFE_INTEGER).call(_ref3, 2);
-export const selfRoot = null == (() => _self)()?.window ? void 0 : _padStartMaybeString(_ref4 = _String$fromCodePoint(97, 98)).call(_ref4, 4, '-');
+}()?.window ? void 0 : _toFixedMaybeNumber(_Number$MAX_SAFE_INTEGER).call(_Number$MAX_SAFE_INTEGER, 2);
+export const selfRoot = null == (() => _self)()?.window ? void 0 : _padStartMaybeString(_ref3 = _String$fromCodePoint(97, 98)).call(_ref3, 4, '-');
 
 // the root stays buried under an effect-bearing body and under a computed key carrying its own
 // effect - both keep it inside the kept test, so the substitution has to reach it there too
@@ -38,19 +38,19 @@ let bodyCount = 0;
 export const effectfulBodyRoot = null == (() => {
   bodyCount++;
   return _globalThis;
-})()?.window ? void 0 : _findLastIndexMaybeArray(_ref5 = _Object$entries({
+})()?.window ? void 0 : _findLastIndexMaybeArray(_ref4 = _Object$entries({
   a: 1
-})).call(_ref5, pair => pair[0] === 'a');
+})).call(_ref4, pair => pair[0] === 'a');
 let keyCount = 0;
-export const computedKeyRoot = null == (() => _globalThis)()?.window ? void 0 : _includesMaybeArray(_ref6 = (keyCount++, _Object$values)({
+export const computedKeyRoot = null == (() => _globalThis)()?.window ? void 0 : _includesMaybeArray(_ref5 = (keyCount++, _Object$values)({
   b: 2
-})).call(_ref6, 2);
+})).call(_ref5, 2);
 
 // BOUNDARY: the callee is declared above the chain, so its global sits outside the guard's span
 const above = () => _globalThis;
-export const declaredCallee = null == above()?.window ? void 0 : _flatMapMaybeArray(_ref7 = _Reflect$ownKeys({
+export const declaredCallee = null == above()?.window ? void 0 : _flatMapMaybeArray(_ref6 = _Reflect$ownKeys({
   c: 3
-})).call(_ref7, key => [key]);
+})).call(_ref6, key => [key]);
 
 // NEGATIVE: a parameter shadows the name - neither the inline proof nor the substitution fires
 export const shadowedRoot = (globalThis => globalThis)(null)?.window?.Promise.resolve(4).finally(() => {});
@@ -77,7 +77,7 @@ const plain = () => ({
     }
   }
 });
-export const nonProxyRoot = null == (_ref8 = plain()?.window) ? void 0 : _at(_ref9 = _ref8.Math.trunc(6.7)).call(_ref9, 0);
+export const nonProxyRoot = null == (_ref7 = plain()?.window) ? void 0 : _at(_ref8 = _ref7.Math.trunc(6.7)).call(_ref8, 0);
 
 // NEGATIVE: no live optional over the hop - the emit SWALLOWS the receiver instead of keeping it
 // in a test, and the buried global goes with it
@@ -105,4 +105,4 @@ if (_globalThis.setTimeout) maybeForwards = () => ({
     Array
   }
 });
-export const conditionalForwarder = (_ref10 = maybeForwards?.()?.window?.Array, null == _ref10 ? void 0 : _ref10 === Array ? _Array$of(15) : _ref10.of(15));
+export const conditionalForwarder = (_ref9 = maybeForwards?.()?.window?.Array, null == _ref9 ? void 0 : _ref9 === Array ? _Array$of(15) : _ref9.of(15));

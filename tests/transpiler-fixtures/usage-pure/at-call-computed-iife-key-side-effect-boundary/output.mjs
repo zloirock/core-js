@@ -8,6 +8,6 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 const arr = [1, 2, 3];
 let log = 0;
 export const pure = _flatMaybeArray(arr).call(arr);
-export const bail = ((() => (log++, 'flatMap'))(), _flatMapMaybeArray(arr).call(arr, x => [x]));
-export const argBail = ((x => 'at')(log++), _atMaybeArray(arr).call(arr, 0));
+export const bail = (arr, (() => (log++, 'flatMap'))(), _flatMapMaybeArray(arr).call(arr, x => [x]));
+export const argBail = (arr, (x => 'at')(log++), _atMaybeArray(arr).call(arr, 0));
 export { log };

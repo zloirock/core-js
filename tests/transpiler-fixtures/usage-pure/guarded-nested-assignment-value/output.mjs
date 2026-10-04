@@ -1,7 +1,7 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-var _ref, _ref2;
+var _ref;
 // A consumed nested assignment yields its original receiver after all bindings.
 // Sibling getters observe the guarded write at the source property's position.
 // A constructor escaping through the getter includes its static methods.
@@ -23,11 +23,11 @@ const source = {
     return 2;
   }
 };
-const returned = (_ref = source, {
+const returned = (source, {
   first
-} = _ref, {
-  realm: _ref2
-} = _ref, Value = _ref2 === _globalThis ? _WeakSet : _ref2.WeakSet, {
+} = source, {
+  realm: _ref
+} = source, Value = _ref === _globalThis ? _WeakSet : _ref.WeakSet, {
   last
-} = _ref, _ref);
+} = source, source);
 export { Value, first, last, returned, source, log };

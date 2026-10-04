@@ -14,11 +14,11 @@ const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];
 let kw;
 const lead = eff('w'),
-  [_ref] = [_globalThis, eff('x')],
-  besideLead = _findLastMaybeArray(_ref.Array.prototype);
+  [,] = [_globalThis, eff('x')],
+  besideLead = _findLastMaybeArray(_globalThis.Array.prototype);
 const lead2 = eff('ab'),
-  [_ref2] = [_globalThis, eff('ac')],
-  besideParen = _atMaybeArray(_ref2.Array.prototype);
+  [,] = [_globalThis, eff('ac')],
+  besideParen = _atMaybeArray(_globalThis.Array.prototype);
 const [[{
   Object: {
     groupBy: nestedSpread
@@ -48,5 +48,5 @@ if (lead) [{
   }
 }), 7];
 let outSpread;
-for (const [_ref3] = [_globalThis, ...xs], toSorted = _toSortedMaybeArray(_ref3.Array.prototype); !outSpread;) outSpread = toSorted;
+for (const [_ref] = [_globalThis, ...xs], toSorted = _toSortedMaybeArray(_ref.Array.prototype); !outSpread;) outSpread = toSorted;
 export { lead, besideLead, lead2, besideParen, nestedSpread, getOwnPropertyDescriptors, bodylessGb, bodylessZn, outSpread, seen, kw };

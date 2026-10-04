@@ -7,7 +7,7 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // a claim nested in an optional chain that is NOT its own: the argument, the computed key and a
 // deeper hop all belong to the HOST's chain, so deoptionalizing the claim's `?.` must stop at the
 // claim. reaching further seals the host's `?.` into parens - a call on `undefined` at runtime.
-// the last two rows are the boundary: a claim ON the chain's own spine still deoptionalizes
+// The window hop and the optional instance-method call keep their own guards.
 const r1 = host?.fn(_Array$from([1]));
 const r2 = host?.wrap[_Array$of(2).length];
 const r3 = host?.a.b(_Promise$resolve(3));

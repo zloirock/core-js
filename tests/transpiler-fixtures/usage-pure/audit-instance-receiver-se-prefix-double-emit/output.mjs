@@ -7,5 +7,5 @@ const fn = () => {
   calls++;
 };
 const arr = [1, 2, 3];
-const result = (fn(), _atMaybeArray(arr).call(arr, -1));
+const result = _atMaybeArray((fn(), arr)).call(arr, -1);
 export { calls, result };

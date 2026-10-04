@@ -15,9 +15,11 @@ type B = {
 declare function anyv(): any;
 export function fieldWrite(o: A | B) {
   if (o.kind === 'a') {
-    var _ref;
     class K {
-      p = _at(_ref = o.v).call(_ref, 0);
+      p = (() => {
+        var _ref;
+        return _at(_ref = o.v).call(_ref, 0);
+      })();
     }
     o.kind = 'b';
     o.v = [1, 2];
@@ -27,9 +29,11 @@ export function fieldWrite(o: A | B) {
 }
 export function identityWrite(o: A | B) {
   if (o.kind === 'a') {
-    var _ref2;
     class K {
-      p = _includes(_ref2 = o.v).call(_ref2, 'x');
+      p = (() => {
+        var _ref2;
+        return _includes(_ref2 = o.v).call(_ref2, 'x');
+      })();
     }
     o = anyv();
     return new K();

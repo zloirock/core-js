@@ -9,11 +9,10 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // evaluated whenever the statement runs, keeps the static. one global per row, so a row that stops
 // resolving loses its own module instead of hiding behind a sibling
 export function doWhile(ready) {
-  var _ref;
   let M;
   do {
     if (!ready) break;
-  } while (_ref = _globalThis, M = _Map, _ref);
+  } while (M = _Map, _globalThis);
   return (M === _Map ? _Map$groupBy : M.groupBy.bind(M))([1], x => x);
 }
 export function forUpdate(ready) {

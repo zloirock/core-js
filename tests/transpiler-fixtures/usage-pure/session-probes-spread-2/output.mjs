@@ -32,10 +32,8 @@ function mark(t, v) {
 }
 {
   const _ref = [1];
-  const at = _atMaybeArray(_ref);
   const {
-    0: {
-      at: _unused
-    }
+    0: {}
   } = [...[_ref]];
+  const at = _atMaybeArray(_ref);
 }

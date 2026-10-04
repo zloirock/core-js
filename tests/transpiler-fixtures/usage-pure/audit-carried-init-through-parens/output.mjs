@@ -21,10 +21,10 @@ const viaParenWrapSlot = _atMaybeArray(_ref.y);
 // identity - answers `leak` on the leg whose parser keeps the paren, which costs the read its type
 const viaParenWrapInit = _atMaybeArray(hb.y);
 const [{}, viaParenWrapTail] = [hb, arr];
-const [_ref2, _ref3] = [hb, _flatMaybeArray(arr).call(arr)];
-const _ref4 = _ref2.y;
-const viaParenWrapPair = _atMaybeArray(_ref4);
-const viaParenWrapPairLast = _findLastMaybeArray(_ref4);
-const viaParenWrapPairTail = _ref3;
+const [, _ref2] = [hb, _flatMaybeArray(arr).call(arr)];
+const _ref3 = hb.y;
+const viaParenWrapPair = _atMaybeArray(_ref3);
+const viaParenWrapPairLast = _findLastMaybeArray(_ref3);
+const viaParenWrapPairTail = _ref2;
 export { viaParenSlot, viaParenInit, viaParenWrapSlot };
 export { viaParenWrapInit, viaParenWrapTail, viaParenWrapPair, viaParenWrapPairLast, viaParenWrapPairTail };

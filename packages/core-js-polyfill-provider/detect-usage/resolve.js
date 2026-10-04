@@ -203,12 +203,12 @@ export function receiverSequenceTailKeys(node) {
 // rendered spans in. both emitters walk the same hops; the render shape is all that differs.
 // one level per hop object: a NESTED level is the plan renders' own business - their sequence
 // descent replays every level, and no caller reaches this walk with one still buried
-export function navHopSequencePrefixes(inner, { unwrap, renderedSpans = null }) {
+export function navHopSequencePrefixes(inner, { unwrap, renderedSpans = null, ctx = null }) {
   const all = [];
   for (let cur = unwrap(inner); cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
     cur = unwrap(peelReceiverSequenceTail(cur.object))) {
     const obj = unwrap(cur.object);
-    if (obj?.type === 'SequenceExpression') all.push(...sequencePrefixWithSideEffects(obj) ?? []);
+    if (obj?.type === 'SequenceExpression') all.push(...sequencePrefixWithSideEffects(obj, ctx) ?? []);
   }
   // `all` is what the probe REPORTS (every prefix now runs through one of the two channels, so no
   // other one may repeat it); `spell` is what it spells itself, the render carrying the rest
@@ -2331,7 +2331,7 @@ export function memberTargetTakesExtraction(valueNode, { scope = null, adapter =
 // default beside it would split the key from the write it leads
 export function staticSlotTakesDefault(propNode, ctx) {
   return isIdentifierPropValue(propNode?.value)
-    || (!computedKeyHasSideEffects(propNode) && !!memberTargetTakesExtraction(propNode?.value, ctx));
+    || (!computedKeyHasSideEffects(propNode, ctx) && !!memberTargetTakesExtraction(propNode?.value, ctx));
 }
 
 // A ternary's arms naming one receiver can share its extraction. A consumer keeping the
@@ -4112,10 +4112,10 @@ const KEY_SIDE_EFFECT_BAIL = Symbol('key-side-effect-bail');
 // folds outright; usage-pure folds an effect-free call, or an effectful one only for a consumer that
 // KEEPS the key node where it stands (`keepsKeyNode` - the sentinel residual runs the call in place)
 function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null) {
-  node = unwrapTransparentSeq(node);
+  node = unwrapTransparentSeq(node, ctx);
   while (true) {
-    if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return KEY_SIDE_EFFECT_BAIL;
-    node = peelSequenceTail(node, { step: unwrapTransparentSeq });
+    if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node, ctx)) return KEY_SIDE_EFFECT_BAIL;
+    node = peelSequenceTail(node, { step: expression => unwrapTransparentSeq(expression, ctx) });
     if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
     if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node, ctx && { ...ctx, adapter })) {
       const argument = ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null;
@@ -4125,7 +4125,7 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null
     }
     const iifeRet = peelZeroArgIifeReturn(node) ?? (ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null);
     if (!iifeRet) return node;
-    node = unwrapTransparentSeq(iifeRet);
+    node = unwrapTransparentSeq(iifeRet, ctx);
   }
 }
 
@@ -4187,7 +4187,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     // runtime, and callers already treat a null key as "not resolvable"
     if (depth > MAX_KEY_DEPTH || !node) return null;
     if (computed) {
-      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, { scope, path, usageNode, seen, keepsKeyNode });
+      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, { scope, adapter, path, usageNode, seen, keepsKeyNode });
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
     }
     if (!computed && node.type === 'Identifier') return node.name;
@@ -5140,11 +5140,11 @@ export function deleteHostAboveCarriedChain(path) {
 // caller stands down for never happens (`(c++, globalThis).window?.self.X` kept a native `self`
 // read). only a channel that re-emits the prefix ITSELF owns such a run; a caller deferring to the
 // root render asks this first
-export function realmRunSplitBySequencePrefix(navNode) {
+export function realmRunSplitBySequencePrefix(navNode, ctx = null) {
   for (let cur = unwrapRuntimeExpr(navNode);
     cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
     cur = unwrapRuntimeExpr(cur.object)) {
-    if (sequencePrefixWithSideEffects(unwrapRuntimeExpr(cur.object))) return true;
+    if (sequencePrefixWithSideEffects(unwrapRuntimeExpr(cur.object), ctx)) return true;
   }
   return false;
 }

@@ -4,24 +4,29 @@ import ImportInjectorState, {
   collectInjectorCensus,
   createPureImportLiveness,
   generatedNameFamilyOf,
+  localizeVarlessMemos,
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
 import {
   isInitlessVarDecl,
+  emptyMemoActivationValue,
   isTopLevelImportLike,
   programPrologueEndIndex,
   prologueEndIndex,
   isDirectiveStatement,
+  markGeneratedMemoDeclarator,
   reEvaluationObservable,
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   renderInjectedImportNodes,
+  renderMemoActivation,
   identifier,
   variableDeclaration,
   variableDeclarator,
 } from '@core-js/polyfill-provider/render';
+import { replaceNodeInTree } from './emit-shared.js';
 
 export default class ImportInjector extends ImportInjectorState {
   // refs already emitted by a prior flush (or inherited from pre via snapshot).
@@ -197,8 +202,10 @@ function collectNodes(root) {
 // Remove unread minted memos whose initializers are inert. A sole statement write may also
 // retire when its RHS is inert; observable writes and initializers stay in place.
 // Prune empty declarations from statement lists. Multi-declarator for-heads also lose dead
-// memos; a sole-declarator head stays intact.
-function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, memoStatementWrites }) {
+// memos; a sole-declarator head stays intact. Owned initializer-local vars are also pruned
+// when a guard unwrap leaves them without a read.
+function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, memoStatementWrites },
+  initlessRefs = null, memoActivations = null) {
   const dead = new Set();
   const deadWrites = new Set();
   // A consumed outer assignment can leave its inner receiver memo as a bare
@@ -214,15 +221,20 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
   if (!dead.size) return;
   const lists = [];
   const heads = [];
-  walkAstNodes({ root: program, visit(node) {
-    if (Array.isArray(node?.body)) lists.push(node.body);
-    else if (node?.type === 'SwitchCase') lists.push(node.consequent);
-    if (node?.type === 'ForStatement' && node.init?.type === 'VariableDeclaration') heads.push(node.init);
-  } });
+  const activations = [];
+  walkAstNodes({
+    root: program,
+    visit(node, parent) {
+      if (Array.isArray(node?.body)) lists.push(node.body);
+      else if (node?.type === 'SwitchCase') lists.push(node.consequent);
+      if (node?.type === 'ForStatement' && node.init?.type === 'VariableDeclaration') heads.push(node.init);
+      if (node.type === 'CallExpression' && memoActivations?.has(node.callee)) activations.push({ node, parent });
+    },
+  });
   // Remove eligible declarators; the caller owns the enclosing statement or for-head slot.
   function pruneDeclaration(declaration) {
     const kept = declaration.declarations.filter(item => !(item.id?.type === 'Identifier' && dead.has(item.id.name)
-      && item.init && !reEvaluationObservable(item.init)));
+      && (item.init ? !reEvaluationObservable(item.init) : initlessRefs?.has(item.id.name))));
     if (kept.length === declaration.declarations.length) return false;
     for (const gone of declaration.declarations) if (!kept.includes(gone)) refCounts.set(gone.id.name, 0);
     declaration.declarations = kept;
@@ -240,27 +252,59 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
       if (!statement.declarations.length) list.splice(at, 1);
     }
   }
+  // The same walk retained each actual owned call's parent. Drop only an empty lexical
+  // activation; a user arrow or a sibling-modified owner retains its own execution frame.
+  for (const { node, parent } of activations.toReversed()) {
+    const returned = emptyMemoActivationValue(node, memoActivations);
+    if (returned) replaceNodeInTree(parent, node, returned);
+  }
 }
 
 // land the injector's imports and minted `var` refs in the program: the census over the final
 // tree decides which minted names are live, the survivors renumber into canonical slots, the live
 // pure imports render behind the prologue and each ref declaration lands at its host's head
-export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [] }) {
+export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [], memoReuseContext = null }) {
   function resolve(subpath, pkg) {
     return resolveImportPath(pkg ?? injector.pkg, subpath, injector.absoluteImports);
   }
   // `renameOnly` names carry no declaration of their own (a pattern sentinel), but they belong
   // to the same minted family and must renumber with it - a dropped one would strand its slot
   const mintedRefNames = new Set([...refNames.map(entry => entry.name), ...renameOnly, ...refOrder]);
+  const memoActivations = new WeakSet();
+  const varlessRefs = new Set(refNames.filter(entry => entry.varless).map(entry => entry.name));
+  const localRefs = localizeVarlessMemos(program, varlessRefs, (expression, refs) => {
+    const rendered = renderMemoActivation(expression, refs);
+    memoActivations.add(rendered.callee);
+    return rendered;
+  });
   const census = collectInjectorCensus(program, {
     mintedRefNames,
     pureNames: new Set(injector.pureImports.values()),
+    memoReuse: !!memoReuseContext,
+    memoActivations,
   });
   // the write-only nested guard memos unwrap BEFORE the slot rank is read - a dropped name
   // must never receive a slot
-  unwrapWriteOnlyGuardMemos(census);
+  const memoRegistrations = new Map(refNames.map(entry => [entry.name, entry]));
+  unwrapWriteOnlyGuardMemos(census, {
+    injectorState: injector,
+    contextForMemo(name, write, occurrence) {
+      let path = memoReuseContext?.path;
+      if (path) {
+        for (let i = 1; i < occurrence.ancestors.length; i++) {
+          const key = occurrence.keys[i];
+          const listKey = occurrence.listKeys[i];
+          const node = occurrence.ancestors[i];
+          const container = listKey ? path.node[listKey] : path.node;
+          if (container?.[key] !== node) return null;
+          path = path.constructor.for({ node, key, listKey, parentPath: path, ctx: path.ctx }).init();
+        }
+      } else path = memoRegistrations.get(name)?.path;
+      return path && memoReuseContext ? { ...memoReuseContext, scope: path.scope, path } : null;
+    },
+  });
   // ... and an orphaned memo leaves before the slot rank is read, so its name takes no slot
-  dropOrphanedMemoDeclarations(program, census);
+  dropOrphanedMemoDeclarations(program, census, localRefs, memoActivations);
   const { referenceNames, refNodes, refCounts, printRank } = census;
   // generated-ref canon, the shared slot rule both emitters print through: a minted ref the
   // emission ended up not using is dropped, the survivors renumber into compact print-order
@@ -286,8 +330,8 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     if (to) node.name = to;
   }
   const liveRefs = refNames
-    .map((entry, registrationIndex) => ({ ...entry, registrationIndex }))
-    .filter(entry => (refCounts.get(entry.name) ?? 0) > 0)
+    .map((entry, registrationIndex) => ({ ...entry, registrationIndex, owned: injector.isOwnPassGeneratedName(entry.name) }))
+    .filter(entry => !localRefs.has(entry.name) && (refCounts.get(entry.name) ?? 0) > 0)
     .sort((a, b) => printRank.indexOf(a.name) - printRank.indexOf(b.name))
     .map(entry => ({ ...entry, name: renameMap.get(entry.name) ?? entry.name }));
   const liveInProgram = createPureImportLiveness({
@@ -320,11 +364,11 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
   // degrades there instead of dropping - a re-homed clone is the fix, this is the net
   const liveHosts = liveRefs.some(entry => entry.hostFunction || entry.hostBlock)
     ? collectNodes(program) : null;
-  for (const { name, registrationIndex, hostFunction, hostBlock, hostBodyless } of liveRefs) {
+  for (const { name, registrationIndex, owned, hostFunction, hostBlock, hostBodyless } of liveRefs) {
     let host = program;
     if ((hostFunction && !liveHosts?.has(hostFunction)) || (hostBlock && !liveHosts?.has(hostBlock))) {
       if (!byHost.has(program)) byHost.set(program, []);
-      byHost.get(program).push({ name, registrationIndex });
+      byHost.get(program).push({ name, registrationIndex, owned });
       continue;
     }
     if (hostBodyless) {
@@ -345,7 +389,7 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
       host = hostFunction.body;
     }
     if (!byHost.has(host)) byHost.set(host, []);
-    byHost.get(host).push({ name, registrationIndex });
+    byHost.get(host).push({ name, registrationIndex, owned });
   }
   for (const [host, entries] of byHost) {
     // a program-level block declares in print order; a function-level one in REGISTRATION
@@ -354,11 +398,16 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     // ... and the PROGRAM-level declaration groups by FAMILY whatever the print order says: the
     // two register through channels of their own - the injector opens the `var` for the refs
     // and the drain's sentinels append to it (`var _ref, _unused;`)
-    const names = (host === program
-      ? [...entries.filter(entry => generatedNameFamilyOf(entry.name) === '_ref'),
-        ...entries.filter(entry => generatedNameFamilyOf(entry.name) !== '_ref')]
-      : entries.toSorted((a, b) => a.registrationIndex - b.registrationIndex)).map(entry => entry.name);
-    const declaration = variableDeclaration('var', names.map(name => variableDeclarator(identifier(name))));
+    const names = host === program
+      ? [
+        ...entries.filter(entry => generatedNameFamilyOf(entry.name) === '_ref'),
+        ...entries.filter(entry => generatedNameFamilyOf(entry.name) !== '_ref'),
+      ]
+      : entries.toSorted((a, b) => a.registrationIndex - b.registrationIndex);
+    const declaration = variableDeclaration('var', names.map(({ name, owned }) => {
+      const declarator = variableDeclarator(identifier(name));
+      return owned ? markGeneratedMemoDeclarator(declarator) : declarator;
+    }));
     if (host === program) program.body.splice(refAnchorIndex(program.body, anchor + nodes.length), 0, declaration);
     // a function-host block anchors PAST its directive prologue (babel's scope.push slot)
     else host.body.splice(prologueEndIndex(host.body), 0, declaration);
