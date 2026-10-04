@@ -29,6 +29,7 @@ import {
   nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
   isCalleeReference,
+  valueIsDroppedAt,
   unwrapRuntimeExpr,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
@@ -107,7 +108,11 @@ import {
   staticContainerReceiverName,
   provenRealmCallName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { isKnownGlobalName, SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
+import {
+  isKnownGlobalName,
+  isSourcedSymbolIteratorMeta,
+  SYMBOL_ITERATOR_PURE_RESULT,
+} from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   aliasHeldClaimProbe,
   aliasRootedReadMayThrow,
@@ -136,7 +141,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
-  isSourcedSymbolIteratorMeta,
   planGuardedStaticNarrow,
   resolveSymbolIteratorEntry,
   symbolIteratorHint,
@@ -398,6 +402,7 @@ export default function plugin(api, options) {
     getMutationRoots: () => mutationRoots,
     getPackages: () => packages,
     parameterCallSites: typeResolvers.parameterCallSites,
+    collectBindingReferences: typeResolvers.collectBindingReferences,
   });
 
   // forward references into `createClassHelpers` below: assigned once, right after that call and
@@ -716,13 +721,14 @@ export default function plugin(api, options) {
         const callee = current.get('callee');
         const calleeNode = callee.node;
         if (calleeNode?.type !== 'MemberExpression' && calleeNode?.type !== 'OptionalMemberExpression') return null;
-        if (calleeNode.computed || calleeNode.property?.type !== 'Identifier') return null;
+        const methodKey = memberKeyName(calleeNode);
+        if (methodKey === null) return null;
         // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
         // OR-chain template, but `super` is not a primary expression and the codegen
         // throws at parse time. let `super` chains fall through to the instance
         // transform's dedicated super-call handling instead
         if (calleeNode.object?.type === 'Super') return null;
-        const meta = { kind: 'property', object: null, key: calleeNode.property.name, placement: 'prototype' };
+        const meta = { kind: 'property', object: null, key: methodKey, placement: 'prototype' };
         const { result } = resolvePureOrGlobalFallback(meta, callee);
         if (result?.kind !== 'instance') return null;
         return {
@@ -836,12 +842,13 @@ export default function plugin(api, options) {
       // so the type it resolved to is gone from the tree the next member above reads: capture it
       // BEFORE the rewrite and hand it back after. the COMBINED render replaces a different path
       // than the one held here, so it takes the type as an argument and stamps its own replacement
+      // Discarded call values have no consumer to inherit this stamp.
       function captureInstanceCallType(path) {
         const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
         const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node;
-        const type = isCallParent ? resolveNodeType(callParent) : null;
+        const type = isCallParent && !valueIsDroppedAt(callParent) ? resolveNodeType(callParent) : null;
         return type ? { callParent, type } : null;
       }
 
@@ -855,7 +862,7 @@ export default function plugin(api, options) {
         const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
         if (!(callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
-          || callerPath.parent.callee !== callerPath.node) return;
+          || callerPath.parent.callee !== callerPath.node || valueIsDroppedAt(callParent)) return;
         const type = resolveNodeType(callParent);
         if (type) resolvedType.set(callParent.node, type);
       }
@@ -1033,8 +1040,9 @@ export default function plugin(api, options) {
             return true;
           }
           const captured = estreeToBabel(rendered.capture);
-          const extracted = rendered.elements.map(element => estreeToBabel(element.declarator));
-          for (const [index, element] of rendered.elements.entries()) {
+          const elements = rendered.elements.filter(element => element.declarator);
+          const extracted = elements.map(element => estreeToBabel(element.declarator));
+          for (const [index, element] of elements.entries()) {
             if (element.guarded) t.traverseFast(extracted[index], node => skippedNodes.add(node));
           }
           const declarator = nested.host;
@@ -1122,7 +1130,7 @@ export default function plugin(api, options) {
         // source - and an optional claim's receiver carries our renders just the same (a stored
         // guard read through `?.`, whose `?.` the first pass deliberately kept)
         if ((path.isMemberExpression() || path.isOptionalMemberExpression())
-          && ownEmittedNavClaim(path.node, path, ownOutputTests(injector))) return;
+          && ownEmittedNavClaim(path.node, path, ownOutputTests(injector), adapter, meta)) return;
         if (path.isObjectProperty() && (ownEmittedPatternClaim(path, ownOutputTests(injector))
           || sentinelAlreadyProcessed(path, { node: path.node, meta, injector }))) return;
 
@@ -1854,7 +1862,7 @@ export default function plugin(api, options) {
           // passes detection via the SequenceExpression tail peel, but raw removal drops `spy()`. the
           // emitted prefix statements already break the prologue, so no `0;` placeholder is needed; a
           // side-effect-free prefix (`(0, require)(...)`) yields none and drops as expected
-          const sePrefix = extractIndirectRequireSEPrefix(node);
+          const sePrefix = extractIndirectRequireSEPrefix(node, { scope: path.scope, adapter, path });
           if (sePrefix.length) {
             path.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
           } else if (replaceSet.has(node)) {
@@ -2038,6 +2046,7 @@ export default function plugin(api, options) {
         injector = new ImportInjector({
           t,
           programPath: path,
+          adapter,
           pkg,
           packages,
           mode,
@@ -2170,7 +2179,7 @@ export default function plugin(api, options) {
               // sequence's - `0, (spy(), require)('core-js/X')` keeps `spy()`), same helper the entry path
               // uses; the emitted prefix statements stay VISITED so a polyfillable use inside them
               // (`(arr.includes(1), require)(...)`) still injects. a side-effect-free prefix drops whole
-              const sePrefix = extractIndirectRequireSEPrefix(stmt.node);
+              const sePrefix = extractIndirectRequireSEPrefix(stmt.node, { scope: stmt.scope, adapter, path: stmt });
               if (sePrefix.length) stmt.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
               else stmt.remove();
             }
@@ -2406,6 +2415,7 @@ export default function plugin(api, options) {
         // injected nodes), idempotent via per-pending `applied` flag
         synthSwap?.apply(path);
         injector?.flush();
+        injector?.localizeVarlessRefs();
         // snapshot AFTER flush + deferred SE so programExit's reTraverseHelperBodies skips
         // already-traversed nodes (our flushed imports, lifted SE statements) and only
         // visits sibling-plugin-injected helper bodies (class transforms, destructuring,
@@ -2639,7 +2649,11 @@ export default function plugin(api, options) {
       function finalizeInjector() {
         if (!injector) return;
         injector.reorderImportRegion();
+        injector.localizeVarlessRefs();
         injector.normalizeArrowRefParams();
+        // Source reference lists describe the removed patterns. Final receiver proofs
+        // use the existing reference census over the rewritten tree instead.
+        typeResolvers.reset({ currentTreeReferences: true });
         injector.pruneUnusedRefs();
         injector.pruneUnusedPureImports();
         injector.reorderRefsAfterImports();

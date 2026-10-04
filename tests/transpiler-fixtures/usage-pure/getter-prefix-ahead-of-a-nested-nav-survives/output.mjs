@@ -54,24 +54,22 @@ K.g;
 m6 = _toReversedMaybeArray(_globalThis.Array.prototype);
 f6 = _toSortedMaybeArray(_globalThis.Array.prototype);
 const m7 = _toSplicedMaybeArray((K.g, Array.prototype));
-const [_ref4] = [(K.g, _globalThis)];
+const [,] = [(K.g, _globalThis)];
 const {
-  Array: {
-    prototype: _ref5
-  }
-} = _ref4;
-const m8 = _findLastIndexMaybeArray(_ref5);
-const f8 = _includesMaybeArray(_ref5);
-const [_ref6, _ref7] = [(K.g, _globalThis), 1];
-const m9 = _sortMaybeArray(_ref6.Array.prototype);
-const z9 = _ref7;
+  prototype: _ref4
+} = _globalThis.Array;
+const m8 = _findLastIndexMaybeArray(_ref4);
+const f8 = _includesMaybeArray(_ref4);
+const [, _ref5] = [(K.g, _globalThis), 1];
+const m9 = _sortMaybeArray(_globalThis.Array.prototype);
+const z9 = _ref5;
 for (const {
-    prototype: _ref8
-  } = (K.g, _globalThis.Array), m10 = _entriesMaybeArray(_ref8), f10 = _keysMaybeArray(_ref8);;) break;
+    prototype: _ref6
+  } = (K.g, _globalThis.Array), m10 = _entriesMaybeArray(_ref6), f10 = _keysMaybeArray(_ref6);;) break;
 const {
-    prototype: _ref9
+    prototype: _ref7
   } = (K.g, _globalThis.Array),
-  m11 = _valuesMaybeArray(_ref9),
-  f11 = _fillMaybeArray(_ref9);
+  m11 = _valuesMaybeArray(_ref7),
+  f11 = _fillMaybeArray(_ref7);
 export { m11, f11 };
 use(m1, f1, m2, m3, m4, f4, m5, f5, m6, f6, m7, m8, f8, m9, z9, m11, f11);

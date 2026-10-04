@@ -10,17 +10,17 @@ import _Map from "@core-js/pure/actual/map";
 let count = 0;
 const eff = () => count++;
 function read(flag) {
-  var _ref, _ref2, _ref3, _ref4;
+  var _ref;
   if (flag) {
     var realm = _globalThis;
   }
   const direct = (_ref = realm.Array, _ref === Array ? _Array$of(7) : _ref.of(7));
   const held = realm.Array;
-  const viaHeld = (_ref2 = held, _ref2 === Array ? _Array$of(7) : _ref2.of(7));
+  const viaHeld = (held, held === Array ? _Array$of(7) : held.of(7));
   const heldPure = (0, realm).Array;
-  const viaHeldPure = (_ref3 = heldPure, _ref3 === Array ? _Array$of(7) : _ref3.of(7));
+  const viaHeldPure = (heldPure, heldPure === Array ? _Array$of(7) : heldPure.of(7));
   const heldEffect = (eff(), realm).Array;
-  const viaHeldEffect = (_ref4 = heldEffect, _ref4 === Array ? _Array$of(7) : _ref4.of(7));
+  const viaHeldEffect = (heldEffect, heldEffect === Array ? _Array$of(7) : heldEffect.of(7));
   const heldMap = realm === _globalThis ? _Map : realm.Map;
   const viaMap = typeof heldMap.groupBy;
   return [direct, viaHeld, viaHeldPure, viaHeldEffect, viaMap];

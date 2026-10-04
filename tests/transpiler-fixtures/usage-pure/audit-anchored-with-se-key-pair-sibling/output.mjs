@@ -5,6 +5,5 @@ import _Map from "@core-js/pure/actual/map/constructor";
 const {
   custom
 } = _Map;
-const _ref = arr;
-const a = null == _ref ? _ref[""] : (eff(), _at(_ref));
+const a = null == arr ? arr[""] : (eff(), _at(arr));
 console.log(custom, a);

@@ -106,6 +106,7 @@ function mark(t, v) {
 }
 {
   const is = _Object$is;
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
@@ -182,21 +183,19 @@ function mark(t, v) {
 }
 {
   const {
-    w: _ref4
+    w: [_ref4]
   } = {
     w: [[1]]
   };
-  const [_ref5] = _ref4;
-  const at = _atMaybeArray(_ref5);
+  const at = _atMaybeArray(_ref4);
 }
 {
   const {
-    w: _ref6
+    w: [_ref5]
   } = {
     w: [[1, 2]]
   };
-  const [_ref7] = _ref6;
-  const m = _atMaybeArray(_ref7);
+  const m = _atMaybeArray(_ref5);
   use(m);
 }
 {
@@ -273,36 +272,36 @@ function mark(t, v) {
   use(m, rest);
 }
 {
-  const _ref8 = {
+  const _ref6 = {
     z: 1,
     w: tick('w', _globalThis)
   };
-  const m = _at(_ref8.w.Array.prototype);
+  const m = _at(_ref6.w.Array.prototype);
   const {
     z
-  } = _ref8;
+  } = _ref6;
   use(m, z);
 }
 {
-  const _ref9 = {
+  const _ref7 = {
     z: tick('z', 1),
     w: tick('w', _globalThis)
   };
-  const m = _at(_ref9.w.Array.prototype);
+  const m = _at(_ref7.w.Array.prototype);
   const {
     z
-  } = _ref9;
+  } = _ref7;
   use(m, z);
 }
 {
-  const _ref10 = {
+  const _ref8 = {
     w: _globalThis,
     z: 5
   };
-  const besideSibling = _mapMaybeArray(_ref10.w.Array.prototype);
+  const besideSibling = _mapMaybeArray(_ref8.w.Array.prototype);
   const {
     z
-  } = _ref10;
+  } = _ref8;
   use(besideSibling, z);
 }
 {

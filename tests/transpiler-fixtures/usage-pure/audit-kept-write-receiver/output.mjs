@@ -21,5 +21,5 @@ slotOut = typeof fromSlot;
 // An array wrapper captures its stored element before reading the selected prototype slot.
 // The write and any effect inside its value must not be duplicated.
 const [_ref] = [kwWrap = _globalThis];
-const fromWrap = _toSplicedMaybeArray(_globalThis.Array.prototype);
+const fromWrap = _toSplicedMaybeArray(_ref.Array.prototype);
 export { kept, keptSe, keptAssign, kwLoop, kwSlot, kwWrap, loopOut, slotOut, overWrite, overWriteSe, overWriteAssign, fromSlot, fromWrap };

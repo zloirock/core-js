@@ -11,6 +11,6 @@ const tail = {
     return _getIterator([1]);
   }
 };
-const [_ref] = [_globalThis, ...tail];
-const at = _atMaybeArray(_ref.Array.prototype);
+const [,] = [_globalThis, ...tail];
+const at = _atMaybeArray(_globalThis.Array.prototype);
 export { at, visits };

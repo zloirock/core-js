@@ -12,9 +12,7 @@ function dec(v) {
 }
 let M;
 class C {
-  constructor(@dec({
-    Map: M
-  } = _globalThis)
+  constructor(@dec((M = _Map, _globalThis))
   private x) {}
 }
 export const viaParamProperty = () => (M === _Map ? _Map$groupBy : M.groupBy.bind(M))([1, 2], y => y % 2);

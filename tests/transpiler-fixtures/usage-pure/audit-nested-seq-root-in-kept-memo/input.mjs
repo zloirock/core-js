@@ -1,9 +1,9 @@
-// a receiver whose proxy root sits under a NESTED sequence, kept whole inside the guard memo. the
-// substitution has to descend a sequence tail at every hop, not only wrappers and members: stopping
-// at the inner sequence froze a raw global in the emitted test, which is a ReferenceError on an
-// engine without it. the flat spelling of the same receiver takes the collapse instead and is the
-// negative that keeps the two apart. a NAV root folds inside the memo by the kept-value canon -
-// the tail's own ponyfill - instead of collapsing the guard away like its flat twin.
+// A receiver whose proxy root sits under a nested sequence must preserve each prefix once.
+// Substitution descends a sequence tail at every hop, including the inner sequence.
+// A surviving root probe uses its runtime entry instead of an unavailable raw global.
+// Proven navigation collapse may reuse its folded value without a guard memo.
+// The flat spelling and static claims below exercise the same substitution boundaries.
+// Guard retention follows the source claim; nested syntax alone does not require capture.
 let c = 0, d = 0;
 export const nestedSeqRoot = (d++, (c++, globalThis))?.Array.prototype.at;
 export const nestedSeqSelfRoot = (d++, (c++, self))?.Array.prototype.at;

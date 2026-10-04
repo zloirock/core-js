@@ -1,11 +1,11 @@
 import _at from "@core-js/pure/actual/instance/at";
 // A live default runs after its getter and before the following native property.
 export function read(receiver, fallback) {
-  var _ref2;
-  const [_ref] = [receiver];
-  /* First read. */const at = (_ref2 = _at(_ref)) === void 0 ? fallback() : _ref2;
+  var _ref;
+  const [,] = [receiver];
+  /* First read. */const at = (_ref = _at(receiver)) === void 0 ? fallback() : _ref;
   const {
     /* Native read. */other
-  } = _ref;
+  } = receiver;
   return [at, other];
 }

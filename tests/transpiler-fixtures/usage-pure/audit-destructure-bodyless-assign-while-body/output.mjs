@@ -4,7 +4,4 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // the polyfilled assignment. without the wrap, the SE would hoist past the loop to
 // module scope and run exactly once.
 let from;
-while (cond) {
-  var _ref;
-  _ref = (sideEffect(), Array), from = _Array$from, _ref;
-}
+while (cond) sideEffect(), Array, from = _Array$from;

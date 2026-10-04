@@ -23,6 +23,6 @@ const viaDefaultedLeaf = (_ref2 = _atMaybeArray(_flatMaybeArray(arr).call(arr)))
 let viaBodylessMulti, viaBodylessMultiLen;
 if (1) _ref3 = _flatMaybeArray(arr).call(arr), viaBodylessMulti = _atMaybeArray(_ref3), {
   length: viaBodylessMultiLen
-} = _ref3, _ref3;
+} = _ref3;
 export { viaBodylessIf, viaDoWhile, viaForInit, viaWrapAssign, viaDeclarator, viaStatement, out };
 export { viaDefaultedLeaf, viaBodylessMulti, viaBodylessMultiLen };

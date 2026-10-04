@@ -1,9 +1,7 @@
-// Identifier slots receive pure statics; a nested pattern under a static rides the MIRROR SLOT where
-// the host holds more than that one prop - the statement stands and no key effect crosses another -
-// while member assignment targets retain native slots. The slot DESCENDS where a leaf under the
-// pattern carries a claim of its own, spelling it off the static's ponyfill. Only a host the pattern
-// occupies ALONE is lifted out as an extraction. Computed keys and target effects stay live on both
-// paths, and both legs print the same shape.
+// Identifier targets receive pure statics, including leaves nested below another static.
+// Member assignment targets keep native property reads and default behavior. Mixed hosts
+// must preserve receiver reads and coercions, computed-key effects, and target evaluation
+// in source order; binding and parameter patterns keep their initialization order.
 const events = [];
 const pureFrom = Array.from;
 const box = {};
