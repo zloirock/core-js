@@ -15,7 +15,6 @@ import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
-var _ref;
 // an init that RUNS code is evaluated once, before any binding, and the extractions then bind in
 // SOURCE order whichever prop empties the host - a declaration, an assignment, a member target, an
 // export, a sibling declarator, and behind a sequence or a getter-read prefix
@@ -53,7 +52,7 @@ let a2, b2;
 mkObject();
 a2 = _Object$fromEntries;
 b2 = _Object$groupBy;
-_ref = mkIterator(), ob.a = _Iterator$from, ob.b = _Iterator$concat, _ref;
+mkIterator(), ob.a = _Iterator$from, ob.b = _Iterator$concat;
 mkPromise();
 export const a4 = _Promise$try;
 export const b4 = _Promise$withResolvers;

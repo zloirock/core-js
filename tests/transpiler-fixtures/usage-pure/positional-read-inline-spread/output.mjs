@@ -43,12 +43,10 @@ _includesMaybeArray(viaMember).call(viaMember, 1);
 const [[viaNestedRead]] = [...[[[1]]]];
 _flatMapMaybeArray(viaNestedRead).call(viaNestedRead, x => x);
 const _ref = [1];
-const viaIndexKey = _toSplicedMaybeArray(_ref);
 const {
-  0: {
-    toSpliced: _unused
-  }
+  0: {}
 } = [...[_ref]];
+const viaIndexKey = _toSplicedMaybeArray(_ref);
 const [{
   Map: ViaProxy
 }] = [...[{

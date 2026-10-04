@@ -4,16 +4,12 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise$any from "@core-js/pure/actual/promise/any";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
 var _ref;
 // a `for` header is the only destructure host with no statement slot: its init stays IN the
@@ -32,10 +28,10 @@ let k;
 function gf() {
   return _globalThis;
 }
-for (const _ref2 = (_pushMaybeArray(log).call(log, 'k'), _Map), g = _Map$groupBy; false;) break;
-for (const _ref3 = (_atMaybeArray(arr).call(arr, 0), _Promise), a = _Promise$any; false;) break;
-for (const _ref4 = (_flatMaybeArray(arr).call(arr), _Reflect), o = _Reflect$ownKeys; false;) break;
-for (const _ref5 = (k = _globalThis, _includesMaybeArray(arr).call(arr, 1), _Symbol), s = _Symbol$for; false;) break;
-for (const _ref6 = _globalThis[_findLastMaybeArray(arr).call(arr, Boolean), 'Object'], v = _Object$values; false;) break;
-for (const _ref7 = (_padStartMaybeString(_ref = obj.text).call(_ref, 4, '.'), _Symbol), i = _Symbol$asyncIterator; false;) break;
+for (const g = (_pushMaybeArray(log).call(log, 'k'), _Map$groupBy); false;) break;
+for (const a = (_atMaybeArray(arr).call(arr, 0), _Promise$any); false;) break;
+for (const o = (_flatMaybeArray(arr).call(arr), _Reflect$ownKeys); false;) break;
+for (const s = (k = _globalThis, _includesMaybeArray(arr).call(arr, 1), _Symbol$for); false;) break;
+for (const v = (_globalThis[_findLastMaybeArray(arr).call(arr, Boolean), 'Object'], _Object$values); false;) break;
+for (const i = (_padStartMaybeString(_ref = obj.text).call(_ref, 4, '.'), _Symbol$asyncIterator); false;) break;
 export { log, k };

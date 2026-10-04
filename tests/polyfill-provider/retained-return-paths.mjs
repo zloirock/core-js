@@ -1,8 +1,11 @@
 import {
   CENSUS_STATIC_RECEIVERS,
   collectFileCensus,
+  isGeneratedMemoDeclarator,
+  markGeneratedMemoDeclarator,
   singleReturnBodyExpression,
   staticFallbackSwapRedundant,
+  unwrapRuntimeExpr,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { adapters, createChecker } from './harness.mjs';
@@ -73,6 +76,31 @@ for (const adapter of adapters) {
   }
 }
 check('candidate rows were checked', checked, adapters.length * (rows.length * 3 + 34));
+// A sibling transform can give a concise return a body-local receiver memo. Its effects
+// still run in that body, while only the free sequence tail describes the returned value.
+for (const adapter of adapters) for (const [name, declaration, returned, owned, expected] of [
+  ['owned prefix', 'var memo;', '(observe(memo = log, memo), { a: Math })', true, true],
+  ['owned nested prefix', 'var memo;', '(0, (observe(memo = log, memo), [Math]))', true, true],
+  ['user prefix', 'var memo;', '(observe(memo = log, memo), { a: Math })', false, false],
+  ['user ref spelling', 'var _ref;', '(observe(_ref = log, _ref), { a: Math })', false, false],
+  ['owned tail', 'var memo;', '(observe(), { a: memo })', true, false],
+  ['owned direct return', 'var memo;', 'memo', true, false],
+  ['owned opaque return', 'var memo;', 'unknown(memo)', true, false],
+  ['initialized declaration', 'var memo = other;', '(observe(memo), { a: Math })', true, false],
+  ['lexical declaration', 'let memo;', '(observe(memo), { a: Math })', true, false],
+  ['other local prefix', 'var memo; const local = other;', '(observe(memo = log, local), { a: Math })', true, false],
+]) {
+  const program = adapter.parseAndScope(`const f = () => { ${ declaration } return ${ returned }; };`);
+  const body = adapter.pickPath(program, 'BlockStatement').node;
+  const [declarator] = body.body[0].declarations;
+  if (owned) markGeneratedMemoDeclarator(declarator);
+  const result = singleReturnBodyExpression(body, { preservesBody: true });
+  const label = `${ adapter.name }: memo prefix: ${ name }`;
+  check(label, result !== null, expected);
+  check(`${ label }: consumed body`, singleReturnBodyExpression(body), null);
+  if (expected) check(`${ label }: original prefix remains`, result, unwrapRuntimeExpr(body.body.at(-1).argument));
+  check(`${ label }: clone is unowned`, isGeneratedMemoDeclarator({ ...declarator }), false);
+}
 // A return-path analysis must scale with the body, not with declarations times returns.
 // Access counts separate that complexity class without relying on machine timing.
 let reads = 0;

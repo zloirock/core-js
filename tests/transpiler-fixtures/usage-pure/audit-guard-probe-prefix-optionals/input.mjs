@@ -12,9 +12,8 @@ export const provenRootTwoHops = dr()?.window?.window?.self?.Array.of(3).at(0);
 const sr = () => globalThis;
 export const provenRootOneHop = sr()?.window?.self?.Array.of(4).at(0);
 
-// a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
-// it must keep the probe hop. binding the bare write folded the hops out of the test, leaving
-// an always-defined global under the null-check (the branch ran where the source short-circuits)
+// A chain-assignment root must preserve its write and the unbacked host probe in the guard.
+// Guarding only the assigned realm value would run the branch where the source short-circuits.
 let held;
 export const chainAssignInstance = (held = globalThis)?.window?.self?.Array.of(5).at(0);
 let heldDeep;
@@ -47,8 +46,8 @@ export const conditionalCalleeKeepsGuards = maybeFn?.()?.window?.self?.Array.of(
 const provenFn = () => globalThis;
 export const optionalCallLinkKeepsGuard = provenFn?.()?.window?.self?.Array.of(11).at(0);
 
-// NEGATIVE: an OPAQUE call root is a genuine source of undefined - its `?.` is load-bearing and
-// the chain keeps the raw guarded read off the memo
+// NEGATIVE: this call returns a defined local object, not a realm alias; preserve its own
+// nested property values.
 const opaque = () => ({ window: { self: { Array } } });
 export const opaqueRootKeepsGuard = opaque()?.window?.self?.Array.of(12).at(0);
 
@@ -155,9 +154,8 @@ class ConsumerHost {
 }
 export const consumerHost = ConsumerHost;
 
-// PARENS between the callee and its call end the chain: the source throws on a nullish value
-// there, so the call never joins the alternate (folding it would swallow that throw and hand
-// the callee a receiver the source does not give it)
+// Parentheses between the optional callee and its call end the chain: a nullish callee must
+// still throw, while a present member call retains the source receiver.
 globalThis.parenHost = { fn(x) { return x; }, Ctor: Map };
 const pc = () => globalThis;
 export const parenCalleeStaysOutside = (pc()?.window?.self.parenHost.fn)(2);
@@ -202,9 +200,8 @@ const mt = () => globalThis;
 export const opaqueKeyNoEffects = mt()?.window?.self.metaHost[globalThis.flag ? 'a' : 'b'];
 export const opaqueKeyRuntimeValue = mt()?.window?.self.metaHost[String('a')];
 
-// BARE proxy root (no call around it) with an optional tail: the two emitters pick different
-// channels for it, so the guard lands on either side of the first tail step. both keep the
-// value and the short-circuit; the sidecar locks the pair
+// Bare and call-returned proxy roots must preserve each source tail's value and short-circuit,
+// including the nullish fallback on the plain carrier.
 globalThis.bareHost = { a: 1 };
 export const bareRootOptionalTail = globalThis.window?.self?.bareHost?.a;
 export const bareRootCarrierTail = globalThis.window?.self.bareHost.a ?? 0;

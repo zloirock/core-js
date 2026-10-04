@@ -81,13 +81,13 @@ let f5, o5;
 // ... and off a USER receiver of unknown type, where the default is live and its name observable
 function pick(user) {
   var _ref3;
-  const _ref4 = (eff++, user);
-  const m6 = (_ref3 = _findIndexMaybeArray(_ref4.codes)) === void 0 ? {
+  const {} = (eff++, user);
+  const m6 = (_ref3 = _findIndexMaybeArray(user.codes)) === void 0 ? {
     "m6": () => 1
   }["m6"] : _ref3;
   const {
     other: o6
-  } = _ref4;
+  } = user;
   return [m6, o6];
 }
 export { eff, f1, o1, f2, a2, f3, o3, f4, a4, o4, f5, o5, pick };

@@ -4,4 +4,5 @@ import _at from "@core-js/pure/actual/instance/at";
 // stays as-is. no polyfill should be injected for the type-only `Set` binding and
 // nothing should be renamed; only `foo.at(0)` gets the instance polyfill
 import { type Set, foo } from 'bar';
-_at(foo).call(foo, 0);
+var _ref;
+_at(_ref = foo).call(_ref, 0);

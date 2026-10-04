@@ -123,7 +123,7 @@ let seTarget;
 class AssignSeKey extends Array {
   static m() {
     var _ref;
-    _ref = this, null == _ref ? _ref[""] : (counted++, seTarget = _Array$of), _ref;
+    _ref = this, null == _ref ? _ref[""] : (counted++, seTarget = _Array$of);
     return seTarget;
   }
 }

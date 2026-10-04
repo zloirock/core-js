@@ -15,11 +15,9 @@ if (c) var P = _Promise,
 
 // A preceding initializer and the computed instance extraction share one var body.
 while (c) var first = init,
-  _ref = rows,
-  fm = null == _ref ? _ref[""] : (log(), _flatMapMaybeArray(_ref));
+  fm = null == rows ? rows[""] : (log(), _flatMapMaybeArray(rows));
 
 // Two instance keys retain their alternating key-effect and read order in one var body.
-do var _ref2 = rows,
-  fl = null == _ref2 ? _ref2[""] : (log(), _findLastMaybeArray(_ref2)),
-  _ref3 = _ref2,
-  fli = null == _ref3 ? _ref3[""] : (log(), _findLastIndexMaybeArray(_ref3)); while (c);
+do var {} = rows,
+  fl = (log(), _findLastMaybeArray(rows)),
+  fli = null == rows ? rows[""] : (log(), _findLastIndexMaybeArray(rows)); while (c);

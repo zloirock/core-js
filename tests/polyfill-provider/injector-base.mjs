@@ -234,6 +234,32 @@ function makeInjector() {
   check('registry/a fresh mint dedups PAST the poisoned name', poisoned.addPureImport('array/from', 'Array.from'), '_Array$from');
 }
 {
+  const pre = makeInjector();
+  const name = pre.addPureImport('self', 'self');
+  check('ownership/current pass import belongs to this pass', pre.isOwnPassPureBinding(name), true);
+  const post = makeInjector();
+  post.pureImports = new Map(pre.pureImports);
+  check('ownership/inherited map alone has no prior source proof', post.isOwnPassPureBinding(name), true);
+  post.registerUserPureImport('self', name);
+  check('ownership/inherited import present in the source belongs to the prior pass', post.isOwnPassPureBinding(name), false);
+  const fresh = post.addPureImport('object/keys', 'Object.keys');
+  check('ownership/new post import belongs to the current pass', post.isOwnPassPureBinding(fresh), true);
+  const prior = makeInjector();
+  prior.registerUserPureImport('self', 'userRealm');
+  check('ownership/user source import is prior output', prior.isOwnPassPureBinding('userRealm'), false);
+  const otherAlias = makeInjector();
+  otherAlias.pureImports = new Map(pre.pureImports);
+  otherAlias.registerUserPureImport('self', 'otherRealm');
+  check('ownership/same source under a different name proves no prior ownership', otherAlias.isOwnPassPureBinding(name), true);
+  const otherSource = makeInjector();
+  otherSource.pureImports = new Map(pre.pureImports);
+  otherSource.registerUserPureImport('global-this', name);
+  check('ownership/same name under a different source proves no prior ownership', otherSource.isOwnPassPureBinding(name), true);
+  const memo = post.generateDeclaredRef();
+  check('ownership/generated receiver memo is not a pure import', post.isOwnPassPureBinding(memo), false);
+  check('ownership/generated receiver memo retains current-pass provenance', post.isOwnPassGeneratedName(memo), true);
+}
+{
   // C2-44: the captured records must not alias the live ones
   const injector = makeInjector();
   injector.registerUserPureImport('array/from', 'aliasA');
@@ -338,5 +364,59 @@ function makeInjector() {
   check('alias/later conditional still requires a guard', injector.getBindingAliasInfo(bindingNode, 'M').aliasGuarded, true);
   check('alias/conditional declaration supplies no trusted write anchor', injector.getBindingAliasInfo(bindingNode, 'M').aliasWrite, null);
 }
+
+for (const [label, receiver, expected, pureReads] of [
+  ['nested discarded receiver', '(effect(), _realm), key(), use(_realm)', 'CallExpression,CallExpression,CallExpression', 2],
+  ['nested used receiver', 'use((effect(), _realm))', null, 2],
+  ['source read before key', 'source, _realm, key(), use(_realm)', 'Identifier,CallExpression,CallExpression', 2],
+  ['own read alone', '_realm, use(_realm)', null, 2],
+]) {
+  runBoth(`census/quiet prefix/${ label }`,
+    `import _realm from '@core-js/pure/actual/global-this'; const value = (${ receiver });`,
+    (adapter, programPath, parser) => {
+      const injector = new TestInjector({ mode: 'actual', pkg: '@core-js/pure', importStyle: 'import' });
+      injector.addPureImport('global-this', 'realm');
+      const census = collectInjectorCensus(programPath.node, { pureNames: new Set(['_realm']), memoReuse: true });
+      unwrapWriteOnlyGuardMemos(census, {
+        injectorState: injector,
+        contextForMemo(name, write, occurrence) {
+          let path = programPath;
+          for (let at = 1; at < occurrence.ancestors.length; at++) {
+            path = occurrence.listKeys[at] ? path.get(occurrence.listKeys[at])[occurrence.keys[at]] : path.get(occurrence.keys[at]);
+          }
+          return { scope: path.scope, path, adapter };
+        },
+      });
+      const value = unwrapRuntimeExpr(programPath.node.body.at(-1).declarations[0].init);
+      check(`${ parser } :: ${ label }/shape`, value.type, expected ? 'SequenceExpression' : 'CallExpression');
+      if (expected) check(`${ parser } :: ${ label }/effects retained`, value.expressions.map(node => node.type).join(','), expected);
+      check(`${ parser } :: ${ label }/liveness`, census.pureCounts.get('_realm'), pureReads);
+    });
+}
+
+for (const [label, declarators, inline] of [
+  ['adjacent helper', 'keep = 1, { w: memo } = source, value = helper(memo), tail = 2', true],
+  ['intervening effect', '{ w: memo } = source, between = effect(), value = helper(memo)', false],
+  ['another callee', '{ w: memo } = source, value = user(memo)', false],
+  ['another argument', '{ w: memo } = source, value = helper(memo, effect())', false],
+]) runBoth(`census/adjacent declarator/${ label }`, `const ${ declarators };`, (parser, programPath, name) => {
+  const census = collectInjectorCensus(programPath.node, {
+    mintedRefNames: new Set(['memo']), pureNames: new Set(['helper']), memoReuse: true,
+  });
+  unwrapWriteOnlyGuardMemos(census, {
+    injectorState: {
+      isOwnPassGeneratedName: id => id === 'memo',
+      isOwnPassPureBinding: id => id === 'helper',
+    },
+    contextForMemo: () => ({}),
+  });
+  const value = parser.pickPath(programPath, 'VariableDeclarator', path => path.node.id.name === 'value').node.init;
+  check(`${ name }/receiver`, value.arguments[0].type, inline ? 'MemberExpression' : 'Identifier');
+  if (inline) {
+    check(`${ name }/original source read moved with the method`, value.arguments[0].object.name, 'source');
+    check(`${ name }/property read retained`, value.arguments[0].property.name, 'w');
+    check(`${ name }/capture removed`, programPath.node.body.flatMap(node => node.declarations).every(node => node.id.type === 'Identifier'), true);
+  }
+});
 
 finish();

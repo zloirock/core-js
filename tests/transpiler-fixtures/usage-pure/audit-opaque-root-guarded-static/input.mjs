@@ -1,7 +1,6 @@
-// a static reached through an OPAQUE inline-call proxy-nav root under an OUTER instance
-// dispatch: the guard memoizes the raw root once (its SE + short-circuit), and the guarded
-// branch collapses the static onto the ponyfill - call and FIELD spellings alike, in BOTH
-// emitters. a provably pure inline root carries the provenance through the memo
+// An inline call returning the proxy global reaches a static through an optional window hop.
+// The guard preserves root evaluation and short-circuiting before the static call or field read.
+// The guarded static resolves to its ponyfill before the outer instance dispatch.
 const f = () => globalThis;
 export const viaGuardedStaticCall = f()?.window?.Array.of(5).at(0);
 const g = () => globalThis;
@@ -11,8 +10,8 @@ export const viaGuardedStaticField = g()?.window?.Number.MAX_SAFE_INTEGER.toFixe
 const h = () => ({ window: { Array: { of: x => [x, 'custom'] } } });
 export const nonProxyStaysRaw = h()?.window?.Array.of(8).at(0);
 
-// an SE-carrying sequence at the chain root: the memo assignment runs the effect exactly once
-// in the guard test, so the branch reads the ponyfill leaf
+// A sequence prefix at the chain root runs its effect exactly once in the guard test.
+// The guarded branch then reads the static ponyfill.
 let seCount = 0;
 const eff = () => seCount++;
 const k = () => globalThis;
@@ -29,7 +28,7 @@ export const viaComputedTrailing = m()?.window?.Array.from([3])[(keySe(), 'at')]
 const p = () => globalThis;
 export const viaOptionalTrailing = p()?.window?.Promise.resolve(4)?.then?.(x => x);
 
-// a CHAIN-ASSIGN root: the assignment rides the guard memo, the static still collapses
+// A chain-assignment root keeps its write in the guard test while the static still collapses.
 let held;
 const ca = () => globalThis;
 export const viaChainAssignRoot = (held = ca())?.window?.Array.of(7).at(0);

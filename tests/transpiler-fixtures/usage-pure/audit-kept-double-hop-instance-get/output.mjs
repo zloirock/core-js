@@ -34,5 +34,5 @@ let v;
 export const doubleHopKeyStack = null == (v = _globalThis.window) ? void 0 : (_ref3 = (k++, _nameMaybeFunction(_Map)), k += 10, _at(_ref3).call(_ref3, 0));
 // a user-written sequence stays put - only plugin-built wrappers lift into the guard
 export function readName(x) {
-  return k++, _nameMaybeFunction(x);
+  return _nameMaybeFunction((k++, x));
 }

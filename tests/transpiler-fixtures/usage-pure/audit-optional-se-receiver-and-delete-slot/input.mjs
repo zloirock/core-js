@@ -3,8 +3,8 @@
 // an optional dispatch over an SE-bearing sequence receiver, a nested instance leaf in a bodyless
 // slot, and a `delete` whose target must stay a member read
 const arr = [3, [1, 2]];
-// a receiver the guard cannot spell twice memoizes INTO the test; the receiver's own prefix runs
-// there, once, and only the KEY's effects stay in the alternate
+// the stable receiver can be reused; its own prefix runs once in the guard's test,
+// and only the KEY's effects stay in the alternate
 export const a1 = (eff(), arr)?.flat();
 export const a2 = (eff(), arr)?.at(1);
 export const a3 = (eff(), arr)?.[(eff2(), 'flat')]();

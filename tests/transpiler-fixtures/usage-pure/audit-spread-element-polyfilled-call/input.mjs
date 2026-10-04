@@ -1,6 +1,6 @@
 // a polyfilled call hosted by a SpreadElement - array-literal element and call-argument
-// positions. the rewrite composes INSIDE the spread; a call-rooted receiver memoizes
-// without disturbing the surrounding `...`
+// positions. The readonly binding and string literal need no receiver snapshot,
+// and both call results stay inside their surrounding spread.
 const arr = [1, [2]];
 export const a = [...arr.flat()];
 function f(...xs) { return xs; }

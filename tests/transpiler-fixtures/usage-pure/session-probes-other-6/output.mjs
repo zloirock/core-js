@@ -34,31 +34,28 @@ function mark(t, v) {
   return v;
 }
 {
-  const _ref2 = {
+  const {
+      [(eff(), 'w')]: _ref
+    } = {
       w: src
     },
-    {
-      [(eff(), 'w')]: _ref
-    } = null == _ref2 ? _ref2[""] : _ref2,
     a = _at(_ref);
 }
 {
-  const _ref4 = {
+  const {
+      [(eff(), 'w')]: _ref2
+    } = {
       w: [1]
     },
-    {
-      [(eff(), 'w')]: _ref3
-    } = null == _ref4 ? _ref4[""] : _ref4,
-    a2 = _atMaybeArray(_ref3);
+    a2 = _atMaybeArray(_ref2);
 }
 {
-  const _ref6 = {
+  const {
+      [(eff(), 'w')]: _ref3
+    } = {
       w: src
     },
-    {
-      [(eff(), 'w')]: _ref5
-    } = null == _ref6 ? _ref6[""] : _ref6,
-    a3 = _at(_ref5);
+    a3 = _at(_ref3);
 }
 {
   const {
@@ -91,8 +88,7 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const _ref7 = arr,
-    s = null == _ref7 ? _ref7[""] : (k(), _atMaybeArray(_ref7));
+  const s = null == arr ? arr[""] : (k(), _atMaybeArray(arr));
   s();
 }
 {
@@ -151,13 +147,12 @@ function mark(t, v) {
   s(r, f);
 }
 {
-  const _ref8 = arr,
-    s = null == _ref8 ? _ref8[""] : (k(), _atMaybeArray(_ref8)),
-    _ref9 = _ref8,
-    f = null == _ref9 ? _ref9[""] : (k2(), _flatMaybeArray(_ref9)),
+  const {} = arr,
+    s = (k(), _atMaybeArray(arr)),
+    f = null == arr ? arr[""] : (k2(), _flatMaybeArray(arr)),
     {
       z
-    } = _ref8;
+    } = arr;
   s(z, f);
 }
 {
@@ -170,37 +165,37 @@ function mark(t, v) {
   s(z, q, f);
 }
 {
-  const _ref10 = [1, 2],
-    s = null == _ref10 ? _ref10[""] : (k(), _atMaybeArray(_ref10)),
+  const _ref4 = [1, 2],
+    s = null == _ref4 ? _ref4[""] : (k(), _atMaybeArray(_ref4)),
     {
       z
-    } = _ref10,
+    } = _ref4,
     q = 2;
   s(z, q);
 }
 {
-  const _ref11 = arr,
-    s = null == _ref11 ? _ref11[""] : (k(), _atMaybeArray(_ref11)),
+  const {} = arr,
+    s = (k(), _atMaybeArray(arr)),
     {
       z
-    } = _ref11,
+    } = arr,
     q = 2;
   s(z, q);
 }
 {
-  const _ref12 = arr,
-    s = null == _ref12 ? _ref12[""] : (k(), _atMaybeArray(_ref12)),
+  const {} = arr,
+    s = (k(), _atMaybeArray(arr)),
     {
       z
-    } = _ref12;
+    } = arr;
   s(z);
 }
 {
-  const _ref13 = c ? a1 : a2,
-    s = null == _ref13 ? _ref13[""] : (k(), _at(_ref13)),
+  const _ref5 = c ? a1 : a2,
+    s = null == _ref5 ? _ref5[""] : (k(), _at(_ref5)),
     {
       z
-    } = _ref13,
+    } = _ref5,
     q = 2;
   s(z, q);
 }
@@ -213,11 +208,11 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const _ref14 = eff().constructor.prototype,
-    s = null == _ref14 ? _ref14[""] : (k(), _at(_ref14)),
+  const _ref6 = eff().constructor.prototype,
+    s = null == _ref6 ? _ref6[""] : (k(), _at(_ref6)),
     {
       z
-    } = _ref14,
+    } = _ref6,
     q = 2;
   s(z, q);
 }
@@ -229,45 +224,45 @@ function mark(t, v) {
   s(z);
 }
 {
-  const _ref15 = _globalThis.Array.prototype,
-    s = null == _ref15 ? _ref15[""] : (k(), _atMaybeArray(_ref15)),
+  const _ref7 = _globalThis.Array.prototype,
+    s = null == _ref7 ? _ref7[""] : (k(), _atMaybeArray(_ref7)),
     {
       z
-    } = _ref15,
+    } = _ref7,
     q = 2;
   s(z, q);
 }
 {
-  const _ref16 = _globalThis.Array.prototype,
-    s = null == _ref16 ? _ref16[""] : (k(), _atMaybeArray(_ref16)),
+  const _ref8 = _globalThis.Array.prototype,
+    s = null == _ref8 ? _ref8[""] : (k(), _atMaybeArray(_ref8)),
     {
       z
-    } = _ref16;
+    } = _ref8;
   s(z);
 }
 {
-  const _ref17 = holder.p,
-    s = null == _ref17 ? _ref17[""] : (k(), _at(_ref17)),
+  const _ref9 = holder.p,
+    s = null == _ref9 ? _ref9[""] : (k(), _at(_ref9)),
     {
       z
-    } = _ref17,
+    } = _ref9,
     q = 2;
   s(z, q);
 }
 {
-  const _ref18 = holder.p,
-    s = null == _ref18 ? _ref18[""] : (k(), _at(_ref18)),
+  const _ref10 = holder.p,
+    s = null == _ref10 ? _ref10[""] : (k(), _at(_ref10)),
     {
       z
-    } = _ref18;
+    } = _ref10;
   s(z);
 }
 {
-  const _ref19 = _self.Array.prototype,
-    s = null == _ref19 ? _ref19[""] : (k(), _atMaybeArray(_ref19)),
+  const _ref11 = _self.Array.prototype,
+    s = null == _ref11 ? _ref11[""] : (k(), _atMaybeArray(_ref11)),
     {
       z
-    } = _ref19;
+    } = _ref11;
   s(z);
 }
 {
@@ -286,11 +281,11 @@ function mark(t, v) {
   v(w);
 }
 {
-  const _ref20 = _globalThis.Object,
+  const _ref12 = _globalThis.Object,
     fr = (k(), _Object$freeze),
     {
       z
-    } = _ref20;
+    } = _ref12;
   fr(z);
 }
 {
@@ -306,14 +301,14 @@ function mark(t, v) {
   use(a, m);
 }
 {
-  const _ref21 = {
+  const _ref13 = {
     a: g(),
     w: obj.p
   };
   const {
     a
-  } = _ref21;
-  const m = _at(_ref21.w);
+  } = _ref13;
+  const m = _at(_ref13.w);
   use(a, m);
 }
 {

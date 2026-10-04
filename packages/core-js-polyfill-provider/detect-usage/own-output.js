@@ -7,9 +7,11 @@
 // same family; the emitters only bind their injector state
 import { entryToGlobalHint, hasOwnStaticDefinition } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
-import { isSourcedSymbolIteratorMeta } from './members.js';
+import { isSourcedSymbolIteratorMeta } from './globals.js';
 import { PATTERN_CHAIN_TYPES } from './destructure.js';
 import {
+  aliasDeclScope,
+  bindingDeclaratorNode,
   patternSlotTarget,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
@@ -17,10 +19,15 @@ import {
   defaultImportSourcesOf,
   destructureReceiverSlot,
   foldedPropertyKeyName,
+  identifierDeclaratorInit,
+  initializerReachesRead,
+  isReassignedBeyondDeclarator,
   kebabToCamel,
   memberKeyName,
   pureImportEntryOf,
   pureImportSourceEntry,
+  provablyPrecedes,
+  reassignmentDominatesUsage,
   requireCallSource,
   rootProgramOf,
   staticMemberFromEntrySegment,
@@ -288,11 +295,52 @@ function computedKeyIsMintedImport(node, path, tests, { readOfIteratorIsNotOurs 
 // the RENDERED GUARD spelling our collapse writes (`null == probe ? void 0 : _x.tail`):
 // a receiver carrying one is our own prior output - a fresh claim over it re-upgrades a
 // settled verdict (the same census family as `navHoldsMintedSeCall`, for the guard shape)
-function navHoldsRenderedGuard(objectNode, path, tests) {
-  const stack = [objectNode];
+function navHoldsRenderedGuard(objectNode, path, tests, adapter = null) {
+  const stack = [{ node: objectNode, scope: path.scope, readNode: path.node, followAliases: true, fromAlias: false }];
+  const visited = new Set();
   while (stack.length) {
-    const cur = unwrapRuntimeExpr(stack.pop());
+    const { node, scope, readNode, followAliases, fromAlias } = stack.pop();
+    const cur = unwrapRuntimeExpr(node);
     if (!cur || typeof cur !== 'object' || !cur.type) continue;
+    // A retained native read may sit behind lowered captures. Follow only the one
+    // value already written at each capture; the terminal guard still owns the verdict.
+    if (cur.type === 'Identifier' && adapter && followAliases) {
+      const binding = adapter.getBinding(scope, cur.name, path);
+      const declaration = bindingDeclaratorNode(binding);
+      if (!declaration || visited.has(declaration)) continue;
+      visited.add(declaration);
+      const init = identifierDeclaratorInit(binding);
+      if (init && !isReassignedBeyondDeclarator(binding) && initializerReachesRead({
+        adapter,
+        binding,
+        declaratorNode: declaration,
+        usagePath: path,
+        usageNode: readNode,
+      })) {
+        stack.push({
+          node: init,
+          scope: aliasDeclScope(binding, scope),
+          readNode: init,
+          followAliases: unwrapRuntimeExpr(init)?.type === 'Identifier',
+          fromAlias: true,
+        });
+        continue;
+      }
+      if (init) continue;
+      const write = adapter.findTrustedAliasWrite?.(scope, cur.name, { requirePlacement: false });
+      if (write?.operator === '=' && write.left?.type === 'Identifier' && write.left.name === cur.name
+        && provablyPrecedes(write, readNode)
+        && reassignmentDominatesUsage({ reassignmentNodes: [write], usagePath: path, usageNode: readNode })) {
+        stack.push({
+          node: write.right,
+          scope: aliasDeclScope(binding, scope),
+          readNode: write.right,
+          followAliases: unwrapRuntimeExpr(write.right)?.type === 'Identifier',
+          fromAlias: true,
+        });
+      }
+      continue;
+    }
     if (cur.type === 'ConditionalExpression') {
       const test = unwrapRuntimeExpr(cur.test);
       const consequent = unwrapRuntimeExpr(cur.consequent);
@@ -302,31 +350,43 @@ function navHoldsRenderedGuard(objectNode, path, tests) {
       const voidZeroArm = consequent?.type === 'UnaryExpression' && consequent.operator === 'void';
       if (nullCompare && voidZeroArm) {
         let leaf = unwrapRuntimeExpr(cur.alternate);
+        // A captured realm guard settles only the imported value. An arbitrary
+        // payload read after it still owns its instance claims on the later pass.
+        if (fromAlias && leaf?.type !== 'Identifier') continue;
         while (leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
           leaf = unwrapRuntimeExpr(leaf.object);
         }
-        if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests)) return true;
+        if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests)
+          && (!adapter || adapter.getBinding(scope, leaf.name, path)?.importSource
+            === defaultImportSourcesOf(rootProgramOf(path)).get(leaf.name))) return true;
       }
-      stack.push(cur.test, cur.consequent, cur.alternate);
+      if (fromAlias) continue;
+      stack.push(...[cur.test, cur.consequent, cur.alternate].map(child => ({ node: child, scope, readNode, followAliases, fromAlias })));
       continue;
     }
+    if (fromAlias && cur.type !== 'SequenceExpression' && cur.type !== 'AssignmentExpression') continue;
     if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      stack.push(cur.object);
-      if (cur.computed) stack.push(cur.property);
+      stack.push({ node: cur.object, scope, readNode, followAliases, fromAlias });
+      if (cur.computed) stack.push({ node: cur.property, scope, readNode, followAliases, fromAlias });
       continue;
     }
     if (cur.type === 'SequenceExpression' || cur.type === 'TemplateLiteral') {
-      stack.push(...cur.expressions ?? []);
+      const expressions = fromAlias ? [cur.expressions.at(-1)] : cur.expressions ?? [];
+      for (const expression of expressions) stack.push({ node: expression, scope, readNode, followAliases, fromAlias });
       continue;
     }
     // a STORE hands the guard on as its value (`(held = null == probe ? void 0 : _x.tail).m`), the
     // same carrier the minted-SE census next door already walks: read without it, the receiver's
     // own render read as somebody else's spelling and the claim came back on the next pass
     if (cur.type === 'AssignmentExpression') {
-      stack.push(cur.right);
+      if (fromAlias && cur.operator !== '=') continue;
+      stack.push({ node: cur.right, scope, readNode, followAliases, fromAlias });
       continue;
     }
-    if (cur.type === 'LogicalExpression' || cur.type === 'BinaryExpression') stack.push(cur.left, cur.right);
+    if (cur.type === 'LogicalExpression' || cur.type === 'BinaryExpression') {
+      stack.push({ node: cur.left, scope, readNode, followAliases, fromAlias },
+        { node: cur.right, scope, readNode, followAliases, fromAlias });
+    }
   }
   return false;
 }
@@ -681,8 +741,9 @@ export function ownEmittedLogicalPatch(path, tests) {
 }
 
 // the member funnel: every nav-position census in one gate, ahead of both emitters' member
-// claim routes. `node` is the MemberExpression, `metaPath` its path
-export function ownEmittedNavClaim(node, metaPath, tests) {
+// claim routes. `node` is the MemberExpression, `metaPath` its path. The producer's
+// placement keeps arbitrary instance payloads live beneath a prior realm guard.
+export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta = null) {
   if (tests.programMayHoldOwnOutput) {
     const root = rootProgramOf(metaPath);
     if (!tests.programMayHoldOwnOutput(root)) {
@@ -695,7 +756,8 @@ export function ownEmittedNavClaim(node, metaPath, tests) {
     || ownDefaultedGuardFallbackClaim(metaPath, tests)
     || ownRenderedGuardAlternateClaim(metaPath, tests)
     || navHoldsMintedSeCall(node.object, metaPath, tests)
-    || navHoldsRenderedGuard(node.object, metaPath, tests);
+    || ((meta?.placement !== 'prototype' || hasOwnStaticDefinition(meta.guardedAliasHint, meta.key))
+      && navHoldsRenderedGuard(node.object, metaPath, tests, adapter));
 }
 
 // the MIRROR's own literal read back: that render replaces the receiver with `{ <key>: { <member>:

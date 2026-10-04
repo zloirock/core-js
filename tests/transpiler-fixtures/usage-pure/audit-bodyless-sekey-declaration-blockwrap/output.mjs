@@ -10,8 +10,8 @@ if (c) var f = (log(), _Array$from);
 
 // bodyless for-of BODY: an instance method, distinct from above - the for-of/in HEAD bail must not catch the
 // body (keying on the node type alone dropped the polyfill, mistaking the body for the head binding)
-for (item of items) var _ref = rows, m = null == _ref ? _ref[""] : (log(), _flatMaybeArray(_ref));
+for (item of items) var m = null == rows ? rows[""] : (log(), _flatMaybeArray(rows));
 
 // The literal-receiver do-while follows the same ordering on each iteration.
-do var _ref2 = [1, 2, 3],
-  a = null == _ref2 ? _ref2[""] : (log(), _atMaybeArray(_ref2)); while (c);
+do var _ref = [1, 2, 3],
+  a = null == _ref ? _ref[""] : (log(), _atMaybeArray(_ref)); while (c);

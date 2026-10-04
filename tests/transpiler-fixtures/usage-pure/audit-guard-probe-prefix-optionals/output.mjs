@@ -4,7 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14;
 // a SECOND unresolvable hop below the collapse (`window?.window` - the realm self-reference
 // past the environment probe): the guard tests the DEEPER prefix, so the `?.` inside that test
 // guards the probe itself and is LOAD-BEARING. spelling the test with the whole spine plain
@@ -19,9 +19,8 @@ export const provenRootTwoHops = null == dr()?.window?.window ? void 0 : _atMayb
 const sr = () => _globalThis;
 export const provenRootOneHop = null == sr()?.window ? void 0 : _atMaybeArray(_ref4 = _Array$of(4)).call(_ref4, 0);
 
-// a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
-// it must keep the probe hop. binding the bare write folded the hops out of the test, leaving
-// an always-defined global under the null-check (the branch ran where the source short-circuits)
+// A chain-assignment root must preserve its write and the unbacked host probe in the guard.
+// Guarding only the assigned realm value would run the branch where the source short-circuits.
 let held;
 export const chainAssignInstance = null == (held = _globalThis)?.window ? void 0 : _atMaybeArray(_ref5 = _Array$of(5)).call(_ref5, 0);
 let heldDeep;
@@ -54,8 +53,8 @@ export const conditionalCalleeKeepsGuards = null == maybeFn?.()?.window ? void 0
 const provenFn = () => _globalThis;
 export const optionalCallLinkKeepsGuard = null == provenFn?.()?.window ? void 0 : _atMaybeArray(_ref10 = _Array$of(11)).call(_ref10, 0);
 
-// NEGATIVE: an OPAQUE call root is a genuine source of undefined - its `?.` is load-bearing and
-// the chain keeps the raw guarded read off the memo
+// NEGATIVE: this call returns a defined local object, not a realm alias; preserve its own
+// nested property values.
 const opaque = () => ({
   window: {
     self: {
@@ -183,13 +182,15 @@ export const whileConsumer = () => {
 export const sequenceConsumer = (0, null == cs().window ? void 0 : _self.consumerHost.n);
 class ConsumerHost {
   static field = null == cs().window ? void 0 : _self.consumerHost.n;
-  inst = null == (_ref15 = cs()?.window) ? void 0 : _at(_ref16 = _ref15.consumerHost.list).call(_ref16, 0);
+  inst = (() => {
+    var _ref15, _ref16;
+    return null == (_ref15 = cs()?.window) ? void 0 : _at(_ref16 = _ref15.consumerHost.list).call(_ref16, 0);
+  })();
 }
 export const consumerHost = ConsumerHost;
 
-// PARENS between the callee and its call end the chain: the source throws on a nullish value
-// there, so the call never joins the alternate (folding it would swallow that throw and hand
-// the callee a receiver the source does not give it)
+// Parentheses between the optional callee and its call end the chain: a nullish callee must
+// still throw, while a present member call retains the source receiver.
 _globalThis.parenHost = {
   fn(x) {
     return x;
@@ -254,9 +255,8 @@ const mt = () => _globalThis;
 export const opaqueKeyNoEffects = null == mt().window ? void 0 : _self.metaHost[_globalThis.flag ? 'a' : 'b'];
 export const opaqueKeyRuntimeValue = null == mt().window ? void 0 : _self.metaHost[String('a')];
 
-// BARE proxy root (no call around it) with an optional tail: the two emitters pick different
-// channels for it, so the guard lands on either side of the first tail step. both keep the
-// value and the short-circuit; the sidecar locks the pair
+// Bare and call-returned proxy roots must preserve each source tail's value and short-circuit,
+// including the nullish fallback on the plain carrier.
 _globalThis.bareHost = {
   a: 1
 };

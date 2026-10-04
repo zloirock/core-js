@@ -347,19 +347,6 @@ function exportedValues(declaration) {
   return declaration.id ? [declaration.id] : [declaration];
 }
 
-function gatherPatternMemberTargets(pattern, push) {
-  const work = [pattern];
-  while (work.length) {
-    const node = work.pop();
-    if (!node || typeof node !== 'object') continue;
-    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
-      push(node);
-      continue;
-    }
-    walkAstChildren(node, child => work.push(child));
-  }
-}
-
 // census-reducer form: the per-node collection runs from the shared file-census walk, the
 // verdict is computed once in `result` over everything collected. `packages` (main pkg +
 // additionalPackages prefixes) keeps the import-alias recognition in lockstep with the scoped
@@ -621,6 +608,7 @@ function extendChain(node, keys) {
 
 function unrootedWriteKey({ root, keys }, owner) {
   if (root?.type === 'Identifier' || !keys.length) return null;
+  if ((root?.type === 'ObjectExpression' || root?.type === 'ArrayExpression') && keys.length === 1) return null;
   if (root?.type === 'ThisExpression' && keys[0] !== 'constructor') {
     const member = owner?.type === 'ClassMethod'
       || owner?.type === 'ClassPrivateMethod'
@@ -5119,12 +5107,14 @@ export function mutationShapesReducer(packages = null) {
       // owe the same record
       recordPatternMemberReads(left, right);
       const paired = rightIsTheValue ? patternMemberTargetPairs(left, unwrapRuntimeExpr(right)) : [];
-      gatherPatternMemberTargets(left, member => {
+      const members = [];
+      collectForXWriteMembers(left, members);
+      for (const member of members) {
         const stored = paired.filter(([target]) => target === member);
         if (!stored.length) recordMemberSlotWrite(member);
         for (const [, value] of stored) recordMemberSlotWrite(member, value);
         pushTarget(member);
-      });
+      }
       // bare identifier elements assign global slots like the flat form - gate on them too
       walkPatternIdentifiers(left, id => pushTarget(id));
       if (rightIsTheValue) recordValueSource(left, right);
@@ -5248,7 +5238,7 @@ export function mutationShapesReducer(packages = null) {
     if (node.type === 'CallExpression') recordHopInvocation(node, recordMutatorReceiver);
     // ... and every call's place among the raw slot writes, for the explicit store it may turn out to be
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
-      storeCalls.push({ node, scopes: currentScopes, at: rawSlotWrites.length });
+      storeCalls.push({ node, scopes: currentScopes, thisOwner: currentThisOwner, at: rawSlotWrites.length });
     }
     recordDefaultedParams(node);
     switch (node.type) {
@@ -5687,8 +5677,16 @@ export function mutationShapesReducer(packages = null) {
     const ownedStoreTargets = new Map();
     const assignStores = new WeakMap();
     for (let index = storeCalls.length - 1; index >= 0; index--) {
-      const { node, scopes, at } = storeCalls[index];
+      const { node, scopes, thisOwner, at } = storeCalls[index];
       const store = callBuiltin?.(node);
+      // Explicit stores through an unnamed receiver owe the same generic key veto as
+      // member writes, even when an accessor descriptor installs no readable data value.
+      if (store) for (const { targetNode, key } of mutatorInstalledValues(store.namespace, store.method, store.args)) {
+        for (const chain of writeTargetChains(unwrapRuntimeExpr(targetNode))) {
+          const written = unrootedWriteKey({ root: chain.root, keys: [...chain.keys, key] }, thisOwner);
+          if (written !== null) rawUnrootedKeys.add(written);
+        }
+      }
       const writes = store && explicitStoreWrites(store);
       if (!writes) continue;
       if (writes.owned) ownedStoreTargets.set(node, writes.target);
@@ -6371,9 +6369,14 @@ function recordedSlotWriteValues(slots, keys, keyPath) {
 // `parameterCallSites` is the type engine's caller census, exposed on the adapter for the
 // destructure lanes that mirror a PARAMETER's receiver from the callers this file spells
 export function createDetectionAdapter({
-  method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null,
-  getContainerSlotIndex = () => null, getPackages = () => null, getMutationRoots = () => null,
+  method = null,
+  getMutatedStatics = () => null,
+  getWrittenContainerSlots = () => null,
+  getContainerSlotIndex = () => null,
+  getPackages = () => null,
+  getMutationRoots = () => null,
   parameterCallSites = null,
+  collectBindingReferences = null,
 }, buildHostMembers) {
   const callWriteSummaries = new WeakMap();
   const callReadSummaries = new WeakMap();
@@ -6388,7 +6391,9 @@ export function createDetectionAdapter({
     return containerRecordKeys(getContainerSlotIndex?.(), object, ownerNode);
   }
   const adapter = {
+    isKnownGlobalName,
     parameterCallSites,
+    collectBindingReferences,
     // Scope trackers may still expose a pattern after its extraction is committed.
     // The source walker retains the original binding's write and availability checks.
     emittedBindingSources: new WeakMap(),
@@ -6449,14 +6454,21 @@ export function createDetectionAdapter({
             // reads, rest-only captures and arguments-object access keep the escape.
             const selected = prefix === key && escapes?.length && escapes.every(escape => {
               const callee = escape?.call && CALL_CALLEES.get(index.programNode)?.get(escape.call);
-              if (!callee || referencesArgumentsObject(callee)) return false;
+              if (!callee) return false;
+              // The indexed callee owns its syntax proof; each invocation only pairs
+              // argument slots. Scanning a wide body/parameter list per call is quadratic.
+              if (!callReadSummaries.has(callee)) callReadSummaries.set(callee, {
+                readsArguments: referencesArgumentsObject(callee),
+                memberRead: calleeParameterMemberRead(callee),
+              });
+              const summary = callReadSummaries.get(callee);
+              if (summary.readsArguments) return false;
               const pairing = censusCallPairing(escape.call);
               const at = pairing?.argsUnknown ? -1 : pairing?.args?.indexOf(escape.argument) ?? -1;
               const pattern = at < 0 ? null : patternSlotTarget(dropLeadingThisParam(callee.params)[at]);
               if (!isDestructurePattern(pattern)) {
                 if (keyPath.length !== 1) return false;
-                if (!callReadSummaries.has(callee)) callReadSummaries.set(callee, calleeParameterMemberRead(callee));
-                const read = callReadSummaries.get(callee);
+                const read = summary.memberRead;
                 const source = installedWriteValue(ownerNode?.init);
                 if (read?.paramIndex !== at || memberReadKeyName(read.member) !== keyPath[0]
                   || source?.type !== 'ObjectExpression') return false;

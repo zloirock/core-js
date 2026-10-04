@@ -45,13 +45,18 @@ export const s2 = function ({
 }();
 // a FOLDED computed key reads back COMPUTED with its own string, whatever produced the fold:
 // a side-effecting key whose prefix stays on the pattern, and a plain string literal
-export const s3 = function ({
-  at,
-  [(effect(), "k")]: v
-} = {
-  at: _atMaybeArray([1, 2]),
-  "k": [1, 2]["k"]
-}) {
+export const s3 = function (_ref = void 0) {
+  let _ref2 = false;
+  let _ref3 = _ref === void 0 ? (_ref2 = true, [1, 2]) : _ref,
+    {} = _ref3,
+    {
+      at
+    } = _ref2 ? {
+      "at": _atMaybeArray(_ref3)
+    } : _ref3,
+    {
+      [(effect(), "k")]: v
+    } = _ref3;
   return [at, v];
 }();
 export const s4 = function ({

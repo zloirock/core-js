@@ -13,12 +13,11 @@ let from = 'old-from';
 let keys = 'old-keys';
 let result;
 try {
-  var _ref;
   ({
     Array: {
       [(_pushMaybeArray(events).call(events, 'key'), 'from')]: from
     },
-    [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0), typeof from), 'Object')]: {
+    [(_pushMaybeArray(events).call(events, _atMaybeString('x').call('x', 0), typeof from), 'Object')]: {
       keys
     }
   } = (_pushMaybeArray(events).call(events, 'source'), {} = null == _globalThis.window ? void 0 : _self, {
@@ -42,20 +41,14 @@ const pureFrom = _Array$from;
 const box = {};
 let method = 'old';
 try {
-  var _ref2;
-  ({
-    Array: {
-      [(_pushMaybeArray(events).call(events, 'partial'), 'from')]: method
-    },
+  var _ref;
+  _ref = (_pushMaybeArray(events).call(events, 'partial-source'), null == _globalThis.window ? void 0 : _self), {
+    Array: {}
+  } = _ref, _pushMaybeArray(events).call(events, 'partial'), method = _Array$from, {
     Object: {
-      keys: box[_pushMaybeArray(events).call(events, method === pureFrom, _atMaybeString(_ref2 = 'y').call(_ref2, 0)), 'value']
+      keys: box[_pushMaybeArray(events).call(events, method === pureFrom, _atMaybeString('y').call('y', 0)), 'value']
     }
-  } = (_pushMaybeArray(events).call(events, 'partial-source'), {} = null == _globalThis.window ? void 0 : _self, {
-    Array: {
-      from: _Array$from
-    },
-    Object: _self.Object
-  }));
+  } = _ref;
 } catch (error) {
   _pushMaybeArray(events).call(events, _nameMaybeFunction(error));
 }

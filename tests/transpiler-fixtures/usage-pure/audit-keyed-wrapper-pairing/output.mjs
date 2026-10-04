@@ -9,39 +9,37 @@ const nb = {
 };
 const nested = function () {
   const {
-    pair: _ref
+    pair: [_ref]
   } = {
     pair: [nb]
   };
-  const [_ref2] = _ref;
-  const flat = _flatMaybeArray(_ref2.y);
+  const flat = _flatMaybeArray(_ref.y);
   return flat;
 }();
 const flatClaim = function () {
   const {
-    pair: _ref3
+    pair: [_ref2]
   } = {
     pair: [nb.y]
   };
-  const [_ref4] = _ref3;
-  const flat = _flatMaybeArray(_ref4);
+  const flat = _flatMaybeArray(_ref2);
   return flat;
 }();
 // a NEIGHBOUR key that carries an effect pins the order - native builds the whole literal before it
 // destructures, so the pairing stays off and the element renames positionally after that effect
 const log = [];
 const besideAnEffect = function () {
-  const _ref6 = {
+  const _ref4 = {
     pair: [nb],
     zn: _pushMaybeArray(log).call(log, 'n')
   };
   const {
-    pair: [_ref5]
-  } = _ref6;
-  const flat = _flatMaybeArray(_ref5.y);
+    pair: [_ref3]
+  } = _ref4;
+  const flat = _flatMaybeArray(_ref3.y);
   const {
     zn
-  } = _ref6;
+  } = _ref4;
   return [typeof flat, zn];
 }();
 export { nested, flatClaim, besideAnEffect };

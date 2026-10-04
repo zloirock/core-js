@@ -116,14 +116,10 @@ function mark(t, v) {
   // The computed outer key runs before the nested prototype read and instance-method extraction.
   const order = [];
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
-  const _ref2 = _globalThis,
-    {
-      [(eff('k'), 'Array')]: _ref
-    } = null == _ref2 ? _ref2[""] : _ref2,
-    {
-      prototype: _ref3
-    } = _ref,
-    f2 = _valuesMaybeArray(_ref3);
+  const {
+    [(eff('k'), 'Array')]: _ref
+  } = null == _globalThis ? _globalThis[""] : _globalThis;
+  const f2 = _valuesMaybeArray(_ref.prototype);
 }
 {
   const order = [];
@@ -145,11 +141,11 @@ function mark(t, v) {
     _pushMaybeArray(order).call(order, t);
     return t;
   }
-  const _ref4 = [1, 2],
-    a = null == _ref4 ? _ref4[""] : (eff('k'), _atMaybeArray(_ref4)),
+  const _ref2 = [1, 2],
+    a = null == _ref2 ? _ref2[""] : (eff('k'), _atMaybeArray(_ref2)),
     {
       z
-    } = _ref4;
+    } = _ref2;
 }
 {
   const q = _Object$hasOwn;

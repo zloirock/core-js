@@ -38,11 +38,11 @@ let g;
 _ref = _globalThis.Array, g = _Array$of, {
   of: _unused,
   ...rest
-} = _ref, _ref;
+} = _ref;
 use(g, rest);
 let inner;
 _ref2 = _globalThis.Object, fromEntries = _Object$fromEntries, {
   fromEntries: _unused2,
   ...inner
-} = _ref2, _ref2;
+} = _ref2;
 use(fromEntries, inner);

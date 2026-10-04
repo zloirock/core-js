@@ -2564,12 +2564,12 @@ function createResolveNodeType(babelNodeType, t, {
   // entry (per-file). adding a NEW cache here means: (a) declare let-binding above, (b)
   // re-assign to fresh WeakMap in reset, (c) use ONLY node-identity / NodePath as keys -
   // never strings (file paths / type names) which can collide across parses
-  function reset() {
+  function reset(options) {
     returnTypeCluster.reset();
     typeofGuardsCluster.reset();
     narrowByGuardsCluster.reset();
     nameResolutionCluster.reset();
-    bindingAnalysisCluster.reset();
+    bindingAnalysisCluster.reset(options);
     classFieldsCluster.reset();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
@@ -3276,6 +3276,15 @@ function createResolveNodeType(babelNodeType, t, {
   }
 
   return {
+    // Use the existing declaration-identity reference index for scoped provider decisions.
+    collectBindingReferences(path, name = path.node.name, { closed = false } = {}) {
+      path = anchorPathScope(path);
+      const binding = getScopeBinding(path.scope, name, path);
+      const owner = binding?.scope?.block ?? binding?.scope?.path?.node;
+      if (closed && owner?.type === 'Program'
+        && bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path))) return null;
+      return binding ? bindingAnalysisCluster.collectBindingReferences(binding, path) : null;
+    },
     isObject,
     isString,
     // the call-site scan both the type resolver (default-type authoritativeness) and the
@@ -3299,3 +3308,4 @@ function createResolveNodeType(babelNodeType, t, {
 }
 
 export { createResolveNodeType };
+export { nodePathInScope } from './resolve-node-type/base.js';

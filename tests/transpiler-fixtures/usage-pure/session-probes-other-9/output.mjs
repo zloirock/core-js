@@ -158,18 +158,18 @@ function mark(t, v) {
     } = _ref2;
 }
 {
-  const _ref3 = arr,
-    s = null == _ref3 ? _ref3[""] : (k(), _atMaybeArray(_ref3)),
+  const {} = arr,
+    s = (k(), _atMaybeArray(arr)),
+    {
+      z
+    } = arr;
+}
+{
+  const _ref3 = c ? a1 : a2,
+    s = null == _ref3 ? _ref3[""] : (k(), _at(_ref3)),
     {
       z
     } = _ref3;
-}
-{
-  const _ref4 = c ? a1 : a2,
-    s = null == _ref4 ? _ref4[""] : (k(), _at(_ref4)),
-    {
-      z
-    } = _ref4;
 }
 {
   const {
@@ -185,11 +185,11 @@ function mark(t, v) {
   } = eff();
 }
 {
-  const _ref5 = holder.p,
-    s = null == _ref5 ? _ref5[""] : (k(), _at(_ref5)),
+  const _ref4 = holder.p,
+    s = null == _ref4 ? _ref4[""] : (k(), _at(_ref4)),
     {
       z
-    } = _ref5;
+    } = _ref4;
 }
 {
   const {
@@ -258,9 +258,8 @@ function mark(t, v) {
   };
 }
 {
-  const _ref6 = r;
-  const values = _values(_ref6.w);
-  const at = _at(_ref6.y);
+  const values = _values(r.w);
+  const at = _at(r.y);
 }
 {
   if (c) var {
@@ -283,6 +282,7 @@ function mark(t, v) {
 }
 {
   if (c) {
+    r;
     eff();
     const values = _values(r.w);
     const at = _at(r.y);
@@ -291,6 +291,7 @@ function mark(t, v) {
 }
 {
   label: {
+    r;
     eff();
     const values = _values(r.w);
     const at = _at(r.y);
@@ -304,29 +305,27 @@ function mark(t, v) {
   }] = [...rest, Array];
 }
 {
-  var _ref7, _ref9, _ref8;
+  var _ref5, _ref6;
   let a;
-  [_ref7] = [{
+  [_ref5] = [{
     w: src
   }];
-  _ref8 = _ref7;
   ({
-    [(eff('k'), 'w')]: _ref9
-  } = null == _ref8 ? _ref8[""] : _ref8);
-  a = _at(_ref9);
+    [(eff('k'), 'w')]: _ref6
+  } = null == _ref5 ? _ref5[""] : _ref5);
+  a = _at(_ref6);
 }
 {
-  var _ref10;
   let a;
-  [_ref10] = [(_pushMaybeArray(log).call(log, 'c'), arr)];
-  a = _atMaybeArray(_ref10);
+  [,] = [(_pushMaybeArray(log).call(log, 'c'), arr)];
+  a = _atMaybeArray(arr);
   use(a);
 }
 {
-  var _ref11, _ref12;
+  var _ref7, _ref8;
   let e, k;
-  [_ref11, _ref12] = [(g(), f()), 1];
-  e = _at(_ref11);
-  k = _ref12;
+  [_ref7, _ref8] = [(g(), f()), 1];
+  e = _at(_ref7);
+  k = _ref8;
   use(e, k);
 }

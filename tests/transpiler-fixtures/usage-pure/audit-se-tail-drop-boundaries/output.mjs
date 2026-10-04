@@ -11,7 +11,7 @@ if (cond) {
   var from = _Array$from;
 }
 // a for-init head can't host a statement-level SE
-for (var _ref2 = (effF(), Array), of = _Array$of;;) break;
+for (var of = (effF(), _Array$of);;) break;
 // an instance entry needs the receiver at runtime
 const at = _atMaybeArray((effI(), [1, 2]));
 const _ref = (effR(), _globalThis.Object),

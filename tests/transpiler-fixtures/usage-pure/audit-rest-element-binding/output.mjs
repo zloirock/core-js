@@ -1,10 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
-const _ref = Array,
-  from = _Array$from,
+const from = _Array$from,
   {
     from: _unused,
     ...Map
-  } = _ref;
+  } = Array;
 Map.prototype.get;

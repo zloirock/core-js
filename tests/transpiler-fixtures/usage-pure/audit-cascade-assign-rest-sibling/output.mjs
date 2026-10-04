@@ -1,11 +1,11 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _unused;
+var _unused;
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 let from, rest;
-_ref = _globalThis, _ref2 = _ref.Array, from = _Array$from, _ref2, {
+({} = _globalThis), _globalThis.Array, from = _Array$from, {
   Array: _unused,
   ...rest
-} = _ref, _ref;
+} = _globalThis;
 export { from, rest };

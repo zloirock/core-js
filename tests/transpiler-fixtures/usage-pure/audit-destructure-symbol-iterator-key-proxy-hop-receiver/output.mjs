@@ -5,8 +5,7 @@ import _self from "@core-js/pure/actual/self";
 // destructure: the memoized receiver must COLLAPSE the redundant `self` hop to `_globalThis.Array`
 // (the same collapse the retained-residual path applies) - `_globalThis.self.Array` would read `.Array`
 // off a runtime-undefined `_globalThis.self` on ie:11 / Node
-const _ref = _self.Array;
-const it = _getIteratorMethod(_ref);
+const it = _getIteratorMethod(_self.Array);
 const from = _Array$from;
 it;
 from([1]);

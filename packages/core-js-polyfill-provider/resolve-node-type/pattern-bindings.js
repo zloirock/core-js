@@ -52,8 +52,7 @@ import {
   writeIsInOppositeBranch,
   peelTransparentExprAncestorPath,
   peelTransparentWrapperPath,
-  positionDisposition,
-  POSITION_CONSUMES,
+  valueIsDroppedAt,
   walkPatternIdentifiers,
   isBareUndefinedIdentifier,
   callPairing,
@@ -121,31 +120,6 @@ function methodCallerNames(fnPath) {
     return !readsThis;
   } });
   return readsThis ? null : { name: anchor.node.id.name, scope: anchor.scope, anchor, key };
-}
-
-// the positions from which a value can still reach a CALLER of the function it carries, and so
-// the ones this census must not read as the end of it. an INVOCATION host is the case
-// `invocationPairingAt` owns; a MEMBER read is the arm the position enumeration hands back to its
-// caller, and here it always can hand an invoker out - `f.call` / `f.apply` / `f.bind` invoke the
-// function, and `f.prototype.constructor` and an INSTANCE's `.constructor` ARE it. every other
-// position the enumeration calls CONSUMES is evaluated where it stands and unreachable
-// afterwards, so no call can be spelled through it. asked of a reference to the function and of
-// an object the function CONSTRUCTED alike - both carry the same identity onward
-const CALLER_REACHING_PARENT_TYPES = new Set([
-  'CallExpression',
-  'MemberExpression',
-  'NewExpression',
-  'OptionalCallExpression',
-  'OptionalMemberExpression',
-]);
-
-function valueIsDroppedAt(path) {
-  // the peel runs off the top of the tree, where there is no position left to dispose of the value
-  const outer = peelTransparentExprAncestorPath(path);
-  const parentPath = outer?.parentPath;
-  const parent = parentPath?.node;
-  if (!parent || CALLER_REACHING_PARENT_TYPES.has(parent.type)) return false;
-  return positionDisposition(parent, outer.node, parentPath) === POSITION_CONSUMES;
 }
 
 export function createPatternBindings({

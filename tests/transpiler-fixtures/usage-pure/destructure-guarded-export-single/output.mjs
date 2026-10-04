@@ -21,13 +21,13 @@ const source = {
   }
 };
 let held;
-const _ref = held = (_pushMaybeArray(log).call(log, 'source'), source);
-const at = _atMaybeArray(_ref.Array.prototype);
+held = (_pushMaybeArray(log).call(log, 'source'), source);
+const at = _atMaybeArray(held.Array.prototype);
 const {
-  Object: _ref2
-} = _ref;
-const keys = _ref2 === Object ? _Object$keys : _keys(_ref2);
+  Object: _ref
+} = held;
+const keys = _ref === Object ? _Object$keys : _keys(_ref);
 const {
   other
-} = _ref;
+} = held;
 export { at, keys, other };

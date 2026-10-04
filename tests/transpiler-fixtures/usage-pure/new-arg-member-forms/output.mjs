@@ -9,10 +9,10 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // keeps its side effect and evaluation order, a paren-sealed optional callee keeps the
 // null-guard inside the callee slot, an argument-less `new` of a bare method read gets
 // empty construct args, a well-known-symbol read and a spread argument fold as plain args
-const t1 = new Tag((_pushMaybeArray(log).call(log, 'e'), _at(arr)), 'x');
+const t1 = new Tag(_at((_pushMaybeArray(log).call(log, 'e'), arr)), 'x');
 const t2 = new (arr == null ? void 0 : _includes(arr))(1);
 const t3 = new (_findLastMaybeArray(arr))();
 const t4 = new Tag(_getIteratorMethod(list), 'y');
 const t5 = new Tag(..._flatMaybeArray(items), 'z');
-const t6 = new Tag((_pushMaybeArray(log).call(log, 'k'), _includes(arr)), 'w');
+const t6 = new Tag((arr, _pushMaybeArray(log).call(log, 'k'), _includes(arr)), 'w');
 const t7 = new Tag(arr == null ? void 0 : _findLastIndexMaybeArray(arr), 'v');

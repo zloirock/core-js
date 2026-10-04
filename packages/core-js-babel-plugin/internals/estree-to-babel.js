@@ -145,6 +145,16 @@ function build(node) {
       return { type: 'ExpressionStatement', expression: convert(node.expression) };
     case 'BlockStatement':
       return { type: 'BlockStatement', body: node.body.map(statement => convert(statement)), directives: [] };
+    case 'ReturnStatement':
+      return { type: 'ReturnStatement', argument: convert(node.argument) };
+    case 'ArrowFunctionExpression':
+      return {
+        type: 'ArrowFunctionExpression',
+        params: node.params.map(param => convert(param)),
+        body: convert(node.body),
+        async: !!node.async,
+        expression: !!node.expression,
+      };
     case 'CallExpression':
       if (node.optional) throw new TypeError('[estree-to-babel] optional call outside a ChainExpression');
       return {

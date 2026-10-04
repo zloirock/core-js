@@ -24,6 +24,7 @@ export function viaDeferredReassignStaysGeneric() {
     deferred = strSrc;
   });
   {
-    return _includes(deferred).call(deferred, "x");
+    var _ref;
+    return _includes(_ref = deferred).call(_ref, "x");
   }
 }

@@ -1,10 +1,12 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
-import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { peelReceiverSequenceTail, resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  mayHaveSideEffects,
+  observableSequenceElements,
   subtreeContainsNode,
   unwrapRuntimeExpr,
+  peelNestedSequenceExpressions,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
@@ -20,13 +22,7 @@ import {
 } from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop } from './claim-guards.js';
-import {
-  LITERAL_RECEIVER_TYPES,
-  climbToCallerPath,
-  collectSourceSpans,
-  markSubtreeSkipped,
-  sourceSpanKey,
-} from './nav-spine.js';
+import { climbToCallerPath, collectSourceSpans, markSubtreeSkipped, sourceSpanKey } from './nav-spine.js';
 
 // the harvested effects a THROW PROBE does not already run: the ones it consumed, and the ones its
 // RENDER spells - a prefix copy of either would evaluate it twice
@@ -37,65 +33,92 @@ export function effectsPastThrowProbe(effects, throwProbe) {
     && !(sourceSpanKey(effect) && spans.has(sourceSpanKey(effect))));
 }
 
-// an OPTIONAL method call over a plain receiver: harvested effects (and a SOURCE sequence
-// prefix) lift ahead of the plain `?.call` dispatch - babel's shape; a receiver the guard
-// cannot spell twice memoizes ahead of them (`(_ref = <recv>, k2, _at(_ref)?.call(_ref, 0))`)
+// An optional method call keeps the complete first receiver in its lookup argument.
+// A computed key instead follows that evaluation, before the lookup and its this-value.
 export function emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPath, meta, entry, hintName }, ctx) {
   const seqRecvOpt = unwrapRuntimeExpr(node.object);
-  const recvPrefix = seqRecvOpt?.type === 'SequenceExpression' && Number.isInteger(seqRecvOpt.start)
-    ? seqRecvOpt.expressions.slice(0, -1) : [];
-  const recvTail = seqRecvOpt?.type === 'SequenceExpression'
-    ? unwrapRuntimeExpr(seqRecvOpt.expressions.at(-1)) : seqRecvOpt;
-  const reusable = ctx.isReusableReceiver(recvTail);
+  const receiverSequence = seqRecvOpt?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(seqRecvOpt) : null;
+  const recvPrefix = receiverSequence?.prefix ?? [];
+  let recvTail = receiverSequence?.tail ?? seqRecvOpt;
+  const pure = ctx.receiverPure ?? instanceSynthReceiverPure(recvTail, {
+    scope: metaPath.scope,
+    path: metaPath,
+    adapter: ctx.adapter,
+    injectorState: ctx.injectorState,
+    resolvePure: m => ctx.resolvePure(m, metaPath),
+  });
+  if (pure) recvTail = identifier(ctx.injectPureImport(pure.entry, pure.hintName));
+  const interveningEffects = (meta.sideEffects?.length ?? 0) > (meta.receiverEffectCount ?? 0);
+  const reusable = ctx.isReusableReceiver(recvTail, {
+    interveningEffects,
+    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
+  });
   const ref = reusable ? null : ctx.injector.generateDeclaredRef(metaPath);
   function held() {
     return reusable ? cloneNode(recvTail) : identifier(ref);
   }
-  const liftable = (meta.sideEffects ?? []).filter(effect => !recvPrefix.includes(effect));
-  const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)), [held()]);
+  const renderedReceiver = pure
+    ? receiverSequence ? sequenceExpression([...recvPrefix.map(expr => cloneNode(expr)), cloneNode(recvTail)]) : cloneNode(recvTail)
+    : cloneNode(node.object);
+  const liftedReceiverEffects = (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
+    .filter(effect => !subtreeContainsNode(node.object, effect));
+  const firstReceiver = liftedReceiverEffects.length
+    ? sequenceExpression([...liftedReceiverEffects.map(expr => cloneNode(expr)), renderedReceiver]) : renderedReceiver;
+  const keyEffects = (meta.sideEffects ?? []).slice(meta.receiverEffectCount ?? 0).map(expr => cloneNode(expr));
+  const firstRead = reusable ? firstReceiver : ctx.assignmentExpression('=', identifier(ref), firstReceiver);
+  const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)), [keyEffects.length ? held() : firstRead]);
   const dispatch = chainExpression(callExpression(
     memberExpression(lookup, identifier('call'), { optional: true }),
     [held(), ...parent.arguments.map(argument => cloneNode(argument))]));
   ctx.markRewrite();
   const optTarget = callerPath.parentPath?.node?.type === 'ChainExpression' ? callerPath.parentPath : callerPath;
   const consumed = optTarget.node;
-  const memoLead = reusable ? [] : [ctx.assignmentExpression('=', identifier(ref), cloneNode(recvTail))];
-  optTarget.replaceWith(withSideEffects(dispatch,
-    [...memoLead, ...recvPrefix.map(expr => cloneNode(expr)), ...liftable]));
+  optTarget.replaceWith(withSideEffects(dispatch, keyEffects.length ? [
+    ...observableSequenceElements([firstRead], {
+      scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState,
+    }, { preserveSourceReads: true }),
+    ...keyEffects,
+  ] : []));
   markSubtreeSkipped(ctx.skippedNodes, consumed);
 }
 
 export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath, meta, entry, hintName }, ctx) {
   const bare = unwrapRuntimeExpr(node.object);
+  const receiver = bare?.type === 'SequenceExpression' ? peelReceiverSequenceTail(bare) : bare;
   // a receiver the guard cannot SPELL TWICE - the test reads it and so does the dispatch -
   // memoizes into the test itself, which is the one evaluation the source performs
   // ... and one it CAN spell twice owes no memo at all: it is its own null test, and the
   // key's effects are left to the alternate, where native runs them - a nullish receiver
   // skips the property read entirely (`arr?.[(probe(), 'includes')](42)`)
-  // (`(eff(), arr)?.flat()` -> `null == (_ref = (eff(), arr)) ? void 0 : _flat(_ref).call(_ref)`)
-  const reusable = ctx.isReusableReceiver(bare);
+  // A stable sequence tail is re-read after the whole receiver's first evaluation in the guard.
+  // (`(eff(), arr)?.flat()` -> `null == (eff(), arr) ? void 0 : _flat(arr).call(arr)`)
+  const reusable = ctx.isReusableReceiver(receiver, {
+    interveningEffects: (meta.sideEffects?.length ?? 0) > (meta.receiverEffectCount ?? 0),
+    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
+  });
+  const ref = reusable ? null : ctx.injector.generateDeclaredRef(metaPath);
   // a PAREN-SEALED lookup keeps the plain emitter's twin: the guard wraps ONLY the lookup -
   // the harvested key effects ride its alternate, where native runs them past the
   // short-circuit - and `.call` stays outside the ternary
   // (`(arr?.[(probe++, "includes")])(1)` -> `(arr == null ? void 0 : (probe++, _includes(arr))).call(arr, 1)`)
   if (ctx.calleeParenWrapped(parent)) {
-    if (!reusable) return;
     const keyEffects = (meta.sideEffects ?? [])
       .filter(effect => !subtreeContainsNode(bare, effect))
       .map(effect => cloneNode(effect));
-    const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)), [cloneNode(bare)]);
-    const sealedGuard = renderShortCircuitGuard(nullGuardTest(cloneNode(bare)),
+    const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)),
+      [reusable ? cloneNode(receiver) : identifier(ref)]);
+    const sealedGuard = renderShortCircuitGuard(nullGuardTest(reusable ? cloneNode(bare)
+      : ctx.assignmentExpression('=', identifier(ref), cloneNode(bare))),
       keyEffects.length ? sequenceExpression([...keyEffects, lookup]) : lookup);
     ctx.markRewrite();
     const consumed = callerPath.node;
     callerPath.replaceWith(callExpression(
       memberExpression(sealedGuard, identifier('call')),
-      [cloneNode(bare), ...parent.arguments.map(argument => cloneNode(argument))]));
+      [reusable ? cloneNode(receiver) : identifier(ref), ...parent.arguments.map(argument => cloneNode(argument))]));
     markSubtreeSkipped(ctx.skippedNodes, consumed);
     return;
   }
-  const ref = reusable ? null : ctx.injector.generateDeclaredRef(metaPath);
-  const held = reusable ? cloneNode(bare) : identifier(ref);
+  const held = reusable ? cloneNode(receiver) : identifier(ref);
   const optionalCall = parent.optional === true;
   let dispatch = callExpression(
     memberExpression(callExpression(identifier(ctx.injectPureImport(entry, hintName)), [cloneNode(held)]),
@@ -126,30 +149,46 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
 // value, a call): the substitution erases the key spelling, and ECMA runs the receiver BEFORE
 // the key, so the memo leads and the harvested effects ride behind it
 // (`probeHeld.Object[(k++, 'keys')]` -> `(_ref = probeHeld.Object, k++, _keys(_ref))`).
-// a LITERAL receiver constructs unobservably and keeps the plain prefix instead
+// A literal may read a binding in its slots, so it too is evaluated before the key.
 export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx) {
   const { injectPureImport, injector, markRewrite, skippedNodes } = ctx;
-  const receiver = unwrapRuntimeExpr(node.object);
+  const sourceReceiver = unwrapRuntimeExpr(node.object);
+  const receiverSequence = sourceReceiver?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(sourceReceiver) : null;
+  let receiver = receiverSequence?.tail ?? sourceReceiver;
+  const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState };
+  const pure = instanceSynthReceiverPure(receiver, { ...receiverCtx, resolvePure: m => ctx.resolvePure(m, metaPath) });
+  if (pure) receiver = identifier(injectPureImport(pure.entry, pure.hintName));
   const id = injectPureImport(entry, hintName);
-  const effects = meta.sideEffects.map(effect => cloneNode(effect));
-  markRewrite();
-  if (LITERAL_RECEIVER_TYPES.has(receiver?.type) && !mayHaveSideEffects(receiver)) {
+  const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(sourceReceiver, effect)).map(effect => cloneNode(effect));
+  const reusable = ctx.isReusableReceiver(receiver, { interveningEffects: effects.length > 0, ctx: receiverCtx });
+  const firstReceiver = pure
+    ? receiverSequence
+      ? sequenceExpression([...receiverSequence.prefix.map(prefix => cloneNode(prefix)), cloneNode(receiver)])
+      : cloneNode(receiver)
+    : cloneNode(sourceReceiver);
+  // A sole lookup cannot hand a constant literal to the key before that literal exists.
+  // Its one helper argument needs no held identity, unlike the two reads of a method call.
+  if (!node.optional && isConstantLiteralReceiver(unwrapRuntimeExpr(firstReceiver))) {
+    markRewrite();
     replaceGuardedHop({
       hopPath: metaPath,
       test: null,
-      built: withSideEffects(callExpression(identifier(id), [cloneNode(receiver)]), effects),
+      built: withSideEffects(callExpression(identifier(id), [firstReceiver]), effects),
       skippedNodes,
     });
     return;
   }
-  const ref = injector.generateDeclaredRef(metaPath);
+  const ref = reusable ? null : injector.generateDeclaredRef(metaPath);
+  // The first receiver evaluation stays before the key, even when only its stable tail is reused.
+  const firstRead = reusable ? firstReceiver : ctx.assignmentExpression('=', identifier(ref), firstReceiver);
+  markRewrite();
   replaceGuardedHop({
     hopPath: metaPath,
-    test: null,
+    test: node.optional ? nullGuardTest(firstRead) : null,
     built: sequenceExpression([
-      ctx.assignmentExpression('=', identifier(ref), cloneNode(receiver)),
+      ...node.optional ? [] : observableSequenceElements([firstRead], receiverCtx, { preserveSourceReads: true }),
       ...effects,
-      callExpression(identifier(id), [identifier(ref)]),
+      callExpression(identifier(id), [reusable ? cloneNode(receiver) : identifier(ref)]),
     ]),
     skippedNodes,
   });
@@ -162,13 +201,30 @@ export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPa
   // tests (`null == (_ref = (mark(), _globalThis)) ? void 0 : (tag(), void 0)`), so it moves into
   // the test instead of running ahead of it
   const memoStore = object?.type === 'Identifier' && effects[0]?.type === 'AssignmentExpression'
+    && ctx.injectorState.isOwnPassGeneratedName(object.name)
     && effects[0].left?.type === 'Identifier' && effects[0].left.name === object.name ? effects[0] : null;
   const { disjuncts, makeBase } = memoStore
     ? { disjuncts: [memoStore], makeBase: () => cloneNode(object) }
-    : ctx.guardObject(object, metaPath);
-  const guardedKeySe = renderShortCircuitGuard(ctx.composeGuardTest(disjuncts, null),
-    sequenceExpression([...effects.slice(memoStore ? 1 : 0).map(effect => cloneNode(effect)), voidZero()]));
+    : ctx.guardObject(object, metaPath, { interveningEffects: effects.length > 0 });
+  const keyEffects = effects.slice(memoStore ? 1 : 0).map(effect => cloneNode(effect));
+  const test = ctx.composeGuardTest(disjuncts, null);
   const consumed = hopPath.node;
+  if (methodCallConsume) {
+    const lookup = renderShortCircuitGuard(test,
+      withSideEffects(callExpression(identifier(id), [makeBase()]), keyEffects));
+    hopPath.replaceWith(ctx.buildSymbolConsumeCore({
+      id,
+      object: makeBase(),
+      methodCallConsume,
+      callerPath,
+      metaPath,
+      receiverClone: () => makeBase(),
+      lookup,
+    }));
+    markSubtreeSkipped(ctx.skippedNodes, consumed);
+    return;
+  }
+  const guardedKeySe = renderShortCircuitGuard(test, sequenceExpression([...keyEffects, voidZero()]));
   hopPath.replaceWith(sequenceExpression([guardedKeySe, ctx.buildSymbolConsumeCore({
     id, object: makeBase(), methodCallConsume, callerPath, metaPath, receiverClone: () => makeBase(),
   })]));
@@ -210,36 +266,14 @@ export function collapseSymbolProxyRoot(meta, metaPath, { resolvePure, injectPur
 
 // the READ whose receiver spelling already carries every harvested effect. a KEPT WRITE
 // anchors the prefix and the whole sequence rides INSIDE the dispatch (`((v = g)).Map.name`
-// -> `_name((v = _globalThis, _Map))`); a plain SE prefix lifts OUT instead and the quiet
-// tail is the receiver. only an author-written sequence lifts (a synthesized node carries no
-// source span). the helper reads its receiver once, so a kept or minted spelling stays inline;
+// -> `_name((v = _globalThis, _Map))`). The helper reads its whole receiver once, so the
+// prefix stays in that argument together with quiet reads that can throw before the lookup;
 // it owes no memo unless another reader or a later key effect needs the captured value
 export function emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
   { injectPureImport, markRewrite, skippedNodes }) {
   const id = injectPureImport(entry, hintName);
   markRewrite();
-  const seqRecv = unwrapRuntimeExpr(node.object);
-  const seqTail = seqRecv?.type === 'SequenceExpression'
-          ? unwrapRuntimeExpr(seqRecv.expressions.at(-1)) : null;
-  const seqWrites = seqRecv?.type === 'SequenceExpression'
-          && seqRecv.expressions.slice(0, -1)
-            .some(expr => {
-              const stored = unwrapRuntimeExpr(expr);
-              // a COMPOUND assignment is an ordinary effect, not a kept write: nothing
-              // downstream reads what it stored (`(n += 100, _Promise).name` lifts)
-              return stored?.type === 'AssignmentExpression' && stored.operator === '=';
-            });
-  const liftedPrefix = seqTail && seqTail.type !== 'AssignmentExpression' && !seqWrites
-          && Number.isInteger(seqRecv.start)
-          ? seqRecv.expressions.slice(0, -1) : null;
-  replaceGuardedHop({
-    hopPath: metaPath,
-    test: null,
-    built: liftedPrefix
-      ? withSideEffects(callExpression(identifier(id), [cloneNode(seqTail)]), liftedPrefix)
-      : callExpression(identifier(id), [cloneNode(node.object)]),
-    skippedNodes,
-  });
+  replaceGuardedHop({ hopPath: metaPath, test: null, built: callExpression(identifier(id), [cloneNode(node.object)]), skippedNodes });
 }
 
 // the `?.()` of an inherited static resolves like its plain twin: the ponyfill is always

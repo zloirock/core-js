@@ -31,6 +31,7 @@ import {
   objectExpression,
   objectPattern,
   objectProperty,
+  renderMemoActivation,
   sequenceExpression,
   unaryExpression,
   variableDeclaration,
@@ -186,12 +187,11 @@ check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression
 
 // --- totality: outside the vocabulary or misminted = loud throw, never a wrong print ---
 checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
-checkTruthy('totality/function shapes stay outside the vocabulary',
-  caught({ type: 'ArrowFunctionExpression', params: [], body: identifier('value') })?.includes('outside the canonical vocabulary'));
+check('memo activation/lexical local var and return', generate(estreeToBabel(
+  renderMemoActivation(identifier('value'), ['_ref']),
+)).code, '(() => {\n  var _ref;\n  return value;\n})()');
 checkTruthy('totality/function expressions stay outside the vocabulary',
   caught({ type: 'FunctionExpression', id: null, params: [], body: blockStatement([]) })?.includes('outside the canonical vocabulary'));
-checkTruthy('totality/return statements stay outside the vocabulary',
-  caught({ type: 'ReturnStatement', argument: identifier('value') })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/optional member outside chain throws',
   caught(memberExpression(identifier('a'), identifier('b'), { optional: true }))?.includes('outside a ChainExpression'));
 checkTruthy('totality/optional call outside chain throws',

@@ -23,7 +23,7 @@ export const viaChainAssignRoot = (held = _globalThis, _flatMaybeArray(arr).call
 // other consumers carry the key effect ahead of the collapsed binding or dispatch;
 // the effect keeps its own polyfills there too
 export const viaPrototypeRead = (_includesMaybeArray(arr).call(arr, 1), _WeakMap).prototype;
-export const viaPlainReceiver = (_flatMapMaybeArray(arr).call(arr, x => [x]).length, _atMaybeArray(arr).call(arr, 0));
+export const viaPlainReceiver = (arr, _flatMapMaybeArray(arr).call(arr, x => [x]).length, _atMaybeArray(arr).call(arr, 0));
 
 // NEGATIVE: an effect with nothing polyfillable inside it has nothing to keep alive
 let n = 0;

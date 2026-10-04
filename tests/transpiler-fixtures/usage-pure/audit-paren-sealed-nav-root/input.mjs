@@ -105,17 +105,17 @@ export { c8 };
 export const viaSealedAllPlain = (globalThis.self.window)?.Array.of(8).at(0);
 export const viaHopOrderDead = globalThis.self?.window.self?.Array.of(10).at(0);
 
-// SE-key residual variants: a LIVE `?.` probe rides the guard with an optionalized tail
-// (short-circuit preserved), a claimable CTOR leaf keeps the plain read above the seal
-// (the residual claims nothing), a DEFINED hop nav keeps its plain collapse (no guard)
+// Computed-key destructures retain the optional probe and plain read above a seal.
+// A missing receiver throws before the pattern key effect runs.
+// The defined-hop case keeps its plain receiver and one key effect.
 let c9 = 0;
 export const { [(c9++, 'getOwnPropertyNames')]: viaProbeSeKeyResidual } = globalThis.window?.self.Object;
 export const { [(c9++, 'from')]: viaSealedCtorLeafResidual } = (globalThis.window?.self).Array;
 export const { [(c9++, 'isArray')]: viaDefinedHopSeKeyResidual } = globalThis.self.Array;
 export { c9 };
 
-// ASSIGNMENT-host SE-key destructures keep the whole pattern in place (no declaration to
-// split) - the kept init rides the same guard canon as the declarator residual
+// Computed-key destructuring assignments preserve receiver coercion before key effects.
+// Sealed and live optional receivers keep their throwing and short-circuit boundaries.
 let ca = 0;
 let viaSealedAssignSeKey;
 ({ [(ca++, 'entries')]: viaSealedAssignSeKey } = (globalThis.window?.self).Object);

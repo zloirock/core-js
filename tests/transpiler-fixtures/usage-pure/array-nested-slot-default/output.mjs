@@ -1,5 +1,5 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-var _ref2;
+var _ref;
 // Array evaluation finishes before the nested object read.
 const receiver = {
   get y() {
@@ -7,6 +7,6 @@ const receiver = {
     return [1, [2]];
   }
 };
-const [_ref] = [receiver, record("rhs")];
-const flat = _flatMaybeArray((_ref2 = _ref.y) === void 0 ? [] : _ref2);
+const [,] = [receiver, record("rhs")];
+const flat = _flatMaybeArray((_ref = receiver.y) === void 0 ? [] : _ref);
 export { flat };

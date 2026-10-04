@@ -5,7 +5,6 @@ import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _self from "@core-js/pure/actual/self";
-var _ref2, _ref4, _ref6;
 // a claim INSIDE the harvested se of a synth-swap memo argument lands during the walk, and
 // the DRAIN re-harvests the live container: a registration-captured ref goes stale the
 // moment the in-place claim REPLACES its node, and the frozen clone re-emitted the raw
@@ -15,24 +14,26 @@ let tick = 0;
 function keyClaim({
   groupBy: gb,
   more
-} = function (_ref) {
-  return {
+} = (() => {
+  var _ref;
+  return _at(_ref = getObj()).call(_ref, 0), {
     groupBy: _Map$groupBy,
-    more: _ref.more
+    more: _Map.more
   };
-}((_at(_ref2 = getObj()).call(_ref2, 0), _Map))) {
+})()) {
   return [gb, more];
 }
 keyClaim();
 function refOrder({
   groupBy: gb2,
   more2
-} = function (_ref3) {
-  return {
-    groupBy: _Map$groupBy,
-    more2: _ref3.more2
-  };
-}((tick++, _Map)), z = _at(_ref4 = getObj()).call(_ref4, 0)) {
+} = (tick++, {
+  groupBy: _Map$groupBy,
+  more2: _Map.more2
+}), z = (() => {
+  var _ref2;
+  return _at(_ref2 = getObj()).call(_ref2, 0);
+})()) {
   return [gb2, more2, z];
 }
 refOrder();
@@ -43,12 +44,15 @@ const log = [];
 function proxyBranch({
   from: x,
   nope: y
-} = function (_ref5) {
-  return {
-    from: _Array$from,
-    nope: _ref5.nope
-  };
-}((_pushMaybeArray(log).call(log, _atMaybeArray(_ref6 = [3]).call(_ref6, 0)), _self).Array)) {
+} = (() => {
+  var _ref4;
+  return function (_ref3) {
+    return {
+      from: _Array$from,
+      nope: _ref3.nope
+    };
+  }((_pushMaybeArray(log).call(log, _atMaybeArray(_ref4 = [3]).call(_ref4, 0)), _self).Array);
+})()) {
   return [typeof x, typeof y, log[0]];
 }
 use(proxyBranch());

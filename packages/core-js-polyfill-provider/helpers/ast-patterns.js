@@ -38,6 +38,18 @@ export function isCapturedKeyedPattern(pattern) {
   return capturedKeyedPatterns.has(pattern);
 }
 
+const generatedMemoDeclarators = new WeakSet();
+// Record the actual declarator an allocator placed, independently of its printed name.
+export function markGeneratedMemoDeclarator(declarator) {
+  generatedMemoDeclarators.add(declarator);
+  return declarator;
+}
+
+// Only allocator-owned, initless identifier declarators have transparent memo provenance.
+export function isGeneratedMemoDeclarator(declarator) {
+  return generatedMemoDeclarators.has(declarator) && !declarator.init && declarator.id?.type === 'Identifier';
+}
+
 // Program -> read-only receiver candidate query. Global includes local call/parameter flows;
 // pure asks for opaque iteration/selection families. Candidates alone never prove a replacement.
 export const CENSUS_STATIC_RECEIVERS = new WeakMap();
@@ -152,23 +164,23 @@ export function isASTNode(value) {
     && type !== 'Line';
 }
 
-// positional recursive walk over a raw AST subtree of EITHER dialect: `visit(node, parent)`
+// positional recursive walk over a raw AST subtree of EITHER dialect: `visit(node, parent, key, listKey)`
 // per position (a node shared by two parents is visited from each), optional `leave` after
 // its children. An explicit `false` return PRUNES the subtree and its leave callback
 // (a type-annotation wall, a span the caller owns). the depth cap
 // protects against pathological nesting (template-literal bombs, parser bug-emitted cycles);
 // the per-node hot path allocates nothing
 export function walkAstNodes({ root, visit, leave = null, parent = null, depth = 0 }) {
-  (function step(node, parentNode, level) {
+  (function step(node, parentNode, level, key = null, listKey = null) {
     if (!isASTNode(node) || level >= 1024) return;
-    if (visit(node, parentNode) === false) return;
+    if (visit(node, parentNode, key, listKey) === false) return;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      const value = node[key];
-      if (Array.isArray(value)) for (const item of value) step(item, node, level + 1);
-      else step(value, node, level + 1);
+    for (const field in node) {
+      const value = node[field];
+      if (Array.isArray(value)) for (let index = 0; index < value.length; index++) step(value[index], node, level + 1, index, field);
+      else step(value, node, level + 1, field);
     }
-    leave?.(node, parentNode);
+    leave?.(node, parentNode, key, listKey);
   })(root, parent, depth);
 }
 
@@ -387,8 +399,9 @@ export function resolveBatchDirectivePromotionPolicy({
 // drop the whole statement on removal; this lets both plugins recover the prefix slots so
 // `(spy(), require)('core-js/...')` preserves `spy()` while `(0, require)(...)` drops as
 // expected. returns an empty array when the shape doesn't match OR every prefix slot is
-// side-effect-free
-export function extractIndirectRequireSEPrefix(stmtNode) {
+// side-effect-free. Scoped callers pass the source statement's read context so an accessor
+// reached through a local binding is preserved as well as an in-place accessor or a call.
+export function extractIndirectRequireSEPrefix(stmtNode, ctx = null) {
   // `getEntrySource` detects + REMOVES the whole statement as an entry, so every observable side
   // effect it discards must be recovered here. it reaches the require call through the same wrapper
   // set peeled below (TS as/!/<>/satisfies + paren + chain) AND through an outer SE-free comma
@@ -398,7 +411,7 @@ export function extractIndirectRequireSEPrefix(stmtNode) {
   const expression = peelSequenceTail(unwrapRuntimeExpr(stmtNode?.expression), {
     step: unwrapRuntimeExpr,
     onPrefix: expressions => {
-      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
+      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e, ctx)) prefix.push(e);
     },
   });
   // babel models `(spy(), require)?.('core-js/...')` as an OptionalCallExpression; oxc wraps a
@@ -413,7 +426,7 @@ export function extractIndirectRequireSEPrefix(stmtNode) {
   peelSequenceTail(unwrapRuntimeExpr(expression.callee), {
     step: unwrapRuntimeExpr,
     onPrefix: expressions => {
-      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
+      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e, ctx)) prefix.push(e);
     },
   });
   return prefix;
@@ -1014,21 +1027,78 @@ export function runtimeChainRoot(node, cache = null) {
   return root;
 }
 
-// memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
-// in the checked node keeps the two emitters' `_ref` emission aligned,
-// so both pipelines make the same reuse decision around optional chains. narrower than
-// unwrapRuntimeExpr (which also strips TS)
+// Source-shape consumers peel parens + chain wrappers while retaining TypeScript syntax.
+// Runtime receiver proofs use unwrapRuntimeExpr separately from this source-shape peel.
 export function peelMemoizeWrappers(node) {
   while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression') node = node.expression;
   return node;
 }
 
-// a node is safe to evaluate more than once without a memo temp (`_ref`) when, after peeling memo
-// wrappers, it is a bare Identifier or `this`. single source for both emitters' "no _ref needed"
-// gate (previously a per-emitter predicate + set that had to be hand-kept in sync)
-export function isReusableReceiver(node) {
-  const inner = peelMemoizeWrappers(node);
-  return inner?.type === 'Identifier' || inner?.type === 'ThisExpression';
+// Sequence prefixes kept by a navigation spine, in source evaluation order. These are
+// original nodes, including quiet reads that can throw before a later computed key.
+export function navComputedKeyEffects(node) {
+  const effects = [];
+  let cur = unwrapRuntimeExpr(node);
+  for (; isMemberAccessNode(cur); cur = unwrapRuntimeExpr(cur.object)) {
+    if (!cur.computed) continue;
+    effects.unshift(...peelNestedSequenceExpressions(cur.property).prefix);
+  }
+  effects.unshift(...peelNestedSequenceExpressions(cur).prefix);
+  return effects;
+}
+
+// a node is safe to evaluate more than once without a memo temp (`_ref`) when it preserves
+// the same receiver value. single source for both emitters' "no _ref needed"
+// gate (previously a per-emitter predicate + set that had to be hand-kept in sync).
+// Key effects or a method getter can change a mutable binding between lookup and `.call`.
+// A scoped caller may reuse a constant binding or a current-pass activation-local capture.
+// A bare optional callee has no effect between its guard and the immediate call lookup.
+// Ordinary writes in a non-resumable activation cannot run during adjacent lookup/this reads.
+// A suspended generator can resume its own writes from a getter in a nested reader.
+// Member receivers keep a snapshot so selecting a method never repeats a property read.
+export function isReusableReceiver(node, { interveningEffects = false, directCallee = false, ctx = null } = {}) {
+  const inner = unwrapRuntimeExpr(node);
+  if (inner?.type === 'ThisExpression') return true;
+  if (isQuietLiteralOperand(inner) && inner.type !== 'RegExpLiteral' && !inner.regex
+    && (inner.value === null || typeof inner.value !== 'object')) return true;
+  if (inner?.type !== 'Identifier') return false;
+  if (!ctx) return !interveningEffects;
+  if (ctx.injectorState?.isOwnPassGeneratedName?.(inner.name)) return true;
+  const binding = ctx.adapter?.getBinding?.(ctx.scope, inner.name, ctx.path);
+  const declaration = bindingDeclarationPath(binding);
+  // A free or erased identifier follows the scoped write census across source effects.
+  // A direct optional callee still needs one GetValue for its guard and call.
+  const ambient = isAmbientBindingShape(binding?.node ?? declaration?.node, declaration?.parentPath?.node)
+    || nonEmittedExpressionAncestor(declaration);
+  if ((!binding || ambient) && ctx.adapter?.isMutatedStaticSlot?.('globalThis', inner.name)) return false;
+  if (ambient) {
+    if (directCallee) return false;
+    if (!cleanDestructureAliasWrites(binding).length) return true;
+  }
+  if (ctx.injectorState?.isOwnPassPureBinding?.(inner.name)) {
+    const ownImport = ctx.injectorState.getPureImport?.(inner.name);
+    if (ownImport && (!binding || ((binding.kind === 'module' || !binding.node) && binding.importSource
+      && pureImportSourceEntry(binding.importSource) === ownImport.entry))) return true;
+  }
+  // An import is read-only here, but its exporting module can replace the live binding.
+  // Quiet free identifiers retain the adjacent-read contract, including a method guard.
+  if (!binding) return ctx.adapter?.isKnownGlobalName?.(inner.name)
+    || !directCallee && (!interveningEffects || !!ctx.adapter?.getBinding);
+  if (binding.kind === 'module') return false;
+  if (directCallee && !interveningEffects || binding.kind === 'const' && !ambient) return true;
+  if (!Array.isArray(binding.constantViolations)) return false;
+  const writes = cleanDestructureAliasWrites(binding);
+  if (!writes.length) return true;
+  const owner = findNearestVarScopeOwner(binding.declarationPath ?? binding.path ?? binding.scope?.path);
+  const frame = owner?.node ?? binding.scope?.block;
+  // A write outside this read can only intervene by re-entering its activation. The
+  // frame/escape proof below rules that out; a store inside the computed read cannot move.
+  if (interveningEffects && (frame?.type === 'Program' && frame.sourceType === 'script' && binding.kind === 'var'
+    || writes.some(write => !provablyPrecedes(violationNode(write), ctx.path?.node)
+      && !provablyPrecedes(ctx.path?.node, violationNode(write))))) return false;
+  return !!frame && pathContainedBy(ctx.path, frame)
+    && (!frame.generator || !readRunsDeferredWithin(ctx.path, frame))
+    && !bindingWrittenBeyondItsFrame(binding, ctx, { closedCalls: !interveningEffects });
 }
 
 // peel `SKIPPABLE_WRAPPER_TYPES` wrappers down through `.expression` slot, returning the
@@ -1137,6 +1207,36 @@ export function runsAtImmediateInvocation(fnPath) {
   const call = immediateInvocationOf(fnPath);
   if (!call || !bodyRunsAtInvocation(fnPath.node, call.node)) return null;
   return namedFunctionSelfReferences(fnPath) ? null : call;
+}
+
+// A discarded value keeps a callable or constructed instance private only at non-invoking
+// observations. Coercion can call a conversion method that invokes the same callable again.
+export function valueIsDroppedAt(path) {
+  const outer = peelTransparentExprAncestorPath(path);
+  const parentPath = outer?.parentPath;
+  const parent = parentPath?.node;
+  if (!parent || isMemberAccessNode(parent) || parent.type === 'CallExpression'
+    || parent.type === 'OptionalCallExpression' || parent.type === 'NewExpression') return false;
+  switch (parent.type) {
+    case 'UnaryExpression':
+      if (['+', '-', '~'].includes(parent.operator)) return false;
+      break;
+    case 'BinaryExpression': {
+      // Loose equality with null/undefined compares without converting an object to a primitive.
+      const nullishEquality = (parent.operator === '==' || parent.operator === '!=')
+        && [parent.left, parent.right].some(value => isNullLiteralNode(unwrapRuntimeExpr(value))
+          || isVoidExpression(unwrapRuntimeExpr(value)));
+      if (parent.operator !== '===' && parent.operator !== '!=='
+        && !nullishEquality
+        && !(parent.operator === 'in' && unwrapRuntimeExpr(parent.right) === unwrapRuntimeExpr(outer.node))) return false;
+      break;
+    }
+    case 'UpdateExpression':
+    case 'TemplateLiteral':
+    case 'ObjectProperty':
+    case 'Property': return false;
+  }
+  return positionDisposition(parent, outer.node, parentPath) === POSITION_CONSUMES;
 }
 
 // the node slots no subtree walk descends into: positions and comment arrays carry no nodes of the
@@ -2008,6 +2108,37 @@ export function runsWithoutOwnVarSlot(path) {
   return false;
 }
 
+// The returned expression of an actual allocator-owned lexical activation after its
+// last memo declaration disappeared. Source IIFEs and sibling-modified frames stay intact.
+export function emptyMemoActivationValue(node, ownedActivations) {
+  const callee = node?.callee;
+  const body = callee?.body;
+  if (node?.type !== 'CallExpression' || node.optional || !ownedActivations?.has(callee)
+    || callee.type !== 'ArrowFunctionExpression' || callee.async || callee.generator
+    || callee.params.length || node.arguments.length || body?.type !== 'BlockStatement'
+    || body.body.length !== 1 || body.directives?.length || body.body[0].type !== 'ReturnStatement') return null;
+  return singleReturnBodyExpression(body);
+}
+
+// The expression slot that can give a parameter or instance-field memo its own activation.
+// Function bodies already own vars. Parameter keys/defaults and field values keep lexical
+// this, arguments, super and new.target when the binding wraps this slot in an arrow.
+export function varlessMemoSlot(path) {
+  let slot = null;
+  for (let child = path, p = path?.parentPath; p?.node; child = p, p = p.parentPath) {
+    if (p.node.type === 'AssignmentPattern' && p.node.right === child.node) slot ??= { owner: p.node, key: 'right' };
+    if (p.node.computed && p.node.key === child.node) slot ??= { owner: p.node, key: 'key' };
+    if (CLASS_NODE_TYPES.has(p.node.type) && p.node.superClass === child.node) slot ??= { owner: p.node, key: 'superClass' };
+    if (CLASS_FIELD_TYPES.has(p.node.type) && p.node.value === child.node) slot ??= { owner: p.node, key: 'value' };
+    if (isDeferredContextStep(p.node, child)) {
+      if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return p.node.params?.includes(child.node) ? slot : null;
+      return slot;
+    }
+    if (isVarScopeBoundary(p.node.type) && !FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return null;
+  }
+  return null;
+}
+
 // the nodes proven to sit in no definition-time slot ANYWHERE above them. the climb runs per
 // binding lookup and reaches the program root on every file whose code stands in no such slot - one
 // file of ordinary code took two and a half million ancestor steps through it - so each walk marks
@@ -2219,9 +2350,20 @@ function cachedScopeVars(node) {
 // dropping the owner's entry at the mint is the whole of the fix; rechecking every MISS instead
 // costs a fifth of the transform. the owner is the one a `var` hoists to, which is where the
 // minted declarator lands whatever slot spells it
-export function invalidateScopeVarIndex(path) {
+export function invalidateScopeVarIndex(path, rewrittenAncestors = null) {
   const owner = findNearestVarScopeOwner(path);
-  if (owner?.node) scopeVarsCache.delete(owner.node);
+  // A sibling lowering can replace lexical declarations with vars and move writes.
+  // Final memo proofs need the live indexes, once per ancestor in that emission phase.
+  if (rewrittenAncestors) for (let p = path; p?.node; p = p.parentPath) {
+    if (rewrittenAncestors.has(p.node)) continue;
+    rewrittenAncestors.add(p.node);
+    scopeVarsCache.delete(p.node);
+    scopeReassignCache.delete(p.node);
+    ownerParentIndexCache.delete(p.node);
+    ownerWritePathIndexCache.delete(p);
+    valueFlowOwnerIndexCache.delete(p.node);
+    useRegionFramesCache.delete(p.node);
+  } else if (owner?.node) scopeVarsCache.delete(owner.node);
   bindingLookupGeneration += 1;
 }
 
@@ -2931,12 +3073,15 @@ export function pathContainedBy(path, node) {
 // twin displaces a native view anchored on a declarator of this same var that is not the one the
 // hoist reports; anchored on that one it IS the hoisted binding (richer channel, keep it), and
 // anything else is a genuine shadow the twin must not shoulder aside
-function hoistedBindingTwin(synthCache, path, name, native = null) {
+function hoistedBindingTwin(synthCache, path, name, native = null, lookupScope = null) {
   // the whole "does the twin displace the native view" decision lives here. the KIND test comes
   // first because it is the free half: only a `var` view can be anchored on a re-declaration, so
   // every other kind keeps the native answer without paying the owner climb below
   if (!path || (native && native.kind !== 'var')) return null;
   const synth = synthHoistedBinding(path, name);
+  // Alias walkers explicitly resolve an initializer in its declaration scope while
+  // retaining the deeper consumer path. That path must not synthesize an inner shadow.
+  if (synthOwnerStrictlyInsideScope(lookupScope, synth)) return null;
   // ... and a native `var` declared OUTSIDE the twin's owner is the outer binding the twin shadows
   // from inside that owner (`function g() { { var a = 'x' } a.at() }` reads g's own `a`, not the
   // enclosing function's) - the same preference the estree adapter's closest-binding lookup takes
@@ -2998,14 +3143,22 @@ function withoutPhantomWrites(binding) {
 // violations - resolved through the owner's write index like the hoisted twin's, and declined
 // whole when one cannot be located. a use in a decorator hanging off that same parameter list is
 // evaluated outside the constructor and sees no parameter property, as in the binding climb
-function parameterPropertyTwin(synthCache, path, name) {
-  const { definitionTimeFrames } = useRegionFrames(path);
-  for (let cur = path; cur?.node; cur = cur.parentPath) {
+function parameterPropertyTwin(synthCache, path, name, native = null, lookupScope = null) {
+  // A binding already owned by the lookup scope cannot have a closer synthetic twin.
+  if (!path || lookupScope && native?.scope === lookupScope) return null;
+  let definitionTimeFrames;
+  for (let cur = memberContextPath(path); cur?.node; cur = memberContextPath(cur.parentPath)) {
     const { node, scope } = cur;
-    if (!FUNCTION_LIKE_NODE_TYPES.has(node.type) || definitionTimeFrames?.has(node)) continue;
+    if (!FUNCTION_LIKE_NODE_TYPES.has(node.type)) continue;
     const index = (node.params ?? []).findIndex(param => param?.type === 'TSParameterProperty'
       && tsRuntimeBindingName(patternSlotTarget(param.parameter)) === name);
     if (index === -1) continue;
+    // A real declaration inside this region is closer than any enclosing parameter
+    // property. A native outer binding may instead be shadowed by the constructor.
+    if (native?.path && pathContainedBy(native.path, node)) return null;
+    definitionTimeFrames ??= useRegionFrames(path).definitionTimeFrames;
+    if (definitionTimeFrames?.has(node)) continue;
+    if (synthOwnerStrictlyInsideScope(lookupScope, { ownerScope: scope })) return null;
     if (!scope) return null;
     let byName = synthCache.get(scope);
     if (!byName) synthCache.set(scope, byName = new Map());
@@ -3053,8 +3206,8 @@ export function wrapScopeBindingLookup(lookup) {
   const synthCache = new WeakMap();
   return (scope, name, path = null) => {
     const native = lookup(scope, name, path);
-    const binding = hoistedBindingTwin(synthCache, path, name, native) ?? native
-      ?? parameterPropertyTwin(synthCache, path, name);
+    const binding = hoistedBindingTwin(synthCache, path, name, native, scope)
+      ?? parameterPropertyTwin(synthCache, path, name, native, scope) ?? native;
     if (!binding) return binding;
     // a binding that does not cover the use is not the use's binding - the same question both
     // detection gates ask, asked once here so the resolver cannot narrow THROUGH a shadow they
@@ -3067,6 +3220,18 @@ export function wrapScopeBindingLookup(lookup) {
     }
     return wrapped;
   };
+}
+
+// A synthesized binding belongs below this explicitly requested lookup scope when
+// its owner's parent chain reaches that scope. An alias initializer may retain a
+// deeper consumer path; that path cannot select a shadow invisible at the initializer.
+// Different traversal views can share the same actual scope AST anchor.
+export function synthOwnerStrictlyInsideScope(scope, synth) {
+  const scopeNode = scope?.block ?? scope?.path?.node;
+  for (let cur = synth?.ownerScope?.parent; cur; cur = cur.parent) {
+    if (cur === scope || (scopeNode && (cur.block ?? cur.path?.node) === scopeNode)) return true;
+  }
+  return false;
 }
 
 // the lexical scope a `let` / `const` declarator is reached from - the first host above its
@@ -5848,13 +6013,222 @@ export function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.length && reassignmentNodesBeyondDeclarator(binding).length > 0;
 }
 
-// ... and is one of those writes spelled in a FUNCTION below the binding's own frame - a closure, a
-// method, an accessor? such a write may run in the middle of any expression that calls user code, where
-// a write in the binding's own frame never does. a binding with no frame to locate writes in answers yes
-export function bindingWrittenBeyondItsFrame(binding) {
+// A running sloppy callable may escape through a callee's Function.caller. Simple lexical
+// stores of literals, arrays and lexical values invoke no callee and keep that channel closed.
+// Generator creation only runs parameters; the invocation canon owns that body distinction.
+// Other body shapes and parameter binding work decline; strictness uses the shared owner walk.
+function callableMayExposeCaller(path, ctx, invocation = null) {
+  if (!isSloppyAtPath(path)) return false;
+  function lexicalName(name) {
+    const binding = ctx?.adapter?.getBinding?.(path.scope, name, path);
+    const declaration = bindingDeclarationPath(binding);
+    if (!binding || isAmbientBindingShape(binding.node ?? declaration?.node, declaration?.parentPath?.node)
+      || nonEmittedExpressionAncestor(declaration)) return false;
+    return ['var', 'hoisted'].includes(binding.kind)
+      ? FUNCTION_LIKE_NODE_TYPES.has(findNearestVarScopeOwner(binding.scope?.path)?.node?.type)
+      : ['const', 'let', 'param', 'module', 'local'].includes(binding.kind);
+  }
+  const values = [];
+  for (const param of path.node.params ?? []) {
+    if (param.type === 'Identifier' || param.type === 'RestElement' && param.argument.type === 'Identifier') continue;
+    if (param.type !== 'AssignmentPattern' || param.left.type !== 'Identifier') return true;
+    values.push(param.right);
+  }
+  if (!invocation || bodyRunsAtInvocation(path.node, invocation.node)) {
+    const { body } = path.node;
+    const statements = body?.type === 'BlockStatement' ? body.body : [{ type: 'ExpressionStatement', expression: body }];
+    for (const statement of statements) {
+      const expression = unwrapRuntimeExpr(statement.expression);
+      if (statement.type === 'EmptyStatement' || statement.type === 'ExpressionStatement' && isQuietLiteralOperand(expression)) continue;
+      if (statement.type !== 'ExpressionStatement' || expression?.type !== 'AssignmentExpression'
+        || expression.operator !== '=' || expression.left.type !== 'Identifier' || !lexicalName(expression.left.name)) return true;
+      values.push(expression.right);
+    }
+  }
+  while (values.length) {
+    const value = unwrapRuntimeExpr(values.pop());
+    if (!value || isQuietLiteralOperand(value) || value.type === 'Identifier' && lexicalName(value.name)) continue;
+    if (value.type !== 'ArrayExpression') return true;
+    for (const element of value.elements) values.push(element);
+  }
+  return false;
+}
+
+// A private callable has only its indexed direct invocations. Each invocation must run in
+// the binding's active frame; unknown consumers, escaped construction and cycles decline.
+// The caller supplies the same frame walk for nested closed callers, without a new index.
+function closedBodyRunsInFrame(bodyPath, frame, ctx, seen, callCanReenter) {
+  const collect = ctx?.adapter?.collectBindingReferences;
+  if (!collect) return false;
+  let callable = bodyPath;
+  if (CLASS_MEMBER_TYPES.has(bodyPath.node?.type)) {
+    for (; callable?.node && !CLASS_NODE_TYPES.has(callable.node.type); callable = callable.parentPath) { /* class owner */ }
+  } else if (bodyPath.node?.type === 'FunctionExpression' && bodyPath.parentPath?.node?.type === 'MethodDefinition') {
+    callable = bodyPath.parentPath.parentPath?.parentPath;
+  }
+  if (!callable?.node || seen.has(callable.node) || seen.size >= MAX_DEPTH) return false;
+  const isClass = CLASS_NODE_TYPES.has(callable.node.type);
+  if (!isClass && !FUNCTION_LIKE_NODE_TYPES.has(callable.node.type)) return false;
+  if (isClass && (callable.node.superClass || classCarriesDecorators(callable.node)
+    || callable.node.body.body.some(member => member.static || member.type === 'StaticBlock'
+      || (member.params ?? member.value?.params ?? []).some(param => param.decorators?.length)))) return false;
+  const outer = peelTransparentExprAncestorPath(callable);
+  const holder = outer.parentPath;
+  const declaration = callable.node.type === 'FunctionDeclaration' || callable.node.type === 'ClassDeclaration' ? callable
+    : holder?.node?.type === 'VariableDeclarator' && holder.node.id.type === 'Identifier'
+      && unwrapRuntimeExpr(holder.node.init) === callable.node ? holder : null;
+  const name = declaration?.node?.id?.name;
+  if (!name) return false;
+  const binding = ctx.adapter.getBinding?.(declaration.parentPath?.scope ?? declaration.scope, name, declaration);
+  if (bindingDeclarationPath(binding)?.node !== declaration.node || isReassignedBeyondDeclarator(binding)) return false;
+  const refs = collect(declaration, name, { closed: true });
+  if (!refs) return false;
+  if (!refs.length) return true;
+  if (!isClass && referencesArgumentsObject(callable.node)) return false;
+  if (!isClass && callable.node.async && suspensionPointBefore(callable.node, Infinity)) return false;
+  const nextSeen = new Set(seen).add(callable.node);
+  return refs.every(ref => {
+    if (isTSTypeOnlyIdentifierPath(ref)) return true;
+    const value = peelTransparentExprAncestorPath(ref);
+    const call = value.parentPath;
+    if (!isIifeCallNode(call?.node) || call.node.callee !== value.node) {
+      return valueIsDroppedAt(value);
+    }
+    // A running sloppy callable can escape through a callee's Function.caller.
+    // Indexed source references alone cannot close that implicit identity channel.
+    if (callableMayExposeCaller(callable, ctx)) return false;
+    if (call.node.type === 'NewExpression' || !isClass && callable.node.generator) {
+      if (!valueIsDroppedAt(call)) return false;
+      let readsThis = false;
+      walkAstNodes({
+        root: callable.node,
+        visit(node) {
+          if (node.type === 'ThisExpression') readsThis = true;
+          return !readsThis;
+        },
+      });
+      if (readsThis) return false;
+    }
+    return !callCanReenter(call, nextSeen);
+  });
+}
+
+// Native schedulers cannot invoke their callback during a synchronous property lookup.
+const ASYNC_CALLBACK_GLOBALS = new Set([
+  'queueMicrotask',
+  'setTimeout',
+  'setInterval',
+  'setImmediate',
+  'requestAnimationFrame',
+  'requestIdleCallback',
+]);
+
+// ... and is one of those writes deferred below the binding's own frame - a closure, a
+// method, an accessor or an instance-field value? such a write may run in the middle of any
+// expression that calls user code, where a write in the binding's own frame never does.
+// A binding with no frame to locate writes in answers yes.
+export function bindingWrittenBeyondItsFrame(binding, ctx = null, { closedCalls = true } = {}) {
   if (!isReassignedBeyondDeclarator(binding)) return false;
-  const frame = binding.scope?.block ?? binding.scope?.path?.node;
-  return !frame || reassignmentNodesBeyondDeclarator(binding).some(write => collectVarGuardsToDeclarator(frame, write) === null);
+  const ownerPath = findNearestVarScopeOwner(binding.declarationPath ?? binding.path ?? binding.scope?.path);
+  const frame = ownerPath?.node ?? binding.scope?.block;
+  function pathCanReenter(path, seen = new Set()) {
+    let up = path.parentPath;
+    for (let child = path; up?.node && up.node !== frame; child = up, up = up.parentPath) {
+      if (!isDeferredContextStep(up.node, child)) continue;
+      if (!closedCalls) return true;
+      if (ctx && FN_NODE_TYPES.has(up.node.type) && valueIsDroppedAt(up)) continue;
+      if (ctx && closedBodyRunsInFrame(up, frame, ctx, seen, pathCanReenter)) continue;
+      const invocation = FN_NODE_TYPES.has(up.node.type) ? immediateInvocationOf(up) : null;
+      // Non-constructible literals never enter their bodies. A discarded generator
+      // iterator cannot be resumed; its callable must not escape from parameter defaults.
+      if (ctx && invocation?.node.type === 'NewExpression' && up.node.type === 'ArrowFunctionExpression') continue;
+      if (ctx && up.node.generator && invocation
+          && !referencesArgumentsObject(up.node) && !namedFunctionSelfReferences(up)) {
+        const value = peelTransparentExprAncestorPath(invocation);
+        const member = value.parentPath;
+        const callee = member?.node && peelTransparentExprAncestorPath(member);
+        const resume = callee?.parentPath;
+        // A direct native next() whose result is discarded exposes neither the iterator
+        // nor a yielded value to a later getter. Retained iterators remain deferred writers.
+        if (valueIsDroppedAt(invocation) && !callableMayExposeCaller(up, ctx, invocation)
+          || (!callableMayExposeCaller(up, ctx) && isMemberAccessNode(member?.node)
+          && member.node.object === value.node && memberReadKeyName(member.node) === 'next'
+          && isIifeCallNode(resume?.node) && resume.node.type !== 'NewExpression'
+          && resume.node.callee === callee.node && valueIsDroppedAt(resume))) continue;
+      }
+      if (!FN_NODE_TYPES.has(up.node.type) || referencesArgumentsObject(up.node)) return true;
+      if (ctx && callableMayExposeCaller(up, ctx)) return true;
+      const argument = peelTransparentExprAncestorPath(up);
+      const consumer = argument.parentPath;
+      const callee = unwrapRuntimeExpr(consumer?.node?.callee);
+      // Native forEach on a fresh array does not retain an anonymous callback.
+      // A source-written prototype method and an unknown receiver keep the escape boundary.
+      if (ctx && isIifeCallNode(consumer?.node) && consumer.node.type !== 'NewExpression'
+        && consumer.node.arguments[0] === argument.node && !namedFunctionSelfReferences(up)
+        && isMemberAccessNode(callee) && memberReadKeyName(callee) === 'forEach'
+        && unwrapRuntimeExpr(callee.object)?.type === 'ArrayExpression'
+        && !prototypeChainMayLend('forEach', ctx, ['Array'])) continue;
+      // Only unshadowed, unwritten scheduler globals supply this timing guarantee.
+      // Unknown consumers and locally replaced schedulers retain the escape boundary.
+      if (ctx && isIifeCallNode(consumer?.node) && consumer.node.type !== 'NewExpression'
+        && consumer.node.arguments[0] === argument.node && callee?.type === 'Identifier'
+        && ASYNC_CALLBACK_GLOBALS.has(callee.name) && !namedFunctionSelfReferences(up)
+        && !ctx.adapter.getBinding?.(consumer.scope, callee.name, consumer)
+        && !ctx.adapter.isMutatedStaticSlot?.('globalThis', callee.name)) continue;
+      let call = runsAtImmediateInvocation(up)
+          ?? (up.node.async && !up.node.generator && !suspensionPointBefore(up.node, Infinity)
+            && !namedFunctionSelfReferences(up) ? immediateInvocationOf(up) : null);
+        // A closed literal forwarder `fn => fn()` invokes its sole callback without
+        // retaining it. Other argument consumers keep the deferred writer boundary.
+      if (!call && !up.node.async && !up.node.generator && !namedFunctionSelfReferences(up)) {
+        const caller = consumer;
+        const wrapper = caller?.node?.type === 'CallExpression' && caller.node.arguments.length === 1
+            && caller.node.arguments[0] === argument.node ? peelSkippableWrapperPath(caller.get('callee')) : null;
+        const [param] = wrapper?.node?.params ?? [];
+        const body = wrapper?.node?.body;
+        const returned = body?.type === 'BlockStatement'
+            ? body.body.length === 1 && body.body[0].type === 'ReturnStatement' ? body.body[0].argument : null : body;
+        const forwarded = unwrapRuntimeExpr(returned);
+        if (FN_NODE_TYPES.has(wrapper?.node?.type) && !wrapper.node.async && !wrapper.node.generator
+            && wrapper.node.params.length === 1 && param.type === 'Identifier' && wrapper.node.id?.name !== param.name
+            && forwarded?.type === 'CallExpression' && forwarded.arguments.length === 0
+            && forwarded.callee.type === 'Identifier' && forwarded.callee.name === param.name
+            && runsAtImmediateInvocation(wrapper) === caller) call = caller;
+      }
+      if (!call) return true;
+      if (call.node.type === 'NewExpression') {
+        if (!ctx || !valueIsDroppedAt(call)) return true;
+        let readsThis = false;
+        walkAstNodes({
+          root: up.node,
+          visit(node) {
+            if (node.type === 'ThisExpression') readsThis = true;
+            return !readsThis;
+          },
+        });
+        if (readsThis) return true;
+      }
+    }
+    return up?.node !== frame;
+  }
+  return !frame || reassignmentNodesBeyondDeclarator(binding).some(write => {
+    const sourceWrite = write.type === 'Identifier' ? enclosingValueFlowAssignment(write, frame) : write;
+    // Find live source writes by their path before building an index of the whole owner.
+    // A cached path can locate a re-emitted copy within its still-live source frame.
+    // Missing local copies fall back to the binding owner's unique source-position index.
+    const sourcePath = ownerPath && pathOfNode(ownerPath, sourceWrite);
+    const sourceOwner = sourcePath && findNearestVarScopeOwner(sourcePath);
+    const path = sourcePath?.node === sourceWrite && !ancestorChainDetached(sourcePath) ? sourcePath
+      : sourceOwner && !ancestorChainDetached(sourceOwner) && ownerSourceWritePath(sourceOwner, sourceWrite)
+        || ownerPath && ownerSourceWritePath(ownerPath, sourceWrite);
+    if (path && !ancestorChainDetached(path)) {
+      return pathCanReenter(path);
+    }
+    const guards = collectVarGuardsToDeclarator(frame, write);
+    if (!guards) return true;
+    const parents = ownerParentIndexLocating(frame, write);
+    return guards.some(guard => isDeferredFieldValueNode(parents.get(guard), guard));
+  });
 }
 
 // --- Hop descriptor ---
@@ -7090,11 +7464,13 @@ export function assignmentInStatementPosition(assignPath) {
 // transparent wrappers climb with it, exactly as they do above
 export function discardedSequenceElement(path) {
   let cur = path;
+  let sequenced = false;
   for (let up = cur?.parentPath; up?.node; up = cur.parentPath) {
     const { type } = up.node;
     if (type === 'SequenceExpression') {
+      sequenced = true;
       if (up.node.expressions.at(-1) !== cur.node) return true;
-    } else if (!TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) return false;
+    } else if (!TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) return sequenced && type === 'ExpressionStatement';
     cur = up;
   }
   return false;
@@ -9121,11 +9497,9 @@ function descendToNode(from, node) {
         if (at === -1) continue;
         next = PATHS_OF_NODES.get(value[at]);
         if (!next) {
-          // one `get` of a list builds the path of every item in it: all are kept, since the next
-          // descent through the same list asks for a sibling
-          const items = cur.get(key);
-          items.forEach((path, index) => value[index] && PATHS_OF_NODES.set(value[index], path));
-          next = items[at];
+          // The container cache holds siblings without refreshing the whole list per descent.
+          next = cachedContainerPaths(cur, key)[at];
+          if (next?.node === value[at]) PATHS_OF_NODES.set(value[at], next);
         }
       } else if (isASTNode(value) && nodeRangeContains(value, node)) {
         next = PATHS_OF_NODES.get(value);
@@ -9521,28 +9895,28 @@ export function peelFallbackReceiver(node) {
 // the way a REST sibling keeps a consumed hop - the hop retires to a sentinel, so the key runs
 // exactly once where the source wrote it, and the claims below extract off the slot the folded key
 // names
-export function isEffectfulKeyHop(prop) {
+export function isEffectfulKeyHop(prop, ctx = null) {
   return (prop?.type === 'Property' || prop?.type === 'ObjectProperty')
-    && isDestructurePattern(patternSlotTarget(prop.value)) && computedKeyHasSideEffects(prop);
+    && isDestructurePattern(patternSlotTarget(prop.value)) && computedKeyHasSideEffects(prop, ctx);
 }
 
 // ... asked of ONE level: does this pattern hold such a hop among its own props?
-export function patternLevelKeepsEffectfulHop(pattern) {
-  return pattern?.type === 'ObjectPattern' && pattern.properties.some(isEffectfulKeyHop);
+export function patternLevelKeepsEffectfulHop(pattern, ctx = null) {
+  return pattern?.type === 'ObjectPattern' && pattern.properties.some(prop => isEffectfulKeyHop(prop, ctx));
 }
 
 // does this LEVEL keep its consumed props as sentinels - a rest sibling gathers by exclusion, and a
 // key with an effect (a hop's or a leaf's own) has to run where it stands
-export function patternLevelKeepsSentinels(pattern) {
-  return !!pattern?.properties?.some(prop => isRestProperty(prop) || computedKeyHasSideEffects(prop));
+export function patternLevelKeepsSentinels(pattern, ctx = null) {
+  return !!pattern?.properties?.some(prop => isRestProperty(prop) || computedKeyHasSideEffects(prop, ctx));
 }
 
 // ... and of the HOST: does any level below carry such a hop?
-export function patternKeepsEffectfulHop(pattern) {
+export function patternKeepsEffectfulHop(pattern, ctx = null) {
   const node = patternSlotTarget(pattern);
-  if (node?.type === 'ArrayPattern') return node.elements.some(patternKeepsEffectfulHop);
+  if (node?.type === 'ArrayPattern') return node.elements.some(element => patternKeepsEffectfulHop(element, ctx));
   if (node?.type !== 'ObjectPattern') return false;
-  return node.properties.some(prop => isEffectfulKeyHop(prop) || patternKeepsEffectfulHop(prop.value));
+  return node.properties.some(prop => isEffectfulKeyHop(prop, ctx) || patternKeepsEffectfulHop(prop.value, ctx));
 }
 
 const restReadBeforeNestedBinding = createInstanceNodeCache();
@@ -9583,14 +9957,14 @@ export function patternHasRestReadBeforeNestedBinding(pattern, adapter) {
 // evaluates before the write (a computed key without an effect, a default, a member target's own
 // parts) and whether it BREAKS the pattern into ordered pieces: an effectful key or default, or a
 // member target, is written in its own slot.
-function indexPatternSlots(top) {
+function indexPatternSlots(top, ctx) {
   const slots = [];
   function walk(node, prop, levels, depth, positional, reads, breaks) {
     const level = levels.at(-1) ?? null;
     let slot = node;
     if (slot?.type === 'AssignmentPattern') {
       reads.push(slot.right);
-      breaks ||= mayHaveSideEffects(slot.right);
+      breaks ||= mayHaveSideEffects(slot.right, ctx);
       slot = slot.left;
     }
     slot = unwrapRuntimeExpr(slot);
@@ -9609,7 +9983,7 @@ function indexPatternSlots(top) {
       for (const item of slot.properties) {
         if (isRestProperty(item)) walk(item.argument, item, [...levels, slot], depth + 1, positional, [], false);
         else {
-          const effectfulKey = computedKeyHasSideEffects(item);
+          const effectfulKey = computedKeyHasSideEffects(item, ctx);
           walk(item.value, item, [...levels, slot], depth + 1, positional, item.computed && !effectfulKey ? [item.key] : [], effectfulKey);
         }
       }
@@ -9633,13 +10007,14 @@ function indexPatternSlots(top) {
 // positional levels included, so an earlier read counts across a break there; a declaration defers a
 // read inside a closure past every write. A consumed or bodyless assignment (`segmented`) writes slot
 // by slot, and an ordered capture (`isCaptured`) writes the claim's level in source order after the
-// levels above it. A claim whose own default or computed key reads the target of a LATER slot is
+// levels above it. A capture plan with `splitCapture` also keeps outer siblings in source order.
+// A claim whose own default or computed key reads the target of a LATER slot is
 // bound on every host: extracted, that part runs after the write the source still had ahead of it.
 // Returns the properties whose claim keeps its native read in pure mode.
-export function orderBoundPatternProps({ top, assignmentTarget, segmented = false, isClaim = null, isCaptured = null }) {
+export function orderBoundPatternProps({ top, assignmentTarget, segmented = false, isClaim = null, isCaptured = null, ctx = null }) {
   const bound = new Set();
   if (segmented) return bound;
-  const slots = indexPatternSlots(top);
+  const slots = indexPatternSlots(top, ctx);
   slots.forEach((own, at) => {
     if (!own.target) return;
     const holder = own.prop?.type === 'AssignmentPattern' ? own.prop : own.prop?.value;
@@ -9672,11 +10047,14 @@ export function orderBoundPatternProps({ top, assignmentTarget, segmented = fals
       if (!inPiece || !conflict(slot)) return false;
       return behind || slot.level !== own.level || !isClaim?.(slot.prop) || (root !== null && slot.target.name === root);
     });
-    // under an ordered capture only a LATER slot outside the claim's level sees the order reversed;
-    // the capture is asked only where the two answers differ
+    // A deferred leaf capture overtakes a later outer sibling. A split capture writes its leaf
+    // before that sibling, so ask the route even where both deferred routes would be bound.
     const captured = own.depth > 1 && others.some(slot => slots.indexOf(slot) > at && !slot.levels.includes(own.level)
       && (slot.reads.some(reads) || conflict(slot)));
-    if (routed === captured ? routed : isCaptured?.(own.prop) ? captured : routed) bound.add(own.prop);
+    if (routed || captured) {
+      const capture = isCaptured?.(own.prop);
+      if (capture ? !capture.splitCapture && captured : routed) bound.add(own.prop);
+    }
   });
   return bound;
 }
@@ -9684,8 +10062,8 @@ export function orderBoundPatternProps({ top, assignmentTarget, segmented = fals
 // side-effecting COMPUTED key of a destructure prop (`[(eff(), 'from')]`, `[(eff(), 'fr') + 'om']`).
 // the single gate both flatten emitters dispatch on, so the key-effect decision can't drift
 // between them; a non-computed key is a static name and never carries an effect
-export function computedKeyHasSideEffects(propNode) {
-  return !!propNode?.computed && mayHaveSideEffects(propNode.key);
+export function computedKeyHasSideEffects(propNode, ctx = null) {
+  return !!propNode?.computed && mayHaveSideEffects(propNode.key, ctx);
 }
 
 // does a KEPT effectful key make the residual perform the receiver's ONE read - so a dispatch beside
@@ -9695,8 +10073,8 @@ export function computedKeyHasSideEffects(propNode) {
 // what the memo in the receiver's own slot exists to prevent. The HOST facts are the caller's, one
 // per binding: a level NESTED under a property, and a REST sibling gathering beside the claim, each
 // keep the read on a route of their own
-export function seKeyKeepsReceiverRead({ prop, receiver, nested = false, restSibling = false }) {
-  if (nested || restSibling || !computedKeyHasSideEffects(prop)) return false;
+export function seKeyKeepsReceiverRead({ prop, receiver, nested = false, restSibling = false, ctx = null }) {
+  if (nested || restSibling || !computedKeyHasSideEffects(prop, ctx)) return false;
   // a SEQUENCE hands its TAIL on, and the memo takes the element WHOLE - its prefix included - so
   // the read the key keeps is that tail's, and the prefix stays exactly where the source ran it.
   // reading the sequence node itself instead answered "no member here" and left the claim native
@@ -9707,10 +10085,10 @@ export function seKeyKeepsReceiverRead({ prop, receiver, nested = false, restSib
 // does an object pattern spell SEVERAL keys with effects, claimed or not? native runs key, read, key,
 // read, so every claim segments at its own key even beside a key nobody claims - the count both
 // emitters interleave by. never with a rest: it gathers by exclusion and takes no segment
-export function patternHasSeveralSeKeys(pattern, threshold = 2) {
+export function patternHasSeveralSeKeys(pattern, threshold = 2, ctx = null) {
   const props = pattern?.type === 'ObjectPattern' ? pattern.properties : [];
   return props.every(item => !isRestProperty(item))
-    && props.filter(item => computedKeyHasSideEffects(item)).length >= threshold;
+    && props.filter(item => computedKeyHasSideEffects(item, ctx)).length >= threshold;
 }
 
 // SE-bearing prefix of a multi-operand SequenceExpression (all but the consumed last operand),
@@ -9718,10 +10096,10 @@ export function patternHasSeveralSeKeys(pattern, threshold = 2) {
 // resolve.js's `bailOnSideEffectKey` gate - callers that only need to KNOW a prefix has effects,
 // not harvest the surviving tail's nested SE (that recursive harvest is
 // `collectFoldedReceiverSideEffects`, which the `in`-expression paths use)
-export function sequencePrefixWithSideEffects(expr) {
+export function sequencePrefixWithSideEffects(expr, ctx = null) {
   if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
   const prefix = expr.expressions.slice(0, -1);
-  return prefix.some(mayHaveSideEffects) ? prefix : null;
+  return prefix.some(expression => mayHaveSideEffects(expression, ctx)) ? prefix : null;
 }
 
 // one member of a discarded container: a NESTED container recurses (re-emitting the whole literal
@@ -9799,14 +10177,25 @@ export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null
     // it - in a sibling member as much as in the consumed one. walk members in source-eval order:
     // an object's computed key evaluates before its value, and elements left to right
     case 'ObjectExpression':
+      // A spread performs its own property reads; evaluating its argument alone cannot replay
+      // them. Keep the containing literal so keys, getters and following values stay ordered.
+      if (cur.properties.some(prop => prop.type === 'SpreadElement')) {
+        out.push(cur);
+        break;
+      }
       for (const prop of cur.properties) {
         if (prop.computed) collectContainerMemberSideEffect(prop.key, { out, rescue, ctx });
-        collectContainerMemberSideEffect(prop.type === 'SpreadElement' ? prop.argument : prop.value, { out, rescue, ctx });
+        collectContainerMemberSideEffect(prop.value, { out, rescue, ctx });
       }
       break;
     case 'ArrayExpression':
+      // The iterator protocol belongs to the spread slot too, including its possible throw.
+      if (cur.elements.some(element => element?.type === 'SpreadElement')) {
+        out.push(cur);
+        break;
+      }
       for (const element of cur.elements) {
-        collectContainerMemberSideEffect(element?.type === 'SpreadElement' ? element.argument : element, { out, rescue, ctx });
+        collectContainerMemberSideEffect(element, { out, rescue, ctx });
       }
       break;
     // a branching receiver is discarded WHOLE, exactly like a sequence prefix: the test always runs
@@ -10601,14 +10990,14 @@ export function arrayWrapperNeighbourEffect(initNode, index, patternNode = null)
 }
 
 // does the (post-rename) pattern still spell a computed key with an effect?
-export function patternKeepsEffectfulKey(patternNode) {
+export function patternKeepsEffectfulKey(patternNode, ctx = null) {
   let kept = false;
   walkAstNodes({
     root: patternNode,
     visit(item) {
       // both dialects: babel spells the prop `ObjectProperty`, estree `Property`
       if ((item?.type === 'Property' || item?.type === 'ObjectProperty')
-        && item.computed && computedKeyHasSideEffects(item)) kept = true;
+        && item.computed && computedKeyHasSideEffects(item, ctx)) kept = true;
     },
   });
   return kept;
@@ -11144,6 +11533,8 @@ export function unwrapCollectingSePrefixes(node, prefixes) {
 // running: local declarations then stay too, provided the returned expression reads none of their
 // bindings, including declarations after a return and inside branches. A retained body may also
 // branch through blocks / if statements when every path returns the same free identifier.
+// Allocator-owned initless memos may appear in a return's sequence prefix: that prefix still runs
+// inside the retained body. A memo in the returned value, or any user local, remains unproven.
 // Other control flow stays unproven: collecting returns alone cannot exclude an implicit undefined
 // result or a finally override. its returns still reach `returnSink`, which promises no path, and
 // the bindings it declares shadow them like any other local. Completion is computed once per
@@ -11155,6 +11546,7 @@ export function singleReturnBodyExpression(body, { preservesBody = false, return
     const work = [body];
     const statements = [];
     const declaredNames = new Set();
+    const memoNames = new Set();
     const returns = [];
     let provable = true;
     while (work.length) {
@@ -11172,7 +11564,10 @@ export function singleReturnBodyExpression(body, { preservesBody = false, return
           returns.push(unwrapRuntimeExpr(stmt.argument));
           break;
         case 'VariableDeclaration':
-          for (const decl of stmt.declarations) walkPatternIdentifiers(decl.id, id => declaredNames.add(id.name));
+          for (const decl of stmt.declarations) {
+            if (stmt.kind === 'var' && isGeneratedMemoDeclarator(decl)) memoNames.add(decl.id.name);
+            else walkPatternIdentifiers(decl.id, id => declaredNames.add(id.name));
+          }
           break;
         case 'ExpressionStatement':
         case 'EmptyStatement':
@@ -11217,7 +11612,8 @@ export function singleReturnBodyExpression(body, { preservesBody = false, return
       }
     }
     const freeReturns = returns.filter(value => value
-      && (!declaredNames.size || !identifierReferencedInSubtree(value, declaredNames)));
+      && (!declaredNames.size || !identifierReferencedInSubtree(value, declaredNames))
+      && (!memoNames.size || !identifierReferencedInSubtree(peelSequenceTail(value, { step: unwrapRuntimeExpr }), memoNames)));
     // Candidates are only identities to test against the preserved call's actual result.
     // They do not prove that a return ran, or that another branch yielded the same value.
     if (returnSink) returnSink.push(...freeReturns);
@@ -11795,8 +12191,20 @@ export function dropDeadSequenceElements(expressions, ctx = null) {
 // the same policy for the channels that emit one statement PER element rather than one for the
 // whole prefix (the nested-flatten rescue chain is the standing example, and its grouping is a
 // channel rule of its own): nothing to observe means nothing to run, and an all-quiet prefix
-// leaves no statement at all. `ctx` (a caller's scope) keeps a getter read as the work it is
-export function observableSequenceElements(expressions, ctx = null) {
+// leaves no statement at all. `ctx` (a caller's scope) keeps a getter read as the work it is.
+// A receiver's first evaluation also preserves source reads that can throw before its key.
+// Only quiet literals and verified current-pass bindings may leave that prefix.
+export function observableSequenceElements(expressions, ctx = null, { preserveSourceReads = false } = {}) {
+  if (preserveSourceReads) return expressions.flatMap(expression => {
+    const { prefix, tail } = peelNestedSequenceExpressions(expression);
+    return [...prefix, tail].filter(value => {
+      const inner = unwrapRuntimeExpr(value);
+      if (isQuietLiteralOperand(inner)) return false;
+      return !(inner?.type === 'Identifier'
+        && (ctx?.injectorState?.isOwnPassGeneratedName?.(inner.name) || ctx?.injectorState?.isOwnPassPureBinding?.(inner.name))
+        && isReusableReceiver(inner, { ctx }));
+    });
+  });
   return expressions.filter(expression => mayHaveSideEffects(expression, ctx));
 }
 
@@ -12763,11 +13171,11 @@ export function patternDead(node) {
 // DEFAULT is quiet too: the default holds the pattern in its left, as dead as its undefaulted twin
 // once the claims under it are served. Effectful keys, effectful defaults and rest keep their
 // native reads even after their leaves are claimed.
-export function patternFullyConsumed(pattern, isConsumed) {
+export function patternFullyConsumed(pattern, isConsumed, ctx = null) {
   return pattern?.type === 'ObjectPattern' && pattern.properties.every(prop => isConsumed(prop)
-    || (isPropertyNode(prop) && !computedKeyHasSideEffects(prop) && patternFullyConsumed(
-      prop.value?.type === 'AssignmentPattern' && !mayHaveSideEffects(prop.value.right) ? prop.value.left : prop.value,
-      isConsumed,
+    || (isPropertyNode(prop) && !computedKeyHasSideEffects(prop, ctx) && patternFullyConsumed(
+      prop.value?.type === 'AssignmentPattern' && !mayHaveSideEffects(prop.value.right, ctx) ? prop.value.left : prop.value,
+      isConsumed, ctx,
     )));
 }
 
@@ -12822,32 +13230,37 @@ export function exportedSentinelSplit(statement, isSentinel) {
 // `isSentinel(id)`: under a hop keyed by an EFFECT, a pattern binding nothing but sentinels is as
 // dead as an empty one - that hop retires to ONE sentinel instead of reading the hop for a leaf
 // nobody reads; elsewhere a leaf sentinel is the residual the render meant to keep
-export function pruneEmptiedHopProps(node, { mint, onDrop = null, isSentinel = null }) {
+export function pruneEmptiedHopProps(node, { mint, onDrop = null, isSentinel = null, ctx = null, consumedPatterns = null }) {
   if (node?.type === 'ArrayPattern') {
-    for (const element of node.elements) pruneEmptiedHopProps(element, { mint, onDrop, isSentinel });
+    for (const element of node.elements) pruneEmptiedHopProps(element, { mint, onDrop, isSentinel, ctx, consumedPatterns });
+    if (node.elements.length === 1 && consumedPatterns?.has(node.elements[0])) consumedPatterns.add(node);
     return;
   }
   if (node?.type !== 'ObjectPattern') return;
-  const keepsSentinels = patternLevelKeepsSentinels(node);
+  const keepsSentinels = patternLevelKeepsSentinels(node, ctx);
   const kept = [];
   for (const prop of node.properties) {
     const defaulted = prop.value?.type === 'AssignmentPattern';
     const pattern = defaulted ? prop.value.left : prop.value;
-    pruneEmptiedHopProps(pattern, { mint, onDrop, isSentinel });
+    pruneEmptiedHopProps(pattern, { mint, onDrop, isSentinel, ctx, consumedPatterns });
     // ... an emptied hop under an EFFECTFUL key retires to a sentinel like one beside a rest: the
     // level keeps it, so the key still runs once where the source wrote it
     // ... but a sentinel under an EFFECTFUL key of its own keeps its prop: that key still has to run
     const emptied = (prop.type === 'Property' || prop.type === 'ObjectProperty')
+      && (!consumedPatterns || consumedPatterns.has(pattern))
       && (pattern?.type === 'ObjectPattern' || (pattern?.type === 'ArrayPattern' && pattern.elements.length === 1))
       && (patternDead(pattern)
-        || (isEffectfulKeyHop(prop) && !!isSentinel && !patternKeepsEffectfulKey(pattern)
+        || (isEffectfulKeyHop(prop, ctx) && !!isSentinel && !patternKeepsEffectfulKey(pattern, ctx)
           && patternBindsOnlySentinels(pattern, isSentinel)));
     if (!emptied) kept.push(prop);
     else if (keepsSentinels) {
       if (defaulted) prop.value.left = mint();
       else prop.value = mint();
       kept.push(prop);
-    } else onDrop?.(prop);
+    } else {
+      consumedPatterns?.add(node);
+      onDrop?.(prop);
+    }
   }
   node.properties = kept;
 }

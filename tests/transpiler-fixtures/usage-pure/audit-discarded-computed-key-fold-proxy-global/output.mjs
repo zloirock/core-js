@@ -12,5 +12,5 @@ let n = 0;
 const binaryFold = _flatMaybeArray(arr).call(arr);
 const templateFold = _flatMapMaybeArray(arr).call(arr, x => [x]);
 const staticFold = _Array$from([1, 2]);
-const seFold = (n++, _includesMaybeArray(arr).call(arr, [1]));
+const seFold = (arr, n++, _includesMaybeArray(arr).call(arr, [1]));
 export { binaryFold, templateFold, staticFold, seFold, n };

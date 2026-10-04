@@ -1,10 +1,10 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-var _ref, _ref2;
+var _ref;
 // A nested computed method assignment reads its receiver once before the key effect.
 // The polyfill is assigned at that slot, without a second read after the pattern.
 let m;
-_ref = {
-  y: _ref2
+({
+  y: _ref
 } = {
   y: arr
-}, null == _ref2 ? _ref2[""] : (eff(), m = _flatMaybeArray(_ref2)), _ref2, _ref;
+}), null == _ref ? _ref[""] : (eff(), m = _flatMaybeArray(_ref));

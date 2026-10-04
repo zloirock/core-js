@@ -17,7 +17,7 @@ const {
   Symbol: {
     iterator
   }
-} = (c++, _self, {
+} = (c++, {
   Symbol: {
     iterator: _Symbol$iterator
   }
@@ -29,7 +29,7 @@ const {
     resolve
   },
   other
-} = (d++, _self, {
+} = (d++, {
   Promise: {
     resolve: _Promise$resolve
   },

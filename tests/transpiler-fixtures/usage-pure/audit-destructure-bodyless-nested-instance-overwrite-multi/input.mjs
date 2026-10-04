@@ -1,4 +1,4 @@
-// Bodyless loop and conditional assignments keep their captures and method reads inside the
+// Bodyless loop and conditional assignments keep their RHS evaluations and method reads inside the
 // controlled body. Multiple reads write in source order, so the last one wins for a shared target.
 let single;
 let shared;

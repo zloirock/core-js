@@ -1,8 +1,6 @@
-// a flat for-init full-consume proxy-global destructure cannot drop its receiver tail - the loop
-// header needs a declarator, so the SE prefix and receiver re-embed into a sink declarator. the
-// dropped-receiver skip must NOT fire here: the `globalThis` root stays visible and is polyfilled
-// (a raw root would ReferenceError on engines lacking it), unlike the standalone-statement form
-// which drops the tail entirely.
+// A fully consumed loop initializer carries its effects into the first extracted binding.
+// The pristine proxy tail has no remaining reader and needs no temporary or import.
+// The call runs before binding writes and the loop test.
 function eff() {}
 for (const { Map } = (eff(), globalThis); false;) {
   console.log(Map);
