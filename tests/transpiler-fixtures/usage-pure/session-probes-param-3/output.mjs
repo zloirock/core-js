@@ -331,17 +331,14 @@ function mark(t, v) {
   function key() {
     return 'k';
   }
-  const _ref3 = {
-      m: [1],
-      k: 2
-    },
-    {
-      m: _ref2
-    } = _ref3,
-    at = _atMaybeArray(_ref2),
+  const _ref2 = {
+    m: [1],
+    k: 2
+  };
+  const at = _atMaybeArray(_ref2.m),
     {
       [key()]: picked
-    } = _ref3;
+    } = _ref2;
 }
 {
   function mark() {}

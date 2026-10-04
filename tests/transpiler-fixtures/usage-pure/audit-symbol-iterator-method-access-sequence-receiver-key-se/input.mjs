@@ -1,7 +1,5 @@
-// iterator-method ACCESS (no call): `const m = (r(), arr)[Symbol[(k(), 'iterator')]]`. lowers to
-// a bare `_getIteratorMethod(arr)` whose sole argument is the receiver. native evaluates the
-// receiver before the computed key, so `r()` then `k()` must each run once, in source order - the
-// receiver is peeled to its tail and both prefixes prepend. (babel previously dropped `r()` here,
-// peeling the receiver while collecting only the key-SE.)
+// A sequence receiver and a computed Symbol.iterator key select a method without calling it.
+// Receiver prefix r() runs before key prefix k(), each exactly once.
+// The method is read from the selected array after both prefixes.
 let arr = [1, 2, 3];
 const m = (r(), arr)[Symbol[(k(), 'iterator')]];

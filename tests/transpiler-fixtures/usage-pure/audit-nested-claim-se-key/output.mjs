@@ -22,11 +22,11 @@ const folded = function () {
 // ... under a WRAPPER the array plan captures the literal's element in order and reads the hop off
 // the capture - the key runs off that memo, once, between the literal and the bind
 const wrapped = function () {
-  const [_ref2] = [box],
+  const [,] = [box],
     {
-      inner: _ref3
-    } = _ref2,
-    m = null == _ref3 ? _ref3[""] : (_pushMaybeArray(log).call(log, 'wkey'), _flatMaybeArray(_ref3));
+      inner: _ref2
+    } = box,
+    m = null == _ref2 ? _ref2[""] : (_pushMaybeArray(log).call(log, 'wkey'), _flatMaybeArray(_ref2));
   return [typeof m, _joinMaybeArray(log).call(log)];
 }();
 // ... and a SLOT DEFAULT is carried, not mirrored: the twin's receiver folds both arms off one read,
@@ -35,20 +35,20 @@ const wrapped = function () {
 const defaulted = function () {
   const spare = [3];
   const {
-      inner: _ref4 = spare
+      inner: _ref3 = spare
     } = box,
-    m = null == _ref4 ? _ref4[""] : (_pushMaybeArray(log).call(log, 'dkey'), _flatMaybeArray(_ref4));
+    m = null == _ref3 ? _ref3[""] : (_pushMaybeArray(log).call(log, 'dkey'), _flatMaybeArray(_ref3));
   return [typeof m, _joinMaybeArray(log).call(log)];
 }();
 // ... and beside an effect-bearing NEIGHBOUR element the capture keeps the source order: the literal
 // builds whole (`n`), then the hop reads once and the key runs off that memo (`hop`, `ekey`)
 const wrappedBesideAnEffect = function () {
-  const [_ref5, _ref6] = [box, _pushMaybeArray(log).call(log, 'n')],
+  const [, _ref4] = [box, _pushMaybeArray(log).call(log, 'n')],
     {
-      inner: _ref7
-    } = _ref5,
-    m = null == _ref7 ? _ref7[""] : (_pushMaybeArray(log).call(log, 'ekey'), _flatMaybeArray(_ref7)),
-    zn = _ref6;
+      inner: _ref5
+    } = box,
+    m = null == _ref5 ? _ref5[""] : (_pushMaybeArray(log).call(log, 'ekey'), _flatMaybeArray(_ref5)),
+    zn = _ref4;
   return [typeof m, zn, _joinMaybeArray(log).call(log)];
 }();
 export { folded, wrapped, wrappedBesideAnEffect, defaulted };

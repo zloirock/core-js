@@ -6,6 +6,6 @@ const receiver = {
     return [1, [2]];
   }
 };
-const [_ref] = [receiver, record("rhs")];
-const flat = _flatMaybeArray(_ref.y);
+const [,] = [receiver, record("rhs")];
+const flat = _flatMaybeArray(receiver.y);
 export { flat };

@@ -75,27 +75,25 @@ function mark(t, v) {
 }
 {
   const _ref = [1, 2];
+  const {
+    w: {}
+  } = {
+    ...spread,
+    w: _ref
+  };
   const m = _atMaybeArray(_ref);
+  use(m);
+}
+{
   const {
     w: {
       at: _unused
     }
   } = {
     ...spread,
-    w: _ref
-  };
-  use(m);
-}
-{
-  const m = _atMaybeArray(arr);
-  const {
-    w: {
-      at: _unused2
-    }
-  } = {
-    ...spread,
     w: arr
   };
+  const m = _atMaybeArray(arr);
   use(m);
 }
 {

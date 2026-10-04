@@ -4,7 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // method but the IIFE chain root carries observable setup the fold must re-emit
 let calls = 0;
 const arr = [1];
-const method = ((() => {
+const method = (arr, (() => {
   calls++;
   return _globalThis;
 })(), _getIteratorMethod(arr));

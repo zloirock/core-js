@@ -18,47 +18,47 @@ const wrapped = function () {
 // An effectful neighbor element or leading declarator must finish before the nested read.
 // The wrapper's elements are evaluated once, and surviving bindings keep their values.
 const wrappedBesideAnEffect = function () {
-  const [_ref2, _ref3] = [box, effect()];
-  const _ref4 = _ref2.y;
-  const at = _atMaybeArray(_ref4);
+  const [, _ref2] = [box, effect()];
+  const _ref3 = box.y;
+  const at = _atMaybeArray(_ref3);
   const {
     other
-  } = _ref4;
-  const zn = _ref3;
+  } = _ref3;
+  const zn = _ref2;
   return [at, other, zn];
 }();
 const wrappedAfterAnEffect = function () {
   const zLead = effect(),
-    [_ref5] = [box],
-    _ref6 = _ref5.y,
-    at = _atMaybeArray(_ref6),
+    [,] = [box],
+    _ref4 = box.y,
+    at = _atMaybeArray(_ref4),
     {
       other
-    } = _ref6;
+    } = _ref4;
   return [zLead, at, other];
 }();
 // A loop header can capture wrapper elements and lower the following bindings in the same
 // declaration. The bodyless variable declaration remains a separate native boundary.
 const wrappedInLoopHead = function () {
   let out;
-  for (const [_ref7, _ref8] = [box, effect()], {
-      y: _ref9
-    } = _ref7, at = _atMaybeArray(_ref9), {
+  for (const [, _ref5] = [box, effect()], {
+      y: _ref6
+    } = box, at = _atMaybeArray(_ref6), {
       other
-    } = _ref9, zn = _ref8; !out;) out = [at, other, zn];
+    } = _ref6, zn = _ref5; !out;) out = [at, other, zn];
   return out;
 }();
 const wrappedInBodylessSlot = function () {
   let out;
-  if (out === undefined) var [_ref10, _ref11] = [box, effect()],
+  if (out === undefined) var [, _ref7] = [box, effect()],
     {
-      y: _ref12
-    } = _ref10,
-    at = _atMaybeArray(_ref12),
+      y: _ref8
+    } = box,
+    at = _atMaybeArray(_ref8),
     {
       other
-    } = _ref12,
-    zn = _ref11;
+    } = _ref8,
+    zn = _ref7;
   return [at, other, zn];
 }();
 export { wrapped, wrappedBesideAnEffect, wrappedAfterAnEffect, wrappedInLoopHead, wrappedInBodylessSlot };

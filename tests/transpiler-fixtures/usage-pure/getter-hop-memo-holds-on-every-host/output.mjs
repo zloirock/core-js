@@ -53,29 +53,22 @@ const {
   }
 } = _ref4;
 const s4 = _Iterator$zip;
-const _ref5 = _ref4.M;
-const nm4 = _nameMaybeFunction(_ref5);
+const nm4 = _nameMaybeFunction(_ref4.M);
 n++;
-const _ref6 = KE.P;
+const _ref5 = KE.P;
 export const s5 = _Promise$withResolvers;
-export const nm5 = _nameMaybeFunction(_ref6);
-const {
-    M: _ref7
-  } = {
+export const nm5 = _nameMaybeFunction(_ref5);
+const nm8 = _nameMaybeFunction({
     M: KE.P
-  },
-  nm8 = _nameMaybeFunction(_ref7),
+  }.M),
   s8 = _Promise$allSettled;
-let {
-    M: _ref8
-  } = {
+let nm9 = _nameMaybeFunction({
     M: KE.P
-  },
-  nm9 = _nameMaybeFunction(_ref8),
+  }.M),
   s9 = _Promise$any;
 const s6 = _at((n++, h.m));
 let s7, f7;
-const _ref9 = (n++, g());
-s7 = _findLastMaybeArray(_ref9);
-f7 = _flatMaybeArray(_ref9);
+const _ref6 = (n++, g());
+s7 = _findLastMaybeArray(_ref6);
+f7 = _flatMaybeArray(_ref6);
 use(z1, s1, nm1, s2, nm2, s3, nm3, a4, s4, nm4, s6, s7, f7, nm8, s8, nm9, s9);

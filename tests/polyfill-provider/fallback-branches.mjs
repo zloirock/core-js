@@ -150,8 +150,42 @@ for (const [label, source, allowed, pureName, mutated = false] of [
   check(`${ lbl } binding`, instanceSynthReceiverPure(receiver, ctx)?.entry ?? null, pureName);
 });
 
+// Static receivers use the same scoped value handoff; uncertain or observable reads stay native.
+for (const [label, source, expected, mutated = false] of [
+  ['direct static', 'function take(x = Number.MAX_SAFE_INTEGER) {}', 'number/max-safe-integer'],
+  ['proxy static', 'function take(x = globalThis.Number.MAX_SAFE_INTEGER) {}', 'number/max-safe-integer'],
+  ['typed proxy static', 'function take(x = (globalThis as any).Number.MAX_SAFE_INTEGER) {}', 'number/max-safe-integer'],
+  ['constant alias static', 'const N = Number; function take(x = N.MAX_SAFE_INTEGER) {}', 'number/max-safe-integer'],
+  ['shadowed static', 'function take(Number, x = Number.MAX_SAFE_INTEGER) {}', null],
+  ['getter receiver', 'const box = { get Number() { return Number; } }; function take(x = box.Number.MAX_SAFE_INTEGER) {}', null],
+  ['typed getter receiver', 'const box: { Number: NumberConstructor } = { get Number() { return Number; } }; function take(x = (box as any).Number.MAX_SAFE_INTEGER) {}', null],
+  ['typed parameter receiver', 'function take(Number: NumberConstructor, x = (Number as any).MAX_SAFE_INTEGER) {}', null],
+  ['effectful static key', 'function take(x = Number[(tick(), "MAX_SAFE_INTEGER")]) {}', null],
+  ['effectful static receiver', 'function take(x = (tick(), Number).MAX_SAFE_INTEGER) {}', null],
+  ['guarded static receiver', 'function take(x = globalThis.window?.Number.MAX_SAFE_INTEGER) {}', null],
+  ['sealed static receiver', 'function take(x = (globalThis.window?.self).Number.MAX_SAFE_INTEGER) {}', null],
+  ['typed deep sealed receiver', 'function take(x = (globalThis.window?.self as any).Number.MAX_SAFE_INTEGER) {}', null],
+  ['mixed static receiver', 'function take(x = (cond ? Number : Other).MAX_SAFE_INTEGER) {}', null],
+  ['mutable static alias', 'let N = Number; function write() { N = Other; } function take(x = N.MAX_SAFE_INTEGER) {}', null],
+  ['mutated static', 'function take(x = Number.MAX_SAFE_INTEGER) {}', null, true],
+]) runBoth(`instance receiver handoff/${ label }`, source, (parser, program, row) => {
+  const assignment = parser.pickPath(program, 'AssignmentPattern');
+  const adapter = { ...pluginAdapter(parser), isMutatedStatic: () => mutated };
+  const pure = instanceSynthReceiverPure(assignment.node.right, {
+    adapter,
+    scope: assignment.scope,
+    path: assignment,
+    resolvePure(meta) {
+      return meta.kind === 'property' && meta.object === 'Number' && meta.key === 'MAX_SAFE_INTEGER'
+        ? { kind: 'static', entry: 'number/max-safe-integer', hintName: 'Number$MAX_SAFE_INTEGER' } : null;
+    },
+  });
+  check(row, pure?.entry ?? null, expected);
+});
+
 // A logical left observes the receiver's nullish value even when the logical itself is
 // a parameter default. It may synthesize a method only while retaining that selection.
+
 for (const [label, source, selection, guarded, viable, mutated = false] of [
   ['optional nullish left', 'const { from } = globalThis.window?.Array ?? Object;', true, true, true],
   ['parameter default', 'function f({ from } = globalThis.window?.Array ?? Object) {}', true, true, true],

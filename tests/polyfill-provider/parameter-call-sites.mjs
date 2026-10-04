@@ -70,6 +70,14 @@ checkCalls('NFE name shadowed by its parameter',
 checkCalls('NFE name shadowed by a body var',
   'const f = function inner(value = []) { var inner = other; inner([2]); }; f([1]);', null);
 checkCalls('read that drops the callable value', 'function f(value = []) {} typeof f; f();', ['<missing>'], true);
+// eslint-disable-next-line no-template-curly-in-string -- these strings are test source
+for (const expression of ['f == 1', 'f + 0', 'f < 2', '`value: ${ f }`', '({ [f]: 1 })']) {
+  checkCalls(`coercion opens callers: ${ expression }`, `function f(value = []) {} void (${ expression }); f();`, null);
+}
+checkCalls('strict equality does not open callers', 'function f(value = []) {} void (f === other); f();', ['<missing>'], true);
+checkCalls('void does not open callers', 'function f(value = []) {} void f; f();', ['<missing>'], true);
+checkCalls('null equality does not open callers', 'function f(value = []) {} void (f == null); f();', ['<missing>'], true);
+checkCalls('undefined inequality does not open callers', 'function f(value = []) {} void (f != void 0); f();', ['<missing>'], true);
 checkCalls('direct export', 'export function f(value = []) {} f();', null);
 checkCalls('separate export', 'function f(value = []) {} export { f }; f();', null);
 checkCalls('exported declarator NFE', 'export const f = function inner(value = []) {}; f();', null);
@@ -100,6 +108,7 @@ checkCalls('callee reassignment', 'let f = function(value = []) {}; f = other; f
 checkCalls('self-return escapes callable identity',
   'export const result = (function inner(value = []) { return inner; })();', null);
 checkCalls('discarded constructed instance', 'class C { constructor(value = []) {} } new C([1]);', ['[1]']);
+checkCalls('coerced constructed instance', 'class C { constructor(value = []) {} } void (new C([1]) + 0);', null);
 checkCalls('held constructed instance', 'class C { constructor(value = []) {} } const c = new C([1]);', null);
 checkCalls('class expression outer name', 'const C = class Inner { constructor(value = []) {} }; new C([1]);', ['[1]']);
 checkCalls('Annex B reaches beyond scoped references',

@@ -2,7 +2,8 @@
 // conditional placement prevents a direct receiver proof. Candidate recursion must terminate.
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { resolve as resolveBuiltIn } from '../../packages/core-js-polyfill-provider/index.js';
 import { aliasWriteCtorNames } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { reachableAliasValues, resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { adapters, createChecker } from './harness.mjs';
@@ -128,5 +129,29 @@ for (const [shape, head, source] of [
     aliasNode: usage.node, scope: usage.scope, adapter, path: usage,
     resolve: hop => resolveObjectName({ objectNode: hop.node, ...hop.ctx, usageNode: hop.readNode }),
   }), shape === 'opaque' ? [] : shape === 'several elements' ? ['Map', 'Object'] : ['Map']);
+}
+// A guarded alias can have constructor candidates whose surface does not own this key.
+// Their prototype methods must not trigger the full type/target query for a static guard.
+for (const parser of adapters) for (const [key, candidates, expected] of [
+  ['at', ['Map', 'Array'], []],
+  ['groupBy', ['Promise', 'Map'], ['Map']],
+  ['of', ['Map', 'Array'], ['Array']],
+  ['Map', ['globalThis', 'Array'], ['globalThis']],
+]) {
+  const program = parser.parseAndScope(`let held; held.${ key };`);
+  const usage = parser.pickPath(program, 'MemberExpression');
+  const queried = [];
+  const plan = planGuardedStaticNarrow({
+    memberNode: usage.node, parent: usage.parentPath.node, path: usage,
+    meta: { key, guardedAliasHint: candidates[0], guardedAliasHints: candidates },
+    resolvePure(meta) {
+      if (meta.kind === 'property' && meta.placement === 'static') queried.push(meta.object);
+      const definition = resolveBuiltIn(meta);
+      return definition && { ...definition, entry: definition.name };
+    },
+  });
+  checkDeep(`${ parser.name }: ${ key }: only eligible static candidates are queried`, queried, expected);
+  checkDeep(`${ parser.name }: ${ key }: guard retains all eligible constructors`,
+    plan?.branches.map(branch => branch.ctorName) ?? [], expected);
 }
 finish();

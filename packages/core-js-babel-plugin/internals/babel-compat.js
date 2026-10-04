@@ -9,6 +9,7 @@ import {
   claimReceiverEvaluationMayThrow,
   classifyReceiverSE,
   descendToChainRoot,
+  discardRescueNodes,
   keySideEffectsOnly,
   maximalProxyGlobalPrefix,
   chainReadsThroughSeal,
@@ -46,6 +47,7 @@ import {
   planClaimlessCallRootedNav,
   proxyRunLandingPure,
 } from '@core-js/polyfill-provider/detect-usage/members';
+import { isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   chainValueCarrier,
   isNullLiteralNode,
@@ -62,8 +64,11 @@ import {
   memberKeyName,
   memberProxyHopName,
   migratableClaimSe,
+  navComputedKeyEffects,
   nodeSpan,
+  observableSequenceElements,
   peelParenAndTSSlotPath,
+  peelNestedSequenceExpressions,
   peelSkippableWrapperPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -83,9 +88,12 @@ import {
   peelChainAssignment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
+  callExpression,
   chainExpression,
   composeNullGuardTest,
   hostSlot,
+  identifier,
+  memberExpression,
   nullFirstGuardTest,
   nullGuardTest,
   renderAliasHeldProbeRead,
@@ -561,9 +569,42 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // range-less useNode fails the param/loop-header escape check and strands the `var` in the
   // function body, unreachable from a parameter-default use (ReferenceError at call time for
   // a TS parameter-property default)
-  function memoize(node, scope, anchorNode = node) {
+  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
+    // Preserve the kept sequence probe before cloning the receiver into its guard.
+    const canRender = ctx?.adapter && ctx.path && resolvePureGlobalEntry && injectPureGlobal;
+    const keptTail = canRender && planKeptSequenceTail(unwrapRuntimeExpr(node), {
+      adapter: ctx.adapter,
+      aliasCtx: ctx,
+      resolveGlobalPolyfill: name => resolvePureGlobalEntry(name, ctx.path),
+    });
+    if (keptTail) {
+      if (keptTail.probe) keptTail.probe = cloneWithSubstitutedProxyRoot(keptTail.probe, ctx.path,
+        { t, resolvePureGlobalEntry, injectPureGlobal });
+      keptTail.holder[keptTail.key] = estreeToBabel(renderKeptSequenceTail(keptTail, {
+        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+        embed: hostSlot,
+      }));
+    }
+    const navPlan = canRender && planProvenNavGuardCollapse({
+      rootNode: node,
+      ...ctx,
+      resolvePure: ({ name }) => resolvePureGlobalEntry(name, ctx.path),
+      allowSequenceRoot: true,
+      descendSequenceTail: true,
+    });
+    if (navPlan && !navPlan.topAssign) {
+      const { leafPure: pure } = navPlan;
+      node = renderNavCollapseAst(navPlan, injectPureGlobal(pure.entry, pure.hintName));
+    }
+    const { prefix, tail } = peelNestedSequenceExpressions(node);
+    // The first read runs the prefix once; later reads need only its stable rendered value.
+    if (prefix.length && isReusableReceiver(tail, { interveningEffects, directCallee, ctx })) {
+      return [t.cloneNode(node), t.removeComments(t.cloneNode(tail))];
+    }
     // The first evaluation owns the source comments; a reread must not duplicate them.
-    if (isReusableReceiver(node)) return [t.cloneNode(node), t.removeComments(t.cloneNode(node))];
+    if (isReusableReceiver(node, { interveningEffects, directCallee, ctx })) {
+      return [t.cloneNode(node), t.removeComments(t.cloneNode(node))];
+    }
     const ref = generateRef(scope, anchorNode);
     const assign = t.assignmentExpression('=', t.cloneNode(ref), node);
     // register the synthetic write so a RE-VISIT of the memo body can follow the ref back to
@@ -1052,8 +1093,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       nullGuardTest(check, { embed: hostSlot }), hostSlot(result)));
   }
 
-  function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode }) {
-    const [assign, ref] = memoize(object, scope, anchorNode ?? object);
+  function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode, anchorPath = null }) {
+    const [assign, ref] = memoize(object, scope, anchorNode ?? object, false, anchorPath && {
+      scope,
+      path: anchorPath,
+      adapter: getAdapter?.(),
+      injectorState: getInjector(),
+    });
     // clone args: originals may belong to a parent being replaced (stale Babel path containers)
     const callArgs = [t.cloneNode(ref), ...args.map(a => t.cloneNode(a))];
     const callMember = optionalCall
@@ -1117,19 +1163,19 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!calleePath || (!calleePath.isMemberExpression() && !calleePath.isOptionalMemberExpression())) return null;
     const receiverNode = calleePath.node.object;
     const methodNode = t.cloneNode(calleePath.node);
+    const ctx = { scope, path: calleePath, adapter: getAdapter?.(), injectorState: getInjector() };
+    const interveningEffects = !!calleePath.node.computed && mayHaveSideEffects(calleePath.node.property, ctx);
     let callReceiver;
     let receiverMemo = null;
     if (t.isSuper(receiverNode)) {
       callReceiver = t.thisExpression();
-    } else if (isReusableReceiver(receiverNode)) {
-      callReceiver = t.cloneNode(receiverNode);
     } else {
-      const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node);
+      const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node, interveningEffects, ctx);
       // the memo may hold a resolvable surface (a proxy global, or a CTOR read off one):
       // tag the ref so the re-traversed method read keeps resolving through it
       // (`_ref = (t = _globalThis, _globalThis).Array` serves `_ref?.from` -> `_Array$from`)
       tagProxyGlobalMemoRef(receiverRef, receiverNode, scope);
-      receiverMemo = assign;
+      receiverMemo = isReusableReceiver(assign, { interveningEffects, ctx }) ? null : assign;
       callReceiver = t.cloneNode(receiverRef);
       // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
       methodNode.object = t.cloneNode(receiverRef);
@@ -1160,7 +1206,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   function tagProxyGlobalMemoRef(ref, rootNode, scope) {
     const adapter = getAdapter?.();
     if (!adapter || !scope || !ref?.name) return;
-    let name = null;
+    // The memo already evaluated sequence prefixes and stores; its value is their canonical tail.
+    rootNode = peelChainRootValue(rootNode);
+    let name = rootNode?.type === 'Identifier' && getInjector().isOwnPassPureBinding?.(rootNode.name)
+      ? proxyGlobalRootName({ node: rootNode, scope, adapter, path: null }) : null;
     if (rootNode?.type === 'CallExpression' || rootNode?.type === 'OptionalCallExpression') {
       // a bare call / IIFE root: inline its return and recognise the proxy-global it yields
       const rootId = inlineCallProxyGlobalRoot({ callNode: rootNode, scope, adapter, path: null });
@@ -1219,7 +1268,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // a hop-object SEQUENCE still rides the source spelling: the plan renders the VALUE and its
     // prefix has no slot there, so taking it dropped the effect entirely (`(n++, gw).self?.X`)
     const testPrefix = guardObject
-      ? navHopSequencePrefixes(guardObject, { unwrap: unwrapRuntimeExpr }).all : [];
+      ? navHopSequencePrefixes(guardObject, { unwrap: unwrapRuntimeExpr, ctx }).all : [];
     // ... with ONE exception, and it is the seal canon, not a spelling preference: a chain that READS
     // THROUGH a seal over a short-circuit performs that read itself (`((w = gw).window?.self).Symbol`
     // throws off-window), and collapsing the test both erases the throw and drops the write the
@@ -2141,17 +2190,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         { t, adapter, resolvePureGlobalEntry, mintedEffectNodes, allowStoreHolder });
     }
     const plan = planProvenNavGuardCollapse({
-      rootNode: boundary.inner, scope: memberPath.scope, adapter, path: memberPath,
-      resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath), throughKeptAssign: true,
-      allowSequenceRoot: true, descendSequenceTail: true,
+      rootNode: boundary.inner,
+      scope: memberPath.scope,
+      adapter,
+      path: memberPath,
+      resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath),
+      throughKeptAssign: true,
+      allowSequenceRoot: true,
+      descendSequenceTail: true,
     });
     // the plan renders a guard whose LEAF is a proxy hop; a sealed nav that ends AT the claim
     // (`(globalThis.window?.Array).of`) has none, and the read the seal makes observable would be
     // dropped. build the same shape from its two halves - the erase verdict's `?.` object as the
     // test, the claim's own ponyfill as the always-defined alternate
+    const leafGuardEffects = [];
     const rendered = plan && !plan.topAssign && plan.kind === 'nested'
       ? renderNavCollapseAst(plan, injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName))
-      : sealedClaimLeafGuardNode(boundary.inner, memberPath, aliasCtx);
+      : sealedClaimLeafGuardNode(boundary.inner, memberPath, aliasCtx, { consumedEffects: leafGuardEffects });
     // a seal the guard renders cannot own (a value-transparent layer over a bare alias -
     // `(a as any).of`) hides no short-circuit: the alias question stands, fall through to it
     if (!rendered) {
@@ -2173,15 +2228,20 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // everything is spelled ahead of it
     const testNode = rendered?.type === 'ConditionalExpression' ? rendered.test?.right : null;
     const navPrefix = navHopSequencePrefixes(boundary.inner,
-      { unwrap: unwrapRuntimeExpr, renderedSpans: [nodeSpan(testNode)].filter(Boolean) });
+      { unwrap: unwrapRuntimeExpr, renderedSpans: [nodeSpan(testNode)].filter(Boolean), ctx: aliasCtx });
     const probeRead = navPrefix.spell.length
       ? t.sequenceExpression([...navPrefix.spell.map(expr => t.cloneNode(expr)), bareRead]) : bareRead;
     return {
       // the guard test runs an effect-bearing CALL root exactly once - carry it like a key
       // SE so every consumer's identity filter keeps other channels from re-running it
-      keySeExprs: [...plan?.keySeExprs ?? [], ...plan?.rootEffectCall ? [plan.rootEffectCall] : [],
-        ...plan?.assignWrap ? [plan.assignWrap] : [], ...plan?.rootAssign ? [plan.rootAssign] : [],
-        ...navPrefix.all],
+      keySeExprs: [
+        ...plan?.keySeExprs ?? [],
+        ...plan?.rootEffectCall ? [plan.rootEffectCall] : [],
+        ...plan?.assignWrap ? [plan.assignWrap] : [],
+        ...plan?.rootAssign ? [plan.rootAssign] : [],
+        ...navPrefix.all,
+        ...leafGuardEffects,
+      ],
       // the probe RENDERS the nav, so an effect the source wrote BEFORE it (a sequence prefix on
       // the receiver) still runs first - consumers split their residual effects on this position
       navStart: boundary.inner.start,
@@ -2192,9 +2252,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // the guarded VALUE of a sealed nav that ends AT a claim, as a NODE: the erase verdict names the
   // `?.` object to test, the claim's own ponyfill is the always-defined alternate. null when no
   // single `?.` expresses the short-circuit or the leaf resolves to no pure entry
-  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx, { probeLeaf = false } = {}) {
+  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx, { probeLeaf = false, consumedEffects = null } = {}) {
     const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolvePureGlobalEntry(name, anchorPath), aliasCtx, { probeLeaf });
-    const alternate = !plan ? null
+    let alternate = !plan ? null
       : plan.leafPure ? injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName)
       // the value IS the probe: the test operand doubles as the alternate (a second read of
       // the same slot, benign on the proxy globals every render here already reads freely)
@@ -2207,6 +2267,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         : t.memberExpression(injectPureGlobal(plan.leafBasePure.entry, plan.leafBasePure.hintName), t.identifier(plan.leafName)))
       : t.isValidIdentifier(plan.leafName) ? t.identifier(plan.leafName) : null;
     if (!alternate) return null;
+    // Folded keys above the test run only in its reached branch, before the leaf read.
+    const leafEffects = navComputedKeyEffects(nav)
+      .filter(expr => !subtreeContainsNode(plan.guardObject, expr));
+    if (leafEffects.length) alternate = withSideEffects(alternate, leafEffects.map(expr => t.cloneNode(expr)));
+    // The source guard and alternate already evaluate these effects; report their ownership.
+    consumedEffects?.push(...discardRescueNodes({ node: plan.guardObject, ...aliasCtx }), ...leafEffects);
     // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
     // shared spelling only clones the source, and a write below the hops kept `_globalThis.self`
     // standing there - a host read off the ponyfill, undefined in the realms the polyfill is for.
@@ -2394,7 +2460,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // hop and the root rides INSIDE the memo (`_ref = (v = gw) as any`) - the unplugin emitter
     // keeps it verbatim there, and dropping it desynced the spelling. the shape gates above
     // ran on the PEELED root, so the wrapped memo target is the same value
-    const [check, ref] = memoize(holder.object, scope, ownerNode);
+    const [check, ref] = memoize(holder.object, scope, ownerNode, false, anchorPath && {
+      scope,
+      path: anchorPath,
+      adapter,
+      injectorState: getInjector(),
+    });
     holder.object = t.cloneNode(ref);
     // node-level deoptionalize (the spine holds raw nodes, not paths): the hops ride the
     // root guard now, and a member spine never carries optional CALLS (pure-nav shape).
@@ -2435,7 +2506,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return node;
   }
 
-  function extractCheck(path, skipOptional) {
+  function extractCheck(path, skipOptional, interveningEffects = false) {
     // a KEPT guard memo whose RHS is a SE-harvested SEQUENCE misses the natural proxy-root
     // rewrite (the harvest re-emit skips the original subtree) - a raw `globalThis` rides
     // into the emitted test (ie11 ReferenceError). substitute the seq tail's nav ROOT
@@ -2453,17 +2524,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const pure = resolvePureGlobalEntry(root.name, anchorPath);
       if (!pure) return;
       const binding = injectPureGlobal(pure.entry, pure.hintName);
-      const ctx = { scope: anchorPath.scope, adapter: getAdapter?.(), path: anchorPath };
-      const plan = planKeptSequenceTail(core, {
-        adapter: ctx.adapter, aliasCtx: ctx,
-        resolveGlobalPolyfill: name => resolvePureGlobalEntry(name, anchorPath),
-      });
-      if (plan) {
-        plan.holder[plan.key] = estreeToBabel(renderKeptSequenceTail(plan, {
-          injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
-          embed: hostSlot,
-        }));
-      }
       root.name = binding.name;
     }
     const { node } = path;
@@ -2475,7 +2535,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const navCheck = memoizeProxyNavRoot(node.object, path.scope, node, path);
       if (navCheck) return [navCheck, node.object, false];
       const memoNav = releaseReemittedReceiver(node.object, path);
-      const [memoCheck, memoRef] = memoize(memoNav, path.scope, node);
+      const [memoCheck, memoRef] = memoize(memoNav, path.scope, node, interveningEffects, {
+        scope: path.scope,
+        path,
+        adapter: getAdapter?.(),
+        injectorState: getInjector(),
+      });
       // a proven-nav memo RHS renders through the shared kept-nav plan (the memo assignment IS
       // the topAssign shape): the raw spelling would read `.self` off a defined receiver where
       // the ponyfill must back the read - the deferred flush swaps in the nested test. a nav
@@ -2522,7 +2587,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         check = probeYieldMemoRetarget(chainStart, key, path, aboveChainStart);
         if (check === null) {
           const memoNode = releaseReemittedReceiver(rootNode, chainStart);
-          [check, ref] = memoize(memoNode, path.scope, chainStart.node);
+          [check, ref] = memoize(memoNode, path.scope, chainStart.node, false, {
+            scope: path.scope,
+            path: chainStart,
+            adapter: getAdapter?.(),
+            injectorState: getInjector(),
+          }, key === 'callee');
           chainStart.node[key] = seededRefClone(ref, memoType);
           tagProxyGlobalMemoRef(ref, memoNode, path.scope);
           // proven-nav memo RHS: render the nested test via the shared kept-nav plan (see the
@@ -2660,14 +2730,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // the receiver. memoize the receiver and prepend its assignment to the SE list so it evaluates
   // first (native order). returns `[receiverNode, sideEffects]` - the receiver ref to emit and the
   // reordered SE list. no-op for optional (receiver already memoized in the guard) / SE-free receivers
-  function hoistReceiverSE(object, sideEffects, check, scope, seMode, receiverEffectCount = 0, anchorHostPath = null, receiverReads = 2) {
-    // the peel case hoists too, but not to the FRONT: there the receiver-SE is already replayed in
-    // the SE list and `object` is the peeled tail, so a memo leading the list would run the tail
-    // ahead of the prefix that evaluates it. the memo lands BETWEEN the two groups instead - the
-    // prefix is part of evaluating the receiver and runs first, the tail's read second, the key
-    // effects last. a CHECK skips the hoist only when receiver-borne SE exists (the guard's own
-    // memoize replays it); a KEY-only SE list still hoists - the receiver must evaluate BEFORE the
-    // key effects, like native member-call evaluation order
+  function hoistReceiverSE(object, sideEffects, check, scope, seMode,
+    receiverEffectCount = 0, anchorHostPath = null, receiverReads = 2, firstReceiver = object) {
     // optional guard with a side-effecting receiver: the guard's `null == (_ref = receiver) ? ...`
     // memoize already RAN the receiver-SE, so the body wrap must carry ONLY the key-SE. `suppress`
     // (optional MEMBER access) already reduced `sideEffects` to key-SE upstream, so pass it through;
@@ -2676,14 +2740,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (check && receiverEffectCount > 0) {
       return [object, seMode === 'suppress' ? sideEffects : keySideEffectsOnly(receiverEffectCount, sideEffects)];
     }
+    // The first evaluation includes quiet prefix reads too: they can throw before a key.
+    // The effect census is only a replay list, not the complete source receiver value.
+    if (!check) object = firstReceiver;
     if (!sideEffects?.length) return [object, sideEffects];
-    // the peel hoist buys ordering and nothing else, so it is worth a memo only while an effect still
-    // stands AFTER the receiver group - with none, the peeled tail is already the last thing to run
-    if (seMode === 'peel' && sideEffects.length <= receiverEffectCount) return [object, sideEffects];
+    // Without a trailing key effect, the helper argument can own the complete first receiver.
+    if (seMode === 'peel' && sideEffects.length <= receiverEffectCount) {
+      return [object, sideEffects.slice(receiverEffectCount)];
+    }
     // a sole helper argument already evaluates the receiver once. with no KEY effect to put
     // after it, a memo contributes no ordering; the intact receiver carries its own effects.
     if (receiverReads === 1 && seMode !== 'peel' && !keySideEffectsOnly(receiverEffectCount, sideEffects).length) {
-      return [object, null];
+      return [object, sideEffects.filter(effect => !subtreeContainsNode(object, effect))];
+    }
+    // A hidden constant allocation has one helper read, after the computed key. No value
+    // escapes between those slots, so the helper can allocate it directly without a snapshot.
+    if (!check && receiverReads === 1 && isConstantLiteralReceiver(unwrapRuntimeExpr(object))) {
+      return [object, sideEffects.filter(effect => !subtreeContainsNode(object, effect))];
     }
     // a receiver whose EVALUATION may throw (its member get reads off a nullish-able probe
     // value) hoists like a side-effecting one: the plain SE prepend would run the key effect
@@ -2698,14 +2771,26 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // ECMA evaluates the receiver BEFORE the key, and a member GET runs user code whenever the
     // property is an accessor - so the plain side-effect answer is not enough to leave the receiver
     // in place. that is exactly the superset `reEvaluationObservable` already computes
-    if (!reEvaluationObservable(object) && !receiverMayThrow()) return [object, sideEffects];
-    const [memoAssign, ref] = memoize(object, scope);
+    const interveningEffects = sideEffects.length > receiverEffectCount;
+    const ctx = anchorHostPath && { scope, path: anchorHostPath, adapter: getAdapter?.(), injectorState: getInjector() };
+    const liftedPrefix = seMode === 'peel' && !check ? [] : sideEffects.slice(0, receiverEffectCount)
+      .filter(effect => !subtreeContainsNode(object, effect));
+    if (!reEvaluationObservable(object) && !receiverMayThrow()
+      && (!interveningEffects || isReusableReceiver(object, { interveningEffects, ctx }))) {
+      // Reuse proves the later value is stable; the first read still precedes the key.
+      // A const in its TDZ or `this` before `super()` can throw on that first evaluation.
+      return [
+        object,
+        interveningEffects && !check
+        ? [...liftedPrefix, ...observableSequenceElements([t.cloneNode(object)], ctx, { preserveSourceReads: true }),
+          ...sideEffects.slice(receiverEffectCount)] : sideEffects,
+      ];
+    }
+    const [memoAssign, ref] = memoize(object, scope, anchorHostPath?.node ?? object, interveningEffects, ctx);
     // the memo `_ref = object` already evaluates the receiver's OWN side effects (a buried chain-root call
     // or hop-key SE the resolver also listed lives inside `object`), so re-emitting the receiver-SE prefix
     // would double-run it. append only the KEY SE (past receiverEffectCount); the memo owns the receiver SE.
-    // a PEELED receiver is the exception: its prefix was lifted OUT of `object`, so the memo owns none of
-    // it and the lifted group keeps its place ahead of the memo
-    const liftedPrefix = seMode === 'peel' ? sideEffects.slice(0, receiverEffectCount) : [];
+    // The intact first receiver owns the peeled prefix; other lifted effects still precede it.
     return [ref, [...liftedPrefix, memoAssign, ...sideEffects.slice(receiverEffectCount)]];
   }
 
@@ -2780,9 +2865,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike({ path, id, skipOptional, sideEffects, receiverEffectCount }) {
     inheritConsumedMemberComments(id, path.node, true);
+    const receiverSource = path.node.object;
     const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
-    const [check, extracted, embed] = extractCheck(path, skipOptional);
+    const [check, extracted, embed] = extractCheck(path, skipOptional,
+      (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount));
     // the unplugin emitter drops redundant proxy hops INSIDE its receiver render; this leg memoizes the
     // receiver raw and would keep them (`_ref.self.foo` - a native `self` read where its ponyfill
     // is the point). the whole receiver cannot collapse while its `?.` is live, but once the guard
@@ -2802,8 +2889,24 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       //   - obj evaluated ONCE: deep chains `(arr?.b.includes)(1)` would otherwise re-eval
       //     `arr.b` in callArgs (single-eval matters for receivers with side effects)
       // memoize unconditionally - bare Identifier hits `isReusableReceiver` and inlines without _ref
-      const [objAssign, objRef] = memoize(object, path.scope, path.node);
-      const lookup = t.callExpression(id, [objAssign]);
+      const [objAssign, objRef] = memoize(object, path.scope, path.node,
+        (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount), {
+          scope: path.scope,
+          path,
+          adapter: getAdapter?.(),
+          injectorState: getInjector(),
+        });
+      const outsideEffects = effectiveSE?.filter(effect => !subtreeContainsNode(receiverSource, effect)) ?? [];
+      const fusedCapture = t.isAssignmentExpression(objAssign) && !outsideEffects.length;
+      const lookup = t.callExpression(id, [fusedCapture ? objAssign : t.cloneNode(objRef)]);
+      const keyedLookup = withSideEffects(lookup,
+        [
+          ...(!fusedCapture && (t.isAssignmentExpression(objAssign) || !check && !isReusableReceiver(objAssign, {
+            interveningEffects: (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount),
+            ctx: { scope: path.scope, path, adapter: getAdapter?.(), injectorState: getInjector() },
+          }))) ? [objAssign] : [],
+          ...outsideEffects,
+        ]);
       // check=null path: extractCheck saw a polyfillable optional and skipped the null-guard
       // memo (replacement consumes `?.`). drop the ternary wrap to avoid synthesising an
       // invalid `null == null ? ...` BinaryExpression - mirrors the same `wrapConditional(
@@ -2812,10 +2915,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // only on the non-null branch - native short-circuits `?.` before evaluating the key. fold
       // the SE INTO the conditional alternate (`check==null ? void 0 : (SE, lookup)`); prepending
       // it to the whole result would fire it even on the short-circuit. no guard -> SE stays outside
-      const wrappedCallee = check ? wrapConditional(check, withSideEffects(lookup, effectiveSE)) : lookup;
+      const wrappedCallee = check ? wrapConditional(check, keyedLookup) : keyedLookup;
       const callArgs = [t.cloneNode(objRef), ...parent.arguments.map(a => t.cloneNode(a))];
       const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
-      callerPath.parentPath.replaceWith(check ? result : withSideEffects(result, effectiveSE));
+      callerPath.parentPath.replaceWith(result);
       return;
     }
     // a receiver already rendered as a plugin-minted guarded claim keeps its short-circuit
@@ -2830,12 +2933,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       && rawObject === object && !rawObject?.extra?.parenthesized ? object : null;
     const [recvNode, hoistedSE] = guardedRecv
       ? [guardedRecv.alternate, null]
-      : hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount, path, isCall ? 2 : 1);
+      : hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount, path, isCall ? 2 : 1, receiverSource);
     const built = isCall
       ? buildMethodCall({
         id,
         object: releaseReemittedReceiver(recvNode, path),
-        scope: path.scope, args: parent.arguments, optionalCall: parent.optional, anchorNode: parent,
+        scope: path.scope,
+        args: parent.arguments,
+        optionalCall: parent.optional,
+        anchorNode: parent,
+        anchorPath: path,
       })
       : t.callExpression(id, [cloneReceiverForEmit({ t, collapse: collapseKeptNavValueNode, node: recvNode, path, types: resolvedType })]);
     const result = guardedRecv
@@ -2843,12 +2950,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       : built;
     replaceAndWrap({
       replacePath: isCall ? callerPath.parentPath : path,
-      result: withSideEffects(result, hoistedSE), check, embedGuard: embed,
+      result: withSideEffects(result, hoistedSE),
+      check,
+      embedGuard: embed,
     });
   }
 
   function replaceCallWithSimple(path, id, skipOptional, sideEffects, receiverEffectCount) {
     inheritConsumedMemberComments(id, path.node, true);
+    const receiverSource = path.node.object;
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const { callerPath, isParenLookupOnly } = classifyCallerContext(path);
     const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
@@ -2873,16 +2983,24 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // key) must fire only when the receiver is non-null - native short-circuits before evaluating
       // it. guard the SE behind the receiver's nullishness (the polyfill still throws on null);
       // prepending it to the whole call would fire it on the short-circuit too
-      const [memoAssign, memoRef] = memoize(path.node.object, path.scope);
+      const [memoAssign, memoRef] = memoize(path.node.object, path.scope, path.node, true, {
+        scope: path.scope,
+        path,
+        adapter: getAdapter?.(),
+        injectorState: getInjector(),
+      });
       const guardedSE = wrapConditional(memoAssign,
-        withSideEffects(t.unaryExpression('void', t.numericLiteral(0)), effectiveSE));
+        withSideEffects(t.unaryExpression('void', t.numericLiteral(0)),
+          effectiveSE.filter(effect => !subtreeContainsNode(path.node.object, effect))));
       callerPath.parentPath.replaceWith(
         t.sequenceExpression([guardedSE, t.callExpression(id, [t.cloneNode(memoRef)])]),
       );
       return;
     }
-    const [check, object, embed] = extractCheck(path, skipOptional);
-    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount, path, 1);
+    const [check, object, embed] = extractCheck(path, skipOptional,
+      (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount));
+    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope,
+      seMode, receiverEffectCount, path, 1, receiverSource);
     replaceAndWrap({
       replacePath: callerPath.parentPath,
       // wrap with the caller's accumulated side effects (e.g. computed-key SE from
@@ -2910,7 +3028,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
   // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
-  // like native, while each `?.` contributes its own `null == ...` test.
+  // like native. An adjacent optional result can carry the method's own optional call.
   // the outer is a call OR a bare GET (`recv.m?.().at`) - `outerIsCall` says which, and a GET
   // ends the emit at the member itself, with no arguments to fold and no `.call` receiver.
   // the other leg re-implements the same combined chain: both build nodes now, and both spell
@@ -2919,8 +3037,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // a single pass; semantically identical, and where the shape diverges the unplugin fixture
   // carries an output-unplugin.mjs sidecar
   function replaceInstanceChainCombined(outerPath, outerId,
-    { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType,
-      outerReturnType = null }) {
+    { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType, outerReturnType = null }) {
     const callerPath = peelParenAndTSSlotPath(outerPath);
     // a GET tail has no call to fold: the emit ends at the member itself, and the outer dispatch
     // is the bare helper read (`_at(recv)`) instead of `_at(recv).call(recv, args)`
@@ -2933,23 +3050,37 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // optional method access already produces. a receiver WITHOUT one keeps the testless form:
     // `arr.flat?.()` must throw on the `.flat` read like native
     const receiverShortCircuits = receiverCarriesLiveOptional(innerCallee.object);
-    const [anAssign, aRef] = memoize(innerCallee.object, scope, outerPath.node);
-    const mRef = generateRef(scope, outerPath.node);
-    const mCall = t.callExpression(
-      t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
-      [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
-    t.inheritInnerComments(mCall, chainStartNode);
-    if (chainStartType) resolvedType?.set(mCall, chainStartType);
-
+    const receiverCtx = {
+      scope,
+      path: outerPath,
+      adapter: getAdapter?.(),
+      injectorState: getInjector(),
+    };
+    const innerKeyEffects = !!innerCallee.computed && mayHaveSideEffects(innerCallee.property, receiverCtx);
+    const [anAssign, aRef] = memoize(innerCallee.object, scope, outerPath.node, innerKeyEffects, receiverCtx);
     // `arr.flat?.()`: the `?.` guards the CALL, not the `.flat` access - reading `.flat` on a
     // nullish `arr` must THROW like native, so emit NO `null == receiver` test (it would swallow
     // the throw into void 0). guard the receiver only when ITS access is optional too
-    // (`arr?.flat?.()`). either way the method-get assigns `mRef`; fold the receiver assignment
-    // into it in the non-optional case so a non-bare receiver still evaluates exactly once
+    // (`arr?.flat?.()`). fold the receiver assignment into the method-get in the non-optional
+    // case so a non-bare receiver still evaluates exactly once
     const testsReceiver = innerCallee.optional || receiverShortCircuits;
     const methodGet = t.callExpression(t.cloneNode(innerId),
       [testsReceiver ? t.cloneNode(aRef) : anAssign]);
-    const checks = testsReceiver ? [anAssign, assignTo(mRef, methodGet)] : [assignTo(mRef, methodGet)];
+    // An adjacent optional result guard also handles the optional method's absent value.
+    // Non-optional results and intervening hops still need the distinct method guard.
+    const compactMethod = !hasHops && outerPath.node.optional && chainStartNode?.optional
+      && unwrapRuntimeExpr(outerPath.node.object) === chainStartNode;
+    const mRef = compactMethod ? null : generateRef(scope, outerPath.node);
+    const callArgs = [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))];
+    const mCall = compactMethod
+      ? estreeToBabel(chainExpression(callExpression(
+        memberExpression(hostSlot(methodGet), identifier('call'), { optional: true }), callArgs.map(hostSlot),
+      )))
+      : t.callExpression(t.memberExpression(t.cloneNode(mRef), t.identifier('call')), callArgs);
+    t.inheritInnerComments(mCall, chainStartNode);
+    if (chainStartType) resolvedType?.set(mCall, chainStartType);
+    const checks = compactMethod ? testsReceiver ? [anAssign] : []
+      : testsReceiver ? [anAssign, assignTo(mRef, methodGet)] : [assignTo(mRef, methodGet)];
     // thread surviving non-optional hops (`.map(...)` between inner `flat?.()` and outer
     // `filter?.()`): splice the memoized inner result into the outer receiver sub-chain so the
     // hops re-emit (own pass polyfills them on the inner result) rather than being dropped
@@ -2974,10 +3105,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // ECMA evaluates the receiver before the computed key: hoist the threaded receiver's memo
     // AHEAD of the folded key SE and dispatch on the ref (the optional-outer path already
     // memoized into the test's vRef, so the hoist no-ops there on a pure identifier)
-    const [outerRecv, foldedSE] = hoistReceiverSE(outerObject, sideEffects, null, scope);
+    const [outerRecv, foldedSE] = hoistReceiverSE(outerObject, sideEffects, null, scope, undefined, 0, outerPath);
     const replacement = withSideEffects(outerCall ? buildMethodCall({
-      id: outerId, object: outerRecv, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
+      id: outerId,
+      object: outerRecv,
+      scope,
+      args: outerCall.arguments,
+      optionalCall: outerCall.optional,
       anchorNode: outerPath.node,
+      anchorPath: outerPath,
     }) : t.callExpression(t.cloneNode(outerId), [outerRecv]), foldedSE);
     // the OUTER call's own return type, the twin of `chainStartType` above: this node is what a
     // member ABOVE the chain reads off, and the caller's annotation cannot reach it (the render

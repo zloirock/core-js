@@ -13,5 +13,5 @@ const arr = [[1]];
 const instanceKey = _includesMaybeArray(arr).call(arr, 1);
 const staticKey = _Array$from([1, 2]);
 const symbolKey = [..._getIterator(arr)];
-const mixedSe = (n++, _atMaybeArray(arr).call(arr, 0));
+const mixedSe = (arr, n++, _atMaybeArray(arr).call(arr, 0));
 export { instanceKey, staticKey, symbolKey, mixedSe, n };

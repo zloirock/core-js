@@ -36,9 +36,14 @@ const OPTIONS = {
 };
 const NOOP_OPTIONS = { marker: 'noop' };
 const RESULT_PREFIX = 'per-file-teardown-result ';
+const retained = { ast: null };
 
 function noopPlugin() {
   return { name: 'noop', visitor: {} };
+}
+
+function retainingPlugin() {
+  return { name: 'retaining', visitor: {}, post() { retained.ast = this.file.ast; } };
 }
 
 async function transformHoldingMarker(plugin, options, filename, form) {
@@ -57,13 +62,17 @@ async function transformHoldingMarker(plugin, options, filename, form) {
   return ref;
 }
 
-// WeakRef targets survive the remainder of the current job, so yield a macrotask first
+// Each deref keeps its target alive for the current job. Yield between GC attempts;
+// transient VM roots may survive the first collection, but persistent roots must fail.
 async function collectable(make) {
   const ref = await make();
-  await new Promise(resolve => setTimeout(resolve, 0));
-  globalThis.gc();
-  globalThis.gc();
-  return ref.deref() === undefined;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    globalThis.gc();
+    globalThis.gc();
+    if (ref.deref() === undefined) return true;
+  }
+  return false;
 }
 
 async function measure() {
@@ -72,6 +81,19 @@ async function measure() {
     // harness gate: the same transform driven by a plugin that keeps nothing must collect.
     // if it does not, the environment cannot answer the question and the rest is noise
     results[`${ prefix }/control`] = await collectable(() => transformHoldingMarker(noopPlugin, NOOP_OPTIONS, 'control.js', prefix));
+    let retainedRef;
+    results[`${ prefix }/retained/control`] = await collectable(async () => {
+      retainedRef = await transformHoldingMarker(retainingPlugin, NOOP_OPTIONS, 'retained.js', prefix);
+      return retainedRef;
+    });
+    retained.ast = null;
+    results[`${ prefix }/released/control`] = await collectable(() => retainedRef);
+    // Two timer turns release a temporary root after the first collection opportunity.
+    results[`${ prefix }/delayed/control`] = await collectable(async () => {
+      const ref = await transformHoldingMarker(retainingPlugin, NOOP_OPTIONS, 'delayed.js', prefix);
+      setTimeout(() => setTimeout(() => { retained.ast = null; }, 0), 0);
+      return ref;
+    });
     for (const [method, options] of Object.entries(OPTIONS)) {
       // two files through one instance: the first also proves the instance itself outlives a
       // collection, so a pass is teardown and not a dead plugin
@@ -96,6 +118,9 @@ if (typeof globalThis.gc === 'function') {
     for (const prefix of ['written', 'restored', 'array']) {
       const control = results[`${ prefix }/control`];
       checkTruthy(`${ prefix } control: node from a state-free plugin is collectable`, control);
+      check(`${ prefix } control: retained tree stays alive`, results[`${ prefix }/retained/control`], false);
+      checkTruthy(`${ prefix } control: released tree collects without another transform`, results[`${ prefix }/released/control`]);
+      checkTruthy(`${ prefix } control: temporary root eventually releases`, results[`${ prefix }/delayed/control`]);
       // asserting the plugin's own rows against a broken environment would only add noise
       if (!control) continue;
       for (const [label, value] of Object.entries(results)) {

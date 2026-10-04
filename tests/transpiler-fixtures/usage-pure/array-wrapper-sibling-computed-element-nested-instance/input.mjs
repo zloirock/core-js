@@ -1,10 +1,7 @@
-// A nested instance leaf under an array wrapper whose paired element the source computes (a call,
-// a selection, an optional chain) beside a SIBLING slot: the wrapper capture takes the whole literal
-// once, position for position (`const [_ref, t1] = [realm(), eff('t1')]`), so every element reads in
-// source order ahead of the per-element patterns, and the nested claim then extracts off its own
-// captured slot - a rest sibling and a claim in the second slot ride the same capture. Both legs
-// inject; the babel leg narrows the dispatcher to the Array variant where the captured element
-// resolves to the global object (its typed re-anchor), the unplugin leg dispatches generically.
+// Nested instance leaves under computed array elements keep sibling evaluations in source order.
+// Each selected element is captured once before its nested pattern, including rest siblings and
+// claims in later positions. Both legs narrow proven realm receivers and dispatch opaque ones
+// generically, reading each selected receiver through its capture.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const realm = () => globalThis;

@@ -36,15 +36,18 @@ const templateKey = function ({
 }) {
   return fl;
 }();
-// an effect-BEARING key folds to its name too: the effect stays on the pattern and runs once at
-// destructure, while the literal spells the plain name. a param host has nowhere to put a separate
-// binding, so this routes to the receiver synth like every other shape here
+// An effectful folded key runs once before the method lookup. This closed default caller
+// admits an ordered body capture, while the literal carries the key's stable spelling.
 let effects = 0;
-const sideEffectingKey = function ({
-  [(effects++, 'findIndex')]: fi
-} = {
-  "findIndex": _findIndexMaybeArray([1, 2])
-}) {
+const sideEffectingKey = function (_ref = void 0) {
+  let _ref2 = false;
+  let _ref3 = _ref === void 0 ? (_ref2 = true, [1, 2]) : _ref,
+    {} = _ref3,
+    {
+      ["findIndex"]: fi
+    } = (effects++, _ref2 ? {
+      "findIndex": _findIndexMaybeArray(_ref3)
+    } : _ref3);
   return fi;
 }();
 // NEGATIVE: a key that folds to no name cannot be replayed without re-evaluating it, so the

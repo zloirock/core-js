@@ -1,5 +1,5 @@
-// A nested read uses its paired element. Effectful neighbours require capturing that element
-// before the property read; a compact residual keeps the other positions and their coercions.
+// A nested read uses its paired element after every RHS effect.
+// Stable names need no capture; a compact residual keeps other positions and their coercions.
 let reads = 0;
 const src = { get y() { reads += 1; return [1, [2]]; } };
 const wrapped = (function () {

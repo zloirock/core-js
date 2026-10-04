@@ -19,22 +19,20 @@ function eff() {
 function aliasPureCtor({
   groupBy,
   other
-} = function (_ref) {
-  return {
-    groupBy: _Map$groupBy,
-    other: _ref.other
-  };
-}((eff(), _Map))) {
+} = (eff(), {
+  groupBy: _Map$groupBy,
+  other: _Map.other
+})) {
   return [groupBy, other];
 }
 aliasPureCtor();
 function aliasNonPureLeaf({
   fromEntries,
   missing
-} = function (_ref2) {
+} = function (_ref) {
   return {
     fromEntries: _Object$fromEntries,
-    missing: _ref2.missing
+    missing: _ref.missing
   };
 }((eff(), g.Object))) {
   return [fromEntries, missing];
@@ -46,12 +44,10 @@ let e = 0;
 function leafKeySe({
   try: t,
   absent
-} = function (_ref3) {
-  return {
-    try: _Promise$try,
-    absent: _ref3.absent
-  };
-}((e++, _Promise))) {
+} = (e++, {
+  try: _Promise$try,
+  absent: _Promise.absent
+})) {
   return [t, absent];
 }
 leafKeySe();
@@ -61,12 +57,10 @@ let tick = 0;
 function hopKeySe({
   groupBy: gb,
   more
-} = function (_ref4) {
-  return {
-    groupBy: _Map$groupBy,
-    more: _ref4.more
-  };
-}((tick++, _Map))) {
+} = (tick++, {
+  groupBy: _Map$groupBy,
+  more: _Map.more
+})) {
   return [gb, more];
 }
 hopKeySe();
@@ -75,10 +69,10 @@ hopKeySe();
 function directNonPure({
   hasOwn,
   extra
-} = function (_ref5) {
+} = function (_ref2) {
   return {
     hasOwn: _Object$hasOwn,
-    extra: _ref5.extra
+    extra: _ref2.extra
   };
 }((eff(), _self.Object))) {
   return [hasOwn, extra];
@@ -90,12 +84,10 @@ directNonPure();
 function innerGlobal({
   groupBy: g4,
   none
-} = function (_ref6) {
-  return {
-    groupBy: _Map$groupBy,
-    none: _ref6.none
-  };
-}((_globalThis.tick(), _Map))) {
+} = (_globalThis.tick(), {
+  groupBy: _Map$groupBy,
+  none: _Map.none
+})) {
   return [g4, none];
 }
 innerGlobal();
@@ -106,12 +98,10 @@ let n = 0;
 function seCallRoot({
   groupBy: g3,
   gone
-} = function (_ref7) {
-  return {
-    groupBy: _Map$groupBy,
-    gone: _ref7.gone
-  };
-}(((() => (n++, _globalThis))(), _Map))) {
+} = ((() => (n++, _globalThis))(), {
+  groupBy: _Map$groupBy,
+  gone: _Map.gone
+})) {
   return [g3, gone];
 }
 seCallRoot();

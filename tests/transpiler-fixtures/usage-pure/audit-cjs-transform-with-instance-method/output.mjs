@@ -11,5 +11,5 @@ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e
 // for `.flat()` must remain working: the plugin emits ESM-style `import _flatMaybeArray
 // from "..."` which the sibling rewrites to `var _flatMaybeArray = require("...")`. inner
 // instance-call output `_flatMaybeArray(_ref).call(_ref)` survives unchanged
-
-const flat = exports.flat = (0, _flat.default)(_data.items).call(_data.items);
+var _ref;
+const flat = exports.flat = (0, _flat.default)(_ref = _data.items).call(_ref);

@@ -58,6 +58,11 @@ export const GET_ITERATOR_ENTRY = 'get-iterator';
 // triple locally
 export const SYMBOL_ITERATOR_PURE_RESULT = { kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod' };
 
+// The iterator consumer requires real-symbol provenance; a string-spelled key stays raw.
+export function isSourcedSymbolIteratorMeta(meta) {
+  return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
+}
+
 // the `$helper` entries of the pure package that detection resolves to as the EMIT CANON itself
 // (`resolveSymbolIteratorEntry` / `resolveSymbolInEntry` + `SYMBOL_ITERATOR_PURE_RESULT`).
 // `isEntryNeeded` exempts them from a user `exclude`: filtering the entry must not flip the

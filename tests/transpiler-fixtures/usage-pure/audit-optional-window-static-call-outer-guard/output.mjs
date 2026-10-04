@@ -5,7 +5,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
-var _ref, _ref2, _ref3;
+var _ref, _ref2;
 // three window-optional forms where a receiver-independent static under a KEPT trailing-instance guard must
 // read BARE, and a bare-window ctor.static must collapse without crashing:
 //   - bareCtorStatic: `globalThis.window?.Number.MAX_SAFE_INTEGER.toFixed(1)` - the whole proxy-root.ctor.static
@@ -19,6 +19,6 @@ let w;
 let v;
 let c = 0;
 const g = _globalThis;
-export const bareCtorStatic = null == _globalThis.window ? void 0 : _toFixedMaybeNumber(_ref = _Number$MAX_SAFE_INTEGER).call(_ref, 1);
-export const aliasStaticCall = _includesMaybeArray(_ref2 = (w = g, _Array$from)([1])).call(_ref2, 1);
-export const seqStaticCall = null == (c++, v = _globalThis.window) ? void 0 : _atMaybeArray(_ref3 = _Array$of(5)).call(_ref3, 0);
+export const bareCtorStatic = null == _globalThis.window ? void 0 : _toFixedMaybeNumber(_Number$MAX_SAFE_INTEGER).call(_Number$MAX_SAFE_INTEGER, 1);
+export const aliasStaticCall = _includesMaybeArray(_ref = (w = g, _Array$from)([1])).call(_ref, 1);
+export const seqStaticCall = null == (c++, v = _globalThis.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(5)).call(_ref2, 0);

@@ -9,6 +9,6 @@ for ({
   noop(obj.flat);
 }
 for (const _ref of rows) {
-  obj.includes = _includes(_ref), _ref;
+  obj.includes = _includes(_ref);
   noop(obj.includes);
 }

@@ -546,20 +546,6 @@ export function noteProxyHopClaimHost(metaPath, node, hopNoteCtx) {
   }
 }
 
-// the sequence PREFIXES a probe spine keeps in its spelling - every kept computed key's, and
-// the spine ROOT's: the effect nodes whose claims must stay live inside the kept spelling
-export function navComputedKeyEffects(node) {
-  const effects = [];
-  let cur = unwrapRuntimeExpr(node);
-  for (; cur?.type === 'MemberExpression'; cur = unwrapRuntimeExpr(cur.object)) {
-    if (!cur.computed) continue;
-    const key = unwrapRuntimeExpr(cur.property);
-    if (key?.type === 'SequenceExpression') effects.push(...key.expressions.slice(0, -1));
-  }
-  if (cur?.type === 'SequenceExpression') effects.push(...cur.expressions.slice(0, -1));
-  return effects;
-}
-
 // a COMPUTED hop anywhere down the member spine - the read-form split arm keys on it
 // (`navComputedKeyEffects` answers a different question: only the SEQ-keyed hops' effects)
 export function spineCarriesComputedHop(objectNode) {

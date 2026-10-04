@@ -55,8 +55,8 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const [_ref2] = [arr, eff2()];
-  const m = _atMaybeArray(_ref2);
+  const [,] = [arr, eff2()];
+  const m = _atMaybeArray(arr);
   use(m);
 }
 {
@@ -94,22 +94,22 @@ function mark(t, v) {
   } : userObj];
 }
 {
-  const [_ref3, _ref4] = [pick ? {
+  const [_ref2, _ref3] = [pick ? {
     from: _Array$from
   } : _Set, 1];
   const {
     from: f
-  } = _ref3;
-  const x = _ref4;
+  } = _ref2;
+  const x = _ref3;
 }
 {
-  const [_ref5, _ref6] = [pick ? {
+  const [_ref4, _ref5] = [pick ? {
     from: _Array$from
   } : userObj, eff()];
   const {
     from: f
-  } = _ref5;
-  const z = _ref6;
+  } = _ref4;
+  const z = _ref5;
 }
 {
   const [{
@@ -125,13 +125,13 @@ function mark(t, v) {
 }
 {
   // The native first slot reads before the second slot's instance extraction.
-  const [_ref7, _ref8] = [pick ? {
+  const [_ref6,,] = [pick ? {
     from: _Array$from
   } : userObj, arr];
   const {
     from: f
-  } = _ref7;
-  const a = _atMaybeArray(_ref8);
+  } = _ref6;
+  const a = _atMaybeArray(arr);
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);
 }
 {
@@ -260,17 +260,17 @@ function mark(t, v) {
   }];
 }
 {
-  const [_ref9] = [{
+  const [_ref7] = [{
     w: (mark(), arr)
   }];
-  const m = _atMaybeArray(_ref9.w);
+  const m = _atMaybeArray(_ref7.w);
   use(m);
 }
 {
-  const [_ref10] = [{
+  const [_ref8] = [{
     w: arr
   }, eff2()];
-  const m = _atMaybeArray(_ref10.w);
+  const m = _atMaybeArray(_ref8.w);
   use(m);
 }
 {
@@ -296,27 +296,27 @@ function mark(t, v) {
 }
 {
   const keys = _keys(r.w);
+  r;
   eff('n');
   const values = _values(r.w);
   const at = _at(r.y);
   [keys, values, at];
 }
 {
-  const [_ref11] = [r, eff('n')];
-  const values = _values(_ref11.w);
+  const [,] = [r, eff('n')];
+  const values = _values(r.w);
   values;
 }
 {
-  const [_ref12, _ref13] = [r, 1];
-  const _ref14 = _ref12;
-  const values = _values(_ref14.w);
-  const at = _at(_ref14.y);
-  const x = _ref13;
+  const [, _ref9] = [r, 1];
+  const values = _values(r.w);
+  const at = _at(r.y);
+  const x = _ref9;
   [values, at, x];
 }
 {
-  const [_ref15] = [(eff(), r)];
-  const values = _values(_ref15.w);
-  const at = _at(_ref15.y);
+  const [,] = [(eff(), r)];
+  const values = _values(r.w);
+  const at = _at(r.y);
   [values, at];
 }

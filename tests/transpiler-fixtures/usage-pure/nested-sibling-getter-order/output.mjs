@@ -17,12 +17,11 @@ const source = {
     return 2;
   }
 };
-const _ref = source;
 const {
   before
-} = _ref;
-const at = _atMaybeArray(_ref.slot);
+} = source;
+const at = _atMaybeArray(source.slot);
 const {
   after
-} = _ref;
+} = source;
 export { before, at, after };

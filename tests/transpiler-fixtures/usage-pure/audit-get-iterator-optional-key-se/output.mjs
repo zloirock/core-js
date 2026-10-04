@@ -6,7 +6,7 @@ var _ref, _ref2;
 // unconditional (it throws on null like native `(undefined)()`, which a whole-expression guard would swallow
 // into void 0). so the key SE is guarded behind the receiver's nullishness, the call is not
 
-// bare-Identifier receiver: re-reference is free, no memo
+// Quiet unbound receiver: test it before the guarded key effect without a capture.
 const a = (arr == null ? void 0 : (log(), void 0), _getIterator(arr));
 
 // member receiver: re-read by both the guard test and the call, so memoized once into a _ref

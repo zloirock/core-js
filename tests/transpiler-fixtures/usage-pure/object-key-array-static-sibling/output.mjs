@@ -5,12 +5,11 @@ const held = {
   k: [Math]
 };
 const {
-  k: _ref
+  k: [_ref, _ref2]
 } = held;
-const [_ref2, _ref3] = _ref;
 const {
   sign: _unused
-} = _ref2;
+} = _ref;
 const sign = _Math$sign;
-const tail = _ref3;
+const tail = _ref2;
 export { sign, tail };

@@ -10,7 +10,7 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref3, _ref4;
+var _ref, _ref3;
 // a polyfill BURIED inside a kept chain root: the claim between them replaces the whole chain, so
 // the buried rewrite has no slot there - it has one in the GUARD, which re-emits that root as its
 // test. the fold has to reach past the claim to the rewrite that actually kept the root; blaming
@@ -27,9 +27,9 @@ export const inEffectfulBody = null == (() => {
     b: 2
   })).call(_ref2, 2);
   return _globalThis;
-})()?.window ? void 0 : _toFixedMaybeNumber(_ref3 = _Number$MAX_SAFE_INTEGER).call(_ref3, 2);
+})()?.window ? void 0 : _toFixedMaybeNumber(_Number$MAX_SAFE_INTEGER).call(_Number$MAX_SAFE_INTEGER, 2);
 
 // NEGATIVE: nothing polyfillable inside the root - the claim owns the whole span with no inner left
-export const emptyRoot = null == (() => _globalThis)()?.window ? void 0 : _flatMapMaybeArray(_ref4 = _Reflect$ownKeys({
+export const emptyRoot = null == (() => _globalThis)()?.window ? void 0 : _flatMapMaybeArray(_ref3 = _Reflect$ownKeys({
   c: 3
-})).call(_ref4, key => [key]);
+})).call(_ref3, key => [key]);

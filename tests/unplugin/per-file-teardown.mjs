@@ -2,9 +2,21 @@
 // callback installed on its adapter. Observe the parser boundary without changing the
 // production sources; a child process provides explicit GC and isolated module hooks.
 import { registerHooks } from 'node:module';
-import { setImmediate as nextTurn } from 'node:timers/promises';
+import { setTimeout as nextTurn } from 'node:timers/promises';
 
 const RESULT_PREFIX = 'unplugin-teardown-result ';
+
+// Each deref keeps its target alive for the current job. Yield between bounded
+// collection attempts so transient roots can clear; persistent roots must still fail.
+async function collectable(ref) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await nextTurn();
+    globalThis.gc();
+    globalThis.gc();
+    if (ref.deref() === undefined) return true;
+  }
+  return false;
+}
 
 if (typeof globalThis.gc === 'function') {
   const CODE = `export function read(receiver, fallback) {
@@ -48,16 +60,18 @@ if (typeof globalThis.gc === 'function') {
   const results = {};
   for (const [method, plugin] of plugins) {
     for (const pass of ['single', 'pre', 'post']) {
-      for (const control of [true, false]) {
-        retain = control;
+      for (const control of ['retained', 'released', 'delayed']) {
+        retain = control !== 'released';
         ref = null;
         const output = plugin.transform(CODE, 'input.mjs', pass);
         if (pass !== 'pre' && !output?.code.includes('core-js')) throw new Error('transform did not inject');
         if (!ref) throw new Error('parser observer did not run');
-        await nextTurn();
-        globalThis.gc();
-        globalThis.gc();
-        results[`${ method }/${ pass }/${ control ? 'retained' : 'released' }`] = ref.deref() === undefined;
+        if (control === 'delayed') {
+          // Release after the first collection opportunity, without another transform.
+          const delayedRef = ref;
+          setTimeout(() => setTimeout(() => { if (ref === delayedRef) retained = null; }, 0), 0);
+        }
+        results[`${ method }/${ pass }/${ control }`] = await collectable(ref);
         retained = null;
       }
     }
@@ -73,7 +87,7 @@ if (typeof globalThis.gc === 'function') {
   const line = stdout.split('\n').find(row => row.startsWith(RESULT_PREFIX));
   checkTruthy('child produced measurements', !!line);
   if (line) for (const [label, collected] of Object.entries(JSON.parse(line.slice(RESULT_PREFIX.length)))) {
-    check(label, collected, label.endsWith('/released'));
+    check(label, collected, label.endsWith('/released') || label.endsWith('/delayed'));
   }
   finish();
 }

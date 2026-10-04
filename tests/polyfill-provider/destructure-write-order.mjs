@@ -1,8 +1,16 @@
 // Cross-parser tests for the destructure write-order decision, the slot a declined mirror leaves to a
 // static's own default, and the plan cache a binding retires when it rewrites a host in place.
 import { orderBoundPatternProps } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { claimWriteOrderBound, leafTakesSlotDefault, mirrorAcceptedKey } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { buildNestedDestructurePlan, forgetDestructurePlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import {
+  claimWriteOrderBound,
+  leafTakesSlotDefault,
+  mirrorAcceptedKey,
+  orderedClaimCapture,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  buildNestedDestructurePlan,
+  forgetDestructurePlan,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { staticSlotTakesDefault } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -106,6 +114,36 @@ for (const [source, key] of [
   const prop = parser.pickPath(program, propType(parser), item => keyName(item.node) === key);
   check(label, claimWriteOrderBound({ prop: prop.node, objectPattern: prop.parentPath, adapter: adapterFor(parser), resolvePure: () => null }), false);
 });
+
+// A split capture writes its own hop before the next native hop. Its own key/default must still
+// read a later target before that target is written, so that independent veto remains active.
+for (const [field, sibling, expected] of [
+  ['[(effect(), "from")]: method', 'keys: box[method]', false],
+  ['[(effect(method), "from")]: first', 'keys: method', true],
+  ['[(effect(), "from")]: first = method', 'keys: method', true],
+]) runBoth(`split capture keeps outer writes/${ field }/${ sibling }`,
+  `let method, first; const box = {};
+   ({ Array: { ${ field } }, Object: { ${ sibling } } } = globalThis);`, (parser, program, label) => {
+    const prop = parser.pickPath(program, propType(parser), item => item.node.computed);
+    const adapter = adapterFor(parser);
+    adapter.method = 'usage-pure';
+    const host = parser.pickPath(program, 'AssignmentExpression', item => item.node.left.type === 'ObjectPattern');
+    const capture = orderedClaimCapture({
+      pattern: host.node.left,
+      init: host.node.right,
+      prop: prop.node,
+      kind: 'static',
+      assignment: true,
+      meta: { object: 'Array' },
+      hostPath: host,
+      adapter,
+    });
+    check(`${ label } capture keeps sibling order`, capture?.splitCapture, true);
+    function claim(meta) {
+      return meta?.key === 'from' && meta?.object === 'Array' ? { kind: 'static', entry: 'array/from' } : null;
+    }
+    check(label, claimWriteOrderBound({ prop: prop.node, objectPattern: prop.parentPath, adapter, resolvePure: claim }), expected);
+  });
 
 // Target admissibility alone does not authorize a polyfill fallback after a declined mirror.
 for (const [source, key, expected] of [

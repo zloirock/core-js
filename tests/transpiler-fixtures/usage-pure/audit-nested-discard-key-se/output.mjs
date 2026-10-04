@@ -16,7 +16,7 @@ const {
   Symbol: {
     iterator
   }
-} = (c++, _self, {
+} = (c++, {
   Symbol: {
     iterator: _Symbol$iterator
   }
@@ -28,7 +28,7 @@ const {
     resolve
   },
   other
-} = (d++, _self, {
+} = (d++, {
   Promise: {
     resolve: _Promise$resolve
   },
@@ -40,7 +40,7 @@ const {
   Map: {
     groupBy
   }
-} = (a = _Array$of(3), _self, {
+} = (a = _Array$of(3), {
   Map: {
     groupBy: _Map$groupBy
   }
@@ -55,7 +55,7 @@ const {
   Object: {
     entries
   }
-} = (mk(), k++, _self, {
+} = (mk(), k++, {
   Object: {
     entries: _Object$entries
   }

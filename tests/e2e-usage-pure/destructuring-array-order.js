@@ -3,6 +3,19 @@
 // checks source syntax; the other e2e phases check lowering after our capture.
 const testBeforeLowering = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
 
+QUnit.test('destructuring: a capture retains a guarded static beside an instance getter', assert => {
+  const events = [];
+  const list = [4, 8];
+  const known = {
+    get w() { events.push('w'); return Object; },
+    get y() { events.push('y'); return list; },
+  };
+  const [{ w: { is }, y: { at } }] = [known, events.push('rhs')];
+  assert.true(is(1, 1));
+  assert.strictEqual(at.call(list, -1), 8);
+  assert.deepEqual(events, ['rhs', 'w', 'y']);
+});
+
 QUnit.test('destructuring: positional native fragments keep keys, defaults and nested reads', assert => {
   const events = [];
   const key = {

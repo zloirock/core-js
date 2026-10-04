@@ -1,16 +1,16 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-var _ref, _ref2, _ref3, _ref4, _unused, _unused2;
+var _ref, _ref2, _unused, _unused2;
 // A nested container remains the result of both assignments; each read is polyfilled.
 let from, rest;
 const source = {
   w: Array,
   extra: 1
 };
-const held = (_ref = (_ref2 = source, _ref3 = _ref2.w, from = _Array$from, _ref3, {
+const held = ({} = source, _ref = source.w, from = _Array$from, _ref, {
   w: _unused,
   ...rest
-} = _ref2, _ref2), _ref4 = _ref.w, from = _Array$from, _ref4, {
+} = source, source, _ref2 = source.w, from = _Array$from, {
   w: _unused2,
   ...rest
-} = _ref, _ref);
+} = source, source);
 use(held === source, from([1]), rest);

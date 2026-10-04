@@ -12,11 +12,16 @@ import {
   wksComputedKeyName,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { computedKeyWellKnownSymbolName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { buildNestedDestructurePlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { SYMBOL_STATIC_KEYS } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
   buildNestedParamSynthPlan,
   buildPatternRenderPlan,
+  isReReferenceableAcrossReads,
+  planNestedKeyedPatternCapture,
+  paramDefaultInstanceSynthAllowed,
   patternComputedKeysSynthSafe,
+  planSideEffectKeyStrategy,
   renderSynthTree,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
@@ -422,12 +427,12 @@ runBoth('mirror/constructor rest with a call default keeps the call ahead of its
     check(`${ label } no coercion`, plan?.targets?.[0]?.coerceReceiver, undefined);
   });
 
-// a call with a PASSTHROUGH sibling is MEMOIZED where the host holds the sequence: the target asks
-// the emitter for a ref the passthrough reads off, and the call runs once into it
+// One native slot consumes a call directly; several native slots share a capture. The call
+// stays at its source evaluation point, including defaults and literal loop elements.
 for (const [name, source] of [
   ['for-of head', 'const mk = () => ({ p: Promise, z: 1 }); for (const { p: { all }, z } of [mk()]) use(all, z);'],
   ['parameter default', 'const mk = () => ({ p: Promise, z: 1 }); function f({ p: { all }, z } = mk()) {} f();'],
-]) runBoth(`mirror/call with a passthrough sibling is memoized/${ name }`, source, (parser, program, label) => {
+]) runBoth(`mirror/call with one native slot/${ name }`, source, (parser, program, label) => {
   const plan = buildNestedParamSynthPlan({
     leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
     adapter: keyAdapter,
@@ -435,9 +440,216 @@ for (const [name, source] of [
     resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
       ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
   });
-  check(`${ label } memoized`, plan?.targets?.[0]?.memo, true);
-  check(`${ label } call kept ahead`, plan?.targets?.[0]?.keepPrefix, true);
+  const target = plan?.targets?.[0];
+  checkTruthy(`${ label } planned`, target);
+  check(`${ label } no receiver copy`, target?.memo, undefined);
+  check(`${ label } no duplicated prefix`, target?.keepPrefix, undefined);
+  check(`${ label } source call held by native slot`, target?.receiverNode, target?.node);
+  if (!target) return;
+  const rendered = renderSynthTree(target.tree, { injectImport: (entry, hintName) => hintName, receiverNode: target.receiverNode });
+  const nativeRead = rendered.properties.find(property => property.key.name === 'z').value;
+  check(`${ label } call stays in native read`, nativeRead.object, target.node);
 });
+
+for (const [fields, memo] of [['z, tail', true], ['z', false], ['["with-dash"]: z', false]]) runBoth(`mirror/call native slot count/${ fields }`,
+  `const mk = () => ({ p: Promise, z: 1, tail: 2, "with-dash": 3 }); function f({ p: { all }, ${ fields } } = mk()) {} f();`,
+  (parser, program, label) => {
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
+      adapter: keyAdapter,
+      meta: { object: 'Promise', key: 'all', placement: 'static' },
+      resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
+        ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
+    });
+    checkTruthy(`${ label } planned`, plan?.targets?.[0]);
+    check(`${ label } receiver capture`, !!plan?.targets?.[0]?.memo, memo);
+    check(`${ label } whole call prefix`, !!plan?.targets?.[0]?.keepPrefix, memo);
+  });
+
+for (const fields of ['[(hit(), "p")]: { all }, z', 'p: { all }, missing = hit(), z']) {
+  runBoth(`mirror/call keeps preceding pattern effects/${ fields }`,
+    `const mk = () => ({ p: Promise, z: 1 }); function f({ ${ fields } } = mk()) {} f();`,
+    (parser, program, label) => {
+      const plan = buildNestedParamSynthPlan({
+        leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
+        adapter: keyAdapter,
+        meta: { object: 'Promise', key: 'all', placement: 'static' },
+        resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
+          ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
+      });
+      check(`${ label } no inline call past source effects`, plan?.targets?.some(target => !!target.receiverNode) ?? false, false);
+    });
+}
+
+// Quiet source names and erased declarations follow the same scoped identifier proof.
+for (const [prefix, reusable] of [['', true], ['declare const source: unknown;', true], ['const source = {};', true]]) {
+  runBoth(`mirror/scoped receiver read/${ prefix }`, `${ prefix } use(source);`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'Identifier', item => item.node.name === 'source'
+      && item.parentPath?.node?.type === 'CallExpression');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    check(label, isReReferenceableAcrossReads(path.node, { scope: path.scope, adapter, path }), reusable);
+  });
+}
+
+for (const [prefix, expectedMemo] of [['', false], ['const source = {};', false]]) {
+  runBoth(`mirror/array shares its original receiver/${ prefix }`,
+    `${ prefix } const [{ at, includes }] = [source];`, (parser, program, label) => {
+      const arrayPath = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ArrayPattern');
+      const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+      const plan = buildNestedDestructurePlan({
+        arrayPath,
+        adapter,
+        resolvePure: meta => ['at', 'includes'].includes(meta.key)
+          ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null,
+      });
+      checkTruthy(`${ label } paired plan`, plan?.array);
+      check(`${ label } receiver shared before native method getters`, !!plan?.array.memos?.length, expectedMemo);
+    });
+}
+
+runBoth('mirror/array single nested leaf reads its unbound receiver once',
+  'const [{ y: { at } }] = [source];', (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ArrayPattern');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const plan = buildNestedDestructurePlan({
+      arrayPath,
+      adapter,
+      resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
+    });
+    checkTruthy(`${ label } direct reading plan`, plan?.array);
+    check(`${ label } no duplicated receiver needs capture`, !!plan?.array.capture, false);
+    check(`${ label } source member read is carried`, plan?.extractions?.[0]?.receiver?.object?.name, 'source');
+  });
+
+runBoth('mirror/array preserves the initial name read before its effectful neighbour',
+  'const [{ w: { values }, y: { at } }] = [source, effect()];', (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ArrayPattern');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const plan = buildNestedDestructurePlan({
+      arrayPath,
+      adapter,
+      resolvePure: meta => ['values', 'at'].includes(meta.key)
+        ? { kind: 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key } : null,
+    });
+    checkTruthy(`${ label } compact plan`, plan?.array);
+    check(`${ label } source name needs no capture`, !!plan?.array.capture, false);
+    checkDeep(`${ label } initial read and RHS effect stay ordered`, plan?.array.discarded?.map(node => node.type), ['Identifier', 'CallExpression']);
+    check(`${ label } initial source read retained`, plan?.array.discarded?.[0], arrayPath.node.init.elements[0]);
+    check(`${ label } original RHS effect retained`, plan?.array.discarded?.[1], arrayPath.node.init.elements[1]);
+  });
+
+// Captured ordinary leaves have one method Get, even when the enclosing source keeps
+// native spread, iteration or coercion. Siblings, defaults and symbol reads retain theirs.
+for (const [fields, entry, capture, expected] of [
+  ['at', 'array/instance/at', true, true],
+  ['["at"]: at', 'array/instance/at', true, true],
+  ['at', 'array/instance/at', false, false],
+  ['at = fallback()', 'array/instance/at', true, false],
+  ['at, includes', 'array/instance/at', true, false],
+  ['at, ...rest', 'array/instance/at', true, false],
+  ['[Symbol.iterator]: method', 'get-iterator-method', true, false],
+  ['[(effect(), "at")]: at', 'array/instance/at', true, false],
+]) runBoth(`mirror/captured leaf read ownership/${ fields }/${ capture }`,
+  `const { w: { ${ fields } } } = { ...source, w: [1] };`, (parser, program, label) => {
+    const patternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name !== 'w');
+    const [leaf] = patternPath.node.properties;
+    const literal = parser.pickPath(program, 'ArrayExpression').node;
+    const plan = planSideEffectKeyStrategy({
+      polyfillKind: 'instance',
+      entry,
+      prop: leaf,
+      pattern: patternPath.node,
+      hostPattern: parser.pickPath(program, 'VariableDeclarator').node.id,
+      sourceBindingCount: 1,
+      receiverNode: { type: 'Identifier', name: 'captured' },
+      capturedReceiverNode: capture ? literal : null,
+      propKeyIsPure: fields !== '[(effect(), "at")]: at',
+    });
+    check(`${ label } source wrapper retained`, plan?.eliminateResidual, false);
+    check(`${ label } one ordinary Get owned by dispatcher`, plan?.consumeResidualRead, expected);
+  });
+
+runBoth('mirror/current literal capture owns its method Get',
+  'const { w: { at } } = { ...source, w: [1] };', (parser, program, label) => {
+    const patternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'at');
+    const literal = parser.pickPath(program, 'ArrayExpression').node;
+    const plan = planSideEffectKeyStrategy({
+      polyfillKind: 'instance',
+      entry: 'array/instance/at',
+      receiverNode: literal,
+      prop: patternPath.node.properties[0],
+      pattern: patternPath.node,
+      hostPattern: parser.pickPath(program, 'VariableDeclarator').node.id,
+      sourceBindingCount: 1,
+    });
+    check(`${ label } allocator captures literal before both readers`, plan.memoizeReceiver, true);
+    check(`${ label } native leaf read is spent`, plan.consumeResidualRead, true);
+  });
+
+for (const fields of ['w: { at }, z: {}', 'w: { at }, ...rest', 'before: {}, w: { at }']) {
+  runBoth(`mirror/captured leaf cannot cross native siblings/${ fields }`,
+    `const { ${ fields } } = { ...source, w: [1] };`, (parser, program, label) => {
+      const patternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'at');
+      const plan = planSideEffectKeyStrategy({
+        polyfillKind: 'instance',
+        entry: 'array/instance/at',
+        prop: patternPath.node.properties[0],
+        pattern: patternPath.node,
+        hostPattern: parser.pickPath(program, 'VariableDeclarator').node.id,
+        sourceBindingCount: 1,
+        receiverNode: { type: 'Identifier', name: 'captured' },
+        capturedReceiverNode: parser.pickPath(program, 'ArrayExpression').node,
+      });
+      check(`${ label } native sibling keeps method read in its slot`, plan.consumeResidualRead, false);
+    });
+}
+
+runBoth('mirror/earlier extracted binding does not make a source host sole',
+  'const { w: { at } } = { ...source, w: [1] };', (parser, program, label) => {
+    const patternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'at');
+    const plan = planSideEffectKeyStrategy({
+      polyfillKind: 'instance',
+      entry: 'array/instance/at',
+      prop: patternPath.node.properties[0],
+      pattern: patternPath.node,
+      hostPattern: parser.pickPath(program, 'VariableDeclarator').node.id,
+      sourceBindingCount: 2,
+      receiverNode: { type: 'Identifier', name: 'captured' },
+      capturedReceiverNode: parser.pickPath(program, 'ArrayExpression').node,
+    });
+    check(`${ label } original binding count still constrains the handoff`, plan.consumeResidualRead, false);
+  });
+
+for (const [pattern, entry, inline] of [
+  ['{ y: { at } }', 'instance/at', false],
+  ['{ y: { at }, other }', 'instance/at', true],
+  ['{ y: { at = fallback() }, other }', 'instance/at', false],
+  ['{ y: { at, includes }, other }', 'instance/at', false],
+  ['{ y: { ["at"]: at }, other }', 'instance/at', false],
+  ['{ ["y"]: { at }, other }', 'instance/at', false],
+  ['{ y: { at } = fallback(), other }', 'instance/at', false],
+  ['{ y: { at, ...rest }, other }', 'instance/at', false],
+  ['{ y: { at }, other }', 'get-iterator-method', false],
+]) runBoth(`mirror/ordered singleton receiver forwarding/${ pattern }/${ entry }`,
+  `let at, includes, other, rest; (${ pattern } = source);`, (parser, program, label) => {
+    const assignment = parser.pickPath(program, 'AssignmentExpression');
+    const patternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'at'
+      || path.node.properties[0]?.computed && path.node.properties[0]?.value?.name === 'at');
+    const [claim] = patternPath.node.properties;
+    const plan = planNestedKeyedPatternCapture({
+      pattern: assignment.node.left,
+      init: assignment.node.right,
+      ancestors: assignment.node.left.properties.length > 1
+        ? [{ pattern: assignment.node.left, prop: assignment.node.left.properties[0], defaultValue: null }]
+        : null,
+      force: true,
+      plansLeaf: true,
+      prop: claim,
+      kind: 'instance',
+      entry,
+    });
+    check(`${ label } only a final ordinary single read can forward`, !!plan?.inlineLeaf, inline);
+  });
 
 // a NAME bound to a call yielding a container is a static root of the mirror, as a name bound to
 // the literal is: the keys descend the receiver walk's alias and call arms, the read of the name is
@@ -455,6 +667,24 @@ runBoth('mirror/alias of a call is a static root', 'const mk = () => ({ p: Promi
     });
     check(`${ label } planned`, plan?.targets?.length, 1);
     check(`${ label } replaces the name`, plan?.targets?.[0]?.node?.name, 'w');
+  });
+
+// A simple mirror must not evaluate a native sibling before an effectful key.
+for (const [fields, allowed] of [
+  ['at, "with-dash": other', true],
+  ['at, [(hit(), "with-dash")]: other', false],
+  ['[(hit(), "at")]: at', true],
+]) runBoth(`instance mirror native read order/${ fields }`, `function read({ ${ fields } } = [1]) {}`,
+  (parser, program, label) => {
+    const assignment = parser.pickPath(program, 'AssignmentPattern');
+    check(label, paramDefaultInstanceSynthAllowed({
+      objectPatternNode: assignment.node.left,
+      receiverNode: assignment.node.right,
+      scope: assignment.scope,
+      path: assignment,
+      adapter: keyAdapter,
+      resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null,
+    }), allowed);
   });
 
 finish();

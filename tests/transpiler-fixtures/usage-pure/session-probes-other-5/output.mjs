@@ -120,8 +120,7 @@ function mark(t, v) {
   var _ref4;
   const _ref3 = [9],
     w7 = null == _ref3 ? _ref3[""] : (e7(), (_ref4 = _withMaybeArray(_ref3)) === void 0 ? dfltG() : _ref4),
-    _ref5 = _ref3,
-    t8 = null == _ref5 ? _ref5[""] : (e8(), _toSplicedMaybeArray(_ref5));
+    t8 = null == _ref3 ? _ref3[""] : (e8(), _toSplicedMaybeArray(_ref3));
   w7(t8);
 }
 {
@@ -143,11 +142,10 @@ function mark(t, v) {
   };
 }
 {
-  const _ref7 = _globalThis,
-    {
-      [(eff('k'), 'Array')]: _ref6
-    } = null == _ref7 ? _ref7[""] : _ref7,
-    it16 = _getIteratorMethod(_ref6);
+  const {
+      [(eff('k'), 'Array')]: _ref5
+    } = null == _globalThis ? _globalThis[""] : _globalThis,
+    it16 = _getIteratorMethod(_ref5);
 }
 {
   const {
@@ -194,17 +192,11 @@ function mark(t, v) {
   };
 }
 {
+  const f5 = _Array$from;
   const {
-    [(eff('k'), 'Array')]: {
-      from: f5
-    },
+    [(eff('k'), 'Array')]: _unused,
     z
-  } = {
-    Array: {
-      from: _Array$from
-    },
-    z: _globalThis.z
-  };
+  } = _globalThis;
 }
 {
   const {
@@ -222,23 +214,19 @@ function mark(t, v) {
 {
   const f8 = _Array$from;
   const {
-    [(eff('k'), 'Array')]: _unused,
+    [(eff('k'), 'Array')]: _unused2,
     ...rest
   } = _globalThis;
 }
 {
-  const _ref9 = _globalThis,
-    {
-      [(eff('k'), 'Array')]: _ref8
-    } = null == _ref9 ? _ref9[""] : _ref9,
-    {
-      prototype: _ref10
-    } = _ref8,
-    f2 = _valuesMaybeArray(_ref10);
+  const {
+    [(eff('k'), 'Array')]: _ref6
+  } = null == _globalThis ? _globalThis[""] : _globalThis;
+  const f2 = _valuesMaybeArray(_ref6.prototype);
 }
 {
-  const _ref11 = g(),
-    a = null == _ref11 ? _ref11[""] : (eff('k'), _at(_ref11));
+  const _ref7 = g(),
+    a = null == _ref7 ? _ref7[""] : (eff('k'), _at(_ref7));
 }
 {
   const f3 = (eff('k'), _Array$from);
@@ -259,13 +247,12 @@ function mark(t, v) {
   };
 }
 {
-  const _ref13 = {
+  const {
+      [(eff('k'), 'w')]: _ref8
+    } = {
       w: src
     },
-    {
-      [(eff('k'), 'w')]: _ref12
-    } = null == _ref13 ? _ref13[""] : _ref13,
-    a = null == _ref12 ? _ref12[""] : (eff('k2'), _at(_ref12));
+    a = null == _ref8 ? _ref8[""] : (eff('k2'), _at(_ref8));
 }
 {
   const {
@@ -279,40 +266,36 @@ function mark(t, v) {
   };
 }
 {
-  const _ref15 = {
+  const {
+      [(eff('k'), 'w')]: _ref9
+    } = {
       w: [1]
     },
-    {
-      [(eff('k'), 'w')]: _ref14
-    } = null == _ref15 ? _ref15[""] : _ref15,
-    a = _atMaybeArray(_ref14);
+    a = _atMaybeArray(_ref9);
 }
 {
-  const _ref17 = {
+  const {
+      [(eff('k'), 'w')]: _ref10
+    } = {
       w: [1]
     },
-    {
-      [(eff('k'), 'w')]: _ref16
-    } = null == _ref17 ? _ref17[""] : _ref17,
-    f13 = _atMaybeArray(_ref16);
+    f13 = _atMaybeArray(_ref10);
 }
 {
-  const _ref19 = {
+  const {
+      [(eff('k'), 'w')]: _ref11
+    } = {
       w: g()
     },
-    {
-      [(eff('k'), 'w')]: _ref18
-    } = null == _ref19 ? _ref19[""] : _ref19,
-    f19 = _at(_ref18);
+    f19 = _at(_ref11);
 }
 {
-  const _ref21 = {
+  const {
+      [(eff('k'), 'w')]: _ref12
+    } = {
       w: arr
     },
-    {
-      [(eff('k'), 'w')]: _ref20
-    } = null == _ref21 ? _ref21[""] : _ref21,
-    f20 = _atMaybeArray(_ref20);
+    f20 = _atMaybeArray(_ref12);
 }
 {
   const {
@@ -361,12 +344,8 @@ function mark(t, v) {
   };
 }
 {
-  const _ref23 = _globalThis,
-    {
-      [(eff(), 'Array')]: _ref22
-    } = null == _ref23 ? _ref23[""] : _ref23,
-    {
-      prototype: _ref24
-    } = _ref22,
-    v2 = _valuesMaybeArray(_ref24);
+  const {
+    [(eff(), 'Array')]: _ref13
+  } = null == _globalThis ? _globalThis[""] : _globalThis;
+  const v2 = _valuesMaybeArray(_ref13.prototype);
 }

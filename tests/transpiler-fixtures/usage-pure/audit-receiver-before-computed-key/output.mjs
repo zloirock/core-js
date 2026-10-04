@@ -15,9 +15,9 @@ export const memberReceiver = null == (_ref = _globalThis.window) ? void 0 : (_r
 export const memberReceiverPlain = (_ref3 = _globalThis.orderBox.list, k++, _at(_ref3).call(_ref3, 0));
 export const deepMemberReceiver = null == (_ref4 = _globalThis.window) ? void 0 : (_ref5 = _ref4.orderBox.list, k++, _includes(_ref5).call(_ref5, 'a'));
 
-// a receiver that CANNOT run anything stays in place: a literal builds its value without invoking
-// user code, and a binding is just a read - the negatives that keep the hoist off the common path
+// A literal receiver is constructed before its computed key and reused for the call.
+// An initialized, unchanged local binding can be read directly without a receiver capture.
 const bound = ['ab', 'cd'];
-export const literalReceiver = (k++, _atMaybeArray(_ref6 = ['ab', 'cd']).call(_ref6, 0));
-export const bindingReceiver = (k++, _atMaybeArray(bound).call(bound, 0));
+export const literalReceiver = (_ref6 = ['ab', 'cd'], k++, _atMaybeArray(_ref6).call(_ref6, 0));
+export const bindingReceiver = (bound, k++, _atMaybeArray(bound).call(bound, 0));
 export { k };

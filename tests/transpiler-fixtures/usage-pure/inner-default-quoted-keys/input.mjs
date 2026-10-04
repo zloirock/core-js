@@ -9,7 +9,7 @@ export function read(source) {
 }
 export const result = [ctor, dash, bracket, empty, prototype, of, rest];
 
-// Quoted and identifier siblings share data slots, including a repeated key.
+// Repeated keys keep separate native reads beside quoted and identifier siblings.
 export function readRepeated(source) {
   const [{ Array: { of }, 'with-dash': dash, late: first, late: second } = globalThis] = source;
   return [of, dash, first, second];
