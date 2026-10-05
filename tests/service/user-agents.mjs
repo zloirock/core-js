@@ -12,10 +12,14 @@ const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
 // row carries where the string came from, because a hand-written user agent proves nothing - an
 // invented version pair reads as a finding and is only a typo
 ok(corpus.length > 30, `user-agents-1 #1: only ${ corpus.length } strings in the corpus`);
+// and the terms it was published under: every row is copied from somewhere, so a row that cannot
+// name the file, pinned to a commit or a version, and the license beside it has no place here
+deepStrictEqual(corpus.filter(({ source, license }) => !/^https:\/\//.test(source) || !/^https:\/\//.test(license))
+  .map(row => row.browser), [], 'user-agents-1 #2');
 
 for (const [index, row] of corpus.entries()) {
   const target = resolve({ 'user-agent': row.userAgent });
-  const label = `user-agents-1 #${ index + 2 }: ${ row.browser }`;
+  const label = `user-agents-1 #${ index + 3 }: ${ row.browser }`;
 
   if (row.engine === null) strictEqual(target, null, label);
   else deepStrictEqual(target && { engine: target.engine, version: target.version },

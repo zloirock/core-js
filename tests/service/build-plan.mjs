@@ -57,8 +57,12 @@ for (const [engine, entries] of service.plan.byEngine) {
 const match = createMatcher(service.plan);
 const resolve = createResolver({ parseUserAgent });
 
+// https://unpkg.com/user-agents@2.1.177/dist/user-agents.json
+// License: https://unpkg.com/user-agents@2.1.177/LICENSE
 const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
   + 'Chrome/143.0.0.0 Safari/537.36';
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Additional-Tests.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 const IE = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
 
 ok(built.has(match(resolve({ 'user-agent': CHROME }))), 'build-plan #8');

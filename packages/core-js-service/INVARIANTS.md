@@ -101,7 +101,8 @@ trap below is named, and the suite names its assertions after them.
   anything about is a visitor the resolver identified wrongly, or one below the declared targets:
   the plan holds what it was told to hold
 - **user-agents-1** - what a corpus of REAL user agents resolves to is fixed by a fixture, one row
-  per string, each carrying where the string came from. The rows are the regression net for both
+  per string, each carrying where the string came from - the file, pinned to a commit or a version -
+  and the license it was published under. The rows are the regression net for both
   this code and bowser; the provenance is there because a hand-written user agent proves nothing -
   an invented version pair reads as a finding and is only a typo. What the fixture must NOT assert
   is how many modules a string ends up with: that is compat data, and it would go red on somebody

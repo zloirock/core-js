@@ -10,6 +10,8 @@ function resolveUA(userAgent) {
   return target && `${ target.engine } ${ target.version }`;
 }
 
+// https://unpkg.com/user-agents@2.1.177/dist/user-agents.json
+// License: https://unpkg.com/user-agents@2.1.177/LICENSE
 const IOS_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
 // no `Version/` token: the browser writes its own instead
@@ -26,6 +28,8 @@ strictEqual(resolveUA(IOS_SAFARI), 'ios 26.1', 'resolver-5 #2');
 // asked for the desktop site, Chrome on iOS sends a Mac string and keeps only its own token, which no
 // other system carries. The `Version/11.1.1` is a literal of that string, so the WebKit build is the
 // one floor left - and without the frozen build there is none at all
+// https://unpkg.com/user-agents@2.1.199/dist/user-agents.json
+// License: https://unpkg.com/user-agents@2.1.199/LICENSE
 const IOS_CHROME_DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) CriOS/154 Version/11.1.1 Safari/605.1.15';
 
@@ -38,6 +42,8 @@ const IOS_NO_VERSION = IOS_SAFARI.replace('CPU iPhone OS 18_7 ', '');
 strictEqual(resolveUA(IOS_NO_VERSION.replace('Version/26.1', 'Firefox/120.0')), null, 'resolver-5 #5');
 strictEqual(resolveUA(IOS_NO_VERSION.replace('Version/26.1', 'CriOS/140.0.7339.100')), null, 'resolver-5 #6');
 // while an Android phone with an iPad in its model name is not an Apple device at all
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-18.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (Linux; Android 7.0; KLIPAD_V355B) AppleWebKit/537.36 (KHTML, like Gecko) '
   + 'Chrome/76.0.3809.132 Mobile Safari/537.36'), 'chrome 76.0.3809.132', 'resolver-5 #7');
 
@@ -92,18 +98,17 @@ strictEqual(resolveWith(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', 
 strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1 ', ''), 'gzip, deflate, br, zstd'), 'ios 18.7', 'resolver-4 #12');
 
 // an app that assembles its own string may report the OS it read from the system beside the frozen
-// token - and that is the OS itself, so the lower bound is not the answer there
-const IOS_INSTAGRAM = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
-  + 'Mobile/23G83 Instagram 423.1.0.30.69 (iPhone13,2; iOS 26_6_1; en_GB; en-GB; scale=3.00; 1170x2532; IABMV/1; '
-  + '924167814) Safari/604.1';
-const IOS_FACEBOOK = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
-  + 'Mobile/22H217 Safari/604.1 [FBAN/FBIOS;FBAV/555.0.0.36.63;FBBV/923840166;FBDV/iPhone11,8;FBMD/iPhone;FBSN/iOS;'
-  + 'FBSV/18.7.3;FBSS/2;FBID/phone;FBLC/en_GB;FBOP/5;FBRV/944867043;IABMV/1];FBNV/1';
+// token - and that is the OS itself, so the lower bound is not the answer there. Both strings are
+// built on the Safari one: the real ones found are published under no license
+const IOS_IN_APP_FROZEN = IOS_SAFARI.replace('Version/26.1 ', '');
+const IOS_INSTAGRAM = IOS_IN_APP_FROZEN.replace('Safari/604.1',
+  'Instagram 400.0.0.0.0 (iPhone14,2; iOS 26_6_1; en_US; en-US; scale=3.00) Safari/604.1');
+const IOS_FACEBOOK = IOS_IN_APP_FROZEN.replace('Safari/604.1', 'Safari/604.1 [FBAN/FBIOS;FBAV/500.0.0.0.0;FBSV/18.7.3]');
 
 strictEqual(resolveUA(IOS_INSTAGRAM), 'ios 26.6.1', 'resolver-6 #3');
 strictEqual(resolveUA(IOS_FACEBOOK), 'ios 18.7.3', 'resolver-6 #4');
 // the same segment on an iPad, whose model the app writes the same way
-strictEqual(resolveUA(IOS_INSTAGRAM.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS').replace('iPhone13,2', 'iPad13,4')),
+strictEqual(resolveUA(IOS_INSTAGRAM.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS').replace('iPhone14,2', 'iPad13,4')),
   'ios 26.6.1', 'resolver-6 #5');
 // and a report is an upper bound as much as an answer: where the string says two things about the
 // OS, the lower one is the answer, because only the lower one cannot be above the truth
@@ -118,6 +123,8 @@ strictEqual(resolveUA(IOS_IN_APP.replace('WKWebView/1', 'GNews iOS/5.104')), 'io
 strictEqual(resolveUA(IOS_IN_APP), 'ios 13.3.1', 'resolver-4 #1');
 
 // the engines the compat data counts separately on Android
+// https://unpkg.com/user-agents@2.1.177/dist/user-agents.json
+// License: https://unpkg.com/user-agents@2.1.177/LICENSE
 const CHROME_DESKTOP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
   + 'Chrome/143.0.0.0 Safari/537.36';
 
@@ -133,8 +140,12 @@ strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
 strictEqual(resolveUA('Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S928B) AppleWebKit/537.36 '
   + '(KHTML, like Gecko) SamsungBrowser/28.0 Chrome/136.0.0.0 Mobile Safari/537.36'),
 'samsung 28.0', 'resolver #6');
+// https://unpkg.com/top-user-agents@2.1.134/src/index.json
+// License: https://unpkg.com/top-user-agents@2.1.134/LICENSE.md
 strictEqual(resolveUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) Version/26.2 Safari/605.1.15'), 'safari 26.2', 'resolver #7');
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Additional-Tests.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko'),
   'ie 11.0', 'resolver #8');
 
@@ -152,6 +163,8 @@ strictEqual(resolveUA('Mozilla/5.0 (Linux; Android 14; SM-A155F Build/UP1A) Appl
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
   + 'Chrome/128.0.0.0 YaBrowser/24.10.0 Safari/537.36'), 'chrome 128.0.0.0', 'resolver #11');
 // LG spells the token `Chr0me/` on its televisions, and it is the Chromium the set runs all the same
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/tv-4.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 const LG_WEBOS = 'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chr0me/87.0.4280.88 '
   + 'Safari/537.36 LG Browser/8.00.00(LGE; 0V50500; 04.41.33; 0x00000001; DTV_C22P); webOS.TV-2022; '
   + 'LG NetCast.TV-2013 Compatible (LGE, 0V50500, wireless)';
@@ -166,31 +179,47 @@ strictEqual(resolveUA(LG_WEBOS.replace('Chr0me/', 'XChr0me/')), null, 'resolver 
 // and the compat data has no row for it. The `Firefox/68.9` beside it is a compatibility claim, and
 // read as Firefox it hands a thin bundle to an engine that is not that Firefox - Mypal is what
 // Windows XP runs today
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 const GOANNA = 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:68.9) Gecko/20100101 Goanna/4.5 Firefox/68.9 Mypal/28.9.0';
 
 strictEqual(resolveUA(GOANNA), null, 'resolver-6 #10');
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.9) Gecko/20100101 Goanna/4.4 Firefox/60.9 '
   + 'Basilisk/20190912'), null, 'resolver-6 #11');
 // and Goanna is not the only one. Ladybird runs a JavaScript engine of its own behind `Chrome/146`;
 // Servo runs SpiderMonkey, and none of the Gecko the web modules are measured on; Ekioh Flow is a
 // layout engine of its own - none of them has a row, and the version they claim is not theirs
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/fixtures/oss.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ladybird/1.0 Chrome/146.0.0.0 '
   + 'AppleWebKit/537.36 Safari/537.36'), null, 'resolver-6 #18');
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/desktop.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Servo/1.0 Firefox/37.0'),
   null, 'resolver-6 #19');
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/SpecialBrowsers.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 () EkiohFlow/6.1.0.37151 Flow/6.1.0 (like Gecko Firefox/89.0 rv:89.0)'),
   null, 'resolver-6 #20');
 // a Gecko browser under a name nothing knows still carries the engine's own version in `rv:`, the
 // way a Chromium carries its token - and on Android the row is the mobile one
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 MullvadBrowser/115.8.0'),
   'firefox 115.0', 'resolver-6 #13');
 strictEqual(resolveUA('Mozilla/5.0 (Android 10; Mobile VR; rv:105.0) Gecko/105.0 Wolvic/1.2'),
   'firefox-android 105.0', 'resolver-6 #14');
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Additional-Tests.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0 SeaMonkey/2.53.9'),
   'firefox 60.0', 'resolver-6 #15');
 // but only beside a `Gecko/` token Gecko could have written - its build date or its version.
 // `Gecko/2000000000` is neither, and the `rv:12.3` in front of it sits on an Iceape 1.1.5, a Gecko
 // 1.8 - the string was rewritten, and nothing in it says which engine is underneath
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Ubuntu.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (X11; Linux i686; en; rv:12.3) Gecko/2000000000 Iceape/1.1.5 '
   + '(Ubuntu-1.1.5-1ubuntu0.7.10)'), null, 'resolver-6 #16');
 // and the `like Gecko` of Internet Explorer 11 is no Gecko token at all
@@ -203,6 +232,8 @@ strictEqual(resolveUA(GOANNA.replace(' Goanna/4.5', '').replace(' Mypal/28.9.0',
 // the Mac string by default - still carries the WebKit build, and `605.1.15` is the one WebKit froze
 // the token at from Safari 11.1 and iOS 11.3 on: 11.0.2 was `604.4.7`. That is a lower bound, and
 // the iPad row travels with it as for any Mac string
+// https://unpkg.com/top-user-agents@2.1.134/src/index.json
+// License: https://unpkg.com/top-user-agents@2.1.134/LICENSE.md
 const MAC_WEBVIEW = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)';
 
 deepStrictEqual(resolve({ 'user-agent': MAC_WEBVIEW }),
@@ -216,6 +247,8 @@ strictEqual(resolveUA(MAC_WEBVIEW.replace('605.1.15', '604.4.7')), null, 'resolv
 
 // every failure to identify leads to the baseline, never past it. a confident wrong answer costs a
 // missing module; "I do not know" costs a few kilobytes
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Robot-Imitators.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 strictEqual(resolveUA('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'),
   null, 'resolver-1 #1');
 strictEqual(resolveUA('x'), null, 'resolver-1 #2');
@@ -230,6 +263,8 @@ const onKaiOS = createResolver({
   parseUserAgent: () => ({ browser: { name: 'Firefox', version: '37.0' }, os: { name: 'iOS', version: null } }),
 });
 
+// https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/feature_phone.yml
+// License: https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE
 deepStrictEqual(onKaiOS({ 'user-agent': 'Mozilla/5.0 (Mobile; ALCATEL4044T; rv:37.0) Gecko/37.0 Firefox/37.0 KaiOS/1.0' }),
   { engine: 'firefox', version: '37.0' }, 'resolver-6 #1');
 // and a real iOS string still resolves through the same branch

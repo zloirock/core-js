@@ -6,8 +6,12 @@ import polyfillService from '@core-js/service/express';
 import createAdapter from '../../packages/core-js-service/internals/ui/adapter/express.js';
 
 const SCOPE = ['es.array.at', 'es.object.group-by', 'es.string.replace-all', 'es.iterator.map'];
+// https://unpkg.com/user-agents@2.1.177/dist/user-agents.json
+// License: https://unpkg.com/user-agents@2.1.177/LICENSE
 const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
   + 'Chrome/143.0.0.0 Safari/537.36';
+// https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Additional-Tests.yaml
+// License: https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE
 const IE = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
 // long enough for `compression` to bother with it - it leaves anything under a kilobyte alone
 const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>a page</title></head><body>${
