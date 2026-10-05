@@ -32,7 +32,7 @@ do not import them.
   definitions in `@core-js/types` do - `// <source>` and `// License: <license>`. A string written
   here, or built from another one, carries neither. A source that publishes under no license is not
   copied from, and neither is one whose license the repository cannot take - `ua-parser-js` from
-  2.0 is AGPL
+  2.0 is AGPL, Matomo's `device-detector` is LGPL
 - **What decides the SIZE of that corpus is path coverage, not a count.** Ten thousand strings would
   pin ten thousand answers and prove one thing per branch anyway; the rows are chosen so that every
   path through the resolver has one - the branch taken (iOS, Quest, Trident, a name, a bare Chromium

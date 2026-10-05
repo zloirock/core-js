@@ -159,84 +159,84 @@
   },
   {
     "browser": "Windows IE 11",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/desktop.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_os.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Trident/7.0; rv:11.0) like Gecko",
     "engine": "ie",
     "version": "11.0"
   },
   {
     "browser": "IE 11 in compatibility view",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/pim.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.1; Win64; x64; Trident/7.0; .NET CLR 2.0.50727; SLCC2; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; .NET4.0C; InfoPath.3; .NET CLR 1.1.4322; FDM; Tablet PC 2.0; .NET4.0E; Microsoft Outlook 14.0.7113; ms-office; MSOffice 14)",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/MSInternetExplorer.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.1; WOW64; Trident/7.0; SLCC2)",
     "engine": "ie",
     "version": "11",
     "note": "IE 11 pretending to be IE 7; the answer lands near the floor, which is the safe direction"
   },
   {
     "browser": "Edge Legacy (EdgeHTML), which claims a Chrome it never was",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/phablet.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Windows Phone 10.0; Android 6.0.1; Microsoft; RM-1096) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Mobile Safari/537.36 Edge/15.15063",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/WindowsPhone.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Windows Phone 10.0; Android 4.2.1; NOKIA; Lumia 630) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Mobile Safari/537.36 Edge/12.0",
     "engine": "edge",
-    "version": "15.15063",
-    "note": "the `Chrome/52` token here is a compatibility lie - EdgeHTML was never Chromium, and reading that token would hand this engine a bundle built for a Chromium it does not have"
+    "version": "12.0",
+    "note": "the `Chrome/39` token here is a compatibility lie - EdgeHTML was never Chromium, and reading that token would hand this engine a bundle built for a Chromium it does not have"
   },
   {
     "browser": "Android Edge",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-42.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 12; BLK-LX9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36 EdgA/138.0.0.0",
+    "source": "https://unpkg.com/user-agents@2.1.199/dist/user-agents.json",
+    "license": "https://unpkg.com/user-agents@2.1.199/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36 EdgA/153.0.0.0",
     "engine": "edge",
-    "version": "138.0.0.0",
+    "version": "153.0.0.0",
     "note": "the compat data has no `edge-android` row, so an Android Edge lands on the desktop `edge` one"
   },
   {
     "browser": "Android Opera",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-42.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 14; V1916T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.140 Mobile Safari/537.36 OPR/107.0.5045.15",
+    "source": "https://unpkg.com/user-agents@2.1.199/dist/user-agents.json",
+    "license": "https://unpkg.com/user-agents@2.1.199/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36 OPR/102.0.0.0",
     "engine": "opera-android",
-    "version": "107.0.5045.15"
+    "version": "102.0.0.0"
   },
   {
     "browser": "Android UC Browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-41.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; U; Android 14; en-US; V2433 Build/UP1A.231005.007_MOD2) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.6478.71 UCBrowser/12.12.10.1228 Mobile Safari/537.36",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Apps.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 9; zh-CN; Pixel Build/PPR2.181005.003) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/57.0.2987.108 UCBrowser/11.9.4.974 UWS/2.13.2.36 Mobile Safari/537.36 AliApp(DingTalk/4.5.18.1) com.alibaba.android.rimet/10652535 Channel/10002068 language/zh-CN",
     "engine": "chrome-android",
-    "version": "126.0.6478.71"
+    "version": "57.0.2987.108"
   },
   {
     "browser": "Android Yandex Browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-43.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 16; LNA-NX1 Build/HONORLNA-N32; wv) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.46 YaBrowser/25.5.0.58 (lite) Mobile Safari/537.36",
+    "source": "https://unpkg.com/user-agents@2.1.199/dist/user-agents.json",
+    "license": "https://unpkg.com/user-agents@2.1.199/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; arm_64; Android 12; HED-LX9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.119 YaBrowser/26.8.3.119.00 Mobile Safari/537.36",
     "engine": "chrome-android",
-    "version": "150.0.7871.46"
+    "version": "150.0.7871.119"
   },
   {
     "browser": "Android Huawei Browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-41.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 12; HarmonyOS; ADY-AL10; HMSCore 6.14.0.322) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 HuaweiBrowser/15.0.7.301 Mobile Safari/537.36",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Huawei-Tests.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; HarmonyOS; ANA-AN00; HMSCore 5.3.0.312) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.93 HuaweiBrowser/11.1.1.302 Mobile Safari/537.36",
     "engine": "chrome-android",
-    "version": "114.0.5735.196"
+    "version": "88.0.4324.93"
   },
   {
     "browser": "Android Facebook in-app browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-41.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 16; RMX5131 Build/AP3A.240617.008) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/150.0.7871.94 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/569.0.0.42.72;IABMV/1;]",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Amazon.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; Android 4.4.2; Fire Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/30.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/64.0.0.52.76;]",
     "engine": "chrome-android",
-    "version": "150.0.7871.94"
+    "version": "30.0.0.0"
   },
   {
     "browser": "Android stock browser, 4.x",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/phablet.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; U; Android 4.4.4; zh-cn; m1 note Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Mobile Safari/537.36",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_device.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 4.1.1; en-cn; HTC T329d) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
     "engine": "android",
     "version": "4.0"
   },
@@ -250,11 +250,11 @@
   },
   {
     "browser": "Meta Quest",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/wearable.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; Quest 3) AppleWebKit/537.36 (KHTML, like Gecko) OculusBrowser/32.1.0.37.133.575621010 Chrome/122.0.6261.64 VR Safari/537.36",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; Quest 3) AppleWebKit/537.36 (KHTML, like Gecko) OculusBrowser/36.6.0.9.50.692136875 Chrome/130.0.6723.191 VR Safari/537.36",
     "engine": "quest",
-    "version": "32.1.0.37.133.575621010"
+    "version": "36.6.0.9.50.692136875"
   },
   {
     "browser": "Samsung TV (Tizen)",
@@ -267,55 +267,46 @@
   },
   {
     "browser": "PlayStation",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/fixtures/oss.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/GameConsoles.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (PlayStation; PlayStation 5/2.50) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15",
     "engine": "safari",
     "version": "13.0"
   },
   {
-    "browser": "a device named after a browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/console.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 12; Razer Edge 5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
-    "engine": "chrome-android",
-    "version": "124.0.0.0",
-    "note": "the parser reads `Edge` out of the DEVICE name and answers Microsoft Edge with no version at all. A name with no version behind it cannot be placed on a threshold, so the Chromium token is what is left - without it this current Chrome was served the baseline"
-  },
-  {
     "browser": "an Android phone named after an iPhone",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-35.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; Android 10; Iphone12 pro max) AppleWebKit/601.36 (KHTML, like Gecko) Chrome/105.0.0.0 Mobile Safari/537.36",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_device.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; Android 4.1.5; iPhone5 Build/IMM76D) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.72 Mobile Safari/537.36",
     "engine": "chrome",
-    "version": "105.0.0.0",
+    "version": "29.0.1547.72",
     "note": "the parser answers iOS to the device name; there is no iOS version anywhere in the string, and that is what says the string did not mean it"
   },
   {
     "browser": "Sleipnir, a browser running Trident",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0; Sleipnir/2.9.18)",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0; chromeframe; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729; Sleipnir 2.8.5)3.0.30729)",
     "engine": "ie",
-    "version": "10",
-    "note": "a name nothing knows, on IE 10 - the engine is in the `Trident/` token and nowhere else"
+    "version": "8",
+    "note": "a name nothing knows, on IE 8 - the engine is in the `Trident/` token and nowhere else"
   },
   {
     "browser": "Apple News, writing its own version into `Version/`",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/mobile_apps.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 10_0 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) News/582.1 Version/2.0",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 10_0_2 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) AppleNews/608.0.1 Version/2.0.1",
     "engine": "ios",
-    "version": "10.0",
+    "version": "10.0.2",
     "note": "the `Version/` token is the app, not WebKit, and the OS token is what is left"
   },
   {
     "browser": "an iOS string with a dotted OS token",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/mobile_app.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (iPhone; U; CPU iPhone OS 13.3.1; en_US; ) AppleWebKit/0.0 (KHTML, like Gecko) Version/0.0; GmmClient:google_ios/com.google.Maps/5.38.8/Mobile/ios:iPhone10,2/iOS-AppStore comdirect/1.0 (appVersion:20.3.0;deviceName:apple iphone;deviceType:mobile)",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Apps.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (iPhone; U; CPU iPhone OS 12.4.1; en_US; ) AppleWebKit/0.0 (KHTML, like Gecko) Version/0.0; GmmClient:google_ios/com.google.Maps/5.27.8/Mobile/ios:iPhone10,5/iOS-AppStore",
     "engine": "ios",
-    "version": "13.3.1",
+    "version": "12.4.1",
     "note": "the parser knows only the underscored form and loses this one entirely"
   },
   {
@@ -338,44 +329,44 @@
   },
   {
     "browser": "Mozilla 5.0 on no system it knows",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Device/fixtures/console.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Nintendo 3DS; U; ; en) Version/1.7498.EU",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (Nintendo 3DS; U; ; en) Version/1.7498.US",
     "engine": null,
     "version": null,
     "note": "one string for the path <baseline version-token>, which stands for 113 in the corpora"
   },
   {
-    "browser": "Opera 11.00 on Windows",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/desktop-1.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Opera/9.46.(Windows 95; lg-UG) Presto/2.9.172 Version/11.00",
+    "browser": "Opera 11.62 on Windows",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/BitWalker-tests.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Opera/9.80 (Windows NT 6.0; U; pl) Presto/2.10.229 Version/11.62",
     "engine": "opera",
-    "version": "11.00",
+    "version": "11.62",
     "note": "one string for the path <opera version-token>, which stands for 88 in the corpora"
   },
   {
-    "browser": "Opera 44.1.2254.143214 on Android",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-1.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; U; Android 8.0.0; 5099D_RU Build/O00623; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.96 Mobile Safari/537.36 OPR/44.1.2254.143214",
+    "browser": "Opera 30.0.2254.121224 on Android",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Xiaomi.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 4.4.4; 2014817 Build/KTU84P; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Mobile Safari/537.36 OPR/30.0.2254.121224",
     "engine": "opera-android",
-    "version": "44.1.2254.143214",
+    "version": "30.0.2254.121224",
     "note": "one string for the path <opera-android chromium-candidate version-token chromium-token webview>, which stands for 66 in the corpora"
   },
   {
-    "browser": "Internet Explorer 5.0 on no system it knows",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/fixtures/oss.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/4.0 (compatible; MSIE 5.0; SunOS 5.10 sun4u; X11)",
+    "browser": "Internet Explorer 4.0 on no system it knows",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/4.0 WebTV/2.6 (compatible; MSIE 4.0)",
     "engine": "ie",
-    "version": "5.0",
+    "version": "4.0",
     "note": "one string for the path <ie>, which stands for 43 in the corpora"
   },
   {
     "browser": "Opera 9.30 on no system it knows",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Device/fixtures/console.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
     "userAgent": "Opera/9.30 (Nintendo Wii; U; ; 3642; en)",
     "engine": "opera",
     "version": "9.30",
@@ -391,130 +382,76 @@
     "note": "one string for the path <firefox-android>, which stands for 18 in the corpora"
   },
   {
-    "browser": "Opera 24.0.2254.115784 on Android",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/phablet.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Linux; U; Android 4.2.2; TECNO S9 Build/JDQ39) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30 OPR/24.0.2254.115784",
-    "engine": "opera-android",
-    "version": "24.0.2254.115784",
-    "note": "one string for the path <opera-android version-token>, which stands for 8 in the corpora"
-  },
-  {
-    "browser": "CastBox 4.8.1 on no system it knows",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/mobile_apps.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "CastBox/4.8.1 (fm.castbox.audiobook.radio.podcast; build:2; iOS 11.2.5)",
+    "browser": "Luminary 1.0.3 on no system it knows",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Luminary/1.0.3 build 71/iOS 12.2",
     "engine": null,
     "version": null,
     "note": "one string for the path <baseline ios-token>, which stands for 6 in the corpora"
   },
   {
     "browser": "Internet Explorer 11.0 on Windows Phone",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/feature_phone.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Mobile; Windows Phone 8.1; Android 4.0; ARM; Trident/7.0; Touch; rv:11.0; IEMobile/11.0; HISENSE; E260T+) like iPhone OS 7_0_3 Mac OS X AppleWebKit/537 (KHTML, like Gecko) Mobile Safari/537",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/WindowsPhone.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Mobile; Windows Phone 8.1; Android 4.0; ARM; Trident/7.0; Touch; rv:11.0; IEMobile/11.0; NOKIA; Lumia 520) like iPhone OS 7_0_3 Mac OS X AppleWebKit/537 (KHTML, like Gecko) Mobile Safari/537",
     "engine": "ie",
     "version": "11.0",
     "note": "one string for the path <ie trident ios-token>, which stands for 5 in the corpora"
   },
   {
-    "browser": "Opera 43.2.2254.140293 on Android",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/phablet.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 Linux; U; Android 6.0.1; SM-N916L Build/MMB29K; wv AppleWebKit/537.36 KHTML, like Gecko Version/4.0 Chrome/75.0.3770.101 Mobile Safari/537.36 OPR/43.2.2254.140293",
-    "engine": "opera-android",
-    "version": "43.2.2254.140293",
-    "note": "one string for the path <opera-android chromium-candidate version-token chromium-token>, which stands for 5 in the corpora"
-  },
-  {
     "browser": "Safari 3.0 on no system it knows",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/feature_phone.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (SymbianOS/9.2;U; Series60/5.0 SonyEricssonU1i/1.00;Profile/MIDP-2.1 Configuration/ CLDC-1.1)AppleWebKit/525 (KHTML, like Gecko) version/3.0Safari/525",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_device.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (SymbianOS/9.4; U; Series60/5.0 Samsung i8910HD Profile/MIDP-2.1 Configuration/CLDC-1.1 ) AppleWebKit/525 (KHTML, like Gecko) Version/3.0 Safari/525",
     "engine": "safari",
     "version": "3.0",
     "note": "one string for the path <safari>, which stands for 3 in the corpora"
   },
   {
-    "browser": "Chrome 83.0.4103.106 on Android",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/smartphone-15.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "mozilla/5.0 (linux; android 9; armor_7) applewebkit/537.36 (khtml, like gecko) chrome/83.0.4103.106 mobile safari/537.36",
+    "browser": "Chrome 48.0.2564.95 on Android",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/BrokenUseragents-Tests.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "mozilla/5.0 (linux; android 6.0.1; sm-g920f build/mmb29k) applewebkit/537.36 (khtml, like gecko) chrome/48.0.2564.95 mobile",
     "engine": "chrome-android",
-    "version": "83.0.4103.106",
+    "version": "48.0.2564.95",
     "note": "one string for the path <chrome-android>, which stands for 3 in the corpora"
   },
   {
-    "browser": "com.google.ios.youtube 20.30.5 on iOS",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/tablet-12.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "com.google.ios.youtube/20.30.5 (iPad13,19; U; CPU iPadOS 18_5 like Mac OS X; en_US)",
+    "browser": "com.google.ios.youtube 2.6.0.11251 on iOS",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/Apps.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "com.google.ios.youtube/2.6.0.11251 (iPad3,4; U; CPU iPhone OS 8_1_2 like Mac OS X; nl_NL)",
     "engine": "ios",
-    "version": "18.5",
+    "version": "8.1.2",
     "note": "one string for the path <ios>, which stands for 1 in the corpora"
   },
   {
-    "browser": "Safari-shaped string on iOS 18.7.8 claiming `Version/26.0`",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/fixtures/oss.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
-    "engine": "ios",
-    "version": "18.7.8",
-    "note": "WebKit froze the OS token at `18_7` with no patch, so `18_7_8` is a device that runs 18.7.8 - and on iOS the OS is the WebKit. A `Version/` above it was not written by that WebKit"
-  },
-  {
-    "browser": "Yandex Browser on iOS",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/fixtures/oss.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 YaBrowser/26.6.2.732.10 YaApp_iOS/2606.2 YaApp_iOS_Browser/2606.2 Safari/604.1 SA/3 Version/26.5",
-    "engine": "ios",
-    "version": "18.7",
-    "note": "the browser writes its own `Version/` at the end of the string, where Safari never puts it - so only the frozen OS token is left, as a lower bound"
-  },
-  {
     "browser": "LG webOS TV browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/fixtures/tv-4.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chr0me/87.0.4280.88 Safari/537.36 LG Browser/8.00.00(LGE; 0V50500; 04.41.33; 0x00000001; DTV_C22P); webOS.TV-2022; LG NetCast.TV-2013 Compatible (LGE, 0V50500, wireless)",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/TV.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chr0me/38.0.2125.122 Safari/537.36 LG Browser/8.00.00(LGE; 49UJ634V-ZD; 05.80.50; 1; DTV_W17P); webOS.TV-2017; LG NetCast.TV-2013 Compatible (LGE, 49UJ634V-ZD, wired)",
     "engine": "chrome",
-    "version": "87.0.4280.88",
-    "note": "LG spells the Chromium token `Chr0me/` - 115 strings in the Matomo fixtures, every one of them on the baseline while the token went unread"
+    "version": "38.0.2125.122",
+    "note": "LG spells the Chromium token `Chr0me/` on its televisions, and every such string fell to the baseline while the token went unread"
   },
   {
     "browser": "Mypal on Goanna",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:68.9) Gecko/20100101 Goanna/4.5 Firefox/68.9 Mypal/28.9.0",
+    "source": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/analyzer/src/main/resources/UserAgents/GoannaPaleMoon.yaml",
+    "license": "https://github.com/nielsbasjes/yauaa/blob/ee9cb426330bcf01483cd20dacb1610e44e1f4e8/LICENSE",
+    "userAgent": "Mozilla/5.0 (Windows NT 5.1; rv:68.9) Gecko/20100101 Goanna/4.5 Firefox/68.9 Mypal/28.9.1",
     "engine": null,
     "version": null,
     "note": "Goanna forked from the Gecko of Firefox 52; `Firefox/68.9` is a compatibility claim, and the compat data has no row for the engine itself"
   },
   {
-    "browser": "Ladybird on macOS",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/fixtures/oss.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ladybird/1.0 Chrome/146.0.0.0 AppleWebKit/537.36 Safari/537.36",
-    "engine": null,
-    "version": null,
-    "note": "Ladybird runs a JavaScript engine of its own; `Chrome/146.0.0.0` is a compatibility claim, and the compat data has no row for the engine itself"
-  },
-  {
-    "browser": "Mullvad Browser",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 MullvadBrowser/115.8.0",
+    "browser": "IceCat, a Gecko under a name nothing knows",
+    "source": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/tests/test_ua.yaml",
+    "license": "https://github.com/ua-parser/uap-core/blob/73e7340c3ed8055051607b296bf46ead7aa5f19e/LICENSE",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:2.0) Gecko/20110417 IceCat/4.0",
     "engine": "firefox",
-    "version": "115.0",
-    "note": "no `Firefox/` token and a name nothing knows - `rv:` beside a `Gecko/` build date is the engine's own version"
-  },
-  {
-    "browser": "Wolvic on Android",
-    "source": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/Tests/Parser/Client/fixtures/browser.yml",
-    "license": "https://github.com/matomo-org/device-detector/blob/e83ce7a97f05d8ee3e1eee7ea77a73b3bdfebd9a/LICENSE",
-    "userAgent": "Mozilla/5.0 (Android 10; Mobile VR; rv:105.0) Gecko/105.0 Wolvic/1.2",
-    "engine": "firefox-android",
-    "version": "105.0",
-    "note": "the mobile form: `Gecko/` carries the version rather than a build date"
+    "version": "2.0",
+    "note": "no `Firefox/` token and a name nothing knows - `rv:` beside a `Gecko/` build date is the engine's own version. Before Firefox 4 Gecko counted on its own, and `rv:2.0` is Firefox 4: the answer reads low, which is the safe direction"
   },
   {
     "browser": "Iceape behind a rewritten Gecko token",
