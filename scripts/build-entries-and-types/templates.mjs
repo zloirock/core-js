@@ -115,6 +115,13 @@ function getCustomGenerics(count) {
 
 export const wrapEntryInStrict = template => `'use strict';\n${ template }\n`;
 
+// The polyfill replaces the native method or an empty prototype slot, missing or `undefined`. An
+// `undefined` defined below the prototype, own or inherited, is the user's value - unless the slot
+// itself holds `undefined`: a key defined on the prototype hides whether anything below shadows it
+function buildMissingMethodCheck(name, prototype) {
+  return `!('${ name }' in it) || ('${ name }' in ${ prototype } && ${ prototype }.${ name } === undefined)`;
+}
+
 function instanceTypes(p) {
   return dedent`
     declare module '${ buildModulePath(p) }' {
@@ -355,8 +362,9 @@ export const $instanceArray = p => ({
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
-      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it)
-        && ownProperty === (ownProperty === undefined ? ArrayPrototype.${ p.name } : nativeArrayMethod))) return arrayMethod;
+      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && (ownProperty === undefined
+        ? ${ buildMissingMethodCheck(p.name, 'ArrayPrototype') }
+        : ownProperty === nativeArrayMethod))) return arrayMethod;
       return ownProperty;
     };
   `,
@@ -374,8 +382,9 @@ export const $instanceNumber = p => ({
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (typeof it == 'number' || it === NumberPrototype
-        || (isPrototypeOf(NumberPrototype, it)
-          && ownProperty === (ownProperty === undefined ? NumberPrototype.${ p.name } : nativeNumberMethod))) return numberMethod;
+        || (isPrototypeOf(NumberPrototype, it) && (ownProperty === undefined
+          ? ${ buildMissingMethodCheck(p.name, 'NumberPrototype') }
+          : ownProperty === nativeNumberMethod))) return numberMethod;
       return ownProperty;
     };
   `,
@@ -393,8 +402,9 @@ export const $instanceString = p => ({
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (typeof it == 'string' || it === StringPrototype
-        || (isPrototypeOf(StringPrototype, it)
-          && ownProperty === (ownProperty === undefined ? StringPrototype.${ p.name } : nativeStringMethod))) return stringMethod;
+        || (isPrototypeOf(StringPrototype, it) && (ownProperty === undefined
+          ? ${ buildMissingMethodCheck(p.name, 'StringPrototype') }
+          : ownProperty === nativeStringMethod))) return stringMethod;
       return ownProperty;
     };
   `,
@@ -411,8 +421,9 @@ export const $instanceFunction = p => ({
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
-      if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it)
-        && ownProperty === (ownProperty === undefined ? FunctionPrototype.${ p.name } : nativeFunctionMethod))) {
+      if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it) && (ownProperty === undefined
+        ? ${ buildMissingMethodCheck(p.name, 'FunctionPrototype') }
+        : ownProperty === nativeFunctionMethod))) {
         return functionMethod;
       } return ownProperty;
     };
@@ -420,6 +431,8 @@ export const $instanceFunction = p => ({
   types: instanceTypes(p),
 });
 
+// A DOM collection always gets the array method - an own value on a collection instance, `undefined`
+// or a function, is deliberately not consulted, unlike the dispatchers that check the prototype
 function instanceDOMIterableEntry(p, arrayMethodExpr) {
   return dedent`
     ${ importModules(p) }
@@ -466,17 +479,21 @@ export const $instanceArrayString = p => ({
 
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
-      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it)
-        && ownProperty === (ownProperty === undefined ? ArrayPrototype.${ p.name } : nativeArrayMethod))) return arrayMethod;
+      if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && (ownProperty === undefined
+        ? ${ buildMissingMethodCheck(p.name, 'ArrayPrototype') }
+        : ownProperty === nativeArrayMethod))) return arrayMethod;
       if (typeof it == 'string' || it === StringPrototype
-        || (isPrototypeOf(StringPrototype, it)
-          && ownProperty === (ownProperty === undefined ? StringPrototype.${ p.name } : nativeStringMethod))) return stringMethod;
+        || (isPrototypeOf(StringPrototype, it) && (ownProperty === undefined
+          ? ${ buildMissingMethodCheck(p.name, 'StringPrototype') }
+          : ownProperty === nativeStringMethod))) return stringMethod;
       return ownProperty;
     };
   `,
   types: instanceTypes(p),
 });
 
+// The DOM gate trusts `classof`: a primitive whose prototype forges a collection's @@toStringTag
+// passes it and throws on the `in` check - left unguarded on purpose
 export const $instanceArrayDOMIterable = p => ({
   entry: dedent`
     ${ importModules(p) }
@@ -497,8 +514,9 @@ export const $instanceArrayDOMIterable = p => ({
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (it === ArrayPrototype || ((isPrototypeOf(ArrayPrototype, it)
-        || hasOwn(DOMIterables, classof(it)))
-          && ownProperty === (ownProperty === undefined ? ArrayPrototype.${ p.name } : nativeArrayMethod))) return arrayMethod;
+        || hasOwn(DOMIterables, classof(it))) && (ownProperty === undefined
+          ? ${ buildMissingMethodCheck(p.name, 'ArrayPrototype') }
+          : ownProperty === nativeArrayMethod))) return arrayMethod;
       return ownProperty;
     };
   `,
