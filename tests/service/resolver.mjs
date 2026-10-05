@@ -23,6 +23,14 @@ const IOS_IN_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_3_1 like Mac OS X) App
 // broken page, not extra weight
 strictEqual(resolveUA(IOS_CHROME), 'ios 18.7', 'resolver-5 #1');
 strictEqual(resolveUA(IOS_SAFARI), 'ios 26.1', 'resolver-5 #2');
+// asked for the desktop site, Chrome on iOS sends a Mac string and keeps only its own token, which no
+// other system carries. The `Version/11.1.1` is a literal of that string, so the WebKit build is the
+// one floor left - and without the frozen build there is none at all
+const IOS_CHROME_DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+  + '(KHTML, like Gecko) CriOS/154 Version/11.1.1 Safari/605.1.15';
+
+deepStrictEqual(resolve({ 'user-agent': IOS_CHROME_DESKTOP }), { engine: 'ios', version: '11.1' }, 'resolver-5 #3');
+strictEqual(resolveUA(IOS_CHROME_DESKTOP.replaceAll('605.1.15', '604.4.7')), null, 'resolver-5 #4');
 
 // the OS token is a lower bound, never a version - Apple froze it at 18_7 with iOS 26, so the live
 // version lives in `Version/` alone. both cases above come out of this one rule: on a current device

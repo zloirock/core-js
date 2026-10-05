@@ -184,7 +184,12 @@ trap below is named, and the suite names its assertions after them.
   here can see that; one that strips it costs bytes only
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers
   answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
-  bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic
+  bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic. The rule
+  stands on the browser's token, not on the system the string names: asked for the desktop site,
+  Chrome on iOS sends a Mac string with `CriOS/` left in it and a literal `Version/11.1.1`, and
+  read by its name that is Chrome again. The iOS builds' own names - `CriOS`, `EdgiOS`, `FxiOS`,
+  `OPiOS` - exist on no other system, so they mean WebKit wherever they stand, and with no version
+  in such a string the frozen `AppleWebKit/605.1.15` is the floor, as in resolver-8
 - **Every token here is read from the STRING, never taken from the parser** - and this is the
   question to re-ask before adding a rule, because the answer is not "we duplicate the parser". The
   port returns four fields, `browser.{name,version}` and `os.{name,version}`, and that is deliberate:

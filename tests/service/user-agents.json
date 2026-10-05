@@ -479,5 +479,13 @@
     "engine": "safari",
     "version": "11.1",
     "note": "no `Version/` and no name - the WebKit build `605.1.15` is the one Apple froze the token at from Safari 11.1 and iOS 11.3 on, so it is a lower bound, and the iPad row travels with it"
+  },
+  {
+    "browser": "iPhone Chrome (CriOS) asked for the desktop site",
+    "source": "user-agents@2.1.199",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/154 Version/11.1.1 Safari/605.1.15",
+    "engine": "ios",
+    "version": "11.1",
+    "note": "a Mac string from an iPhone (`navigator.vendor` Apple, screen 402x874) - `CriOS/` is the one thing left that says iOS, and the `Version/11.1.1` is a literal, so the frozen WebKit build is the floor; read by the name, this is Chrome 154 and a Blink bundle for a WebKit"
   }
 ]

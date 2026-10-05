@@ -56,6 +56,10 @@ const ZSTD_IOS_SINCE = '26.2';
 // whether it says anything: a WKWebView in a Mac app, or in an iPad app, writes none
 const FROZEN_WEBKIT = /\bAppleWebKit\/605\.1\.15\b/;
 const FROZEN_WEBKIT_SINCE = '11.1';
+// the names the iOS builds of Chrome, Edge, Firefox and Opera give themselves. No other system has
+// those builds, so the token says iOS where the rest of the string does not: asked for the desktop
+// site, Chrome on an iPhone sends a Mac string with `CriOS/` left in it
+const IOS_BROWSER_TOKEN = /\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\/\d/;
 // the OS token, read here rather than taken from the parser, which knows only the underscored form -
 // `CPU iPhone OS 13.3.1` with dots is a real string and it loses the version entirely. The word `OS`
 // is required: a device that calls itself `Iphone12 pro max` is an Android phone with a name, and
@@ -190,6 +194,13 @@ export default function createResolver({ parseUserAgent }) {
       // neither signal, so the string did not say iOS in a way anything can act on - a name like
       // `Iphone12 pro max` is what a parser read it out of, and it is an Android phone
       if (onIOS !== null) return onIOS;
+    }
+
+    // an iOS browser in a string that names another system - read by its name it is Chrome, and a
+    // Blink bundle for a WebKit. Nothing in such a string carries a version: Chrome writes
+    // `Version/11.1.1` there as a literal, so the frozen WebKit build is the one floor left
+    if (IOS_BROWSER_TOKEN.test(userAgent)) {
+      return toTarget('ios', FROZEN_WEBKIT.test(userAgent) ? FROZEN_WEBKIT_SINCE : '');
     }
 
     const onChromium = system === 'android' ? 'chrome-android' : 'chrome';
