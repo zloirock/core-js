@@ -192,7 +192,11 @@ trap below is named, and the suite names its assertions after them.
   Chrome on iOS sends a Mac string with `CriOS/` left in it and a literal `Version/11.1.1`, and
   read by its name that is Chrome again. The iOS builds' own names - `CriOS`, `EdgiOS`, `FxiOS`,
   `OPiOS` - exist on no other system, so they mean WebKit wherever they stand, and with no version
-  in such a string the frozen `AppleWebKit/605.1.15` is the floor, as in resolver-8
+  in such a string the frozen `AppleWebKit/605.1.15` is the floor, as in resolver-8. The other way
+  round, a string WebKit wrote for an Apple device - `like Mac OS X` - that carries no version of
+  that WebKit at all is answered with the baseline: a name beside it, a `Firefox/120` on an iPad,
+  is not its engine, and nothing else in it says which WebKit it is. An Android phone with an iPad
+  in its model name carries no `like Mac OS X` and keeps its Chromium
 - **Every token here is read from the STRING, never taken from the parser** - and this is the
   question to re-ask before adding a rule, because the answer is not "we duplicate the parser". The
   port returns four fields, `browser.{name,version}` and `os.{name,version}`, and that is deliberate:

@@ -60,6 +60,9 @@ const FROZEN_WEBKIT_SINCE = '11.1';
 // those builds, so the token says iOS where the rest of the string does not: asked for the desktop
 // site, Chrome on an iPhone sends a Mac string with `CriOS/` left in it
 const IOS_BROWSER_TOKEN = /\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\/\d/;
+// what WebKit writes for the system on an iPhone, an iPad or an iPod, and nothing else writes: a Mac
+// says `Intel Mac OS X`, and an Android phone named after an iPhone says `Android`
+const APPLE_DEVICE = /\blike Mac OS X\b/;
 // the OS token, read here rather than taken from the parser, which knows only the underscored form -
 // `CPU iPhone OS 13.3.1` with dots is a real string and it loses the version entirely. The word `OS`
 // is required: a device that calls itself `Iphone12 pro max` is an Android phone with a name, and
@@ -192,9 +195,13 @@ export default function createResolver({ parseUserAgent }) {
       // an in-app WKWebView, which carries no `Version/` at all, is left with the OS token
       const onIOS = toTarget('ios', iosVersion(userAgent, parsed.os.version));
 
-      // neither signal, so the string did not say iOS in a way anything can act on - a name like
-      // `Iphone12 pro max` is what a parser read it out of, and it is an Android phone
       if (onIOS !== null) return onIOS;
+
+      // neither signal. On an Apple device that leaves a WebKit of no known version, and the name
+      // beside it - a `Firefox/120` on an iPad - is not its engine. Otherwise the string did not
+      // say iOS in a way anything can act on: a name like `Iphone12 pro max` is what a parser read
+      // it out of, and it is an Android phone
+      if (APPLE_DEVICE.test(userAgent)) return null;
     }
 
     // an iOS browser in a string that names another system - read by its name it is Chrome, and a

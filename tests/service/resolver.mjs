@@ -31,6 +31,15 @@ const IOS_CHROME_DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Appl
 
 deepStrictEqual(resolve({ 'user-agent': IOS_CHROME_DESKTOP }), { engine: 'ios', version: '11.1' }, 'resolver-5 #3');
 strictEqual(resolveUA(IOS_CHROME_DESKTOP.replaceAll('605.1.15', '604.4.7')), null, 'resolver-5 #4');
+// an Apple device - `like Mac OS X` is what WebKit writes on iOS - with no version of that WebKit
+// anywhere in the string: the name beside it is not the answer, and Firefox on an iPad is no Gecko
+const IOS_NO_VERSION = IOS_SAFARI.replace('CPU iPhone OS 18_7 ', '');
+
+strictEqual(resolveUA(IOS_NO_VERSION.replace('Version/26.1', 'Firefox/120.0')), null, 'resolver-5 #5');
+strictEqual(resolveUA(IOS_NO_VERSION.replace('Version/26.1', 'CriOS/140.0.7339.100')), null, 'resolver-5 #6');
+// while an Android phone with an iPad in its model name is not an Apple device at all
+strictEqual(resolveUA('Mozilla/5.0 (Linux; Android 7.0; KLIPAD_V355B) AppleWebKit/537.36 (KHTML, like Gecko) '
+  + 'Chrome/76.0.3809.132 Mobile Safari/537.36'), 'chrome 76.0.3809.132', 'resolver-5 #7');
 
 // the OS token is a lower bound, never a version - Apple froze it at 18_7 with iOS 26, so the live
 // version lives in `Version/` alone. both cases above come out of this one rule: on a current device
