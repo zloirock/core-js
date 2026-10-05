@@ -76,8 +76,9 @@ for (const row of corpus) {
     ok(!/\bEdge\/\d/.test(userAgent), `user-agents-2 #4: ${ row.browser } is EdgeHTML, which never ran Chromium`);
   }
 
-  // a Goanna string is never answered as the Firefox it claims to be compatible with
-  if (/\bGoanna\/\d/.test(userAgent)) ok(!target?.engine.startsWith('firefox'), `user-agents-2 #8: ${ row.browser }`);
+  // an engine the compat data has no row for is never answered as the browser it claims to be
+  // compatible with - Goanna as Firefox, Ladybird as Chrome - but with the baseline
+  if (/\b(?:EkiohFlow|Goanna|Ladybird|Servo)\/\d/.test(userAgent)) strictEqual(target, null, `user-agents-2 #8: ${ row.browser }`);
 
   // and a MAC string always carries it, because nothing in the string tells a Mac from an iPad -
   // while a console that reports Safari is a console, and the row for iPhones says nothing about it

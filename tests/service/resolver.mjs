@@ -162,6 +162,15 @@ const GOANNA = 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:68.9) Gecko/20100101
 strictEqual(resolveUA(GOANNA), null, 'resolver-6 #10');
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.9) Gecko/20100101 Goanna/4.4 Firefox/60.9 '
   + 'Basilisk/20190912'), null, 'resolver-6 #11');
+// and Goanna is not the only one. Ladybird runs a JavaScript engine of its own behind `Chrome/146`;
+// Servo runs SpiderMonkey, and none of the Gecko the web modules are measured on; Ekioh Flow is a
+// layout engine of its own - none of them has a row, and the version they claim is not theirs
+strictEqual(resolveUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ladybird/1.0 Chrome/146.0.0.0 '
+  + 'AppleWebKit/537.36 Safari/537.36'), null, 'resolver-6 #18');
+strictEqual(resolveUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Servo/1.0 Firefox/37.0'),
+  null, 'resolver-6 #19');
+strictEqual(resolveUA('Mozilla/5.0 () EkiohFlow/6.1.0.37151 Flow/6.1.0 (like Gecko Firefox/89.0 rv:89.0)'),
+  null, 'resolver-6 #20');
 // a Gecko browser under a name nothing knows still carries the engine's own version in `rv:`, the
 // way a Chromium carries its token - and on Android the row is the mobile one
 strictEqual(resolveUA('Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 MullvadBrowser/115.8.0'),

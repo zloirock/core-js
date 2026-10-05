@@ -110,15 +110,18 @@ trap below is named, and the suite names its assertions after them.
   every iPhone/iPad string resolves to `ios` or to the baseline and never to another engine, an
   `ios` answer is never above an OS the string states - a token WebKit did not freeze, or the OS an
   app reports beside it - a `chrome` answer is never above the `Chrome/` token the string carries,
-  and the second candidate is never attached to a browser that never ran Chromium, and a Goanna
-  string is never answered as the Firefox it claims to be compatible with
+  and the second candidate is never attached to a browser that never ran Chromium, and a string
+  from an engine with no row - Goanna, Ladybird, Servo, Ekioh Flow - is answered with the baseline,
+  never as the browser it claims to be compatible with
 - **resolver-6** - the ENGINE outranks what the browser calls itself, wherever the string carries
   both. `Trident/` is Internet Explorer's engine and nothing else carries it, so `MSIE 7.0` beside
   `Trident/7.0` is IE 11 in compatibility view - a document mode, not an older JavaScript - and a
   browser calling itself Sleipnir on `Trident/6.0` is IE 10. `Goanna/` is an engine too - forked
   from the Gecko of Firefox 52 and backported to since - with no row in the compat data, so the
   `Firefox/68.9` beside it is a compatibility claim and the answer is the baseline: read as Firefox,
-  it hands a thin bundle to Mypal on Windows XP. The Chromium token is the engine's under any
+  it hands a thin bundle to Mypal on Windows XP. So are `Ladybird/`, with a JavaScript engine of its
+  own behind `Chrome/146`, `Servo/`, which runs SpiderMonkey and none of the Gecko the web modules
+  are measured on, and `EkiohFlow/` - spelled out, since `Flow/` also ends `FlyFlow/` and `FreeFlow/`. The Chromium token is the engine's under any
   spelling it ships in, and LG ships `Chr0me/` on its televisions. Gecko's is `rv:`, and for a name
   nothing knows it is the answer on the Firefox row - Mullvad Browser, Wolvic, SeaMonkey - but only
   beside a `Gecko/` token Gecko could have written, a real build date or its own version: a string

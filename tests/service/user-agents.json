@@ -449,6 +449,14 @@
     "note": "Goanna forked from the Gecko of Firefox 52; `Firefox/68.9` is a compatibility claim, and the compat data has no row for the engine itself"
   },
   {
+    "browser": "Ladybird on macOS",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ladybird/1.0 Chrome/146.0.0.0 AppleWebKit/537.36 Safari/537.36",
+    "engine": null,
+    "version": null,
+    "note": "Ladybird runs a JavaScript engine of its own; `Chrome/146.0.0.0` is a compatibility claim, and the compat data has no row for the engine itself"
+  },
+  {
     "browser": "Mullvad Browser",
     "source": "matomo device-detector fixtures",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 MullvadBrowser/115.8.0",

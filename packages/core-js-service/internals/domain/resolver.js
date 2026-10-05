@@ -73,10 +73,11 @@ const QUEST_TOKEN = /\bOculusBrowser\/(?<version>\d+(?:\.\d+)*)/;
 // engine's own version, so it is worth more than the name we failed to recognize. LG spells it
 // `Chr0me/` on its televisions, and it is the Chromium the set runs all the same
 const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
-// Goanna is an engine of its own - forked from the Gecko of Firefox 52 and backported to since - and
-// the compat data has no row for it. The `Firefox/68.9` beside it is a compatibility claim: read as
-// Firefox, it hands a thin bundle to an engine that is not that Firefox
-const GOANNA_TOKEN = /\bGoanna\/\d/;
+// engines of their own that the compat data has no row for: Goanna, forked from the Gecko of
+// Firefox 52 and backported to since, Ladybird, Servo and Ekioh Flow. The Firefox or Chrome version
+// beside the token is a compatibility claim: read as that browser, it hands a thin bundle to an
+// engine that is not it. `EkiohFlow` and not `Flow`, which ends `FlyFlow/` and `FreeFlow/` as well
+const UNTRACKED_ENGINE_TOKEN = /\b(?:EkiohFlow|Goanna|Ladybird|Servo)\/\d/;
 // Gecko's own version, `rv:` at the end of the system part - trusted only beside a `Gecko/` token
 // Gecko could have written: its version on mobile, a real build date on desktop. A string that
 // carries `rv:12.3) Gecko/2000000000` was rewritten, and says nothing about the engine underneath
@@ -173,7 +174,7 @@ export default function createResolver({ parseUserAgent }) {
 
     const parsed = parseUserAgent(userAgent);
 
-    if (parsed === null || GOANNA_TOKEN.test(userAgent)) return null;
+    if (parsed === null || UNTRACKED_ENGINE_TOKEN.test(userAgent)) return null;
 
     const browser = parsed.browser.name?.toLowerCase() ?? null;
     const system = parsed.os.name?.toLowerCase() ?? null;
