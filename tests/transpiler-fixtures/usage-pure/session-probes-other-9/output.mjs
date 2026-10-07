@@ -152,14 +152,13 @@ function mark(t, v) {
 }
 {
   const _ref2 = [1, 2],
-    s = null == _ref2 ? _ref2[""] : (k(), _atMaybeArray(_ref2)),
+    s = (k(), _atMaybeArray(_ref2)),
     {
       z
     } = _ref2;
 }
 {
-  const {} = arr,
-    s = (k(), _atMaybeArray(arr)),
+  const s = (k(), _atMaybeArray(arr)),
     {
       z
     } = arr;

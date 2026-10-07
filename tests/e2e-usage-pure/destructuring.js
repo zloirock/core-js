@@ -2943,6 +2943,21 @@ QUnit.test('destructuring: SE-in-hop-key proxy receiver in an ASSIGNMENT-destruc
   assert.same(c, 1);
 });
 
+// ... and a realm read under an effectful KEY of a constructor with no pure constructor entry (`({ of } =
+// globalThis[(eff(), 'Array')])`): the consume discards that read, which lifts once ahead of the extraction,
+// so the key's effect runs exactly as often as the source runs it
+QUnit.test('destructuring: an effectful realm key in an ASSIGNMENT-destructure runs once', assert => {
+  let c = 0;
+  let of, fromEntries;
+  // eslint-disable-next-line no-sequences, prefer-const -- the effectful realm key; the target needs a pre-declared let
+  ({ of } = globalThis[c++, 'Array']);
+  assert.deepEqual(of(1, 2), [1, 2]);
+  // eslint-disable-next-line no-sequences, prefer-const -- the effectful realm key; the target needs a pre-declared let
+  ({ fromEntries } = globalThis[c++, 'Object']);
+  assert.deepEqual(fromEntries([['k', 1]]), { k: 1 });
+  assert.same(c, 2);
+});
+
 // SE-in-hop-key proxy receiver inside a LOGICAL operand (`{from} = (globalThis[(eff(), 'self')].Array) || Array`):
 // the residual keeps the whole logical for the effect, so the proxy operand's redundant hop must collapse the
 // same way a bare member receiver does. fail-before keeps the raw hop (throws in Node / dead hop off-engine)

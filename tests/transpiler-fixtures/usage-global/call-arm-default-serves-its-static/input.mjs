@@ -1,6 +1,7 @@
 // a DEFAULT selecting between a CALL and a constructor (`= f() || Set`) serves the static read through
 // it off the call's value when that value can never be falsy, and runs the call only where the default
-// fires - a nested level, a nullish selection, a top-level host, behind a sequence, and a parameter
+// fires - a nested level, a nullish selection, a top-level host, behind a sequence, and a parameter.
+// the constructor the selection never reaches drops with it
 function f() { log(); return Map; }
 function g() { log(); return Promise; }
 function k() { log(); return Iterator; }
