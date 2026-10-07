@@ -20,7 +20,9 @@ import {
   receiverPerformsEveryInitEffect,
   resolveNestedReceiverNode,
   synthPropDedupKey,
+  decidingFallbackLeft,
   discardRescueNodesWithReads,
+  liftedRealmNavEffect,
   observablePrefixElements,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -68,7 +70,6 @@ import {
   patternLevelKeepsEffectfulHop,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
-  peelSequenceTail,
   peelSkippableWrapperPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -81,7 +82,6 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   walkAstNodes,
-  invocationNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { hostLevelSurvives } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
@@ -330,35 +330,42 @@ export function liveTailOf(declarator, seqPrefix, initTail) {
   return liveInit?.type === 'SequenceExpression' && prefix.length === seqPrefix.length ? tail : initTail;
 }
 
-// a for-init hosts no statement of its own, so the prefix of a SURVIVING residual's receiver rides
-// the FIRST extraction's value, which the loop header evaluates where the source ran it
-// (`for (var m = (eff(), _Map), { other } = _globalThis; ...)`)
-export function carryForInitPrefixIntoFirst(declarator, declJobs, extracted, ctx = null) {
-  if (!extracted.length || declJobs.some(job => job.readsReceiver)) return;
-  const init = peelTransparentExpr(declarator.init);
-  if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return;
-  const { prefix, tail } = peelNestedSequenceExpressions(init);
-  if (!prefix.length) return;
-  declarator.init = tail;
-  const lifted = liftedPrefixExpression(prefix, ctx);
-  if (!lifted) return;
-  const carried = lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
-  extracted[0].init = sequenceExpression([...carried, extracted[0].init]);
-}
-
-// the prefix of a SOURCE sequence init, taken off the declarator (`key`: an assignment's `right`) so
-// the surviving residual reads the bare tail. one the collapse MINTED is the value's own spelling and
-// stays whole, which its missing span tells us; an element with nothing to observe is a comma the
-// source wrote, not a statement it ran (`var { Map: m, other } = (0, globalThis)`)
-export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 'init') {
-  if (!declJobs.length) return [];
+// the prefix of a declarator's SOURCE sequence init (`key`: an assignment's `right`), taken off so the
+// declarator reads the bare tail. one the collapse MINTED is the value's own spelling and stays whole,
+// which its missing span tells us
+function takeSourceSequencePrefix(declarator, key = 'init') {
   const init = peelTransparentExpr(declarator[key]);
   if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return [];
   const { prefix, tail } = peelNestedSequenceExpressions(init);
-  if (!prefix.length) return [];
-  declarator[key] = tail;
+  if (prefix.length) declarator[key] = tail;
+  return prefix;
+}
+
+// the prefix of a for-init declarator's SOURCE sequence init, taken off so the declarator reads the
+// bare tail: the elements the shared trim canon keeps, for the caller to place ahead of whatever the
+// tail still evaluates - none where an extraction reads the receiver, which spells the init itself
+export function takeForInitPrefix(declarator, declJobs, extracted, ctx) {
+  if (!extracted.length || declJobs.some(job => job.readsReceiver)) return [];
+  const prefix = takeSourceSequencePrefix(declarator);
+  const lifted = prefix.length ? liftedPrefixExpression(prefix, ctx) : null;
+  if (!lifted) return [];
+  return lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
+}
+
+// a for-init hosts no statement of its own, so the prefix taken off its init (`takeForInitPrefix`) rides
+// the FIRST extraction's value, which the loop header evaluates where the source ran it
+// (`for (var m = (eff(), _Map), { other } = _globalThis; ...)`)
+export function carryForInitPrefixIntoFirst(extracted, carried) {
+  if (carried.length) extracted[0].init = sequenceExpression([...carried, extracted[0].init]);
+}
+
+// the prefix of a SOURCE sequence init, taken off the declarator (`takeSourceSequencePrefix`) so the
+// surviving residual reads the bare tail, as statements: an element with nothing to observe is a
+// comma the source wrote, not a statement it ran (`var { Map: m, other } = (0, globalThis)`)
+export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 'init') {
+  if (!declJobs.length) return [];
   // per element, the grouping the other leg's declarator lift prints for the same shape
-  return observableSequenceElements(prefix, ctx).map(expr => expressionStatement(expr));
+  return observableSequenceElements(takeSourceSequencePrefix(declarator, key), ctx).map(expr => expressionStatement(expr));
 }
 
 // a BODYLESS assignment host (`if (c) ({ Map: M } = g);`) has no statement list to splice into:
@@ -394,10 +401,25 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // stored (the statement host's rule, in the block this slot opens)
   const writeRight = seqPrefix?.length === 1 && peeledRight?.type === 'AssignmentExpression'
     && spellsSameSource(peeledRight, peelTransparentExpr(seqPrefix[0]));
+  // the WHOLE right recorded as the prefix (the sole-consume lift) is no sequence prefix: a sequence
+  // it spells is its own, which the lift canon reads below - matched against the record by count, its
+  // tail was taken for a quiet receiver (`(log(), mk().Map ?? Set)` lost the `mk()` call)
+  const wholeRight = !writeRight && seqPrefix?.length === 1 && seqPrefix[0] === bodylessAssign.right;
   const liveSeq = writeRight ? [peeledRight, peelChainRootValue(peeledRight)]
-    : seqPrefix?.length && peeledRight?.type === 'SequenceExpression'
+    : !wholeRight && seqPrefix?.length && peeledRight?.type === 'SequenceExpression'
       && peeledRight.expressions.length === seqPrefix.length + 1 ? peeledRight.expressions : null;
-  const prefixStatements = liftedPrefixStatements(writeRight && residualSurvives ? [] : liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? []);
+  // ... and a WHOLE right the consume discards owes what the lift canon says, as on the statement
+  // host: nothing past a deciding left (`if (c) ({ of } = Array ?? (log(), Set))` lifts nothing),
+  // spelled as the one expression the statement host prints
+  const liftCtx = { ...nodeSite(bodylessAssign.right, jobs[0].metaPath), adapter: memoCtx?.adapter };
+  const wholeRightLift = wholeRight && !residualSurvives ? liftedRealmNavEffect(bodylessAssign.right, liftCtx) : null;
+  // ... and past it, the elements of that right read through its wrappers, which the trim canon keeps
+  // where they run something - the statement host's lift (a TS wrapper leaves with the value it wraps,
+  // a quiet tail behind a prefix with nothing it reads: `if (c) ({ of } = (log(), X || Set))` lifts `log()`)
+  const wholeRightSeq = wholeRight && !residualSurvives && !wholeRightLift ? peelNestedSequenceExpressions(peeledRight) : null;
+  const prefixStatements = wholeRightLift ? liftedPrefixStatements(wholeRightLift.effects, liftCtx)
+    : wholeRightSeq ? liftedPrefixStatements([...wholeRightSeq.prefix, wholeRightSeq.tail], liftCtx)
+    : liftedPrefixStatements(writeRight && residualSurvives ? [] : liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? []);
   // ... and an extraction that READS the receiver beside a surviving residual needs a memo, which a
   // lifted prefix leaves no slot for - unless the quiet tail is a surface both may re-read for free
   if (residualSurvives && seqPrefix?.length && jobs.some(job => job.readsReceiver)
@@ -1342,24 +1364,6 @@ export function isMintedOrProxyName(name, injectorState) {
   return POSSIBLE_GLOBAL_OBJECTS.has(name) || mintedProxyGlobalName(name, injectorState) !== null;
 }
 
-// does this nav spine bottom out on a CALL? that read belongs to the source, so a full
-// consume owes it a throw probe - a plain proxy nav from a bare root owes nothing. every spelling
-// the invocation canon reads (a tagged template, an `await`), standing under a sequence prefix too
-export function navSpineHasCall(node) {
-  // through the CHAIN wrapper an optional spelling wears: `mk()?.self.Object` roots in the same
-  // call as its plain twin, and the paren-only peel stopped at the wrapper - the discarded read
-  // then lost the throw probe the call root owes
-  for (let cur = peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr }); cur;) {
-    if (invocationNode(cur)) return true;
-    if (cur.type === 'MemberExpression') {
-      cur = unwrapRuntimeExpr(cur.object);
-      continue;
-    }
-    return false;
-  }
-  return false;
-}
-
 export function reanchoredInit(declarator, info, replacement) {
   const value = replacement ?? cloneNode(info.tail);
   if (info.shape === 'guard') return value;
@@ -1780,6 +1784,13 @@ export function residualPrecedesExtractions(declarator, declJobs, sourceProps, {
 // (`sf()[(c++, 'self')].Map` -> `_ref = (sf(), c++)`); every other shape sinks through the shared
 // collapse (`(() => globalThis)().self.Promise` -> `_ref = _Promise`)
 export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemoArg, adapter }) {
+  // a `||` / `??` its LEFT decides never runs its right - behind a prefix the carry left too: the slot
+  // keeps what the rescue canon owes of the init, and none stands where that is nothing
+  // (`{ of } = Array ?? (log(), Set)` sinks no slot)
+  if (metaPath && decidingFallbackLeft(peelNestedSequenceExpressions(init).tail, { scope: metaPath.scope, adapter, path: metaPath })) {
+    const owed = discardRescueNodesWithReads({ node: init, scope: metaPath.scope, adapter, path: metaPath });
+    return owed.length ? sequenceExpression(owed) : null;
+  }
   // the collapse has already reshaped the receiver, so the surviving effects are read off the
   // CURRENT spelling: a folded hop key still hangs on its member (`(b++, _globalThis).Array`
   // -> `b++`), while a whole-swapped root left a bare sequence whose TAIL is the erased value
@@ -2528,8 +2539,12 @@ export function interleavedSeKeySegments(declarator, jobs, refName, adapter = nu
       const keys = destructureKeyReadPlan({ node: prop, parentPath: { node: declarator.id } },
         { ...nodeSite(prop, job.metaPath), adapter })?.keys ?? [];
       declarators.push(renderKeyedDestructureRead({
-        receiverName, receiver: identifier(receiverName), binding: job.bindingTarget,
-        keys, read: job.value(receiverName),
+        receiverName,
+        receiver: identifier(receiverName),
+        binding: job.bindingTarget,
+        keys,
+        read: job.value(receiverName),
+        proven: !!job.receiverProven,
       }).at(-1));
       buffered = [];
       continue;

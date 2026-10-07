@@ -14,20 +14,39 @@ import { isKnownGlobalName } from './globals.js';
 import {
   classifyDestructureLeafHost,
   collectDestructureUnionCandidates,
+  decidedSelection,
   destructurePatternHostPath,
   prepareDestructureUnion,
 } from './destructure.js';
 import { agreeingTernaryArm, resolveObjectName } from './resolve.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
 import {
+  canonQuestionScope,
   destructureReceiverNode,
   hasObjectRestAncestor,
   ownRelocatedHeadElement,
   hasRestSiblingExcept,
+  isCalleeReference,
+  isMemberAccessNode,
   isTypeAnnotationNodeType,
   patternSlotTarget,
+  peelParenAndTSParentPath,
   typeDeclarationUnreferencedInFile,
+  unwrapParens,
+  unwrapRuntimeExpr,
+  walkAstNodes,
+  withCanonQuestion,
 } from '../helpers/ast-patterns.js';
+
+// does the operand a dead selection folds to need `(0, operand)` to stay the VALUE the selection
+// yielded in its `slot` (`deadBranchOf`): a member as a callee or a tag would bind `this` to its
+// object and as a `delete` operand would delete; a bare name as a `delete` operand is a strict-mode
+// error and as a `typeof` operand stops throwing
+export function foldedOperandNeedsValue(operand, slot) {
+  const inner = unwrapRuntimeExpr(operand);
+  if (isMemberAccessNode(inner)) return slot === 'callee' || slot === 'delete';
+  return inner?.type === 'Identifier' && (slot === 'delete' || slot === 'typeof');
+}
 
 export function createUsageHandlerCore({
   adapter,
@@ -112,6 +131,71 @@ export function createUsageHandlerCore({
       // usage-global union: extra reachable receiver / key targets each earn a side-effect import
       for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
     }
+  }
+
+  // does a dead part hold anything the transform would answer for - a known global no local binds?
+  // pure folds the selection only then, or where it respells the read that decides it: a selection
+  // with nothing of the transform's own stays as the source wrote it
+  function holdsUnboundGlobal(dead, path) {
+    let holds = false;
+    walkAstNodes({ root: dead, visit(node) {
+      holds ||= node.type === 'Identifier' && isKnownGlobalName(node.name) && !adapter.hasBinding(path.scope, node.name, path);
+      return !holds;
+    } });
+    return holds;
+  }
+
+  // the reference slots outer folds hand down, by the selection each puts there (`deadBranchOf`)
+  const inheritedSlots = new WeakMap();
+
+  // the question scope a selection level asked in (`withCanonQuestion`), held for the visit of its left
+  // operand: usage-pure keeps no answer from one visit to the next, so every level would walk the levels
+  // below it again. the left operand is entered right after its level, whose visit only marks, so nothing
+  // is rewritten in between; any other entry here, whose visit may rewrite, drops the scope. only a level
+  // whose left is a level too holds it: that left is the next visit, so no hold outlives the chain to pin
+  // the file's tree past its teardown
+  let heldLevel = null;
+  function levelQuestionScope(node) {
+    const scope = heldLevel && unwrapParens(heldLevel.level.left) === node ? heldLevel.scope : canonQuestionScope();
+    const holds = node.type === 'LogicalExpression' && unwrapParens(node.left).type === 'LogicalExpression';
+    heldLevel = holds ? { level: node, scope } : null;
+    return scope;
+  }
+  function dropsHeldLevel(entry) {
+    return (...args) => {
+      heldLevel = null;
+      return entry(...args);
+    };
+  }
+
+  // the slot a selection fills where its parent reads a REFERENCE through it - `callee` for a call's
+  // callee or a template's tag (`this`), `delete` / `typeof` for that operator's operand - else null
+  function referenceSlot(path) {
+    const parent = peelParenAndTSParentPath(path)?.node;
+    if ((parent?.type !== 'NewExpression' && isCalleeReference(parent, path.node))
+      || (parent?.type === 'TaggedTemplateExpression' && unwrapRuntimeExpr(parent.tag) === path.node)) return 'callee';
+    return parent?.type === 'UnaryExpression' && (parent.operator === 'delete' || parent.operator === 'typeof') ? parent.operator : null;
+  }
+
+  // the part of a user selection this build never evaluates, asked by each emitter's visitor of a
+  // `||` / `??` / `&&`, a conditional and an `if`: `{ skip, fold, slot }` - `skip` the key of the
+  // operand that never runs (null where only the test is dead text, or the `if` has no such branch),
+  // `fold` what usage-pure replaces the selection with once the claims rendered (an operand key, or
+  // `true` / `false` for the value a decided test yields), null where the selection keeps its text,
+  // and `slot` the reference slot it folds in (`foldedOperandNeedsValue`) - or null
+  function deadBranchOf(path) {
+    const scope = method === 'usage-pure' ? levelQuestionScope(path.node) : null;
+    // an `if` only where nothing is rewritten: usage-pure has no fold for a statement yet, and a dead
+    // branch it skipped would keep the source's raw globals in its output
+    const dead = path.node.type === 'IfStatement' && method === 'usage-pure' ? null
+      : withCanonQuestion(() => decidedSelection(path.node, { scope: path.scope, adapter, path }), scope);
+    if (!dead) return null;
+    const skipped = dead.skip && path.node[dead.skip];
+    const folds = method === 'usage-pure' && (dead.substituted || (skipped && holdsUnboundGlobal(skipped, path)));
+    const slot = folds ? inheritedSlots.get(path.node) ?? referenceSlot(path) : null;
+    // the operand a fold puts where the selection stood fills its slot: a selection there folds for it
+    if (slot && typeof dead.fold === 'string') inheritedSlots.set(unwrapRuntimeExpr(path.node[dead.fold]), slot);
+    return { skip: skipped ? dead.skip : null, fold: folds ? dead.fold : null, slot };
   }
 
   function emitBinaryInUsage(path) {
@@ -233,20 +317,22 @@ export function createUsageHandlerCore({
 
   return {
     skipUpdateTargets,
-    emitGlobalUsage,
-    memberAlreadyHandled,
-    emitMemberUsage,
-    emitBinaryInUsage,
-    emitDestructurePropUsage,
-    annotationGlobal,
-    annotationCtx,
-    checkTypeAnnotation,
-    annotationDeclVisitors,
+    emitGlobalUsage: dropsHeldLevel(emitGlobalUsage),
+    memberAlreadyHandled: dropsHeldLevel(memberAlreadyHandled),
+    emitMemberUsage: dropsHeldLevel(emitMemberUsage),
+    emitBinaryInUsage: dropsHeldLevel(emitBinaryInUsage),
+    emitDestructurePropUsage: dropsHeldLevel(emitDestructurePropUsage),
+    deadBranchOf,
+    annotationGlobal: dropsHeldLevel(annotationGlobal),
+    annotationCtx: dropsHeldLevel(annotationCtx),
+    checkTypeAnnotation: dropsHeldLevel(checkTypeAnnotation),
+    annotationDeclVisitors: Object.fromEntries(Object.entries(annotationDeclVisitors)
+      .map(([type, visit]) => [type, dropsHeldLevel(visit)])),
     isHandled: node => handledObjects.has(node),
     // the marking's premise is that the claim's render OWNS the receiver's hops. an emitter that
     // re-emits the receiver by node identity keeps that premise from holding, and only it knows -
     // so it releases the marks and the hops claim for themselves on the re-visit
-    releaseHandled: node => handledObjects.delete(node),
-    reset,
+    releaseHandled: dropsHeldLevel(node => handledObjects.delete(node)),
+    reset: dropsHeldLevel(reset),
   };
 }

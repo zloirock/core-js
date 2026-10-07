@@ -20,7 +20,7 @@ export const aliasSubject = g?.self.Array.prototype.findLastIndex;
 export const nonProxyLeaf = (q5 = globalThis).foo?.bar.at(1);
 export const nonGlobalAssign = (q6 = other).self?.Array.prototype.at.call([1], 0);
 // a SE-bearing computed hop key deopts too, its effect harvested into the collapsed sequence;
-// a LOGICAL subject keeps the guard (the right operand may be picked), collapsing per-operand
+// a LOGICAL subject whose left the build decides folds to that left, collapsing it, under its kept guard
 let q7, q8;
 export const seKeyHopSubject = (q7 = globalThis)?.[(c++, 'self')].Array.prototype.findLast;
 export const logicalSubject = ((q8 = globalThis).self || other)?.Array.prototype.flat;

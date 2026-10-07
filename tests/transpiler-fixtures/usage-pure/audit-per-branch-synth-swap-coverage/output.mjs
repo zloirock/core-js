@@ -2,11 +2,11 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 // destructure receiver is a ternary / logical-or: each viable branch becomes its own
 // `{key: _Branch$key}` literal independently; non-viable branches (unknown identifiers
-// or no matching static method) are left raw
+// or no matching static method) are left raw, and an `&&` whose gate the build serves
+// yields its right alone
 //
 // declaration init: ternary, both viable
 const {
@@ -38,7 +38,7 @@ let b1, b2;
 // default-value param (function param default): && reversed
 function f({
   groupBy
-} = _Promise && {
+} = {
   groupBy: _Map$groupBy
 }) {
   return groupBy;

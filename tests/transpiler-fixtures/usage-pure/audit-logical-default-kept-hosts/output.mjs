@@ -1,10 +1,11 @@
 import _self from "@core-js/pure/actual/self";
-// the realm logical default collapses only where a READ claim stands over it: a WRITE and a
-// DELETE address the realm's own slot and keep the carrier, a SHADOWED name is the user's
-// binding with a live right side, `&&` yields its RIGHT operand, and `global` has no pure
-// entry - every one keeps the raw shape
-(_self ?? {}).Array = 1;
-delete (_self ?? {}).Array;
+// the realm logical default a READ claim stands over collapses into that claim; a WRITE and a
+// DELETE address the realm's own slot with no claim over them, and their dead default folds like
+// any user fallback, as an `&&` over the realm folds to the RIGHT operand it always yields. a SHADOWED
+// name is the user's binding with a live right side and `global` has no pure entry - those keep the
+// raw shape
+_self.Array = 1;
+delete _self.Array;
 export function viaShadow(self) {
   return (self ?? {
     Number: {
@@ -12,5 +13,5 @@ export function viaShadow(self) {
     }
   }).Number.MAX_SAFE_INTEGER;
 }
-export const viaAnd = (_self && {}).Number;
+export const viaAnd = {}.Number;
 export const viaGlobal = (global ?? {}).Number;

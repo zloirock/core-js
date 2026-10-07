@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Claimed statics retain their polyfills beside object rest, and a selection whose left the build serves
+// drops its dead right (`alt`). Rest keeps its source and exclusions; instance slots remain native.
 let cond = c1;
 const alt = {
   Array: {},
@@ -26,7 +26,7 @@ export const t1 = (() => {
     JSON: {
       stringify: _JSON$stringify
     }
-  }) || alt;
+  });
   return [of(1), stringify(2)];
 })();
 export const t2 = (() => {
@@ -38,7 +38,7 @@ export const t2 = (() => {
     Array: {
       from: _Array$from
     }
-  }) || alt;
+  });
   return from([3]);
 })();
 export const t3 = (() => {

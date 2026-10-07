@@ -30,7 +30,7 @@ const {
   Array: {
     from: _Array$from
   }
-}) ?? {};
+});
 const {
   Iterator: {
     from: a2
@@ -39,7 +39,7 @@ const {
   Iterator: {
     from: _Iterator$from
   }
-}) || {};
+});
 const {
   Promise: {
     try: a3

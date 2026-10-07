@@ -33,7 +33,7 @@ Results are remembered under `~/.cache/core-js-differential/`, one entry per (sn
 - **its own code**, hashed per entry - an emitter edit voids exactly the entries whose output changed, which is what makes a run cost what the edit cost. The plugins are deliberately absent: they act through the output, and the output is already here
 - **what ran before it in the chunk**, as a running hash - snippets share a realm and the corpus writes onto globals on purpose, so a snippet can observe its predecessors. A plugin edit leaves this alone and the cache stays warm; a corpus edit re-runs what follows it
 - **the core-js under it** - an output is a list of imports, so a polyfill edit moves the result without moving a byte of the output. The header stamps both runtime trees; `native` and `arming` read the raw source and depend on neither
-- **the harness**, hashed into the FILE NAME, so a different harness or branch gets its own file
+- **the harness** and the Node running it, hashed into the FILE NAME, so a different harness, branch or Node gets its own file
 
 Never stored: a failed snippet (a worker that died mid-import is indistinguishable from a snippet that threw, and storing it would pin the case red forever), and a result the audit could not reproduce.
 
@@ -44,7 +44,7 @@ The cache decides no verdict - it skips work whose answer is known, and the AUDI
 ## Rules
 
 - The corpus mutates globals, so snippets cannot share a realm. Work is split into chunks, each a separate process running its subset sequentially; in-process concurrency would interleave snippets that share those globals
-- A snippet has to run natively without throwing for an uninteresting reason, or the three-way comparison says nothing
+- A snippet has to run natively without throwing for an uninteresting reason, or the three-way comparison says nothing - on every Node of the range above, not only the one at hand: native is the host's own, and the lowest one lacks the newest statics (Node 22: `Promise.try`, `RegExp.escape`, `Error.isError`)
 - An observable must be a function of the SNIPPET, not of the realm - the rule the cache audit enforces. Snippets share a realm with the corpus cases that write onto globals on purpose, so a key COUNT over a shared receiver - `globalThis`, a constructor - reports which snippets ran before this one rather than what the emitter did. Observe shape (`typeof r`, a named key, a value) instead of size; a literal built inside the snippet is a safe receiver for counting, a shared one never is. The pure legs have one of these built in: the ponyfill constructor is ONE object per realm and importing a static module installs the static ON it, so a snippet whose output reads `_Map.groupBy` answers by whether a NEIGHBOUR imported `map/group-by`. Reading a static off a substituted constructor obliges the snippet to touch that static itself (`void Map.groupBy;` in its setup), which makes its own output import the module and pins what it reads
 - Extend by adding a family to the generator, not by adding one-off snippets: a family covers a class of shapes, and a single case only proves itself
 - Register a new family at the END of `generate()`: a cache group is addressed by its chunk prefix, so a family inserted mid-corpus shifts the chunk and prefix of every snippet after it and voids their groups - the next run re-evaluates that whole tail, and moving the family again later voids it once more

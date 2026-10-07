@@ -119,6 +119,7 @@ import {
   destructurePatternHostPath,
   renderSynthTree,
   synthPropDedupKey,
+  receiverValueNeverNullish,
   residualInitRunsEffects,
   staticContainerReceiverName,
   wrapperElementNavPlacement,
@@ -738,7 +739,9 @@ export function renderNestedKeyedPatternCapture(plan, {
       const outer = !assignment && index === 0 && receiverRef ? receiverRef : mintRef();
       if (plan.levelNames?.[index]) noteRefAlias?.(outer, plan.levelNames[index]);
       const ordered = [];
-      let receiverCoerced = false;
+      // ... and the level holding the init rejects nothing a proven init can never be
+      let receiverCoerced = index === 0
+        && keyedReadReceiverProven({ init: plan.init, hostPath: plan.ctx?.path, adapter: plan.ctx?.adapter });
       for (const prop of level.pattern.properties) {
         const source = prop === level.prop ? {
           ...prop,
@@ -1862,6 +1865,9 @@ function planRetainedObjectCaptureShape({
     && (kind !== 'global' || !assignment || assignmentValueDiscarded(hostPath))
     && allProxySelectingInit(init, { adapter, injectorState })) return null;
   const siblingStatics = siblingStaticEntries();
+  const hostPattern = hostPath?.node?.type === 'VariableDeclarator' ? hostPath.node.id : hostPath?.node?.left;
+  const receiverNeverNullish = !isCapturedKeyedPattern(pattern)
+    && keyedReadReceiverProven({ init, hostPath, adapter, nested: hostPattern !== pattern });
   // Rest gathers the original receiver with the same exclusions. Only pristine statics
   // admit the repeated exclusion reads; user getters stay on the ordinary native route.
   // Key effects run with their ordered writes, then the exclusions use their folded keys.
@@ -1881,12 +1887,12 @@ function planRetainedObjectCaptureShape({
         || siblingStatics.get(item).native || siblingStatics.get(item).narrow)),
     rest,
     // the receiver IS a constructor the read side names, on a spelling that cannot come out nullish
-    // (no `?.`, no lowered short-circuit): the null rejection the keyed read would keep in front of
-    // the key's effects is dead there
-    provenReceiver: !narrow && !!isStaticPlacement(initCtorName() ?? '') && !valueMayBeNullish(init),
+    // (no `?.`, no lowered short-circuit), or a value that never is: the null rejection the keyed read
+    // would keep in front of the key's effects is dead there
+    provenReceiver: (!narrow && !!isStaticPlacement(initCtorName() ?? '') && !valueMayBeNullish(init)) || receiverNeverNullish,
     // A source receiver with a proven fallback cannot be nullish (`x || Object`). A moved leaf
     // reads a captured property instead; its constructor-name projection depends on hop relocation.
-    receiverNeverNullish: !isCapturedKeyedPattern(pattern) && keyedReadReceiverProven({ init, hostPath, adapter }),
+    receiverNeverNullish,
     // the constructor an assignment's memo holds: a residual left on the memo resolves through it
     receiverName: assignment && !POSSIBLE_GLOBAL_OBJECTS.has(initCtorName() ?? '') ? initCtorName() : null,
     primaryKey: narrow ? resolvedMeta.key : rest ? resolveKey({
@@ -1907,19 +1913,30 @@ function planRetainedObjectCaptureShape({
   };
 }
 
-// the receiver of a keyed destructure read IS a constructor the read side names, on a spelling that
-// cannot come out nullish (no `?.`, no lowered short-circuit): the null-first rejection the read keeps
-// in front of the key's effects is dead there
-export function keyedReadReceiverProven({ init, hostPath, adapter }) {
+// the receiver of a keyed destructure read IS a constructor the read side names, or a value that is
+// never nullish, on a spelling that cannot come out nullish (no `?.`, no lowered short-circuit): the
+// null-first rejection the read keeps in front of the key's effects is dead there
+// `nested`: the pattern reads a SLOT of the init (an array-wrapper element, a captured hop), which
+// only a constructor-named init still proves
+export function keyedReadReceiverProven({ init, hostPath, adapter, nested = false }) {
   if (!adapter || !init || valueMayBeNullish(init)) return false;
-  let value = installedWriteValue(init);
-  // a `||` / `??` selection yields its LEFT only where that is truthy / non-nullish, so a right operand
-  // proven here proves the whole value (`x || Object`): the null probe would guard a value never nullish
-  for (let selection = unwrapRuntimeExpr(value); selection?.type === 'LogicalExpression' && selection.operator !== '&&';
-    selection = unwrapRuntimeExpr(value)) value = installedWriteValue(selection.right);
-  const name = resolveObjectName({ objectNode: value, scope: hostPath?.scope, adapter, path: hostPath })
-    ?? staticContainerReceiverName({ node: value, scope: hostPath?.scope, adapter, path: hostPath, rescuesReceiverRead: true });
-  return !!isStaticPlacement(name ?? '');
+  const ctx = { scope: hostPath?.scope, adapter, path: hostPath };
+  function proven(node) {
+    let value = installedWriteValue(node);
+    // a `||` / `??` selection yields its LEFT only where that is truthy / non-nullish, so a right operand
+    // proven here proves the whole value (`x || Object`): the null probe would guard a value never nullish
+    for (let selection = unwrapRuntimeExpr(value); selection?.type === 'LogicalExpression' && selection.operator !== '&&';
+      selection = unwrapRuntimeExpr(value)) value = installedWriteValue(selection.right);
+    // a conditional yields one of its arms, so the two proven prove it
+    const branch = unwrapRuntimeExpr(value);
+    if (!nested && branch?.type === 'ConditionalExpression') return proven(branch.consequent) && proven(branch.alternate);
+    // ... and so does a value that names nothing: a literal, a literal binding, a built-in's prototype
+    if (!nested && receiverValueNeverNullish(value, ctx)) return true;
+    const name = resolveObjectName({ objectNode: value, ...ctx })
+      ?? staticContainerReceiverName({ node: value, ...ctx, rescuesReceiverRead: true });
+    return !!isStaticPlacement(name ?? '');
+  }
+  return proven(init);
 }
 
 // Keep native property patterns around the claimed read so keys, defaults and sibling
@@ -2043,7 +2060,10 @@ export function renderRetainedObjectCapture(plan, {
   // one fresh node per position: a binding that inserts ESTree as is must not find the memo's own
   // binding when it later swaps a node it reached through one of the reads
   let refName = plan.receiverRef;
+  // ... and whether anything read it - a reused source name is spelled before any read
+  let receiverRead = false;
   function ref() {
+    receiverRead = true;
     if (plan.inlineReceiver) return embed(cloneNode(plan.init));
     if (!refName) {
       refName = plan.assignment ? mintReceiverRef() : mintRef();
@@ -2208,12 +2228,17 @@ export function renderRetainedObjectCapture(plan, {
   // the walk reaches it, and the claims INSIDE it go out unrendered
   if (plan.coerceReceiver && !plan.reuseReceiver) ref();
   const result = plan.assignment && plan.preserveResult !== false ? ref() : null;
+  // ... and an init nothing reads and nothing coerces is owed only what discarding it runs - the discard
+  // rescue the statement host lifts: its effects and a read only a getter answers, of a selection its left
+  // decides the live left's (a TS wrapper leaves with the value it wraps)
+  const discarded = plan.assignment && !receiverRead && plan.provenReceiver && ctx
+    ? discardRescueNodesWithReads({ node: unwrapRuntimeExpr(plan.init), ...ctx }).map(embed) : null;
   return plan.assignment ? {
     refName,
     expression: sequenceExpression([
       ...plan.receiverAlreadyEvaluated || plan.inlineReceiver ? [] : plan.reuseReceiver
-        ? coerceReuse ? [assignmentExpression('=', objectPattern([]), init)] : prefixedReuse ? [init] : []
-        : plan.receiverRef ? [] : [refName ? assignmentExpression('=', ref(), init) : init],
+        ? coerceReuse ? [assignmentExpression('=', objectPattern([]), init)] : prefixedReuse ? discarded ?? [init] : []
+        : plan.receiverRef ? [] : refName ? [assignmentExpression('=', ref(), init)] : discarded ?? [init],
       ...plan.coerceReceiver && !plan.reuseReceiver ? [assignmentExpression('=', objectPattern([]), ref())] : [],
       ...assignments,
       ...result ? [result] : [],
