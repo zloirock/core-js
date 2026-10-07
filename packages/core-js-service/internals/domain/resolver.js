@@ -2,8 +2,7 @@ import { HEADER_LIMIT } from '../../config.js';
 import parseAcceptEncoding from './accept-encoding.js';
 import { compareVersions, toTarget } from './target.js';
 
-// what the UA parser calls a browser, in the vocabulary of the compat data. anything not named
-// here resolves to "I do not know", which is a full answer: the visitor gets the baseline
+// what the parser calls a browser, in the vocabulary of the compat data; any other name is "I do not know"
 const ENGINES = new Map([
   ['android browser', 'android'],
   ['chrome', 'chrome'],
@@ -16,7 +15,7 @@ const ENGINES = new Map([
   ['samsung internet for android', 'samsung'],
 ]);
 
-// the compat data counts the mobile builds of three of them as engines of their own
+// the compat data counts the Android builds of these as engines of their own
 const ON_ANDROID = new Map([
   ['chrome', 'chrome-android'],
   ['chromium', 'chrome-android'],
@@ -24,133 +23,105 @@ const ON_ANDROID = new Map([
   ['opera', 'opera-android'],
 ]);
 
-// the token that carries the live version of Safari
-const VERSION_TOKEN = /\bVersion\/(?<version>\d+(?:\.\d+)*)/;
-// and the same token on iOS, where it is WebKit's only in the place Safari writes it - straight after
-// `(KHTML, like Gecko)`. An app that assembles its own string writes one of its own elsewhere - Edge
-// after its own token, Yandex at the very end - and what it says there is no fact about WebKit
-const IOS_VERSION_TOKEN = /\)\s*Version\/(?<version>\d+(?:\.\d+)*)/;
-// what WebKit has written in place of the OS version since iOS 26. Only these read low; any other
-// value is the OS itself, and on iOS the OS is the WebKit
+// the iOS token, read here because the parser knows only its underscored form. The word `OS` and the
+// boundary before `iOS` keep out an Android phone called `Iphone12 pro max` and the Gecko of `KaiOS/1.0`
+const IOS_SYSTEM_TOKEN = /(?:CPU OS|\biOS|iPhone OS)[ /](?<version>\d+(?:[._]\d+)*)/;
+// what WebKit writes in place of the OS since iOS 26 - a lower bound, not the OS
 const FROZEN_IOS_VERSIONS = new Set(['18.6', '18.6.2', '18.7']);
-// the OS as an app read it from the system and wrote it beside the frozen token - Facebook as
-// `FBSV/18.7.3`, Instagram as `(iPhone13,2; iOS 26_6_1; ...`. The segment has to sit behind a device
-// model: `iOS` inside an app's own name - `GNews iOS/5.104` - is a version of that app
-const REPORTED_IOS_VERSION = /\bFBSV\/(?<facebook>\d+(?:\.\d+)*)|\((?:iPad|iPhone)\d+,\d+; iOS (?<model>\d+(?:_\d+)*);/;
-// from 147 on Firefox writes `18_7` as a literal on every device down to iOS 15 - its
-// `defaultMobileUserAgent` - so the token is not even a lower bound there. What is left is the iOS the
-// app installs on: 15.0 for 147, the `IPHONEOS_DEPLOYMENT_TARGET` of its `Client` target, which only
-// ever rises
+// the OS an app read from the system and wrote beside the frozen token. Behind a device model only:
+// `GNews iOS/5.104` is the version of an app
+const REPORTED_IOS_TOKEN = /\bFBSV\/(?<facebook>\d+(?:\.\d+)*)|\((?:iPad|iPhone)\d+,\d+; iOS (?<model>\d+(?:_\d+)*);/;
+// `Version/` is WebKit's only where Safari writes it, after `(KHTML, like Gecko)`: apps write theirs elsewhere
+const IOS_SAFARI_VERSION_TOKEN = /\)\s*Version\/(?<version>\d+(?:\.\d+)*)/;
+// written by WebKit on an iPhone, an iPad or an iPod, and by nothing else
+const APPLE_DEVICE = /\blike Mac OS X\b/;
+// the iOS builds of Chrome, Edge, Firefox and Opera, which no other system has
+const IOS_BROWSER_TOKEN = /\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\/\d/;
+// from 147 on Firefox writes `18_7` as a literal on every device, so what is left is the iOS it installs on
 const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
 const FIREFOX_IOS_LITERAL_SINCE = 147;
 const FIREFOX_IOS_FLOOR = '15.0';
-// `zstd` in `Accept-Encoding` is written by the network stack the WebKit runs on, from iOS 26.3 on
-// (BCD) - checked on devices: none on 26.1, sent on 26.5, 26.6 and 27.0, by Safari and by the
-// WKWebView of Firefox alike. 26.3 is the official version; 26.2 is an ASSUMPTION - the one version
-// between the two device checks nobody has looked at, taken as the floor so that a 26.2 which does
-// send it is not read high. TODO: check 26.2 and 26.3 on a device, and raise this to 26.3 once 26.2
-// shows no `zstd`
+// the network stack asks for `zstd` from iOS 26.3 on (BCD); 26.2 is an ASSUMPTION nobody has checked on a
+// device. TODO: check 26.2, and raise this to 26.3 if it sends no `zstd`
 const ZSTD_IOS_SINCE = '26.2';
-// the WebKit build Apple froze the token at, first shipped in Safari 11.1 and iOS 11.3 - Safari 11.0.2
-// was `604.4.7`. A Mac string that carries it is at least that Safari, whatever `Version/` says or
-// whether it says anything: a WKWebView in a Mac app, or in an iPad app, writes none
+
+// Safari's own version, and the WebKit build Apple froze the token at from Safari 11.1 and iOS 11.3 on -
+// a floor under any Mac string that carries it, with a `Version/` or without
+const SAFARI_VERSION_TOKEN = /\bVersion\/(?<version>\d+(?:\.\d+)*)/;
 const FROZEN_WEBKIT = /\bAppleWebKit\/605\.1\.15\b/;
 const FROZEN_WEBKIT_SINCE = '11.1';
-// the names the iOS builds of Chrome, Edge, Firefox and Opera give themselves. No other system has
-// those builds, so the token says iOS where the rest of the string does not: asked for the desktop
-// site, Chrome on an iPhone sends a Mac string with `CriOS/` left in it
-const IOS_BROWSER_TOKEN = /\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\/\d/;
-// what WebKit writes for the system on an iPhone, an iPad or an iPod, and nothing else writes: a Mac
-// says `Intel Mac OS X`, and an Android phone named after an iPhone says `Android`
-const APPLE_DEVICE = /\blike Mac OS X\b/;
-// the OS token, read here rather than taken from the parser, which knows only the underscored form -
-// `CPU iPhone OS 13.3.1` with dots is a real string and it loses the version entirely. The word `OS`
-// is required: a device that calls itself `Iphone12 pro max` is an Android phone with a name, and
-// reading `12` out of it would answer iOS for a Chromium. `iOS` needs the word boundary as well -
-// `KaiOS/1.0` ends in one, and a phone running Gecko would be handed a WebKit bundle
-const IOS_VERSION = /(?:CPU OS|\biOS|iPhone OS)[ /](?<version>\d+(?:[._]\d+)*)/;
-// the Quest UA ends in `SamsungBrowser/4.0`, and a parser that does not know the headset reads
-// that: bowser answers "Samsung Internet 4.0", a decade-old engine, for a current Quest
-const QUEST_TOKEN = /\bOculusBrowser\/(?<version>\d+(?:\.\d+)*)/;
-// a Chromium build under a name of its own - a derivative, or an in-app WebView. the token is the
-// engine's own version, so it is worth more than the name we failed to recognize. LG spells it
-// `Chr0me/` on its televisions, and it is the Chromium the set runs all the same
+
+// the engine's own version under a name nothing knows; LG spells it `Chr0me/` on its televisions
 const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
-// engines of their own that the compat data has no row for: Goanna, forked from the Gecko of
-// Firefox 52 and backported to since, Ladybird, Servo and Ekioh Flow. The Firefox or Chrome version
-// beside the token is a compatibility claim: read as that browser, it hands a thin bundle to an
-// engine that is not it. `EkiohFlow` and not `Flow`, which ends `FlyFlow/` and `FreeFlow/` as well
-const UNTRACKED_ENGINE_TOKEN = /\b(?:EkiohFlow|Goanna|Ladybird|Servo)\/\d/;
-// Gecko's own version, `rv:` at the end of the system part - trusted only beside a `Gecko/` token
-// Gecko could have written: its version on mobile, a real build date on desktop. A string that
-// carries `rv:12.3) Gecko/2000000000` was rewritten, and says nothing about the engine underneath
+// EdgeHTML carries a borrowed `Chrome/`; Chromium Edge spells its own token `Edg`, never `Edge`
+const EDGE_HTML_TOKEN = /\bEdge\/\d/;
+// trusted only beside a `Gecko/` that Gecko could have written - its version, or a real build date
 const GECKO_TOKEN = /\brv:(?<version>\d+(?:\.\d+)*)(?:[a-z]\w*)?\) Gecko\/(?<build>\d+(?:\.\d+)*)/;
 const GECKO_BUILD_DATE = /^(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?:\d{2})?$/;
-// Trident is the rendering engine of Internet Explorer and of nothing else - no Chromium, Gecko or
-// WebKit string carries the token. `MSIE 7.0` beside `Trident/7.0` is IE 11 in COMPATIBILITY VIEW:
-// the claim is a document mode, the engine is the newer one, and the JavaScript is the newer one too
+// the engine of Internet Explorer and of nothing else: `MSIE 7.0` beside `Trident/7.0` is IE 11 in
+// compatibility view, a document mode rather than an older JavaScript
 const TRIDENT_TOKEN = /\bTrident\/(?<version>\d+\.\d+)/;
 const TRIDENT_IE = new Map([['4.0', '8'], ['5.0', '9'], ['6.0', '10'], ['7.0', '11']]);
+// the Quest ends in `SamsungBrowser/4.0`, which a parser reads as a decade-old Samsung Internet
+const QUEST_TOKEN = /\bOculusBrowser\/(?<version>\d+(?:\.\d+)*)/;
+// engines with no row in the compat data, behind the Firefox or Chrome they claim. Not `Flow/`, which ends
+// `FlyFlow/` and `FreeFlow/` as well
+const UNTRACKED_ENGINE_TOKEN = /\b(?:EkiohFlow|Goanna|Ladybird|Servo)\/\d/;
 
-// EdgeHTML - Edge before 79 - carries a `Chrome/` token for compatibility and was never Chromium.
-// Chromium Edge spells its own token `Edg`, `EdgA` or `EdgiOS`, so the bare `Edge/` is what tells
-// the two apart, and reading the borrowed token there would hand EdgeHTML a Chromium bundle
-const EDGE_HTML_TOKEN = /\bEdge\/\d/;
-
-// the higher of two versions, either of which may be missing - and both may be, which is a visitor
-// with no version at all and an answer of `null` further down
+// the higher of two versions, either of which may be missing
 function higher(one, other) {
   if (one === undefined || !/^\d/.test(one)) return other ?? '';
   if (other === undefined || !/^\d/.test(other)) return one;
   return compareVersions(one, other) >= 0 ? one : other;
 }
 
-// the WebKit of an iOS string. An OS the string states outright is the answer - the OS token unless
-// WebKit froze it, or the OS an app reports beside it - and where it states two, the lower one, the
-// only one that cannot be above the truth. Otherwise the frozen token is a lower bound, which
-// Safari's own `Version/` can raise: Apple News writes its own version into `Version/` and puts it
-// far below the OS, a frozen `18_7` puts the OS far below Safari
+// the WebKit of an iOS string: an OS the string states is the answer - the lower one, where it states
+// two - and otherwise the frozen token is a floor that Safari's `Version/` can raise
 function iosVersion(userAgent, parsedVersion) {
-  const system = IOS_VERSION.exec(userAgent)?.groups.version.replaceAll('_', '.') ?? parsedVersion;
-  const own = /^\d/.test(system) && !FROZEN_IOS_VERSIONS.has(system) ? system : undefined;
-  const { facebook, model } = REPORTED_IOS_VERSION.exec(userAgent)?.groups ?? {};
+  const system = IOS_SYSTEM_TOKEN.exec(userAgent)?.groups.version.replaceAll('_', '.') ?? parsedVersion;
+  const stated = /^\d/.test(system) && !FROZEN_IOS_VERSIONS.has(system) ? system : undefined;
+  const { facebook, model } = REPORTED_IOS_TOKEN.exec(userAgent)?.groups ?? {};
   const reported = facebook ?? model?.replaceAll('_', '.');
 
-  if (own !== undefined && reported !== undefined) return compareVersions(own, reported) <= 0 ? own : reported;
+  if (stated !== undefined && reported !== undefined) return compareVersions(stated, reported) <= 0 ? stated : reported;
 
-  return own ?? reported ?? higher(IOS_VERSION_TOKEN.exec(userAgent)?.groups.version, system);
+  return stated ?? reported ?? higher(IOS_SAFARI_VERSION_TOKEN.exec(userAgent)?.groups.version, system);
 }
 
-// the other row the same visitor could be on. Where the string leaves two open, both travel and the
-// matcher serves what covers them, because only there is there a plan to compare them with
-function alsoOn(target, other) {
-  return target === null || other === null ? target : { ...target, alternate: other };
-}
-
-// a named Chromium browser carries the version of the Chromium it RUNS as well as its own. its own
-// row is the better answer - those rows record where a build lags its base, which the Chromium
-// version cannot say - but a build can never have less than the Chromium under it, and a row is a
-// guess about which Chromium that is
-function chromiumUnder(target, userAgent, onChromium) {
-  if (target === null || target.engine.startsWith('chrome') || EDGE_HTML_TOKEN.test(userAgent)) return null;
-
-  const chromium = CHROMIUM_TOKEN.exec(userAgent)?.groups.version;
-
-  return chromium === undefined ? null : toTarget(onChromium, chromium);
-}
-
-// whether the client asked for `zstd` - parsed, not searched, so `zstd;q=0` refuses it, and a header
-// past the bound is not read at all
+// whether the client asked for `zstd` - parsed, so `zstd;q=0` refuses it
 function asksForZstd(header) {
   return typeof header == 'string' && header.length <= HEADER_LIMIT && parseAcceptEncoding(header).quality.get('zstd') > 0;
 }
 
-// the Safari of a Mac string: the version it names, never below the WebKit build the string carries
+// a string the parser placed on iOS, where every browser is WKWebView whatever it calls itself
+function onIOS(userAgent, parsedVersion, acceptEncoding) {
+  if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) {
+    return toTarget('ios', asksForZstd(acceptEncoding) ? ZSTD_IOS_SINCE : FIREFOX_IOS_FLOOR);
+  }
+
+  return toTarget('ios', iosVersion(userAgent, parsedVersion));
+}
+
+// the Safari of a Mac string, never below the WebKit build it carries
 function onMac(userAgent, version) {
   return toTarget('safari', higher(version, FROZEN_WEBKIT.test(userAgent) ? FROZEN_WEBKIT_SINCE : undefined));
 }
 
-// what a string says about its engine when the name says nothing usable
+// an engine token that outranks the name beside it: the Quest's, and Trident's unless the name is that IE
+function fromEngineToken(userAgent, named) {
+  const quest = QUEST_TOKEN.exec(userAgent)?.groups.version;
+
+  if (quest !== undefined) return toTarget('quest', quest);
+
+  const trident = TRIDENT_IE.get(TRIDENT_TOKEN.exec(userAgent)?.groups.version);
+
+  if (trident === undefined || (named?.engine === 'ie' && compareVersions(named.version, trident) >= 0)) return null;
+
+  return toTarget('ie', trident);
+}
+
+// what a string says about its engine when the name says nothing usable: its Chromium or Gecko token,
+// or on a Mac a `Version/` beside `Safari/`, which is WebKit's whatever the browser calls itself
 function fromTokens(userAgent, system, onChromium) {
   const chromium = CHROMIUM_TOKEN.exec(userAgent)?.groups.version;
 
@@ -163,16 +134,28 @@ function fromTokens(userAgent, system, onChromium) {
   }
   if (system !== 'macos') return null;
 
-  return onMac(userAgent, /\bSafari\/\d/.test(userAgent) ? VERSION_TOKEN.exec(userAgent)?.groups.version : undefined);
+  return onMac(userAgent, /\bSafari\/\d/.test(userAgent) ? SAFARI_VERSION_TOKEN.exec(userAgent)?.groups.version : undefined);
+}
+
+// the Chromium a named browser runs: its own row is the better answer, but never below what it runs on
+function chromiumUnder(target, userAgent, onChromium) {
+  if (target === null || target.engine.startsWith('chrome') || EDGE_HTML_TOKEN.test(userAgent)) return null;
+
+  const chromium = CHROMIUM_TOKEN.exec(userAgent)?.groups.version;
+
+  return chromium === undefined ? null : toTarget(onChromium, chromium);
+}
+
+// the other row the same visitor could be on - the matcher serves what covers both
+function alsoOn(target, other) {
+  return target === null || other === null ? target : { ...target, alternate: other };
 }
 
 export default function createResolver({ parseUserAgent }) {
   return function resolve(headers) {
     const userAgent = headers?.['user-agent'];
 
-    // the only way not to answer is to say so - there is no "probably Chrome 90" branch. an
-    // oversized user agent gets the same answer: it is written by the visitor and goes into a parser
-    // with three dozen patterns, so past the bound it is not read at all
+    // "I do not know" is a full answer - the baseline - and a header past the bound is not read at all
     if (typeof userAgent != 'string' || !userAgent || userAgent.length > HEADER_LIMIT) return null;
 
     const parsed = parseUserAgent(userAgent);
@@ -182,63 +165,27 @@ export default function createResolver({ parseUserAgent }) {
     const browser = parsed.browser.name?.toLowerCase() ?? null;
     const system = parsed.os.name?.toLowerCase() ?? null;
 
-    // on iOS every browser is WKWebView - Blink and Gecko do not exist there. the parsers answer
-    // `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a bundle
-    // far thinner than WebKit needs
+    // with no version anywhere, an Apple device is the baseline; anything else is a phone named after one
     if (system === 'ios') {
-      // a Firefox whose OS token is a literal carries no version - only the iOS the app installs on,
-      // and what the network stack under it asks for
-      if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) {
-        return toTarget('ios', asksForZstd(headers['accept-encoding']) ? ZSTD_IOS_SINCE : FIREFOX_IOS_FLOOR);
-      }
+      const target = onIOS(userAgent, parsed.os.version, headers['accept-encoding']);
 
-      // an in-app WKWebView, which carries no `Version/` at all, is left with the OS token
-      const onIOS = toTarget('ios', iosVersion(userAgent, parsed.os.version));
-
-      if (onIOS !== null) return onIOS;
-
-      // neither signal. On an Apple device that leaves a WebKit of no known version, and the name
-      // beside it - a `Firefox/120` on an iPad - is not its engine. Otherwise the string did not
-      // say iOS in a way anything can act on: a name like `Iphone12 pro max` is what a parser read
-      // it out of, and it is an Android phone
-      if (APPLE_DEVICE.test(userAgent)) return null;
+      if (target !== null || APPLE_DEVICE.test(userAgent)) return target;
     }
 
-    // an iOS browser in a string that names another system - read by its name it is Chrome, and a
-    // Blink bundle for a WebKit. Nothing in such a string carries a version: Chrome writes
-    // `Version/11.1.1` there as a literal, so the frozen WebKit build is the one floor left
+    // an iOS browser in a string that names another system: no version is left, the frozen WebKit is the floor
     if (IOS_BROWSER_TOKEN.test(userAgent)) {
       return toTarget('ios', FROZEN_WEBKIT.test(userAgent) ? FROZEN_WEBKIT_SINCE : '');
     }
 
     const onChromium = system === 'android' ? 'chrome-android' : 'chrome';
     const engine = (system === 'android' ? ON_ANDROID.get(browser) : null) ?? ENGINES.get(browser);
-    // no authoritative version token, no version - the browser's own token is the only thing that
-    // carries one, and it is not ours to reconstruct
+    // a name with no version behind it was read out of something else - `Razer Edge 5G` - and is no answer
     const named = engine === undefined ? null : toTarget(engine, parsed.browser.version ?? '');
-    const quest = QUEST_TOKEN.exec(userAgent)?.groups.version;
-    const trident = TRIDENT_IE.get(TRIDENT_TOKEN.exec(userAgent)?.groups.version);
-
-    // an ENGINE token beats the name beside it, and there are two: a headset that a parser reads as
-    // Samsung Internet 4.0, and a browser running Trident, which IS that Internet Explorer whether
-    // it says so, says an older one, or calls itself Sleipnir
-    const byToken = quest !== undefined ? toTarget('quest', quest)
-      : trident !== undefined && (named === null || named.engine !== 'ie' || compareVersions(named.version, trident) < 0)
-        ? toTarget('ie', trident)
-        : null;
-
-    // a name that arrives with no version behind it did not come from a browser: `Razer Edge 5G` and
-    // `motorola edge 30 pro` are read as Microsoft Edge by anything looking for the word, and a name
-    // alone cannot be placed on a threshold. What the string still carries is its own engine - the
-    // Chromium token, or, on a Mac, a `Version/` beside `Safari/`, which is WebKit's whatever the
-    // browser calls itself: Apple allows no other engine there and Chromium writes no `Version/`
-    const identified = byToken ?? named ?? fromTokens(userAgent, system, onChromium);
+    const identified = fromEngineToken(userAgent, named) ?? named ?? fromTokens(userAgent, system, onChromium);
 
     if (identified === null) return null;
 
-    // a Mac string is what an iPad has sent since iPadOS 13, and what an iPhone sends when asked for
-    // the desktop site. Nothing in it says which, and nothing can: Safari sends no client hints. The
-    // WebKit is the same version either way, so `ios` is the other row the visitor could be on
+    // a Mac string comes from an iPad, or an iPhone asked for the desktop site, as often as from a Mac
     if (identified.engine === 'safari' && system === 'macos') {
       const safari = onMac(userAgent, identified.version);
 
