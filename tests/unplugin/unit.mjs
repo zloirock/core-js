@@ -1550,7 +1550,7 @@ function checkPhaseSnapshotFlow() {
     // require/import twins of the recognition arms the K2-tail matrix exposed: each shape
     // discriminates one arm (resolve hint fallback / the bare-callee pair arms / the
     // require-binding view and its detect-usage gate)
-    for (const [armLabel, styles, armSrc] of [
+    for (const [armLabel, styles, armSrc, extra = null] of [
       ['mutated-static alias readback', ['require'],
         'export const r = (() => { const F = (() => Map)(); const orig = F.of;'
         + ' F.of = function () { return "fp"; }; const out = [Map.of === F.of]; F.of = orig; return out; })();\nuse(r);'],
@@ -1560,9 +1560,16 @@ function checkPhaseSnapshotFlow() {
         + ' finally { Reflect.defineProperty(Array, `from`, { value: _o, configurable: true, writable: true }); } })();\nuse(r);'],
       ['double-optional proxy hop chain', ['require'],
         'export const r = (() => { const v = globalThis.window?.window?.self.Array.of(5).at(0); return typeof v; })();\nuse(r);'],
+      // an identity guard compared through the realm entry: the excluded constructor has no safe raw name
+      [
+        'realm-compared identity guard',
+        ['import', 'require'],
+        "const P = typeof Promise !== 'undefined' ? Promise : MyPromise;\nexport const r = P.withResolvers();",
+        { exclude: ['promise/constructor'] },
+      ],
     ]) {
       for (const style of styles) {
-        const armOpts = { ...pureOpts, importStyle: style };
+        const armOpts = { ...pureOpts, importStyle: style, ...extra };
         const one = createPlugin(armOpts).transform(armSrc, '/sm-arm.mjs')?.code ?? armSrc;
         const two = createPlugin(armOpts).transform(one, '/sm-arm.mjs')?.code ?? one;
         check(`re-transform fixpoint: ${ armLabel } (${ style }, ${ engine })`, two, one);
@@ -3548,18 +3555,27 @@ function checkTypedOuterInnerDefault() {
   check('typed-outer inner default/composes the two-step extraction',
     composed.includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? {} : _ref)'), true);
   check('typed-outer inner default/both steps import', importCount('const { at: { name } = {} } = src;'), 2);
-  // A stable source binding keeps the ordered native coercion and sibling read
-  // without another copy of the receiver's identity.
+  // A stable source binding keeps the sibling read without another copy of the receiver's identity,
+  // and owes the ordered native coercion only where it may be nullish: a literal binding never is
+  function siblingDeclarators(code) {
+    return programOf(code).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
+  }
   const withSibling = transformed('const { at: { name } = {}, other } = src;');
-  const siblingDecls = programOf(withSibling).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
+  const siblingDecls = siblingDeclarators(withSibling);
   const captures = siblingDecls.filter(node => node.id.type === 'Identifier'
     && node.init?.type === 'Identifier' && node.init.name === 'src');
   const leaf = siblingDecls.find(node => node.id.name === 'name');
   const coercion = siblingDecls.find(node => node.id.type === 'ObjectPattern' && !node.id.properties.length);
   const residual = siblingDecls.find(node => node.id.type === 'ObjectPattern' && node.id.properties[0]?.key.name === 'other');
   check('typed-outer inner default/multi-prop keeps the residual',
-    captures.length === 0 && coercion?.init.name === 'src' && residual?.init.name === 'src'
-      && siblingDecls.indexOf(coercion) < siblingDecls.indexOf(leaf) && siblingDecls.indexOf(leaf) < siblingDecls.indexOf(residual), true);
+    captures.length === 0 && !coercion && residual?.init.name === 'src'
+      && siblingDecls.indexOf(leaf) < siblingDecls.indexOf(residual), true);
+  const opaqueDecls = siblingDeclarators(createPlugin(OPTIONS)
+    .transform('const src = make();\nconst { at: { name } = {}, other } = src;\nexport { src };\n', '/p.mjs')?.code ?? '');
+  const opaqueLeaf = opaqueDecls.find(node => node.id.name === 'name');
+  const opaqueCoercion = opaqueDecls.find(node => node.id.type === 'ObjectPattern' && !node.id.properties.length);
+  check('typed-outer inner default/a source that may be nullish keeps its coercion',
+    opaqueCoercion?.init.name === 'src' && opaqueDecls.indexOf(opaqueCoercion) < opaqueDecls.indexOf(opaqueLeaf), true);
   const guarded = unwrapNode(leaf.init.arguments[0]);
   const dispatch = unwrapNode(guarded.test.left).right;
   check('typed-outer inner default/reused source keeps its array type',

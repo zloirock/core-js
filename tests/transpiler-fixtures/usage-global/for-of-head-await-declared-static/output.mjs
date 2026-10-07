@@ -11,11 +11,15 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.of";
+import "core-js/modules/es.number.constructor";
+import "core-js/modules/es.number.is-integer";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// An awaited local head may hold Array, without handing its whole namespace out.
+// An awaited local head may hold Array - or another constructor core-js ships no replacement of (`Number`) -
+// without handing its whole namespace out.
 // The static read needs its own import; pure guards the uncertain receiver by identity.
 async function use() {
   for await (const value of [Array]) value.of(3);
+  for await (const owner of [Number]) owner.isInteger(3);
 }
 use();

@@ -207,19 +207,29 @@ function ownGuardRenderShape(conditional, path) {
   // the render spells the receiver first, but the test is symmetric - take whichever side is it
   const against = left?.type === 'Identifier' && left.name === read.receiver ? right
     : right?.type === 'Identifier' && right.name === read.receiver ? left : null;
-  if (against?.type !== 'Identifier') return false;
-  // a global core-js never replaces is tested against its BARE name, a replaced one against
-  // the minted constructor binding
-  // An inherited pre+post import can still belong to this injector. The completed
-  // identity test protects its raw arm regardless of which pass allocated the import.
-  const entry = pureImportEntryOf(path, against.name);
-  const compared = entry === null
-    ? mintedNameTarget(against.name)?.global ?? against.name : entryGuardTarget(entry)?.global;
+  const compared = comparedGlobal(against, path);
+  if (compared === null) return false;
   // A realm guard substitutes the GLOBAL itself rather than one of its statics.
   // Its raw branch still owes the selected object's property or nullish TypeError.
   return target.member === null
     ? POSSIBLE_GLOBAL_OBJECTS.has(compared) && read.member === target.global
     : compared === target.global;
+}
+
+// the global an identity test compares against: a global core-js never replaces is tested against its
+// BARE name, a replaced one against the minted constructor binding - an inherited pre+post import can
+// still belong to this injector, and the completed test protects its raw arm whichever pass allocated
+// the import - and one whose raw name is unsafe (a local shadow, a constructor the set does not carry)
+// against the realm entry's member of that name (`_globalThis.Promise`); null for any other spelling
+function comparedGlobal(against, path) {
+  if (against?.type === 'Identifier') {
+    const entry = pureImportEntryOf(path, against.name);
+    return entry === null ? mintedNameTarget(against.name)?.global ?? against.name : entryGuardTarget(entry)?.global ?? null;
+  }
+  const realm = against?.type === 'MemberExpression' && !against.computed ? unwrapRuntimeExpr(against.object) : null;
+  if (realm?.type !== 'Identifier' || against.property?.type !== 'Identifier') return null;
+  const entry = pureImportEntryOf(path, realm.name);
+  return entry !== null && POSSIBLE_GLOBAL_OBJECTS.has(entryGuardTarget(entry)?.global) ? against.property.name : null;
 }
 
 // the raw read OUR shadow-alias guard deliberately keeps (`h === Ctor ? _X : h.of` - the

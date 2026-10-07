@@ -15,7 +15,7 @@ import _self from "@core-js/pure/actual/self";
 // Instance reads preserve receiver, key and default order across host forms.
 let k1 = 0;
 var _ref = _Promise.prototype ? [7, 8] : [],
-  a1 = null == _ref ? _ref[""] : (k1++, _atMaybeArray(_ref)),
+  a1 = (k1++, _atMaybeArray(_ref)),
   {
     other1
   } = _ref;
@@ -24,7 +24,7 @@ export const r1 = [typeof a1, k1];
 let k2 = 0;
 const arr2 = [1];
 var _ref2 = arr2 || [],
-  f2 = null == _ref2 ? _ref2[""] : (k2++, _flatMaybeArray(_ref2)),
+  f2 = (k2++, _flatMaybeArray(_ref2)),
   {
     other2
   } = _ref2;
@@ -33,7 +33,7 @@ export const r2 = [typeof f2, k2];
 let k3 = 0;
 const arr3 = [2];
 var _ref3 = arr3 ?? [],
-  inc3 = null == _ref3 ? _ref3[""] : (k3++, _includesMaybeArray(_ref3)),
+  inc3 = (k3++, _includesMaybeArray(_ref3)),
   {
     other3
   } = _ref3;
@@ -55,7 +55,7 @@ const userObj = {
 };
 function pick(c) {
   var _ref5 = c ? [5] : userObj,
-    fm = null == _ref5 ? _ref5[""] : (k5++, _flatMapMaybeArray(_ref5)),
+    fm = (k5++, _flatMapMaybeArray(_ref5)),
     {
       other5
     } = _ref5;
@@ -79,12 +79,12 @@ export const r6 = [typeof v6, k6, z6];
 // A sole property also captures its RHS before the key effect and reads the method once.
 let k7 = 0;
 var _ref8 = _Promise.prototype ? [9] : [],
-  ks7 = null == _ref8 ? _ref8[""] : (k7++, _keysMaybeArray(_ref8));
+  ks7 = (k7++, _keysMaybeArray(_ref8));
 export const r7 = [typeof ks7, k7];
 // A for-init declaration captures its receiver before the key and later declarators.
 let k8 = 0,
   out8 = '';
-for (var _ref9 = 1 ? [6] : [], e8 = null == _ref9 ? _ref9[""] : (k8++, _entriesMaybeArray(_ref9)), {
+for (var _ref9 = 1 ? [6] : [], e8 = (k8++, _entriesMaybeArray(_ref9)), {
     other8
   } = _ref9, i8 = 0; i8 < 1; i8++) out8 = typeof e8;
 export const r8 = [out8, k8];
@@ -158,7 +158,7 @@ export const r14 = [typeof f14, k14];
 // Proxy navigation collapses inside the captured receiver before its instance read.
 let k15 = 0;
 var _ref15 = _self.Array.prototype,
-  a15 = null == _ref15 ? _ref15[""] : (k15++, _atMaybeArray(_ref15)),
+  a15 = (k15++, _atMaybeArray(_ref15)),
   {
     other15
   } = _ref15;
@@ -167,7 +167,7 @@ export const r15 = [typeof a15, k15];
 let k16 = 0,
   s16 = 0;
 var _ref16 = (s16++, _self.Array.prototype),
-  f16 = null == _ref16 ? _ref16[""] : (k16++, _flatMaybeArray(_ref16)),
+  f16 = (k16++, _flatMaybeArray(_ref16)),
   {
     other16
   } = _ref16;

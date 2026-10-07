@@ -28,6 +28,10 @@ const ARRAY_CODE = `export function read(receiver, fallback) {
   const [{ at = fallback(), other }] = [receiver];
   return [at, other];
 }`;
+// The usage handler holds the question scope a selection level asked in for the visit of the
+// level's left operand. Nothing after this file's only level reaches the handler - its operands
+// are literals - so a scope held for it would outlive the file.
+const SELECTION_CODE = 'export const mode = "production" || "development";\n';
 // hoisted so babel reuses ONE plugin instance across files, as a real build does - an
 // instance that is itself garbage would hide the retention the check is looking for
 const OPTIONS = {
@@ -47,12 +51,14 @@ function retainingPlugin() {
 }
 
 async function transformHoldingMarker(plugin, options, filename, form) {
-  const source = form === 'restored' ? RESTORED_CODE : form === 'array' ? ARRAY_CODE : CODE;
+  const source = form === 'restored' ? RESTORED_CODE : form === 'array' ? ARRAY_CODE : form === 'selection' ? SELECTION_CODE : CODE;
   const ast = await parseAsync(source, { filename, configFile: false, babelrc: false });
   const marker = form === 'array' ? ast.program.body[0].declaration.body.body[0].declarations[0].id
     : form === 'restored' ? ast.program.body[0].declaration.body.body[0].declarations[0].init
+    : form === 'selection' ? ast.program.body[0].declaration.declarations[0].init
     : ast.program.body[1].expression.right;
-  const expectedType = form === 'array' ? 'ArrayPattern' : form === 'restored' ? 'ObjectExpression' : 'FunctionExpression';
+  const expectedType = form === 'array' ? 'ArrayPattern' : form === 'restored' ? 'ObjectExpression'
+    : form === 'selection' ? 'LogicalExpression' : 'FunctionExpression';
   if (marker.type !== expectedType) throw new Error(`unexpected marker ${ marker.type }`);
   const ref = new WeakRef(marker);
   // `cloneInputAst: false` so the plugin walks the very nodes this WeakRef points at
@@ -77,7 +83,7 @@ async function collectable(make) {
 
 async function measure() {
   const results = {};
-  for (const prefix of ['written', 'restored', 'array']) {
+  for (const prefix of ['written', 'restored', 'array', 'selection']) {
     // harness gate: the same transform driven by a plugin that keeps nothing must collect.
     // if it does not, the environment cannot answer the question and the rest is noise
     results[`${ prefix }/control`] = await collectable(() => transformHoldingMarker(noopPlugin, NOOP_OPTIONS, 'control.js', prefix));
@@ -115,7 +121,7 @@ if (typeof globalThis.gc === 'function') {
   checkTruthy('child measurement produced a result', !!line);
   if (line) {
     const results = JSON.parse(line.slice(RESULT_PREFIX.length));
-    for (const prefix of ['written', 'restored', 'array']) {
+    for (const prefix of ['written', 'restored', 'array', 'selection']) {
       const control = results[`${ prefix }/control`];
       checkTruthy(`${ prefix } control: node from a state-free plugin is collectable`, control);
       check(`${ prefix } control: retained tree stays alive`, results[`${ prefix }/retained/control`], false);

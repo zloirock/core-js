@@ -19,7 +19,7 @@ var {
     }
   },
   _ref = Array.prototype,
-  a1 = null == _ref ? _ref[""] : (k1++, _atMaybeArray(_ref)),
+  a1 = (k1++, _atMaybeArray(_ref)),
   {
     other1
   } = _ref;
@@ -27,7 +27,7 @@ export const r1 = [typeof f1, typeof a1, k1];
 // The same rule holds when the computed-key declarator precedes the nested static.
 let k2 = 0;
 var _ref2 = Array.prototype,
-  fl2 = null == _ref2 ? _ref2[""] : (k2++, _flatMaybeArray(_ref2)),
+  fl2 = (k2++, _flatMaybeArray(_ref2)),
   {
     other2
   } = _ref2,
@@ -46,7 +46,7 @@ let k3 = 0,
   out3 = '';
 for (var {
     isArray: ia3
-  } = _globalThis.Array, _ref3 = Array.prototype, inc3 = null == _ref3 ? _ref3[""] : (k3++, _includesMaybeArray(_ref3)), {
+  } = _globalThis.Array, _ref3 = Array.prototype, inc3 = (k3++, _includesMaybeArray(_ref3)), {
     o3
   } = _ref3, i3 = 0; i3 < 1; i3++) {
   var _ref4;
@@ -77,7 +77,7 @@ if (1) var {
     keys: ks5
   } = _globalThis.Array,
   _ref5 = Array.prototype,
-  a5 = null == _ref5 ? _ref5[""] : (k5++, _atMaybeArray(_ref5)),
+  a5 = (k5++, _atMaybeArray(_ref5)),
   b5 = null == _ref5 ? _ref5[""] : (j5++, _flatMaybeArray(_ref5)),
   {
     other5

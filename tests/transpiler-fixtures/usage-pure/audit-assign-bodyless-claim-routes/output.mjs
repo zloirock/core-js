@@ -15,7 +15,7 @@ if (log.length >= 0) from = _Array$from, {
   ...rest
 } = Array;
 // A computed key runs before its property read and before the following sibling read.
-if (log.length >= 0) _ref = [3, [7]], null == _ref ? _ref[""] : (_pushMaybeArray(log).call(log, "k"), keyed = _atMaybeArray(_ref)), {
+if (log.length >= 0) _ref = [3, [7]], _pushMaybeArray(log).call(log, "k"), keyed = _atMaybeArray(_ref), {
   other
 } = _ref;
 // An unconsumed sibling remains a native read while the nested static receives its polyfill.

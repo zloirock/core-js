@@ -4,7 +4,6 @@
 import {
   proxyRunValueIsProven,
   navValueCanShortCircuit,
-  discardRescueNodes,
   navGuardTestBase,
   navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
@@ -41,7 +40,7 @@ import {
   planClaimlessCallRootedNav,
   proxyRunLandingPure,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { erasedReceiverRescueNodes, renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   capturedRealmCtorPure,
   renderNestedKeyedPatternCapture,
@@ -256,11 +255,14 @@ export default function createProxySpineChannel(ctx) {
     const liveArguments = plan.callInBranches ? new Set() : null;
     // arguments of an absorbed call keep their own claims: the guard's subtree mark walks around them
     const tailArguments = new Set();
-    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? (callee, raw) => {
-      const call = { ...cloneNode(parent), callee, optional: raw && Boolean(parent.optional) };
+    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? (callee, raw, thisArg) => {
+      const optional = raw && Boolean(parent.optional);
+      const call = { ...cloneNode(parent), callee, optional };
       for (const arg of call.arguments) liveArguments.add(arg);
+      // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
+      if (thisArg) Object.assign(call, { callee: { ...callee, optional }, arguments: [thisArg, ...call.arguments], optional: false });
       // an absorbed optional call is its own chain in the branch it lands in
-      return call.optional ? chainExpression(call) : call;
+      return optional ? chainExpression(call) : call;
     } : undefined, captureSource);
     // the plan's continuation rides inside the live branch, the short-circuit is spelled once above
     // it, and the replaced target climbs to the outermost absorbed step
@@ -2326,7 +2328,7 @@ export default function createProxySpineChannel(ctx) {
     if (!effects?.length && sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure, markRewrite })) return;
     if (node.type === 'MemberExpression') {
       if (!effects?.length) {
-        effects = discardRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath });
+        effects = erasedReceiverRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath });
         // the discard rescue owns the chain-assigns already; the canonical prepend below is
         // for the harvested-SE shape only
       } else {

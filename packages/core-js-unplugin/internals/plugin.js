@@ -14,7 +14,7 @@ import {
   isThisReceiver,
   memberKeyNamesReducer,
   methodReadsUsageCensus,
-  withMemberContextCache,
+  withTraversalCaches,
   runsWithoutOwnVarSlot,
   mutatedGlobalSlotNames,
   namespaceScopedBindingBlock,
@@ -66,6 +66,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { minifierSequenceReducer, planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { foldedOperandNeedsValue } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
 import applyEntryProgram, { extractEntrySideEffectPrefixes, injectImportStatements } from './entry.js';
@@ -74,6 +75,8 @@ import ImportInjector, { flushIntoProgram } from './import-injector.js';
 import createAstDestructureEmitter from './destructure.js';
 import createAstUsagePureCallback from './usage-pure.js';
 import { markSubtreeSkipped } from './nav-spine.js';
+import { stampReplacementSpan } from './emit-shared.js';
+import { literal, sequenceExpression } from '@core-js/polyfill-provider/render';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -366,10 +369,18 @@ export default function createPlugin(options) {
   // observe the WRONG injector after their await point if introduced later - oxc is sync
   // and all current visitors are sync. enforce by inspection
   let currentInjector = null;
+  // ... and the file's opt-out directives, which the shared canon reads through the adapter (`isOptedOut`)
+  let currentIsOptedOut = null;
   // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const estreeAdapter = createEstreeAdapter({
     getInjector: () => currentInjector,
     method: options.method,
+    isOptedOut: node => !!currentIsOptedOut?.(node),
+    // the build's backing of a global or static (`served`), and the set it is configured for (`available`);
+    // the resolver's half is destructured below, so it is read lazily like `getPackages`
+    resolvePure,
+    isEntryGuaranteed: entry => isEntryGuaranteed(entry),
+    isEntryCarried: entry => isEntryCarried(entry),
     getMutatedStatics: () => currentMutatedStatics,
     getWrittenContainerSlots: () => currentWrittenContainerSlots,
     getContainerSlotIndex: () => currentContainerSlotIndex,
@@ -453,6 +464,8 @@ export default function createPlugin(options) {
     getModulesForEntry,
     getCoreJSEntry,
     isEntryAvailable,
+    isEntryCarried,
+    isEntryGuaranteed,
     isEntryNeeded,
     resolveUsage,
     resolvePure: resolvePureUnfiltered,
@@ -748,6 +761,7 @@ export default function createPlugin(options) {
     // '.../constructor'; _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the
     // Promise constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
     const previousInjector = currentInjector;
+    const previousIsOptedOut = currentIsOptedOut;
     const previousMutatedStatics = currentMutatedStatics;
     const previousEscapedCtorNames = currentEscapedCtorNames;
     const previousMutationRoots = currentMutationRoots;
@@ -755,6 +769,7 @@ export default function createPlugin(options) {
     const previousContainerSlotIndex = currentContainerSlotIndex;
     const previousThisStaticHost = estreeAdapter.resolveThisStaticHost;
     currentInjector = injector;
+    currentIsOptedOut = isDisabled;
     currentMutatedStatics = mutatedStatics;
     currentEscapedCtorNames = fileCensus.escapedCtorNames ?? null;
     currentMutationRoots = fileCensus.mutationRoots ?? null;
@@ -1055,7 +1070,7 @@ export default function createPlugin(options) {
         });
         const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
-        withMemberContextCache(true, () => traverse(ast, mergeVisitors({
+        withTraversalCaches(true, () => traverse(ast, mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           ...usageVisitors,
@@ -1104,6 +1119,8 @@ export default function createPlugin(options) {
         // live even inside consumed / detached spans, and land in place (the keep-live carve)
         const keepLive = new Set();
         const skippedNodes = Object.assign(new WeakSet(), { keepLive });
+        // the user selections the detect pass found partly dead, with what each folds to once the drain rendered
+        const deadSelections = new Map();
         // a `_unused` sentinel carries its own declarator, so the flush owes it no `var` - but
         // it SHARES the minted-name family and must be in the census, or a sentinel the drain
         // dropped strands its slot and the survivors never renumber
@@ -1271,6 +1288,16 @@ export default function createPlugin(options) {
         const usageVisitorOptions = {
           adapter: estreeAdapter,
           keepLive,
+          // the part of a selection the build never evaluates is no usage: it is skipped, and a fold the
+          // core asks for waits for the drain - folding HERE would reshape a receiver a claim still
+          // pairs (an IIFE argument, a destructure init)
+          onDeadBranch(path, dead) {
+            if (dead.skip) {
+              markSubtreeSkipped(skippedNodes, path.node[dead.skip]);
+              path.get(dead.skip).skip();
+            }
+            if (dead.fold !== null) deadSelections.set(path.node, dead);
+          },
           parameterCallSites: typeResolvers.parameterCallSites,
           resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           method,
@@ -1299,6 +1326,19 @@ export default function createPlugin(options) {
           // from the traversal - the second pass reaches them
         })));
         destructureEmit.drain();
+        // the partly dead user selections still standing fold to what they yield - an operand, kept a
+        // value in a reference slot (`foldedOperandNeedsValue`), or the value a decided test answers: a
+        // claim owns the selection it reads and has already dropped what never runs where it took the rest.
+        // one walk, children first: a selection in another's live operand folds before the one yielding
+        // it, and no fold searches the tree from its root
+        if (deadSelections.size) walkAstNodes({ root: ast, visit: () => true, leave(selection, parent, key, listKey) {
+          const dead = parent && deadSelections.get(selection);
+          if (!dead) return;
+          const operand = typeof dead.fold === 'boolean' ? literal(dead.fold) : selection[dead.fold];
+          const folded = foldedOperandNeedsValue(operand, dead.slot) ? sequenceExpression([literal(0), operand]) : operand;
+          (listKey === null ? parent : parent[listKey])[key] = stampReplacementSpan(folded, selection);
+          astRewrote = true;
+        } });
         // a file that injected nothing prints as written: the wrapper splices are undone (the babel
         // leg's rule, kept here for the reprint a surgery alone still triggers)
         if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);
@@ -1341,6 +1381,7 @@ export default function createPlugin(options) {
       return null;
     } finally {
       currentInjector = previousInjector;
+      currentIsOptedOut = previousIsOptedOut;
       currentMutatedStatics = previousMutatedStatics;
       currentEscapedCtorNames = previousEscapedCtorNames;
       currentMutationRoots = previousMutationRoots;
