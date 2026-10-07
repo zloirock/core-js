@@ -6,7 +6,6 @@ var _ref, _ref2, _ref3, _ref4;
 // canonical guard, instead of mirroring the polyfill into the dead default branch
 const src = [1, [2]];
 export const name = _nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? {} : _ref);
-const {} = src;
 const sibling = _nameMaybeFunction((_ref2 = _atMaybeArray(src)) === void 0 ? {} : _ref2);
 const {
   other

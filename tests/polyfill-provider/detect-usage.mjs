@@ -1489,6 +1489,9 @@ const superBaseAdapter = {
       path: binding.path ?? null,
     } : null;
   },
+  // a build backing every definition it is asked about: a selection decides by its operand's own
+  // definition alone
+  served() { return { substituted: false }; },
 };
 function superStaticMeta(adapter, prog, method = 'usage-global') {
   const { resolveStaticInheritedMember } = createClassHelpers({
@@ -1533,7 +1536,12 @@ const SUPER_BASE_SPELLINGS = [
     REACHES_BOTH],
   ['branching array element', `const N = [c ? Boolean : Array]; ${ staticRead('N[0]') }`, REACHES_BOTH],
   ['branching nested slot', `const N = { inner: { Base: c ? Boolean : Array } }; ${ staticRead('N.inner.Base') }`, REACHES_BOTH],
-  ['logical-defaulted slot', `const N = { Base: Boolean ?? Array }; ${ staticRead('N.Base') }`, REACHES_BOTH],
+  ['logical-defaulted slot', `const N = { Base: globalThis.Boolean ?? Array }; ${ staticRead('N.Base') }`, REACHES_BOTH],
+  // ... while a `??` its served left DECIDES (a global never nullish) reaches that left alone - the dead
+  // right is no arm (`deadFallbackRight`), and enumerating it injected a static nothing reads - and so does
+  // a bare name, which an engine lacking the global throws on before the right could run
+  ['decided logical-defaulted slot', `const N = { Base: Map ?? Array }; ${ staticRead('N.Base') }`, [staticExtra('Map')]],
+  ['bare logical-defaulted slot', `const N = { Base: Boolean ?? Array }; ${ staticRead('N.Base') }`, [staticExtra('Boolean')]],
 ];
 for (const [name, code, extras] of SUPER_BASE_SPELLINGS) {
   runBoth(`resolveStaticInheritedMember/union survives the ${ name }`, code, (adapter, prog, lbl) => {
@@ -2198,6 +2206,25 @@ for (const source of ['flag ? Array : user', 'flag ? user : Array', 'user || Arr
     });
     check(`${ lbl } object`, meta?.object, null);
     check(`${ lbl } fallback`, !!meta?.fromFallback, false);
+  });
+}
+
+// A key that names an instance method too: the instance answer off a `||` / `??` left - a constructor
+// lacking that static, or a user global - yields to a right whose constructor owns the key as a static.
+// A key the right owns no static of stays with the left.
+for (const [source, key, object, fromFallback] of [
+  ['globalThis.WeakRef || Iterator', 'concat', 'Iterator', true],
+  ['globalThis.FinalizationRegistry ?? Object', 'entries', 'Object', true],
+  ['Stub || Symbol', 'split', 'Symbol', true],
+  ['Stub ?? Object', 'includes', 'Stub', false],
+]) {
+  runBoth(`destructure instance-named static selection/${ source } ${ key }`, `const value = ${ source };`, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const meta = buildDestructuringInitMeta({
+      initNode: decl.node.init, key, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(`${ lbl } object`, meta?.object, object);
+    check(`${ lbl } fallback`, !!meta?.fromFallback, fromFallback);
   });
 }
 

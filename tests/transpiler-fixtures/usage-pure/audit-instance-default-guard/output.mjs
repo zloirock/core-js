@@ -6,7 +6,7 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _at from "@core-js/pure/actual/instance/at";
-var _ref, _ref2, _ref4, _ref5, _ref6, _ref8;
+var _ref, _ref2, _ref3, _ref5, _ref6, _ref7;
 // A single property keeps its key effect before the extraction and default.
 const a = null == recvA ? recvA[""] : (e1(), (_ref = _at(recvA)) === void 0 ? dfltA() : _ref);
 
@@ -15,8 +15,8 @@ const f = null == recvB ? recvB[""] : (e2(), (_ref2 = _flatMaybeArray(recvB)) ==
   other = 1;
 
 // A literal receiver is captured once before its key effect and extraction.
-const _ref3 = [7, 8],
-  i = null == _ref3 ? _ref3[""] : (e3(), (_ref4 = _includesMaybeArray(_ref3)) === void 0 ? dfltC() : _ref4);
+const _ref4 = [7, 8],
+  i = (e3(), (_ref3 = _includesMaybeArray(_ref4)) === void 0 ? dfltC() : _ref3);
 
 // An array element with a live default is evaluated before the guarded extraction.
 const [,] = [recvD];
@@ -34,7 +34,7 @@ const {
 
 // Multiple properties share one captured receiver and retain their native key, read
 // and default order in the declaration.
-const _ref7 = [9],
-  w7 = null == _ref7 ? _ref7[""] : (e7(), (_ref8 = _withMaybeArray(_ref7)) === void 0 ? dfltG() : _ref8),
-  t8 = null == _ref7 ? _ref7[""] : (e8(), _toSplicedMaybeArray(_ref7));
+const _ref8 = [9],
+  w7 = (e7(), (_ref7 = _withMaybeArray(_ref8)) === void 0 ? dfltG() : _ref7),
+  t8 = (e8(), _toSplicedMaybeArray(_ref8));
 export { a, f, i, toReversed, other, fl, fli, ts, restF, w7, t8 };

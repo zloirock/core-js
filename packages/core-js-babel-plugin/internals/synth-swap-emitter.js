@@ -20,7 +20,6 @@ import {
   isReusableReceiver,
   peelNestedSequenceExpressions,
   findIifeArgPath,
-  getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
   deleteHostAboveChain,
   unwrapRuntimeExpr,
@@ -45,6 +44,7 @@ import {
   undefinedArmEffectiveReceiver,
   classifyCallBranchForSynth,
   fallbackBranchSwapKeepsSelection,
+  fallbackBranchWalk,
   planSynthReceiverGuard,
   isViableBranchForKey,
   instanceHopDispatch,
@@ -348,10 +348,10 @@ export default function createSynthSwapEmitter({
   function registerBranchTreeForKey({ branchPath, objectPattern, lookupKey, slotKey, undefinedArmFallback = null }) {
     const peeled = unwrapSequenceTail(branchPath);
     if (!peeled?.node) return false;
-    const slots = getFallbackBranchSlots(peeled.node);
-    if (slots) {
+    const walk = fallbackBranchWalk(peeled.node, { scope: peeled.scope, adapter, path: peeled });
+    if (walk) {
       let any = false;
-      for (const slot of slots) {
+      for (const slot of walk.slots) {
         // a value-selecting operand that can be nullish must not become an always-defined
         // literal - the swap would flip which branch runs (the shared predicate's contract).
         // the undefined-shaped arm under a live PARAM DEFAULT is the one exception: the
@@ -363,6 +363,12 @@ export default function createSynthSwapEmitter({
         if (registerBranchTreeForKey({
           branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey, undefinedArmFallback,
         })) any = true;
+      }
+      // a selection whose left this walk mirrored gives way to that left, the dead right with it -
+      // unless a swap owns the selection whole and replaces it later
+      if (any && walk.deadRight && !synthSwapByReceiver.has(peeled.node)) {
+        t.traverseFast(peeled.node.right, node => { skippedNodes.add(node); });
+        peeled.replaceWith(peeled.node.left);
       }
       return any;
     }

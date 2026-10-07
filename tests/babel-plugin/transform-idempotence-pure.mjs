@@ -92,6 +92,10 @@ const CASES = [
     'let probeStored;\nexport const r = (probeStored = globalThis.window?.self.Object)?.keys({});\nuse(r);'],
   ['alias-held probe through a second alias',
     'const held = globalThis.window?.Array;\nconst chained = held;\nexport const r = chained.of(4);'],
+  // a decided `??` whose left is read through a local alias: its presence answer claims the static in
+  // the first pass, so the second meets our own import - left a member read, it was claimed there and
+  // guarded on identity
+  ['decided nullish over an alias left', 'const base = Promise;\nconst P = base ?? AggregateError;\nexport const r = typeof P.withResolvers;'],
   // the layer / sequence / chaining families: their renders are built from spans on the text side
   // and folded in place here, so both emitters owe the same fixed point
   ['paren layer over nav', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'
@@ -167,15 +171,23 @@ const CASES = [
   // without asking the census extracts it as a live binding and mints one more on every pass
   ['nested proxy-key sentinel under a spread wrapper', 'const { w: { Map: m } } = { ...extra, w: globalThis };\nuse(m);'],
   ['two-level proxy-key sentinel under a spread wrapper', 'const { w: { Array: { from: f } } } = { ...extra, w: globalThis };\nuse(f);'],
+  // an identity guard compared through the realm entry - the build carries no safe raw name for an
+  // excluded constructor - is our own render too, and its raw alternate must not be guarded again
+  [
+    'realm-compared identity guard',
+    "const P = typeof Promise !== 'undefined' ? Promise : MyPromise;\nexport const r = P.withResolvers();",
+    { exclude: ['promise/constructor'] },
+  ],
 ];
 
 for (const importStyle of ['import', 'require']) {
   const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle };
   const config = { configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]], filename: 'input.mjs' };
 
-  for (const [label, source] of CASES) {
-    const first = (await transformAsync(source, config)).code;
-    const second = (await transformAsync(first, config)).code;
+  for (const [label, source, extra = null] of CASES) {
+    const caseConfig = extra ? { ...config, plugins: [[babelPlugin, { ...OPTIONS, ...extra }]] } : config;
+    const first = (await transformAsync(source, caseConfig)).code;
+    const second = (await transformAsync(first, caseConfig)).code;
     check(`pure re-transform is stable: ${ label } (${ importStyle })`, second, first);
   }
 }

@@ -1,17 +1,23 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Map from "@core-js/pure/actual/map";
+import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set";
 // A proxy-global member chain with a redundant `.self` hop inside a LOGICAL-expression PARAM-DEFAULT
-// receiver must collapse the hop in each live non-pure operand, exactly as a const-init receiver does:
-// `globalThis.self` is undefined on ie:11 / non-browser hosts, so an evaluated operand throws BEFORE
-// the `||` can short-circuit. Each operand is collapsed individually; pure-ctor operands
-// (`globalThis.self.Set`, `Map`) whole-swap to their pure constructor instead.
+// receiver collapses the hop exactly as a const-init receiver does: `globalThis.self` is undefined on
+// ie:11 / non-browser hosts. A left the build serves (`globalThis.self.Array`, and `globalThis.self.Number`,
+// a global core-js extends in place) leaves no other operand live.
 function f({
   from: _unused,
   ...rest
-} = _self.Array || _Set || _Map) {
+} = _self.Array) {
   let from = _Array$from;
   return from([1]);
 }
 f();
+function g({
+  isInteger: _unused2,
+  ...rest
+} = _self.Number) {
+  let isInteger = _Number$isInteger;
+  return isInteger(1);
+}
+g();

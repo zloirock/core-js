@@ -28,6 +28,7 @@ import {
   STATEMENT_LIST_HOST_TYPES,
   getDirectStatementBody,
   isAmbientTypeDeclaration,
+  memberContextPath,
   unwrapExportedDeclaration,
 } from '../helpers/ast-patterns.js';
 
@@ -65,9 +66,11 @@ export function isAmbientFunctionOrClassNode(node) {
 // StaticBlock), NEAREST FIRST. respects TS lexical scoping: only containers that ENCLOSE the
 // lookup site are yielded, never siblings. both decl lanes below need exactly this walk where
 // a parser opens no scope for a container, and they read different halves of one - the type
-// lane its statement array, the ambient lane its path - so they share the walk, not the read
+// lane its statement array, the ambient lane its path - so they share the walk, not the read. a member
+// or selection link holds no statement list, so the walk steps over a run of them like every other
+// climb (`memberContextPath`): a lookup from each operand of a long selection climbed all of it again
 function * lookupPathContainers(path) {
-  for (let cur = path; cur; cur = cur.parentPath) {
+  for (let cur = memberContextPath(path); cur; cur = memberContextPath(cur.parentPath)) {
     if (!STATEMENT_LIST_HOST_TYPES.has(cur.node?.type)) continue;
     // stop at the first container the scope walk ALREADY READS - the owner node of the nearest
     // scope, or the block it drills into for one (a function's scope is the function, its

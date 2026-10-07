@@ -1992,29 +1992,127 @@ export function isForXStatement(node) {
   return FOR_X_STATEMENT_TYPES.has(node?.type);
 }
 
-// Member ancestry is reusable only inside a read-only traversal. Replacing an interior
-// ancestor can preserve both endpoint paths, so endpoint checks cannot validate a cached run.
-// Scope the index to the synchronous walk; pure emission and later sibling passes stay live.
+// Member ancestry and the value canon's per-node answers (`canonAnswerTable`) are reusable only
+// inside a read-only traversal. Replacing an interior ancestor can preserve both endpoint paths, so
+// endpoint checks cannot validate a cached run. Scope both to the synchronous walk; pure emission and
+// later sibling passes stay live.
 let memberContextPaths = null;
-export function withMemberContextCache(readOnly, visit) {
-  const previous = memberContextPaths;
+let canonAnswers = null;
+export function withTraversalCaches(readOnly, visit) {
+  const previousPaths = memberContextPaths;
+  const previousAnswers = canonAnswers;
   memberContextPaths = readOnly ? new WeakMap() : null;
+  canonAnswers = readOnly ? { tables: new Map(), spineRoots: new WeakMap(), cuts: 0 } : null;
   try {
     return visit();
   } finally {
-    memberContextPaths = previous;
+    memberContextPaths = previousPaths;
+    canonAnswers = previousAnswers;
   }
 }
 
-// Member links introduce no scope or type context, on either their object or key side.
-// Share their outermost path during read-only walks; otherwise follow the current tree.
+// ... and outside such a traversal for one synchronous question, during which nothing is rewritten:
+// a descent asking each level of a chain what its left decides walks every level once, and the
+// lookups from every operand of a long selection climb it once. a caller may hand the question a
+// scope (`canonQuestionScope`) it kept from an earlier one, where nothing was rewritten in between
+export function withCanonQuestion(question, scope = null) {
+  if (canonAnswers) return question();
+  const previousPaths = memberContextPaths;
+  const kept = scope ?? canonQuestionScope();
+  canonAnswers = kept.answers;
+  memberContextPaths = kept.paths;
+  try {
+    return question();
+  } finally {
+    canonAnswers = null;
+    memberContextPaths = previousPaths;
+  }
+}
+
+// the answers and the member ancestry one question keeps (`withCanonQuestion`)
+export function canonQuestionScope() {
+  return { answers: { tables: new Map(), spineRoots: new WeakMap(), cuts: 0 }, paths: new WeakMap() };
+}
+
+// a walk handed a cycle guard (`seen`) cuts itself short at a member it finds there. the value canon
+// tests its guard through here, so the open scope counts the cuts: a walk that met none found no member
+// of the guard it was handed, and handed any part of that guard it takes the same steps (`cycleGuardCuts`)
+export function cycleGuardHas(seen, element) {
+  if (!seen?.has(element)) return false;
+  if (canonAnswers) canonAnswers.cuts++;
+  return true;
+}
+
+// the cuts the open scope has met so far (`cycleGuardHas`)
+export function cycleGuardCuts() {
+  return canonAnswers?.cuts ?? 0;
+}
+
+// a question asked inside a guarded re-entrant one - a presence test's own read, an in-flight binding
+// lookup, the adapter's decision-root lookup - can answer narrower than a fresh ask of the same node,
+// so it neither reads nor keeps a per-node answer
+let reentrantQuestions = 0;
+export function withReentrantQuestion(question) {
+  reentrantQuestions++;
+  try {
+    return question();
+  } finally {
+    reentrantQuestions--;
+  }
+}
+
+// the per-node answers one question `kind` keeps under one `context` - every input the answer reads
+// besides the node - or null where none may be kept: no scope is open, or the ask is re-entrant
+export function canonAnswerTable(kind, context) {
+  if (!canonAnswers || reentrantQuestions) return null;
+  let table = canonAnswers.tables;
+  for (const part of [kind, ...context]) {
+    let next = table.get(part);
+    if (!next) table.set(part, next = new Map());
+    table = next;
+  }
+  return table;
+}
+
+// the path a per-node answer keys its read anchor by. a `||` / `??` / `&&` LEFT operand, parens
+// around it included, opens no scope, frame or branch and starts where its parent does, so a read the
+// value canon anchors anywhere on a selection's left spine answers as one anchored at the spine's
+// root; inside a read-only traversal the visits down a long chain share one answer per level through
+// it, and a walk anchored there climbs from the root, not across the levels above its own
+export function canonContextPath(path) {
+  const roots = canonAnswers?.spineRoots;
+  if (!roots || !path?.node) return path;
+  const pending = [];
+  let current = path;
+  while (true) {
+    const hit = roots.get(current);
+    if (hit) {
+      current = hit;
+      break;
+    }
+    pending.push(current);
+    let operand = current;
+    while (operand.parentPath?.node?.type === 'ParenthesizedExpression') operand = operand.parentPath;
+    const parent = operand.parentPath;
+    if (parent?.node?.type !== 'LogicalExpression' || parent.node.left !== operand.node) break;
+    current = parent;
+  }
+  for (const step of pending) roots.set(step, current);
+  return current;
+}
+
+// Member links introduce no scope or type context, on either their object or key side, and neither
+// does a `||` / `??` / `&&` operand or a paren around one: every climb through here looks for a scope,
+// frame or type host above them, and a lookup from each level of a long selection climbed the whole
+// selection again. Share their outermost path during read-only walks; otherwise follow the current
+// tree, through member links alone - an uncached run saves the climb nothing it would not walk anyway.
 export function memberContextPath(path) {
-  if (!isMemberAccessNode(path?.node) || !isMemberAccessNode(path.parentPath?.node)) return path;
+  if (!contextFreeLink(path)) return path;
   // A single link is already the answer; ordinary short accesses need no cache entry.
-  if (!isMemberAccessNode(path.parentPath.parentPath?.node)) return path.parentPath;
+  if (!contextFreeLink(path.parentPath)) return path.parentPath;
   const pending = memberContextPaths ? [] : null;
   let current = path;
-  while (isMemberAccessNode(current?.node) && isMemberAccessNode(current.parentPath?.node)) {
+  while (contextFreeLink(current)) {
     const hit = memberContextPaths?.get(current);
     if (hit) {
       current = hit;
@@ -2025,6 +2123,19 @@ export function memberContextPath(path) {
   }
   if (pending) for (const step of pending) memberContextPaths.set(step, current);
   return current;
+}
+
+// does `path` hang off its parent by a link `memberContextPath` climbs through: both ends are
+// context-free - a member below a member, or (read-only walks) a member, selection or paren below a
+// selection or paren. anything else below a paren (an IIFE's function) opens the very context a climb
+// looks for
+const SELECTION_LINK_TYPES = new Set(['LogicalExpression', 'ParenthesizedExpression']);
+function contextFreeLink(path) {
+  const { node } = path ?? {};
+  const parent = path?.parentPath?.node;
+  if (isMemberAccessNode(parent)) return isMemberAccessNode(node);
+  return !!memberContextPaths && SELECTION_LINK_TYPES.has(parent?.type)
+    && (isMemberAccessNode(node) || SELECTION_LINK_TYPES.has(node?.type));
 }
 
 // walk `path`'s ancestor chain (inclusive) and return the first path whose node owns a
@@ -5136,7 +5247,7 @@ export function followConstIdentifierInit(hop, { maybe = false, onReassignedHop 
   // captured value, so the dominance check uses the read NODE (the adapter surfaces the declarator
   // at `binding.node`), not the host use - else `const a = b; b = 0; { from } = a` wrongly bails `b`
   let { readNode = null } = hop;
-  while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
+  while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !cycleGuardHas(visited, cur.name)) {
     visited.add(cur.name);
     const binding = adapter.getBinding(scope, cur.name, path);
     // method-aware reassignment bail: usage-global keeps following the const-init chain when the
@@ -8689,6 +8800,12 @@ export function allProxySelectingInit(node, {
       if (inner.operator !== '&&'
         && allProxySelectingInit(inner.left,
           { adapter, injectorState, allowEffectfulTest, throughRealmHop, readSurface, scope, path })) continue;
+      // ... and a left that fails there fails as a live branch too wherever the scoped proof judges the
+      // leaves: only a write left peels differently as a branch. its right cannot change the verdict
+      // then, and a right that aliases the rest of a chain walked that whole chain again at every level
+      if (inner.operator !== '&&' && readSurface && peelTransparentExpr(inner.left)?.type !== 'AssignmentExpression') {
+        return false;
+      }
       stack.push({ node: inner.left, branch: true }, { node: inner.right, branch: true });
       continue;
     }
@@ -8700,7 +8817,7 @@ export function allProxySelectingInit(node, {
     // complete selection as an effect. Consumers that discard the selection supply no such proof.
     if (readSurface) {
       if (!readSurface(value)) return false;
-      if (isChainAssignment(value)) continue;
+      if (isChainAssignment(value) || value?.type === 'SequenceExpression') continue;
     }
     if (branch) {
       while (value?.type === 'AssignmentExpression' && value.operator === '=') value = peelTransparentExpr(value.right);

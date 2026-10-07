@@ -312,6 +312,47 @@ export function createPolyfillContext({
     return result;
   }
 
+  const isEntryGuaranteedCache = new Map();
+
+  // is what this entry installs present in the global environment wherever the output runs: each
+  // module of it carried natively by every target or, in usage-global, injected by this build - false
+  // where a target needs one a filter drops, or where the entry is not in this version / mode. pure
+  // installs nothing global: a read it substitutes is the resolver's answer, any other reads what the
+  // targets carry. the presence question a user's own fallback or feature test asks: `isEntryNeeded`
+  // answers no alike for a module every target carries and for one the user excluded
+  function isEntryGuaranteed(entry) {
+    if (isEntryGuaranteedCache.has(entry)) return isEntryGuaranteedCache.get(entry);
+    const modeEntry = `${ mode }/${ entry }`;
+    const result = entriesSetForTargetVersion.has(modeEntry) && entries[modeEntry].every(mod => {
+      const resolved = resolveModule(mod);
+      return resolved !== null && (!targetsNeedPolyfill(resolved) || (method !== 'usage-pure' && shouldInjectPolyfill(resolved)));
+    });
+    isEntryGuaranteedCache.set(entry, result);
+    return result;
+  }
+
+  const isEntryCarriedCache = new Map();
+
+  // does the configured set carry what the entry names: the entry exists at the mode and the user's filter
+  // keeps it - in usage-pure an excluded entry path drops it, elsewhere an excluded module DEFINING it
+  // (the one the entry is named after, `es.map.constructor` for `map/constructor`) that a target needs.
+  // a deficient native such a target has counts as missing too: the build installs nothing for it, and the
+  // data cannot tell a deficient native from an absent one
+  function isEntryCarried(entry) {
+    if (isEntryCarriedCache.has(entry)) return isEntryCarriedCache.get(entry);
+    const modeEntry = `${ mode }/${ entry }`;
+    let result = entriesSetForTargetVersion.has(modeEntry);
+    if (result && method === 'usage-pure') result = !excludeEntries.has(normalizeEntryPath(entry));
+    else if (result) {
+      const own = entry.replaceAll('/', '.');
+      const defining = entries[modeEntry].find(mod => mod.slice(mod.indexOf('.') + 1) === own);
+      const resolved = defining && resolveModule(defining);
+      result = !resolved || !targetsNeedPolyfill(resolved) || shouldInjectPolyfill(resolved);
+    }
+    isEntryCarriedCache.set(entry, result);
+    return result;
+  }
+
   return {
     mode,
     pkg,
@@ -319,6 +360,8 @@ export function createPolyfillContext({
     getModulesForEntry,
     getCoreJSEntry,
     isEntryAvailable,
+    isEntryCarried,
+    isEntryGuaranteed,
     isEntryNeeded,
   };
 }

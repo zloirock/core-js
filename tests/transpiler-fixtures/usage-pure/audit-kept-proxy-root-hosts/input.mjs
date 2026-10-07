@@ -36,11 +36,17 @@ let c2 = 0;
 let ks;
 export const ofSynthKept = (({ of } = {}) => of)((ks = globalThis.window)?.[(c2++, 'self')].Array ?? {});
 export { c2 };
-// NEGATIVES for the synth-claim yield: the same kept+SE-key chain in a LOGICAL and a TERNARY carrier
-// with NO pending synth - the drive still owns the collapse (nothing claimed the receiver)
+// NEGATIVES for the synth-claim yield: the same kept+SE-key chain in a TERNARY carrier and in a LOGICAL one
+// whose fallback disagrees (a user binding) with NO pending synth - the drive still owns the collapse (nothing
+// claimed the receiver), and the LOGICAL's `Array` arm takes its static through the identity guard over the
+// captured selection. a LOGICAL whose every operand reads `Array` directly, the last a bare global, is that
+// global whichever runs: `from` is claimed off it, the selection staying as an effect prefix, its hop collapsed
 let c3 = 0;
 let ln;
 export const logicalNoSynth = ((ln = globalThis.window)?.[(c3++, 'self')].Array ?? Array).from([1]);
+const fallbackArray = makeArray();
+let lu;
+export const logicalUserFallback = ((lu = globalThis.window)?.[(c3++, 'self')].Array ?? fallbackArray).fromAsync([1]);
 
 let tn;
 export const ternaryNoSynth = (1 ? (tn = globalThis.window)?.[(c3++, 'self')].Array.prototype.findLast : 0).call([1, 2], v => v < 2);

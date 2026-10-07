@@ -1,6 +1,5 @@
-// WhileStatement.body slot: the SE must execute on EACH iteration, not once before
-// the loop. block-wrap places the SE-init expression inside the loop body alongside
-// the polyfilled assignment. without the wrap, the SE would hoist past the loop to
-// module scope and run exactly once.
+// WhileStatement.body slot: the SE must execute on EACH iteration, not once before the loop. the
+// slot keeps the SE and the polyfilled assignment as one sequence in the loop body; hoisted past the
+// loop, the SE would run exactly once.
 let from;
 while (cond) ({ from } = (sideEffect(), Array));

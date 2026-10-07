@@ -14,7 +14,7 @@ function reenter() {
 }
 function read(at, flat, value = (() => {
   var _ref;
-  return _ref = [calls + 1, [9]], null == _ref ? _ref[""] : (reenter(), at = _atMaybeArray(_ref)), flat = _flatMaybeArray(_ref), _ref;
+  return _ref = [calls + 1, [9]], reenter(), at = _atMaybeArray(_ref), flat = _flatMaybeArray(_ref), _ref;
 })()) {
   return [at.call(value, 0), flat.call(value)[0], value];
 }

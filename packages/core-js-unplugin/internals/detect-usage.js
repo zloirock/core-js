@@ -1067,6 +1067,7 @@ export function createUsageVisitors({
   suppressKeptNavRoot = null,
   revisitDecorators = false,
   keepLive = null,
+  onDeadBranch = null,
 }) {
   const core = createUsageHandlerCore({
     adapter,
@@ -1169,6 +1170,15 @@ export function createUsageVisitors({
     onUsage({ kind: 'global', name: path.node.name }, path);
   }
 
+  // a selection the build decides: the hook, where given, skips and folds it; without one the dead
+  // branch is only skipped
+  function deadBranchVisitor(path) {
+    const dead = core.deadBranchOf(path);
+    if (!dead) return;
+    if (onDeadBranch) onDeadBranch(path, dead);
+    else if (dead.skip) path.get(dead.skip).skip();
+  }
+
   const decoratorVisitors = liveVisitors({
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
@@ -1240,6 +1250,10 @@ export function createUsageVisitors({
     JSXIdentifier: jsxIdentifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: core.emitBinaryInUsage,
+    // the part of a selection the build never evaluates is no usage: the host skips and folds it
+    LogicalExpression: deadBranchVisitor,
+    ConditionalExpression: deadBranchVisitor,
+    IfStatement: deadBranchVisitor,
     Property: propertyVisitor,
     // class node sweeps its own type params + `extends Base<...>` super-type-args
     ClassDeclaration: visitDecoratorsAndAnnotation,

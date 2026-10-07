@@ -12,6 +12,7 @@ if (c) var f = (log(), _Array$from);
 // body (keying on the node type alone dropped the polyfill, mistaking the body for the head binding)
 for (item of items) var m = null == rows ? rows[""] : (log(), _flatMaybeArray(rows));
 
-// The literal-receiver do-while follows the same ordering on each iteration.
+// The literal-receiver do-while follows the same ordering on each iteration; a literal is never
+// nullish, so its read takes no nullish test.
 do var _ref = [1, 2, 3],
-  a = null == _ref ? _ref[""] : (log(), _atMaybeArray(_ref)); while (c);
+  a = (log(), _atMaybeArray(_ref)); while (c);

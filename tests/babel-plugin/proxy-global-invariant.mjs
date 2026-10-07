@@ -18,6 +18,8 @@ const ALLOWED = new Map([
   ['audit-disable-next-line-over-a-stored-nav', ['globalThis']],
   ['audit-proxy-hop-normalize-disabled-line', ['globalThis', 'globalThis', 'globalThis']],
   ['opt-out-over-a-guarded-navigation', ['globalThis', 'globalThis']],
+  ['realm-left-patched-native-owner-decides', ['globalThis']],
+  ['user-selection-opted-out', ['globalThis', 'globalThis']],
   // Targets or exclude make this root unavailable; a different backed hop may still fold.
   ['audit-forced-include-modern-targets', Array(4).fill('globalThis')],
   ['audit-opaque-root-se-key-keeps-its-claim', Array(5).fill('globalThis')],
@@ -26,6 +28,7 @@ const ALLOWED = new Map([
   ['audit-realm-run-under-an-excluded-root', Array(2).fill('globalThis')],
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
   ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
+  ['user-selection-native-left', ['globalThis', 'globalThis']],
   // Slot writes deopt the original live binding, including compound writes and aliases.
   ['audit-mutated-globalthis-container', ['globalThis']],
   ['audit-mutated-hop-slot-reads', ['self']],
