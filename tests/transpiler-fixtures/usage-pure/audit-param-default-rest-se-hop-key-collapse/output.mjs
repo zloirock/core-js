@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map from "@core-js/pure/actual/map";
+import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set";
 // Constructor defaults with rest use the full index; supplied objects keep their properties.
 // Other static extractions require closed callers; key/default effects remain independent.
 let eff = 0;
@@ -15,11 +15,12 @@ function f({
 }
 f();
 
-// each operand of a retained logical default takes the same per-operand dispatch
+// a logical default whose left the build serves folds to it, the right dead: `.Array`, and `.Number`
+// (the last row), a global core-js extends in place
 function g({
   of: _unused2,
   ...rest
-} = (eff++, _self).Array || _Set) {
+} = (eff++, _self).Array) {
   let of = _Array$of;
   return [of, rest];
 }
@@ -66,3 +67,11 @@ function h({
   return [isArray, rest];
 }
 h();
+function k({
+  isInteger: _unused6,
+  ...rest
+} = (eff++, _self).Number) {
+  let isInteger = _Number$isInteger;
+  return [isInteger, rest];
+}
+k();

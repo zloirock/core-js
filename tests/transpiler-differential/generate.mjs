@@ -965,6 +965,9 @@ const RBD_HOSTS = [
   { id: 'assign', build: (pat, src, k) => `let ${ k }; (${ pat } = ${ src });` },
   { id: 'catch', build: (pat, src) => `try { throw ${ src }; } catch (${ pat }) {`, close: '}' },
   { id: 'for-of', build: (pat, src) => `for (const ${ pat } of [${ src }]) {`, close: '}' },
+  // a for-in head destructures each KEY, a string, so no literal stands for the outer value and only
+  // the absent arm exists: like a catch parameter, the pattern has no receiver its claim could ride
+  { id: 'for-in', build: pat => `for (const ${ pat } in { k: 1 }) {`, close: '}', own: true },
   { id: 'param-default', build: (pat, src, k) => `const [${ k }] = (function (${ pat } = ${ src })`
     + ` { return [${ k }]; })();`, own: true },
 ];
@@ -16283,6 +16286,221 @@ function * generateCoercingParameterCallers() {
   }
 }
 
+// --- Decided fallback reads ---
+// A `||` / `??` whose left is a known constructor never runs its right, so a static read off it is that
+// constructor's own static and the right leaves with its effects unrun. A left that may be falsy or
+// stores what it reads keeps the selection, and pure may stay native there: those rows run full only.
+const DECIDED_FALLBACK_SELECTIONS = [
+  ['ctor-or', 'Array || Set', true],
+  ['ctor-nullish', 'Array ?? Set', true],
+  // `Array` read off the realm is the engine's own on every engine core-js supports, so it decides as a
+  // served global does: every host drops the right unrun, effects included
+  ['realm-nav-or-user', 'globalThis.Array || { from: () => "user", of: () => "user" }', true],
+  ['realm-effect-right', 'globalThis.Array || (log.push("r"), Set)', true],
+  ['prefixed-effect-left', '(log.push("p"), (log.push("l"), globalThis).Array ?? (log.push("r"), Set))', true],
+  // the realm itself decides too, and owns no `from` / `of`: every host reads the key off the realm, as native
+  ['realm-itself-left', 'globalThis || Array', true],
+  // a call handing back a realm read the engine lacks yields `undefined`: the right runs, with its statics,
+  // and a member read over that selection stays native in pure - a gap of the call and member hosts
+  ['realm-iife-left', '(() => globalThis.Document)() || Array', true, ['call', 'member']],
+  ['realm-call-left', 'getDocument() || Array', true, ['call', 'member'], 'function getDocument() { return globalThis.Document; } '],
+  ['prefixed-left', '(log.push("l"), Array) || (log.push("r"), Set)', true],
+  ['effect-right', 'Array ?? (log.push("r"), Set)', true],
+  ['prefixed-init', '(log.push("p"), Array || Set)', true],
+  ['maybe-left', 'maybe || Array', false],
+  // a STORED left keeps the selection on every route; beside sibling declarators the unplugin leg
+  // leaves that destructure native where babel splits the declaration - a gap of the host, named here
+  ['stored-left', '(held = Array) || Set', false, ['split']],
+];
+const DECIDED_FALLBACK_HOSTS = [
+  ['call', selection => `return (${ selection }).from([1, 2]);`],
+  ['member', selection => `return typeof (${ selection }).of;`],
+  ['declaration', selection => `const { from } = ${ selection }; return from([3]);`],
+  ['assignment', selection => `let of; ({ of } = ${ selection }); return of(4);`],
+  ['default', selection => `return (function ({ from } = ${ selection }) { return from([5]); })();`],
+  ['bodyless', selection => `let of; if (log.length >= 0) ({ of } = ${ selection }); return of(6);`],
+  ['bodyless-var', selection => `if (log.length >= 0) var { of } = ${ selection }; return of(10);`],
+  ['sequence', selection => `let from; const pair = (({ from } = ${ selection }), from([7])); return pair;`],
+  ['split', selection => `const before = 1, { of } = ${ selection }, after = 2; return [of(8), before + after];`],
+  ['for-init', selection => `for (var { from } = ${ selection }, step = 0; step < 1; step++); return from([9]);`],
+];
+function * generateDecidedFallbackReads() {
+  for (const [selection, source, decides, skipHosts = [], prelude = ''] of DECIDED_FALLBACK_SELECTIONS) {
+    for (const [host, build] of DECIDED_FALLBACK_HOSTS) {
+      if (skipHosts.includes(host)) continue;
+      yield {
+        ...snippet(`decided-fallback-reads/${ selection }/${ host }`,
+          `(() => { const maybe = [null][0]; let held; ${ prelude }${ build(source) } })()`),
+        strip: decides,
+      };
+    }
+  }
+}
+
+// --- Decided native-owner reads ---
+// A left read off the realm of a global core-js patches in place and ships no pure replacement of (`Number`,
+// `RegExp`, the `Error` constructors) decides its selection as `Array` does: every host reads the left's own
+// static, and the right - its effect included - never runs. The decision asks only whether the left is such an
+// owner (`NATIVE_STATIC_OWNERS`), so one owner covers it - one whose static exists natively on Node 22: every
+// static of `RegExp` and of the `Error` constructors is newer, and a native leg lacking it compares nothing
+const DECIDED_OWNER_SELECTIONS = [
+  ['number', 'globalThis.Number || (log.push("r"), WeakSet)', 'isInteger', '7'],
+];
+const DECIDED_OWNER_HOSTS = [
+  ['call', (selection, key, argument) => `return (${ selection }).${ key }(${ argument });`],
+  ['member', (selection, key) => `return typeof (${ selection }).${ key };`],
+  ['declaration', (selection, key, argument) => `const { ${ key }: read } = ${ selection }; return read(${ argument });`],
+  ['assignment', (selection, key, argument) => `let read; ({ ${ key }: read } = ${ selection }); return read(${ argument });`],
+  ['default', (selection, key, argument) => `return (function ({ ${ key }: read } = ${ selection }) { return read(${ argument }); })();`],
+];
+function * generateDecidedOwnerReads() {
+  for (const [owner, selection, key, argument] of DECIDED_OWNER_SELECTIONS) {
+    for (const [host, build] of DECIDED_OWNER_HOSTS) {
+      yield { ...snippet(`decided-owner-reads/${ owner }/${ host }`, `(() => { ${ build(selection, key, argument) } })()`), strip: true };
+    }
+  }
+}
+
+// --- Discarded init spellings ---
+// A destructure whose pattern a static claim consumes discards its init: what stays is the init's live
+// spelling - the prefix with its own claim served, and of a nav off a call resolving to the realm only what
+// that call owes. Stripped, a prefix replayed in its source spelling throws.
+const DISCARDED_INIT_SETUP = 'const quiet = () => globalThis; const stamped = () => (log.push("c"), globalThis);';
+const DISCARDED_INIT_SPELLINGS = [
+  ['claim-prefix-quiet-call', '([[1], [2]].flat(), quiet().Array)'],
+  ['claim-prefix-effect-call', '([[1], [2]].flat(), stamped().Array)'],
+  ['quiet-call', 'quiet().Array'],
+];
+const DISCARDED_INIT_HOSTS = [
+  ['declaration', init => `const { from } = ${ init }; return from([1]);`],
+  ['assignment', init => `let of; ({ of } = ${ init }); return of(2);`],
+  ['bodyless-assign', init => `let of; if (log.length >= 0) ({ of } = ${ init }); return of(3);`],
+  ['bodyless-var', init => `if (log.length >= 0) var { from } = ${ init }; return from([4]);`],
+  // several claims empty the pattern together, and the prefix observes whether a binding ran first
+  ['bodyless-var-multi', init => `if (log.length >= 0) var { from, of } = (log.push(typeof from), ${ init }); return [from([6]), of(7)];`],
+  ['for-init', init => `for (var { of } = ${ init }, step = 0; step < 1; step++); return of(5);`],
+];
+function * generateDiscardedInitSpellings() {
+  for (const [init, source] of DISCARDED_INIT_SPELLINGS) {
+    for (const [host, build] of DISCARDED_INIT_HOSTS) {
+      yield {
+        ...snippet(`discarded-init-spellings/${ init }/${ host }`, `(() => { ${ DISCARDED_INIT_SETUP } ${ build(source) } })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
+// --- Decided user selections ---
+// A selection the source wrote over what the build serves is decided: the right of a deciding left and
+// the branch a presence test never takes inject nothing, and pure folds the expression to what it
+// yields. Stripped, a skipped branch the program still needed would leave a polyfill out.
+const DECIDED_USER_SELECTIONS = [
+  ['fallback-realm-left', 'return typeof (globalThis.WeakMap || Map).prototype.set;'],
+  ['fallback-nullish-ctor', 'return typeof (Promise ?? WeakSet).resolve;'],
+  ['fallback-realm-default', 'return (globalThis || {}).Math === Math;'],
+  ['typeof-conditional', "return typeof Promise !== 'undefined' ? typeof Promise.resolve : 'none';"],
+  ['static-truthiness', 'return Array.from ? Array.from([1, 2]).length : -1;'],
+  ['typeof-undefined-alternate', "return typeof Map === 'undefined' ? 'none' : new Map([[1, 2]]).size;"],
+  ['typeof-and', "return (typeof Iterator !== 'undefined' && Iterator.from([1, 2]).toArray().length) || 0;"],
+  ['typeof-if', "let r; if (typeof Set !== 'undefined') r = new Set([1, 1]).size; else r = new WeakSet().has({}); return r;"],
+  ['static-or-value', "const from = Array.from || null; return typeof from === 'function' && from([1, 2]).length;"],
+  ['typeof-or-value', "return typeof Promise !== 'undefined' || Iterator;"],
+  ['typeof-hintless-function', "return typeof structuredClone === 'function' ? 'present' : 'fallback';"],
+  ['fold-callee-this', "const o = { m() { return this === o; } }; return (typeof Promise !== 'undefined' && o.m)();"],
+  ['fold-tag-this', "const o = { t() { return this === o; } }; return (typeof Symbol === 'function' ? o.t : null)`x`;"],
+  ['fold-delete-value', "const o = { p: 1 }; const r = delete (typeof Map === 'undefined' ? o.q : o.p); return [r, o.p];"],
+  ['fold-nested-callee-this', "const o = { m() { return this === o; } }; return (typeof Promise !== 'undefined' ? (typeof Symbol === 'function' ? o.m : null) : null)();"],
+  ['fold-delete-name', "let name = 1; return [delete (typeof Promise !== 'undefined' ? name : 0), name];"],
+  ['fold-typeof-undeclared', "try { return typeof (typeof Promise !== 'undefined' ? notDeclaredAnywhere : 0); } catch (error) { return error.constructor.name; }"],
+  ['destructure-presence-arm', "const { from } = typeof Promise !== 'undefined' ? Array : Iterator; return from([1, 2]).length;"],
+  ['destructure-realm-detect', "const { Promise: P } = typeof globalThis !== 'undefined' ? globalThis : self; return typeof P.resolve;"],
+  ['alias-decided-realm', "const root = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : window; return typeof root.Promise.resolve;"],
+  ['alias-decided-ternary', "const P = typeof Promise !== 'undefined' ? Promise : null; return typeof P.resolve(1).then;"],
+  ['alias-user-arm', "const marker = { resolve: () => 'user' }; const U = typeof Promise !== 'undefined' ? marker : Promise; return U.resolve(2);"],
+  ['realm-flat-slot', "const { Map: M } = typeof globalThis !== 'undefined' ? globalThis : window; return typeof M.groupBy;"],
+  ['realm-rest-slot', "const { WeakMap: W, ...others } = typeof globalThis !== 'undefined' ? globalThis : window; return [typeof W, typeof others.Object];"],
+  ['realm-reassigned-alias', "let g = typeof globalThis !== 'undefined' ? globalThis : window; if (g) g = globalThis; return typeof g.Symbol.asyncIterator;"],
+  ['fold-nested-delete', "const o = { p: 1 }; const r = delete (typeof Map === 'undefined' ? o.q : (typeof Promise !== 'undefined' ? o.p : o.q)); return [r, o.p];"],
+];
+function * generateDecidedUserSelections() {
+  for (const [row, body] of DECIDED_USER_SELECTIONS) {
+    yield { ...snippet(`decided-user-selections/${ row }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// --- Keyed receiver nullness ---
+// An effectful computed key runs after the receiver is checked: a nullish receiver throws before the key,
+// so only a receiver that is never nullish may drop that rejection. The nullish rows hold such a value at
+// run time and show whether the key ran ahead of the throw.
+const KEYED_RECEIVER_ROWS = [
+  ['literal', '', '[1, 2]'],
+  ['bound-literal', 'const list = [1, 2];', 'list'],
+  ['nullish-fallback', 'const maybe = [null][0];', 'maybe ?? [1, 2]'],
+  ['or-fallback', 'const maybe = [null][0];', 'maybe || [1, 2]'],
+  ['literal-arms', '', 'cond ? [1, 2] : [3]'],
+  ['prototype', '', 'Array.prototype'],
+  ['namespace-prototype', '', 'Math.prototype'],
+  ['written-binding', 'let written = [1]; if (cond) written = nul;', 'written'],
+  ['null-arm', '', '!cond ? [1] : nul'],
+  ['gated', 'const maybe = [null][0];', 'maybe && [1]'],
+];
+const KEYED_RECEIVER_HOSTS = [
+  ['declaration', receiver => `const { [(log.push('k'), 'at')]: m } = ${ receiver }; return m.call([7, 8], -1);`],
+  ['assignment', receiver => `let m; ({ [(log.push('k'), 'at')]: m } = ${ receiver }); return m.call([7, 8], -1);`],
+  ['sibling', receiver => `const { [(log.push('k'), 'at')]: m, length } = ${ receiver };
+    return [m.call([7, 8], -1), typeof length];`],
+];
+function * generateKeyedReceiverNullness() {
+  for (const [receiver, setup, source] of KEYED_RECEIVER_ROWS) {
+    for (const [host, build] of KEYED_RECEIVER_HOSTS) {
+      yield {
+        ...snippet(`keyed-receiver-nullness/${ receiver }/${ host }`,
+          `(() => { ${ setup } try { ${ build(source) } } catch (error) { return error.constructor.name; } })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
+// --- Selection owner statics ---
+// A member read straight off a selection the build does not decide keeps the selection, captured once,
+// and serves an arm naming a constructor core-js ships no replacement of through the identity guard -
+// stripped, the native static that arm would read is gone. Every read runs over the owner arriving, a
+// value of its own and an empty one; a key other receivers carry as an instance method (`entries`)
+// dispatches it on any value but the owner.
+const SELECTION_OWNER_SELECTORS = [
+  ['or', owner => `(source || ${ owner })`],
+  ['nullish', owner => `(source ?? ${ owner })`],
+  ['conditional', owner => `(source ? source : ${ owner })`],
+  ['arm-effect', owner => `(source || (log.push('arm'), ${ owner }))`],
+];
+const SELECTION_OWNER_KEYS = [
+  ['Array', 'from', "'ab'"],
+  ['Number', 'isInteger', '7'],
+  ['Object', 'fromEntries', "[['k', 1]]"],
+  ['Object', 'entries', '{ k: 1 }'],
+];
+const SELECTION_OWNER_READS = [
+  ['call', (selection, key, args) => `${ selection }.${ key }(${ args })`],
+  ['optional-call', (selection, key, args) => `${ selection }.${ key }?.(${ args })`],
+  ['optional-member', (selection, key, args) => `${ selection }?.${ key }(${ args })`],
+  ['read', (selection, key) => `typeof ${ selection }.${ key }`],
+];
+function * generateSelectionOwnerStatics() {
+  for (const [selector, select] of SELECTION_OWNER_SELECTORS) {
+    for (const [owner, key, args] of SELECTION_OWNER_KEYS) {
+      for (const [shape, read] of SELECTION_OWNER_READS) {
+        const body = `function read(source) {
+          try { return ${ read(select(owner), key, args) }; } catch (error) { return error.constructor.name; }
+        }
+        return [read(null), read({ ${ key }: () => 'own' }), read({})];`;
+        yield { ...snippet(`selection-owner-statics/${ selector }/${ owner }.${ key }/${ shape }`, `(() => { ${ body } })()`), strip: true };
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -16565,4 +16783,10 @@ export function * generate() {
   yield * generateClosedReceiverSnapshots();
   yield * generateCoercingFunctionReceivers();
   yield * generateCoercingParameterCallers();
+  yield * generateDecidedFallbackReads();
+  yield * generateDecidedOwnerReads();
+  yield * generateKeyedReceiverNullness();
+  yield * generateDiscardedInitSpellings();
+  yield * generateDecidedUserSelections();
+  yield * generateSelectionOwnerStatics();
 }

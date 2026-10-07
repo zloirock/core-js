@@ -19,6 +19,24 @@ export const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespace
 // Keep the complete injection catalogue separate from the function-value classification.
 const INJECTABLE_GLOBALS = new Set(Object.keys(builtInDefinitions.globals));
 
+// does every static the definitions list for `owner` live under its own entries (`array/from` under
+// `Array`), in both flavors
+function ownsItsStatics(owner, members) {
+  const namespace = owner.toLowerCase();
+  return Object.values(members).every(member => ['pure', 'global'].every(flavor => (member?.[flavor]?.dependencies ?? [])
+    .every(entry => entry.split('/', 1)[0].replaceAll('-', '') === namespace)));
+}
+
+// the globals core-js extends in place and ships no replacement of: no pure flavor - no definition at all
+// (`Array`), or a global module patching the engine's own (`Number`, `RegExp`, `Error`) - and every static of
+// one lives under its own entries (`ownsItsStatics`), installed on the engine's own global, which every engine
+// core-js supports therefore carries. `WebAssembly` is not one: its statics come from the `Error` constructors'
+// entries, which wrap them only where it exists; nor are the typed arrays but `Uint8Array`, whose statics
+// live under the shared `typed-array` entries
+export const NATIVE_STATIC_OWNERS = new Set(Object.entries(builtInDefinitions.statics)
+  .filter(([owner, members]) => !builtInDefinitions.globals[owner]?.pure && ownsItsStatics(owner, members))
+  .map(([owner]) => owner));
+
 // the `Symbol.<key>` statics core-js ships an entry for - the allowlist a `symbol/<kebab>` module
 // path is checked against before a binding to it counts as that static's VALUE. the catalogue
 // shape alone cannot decide it: `symbol/constructor` default-exports the Symbol constructor,

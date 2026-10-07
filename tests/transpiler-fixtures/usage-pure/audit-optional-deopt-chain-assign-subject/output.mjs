@@ -6,7 +6,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4;
+var _ref, _ref2, _ref3;
 // A `?.` whose subject is ENTIRELY proxy navigation - a chain-assign root with proxy hops
 // (`(q = globalThis).self`), paren-wrapped, or SE-prefixed - is dead: the subject collapses to
 // the always-defined pure root, the guard deopts, and the collapse owns the emit, preserving the
@@ -29,7 +29,7 @@ export const aliasSubject = _findLastIndexMaybeArray(g.Array.prototype);
 export const nonProxyLeaf = null == (_ref = (q5 = _globalThis).foo) ? void 0 : _at(_ref2 = _ref.bar).call(_ref2, 1);
 export const nonGlobalAssign = null == (_ref3 = (q6 = other).self) ? void 0 : _at(_ref3.Array.prototype).call([1], 0);
 // a SE-bearing computed hop key deopts too, its effect harvested into the collapsed sequence;
-// a LOGICAL subject keeps the guard (the right operand may be picked), collapsing per-operand
+// a LOGICAL subject whose left the build decides folds to that left, collapsing it, under its kept guard
 let q7, q8;
 export const seKeyHopSubject = _findLastMaybeArray((q7 = _globalThis, c++, _self).Array.prototype);
-export const logicalSubject = null == (_ref4 = (q8 = _globalThis, _self) || other) ? void 0 : _flatMaybeArray(_ref4.Array.prototype);
+export const logicalSubject = null == (q8 = _globalThis, _self) ? void 0 : _flatMaybeArray(_self.Array.prototype);

@@ -1878,11 +1878,49 @@ for (const moved of [false, true]) {
     });
 }
 
-for (const [source, reusable, consumed] of [
-  ['const source = [1]; let method; ({ [(key(), "at")]: method } = source);', true, false],
-  ['const source = [1]; let method; const result = ({ [(key(), "at")]: method } = source);', true, true],
-  ['const source = [1]; let method; ({ [(key(), "at")]: method } = (before(), source));', true, false],
-  ['const source = [1]; let method; const result = ({ [(key(), "at")]: method } = (before(), source) as any);', true, true],
+// a keyed read drops its null rejection only over a receiver that can never be nullish: a literal, a
+// never-written binding of one, a built-in constructor's prototype (a namespace has none; an engine
+// lacking the constructor throws at the read itself), a `||` / `??` whose right is one, a conditional of
+// two such arms; any arm or binding that may hold a nullish value keeps it
+for (const [source, proven] of [
+  ['const r = [1, 2];', true],
+  ['const r = "text";', true],
+  ['const r = `text`;', true],
+  ['const r = null;', false],
+  ['const r = (effect(), [1]);', true],
+  ['const list = [1]; const r = list;', true],
+  ['let list = [1]; list = make(); const r = list;', false],
+  ['const [n] = [[1]]; const r = n;', true],
+  ['const [n] = [null]; const r = n;', false],
+  ['const r = Array.prototype;', true],
+  ['function f(Array) { const r = Array.prototype; }', false],
+  ['const r = Math.prototype;', false],
+  ['const r = Reflect.prototype;', false],
+  ['const r = WeakRef.prototype;', true],
+  ['const r = maybe ?? [3];', true],
+  ['const r = maybe || "";', true],
+  ['const r = maybe && [3];', false],
+  ['const r = make();', false],
+  ['const r = c ? [1] : [2];', true],
+  ['const list = [1]; const r = c ? list : Array.prototype;', true],
+  ['const list = [1]; const r = c ? (d ? [1] : list) : maybe ?? [3];', true],
+  ['const r = c ? [1] : null;', false],
+  ['const r = c ? [1] : void 0;', false],
+  ['const r = c ? [1] : maybe;', false],
+  ['let list = [1]; list = make(); const r = c ? list : [1];', false],
+]) runBoth('a keyed-read receiver is proven only when it is never nullish', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'r');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label }: ${ source }`, keyedReadReceiverProven({ init: host.node.init, hostPath: host, adapter }), proven);
+});
+
+// a source that is never nullish (a literal binding) owes no coercion: its effectful initializer still
+// runs first, ahead of the key
+for (const [source, reusable, consumed, neverNullish = false] of [
+  ['const source = [1]; let method; ({ [(key(), "at")]: method } = source);', true, false, true],
+  ['const source = [1]; let method; const result = ({ [(key(), "at")]: method } = source);', true, true, true],
+  ['const source = [1]; let method; ({ [(key(), "at")]: method } = (before(), source));', true, false, true],
+  ['const source = [1]; let method; const result = ({ [(key(), "at")]: method } = (before(), source) as any);', true, true, true],
   ['let source = [1]; let method; ({ [(source = [2], "at")]: method } = (before(), source));', false, false],
   ['let method; ({ [(key(), "at")]: method } = (before(), holder.rows));', false, false],
   ['let source = [1]; let method; ({ [(source = [2], "at")]: method } = source);', false, false],
@@ -1913,6 +1951,13 @@ for (const [source, reusable, consumed] of [
   });
   check(`${ label }: captures`, minted, reusable ? 0 : 1);
   const [first] = rendered.expression.expressions;
+  if (neverNullish) {
+    check(`${ label }: no coercion`, rendered.expression.expressions
+      .some(item => item.type === 'AssignmentExpression' && item.left.type === 'ObjectPattern'), false);
+    check(`${ label }: an effectful initializer stays first`,
+      host.node.right.type === 'Identifier' || first === host.node.right, true);
+    return;
+  }
   check(`${ label }: initializer stays first`, first.right, host.node.right);
   if (reusable) {
     check(`${ label }: native coercion precedes the key`, first.left.type, 'ObjectPattern');
@@ -2193,9 +2238,10 @@ for (const assignment of [false, true]) for (const nested of [false, true]) {
   });
 }
 
-for (const [source, owned, reusable] of [
+// ... and a root that is never nullish (a literal binding) needs no null rejection ahead of the key
+for (const [source, owned, reusable, rejects = true] of [
   ['const { [(effect(), "w")]: { at: method } } = memo;', true, true],
-  ['const memo = { w: [1] }; const { [(effect(), "w")]: { at: method } } = memo;', false, true],
+  ['const memo = { w: [1] }; const { [(effect(), "w")]: { at: method } } = memo;', false, true, false],
   ['let memo = { w: [1] }; const { [(memo = other, "w")]: { at: method } } = memo;', false, false],
   ['const { [(effect(), "w")]: { at: method } } = memo;', false, true],
   ['import memo from "foreign"; const { [(effect(), "w")]: { at: method } } = memo;', false, false],
@@ -2218,7 +2264,8 @@ for (const [source, owned, reusable] of [
     check(`${ label }/only the property value needs a new capture`, minted, reusable ? 1 : 2);
     const nodes = rendered.declarations;
     const native = nodes.find(node => node.id.type === 'ObjectPattern');
-    check(`${ label }/null rejection still precedes the computed key`, native.init.type, 'ConditionalExpression');
+    check(`${ label }/null rejection precedes the computed key where the root may be nullish`,
+      native.init.type, rejects ? 'ConditionalExpression' : 'Identifier');
     check(`${ label }/source key stays in its native pattern`, native.id.properties[0].key, pattern.properties[0].key);
     if (reusable) check(`${ label }/native pattern is the first receiver read`, nodes[0], native);
   });

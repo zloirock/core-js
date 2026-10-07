@@ -14,13 +14,17 @@ const { [(e6(), 'toSorted')]: ts = dfltF(), [(e7(), 'toReversed')]: tr = ts } = 
 const { [(e8(), 'flatMap')]: fm = dfltG(), [(e9(), 'entries')]: en } = recvD,
   { [(e10(), 'with')]: w10 = dfltH(), [(e11(), 'keys')]: ks } = recvE;
 
-// shared memoized receiver with two guards: one `_ref`, guards read it in order (typed -
-// both defaults dead at runtime, the shape still locks ref sharing and numbering)
+// shared memoized receiver: one `_ref`, both reads take it in order (typed - both defaults dead
+// at runtime, the shape still locks ref sharing and numbering); a literal is never nullish, so
+// neither read takes a null guard
 const { [(e12(), 'fill')]: fi = dfltI(), [(e13(), 'find')]: fnd = dfltJ() } = [7, 8];
+
+// ... while a call result may be nullish: its memo takes a null guard ahead of each key
+const { [(e14(), 'fill')]: fi2 = dfltL(), [(e15(), 'find')]: fnd2 = dfltM() } = getRows();
 
 // a nested assignment under a USER nav the extraction owns dispatches on the nav (`recvF.codes`,
 // read once) and the consumed slot leaves with the host - the declaration host's answer
 let m;
 ({ codes: { findIndex: m = dfltK() } } = recvF);
 
-export { a, f, i, fl, fli, ts, tr, fm, en, w10, ks, fi, fnd, m };
+export { a, f, i, fl, fli, ts, tr, fm, en, w10, ks, fi, fnd, fi2, fnd2, m };

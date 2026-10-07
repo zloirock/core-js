@@ -12,6 +12,7 @@ import {
   destructureKeyReadPlan,
   destructurePatternHostPath,
   fallbackBranchSwapKeepsSelection,
+  fallbackBranchWalk,
   flattenArrayWrapperInits,
   isConstantLiteralReceiver,
   isInstanceSurfaceNav,
@@ -28,7 +29,6 @@ import {
   qualifiesForParamBodyExtract,
   renderSynthTree,
   resolveNestedDestructureReceiver,
-  selectionLeftAlwaysTruthy,
   resolveNestedNavDispatch,
   resolveNestedReceiverBase,
   seKeyStaticOwesTheMirror,
@@ -46,6 +46,7 @@ import {
   walkStaticReceiverChain,
   provenRealmCallRoot,
   discardRescueNodesWithReads,
+  initRunsCode,
   destructureRightIsReceiver,
   nearestInnerDefaultDead,
   observablePrefixElements,
@@ -97,7 +98,6 @@ import {
   assignmentValueDiscarded,
   computedKeyHasSideEffects,
   forOfHeadIterableElements,
-  getFallbackBranchSlots,
   hasRestSiblingExcept,
   hostsExportList,
   isForXStatement,
@@ -185,7 +185,6 @@ import {
   isPureNavAfterSePrefix,
   isPureNavReceiver,
   navHopChain,
-  navSpineHasCall,
   navSpineHasComputedKeyEffect,
   nodeHoldsSubtree,
   overwriteDefaultGuard,
@@ -915,20 +914,18 @@ export default function createAstDestructureEmitter({
         inner = value;
       }
     }
-    const slots = getFallbackBranchSlots(inner);
-    if (slots) {
+    // a `||` / `??` RIGHT whose LEFT is always truthy (a proxy, a known constructor, a static
+    // container) is dead text the selection never reaches: the walk skips it as the shared plan does
+    // (spelled here alone, the dead arm shipped a dead import)
+    const walk = fallbackBranchWalk(inner, {
+      ...nodeSite(inner, metaPath),
+      adapter,
+      resolvePure: meta => resolvePure(meta, nodeSite(inner, metaPath).path),
+      rescuesReceiverRead: ['VariableDeclarator', 'AssignmentExpression'].includes(destructurePatternHostPath(metaPath)?.node?.type),
+    });
+    if (walk) {
       let any = false;
-      for (const slot of slots) {
-        // a `||` / `??` RIGHT whose LEFT is always truthy (a proxy, a known constructor, a static
-        // container) is dead text the selection never reaches: the shared plan mirrors nothing there,
-        // and neither does this route (spelled here alone, the dead arm shipped a dead import)
-        if (slot === 'right' && inner.operator !== '&&' && selectionLeftAlwaysTruthy({
-          node: inner.left,
-          ...nodeSite(inner, metaPath),
-          adapter,
-          resolvePure: meta => resolvePure(meta, nodeSite(inner, metaPath).path),
-          rescuesReceiverRead: ['VariableDeclarator', 'AssignmentExpression'].includes(destructurePatternHostPath(metaPath)?.node?.type),
-        })) continue;
+      for (const slot of walk.slots) {
         if (!fallbackBranchSwapKeepsSelection({
           hostNode: inner, slot, branchNode: inner[slot], ...nodeSite(inner, metaPath), adapter,
           resolvePure: meta => resolvePure(meta, nodeSite(inner, metaPath).path),
@@ -945,9 +942,8 @@ export default function createAstDestructureEmitter({
           dryRun,
           partialTargets,
         })) any = true;
-        // a FALLBACK logical is decided by its LEFT, and the mirror puts an always-truthy
-        // literal there: the right can no longer run, so it stays verbatim (babel's dead-side
-        // canon). a CONDITIONAL keeps both - either arm is still reachable
+        // a FALLBACK logical whose left this route mirrored is decided by that always-truthy
+        // literal: nothing past it is mirrored. a CONDITIONAL keeps both - either arm is still reachable
         if (any && inner.type === 'LogicalExpression' && inner.operator !== '&&') break;
       }
       return any;
@@ -1149,13 +1145,19 @@ export default function createAstDestructureEmitter({
     if (outerPattern) branchMirrorPatterns.add(outerPattern);
   }
 
+  // the selection a mirrored left decides, replaced by that left - its dead right skipped first
+  function dropDeadFallback(selection) {
+    markSubtreeSkipped(skippedNodes, selection.right);
+    if (replaceNodeInTree(program, selection, selection.left)) markRewrite();
+  }
+
   function registerBranchTree({ branch, key, dedupKey, pattern, metaPath, undefinedArmFallback = null }) {
     const inner = peelFallbackBranchInner(branch);
     if (!inner) return false;
-    const slots = getFallbackBranchSlots(inner);
-    if (slots) {
+    const walk = fallbackBranchWalk(inner, { ...nodeSite(inner, metaPath), adapter });
+    if (walk) {
       let any = false;
-      for (const slot of slots) {
+      for (const slot of walk.slots) {
         // a value-selecting operand that can be nullish must not become an always-defined
         // literal - the swap would flip which branch runs (the shared predicate's contract).
         // the undefined-shaped arm under a live PARAM DEFAULT is the one exception: the
@@ -1167,6 +1169,9 @@ export default function createAstDestructureEmitter({
           })) continue;
         if (registerBranchTree({ branch: inner[slot], key, dedupKey, pattern, metaPath, undefinedArmFallback })) any = true;
       }
+      // a selection whose left this walk mirrored gives way to that left, the dead right with it -
+      // unless a swap owns the selection whole and replaces it later
+      if (any && walk.deadRight && synthLedger.get(pattern)?.receiver !== inner) dropDeadFallback(inner);
       return any;
     }
     const effectiveBranch = undefinedArmEffectiveReceiver({ branch, paramDefaultNode: undefinedArmFallback }) ?? branch;
@@ -1904,7 +1909,8 @@ export default function createAstDestructureEmitter({
           receiverName,
           metaPath,
           declarationPath: declaratorPath.parentPath,
-          proven: kind === 'static' && keyedReadReceiverProven({ init: declaratorPath.node.init, hostPath: metaPath, adapter }),
+          proven: keyedReadReceiverProven({ init: declaratorPath.node.init, hostPath: metaPath, adapter }),
+          readsReceiver: kind === 'instance',
         } });
       markRewrite();
       return;
@@ -3518,6 +3524,8 @@ export default function createAstDestructureEmitter({
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         readsReceiver: kind === 'instance',
         consumeKey: kind === 'instance' && !!destructureKeyReadPlan(metaPath, keyCtx)?.consumeKey,
+        // asked of the PRISTINE init: by drain time a memo may stand in its slot
+        receiverProven: keyedReadReceiverProven({ init: declarator.init, hostPath: metaPath, adapter }),
         consumeResidualRead: literalPlan.consumeResidualRead,
         seCarried,
         // the prefix rides the extraction's own value only where the claim spells an INSTANCE
@@ -3950,7 +3958,7 @@ export default function createAstDestructureEmitter({
       const [hop] = host.left.properties;
       const hopKeyName = hop?.type === 'Property' && !hop.computed
         ? hop.key?.name ?? (typeof hop.key?.value === 'string' ? hop.key.value : null) : null;
-      if (typeof hopKeyName !== 'string' || !isKnownStaticGlobal(hopKeyName)
+      if (typeof hopKeyName !== 'string' || !isKnownStaticGlobal(hopKeyName, adapter)
         || hop.value?.type !== 'ObjectPattern' || hop.value.properties.length !== 1) return;
       const [staticProp] = hop.value.properties;
       if (staticProp?.type !== 'Property' || staticProp.computed
@@ -3984,14 +3992,15 @@ export default function createAstDestructureEmitter({
       bodylessSeqPrefix = liftPlan.prefix;
       receiverNode = liftPlan.receiver;
     }
-    // an SE-carrying NAV receiver (`({ from: from2 } = (eff3(), globalThis).Array)`): a
-    // SOLE full consume lifts the receiver WHOLE as its own statement - claims land in
-    // place, the assign reads the pure (`(eff3(), _globalThis).Array; from2 =
-    // _Array$from;`, babel's flatten); multi-prop and residual shapes stay staged
-    // ... and a CALL-rooted nav takes the same lift even when the call is quiet: the classifier
-    // answers about what must be RESCUED, and a receiver with nothing to rescue still owes its
-    // read a slot - without one the claim had no route at all and shipped native
-    // (`({ groupBy: g } = mk().Map)` -> `_Map; g = _Map$groupBy;`, babel's shape)
+    // a SOLE full consume whose init runs code - an effect, or a read only a getter names (`initRunsCode`,
+    // the question both legs ask) - lifts the init WHOLE as its own statement: claims land in place, the
+    // assign reads the pure (`({ from: from2 } = (eff3(), globalThis).Array)` -> `(eff3(),
+    // _globalThis).Array; from2 = _Array$from;`, babel's flatten); multi-prop and residual shapes stay
+    // staged. a call counts however quiet: the lift is the claim's one route, and its own peel keeps
+    // what the call owes (`({ groupBy: g } = mk().Map)` -> `mk(); g = _Map$groupBy;`, nothing for a
+    // quiet call yielding the realm); a `||` / `??` its LEFT decides owes its prefix and the left's
+    // effects alone (the lift's own peel: `({ of } = Array ?? (log(), Set))`), one it leaves undecided
+    // both operands (`({ of } = globalThis.Array || (log(), Set))`)
     // ... and a DEFAULTED leaf is flat all the same: what its default costs is a guard, not a route.
     // a STATIC claim spells an always-defined ponyfill, so the default is dead and the binding is
     // its undefaulted twin; an INSTANCE dispatch answers `it.method` verbatim off a surface that is
@@ -4003,9 +4012,7 @@ export default function createAstDestructureEmitter({
       || (prop.value.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier');
     if (!pureNavRhs && !bodylessSeqPrefix && !sentinel
       && pattern.properties.length === 1 && flatAssignLeaf && kind !== 'instance'
-      && (navSpineHasCall(rhs) || classifyCallBranchForSynth({
-        inner: peelTransparentExpr(rhs), scope: metaPath.scope, adapter, path: metaPath,
-      }).callBranch)) {
+      && initRunsCode(rhs, { scope: metaPath.scope, adapter, path: metaPath })) {
       bodylessSeqPrefix = [hostParent.node.right];
     }
     const soleConsume = !pureNavRhs && !bodylessSeqPrefix && !sentinel && chain.length === 0
@@ -4314,7 +4321,7 @@ export default function createAstDestructureEmitter({
     // the realm is known to carry (the shared ctor-key-anchor gate): a user global is an unknown
     // slot (`{ Deno: { env } = {} }` keeps its default), and a lowercase `constructor` names none
     noteUntouchedCtorHopHost(declarator, keyName, assignHost = false, metaPath = null) {
-      if (!hopHosts.has(declarator) && isKnownStaticGlobal(keyName)) {
+      if (!hopHosts.has(declarator) && isKnownStaticGlobal(keyName, adapter)) {
         // the key the WALK resolved travels with the note: a computed spelling bound to a
         // constant (`{ [hopKey]: { viaKey } }`) names no literal the re-anchor could read
         hopHosts.set(declarator, { untouched: true, wholeDeclarator: true, assignHost, hopKeyName: keyName, metaPath });

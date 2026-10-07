@@ -11,7 +11,7 @@ import {
   memberContextPath,
   nonEmittedExpressionAncestor,
   staticMemberKeyName,
-  withMemberContextCache,
+  withTraversalCaches,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -107,7 +107,7 @@ for (const parser of adapters) {
     const failure = new Error('read-only visitor failed');
     let caught = null;
     try {
-      withMemberContextCache(true, () => {
+      withTraversalCaches(true, () => {
         check(`${ parser.name }/readonly cold`, memberContextPath(inner), paths[0]);
         check(`${ parser.name }/readonly warm`, memberContextPath(inner), paths[0]);
         if (throws) throw failure;
@@ -119,7 +119,7 @@ for (const parser of adapters) {
       consequent: { type: 'Identifier', name: 'other' }, alternate: middle.node,
     });
     check(`${ parser.name }/interior replacement`, memberContextPath(inner) === expected, true);
-    withMemberContextCache(true, () => {
+    withTraversalCaches(true, () => {
       check(`${ parser.name }/new readonly pass`, memberContextPath(inner) === expected, true);
     });
   }
@@ -130,7 +130,7 @@ for (const parser of adapters) {
     const inner = paths.at(-1);
     const middle = paths.find(path => path.node.property.name === 'f');
     const expected = parser.name === 'babel' ? middle.get('object') : paths[0];
-    withMemberContextCache(false, () => {
+    withTraversalCaches(false, () => {
       check(`${ parser.name }/mutable traversal before`, memberContextPath(inner), paths[0]);
       middle.replaceWith({
         type: 'ConditionalExpression', test: { type: 'Identifier', name: 'condition' },
@@ -225,7 +225,7 @@ for (const parser of adapters) {
       checkTruthy(`${ label }/source declaration`, declaration);
       const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
       const scope = outerLookup ? program.scope : path.scope;
-      withMemberContextCache(readOnly, () => {
+      withTraversalCaches(readOnly, () => {
         const binding = adapter.getBinding(scope, 'value', path);
         check(`${ label }/nearest source node`, binding?.node, declaration.node);
         check(`${ label }/nearest declaration path`, binding?.declarationPath?.node, declaration.node);
@@ -298,7 +298,7 @@ for (const parser of adapters) {
       dispatch(meta, path);
       claims++;
     } });
-    withMemberContextCache(true, () => {
+    withTraversalCaches(true, () => {
       for (const path of paths) core.emitMemberUsage(path);
     });
     check(`${ parser.name }/${ depth }/all claims retained`, claims, paths.length);

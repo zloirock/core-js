@@ -9,10 +9,10 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 // and for-init declarations.
 const log = [];
 const arr = [1, [2]];
-var flat = null == arr ? arr[""] : (_pushMaybeArray(log).call(log, 1), _flatMaybeArray(arr)),
+var flat = (_pushMaybeArray(log).call(log, 1), _flatMaybeArray(arr)),
   viaFlat = flat;
 // An export host keeps the binding before its later reader without exporting a temporary.
-export var at = null == arr ? arr[""] : (_pushMaybeArray(log).call(log, 2), _atMaybeArray(arr)),
+export var at = (_pushMaybeArray(log).call(log, 2), _atMaybeArray(arr)),
   viaAt = at;
 var {
     [(_pushMaybeArray(log).call(log, 4), 'flatMap')]: fm,
@@ -21,5 +21,5 @@ var {
   viaFm = fm;
 // A later for-init declarator observes the completed method binding the same way.
 let out;
-for (var inc = null == arr ? arr[""] : (_pushMaybeArray(log).call(log, 3), _includesMaybeArray(arr)), viaInc = inc, i = 0; i < 1; i++) out = viaInc;
+for (var inc = (_pushMaybeArray(log).call(log, 3), _includesMaybeArray(arr)), viaInc = inc, i = 0; i < 1; i++) out = viaInc;
 export { viaFlat, viaFm, rest, out, log };

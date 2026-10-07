@@ -5,5 +5,5 @@ import _Array$of from "@core-js/pure/actual/array/of";
 const events = [];
 let from,
   of = 'old';
-_pushMaybeArray(events).call(events, ['rhs', of]), Array, of = _Array$of, _pushMaybeArray(events).call(events, ['key', typeof of]), from = _Array$from;
+_pushMaybeArray(events).call(events, ['rhs', of]), of = _Array$of, _pushMaybeArray(events).call(events, ['key', typeof of]), from = _Array$from;
 use(from([7]), of(8), events);

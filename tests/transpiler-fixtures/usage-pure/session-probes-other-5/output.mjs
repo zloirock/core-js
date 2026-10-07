@@ -105,9 +105,9 @@ function mark(t, v) {
   const a = _at(src);
 }
 {
-  var _ref2;
-  const _ref = [9],
-    w7 = null == _ref ? _ref[""] : (e7(), (_ref2 = _withMaybeArray(_ref)) === void 0 ? dfltF() : _ref2);
+  var _ref;
+  const _ref2 = [9],
+    w7 = (e7(), (_ref = _withMaybeArray(_ref2)) === void 0 ? dfltF() : _ref);
   use(w7);
 }
 {
@@ -117,10 +117,10 @@ function mark(t, v) {
   w7();
 }
 {
-  var _ref4;
-  const _ref3 = [9],
-    w7 = null == _ref3 ? _ref3[""] : (e7(), (_ref4 = _withMaybeArray(_ref3)) === void 0 ? dfltG() : _ref4),
-    t8 = null == _ref3 ? _ref3[""] : (e8(), _toSplicedMaybeArray(_ref3));
+  var _ref3;
+  const _ref4 = [9],
+    w7 = (e7(), (_ref3 = _withMaybeArray(_ref4)) === void 0 ? dfltG() : _ref3),
+    t8 = (e8(), _toSplicedMaybeArray(_ref4));
   w7(t8);
 }
 {
@@ -144,7 +144,7 @@ function mark(t, v) {
 {
   const {
       [(eff('k'), 'Array')]: _ref5
-    } = null == _globalThis ? _globalThis[""] : _globalThis,
+    } = _globalThis,
     it16 = _getIteratorMethod(_ref5);
 }
 {
@@ -221,7 +221,7 @@ function mark(t, v) {
 {
   const {
     [(eff('k'), 'Array')]: _ref6
-  } = null == _globalThis ? _globalThis[""] : _globalThis;
+  } = _globalThis;
   const f2 = _valuesMaybeArray(_ref6.prototype);
 }
 {
@@ -346,6 +346,6 @@ function mark(t, v) {
 {
   const {
     [(eff(), 'Array')]: _ref13
-  } = null == _globalThis ? _globalThis[""] : _globalThis;
+  } = _globalThis;
   const v2 = _valuesMaybeArray(_ref13.prototype);
 }

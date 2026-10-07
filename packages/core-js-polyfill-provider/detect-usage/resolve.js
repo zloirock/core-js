@@ -28,6 +28,7 @@ import {
   calleeYieldedContainer,
   prototypeChainMayLend,
   callPairing,
+  canonAnswerTable,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
   collectParamBindingNames,
@@ -51,7 +52,6 @@ import {
   invocationNode,
   isAliasProxyRoot,
   isAmbientBindingShape,
-  isChainAssignment,
   isDestructurePattern,
   isDirectiveStatement,
   isMemberAccessNode,
@@ -137,8 +137,13 @@ import {
   ESCAPED_CONTAINER_NAMES,
   rootProgramOf,
   anyWriteOutrunsUse,
+  extractStaticString,
+  cycleGuardCuts,
+  cycleGuardHas,
+  withCanonQuestion,
+  withReentrantQuestion,
 } from '../helpers/ast-patterns.js';
-import { SYMBOL_STATIC_KEYS, isKnownGlobalName, symbolKeyToEntry } from './globals.js';
+import { KNOWN_FUNCTION_GLOBALS, NATIVE_STATIC_OWNERS, SYMBOL_STATIC_KEYS, isKnownGlobalName, symbolKeyToEntry } from './globals.js';
 import { argIndexForParam, dropLeadingThisParam, nodeRangeContains } from '../resolve-node-type/base.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
@@ -1034,9 +1039,23 @@ export function isStaticPlacement(name) {
 
 // ... and a KEY read off the realm names a built-in only where the realm is known to carry one:
 // the convention says nothing about a slot the realm may leave empty, so a user global
-// (`{ Deno: { env } = {} } = globalThis`) stays an unknown slot whose default is live
-export function isKnownStaticGlobal(name) {
-  return isKnownGlobalName(name) && !!isStaticPlacement(name);
+// (`{ Deno: { env } = {} } = globalThis`) stays an unknown slot whose default is live - and so does
+// a built-in the configured subset does not carry (the adapter's `available`: `AsyncIterator` below
+// `full`)
+export function isKnownStaticGlobal(name, adapter = null) {
+  return isKnownGlobalName(name) && !!isStaticPlacement(name) && adapter?.available?.({ kind: 'global', name }) !== false;
+}
+
+// ... and a realm-key LEVEL (`{ <name>: <inner> }` read off the realm) names that constructor - a DEFAULT on
+// the level (`= D`) dead text only where the realm SLOT is FILLED wherever this build runs: a global core-js
+// implements (its pure flavor), installed where a target lacks it (a module of its entry a filter drops leaves
+// the global itself standing), or one it extends in place on every engine's own (`NATIVE_STATIC_OWNERS`), and
+// replaced by no write the census sees. a known name core-js implements nothing of (`WeakRef`, `BigInt`,
+// `Float16Array`, whose definition lists methods alone) may be missing on a target, its default live
+export function realmLevelNamesCtor(name, levelValue, adapter) {
+  return isKnownStaticGlobal(name, adapter) && (levelValue?.type !== 'AssignmentPattern'
+    || !adapter?.isMutatedStaticSlot?.('globalThis', name)
+      && (NATIVE_STATIC_OWNERS.has(name) || !!resolveBuiltInMeta({ kind: 'global', name })?.desc?.pure));
 }
 
 // capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
@@ -1059,7 +1078,7 @@ const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.js
 function enterIdentifierBindingFollow(hop) {
   const { node, readNode: usageNode = null, seen } = hop;
   const { scope, adapter, path = null } = hop.ctx;
-  if (seen?.has(node.name)) return null;
+  if (cycleGuardHas(seen, node.name)) return null;
   const binding = adapter.getBinding(scope, node.name, path);
   // method-aware reassignment bail: usage-global keeps following a reassigned key/value alias when the
   // reassignment does not dominate the use; pure / narrowing keep the flat bail. `usageNode` anchors the
@@ -1313,7 +1332,7 @@ export function withBindingLookupGuard(owner, name, question) {
   if (names.has(name)) return undefined;
   names.add(name);
   try {
-    return question();
+    return withReentrantQuestion(question);
   } finally {
     names.delete(name);
   }
@@ -1400,7 +1419,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
     // name, and this route enters it below its owner (`resolveBindingToGlobal`) - the binding is
     // already in hand, and looking it up a second time re-enters the adapters' alias pre-pass
     // outside the in-flight guard above, which is an unbounded recursion, not a cycle
-    if (seen?.has(binding.node ?? binding) || seen?.has(node.name)) {
+    if (cycleGuardHas(seen, binding.node ?? binding) || cycleGuardHas(seen, node.name)) {
       return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
     }
     const nextSeen = new Set(seen).add(node.name);
@@ -1519,7 +1538,7 @@ function bindingLessGlobalName(name, { scope, adapter }) {
 // fallback works for it; estree-toolkit needs the explicit path
 function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null }) {
   seen ??= new Set();
-  if (seen.has(name)) return null;
+  if (cycleGuardHas(seen, name)) return null;
   // `seen` is a recursion STACK, not a visited set: only names on the CURRENT descent stay
   // guarded (cycle guard intact), and a COMPLETED resolution backtracks so it cannot poison a
   // SIBLING resolution of the same name later in the walk - an array-wrap init like
@@ -1855,8 +1874,23 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
 }
 
 // resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
-// assignment-form write's RHS (both feed the same canon so the two spellings cannot drift)
-function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, path }) {
+// assignment-form write's RHS (both feed the same canon so the two spellings cannot drift). every
+// level of an alias chain asks the levels below it, so the answer is kept per value node
+// (`canonAnswerTable`) under every other input the walk reads. the cycle guard is one of them - it
+// holds the alias's own name beside whatever the walks above it hold: an answer is kept only from a
+// walk that met no cut (`cycleGuardCuts`), which is the answer of a walk handed the alias's name alone, and
+// only an ask handed that alone reads it
+function resolveAliasValueNode(options) {
+  const { value, name, binding, scope, adapter, seen, path } = options;
+  const answers = canonAnswerTable(resolveAliasValueNode, [aliasDeclScope(binding, scope), adapter, path, name]);
+  if (seen?.size === 1 && answers?.has(value)) return answers.get(value);
+  const cuts = cycleGuardCuts();
+  const held = walkAliasValueNode(options);
+  if (answers && cycleGuardCuts() === cuts) answers.set(value, held);
+  return held;
+}
+
+function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path }) {
   // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value off its tail.
   // the binding's init declaration stays verbatim (only USES of the binding are rewritten / import-
   // injected), so preceding SE effects are preserved in place - resolution peels to the tail value
@@ -2003,18 +2037,11 @@ export function patternBindingName(node) {
   return node?.type === 'Identifier' ? node.name : null;
 }
 
-// a bare proxy-global NAME whose read is guaranteed to yield the realm object, making the right
-// side of a defensive `??` / `||` over it dead code: the language guarantees the `globalThis`
-// binding in every realm, and a name with a pure ENTRY (`self`) is guaranteed by the transform
-// itself - the very read the logical guards resolves through the ponyfill, which always answers
-// the realm object. `window` / `global` have no entry and stay the environment probes a
-// defensive default genuinely tests. entry existence is the same target-independent question
-// `proxyHopLacksPureEntry` asks of a hop; a SHADOWED or mutated-slot spelling still declines
-// downstream, at the identifier checks the peel hands the name to
 // does every value this binding can hold NAME THE REALM? `let g = globalThis; g = self` holds ONE
 // object under two names, so a read through it - a constructor, a static - answers the same whichever
 // write reached the use, and the alias bail has nothing to protect. the declaration's own init counts
-// as one of those values, and an enumeration that cannot see them all answers false
+// as one of those values, and an enumeration that cannot see them all answers false - as does a binding
+// declared without one: whether every path writes it before the read is not asked
 function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageNode = null }) {
   const bindingNode = binding?.node ?? binding?.path?.node;
   const init = bindingNode?.type === 'VariableDeclarator' && bindingNode.id?.type === 'Identifier'
@@ -2027,7 +2054,8 @@ function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageN
   if (!enumeration.complete) return false;
   const values = [init, ...enumeration.nodes];
   return values.length > 1 && values.every(value => {
-    const named = peelRealmLogicalDefault(unwrapRuntimeExpr(value));
+    // a decided selection is the operand it always yields (`decidedSelectionValue`)
+    const named = peelRealmLogicalDefault(unwrapRuntimeExpr(ctx ? decidedSelectionValue(value, ctx) : value));
     if (named?.type !== 'Identifier') return false;
     // ... and only while the slot still stands: a name the file REPLACES holds the user's object,
     // not the realm, so the values are no longer one object under several names
@@ -2045,8 +2073,141 @@ function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageN
   });
 }
 
+// a bare proxy-global NAME whose read is guaranteed to yield the realm object, making the right
+// side of a defensive `??` / `||` over it dead code: the language guarantees the `globalThis`
+// binding in every realm, and a name with a pure ENTRY (`self`) is guaranteed by the transform
+// itself - the very read the logical guards resolves through the ponyfill, which always answers
+// the realm object. `window` / `global` have no entry and stay the environment probes a
+// defensive default genuinely tests. entry existence is the same target-independent question
+// `proxyHopLacksPureEntry` asks of a hop; a SHADOWED or mutated-slot spelling still declines
+// downstream, at the identifier checks the peel hands the name to
 export function guaranteedRealmObjectName(name) {
   return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveBuiltInMeta({ kind: 'global', name });
+}
+
+// a read of a global or of a static off one that is a DEFINED value wherever this build runs: one
+// core-js implements that the build backs (the adapter's `served`, given the read's meta: `{ substituted }`
+// or null) or a global it extends in place on every engine's own, and replaced by no write the census
+// sees - in either method: usage-global asks the cheap shape census (`isMutatedStaticSlot`), which may
+// name a slot the scoped pass would clear and then decides nothing. `{ global, type, substituted }` - the
+// global's name and `typeof` for a global read (the root resolver names constructors, namespaces and the
+// realm alone) - or null
+export function servedRead(node, ctx) {
+  // a read the user opted out of is not rewritten, so nothing of this build serves it
+  if (ctx.adapter?.isOptedOut?.(node)) return null;
+  const value = peelChainRootValue(peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr }));
+  const name = resolveObjectName({ objectNode: value, ...ctx });
+  if (name && ctx.adapter?.isMutatedStaticSlot?.('globalThis', name)) return null;
+  const type = name && (KNOWN_FUNCTION_GLOBALS.has(name) ? 'function' : 'object');
+  const object = !name && isMemberAccessNode(value) ? resolveObjectName({ objectNode: value.object, ...ctx }) : null;
+  const key = object && staticMemberKeyName(value);
+  if (!name && (!key || ctx.adapter?.isMutatedStaticSlot?.('globalThis', object)
+    || ctx.adapter?.isMutatedStaticSlot?.(object, key))) return null;
+  const meta = name ? { kind: 'global', name } : { kind: 'property', object, key, placement: 'static' };
+  // only the read's own definition backs it, and only a pure one: `resolve` answers a static with none
+  // from the instance methods of its key (`Map.keys`), which back no static, and a definition of the global
+  // flavor alone may list only what a use of it needs (`Float16Array` - the typed-array methods). a global
+  // with no pure flavor - no definition at all, or a global module patching the engine's own (`Number`) - is
+  // backed by the engine where core-js extends it in place (`NATIVE_STATIC_OWNERS`)
+  const definition = resolveBuiltInMeta(meta);
+  const backing = definition?.desc?.pure ? definition.kind !== 'instance' && ctx.adapter?.served?.(meta, ctx.path)
+    : !!name && NATIVE_STATIC_OWNERS.has(name) && !!ctx.adapter?.served && { substituted: false };
+  return backing ? { global: name, type, substituted: backing.substituted } : null;
+}
+
+const EQUALITY_OPERATORS = new Set(['==', '===', '!=', '!==']);
+
+// a read a presence test can be dropped with: a name, or a plain member chain off one - no call, no
+// `?.` that may yield nothing, no hop through an environment probe (`window`, `global`) a host may lack
+function droppablePresenceRead(node) {
+  let current = unwrapRuntimeExpr(node);
+  while (isMemberAccessNode(current)) {
+    const key = staticMemberKeyName(current);
+    if (current.optional || key === null || (POSSIBLE_GLOBAL_OBJECTS.has(key) && !guaranteedRealmObjectName(key))) return false;
+    current = unwrapRuntimeExpr(current.object);
+  }
+  return current?.type === 'Identifier' && (!POSSIBLE_GLOBAL_OBJECTS.has(current.name) || guaranteedRealmObjectName(current.name));
+}
+
+// a presence test's own read resolves with no selection decided or walked below it (`presenceDecision`,
+// the realm-selection walk of `resolveObjectName`): an alias testing the one before it (`const b = typeof
+// a !== 'undefined' ? a : 0`) would otherwise resolve each level twice - in its test and through its live
+// operand - doubling the walk per level of the chain
+let presenceTestDepth = 0;
+
+// what a PRESENCE test always answers in this build - `typeof X === 'function'` / `!== 'undefined'`
+// over a global (either operand order, loose or strict), a global or a static read as a truth value,
+// `!` of either - `{ value, substituted, boolean }`, or null where it may answer both ways. `boolean`:
+// the test evaluates to `value` itself; a read is only truthy, its value the object it reads. the read
+// is one the fold may drop (`droppablePresenceRead`); a static's typeof is not asked: it may be a
+// function, a symbol or a number, which the definitions do not tell
+function presenceTestValue(test, ctx) {
+  presenceTestDepth++;
+  try {
+    return withReentrantQuestion(() => presenceTestAnswer(test, ctx));
+  } finally {
+    presenceTestDepth--;
+  }
+}
+
+// the answer itself, asked through `presenceTestValue`, which bounds the walk below it
+function presenceTestAnswer(test, ctx) {
+  const node = unwrapRuntimeExpr(test);
+  if (node?.type === 'UnaryExpression' && node.operator === '!') {
+    const inner = presenceTestAnswer(node.argument, ctx);
+    return inner && { value: !inner.value, substituted: inner.substituted, boolean: true };
+  }
+  if (node?.type === 'BinaryExpression' && EQUALITY_OPERATORS.has(node.operator)) {
+    const left = unwrapRuntimeExpr(node.left);
+    const typeofLeft = left?.type === 'UnaryExpression' && left.operator === 'typeof';
+    const probe = typeofLeft ? left : unwrapRuntimeExpr(node.right);
+    if (probe?.type !== 'UnaryExpression' || probe.operator !== 'typeof') return null;
+    const expected = extractStaticString(typeofLeft ? node.right : node.left, null);
+    const read = typeof expected === 'string' && droppablePresenceRead(probe.argument) ? servedRead(probe.argument, ctx) : null;
+    if (!read?.type) return null;
+    const equal = read.type === expected;
+    return { value: node.operator.startsWith('=') ? equal : !equal, substituted: read.substituted, boolean: true };
+  }
+  const read = droppablePresenceRead(node) ? servedRead(node, ctx) : null;
+  return read && { value: true, substituted: read.substituted, boolean: false };
+}
+
+// what a PRESENCE test decides of the selection it guards - a conditional or an `if` over it, an `&&` /
+// `||` / `??` with it on the left (`presenceTestValue`): `{ skip, fold, substituted }` - the operand key that
+// never runs, what the selection yields, and whether pure respells the read deciding it - or null where
+// the test may answer both ways. `decidedSelection` adds the decided `||` / `??` left to it
+export function presenceDecision(node, ctx) {
+  if (presenceTestDepth) return null;
+  if (node?.type !== 'LogicalExpression' && node?.type !== 'ConditionalExpression' && node?.type !== 'IfStatement') return null;
+  const answer = presenceTestValue(node.type === 'LogicalExpression' ? node.left : node.test, ctx);
+  if (!answer) return null;
+  const { value, substituted, boolean } = answer;
+  if (node.type !== 'LogicalExpression') {
+    return { skip: value ? 'alternate' : 'consequent', fold: value ? 'consequent' : 'alternate', substituted };
+  }
+  // the operand an `&&` / `||` / `??` yields: its right where the test lets it run, else the test itself -
+  // the literal a `typeof` or `!` test always is, the object a read is (`Array.from || shim`); no answer
+  // is nullish, so a `??` never runs its right
+  const runsRight = node.operator === '&&' ? value : node.operator === '||' && !value;
+  return { skip: runsRight ? null : 'right', fold: runsRight ? 'right' : boolean ? value : 'left', substituted };
+}
+
+// the decision the value canon reads off a user selection: the build's own (the adapter's
+// `decidedSelection`), the presence test alone where no adapter carries it, and none below a presence
+// test's own read (`presenceTestDepth`)
+function valueCanonDecision(node, ctx) {
+  return presenceTestDepth ? null : (ctx.adapter?.decidedSelection ?? presenceDecision)(node, ctx);
+}
+
+// the value a selection IS in this build where the build decides it, level after level: the operand
+// each decided level yields, the node itself where nothing is decided. the value identity of an alias,
+// a receiver and a realm selection reads a decided selection as that operand alone
+export function decidedSelectionValue(node, ctx) {
+  let current = node;
+  for (let decided = valueCanonDecision(current, ctx); typeof decided?.fold === 'string'; decided = valueCanonDecision(current, ctx)) {
+    current = peelChainRootValue(current[decided.fold]);
+  }
+  return current;
 }
 
 // how a realm SELECTION leaf reads the realm: `surface` where its value is the realm object on every
@@ -2092,29 +2253,28 @@ export function realmSelectionLeafKind(node, { adapter = null, injectorState = n
 // runs it. a ternary keeps both arms and owes a pure test; `&&` keeps its FALSY left, which no realm
 // name can be, so its guarded path stays exactly as the source wrote it
 export function realmSelectionCollapseOperand(node, ctx) {
-  const core = unwrapTransparentSeq(node, ctx);
-  if (core?.type === 'ConditionalExpression') {
-    if (mayHaveSideEffects(core.test, ctx)) return null;
-    const consequent = realmSelectionCollapseOperand(core.consequent, ctx);
-    return consequent && realmSelectionCollapseOperand(core.alternate, ctx) ? consequent : null;
-  }
-  if (core?.type === 'LogicalExpression') {
-    if (core.operator === '&&') return null;
-    return realmSelectionCollapseOperand(core.left, ctx)
-      ?? (realmSelectionLeafKind(core.left, ctx) === 'probe'
-        ? realmSelectionCollapseOperand(core.right, ctx) : null);
-  }
-  return realmSelectionLeafKind(core, ctx) === 'surface' ? core : null;
+  return withCanonQuestion(() => {
+    let core = unwrapTransparentSeq(node, ctx);
+    // a level the build decides is the operand it always takes (`valueCanonDecision`); the operand stays
+    // as written, its own effects included, since the collapse puts it where the selection stood
+    for (let decided = valueCanonDecision(core, ctx); typeof decided?.fold === 'string'; decided = valueCanonDecision(core, ctx)) {
+      core = unwrapTransparentSeq(core[decided.fold], ctx);
+    }
+    if (core?.type === 'ConditionalExpression') {
+      if (mayHaveSideEffects(core.test, ctx)) return null;
+      const consequent = realmSelectionCollapseOperand(core.consequent, ctx);
+      return consequent && realmSelectionCollapseOperand(core.alternate, ctx) ? consequent : null;
+    }
+    if (core?.type === 'LogicalExpression') {
+      if (core.operator === '&&') return null;
+      return realmSelectionCollapseOperand(core.left, ctx)
+        ?? (realmSelectionLeafKind(core.left, ctx) === 'probe'
+          ? realmSelectionCollapseOperand(core.right, ctx) : null);
+    }
+    return realmSelectionLeafKind(core, ctx) === 'surface' ? core : null;
+  });
 }
 
-// the DESTRUCTURE HOST whose realm-selecting init collapses, as the slot holding it, that init and
-// the operand it yields - null where the host spells no selection or a branch of it is not the realm.
-// the host rewrite both bindings apply at their first scoped look at the pattern, each with its own
-// surgery: what the pattern reads is ONE object, so the selection is dead text, and dropping it is
-// what lets a pattern with no nested prop - a flat constructor slot, which drives no flatten of its
-// own - resolve like the plain proxy receiver it is. applied on ONE leg it is a divergence rather
-// than a simplification: the other leg still walks the dropped branch and mints what it spells, so
-// each binding marks the discarded subtree skipped as it replaces it
 // does this selection put a realm PROBE on the arm its own test decides? that arm yields the realm
 // wherever the host spells the probe's name, so the mirror owes it a literal - and the shared plan is
 // the only route that renders one, re-spelling the selection as a null test on the probe's own read.
@@ -2335,14 +2495,47 @@ export function staticSlotTakesDefault(propNode, ctx) {
 }
 
 // A ternary's arms naming one receiver can share its extraction. A consumer keeping the
-// complete selection may retain an effectful test; a consumer dropping it must refuse.
+// complete selection may retain an effectful test; a consumer dropping it must refuse. A test the
+// build always answers (`valueCanonDecision`) leaves its live arm the receiver alone.
 export function agreeingTernaryArm(selecting, path, adapter, { preservesEffects = false } = {}) {
   const ctx = { scope: path?.scope, adapter, path };
   if (selecting?.type !== 'ConditionalExpression' || !preservesEffects && mayHaveSideEffects(selecting.test, ctx)) return null;
+  const decided = valueCanonDecision(selecting, ctx);
+  if (decided) return selecting[decided.fold];
   const left = peelReceiverSequenceTail(selecting.consequent);
   const right = peelReceiverSequenceTail(selecting.alternate);
   const name = resolveObjectName({ objectNode: left, ...ctx });
   return name && name === resolveObjectName({ objectNode: right, ...ctx }) ? selecting.consequent : null;
+}
+
+// ... and the `||` / `??` twin: the one global every operand of the chain names, where its LAST operand is
+// never nullish - a bare global name, which throws where the engine lacks it, or a read the build serves -
+// so whichever operand runs, the value is that global (`globalThis.Int8Array ?? Int8Array`); null otherwise.
+// each operand must be a DIRECT read - an unbound name or a member - since an alias or a call walks its own
+// chain, and asked at every level of a chain of aliases over each other that walk was exponential; the last
+// operand is asked first, so a chain ending in anything else names nothing without a walk of the rest
+function agreeingOperandsName(node, ctx) {
+  function indirect(read) {
+    return read?.type === 'Identifier' ? ctx.adapter.hasBinding(ctx.scope, read.name, ctx.path) : !isMemberAccessNode(read);
+  }
+  const last = unwrapRuntimeExpr(peelReceiverSequenceTail(node.right));
+  if (indirect(last) || (!(last.type === 'Identifier' && isKnownGlobalName(last.name))
+    && !servedRead(last, { scope: ctx.scope, adapter: ctx.adapter, path: ctx.path })?.global)) return null;
+  const reads = [last];
+  let current = unwrapRuntimeExpr(node.left);
+  while (current?.type === 'LogicalExpression' && current.operator !== '&&') {
+    reads.push(unwrapRuntimeExpr(peelReceiverSequenceTail(current.right)));
+    current = unwrapRuntimeExpr(current.left);
+  }
+  reads.push(unwrapRuntimeExpr(peelReceiverSequenceTail(current)));
+  if (reads.some(indirect)) return null;
+  let name = null;
+  for (const read of reads) {
+    const readName = resolveObjectName({ ...ctx, objectNode: read, seen: new Set(ctx.seen) });
+    if (!readName || (name && readName !== name)) return null;
+    name = readName;
+  }
+  return name;
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
@@ -2377,25 +2570,42 @@ export function resolveObjectName({
       break;
     }
   }
+  // ... and a selection the build decides is the operand its presence test always takes
+  // (`decidedSelectionValue`): the dead one never runs, so it names nothing here
+  objectNode = decidedSelectionValue(objectNode, { scope, adapter, path, seen });
   // ... and the SELECTING spelling of that same surface (`c ? globalThis : self`): every live branch
   // lands on ONE pristine proxy global, so the receiver names that global whichever branch runs. an
-  // effect-bearing TEST is admitted here where the destructure lane refuses it: this render carries
-  // the selection on as a harvested effect ahead of the collapsed root, and nothing of it dies.
-  // the destructure lane already reads this canon; a member claim asked nothing and left a mutated
-  // static's WRITE on the native object while every READ of it went to the ponyfill
-  while ((objectNode.type === 'ConditionalExpression' || objectNode.type === 'LogicalExpression')
-    && allProxySelectingInit(objectNode, { adapter, injectorState: null, allowEffectfulTest: true,
-      throughRealmHop: guaranteedRealmObjectName,
-      readSurface: value => {
-        const leaf = isChainAssignment(value) ? peelChainRootValue(value) : value;
-        return proxyRunValueIsProven(leaf, resolveBuiltInMeta, { scope, adapter, seen, path })
-          && isPristineProxyGlobal(adapter, resolveObjectName({
-            objectNode: leaf, scope, adapter, seen, path, usageNode, readNode, resolveStaticKey,
-          }));
-      } })) {
-    const selected = firstProxyBranch(objectNode, { truthyAnd: true });
-    if (!selected || selected === objectNode) break;
-    objectNode = peelChainRootValue(selected);
+  // effect-bearing TEST or BRANCH prefix is admitted here where the destructure lane refuses it: this
+  // render carries the selection on as a harvested effect ahead of the collapsed root, and nothing of
+  // it dies. the destructure lane already reads this canon; a member claim asked nothing and left a
+  // mutated static's WRITE on the native object while every READ of it went to the ponyfill. a presence
+  // test's own read names no selection (`presenceTestDepth`): walked there, every level of a chain of
+  // aliases testing the one before walked the rest of the chain again
+  if (!presenceTestDepth) {
+    while ((objectNode.type === 'ConditionalExpression' || objectNode.type === 'LogicalExpression')
+      && allProxySelectingInit(objectNode, {
+        adapter,
+        injectorState: null,
+        allowEffectfulTest: true,
+        throughRealmHop: guaranteedRealmObjectName,
+        readSurface: value => {
+          const leaf = peelChainRootValue(value);
+          return proxyRunValueIsProven(leaf, resolveBuiltInMeta, { scope, adapter, seen, path })
+            && isPristineProxyGlobal(adapter, resolveObjectName({
+              objectNode: leaf, scope, adapter, seen, path, usageNode, readNode, resolveStaticKey,
+            }));
+        },
+      })) {
+      const selected = firstProxyBranch(objectNode, { truthyAnd: true });
+      if (!selected || selected === objectNode) break;
+      objectNode = peelChainRootValue(selected);
+    }
+    // ... and a `||` / `??` whose every operand names one global, its last never nullish: whichever runs,
+    // the value is that global, which the selection names without the build deciding its left
+    if (objectNode.type === 'LogicalExpression' && objectNode.operator !== '&&') {
+      const agreed = agreeingOperandsName(objectNode, { scope, adapter, seen, path, usageNode, readNode, resolveStaticKey });
+      if (agreed) return agreed;
+    }
   }
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name, path)) {
@@ -2505,7 +2715,7 @@ export function reachableAliasValues({
       if (!ret) break;
       node = unwrapTransparentSeq(ret);
     }
-    if (node?.type !== 'Identifier' || node.name === currentName || seen?.has(node.name)) return;
+    if (node?.type !== 'Identifier' || node.name === currentName || cycleGuardHas(seen, node.name)) return;
     const recursed = asCall ? { type: 'CallExpression', callee: node, arguments: [] } : node;
     // an `f()` receiver has no caller-resolved primary (the call is opaque to `resolveObjectName`), so
     // the aliased factory's DECLARED return is captured here beside its reassignments: `const f = f0`
@@ -2899,7 +3109,7 @@ export function resolveInlineCalleeFunction(hop, {
       declinedSink?.push(hop.node);
       return false;
     }
-    const local = !seen.has(member) && LOCAL_MEMBER_CALLEES.get(member);
+    const local = !cycleGuardHas(seen, member) && LOCAL_MEMBER_CALLEES.get(member);
     if (!binding || !local) return false;
     seen.add(member);
     callee = local;
@@ -2955,7 +3165,7 @@ export function resolveInlineCalleeFunction(hop, {
       continue;
     }
     const { name } = callee;
-    if (seen.has(name)) return null;
+    if (cycleGuardHas(seen, name)) return null;
     const binding = calleeBinding(hopScope, name, lookupPath);
     if (!binding) return null;
     const isDeclarator = bindingDeclaratorNode(binding)?.type === 'VariableDeclarator';
@@ -3260,7 +3470,7 @@ function awaitedValueNoThenable(call, ctx) {
     objectNode: value, scope: followed.ctx.scope, adapter: ctx.adapter, path: ctx.path,
   });
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return true;
-  return !!name && isKnownStaticGlobal(name)
+  return !!name && isKnownStaticGlobal(name, ctx.adapter)
     && !!inlineCallReturnExpression({ ...hop, awaited: false }, { allowUninitializedCallee: true })
     && !prototypeChainMayLend('then', ctx, ['Function']) && !ctx.adapter?.isMutatedStaticSlot?.(name, 'then');
 }
@@ -4253,7 +4463,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           depth += 1;
           continue;
         }
-      } else if (!seen?.has(node.name)) {
+      } else if (!cycleGuardHas(seen, node.name)) {
         // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
         // from the value the use actually sees - the reaching definition (`K = 'of'` in
         // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent

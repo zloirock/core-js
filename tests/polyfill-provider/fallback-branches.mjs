@@ -221,19 +221,37 @@ for (const [label, source, selection, guarded, viable, mutated = false] of [
 // the dead right arm of a `||` / `??` is the plan's own question: its leaf walk over its root
 // classification, asked of the left operand - an IIFE handing back a static container and a named call
 // proven to yield the realm are truthy exactly as the flat static and the realm are; a falsy binding
-// and an unbacked key off the realm keep the right arm live
-for (const [name, source, expected] of [
+// and an unbacked key off the realm keep the right arm live. a constructor read off the realm - directly,
+// through an alias, a destructured binding or a call returning such a read - decides only where the build
+// serves its global: an engine lacking it reads `undefined` there, while the bare name, or an alias or a call
+// returning it, throws before the right could run; a call the inline canon cannot see through decides nothing
+const SERVES_ALL = { served: () => ({ substituted: false }) };
+for (const [name, source, expected, build = null] of [
   ['static container', 'const b = { Array }; const { Array: { of } } = b || globalThis;', true],
   ['iife over a static alias', 'const b = { Array }; const { Array: { of } } = (() => b)() || globalThis;', true],
   ['named call yielding the realm', 'function realm() { return globalThis; } const { Array: { of } } = realm() || globalThis;', true],
   ['the realm', 'const { Array: { of } } = globalThis || shim;', true],
   ['falsy binding', 'let m = 0; const { Array: { of } } = m || globalThis;', false],
   ['unbacked key off the realm', 'const shim = globalThis.shim; const { Array: { of } } = shim || globalThis;', false],
+  ['bare constructor', 'const { from } = WeakRef || Array;', true],
+  ['constructor off the realm the build lacks', 'const { from } = globalThis.WeakRef || Array;', false, SERVES_ALL],
+  ['constructor off the realm the build serves', 'const { from } = globalThis.Map || Array;', true, SERVES_ALL],
+  ['constructor off the realm with no build', 'const { from } = globalThis.Map || Array;', false],
+  ['global core-js extends in place off the realm', 'const { from } = globalThis.Array || Set;', true, SERVES_ALL],
+  ['global without a definition off the realm', 'const { CompileError } = globalThis.WebAssembly || Set;', false, SERVES_ALL],
+  ['alias of a realm read', 'const Ref = globalThis.WeakRef; const { from } = Ref || Array;', false, SERVES_ALL],
+  ['destructured realm read', 'const { WeakRef: Ref } = globalThis; const { from } = Ref || Array;', false, SERVES_ALL],
+  ['alias of a bare name', 'const Ref = WeakRef; const { from } = Ref || Array;', true, SERVES_ALL],
+  ['alias of a served realm read', 'const M = globalThis.Map; const { from } = M || Array;', true, SERVES_ALL],
+  ['call returning a realm read the build lacks', 'const get = () => globalThis.WeakRef; const { from } = get() || Array;', false, SERVES_ALL],
+  ['call returning a bare name', 'const get = () => WeakRef; const { from } = get() || Array;', true, SERVES_ALL],
+  ['call returning a served realm read', 'const get = () => globalThis.Map; const { from } = get() || Array;', true, SERVES_ALL],
+  ['call the inline canon cannot see through', 'const { from } = make() || Array;', false, SERVES_ALL],
 ]) {
   runBoth(`truthy left/${ name }`, source, (adapter, prog, lbl) => {
     const logical = adapter.pickPath(prog, 'LogicalExpression');
     check(lbl, selectionLeftAlwaysTruthy({
-      node: logical.node.left, scope: logical.scope, adapter: pluginAdapter(adapter), path: logical, resolvePure,
+      node: logical.node.left, scope: logical.scope, adapter: { ...pluginAdapter(adapter), ...build }, path: logical, resolvePure,
     }), expected);
   });
 }

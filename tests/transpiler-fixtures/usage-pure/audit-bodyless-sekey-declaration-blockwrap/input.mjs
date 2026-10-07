@@ -9,5 +9,6 @@ if (c) var { [(log(), 'from')]: f } = Array;
 // body (keying on the node type alone dropped the polyfill, mistaking the body for the head binding)
 for (item of items) var { [(log(), 'flat')]: m } = rows;
 
-// The literal-receiver do-while follows the same ordering on each iteration.
+// The literal-receiver do-while follows the same ordering on each iteration; a literal is never
+// nullish, so its read takes no nullish test.
 do var { [(log(), 'at')]: a } = [1, 2, 3]; while (c);

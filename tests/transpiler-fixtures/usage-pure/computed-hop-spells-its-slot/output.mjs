@@ -21,7 +21,7 @@ const [{
 const map = _mapMaybeArray([1]);
 const {
   [(eff(1), 'Array')]: _ref
-} = null == _globalThis ? _globalThis[""] : _globalThis;
+} = _globalThis;
 const values = _valuesMaybeArray(_ref.prototype);
 const {
   [(eff(2), 'Array')]: {

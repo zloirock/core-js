@@ -4,10 +4,13 @@
 // probe - left raw it reads undefined off the ponyfill in exactly the realms the polyfill serves, while
 // the polyfilled product answers there. A carrier that only PASSES the value on (a sequence tail) is the
 // same answer. The pattern binds nothing polyfillable on purpose: this pins the receiver rendering, not
-// the destructure claim. A distinct fallback constructor per line keeps each import attributable.
+// the destructure claim. A distinct fallback constructor per line keeps each import attributable; over a
+// left the build serves the `||` / `??` carrier folds away, and over one it does not it stays (`WeakRef`).
 export const { observedByOr } = globalThis.self.Array || Set;
 export const { observedByAnd } = globalThis.self.Array && Map;
 export const { observedByNullish } = globalThis.self.Array ?? WeakMap;
 export const { observedByTernaryConsequent } = cond ? globalThis.self.Array : Promise;
 export const { observedByTernaryAlternate } = cond ? WeakSet : globalThis.self.Array;
 export const { passedThroughBySequence } = (0, globalThis.self.Array);
+export const { observedByUnservedOr } = globalThis.self.WeakRef || Iterator;
+export const { observedByUnservedNullish } = globalThis.self.WeakRef ?? DisposableStack;
