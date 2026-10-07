@@ -43,6 +43,7 @@ import {
   proxyGlobalRootName,
   resolveObjectName,
   isKnownStaticGlobal,
+  realmLevelNamesCtor,
   isCallShape,
   computedKeyIsWellKnownSymbol,
   resolveKey,
@@ -112,6 +113,7 @@ import {
   buildMemoArg,
   carriedInitPrefix,
   carryForInitPrefixIntoFirst,
+  takeForInitPrefix,
   carryInitPrefix,
   chainAssignOverPureNav,
   discardedSinkSlot,
@@ -1226,6 +1228,7 @@ export default function createDestructureDrains(ctx) {
         storeReceiver: job.keyReadPlan.exported && !reuseReceiver,
         reuseReceiver,
         proven: !!job.proven,
+        readsReceiver: !!job.readsReceiver,
       });
       const slot = declaration.declarations.indexOf(job.declarator);
       declaration.declarations.splice(slot, 1, ...rendered);
@@ -2111,15 +2114,17 @@ export default function createDestructureDrains(ctx) {
           // ... and a residual whose init RUNS code leads too: that code could read a binding written ahead
           declarations.push(declarator, ...extracted);
         } else {
-          carryForInitPrefixIntoFirst(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath));
+          carryForInitPrefixIntoFirst(extracted, takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)));
           declarations.push(...extracted.filter((item, index) => declJobs[index].guardDetach !== 'after'), declarator,
             ...extracted.filter((item, index) => declJobs[index].guardDetach === 'after'));
         }
         continue;
       }
-      if (declJobs.every(job => !job.initRidesValue && !job.seCarried)) {
-        carryForInitPrefixIntoFirst(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath));
-      }
+      // the init's SOURCE prefix runs before its tail: it leads the slot the discarded tail keeps, and
+      // rides the first extraction where the tail keeps none (carried there, a slot planted ahead of
+      // that extraction ran the tail first)
+      const carried = declJobs.every(job => !job.initRidesValue && !job.seCarried)
+        ? takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)) : [];
       // ... unless the init needs no slot of its own: it already RIDES its own extraction (the
       // for-init opaque route puts it at the head of the extraction's sequence, where the source
       // evaluated it - a second slot would run it twice), or it is quiet and the sink says so.
@@ -2130,12 +2135,14 @@ export default function createDestructureDrains(ctx) {
         || (declJobs.every(job => !job.sinkKeep)
           && (declJobs.some(job => job.readsReceiver)
             || !mayHaveSideEffects(declarator.init, patternFrame(declJobs[0].metaPath))))) {
+        carryForInitPrefixIntoFirst(extracted, carried);
         declarations.push(...extracted);
         continue;
       }
       // a SOLE instance extraction reads the SE init exactly once inside its dispatch -
       // no memo slot needed (`var at = _at(getObj())`, babel's inline consume)
       if (declJobs.length === 1 && declJobs[0].readsReceiver && !declJobs[0].chain?.length) {
+        carryForInitPrefixIntoFirst(extracted, carried);
         declarations.push(...extracted);
         continue;
       }
@@ -2146,6 +2153,7 @@ export default function createDestructureDrains(ctx) {
       // the discarded init respells bare - a TS wrapper around it has nothing left to
       // assert (`(se(), _globalThis) as any` -> `(se(), _globalThis)`, babel's peel)
       if (declJobs.some(job => job.chain?.length)) {
+        carryForInitPrefixIntoFirst(extracted, carried);
         pushChainedSinkSlot({ declarator, extracted, declarations, declJobs });
       } else {
         const slot = discardedSinkSlot(peelTransparentExpr(declarator.init),
@@ -2153,9 +2161,9 @@ export default function createDestructureDrains(ctx) {
             metaPath: declJobs[0]?.metaPath, sinkDrop: declJobs.some(job => job.sinkDrop),
             sinkPlan: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null, planMemoArg, adapter,
           });
-        if (!foldSinkPrefixIntoResidual(extracted, slot) && slot) {
-          declarations.push(variableDeclarator(identifier(mintRefName()), slot));
-        }
+        if (slot && !foldSinkPrefixIntoResidual(extracted, slot)) {
+          declarations.push(variableDeclarator(identifier(mintRefName()), sequenceExpression([...carried, slot])));
+        } else carryForInitPrefixIntoFirst(extracted, carried);
         declarations.push(...extracted);
       }
     }
@@ -2881,7 +2889,7 @@ export default function createDestructureDrains(ctx) {
   // ... `claimsRide`: the ASSIGNMENT host renders every leaf claim it consumed off the extraction
   // (the overwrite channel), so a claiming leaf rides the re-anchor there
   function soleStaticHopBelow(hopPattern, ctorName, metaPath, claimsRide = false) {
-    if (hopPattern.properties.length !== 1 || !isKnownStaticGlobal(ctorName)) return null;
+    if (hopPattern.properties.length !== 1 || !isKnownStaticGlobal(ctorName, adapter)) return null;
     const [staticProp] = hopPattern.properties;
     if (staticProp.type !== 'Property' || staticProp.value?.type !== 'ObjectPattern') return null;
     const key = staticProp.computed
@@ -2969,10 +2977,11 @@ export default function createDestructureDrains(ctx) {
         changed = true;
         continue;
       }
-      // ... and a ctor hop re-anchors only where its key names a built-in the realm is known to
-      // carry (the shared ctor-key-anchor gate): a user global is an unknown slot, where the hop's
-      // default fires (`{ self: { A: { groupBy } = Map } }` keeps `= Map`)
-      if (!isKnownStaticGlobal(keyName)) return changed;
+      // ... and a ctor hop re-anchors only where its key's level names the constructor (the shared
+      // ctor-key-anchor gate): a user global is an unknown slot, where the hop's default fires
+      // (`{ self: { A: { groupBy } = Map } }` keeps `= Map`), and so is a built-in no target is
+      // promised (`{ WeakRef: { of } = Array }`)
+      if (!realmLevelNamesCtor(keyName, hop.value, adapter)) return changed;
       // a MUTATED slot holds the user's shim: no static behind it resolves, so the residual
       // re-anchors on the hop's own member READ (`{ groupBy } = _globalThis.Map`) - it
       // flattens whether or not the extraction consumed anything inside
@@ -3170,15 +3179,17 @@ export default function createDestructureDrains(ctx) {
     const carriesPrefix = !!soleDispatch && !anchorRhsPrefix && !wholeRhsLift && !memoRef && !probeLead && !discardedRead
       && assignment.left.properties?.length === 0 && jobs.length === 1 && jobs[0].readsReceiver && !jobs[0].chain?.length;
     if (carriesPrefix) carryInitPrefix(soleDispatch, rhsExprs.slice(0, -1));
-    const stmtSeqPrefix = anchorRhsPrefix || carriesPrefix ? []
+    // ... and a read the consume discards (`discardedRead`) is that whole right already: it lifts once,
+    // ahead of the extractions, and the whole-right lift stands down for it as every channel here does
+    const stmtSeqPrefix = anchorRhsPrefix || carriesPrefix || (wholeRhsLift && discardedRead) ? []
       : wholeRhsLift ? (probeLead
         ? liftedPrefixStatements(partitionEffectsAtProbe(
           discardRescueNodes({ node: assignment.right, ...frame }), probeNavStartOf(probeLead)).ahead)
         // ... a nav off a call the census resolves to a realm keeps only what the call owes (the
-        // shared rule) - the whole read printed a dead `mk().Array;` where the babel leg lifts nothing.
+        // shared rule) - the whole read printed a dead `mk().Array;` where the babel leg lifts nothing -
+        // as ONE expression, the flat consume's shape below (`eff(), mk(); g = _Map$groupBy;`).
         // the rest lifts through the shared trim canon, a dead comma element left behind (`(0, f())`)
-        : liftedRealmNavEffect(assignment.right, frame)?.effects.map(expr => expressionStatement(expr))
-          ?? liftedPrefixStatements([...rhsPrefix, rhsTail], frame))
+        : liftedPrefixStatements(liftedRealmNavEffect(assignment.right, frame)?.effects ?? [...rhsPrefix, rhsTail], frame))
       // a FULLY consumed FLAT pattern discards its receiver, and what stays of it is ONE expression -
       // the shape the other leg's defer-SE route prints there (`eff(), eff2(); d = _WeakSet;`); a
       // SURVIVING residual and a NESTED claim take the per-element prefix both legs print for the
@@ -3370,26 +3381,39 @@ export default function createDestructureDrains(ctx) {
     const residualFirst = (!memoRef || capturedLeaf) && residualRuns(declarator)
       && (capturedLeaf
         || patternBindingCount(declarator.id) !== jobs.reduce((count, job) => count + patternBindingCount(job.prop.value), 0));
+    // the init is DISCARDED whole where the claims empty the pattern and none reads the receiver: a
+    // sole consume's registration records it as the prefix's last element, and several claims that
+    // empty the pattern together discard it alike (`if (c) var { from, of } = mk().Array`)
+    const discardsInit = !memoRef && !residualFirst && (seqPrefix?.at(-1) === initTail
+      || (jobs.every(job => !job.readsReceiver && !job.sentinel) && mayHaveSideEffects(initTail)
+        && patternBindingCount(declarator.id) === jobs.reduce((count, job) => count + patternBindingCount(job.prop.value), 0)));
     // ... and a MEMOIZED init keeps its sequence WHOLE: the memo is where it evaluates, and
     // lifting the prefix out of it would take the claims rendered inside that prefix with it
-    if (seqPrefix?.length && !memoRef && !residualFirst) {
+    if ((seqPrefix?.length || discardsInit) && !memoRef && !residualFirst) {
       if (ridesArgument) {
         // the LIVE prefix, like the lift below: a claim inside it renders by REPLACING its node, so
         // the registration-time copy is pre-swap and would ship the raw call (`log.push("e")` beside
         // a polyfilled twin on the other leg)
         values[0].arguments[0] = sequenceExpression([...livePrefixOf(declarator, seqPrefix), values[0].arguments[0]]);
-      } else if (seqPrefix.length === 1 && seqPrefix[0] === initTail
-        && (pristineInitFacts.get(declarator)?.keepsWholeRead || liftedRealmNavEffect(declarator.init, patternFrame(jobs[0].metaPath)))) {
-        // a DISCARDED read off an effectful sequence spine lifts whole, in its live spelling (babel's
-        // sink rule, `keepsWholeRead`): the effects ride inside it. a nav off a call the census resolves
-        // to a realm keeps what the call owes alone (the shared rule)
-        const realmNav = liftedRealmNavEffect(declarator.init, patternFrame(jobs[0].metaPath));
-        statements.push(...(realmNav ? realmNav.effects : [declarator.init]).map(expr => expressionStatement(expr)));
+      } else if (discardsInit) {
+        // a DISCARDED init owes what its LIVE spelling still runs: the record ends with the init itself,
+        // which the walk may have respelled past any count the record lines up with (`(arr.flat(),
+        // mk().Map)` -> `(_flat(arr), _Map)`), so the pre-swap copies would ship a raw call. a read off
+        // an effectful sequence spine lifts whole (babel's sink rule, `keepsWholeRead`); otherwise what
+        // the lift canon owes - a realm nav's call, a deciding left's effects - or the live elements
+        // that run something
+        // ... read through its wrappers: a TS wrapper leaves with the value it wraps
+        const frame = patternFrame(jobs[0].metaPath);
+        const init = peelTransparentExpr(declarator.init);
+        const { prefix, tail } = peelNestedSequenceExpressions(init);
+        const owed = pristineInitFacts.get(declarator)?.keepsWholeRead ? [init]
+          : liftedRealmNavEffect(declarator.init, frame)?.effects ?? observablePrefixElements([...prefix, tail], frame);
+        statements.push(...owed.map(expr => expressionStatement(expr)));
       } else {
         const lifted = observablePrefixElements(livePrefixOf(declarator, seqPrefix), patternFrame(jobs[0].metaPath));
         statements.push(...lifted.map(expr => expressionStatement(expr)));
       }
-      declarator.init = liveTailOf(declarator, seqPrefix, initTail);
+      if (seqPrefix?.length) declarator.init = liveTailOf(declarator, seqPrefix, initTail);
     }
     if (memoRef) {
       // the memo is the synthetic block's own binding, and its kind follows the SE-KEY

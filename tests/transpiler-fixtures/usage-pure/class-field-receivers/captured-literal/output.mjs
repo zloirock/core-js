@@ -8,7 +8,7 @@ let keys = 0;
 class Box {
   value = (() => {
     var _ref;
-    return _ref = [1, [2]], null == _ref ? _ref[""] : (keys++, at = _atMaybeArray(_ref)), flat = _flatMaybeArray(_ref), _ref;
+    return _ref = [1, [2]], keys++, at = _atMaybeArray(_ref), flat = _flatMaybeArray(_ref), _ref;
   })();
 }
 const box = new Box();

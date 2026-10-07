@@ -10,11 +10,12 @@ import _at from "@core-js/pure/actual/instance/at";
 // own receiver slot in declarations, assignments and catch parameters.
 const log = [];
 const cond = true;
-// A bodyless slot evaluates its receiver once, checks object coercibility, converts the computed key,
-// extracts the method, then reads residual siblings in source order.
+// A bodyless slot evaluates its receiver once, checks object coercibility unless the receiver is never
+// nullish (a literal, a built-in prototype), converts the computed key, extracts the method, then reads
+// residual siblings in source order.
 export const a1 = (() => {
   if (cond) var _ref = 1 ? Array.prototype : [],
-    m = null == _ref ? _ref[""] : (_pushMaybeArray(log).call(log, 'k'), _findLastMaybeArray(_ref)),
+    m = (_pushMaybeArray(log).call(log, 'k'), _findLastMaybeArray(_ref)),
     {
       other
     } = _ref;
@@ -22,7 +23,7 @@ export const a1 = (() => {
 })();
 export const a2 = (() => {
   if (cond) var _ref2 = null || Array.prototype,
-    m = null == _ref2 ? _ref2[""] : (_pushMaybeArray(log).call(log, 'k'), _flatMapMaybeArray(_ref2)),
+    m = (_pushMaybeArray(log).call(log, 'k'), _flatMapMaybeArray(_ref2)),
     {
       other
     } = _ref2;
@@ -31,7 +32,7 @@ export const a2 = (() => {
 export const a3 = (() => {
   let i = 0;
   do var _ref3 = (_pushMaybeArray(log).call(log, 't'), Array.prototype),
-    m = null == _ref3 ? _ref3[""] : (_pushMaybeArray(log).call(log, 'k'), _atMaybeArray(_ref3)),
+    m = (_pushMaybeArray(log).call(log, 'k'), _atMaybeArray(_ref3)),
     {
       other
     } = _ref3; while (i++ < 0);

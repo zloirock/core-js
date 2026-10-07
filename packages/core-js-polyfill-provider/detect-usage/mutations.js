@@ -18,6 +18,7 @@ import {
   hasConstructorEntry,
   hasConstructorStaticKey,
   hasStaticDefinitionKey,
+  resolve as resolveBuiltIn,
 } from '../index.js';
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
@@ -151,6 +152,7 @@ import {
   pureReturnBodyValue,
   isRestProperty,
   patternEdgeSide,
+  withReentrantQuestion,
 } from '../helpers/ast-patterns.js';
 import {
   callYieldedContainer,
@@ -166,11 +168,12 @@ import {
   requireBoundProxyGlobalName,
   resolveKey,
   resolveObjectName,
+  presenceDecision,
 } from './resolve.js';
 import { isKnownGlobalName, staticReceiverHint } from './globals.js';
 import { canonicalArrayIndex, dropLeadingThisParam } from '../resolve-node-type/base.js';
 import { findEnumMember } from '../resolve-node-type/enum-types.js';
-import { readRunsAccessor, walkStaticReceiverChain } from './destructure.js';
+import { bareGlobalLeft, decidedSelection, readRunsAccessor, walkStaticReceiverChain } from './destructure.js';
 
 // --- Stage 1: cheap shape gate ---
 // one scope-less pass deciding whether the SCOPED site traverse can run at all. precision
@@ -6370,6 +6373,10 @@ function recordedSlotWriteValues(slots, keys, keyPath) {
 // destructure lanes that mirror a PARAMETER's receiver from the callers this file spells
 export function createDetectionAdapter({
   method = null,
+  isOptedOut = () => false,
+  resolvePure = null,
+  isEntryGuaranteed = null,
+  isEntryCarried = null,
   getMutatedStatics = () => null,
   getWrittenContainerSlots = () => null,
   getContainerSlotIndex = () => null,
@@ -6390,8 +6397,65 @@ export function createDetectionAdapter({
   function containerKeys(object, ownerNode) {
     return containerRecordKeys(getContainerSlotIndex?.(), object, ownerNode);
   }
+  // do the entries behind the global or static `meta` names, in the flavor this build injects, all pass
+  // `has`: null where core-js defines none
+  function everyEntry(meta, has) {
+    const dependencies = resolveBuiltIn(meta)?.desc?.[method === 'usage-pure' ? 'pure' : 'global']?.dependencies;
+    return dependencies?.length ? dependencies.every(entry => !!has?.(entry)) : null;
+  }
+  // a lookup of the decision member below is in flight (`decidedSelection`)
+  let rootLookups = 0;
+  // ... each one runs guarded: it can re-enter that member through the alias pre-pass
+  function rootLookup(lookup) {
+    rootLookups++;
+    try {
+      return withReentrantQuestion(lookup);
+    } finally {
+      rootLookups--;
+    }
+  }
   const adapter = {
     isKnownGlobalName,
+    // does a directive the user wrote (`core-js-disable-line` and kin) cover this node: nothing there is
+    // rewritten, so a read there is served by nothing this build does
+    isOptedOut,
+    // how this build guarantees the global or static `meta` names - the one backing every canon deciding
+    // a user's selection asks (`servedRead`): `{ substituted: true }` where pure respells the read,
+    // `{ substituted: false }` where every module behind it is carried natively by every target or
+    // injected (`isEntryGuaranteed`) - or null where some target may lack it, or no build is wired
+    served(meta, path) {
+      if (method === 'usage-pure' && resolvePure?.(meta, path)?.kind === (meta.kind === 'global' ? 'global' : 'static')) {
+        return { substituted: true };
+      }
+      return everyEntry(meta, isEntryGuaranteed) ? { substituted: false } : null;
+    },
+    // is the global or static `meta` names in the set this build is configured for - every entry behind
+    // it carried (`isEntryCarried`: at the mode, and kept by the user's `exclude`): one the set does not
+    // carry (a proposal below the mode, an excluded constructor) counts as no built-in. a name with no
+    // definition, and an adapter no build is wired to, answer true - the set decides only what core-js
+    // defines
+    available(meta) {
+      return !isEntryCarried || everyEntry(meta, isEntryCarried) !== false;
+    },
+    // the decision this build takes of a user selection (`decidedSelection`), for the value canon, which
+    // cannot import it. a `||` / `??` whose left is read through a local alias answers by its presence test
+    // and the bare global name the alias holds (`bareGlobalLeft`) alone: deciding that fallback in full walks
+    // the alias's own chain again at every level. the lookups telling an alias apart (a minted import's binding
+    // names a global) and walking it to the name it holds can re-enter here through the alias pre-pass
+    // (`var P = P || Legacy`), and a re-entered ask answers by the presence test alone
+    decidedSelection(node, ctx) {
+      const left = node?.type === 'LogicalExpression' && node.operator !== '&&' ? unwrapRuntimeExpr(node.left) : null;
+      const root = left && runtimeChainRoot(left);
+      if (root?.type === 'Identifier') {
+        if (rootLookups) return presenceDecision(node, ctx);
+        const binding = rootLookup(() => adapter.getBinding?.(ctx.scope, root.name, ctx.path));
+        if (binding && !binding.polyfillHint) {
+          return presenceDecision(node, ctx)
+            ?? (rootLookup(() => bareGlobalLeft(left, ctx)) ? { skip: 'right', fold: 'left', substituted: false } : null);
+        }
+      }
+      return decidedSelection(node, ctx);
+    },
     parameterCallSites,
     collectBindingReferences,
     // Scope trackers may still expose a pattern after its extraction is committed.

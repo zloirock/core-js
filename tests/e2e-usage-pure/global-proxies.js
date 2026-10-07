@@ -4403,3 +4403,18 @@ QUnit.test('global proxies: a call-keyed hop runs its key once', assert => {
   assert.same(typeof globalThis[key('Iterator')]?.from, 'function');
   assert.same(calls, 3);
 });
+
+// a selection every arm of which yields the realm names the realm: the claim above it reads its pure
+// static, and the arm the test takes runs its own effect exactly once
+QUnit.test('global proxies: a realm selection with effectful arms runs the taken arm once', assert => {
+  let effects = 0;
+  function read(flag) {
+    return (flag ? (effects++, globalThis) : (effects--, globalThis)).Map.groupBy;
+  }
+  assert.same(typeof read(true), 'function');
+  assert.same(effects, 1);
+  assert.same(typeof read(false), 'function');
+  assert.same(effects, 0);
+  assert.deepEqual((effects ? globalThis : (effects++, globalThis)).Array.from('ab'), ['a', 'b']);
+  assert.same(effects, 1);
+});

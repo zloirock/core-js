@@ -1,11 +1,15 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _keys from "@core-js/pure/actual/instance/keys";
 import _Map from "@core-js/pure/actual/map/constructor";
-// destructure init is a logical expression - for `??` / `||` the primary operand
-// is the left side (fallback right); for `&&` the primary is the right side
-// (left is only the gate). Polyfills resolve against the primary operand
+import _Object$keys from "@core-js/pure/actual/object/keys";
+// A logical destructure init reads its key off the operand the selection yields: a `??` left the build
+// decides (`Array`) takes its own static; an unknown left beside a constructor owning the key as a
+// static (`Stub ?? Object`) keeps its own read, the static mirrored into the right; `&&` yields its right.
 const from = _Array$from;
-const keys = _keys(Stub ?? Object);
+const {
+  keys
+} = Stub ?? {
+  keys: _Object$keys
+};
 const {
   entries
 } = Array && _Map;

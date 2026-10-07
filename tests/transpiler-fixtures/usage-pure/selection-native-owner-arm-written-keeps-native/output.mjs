@@ -1,0 +1,12 @@
+import _globalThis from "@core-js/pure/actual/global-this";
+import _values from "@core-js/pure/actual/instance/values";
+var _ref;
+// A selection whose native-owner arm this file writes - the static (`Number.isSafeInteger`) or the
+// global's slot (`Math`) - may yield the user's value there, so the identity guard stands down: the read
+// stays native, and a key other receivers carry as an instance method keeps that dispatch alone
+Number.isSafeInteger = shimIsSafeInteger;
+export const viaWrittenStatic = (shim || Number).isSafeInteger(7);
+_globalThis.Math = ShimMath;
+export const viaWrittenSlot = (shim || Math).trunc(1.5);
+Object.values = shimValues;
+export const viaWrittenInstanceKey = _values(_ref = source ?? Object).call(_ref, pairs);

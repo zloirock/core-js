@@ -30,7 +30,7 @@ const {
 };
 const {
   [(eff('nav'), 'Array')]: _ref
-} = null == _globalThis ? _globalThis[""] : _globalThis;
+} = _globalThis;
 const viaNav = _valuesMaybeArray(_ref.prototype);
 const {
   [(eff('literal'), 'w')]: {
@@ -133,7 +133,7 @@ const {
 };
 const {
     [(eff('symbol'), 'Array')]: _ref4
-  } = null == _globalThis ? _globalThis[""] : _globalThis,
+  } = _globalThis,
   viaSymbol = _getIteratorMethod(_ref4);
 export { order, viaStatic, viaNav, viaLiteral, viaAliasSlot, viaLiteralSlot, viaSibling, z, viaPairA, viaPairB, viaRest, rest, viaAssign, viaParam, viaProxyHop, viaDeep, viaDefault, viaSymbol };
 

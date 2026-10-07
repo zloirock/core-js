@@ -1,6 +1,7 @@
 // destructure receiver is a ternary / logical-or: each viable branch becomes its own
 // `{key: _Branch$key}` literal independently; non-viable branches (unknown identifiers
-// or no matching static method) are left raw
+// or no matching static method) are left raw, and an `&&` whose gate the build serves
+// yields its right alone
 //
 // declaration init: ternary, both viable
 const { from: a1 } = cond ? Array : Map;
