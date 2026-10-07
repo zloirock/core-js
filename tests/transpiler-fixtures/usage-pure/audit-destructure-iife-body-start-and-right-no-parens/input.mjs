@@ -2,7 +2,7 @@
 // value leaf and it sits AFTER `<gate> &&`, never at the arrow's expression-body start - so the
 // spliced object literal needs NO parens (the `=> {` block hazard cannot arise here), unlike the
 // `||` form whose leftmost operand does land at body-start
-function f({ Array: { from } } = (() => globalThis && self)()) {
+function f({ Array: { from } } = (() => flag && self)()) {
   return from;
 }
 f();

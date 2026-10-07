@@ -489,16 +489,25 @@ export function renderCapturedReceiver(recv, value, built) {
 // its branches; its second argument says whether that callee is the RAW one, the only branch an
 // absorbed `?.()` keeps its short-circuit in - the pure entry is always callable, so its branch
 // spells a plain call. Arguments remain live for later transformation; only one branch executes.
+// its third, the receiver an instance-dispatched raw branch invokes its method on, leads the arguments
+// of that `.call`, the `?.` of an absorbed `?.()` riding the `.call` read.
 // `captureReceiver`, where the plan has one, is the receiver VALUE the branches read through: the
 // memo is written first and the whole narrow rides inside that sequence.
 // every branch is spelled by EITHER a pure entry or a name, and that is the plan's own invariant:
 // `planGuardedStaticNarrow` builds candidates only from truthy names, so neither slot is ever
 // empty here. a branch carrying neither would mint a nameless identifier and print `undefined`
 export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellRecv, captureReceiver = null, invoke = node => node }) {
+  let rawThis = null;
   if (plan.instanceFallback?.kind === 'instance') {
     const pure = plan.instanceFallback;
     rawBranch = callExpression(identifier(injectImport(pure.entry, pure.hintName)), [spellRecv()]);
-    if (plan.isCallee) rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
+    // an absorbed call invokes the dispatched method through `.call`, as the ordinary dispatch does: bound
+    // first, any value but a function would throw ahead of the arguments, and an absorbed `?.()` would test
+    // the bound function instead of the method
+    if (plan.callInBranches) {
+      rawBranch = memberExpression(rawBranch, identifier('call'));
+      rawThis = spellRecv();
+    } else if (plan.isCallee) rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
   }
   const guard = plan.branches.reduceRight((alternate, branch) => conditionalExpression(
     binaryExpression('===', spellRecv(), branch.ctorRealmPure
@@ -506,7 +515,7 @@ export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellR
       : identifier(branch.ctorPure ? injectImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
     invoke(identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName)), false),
     alternate,
-  ), invoke(rawBranch, true));
+  ), invoke(rawBranch, true, rawThis));
   return captureReceiver ? renderCapturedReceiver(spellRecv(), captureReceiver, guard) : guard;
 }
 
@@ -533,10 +542,18 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
 
 // A sole computed-key extraction evaluates the initializer before the key runs. The
 // dispatch owns the single property read; keeping a sentinel would read that slot twice.
-// A proven reusable identifier supplies the null test and dispatch without another binding.
+// A proven identifier read by no dispatch (`readsReceiver`) needs no binding of its own.
 // Both bindings pass embedded source nodes and their already-built default guard.
 export function renderKeyedDestructureRead({
-  receiverName, receiver, binding, keys, read, storeReceiver = false, proven = false, reuseReceiver = false,
+  receiverName,
+  receiver,
+  binding,
+  keys,
+  read,
+  storeReceiver = false,
+  proven = false,
+  reuseReceiver = false,
+  readsReceiver = false,
 }) {
   const keyed = keys.length ? sequenceExpression([...keys, read]) : read;
   const value = proven ? keyed : conditionalExpression(
@@ -545,7 +562,7 @@ export function renderKeyedDestructureRead({
     keyed,
   );
   return [
-    ...reuseReceiver || storeReceiver || (proven && hostSlotNode(receiver)?.type === 'Identifier') ? []
+    ...reuseReceiver || storeReceiver || (proven && !readsReceiver && hostSlotNode(receiver)?.type === 'Identifier') ? []
       : [variableDeclarator(identifier(receiverName), receiver)],
     variableDeclarator(binding, storeReceiver
       ? sequenceExpression([assignmentExpression('=', identifier(receiverName), receiver), value]) : value),

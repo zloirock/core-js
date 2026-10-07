@@ -120,3 +120,32 @@ QUnit.test('realm slot defaults: an installed lowercase global keeps its members
     assert.same(groupBy(), 'own');
   });
 });
+
+// a KNOWN name core-js implements nothing of is a slot an engine may leave empty too (`WeakRef` on
+// IE11): its level's default stays live and answers through its own polyfill. the slot is emptied
+// for the run, as such an engine has it, and restored after
+/* eslint-disable es/no-weakrefs -- the unfilled-slot claim is the shape under test; the slot is only
+   read, and emptied for the run, so `WeakRef` itself is never invoked */
+QUnit.test('realm slot defaults: an unfilled built-in slot falls back to the default in a declaration', assert => {
+  withTemporaryProperty(globalThis, 'WeakRef', undefined, () => {
+    const { WeakRef: { of } = Array } = globalThis;
+    assert.deepEqual(of(1, 2), [1, 2]);
+  });
+});
+
+QUnit.test('realm slot defaults: an unfilled built-in slot falls back to the default in an assignment', assert => {
+  withTemporaryProperty(globalThis, 'WeakRef', undefined, () => {
+    let from;
+    // eslint-disable-next-line prefer-const -- the assignment pattern is the tested host
+    ({ WeakRef: { from } = Array } = globalThis);
+    assert.deepEqual(from('ab'), ['a', 'b']);
+  });
+});
+
+QUnit.test('realm slot defaults: an unfilled built-in slot under a proxy hop falls back to the default', assert => {
+  withRealmSelf(() => withTemporaryProperty(globalThis, 'WeakRef', undefined, () => {
+    const { self: { WeakRef: { of } = Array } } = globalThis;
+    assert.deepEqual(of(3), [3]);
+  }));
+});
+/* eslint-enable es/no-weakrefs -- end of the unfilled-slot forms */

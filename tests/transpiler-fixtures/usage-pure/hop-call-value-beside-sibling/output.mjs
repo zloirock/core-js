@@ -3,7 +3,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 // A static reached through a call keeps that call and neighboring effects in source order.
-// Known constructor arms receive pure values; user branches keep their own members.
+// Known constructor arms receive pure values; user branches keep their own members, and an arm the
+// selection never reaches drops with it.
 const c = 1;
 const userObj = {};
 const log = [];
@@ -43,7 +44,7 @@ const {
 } = {
   w: (eff(), {
     keys: _Object$keys
-  }) ?? Object,
+  }),
   q: 1
 };
 const {
@@ -54,7 +55,7 @@ const {
 } = {
   w: (eff(), {
     keys: _Object$keys
-  }) ?? Array,
+  }),
   q: 1
 };
 const {
@@ -65,7 +66,7 @@ const {
 } = {
   w: (eff(), {
     keys: _Object$keys
-  }) || userObj,
+  }),
   q: 1
 };
 const {
@@ -121,7 +122,7 @@ const {
 } = {
   w: (eff(), {
     keys: _Object$keys
-  }) ?? Object
+  })
 };
 const {
   a: {

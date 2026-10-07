@@ -243,6 +243,17 @@ function syntheticWrittenSlotReads(slots) {
   ].join('\n');
 }
 
+// Decided user selections - a presence test over a served global, as a value, in a callee slot and as
+// the init of an alias: every one folds once the claims rendered, and the folds must not each search the
+// tree from its root
+function syntheticDecidedSelections(selections) {
+  return [
+    syntheticLines(selections, i => `export const v${ i } = typeof Promise !== 'undefined' ? Promise.resolve(${ i }) : Iterator.from(x${ i });`),
+    syntheticLines(selections, i => `export const c${ i } = (typeof Symbol === 'function' && o${ i }.m)(${ i });`),
+    syntheticLines(selections, i => `const m${ i } = typeof Map !== 'undefined' ? Map : Legacy${ i }; export const g${ i } = m${ i }.groupBy(list, key);`),
+  ].join('\n');
+}
+
 // Writes under unknown keys against patches pending on named slots: each chain fires once per value
 // a slot can hold, never once per write, and an unknown slot keeps each candidate once. the patched
 // static stays native in pure, so an unrelated static carries the injection floor
@@ -436,6 +447,9 @@ const CASES = [
   } },
   { name: 'synthetic written slot reads, 1000 slots', source: () => syntheticWrittenSlotReads(1000), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  { name: 'synthetic decided selections, 2000 of each spelling', source: () => syntheticDecidedSelections(2000), bounds: {
+    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'synthetic unknown-key writes, 2000 pending chains', source: () => syntheticUnknownKeyWrites(2000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },

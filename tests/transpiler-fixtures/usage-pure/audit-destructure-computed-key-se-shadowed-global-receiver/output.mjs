@@ -3,6 +3,6 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // must NOT rewrite it to the pure binding (it is the local Promise, not the global)
 function f(Promise) {
   const _ref = [1, Promise],
-    m = null == _ref ? _ref[""] : (eff(), _flatMaybeArray(_ref));
+    m = (eff(), _flatMaybeArray(_ref));
   return m;
 }

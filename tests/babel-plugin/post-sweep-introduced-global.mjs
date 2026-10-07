@@ -188,4 +188,49 @@ checkTruthy('isKnownGlobalName accepts real global objects',
 checkTruthy('isKnownGlobalName rejects the plugin\'s synth import names',
   !isKnownGlobalName('_globalThis') && !isKnownGlobalName('_Array$from') && !isKnownGlobalName('_Object$assign'));
 
+// the sweep's binding lookups climb from every reference to its scope owner, which in a nested
+// selection crosses every level above the reference: in usage-global the sweep is read-only like the
+// primary traversal and shares its climbs through the selection, so the work a whole transform does
+// on the selection's nodes grows with its depth, not with the depth squared. a sibling's `pre()`
+// counts the type tests made on those nodes before core-js detects anything
+{
+  const reads = [];
+  for (const depth of [64, 128]) {
+    let selection = 'Array';
+    for (let i = 0; i < depth; i++) selection = `(globalThis.WeakRef || ${ selection })`;
+    const counter = { reads: 0 };
+    function countSelectionTypeTests() {
+      return {
+        pre(file) {
+          const stack = [file.ast.program];
+          while (stack.length) {
+            const node = stack.pop();
+            if (Array.isArray(node)) stack.push(...node);
+            if (typeof node?.type !== 'string') continue;
+            for (const [key, value] of Object.entries(node)) if (key !== 'loc' && key !== 'extra') stack.push(value);
+            if (node.type !== 'LogicalExpression') continue;
+            const { type } = node;
+            Object.defineProperty(node, 'type', {
+              configurable: true,
+              enumerable: true,
+              get() {
+                counter.reads++;
+                return type;
+              },
+            });
+          }
+        },
+      };
+    }
+    const { code } = await transformAsync(`use(${ selection }.from(list));`, {
+      configFile: false,
+      babelrc: false,
+      plugins: [countSelectionTypeTests, ['@core-js', { method: 'usage-global', version: '4.0', targets: { ie: 11 } }]],
+    });
+    checkTruthy(`usage-global/nested selection/${ depth }: the static is injected`, code.includes('core-js/modules/es.array.from'));
+    reads.push(counter.reads);
+  }
+  checkTruthy('usage-global/nested selection: linear type tests', reads[1] <= 2.5 * reads[0], `${ reads.join(' -> ') } reads`);
+}
+
 finish();

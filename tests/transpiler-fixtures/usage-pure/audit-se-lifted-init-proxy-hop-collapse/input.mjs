@@ -1,8 +1,7 @@
-// a lone-prop destructure whose init is RETAINED only for its side effect - the value is consumed by
-// the polyfilled binding, no surviving sibling or rest reads it. the proxy-global member chain in that
-// retained init must still collapse its intermediate hop (`globalThis.self.Array` -> `_globalThis.Array`)
-// so the lifted statement does not read an undefined `.self` hop off-browser (ie:11 / Node). the
-// collapse must NOT be gated on value-consumption. distinct methods so each line's import is unambiguous
+// a lone-prop destructure whose init is lifted only for its side effect - no surviving sibling or rest
+// reads the value - must not read an undefined `.self` hop off-browser (Node): a `||` left the build
+// serves (`Array`, and `Number`, a global core-js extends in place) leaves its fallback dead, so the lift
+// keeps the effect alone and no hop
 let firstReads = 0;
 let secondReads = 0;
 let thirdReads = 0;
@@ -13,3 +12,6 @@ const { of: arrayOf } = (secondReads++, globalThis.self.Array) || Map;
 // editing the dropped region would race the drop (a compose crash). exercises the surviving-tail gate
 const { fromAsync: arrayFromAsync } = (thirdReads++, globalThis.self.Array);
 export { arrayFrom, arrayOf, arrayFromAsync };
+let fourthReads = 0;
+const { isInteger: numberIsInteger } = (fourthReads++, globalThis.self.Number) || Set;
+export { numberIsInteger };

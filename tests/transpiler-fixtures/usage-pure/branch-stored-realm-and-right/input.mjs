@@ -1,5 +1,5 @@
-// A selected assignment yields its stored realm navigation to the constructor read.
-// The Map claim injects while the selection, write and navigation effect stay observable.
+// A selected assignment yields its stored realm navigation to the constructor read: the Map claim
+// injects, the gate the build serves folds away, and the write and navigation effect stay observable.
 export function read(flag) {
   let held;
   let effects = 0;

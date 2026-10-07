@@ -1,7 +1,6 @@
-// a BOUND branch name is the value canon's question, not a bail: a const alias of a global resolves to
-// it and mirrors per branch like the bare name, so the pattern never reads the static off the swapped
-// constructor (which carries none); a parameter shadowing the name resolves to no global and its
-// branch stays raw
+// A BOUND branch name is the value canon's question, not a bail: a const alias of a global resolves to it
+// and injects like the bare name, deciding a `||` it is the left of (`A || Iterator` - no `Iterator`
+// module); a parameter shadowing the name resolves to no global, and its branch injects nothing.
 const P = Promise;
 const { all: viaAlias } = cond ? P : Fallback;
 const A = Array;

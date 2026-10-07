@@ -19,6 +19,7 @@ import {
   isReReadableSurfaceNav,
   planNestedKeyedPatternCapture,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { keyedReadReceiverProven } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { resolveKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { findNamespaceMemberValue } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
@@ -55,7 +56,30 @@ for (const [name, source, reusable] of [
   check(`${ label }/capture count`, rendered.length, reusable ? 1 : 2);
   check(`${ label }/null rejection precedes key`, rendered.at(-1).init.type, 'ConditionalExpression');
   check(`${ label }/null branch reads receiver`, rendered.at(-1).init.consequent.object.name, receiverName);
+  // a receiver proven never nullish is reused wherever the plan sees it: no write reaches the name
+  if (name === 'constant') {
+    check(`${ label }/proven`, keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter }), true);
+  }
 });
+
+// a proven receiver drops the null rejection, and its binding only where nothing reads the capture: a
+// dispatch spelled off the capture keeps it even over a proven name the plan does not reuse
+for (const [name, readsReceiver, captures] of [['dispatch', true, 2], ['static', false, 1]]) {
+  runBoth(`proven keyed receiver/${ name }`, 'const { [(effect(), "at")]: method } = rows;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    const rendered = renderKeyedDestructureRead({
+      receiverName: 'capture',
+      receiver: hostSlot(path.node.init),
+      binding: identifier('method'),
+      keys: [],
+      read: readsReceiver ? callExpression(identifier('dispatch'), [identifier('capture')]) : identifier('pony'),
+      proven: true,
+      readsReceiver,
+    });
+    check(`${ label }/declarators`, rendered.length, captures);
+    check(`${ label }/no null rejection`, rendered.at(-1).init.type, readsReceiver ? 'CallExpression' : 'Identifier');
+  });
+}
 
 for (const [name, observable] of [['g', true], ['quiet', false]]) {
   runBoth(`leaf/${ name }`, `
