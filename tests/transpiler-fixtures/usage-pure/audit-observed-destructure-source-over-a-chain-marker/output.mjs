@@ -14,7 +14,7 @@ export const {
 } = flag ? _self.Array : _Set;
 export const {
   zzz: viaLogicalOr
-} = _self.Array || _Set;
+} = _self.Array;
 export const {
   zzz: viaPlainNav
 } = flag && _self.Array;

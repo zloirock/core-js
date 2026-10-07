@@ -29,6 +29,7 @@ import './retained-getter-locals.mjs';
 import './retained-return-paths.mjs';
 import './selected-realm-receivers.mjs';
 import './proxy-chain-complexity.mjs';
+import './served-reads.mjs';
 import './member-context-paths.mjs';
 import './ast-input-context.mjs';
 import './ast-context-complexity.mjs';

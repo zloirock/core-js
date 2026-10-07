@@ -9,10 +9,10 @@ import {
 } from '../../packages/core-js-polyfill-provider/index.js';
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
 import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
-import { enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { createDetectionAdapter, enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
+const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
 
 // --- resolve(meta): top-level meta dispatcher ---
 // API quirk: misses return `undefined` (not `null`). `kind: 'instance'` is NOT a
@@ -285,6 +285,63 @@ throwsWith('createPolyfillContext/mode outside the enum is refused',
   // an ordinary entry keeps the user filters: the same exclude drops it
   check('isEntryNeeded/control - an ordinary entry still follows the module exclude',
     context({ method: 'usage-pure', mode: 'actual', exclude: ['es.array.at'] }).isEntryNeeded('array/at'), false);
+}
+
+// what an entry installs is present where every module of it is carried natively by each target or
+// injected: the question a user's own fallback asks, which `isEntryNeeded` cannot answer - it says no
+// alike for an entry every target carries and for one a filter drops, and yes for one whose other
+// modules still inject while the constructor itself is excluded
+{
+  function context(options) {
+    return createPolyfillContext(initPluginOptions({ version: '4.0', mode: 'actual', ...options }));
+  }
+  const modern = context({ method: 'usage-global', targets: { chrome: 200 } });
+  check('isEntryGuaranteed/control - a modern engine needs no module of it', modern.isEntryNeeded('weak-set/constructor'), false);
+  check('isEntryGuaranteed/carried natively by every target', modern.isEntryGuaranteed('weak-set/constructor'), true);
+  check('isEntryGuaranteed/injected where the targets need it',
+    context({ method: 'usage-global', targets: { ie: 11 } }).isEntryGuaranteed('weak-set/constructor'), true);
+  const excluded = context({ method: 'usage-global', targets: { ie: 11 }, exclude: ['es.weak-set.constructor'] });
+  check('isEntryGuaranteed/control - the other modules of the entry still inject', excluded.isEntryNeeded('weak-set/constructor'), true);
+  check('isEntryGuaranteed/a module the targets need and the exclude drops leaves it missing',
+    excluded.isEntryGuaranteed('weak-set/constructor'), false);
+  check('isEntryGuaranteed/the same exclude where every target carries the module',
+    context({ method: 'usage-global', targets: { chrome: 200 }, exclude: ['es.weak-set.constructor'] }).isEntryGuaranteed('weak-set/constructor'), true);
+  check('isEntryGuaranteed/pure installs nothing global: an entry the targets need',
+    context({ method: 'usage-pure', targets: { ie: 11 } }).isEntryGuaranteed('weak-set/constructor'), false);
+  check('isEntryGuaranteed/a pure entry-path exclude where the targets need it',
+    context({ method: 'usage-pure', targets: { ie: 11 }, exclude: ['weak-set/constructor'] }).isEntryGuaranteed('weak-set/constructor'), false);
+  check('isEntryGuaranteed/a pure entry-path exclude where every target carries it',
+    context({ method: 'usage-pure', targets: { chrome: 200 }, exclude: ['weak-set/constructor'] }).isEntryGuaranteed('weak-set/constructor'), true);
+  check('isEntryGuaranteed/an entry the mode does not ship', modern.isEntryGuaranteed('iterator/range'), false);
+}
+
+// the build's backing of a global or static, the one every canon deciding a user's selection asks
+// (`adapter.served`): pure respells a read it substitutes, a module every target carries or the build
+// injects backs the rest, a filter dropping one the targets need backs nothing, and so does an adapter
+// wired with no build
+{
+  function served(options, meta) {
+    const { resolver } = createPolyfillResolver({ version: '4.0', ...options }, makeFilterEnv());
+    const { resolvePure, isEntryGuaranteed } = resolver;
+    return createDetectionAdapter({ method: options.method, resolvePure, isEntryGuaranteed }, () => ({})).served(meta, null);
+  }
+  const PROMISE = { kind: 'global', name: 'Promise' };
+  const RESOLVE = { kind: 'property', object: 'Promise', key: 'resolve', placement: 'static' };
+  const pure = { method: 'usage-pure', targets: { ie: 11 } };
+  const global = { method: 'usage-global', targets: { ie: 11 } };
+  checkDeep('served/pure substitutes the global', served(pure, PROMISE), { substituted: true });
+  checkDeep('served/pure substitutes the static', served(pure, RESOLVE), { substituted: true });
+  checkDeep('served/pure, carried natively by every target', served({ ...pure, targets: { chrome: 200 } }, PROMISE), { substituted: false });
+  check('served/pure, the constructor excluded where the targets need it', served({ ...pure, exclude: ['promise/constructor'] }, PROMISE), null);
+  checkDeep('served/control - the same exclude leaves the static substituted',
+    served({ ...pure, exclude: ['promise/constructor'] }, RESOLVE), { substituted: true });
+  checkDeep('served/usage-global injects it', served(global, PROMISE), { substituted: false });
+  check('served/usage-global, the module excluded where the targets need it',
+    served({ ...global, exclude: ['es.promise.constructor'] }, PROMISE), null);
+  check('served/an unknown global', served(global, { kind: 'global', name: 'NotABuiltIn' }), null);
+  for (const method of ['usage-pure', 'usage-global']) {
+    check(`served/${ method }, no build wired`, createDetectionAdapter({ method }, () => ({})).served(PROMISE, null), null);
+  }
 }
 
 // the version autodetect reads the installed package, `core-js` or `@core-js/pure` - a usage-pure

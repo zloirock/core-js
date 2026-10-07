@@ -39,6 +39,7 @@ import {
   patternSlotHasDefault,
   peelTSParenthesized,
   walkAstNodes,
+  withCanonQuestion,
 } from './helpers/ast-patterns.js';
 import {
   $Object,
@@ -2593,9 +2594,11 @@ function createResolveNodeType(babelNodeType, t, {
     // direct annotation lookups, member-type substitution, generic-arg resolution, etc.
     // parsers (estree-toolkit) that don't expose TSModuleDeclaration as scope can then
     // fall back to walking path ancestors for namespace-local type decls regardless of
-    // how deep into the resolver chain the lookup happens
+    // how deep into the resolver chain the lookup happens. the resolution is one synchronous
+    // question (`withCanonQuestion`): the union over the branches of a long selection looks up
+    // every branch from its own place in it, and each lookup climbed the selection again
     const anchored = anchorPathScope(path);
-    return withLookupPath(anchored, () => resolveNodeTypeInternal(anchored, node));
+    return withCanonQuestion(() => withLookupPath(anchored, () => resolveNodeTypeInternal(anchored, node)));
   }
 
   // explicit-annotation override of expression-derived Identifier resolution. fires only

@@ -3,8 +3,9 @@
 // own receiver slot in declarations, assignments and catch parameters.
 const log = [];
 const cond = true;
-// A bodyless slot evaluates its receiver once, checks object coercibility, converts the computed key,
-// extracts the method, then reads residual siblings in source order.
+// A bodyless slot evaluates its receiver once, checks object coercibility unless the receiver is never
+// nullish (a literal, a built-in prototype), converts the computed key, extracts the method, then reads
+// residual siblings in source order.
 export const a1 = (() => { if (cond) var { [(log.push('k'), 'findLast')]: m, other } = 1 ? Array.prototype : []; return [typeof m, typeof other]; })();
 export const a2 = (() => { if (cond) var { [(log.push('k'), 'flatMap')]: m, other } = null || Array.prototype; return [typeof m, typeof other]; })();
 export const a3 = (() => { let i = 0; do var { [(log.push('k'), 'at')]: m, other } = (log.push('t'), Array.prototype); while (i++ < 0); return [typeof m, typeof other]; })();

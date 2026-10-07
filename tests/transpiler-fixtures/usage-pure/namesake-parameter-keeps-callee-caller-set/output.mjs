@@ -2,6 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _values from "@core-js/pure/actual/instance/values";
+import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$values from "@core-js/pure/actual/object/values";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 var _ref, _ref2, _ref3, _ref4, _ref5;
 // a NAMESAKE of a local callee bound in another scope - a parameter of some other function, a local
@@ -26,7 +28,7 @@ function relabelDefault(box2 = 1) {
 function box2(value) {
   return [value];
 }
-export const viaDefaultedParam = _entries(_ref2 = box2(Object)[key]).call(_ref2, {});
+export const viaDefaultedParam = (_ref2 = box2(Object)[key], _ref2 === Object ? _Object$entries({}) : _entries(_ref2).call(_ref2, {}));
 function relabelPattern({
   box3
 }) {
@@ -57,4 +59,4 @@ function elsewhere() {
 function box6(value) {
   return [value];
 }
-export const viaForeignLocal = _values(_ref5 = box6(Object)[key]).call(_ref5, {});
+export const viaForeignLocal = (_ref5 = box6(Object)[key], _ref5 === Object ? _Object$values({}) : _values(_ref5).call(_ref5, {}));

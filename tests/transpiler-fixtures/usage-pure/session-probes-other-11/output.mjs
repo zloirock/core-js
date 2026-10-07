@@ -64,10 +64,10 @@ function mark(t, v) {
 {
   var t = 0,
     _ref5 = [1],
-    a = null == _ref5 ? _ref5[""] : (k++, _atMaybeArray(_ref5));
+    a = (k++, _atMaybeArray(_ref5));
 }
 {
   var _ref6 = [1],
-    a = null == _ref6 ? _ref6[""] : (k++, _atMaybeArray(_ref6)),
+    a = (k++, _atMaybeArray(_ref6)),
     t = 0;
 }

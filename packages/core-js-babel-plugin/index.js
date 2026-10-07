@@ -21,7 +21,7 @@ import {
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
   methodReadsUsageCensus,
-  withMemberContextCache,
+  withTraversalCaches,
   memberKeyName,
   memberKeyNamesReducer,
   mutatedGlobalSlotNames,
@@ -147,6 +147,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { foldedOperandNeedsValue } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
@@ -209,6 +210,9 @@ export default function plugin(api, options) {
   const t = rangePreservingTypes(babelTypes);
   // set at program entry, read by the late-bound compat callbacks below
   let currentSynthSwap = null;
+  // late-bound like `currentSynthSwap`: the file's opt-out directives, which the shared canon reads
+  // through the adapter (`isOptedOut`)
+  let currentIsDisabled = null;
   // late-bound like `currentSynthSwap`: the usage visitors exist only inside the program visit,
   // and the emitters reach their handled-marks release through here
   let currentUsageVisitors = null;
@@ -278,6 +282,8 @@ export default function plugin(api, options) {
     getModulesForEntry,
     isEntryNeeded,
     isEntryAvailable,
+    isEntryCarried,
+    isEntryGuaranteed,
     mode,
     packages,
     pkg,
@@ -396,6 +402,11 @@ export default function plugin(api, options) {
   const adapter = createBabelAdapter({
     getInjector: () => injector,
     method,
+    isOptedOut: node => !!currentIsDisabled?.(node),
+    // the build's backing of a global or static (`served`), and the set it is configured for (`available`)
+    resolvePure,
+    isEntryGuaranteed,
+    isEntryCarried,
     getMutatedStatics: () => mutatedStatics,
     getWrittenContainerSlots: () => writtenContainerSlots,
     getContainerSlotIndex: () => containerSlotIndex,
@@ -447,6 +458,9 @@ export default function plugin(api, options) {
        to closure state (skippedNodes / debugOutput / disabledLines) and inline by design */
     ...(() => {
       let skippedNodes = new WeakSet();
+      // the user selections the detect pass found partly dead, with what usage-pure folds each to once
+      // its claims rendered
+      let deadSelections = new Map();
       let originalBodyNodes = new WeakSet();
       // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
       // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
@@ -468,6 +482,7 @@ export default function plugin(api, options) {
       // freshly-allocated WeakSet
       let synthSwap;
       currentSynthSwap = () => synthSwap;
+      currentIsDisabled = node => isDisabled(node);
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -916,8 +931,17 @@ export default function plugin(api, options) {
         // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
         const callPath = plan.callInBranches ? peelParenAndTSSlotPath(path).parentPath : null;
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
-          invoke: callPath ? (callee, raw) => hostSlot({ ...t.cloneNode(callPath.node),
-            callee: estreeToBabel(callee), optional: raw && !!callPath.node.optional }) : undefined,
+          invoke: callPath ? (callee, raw, thisArg) => {
+            const call = t.cloneNode(callPath.node);
+            const optional = raw && !!callPath.node.optional;
+            if (!thisArg) return hostSlot({ ...call, callee: estreeToBabel(callee), optional });
+            // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
+            const { object, property } = estreeToBabel(callee);
+            const args = [estreeToBabel(thisArg), ...call.arguments];
+            return hostSlot(optional
+              ? t.optionalCallExpression(t.optionalMemberExpression(object, property, false, true), args, false)
+              : t.callExpression(t.memberExpression(object, property), args));
+          } : undefined,
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
           spellRecv: () => {
@@ -977,10 +1001,6 @@ export default function plugin(api, options) {
         return true;
       }
 
-      // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders as
-      // the declarator's value, which is equivalent down to the throw - on a nullish receiver the raw
-      // branch dereferences it exactly as the pattern would. sole-prop declarator shapes only; a
-      // multi-prop pattern would need splitting, and a default / computed key has its own canon
       // the RAW branch of a guarded read is a member this very rule would narrow again on re-entry -
       // built and marked handled in one place, for the sole-prop render and every read of a split
       function markedRawBranch(readPlan, key) {
@@ -998,6 +1018,10 @@ export default function plugin(api, options) {
         return residual;
       }
 
+      // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders as
+      // the declarator's value, which is equivalent down to the throw - on a nullish receiver the raw
+      // branch dereferences it exactly as the pattern would. a multi-prop pattern splits as the shared
+      // plan admits it (`planGuardedDestructureNarrow`); a default or a computed key has its own canon
       function emitGuardedDestructureNarrow(meta, prop) {
         const pattern = prop.parentPath;
         const host = pattern?.parentPath;
@@ -1887,6 +1911,17 @@ export default function plugin(api, options) {
         toHint,
         resolvedType,
         resolvePure,
+        // the part of a selection the build never evaluates is no usage: it is skipped - and seeded
+        // skipped for the post-sweep, which re-dispatches referenced globals on its own - and a fold
+        // the core asks for waits for the claims: folding HERE would reshape a receiver a claim still
+        // pairs (an IIFE argument, a destructure init)
+        onDeadBranch(path, dead) {
+          if (dead.skip) {
+            t.traverseFast(path.node[dead.skip], node => skippedNodes.add(node));
+            path.skipKey(dead.skip);
+          }
+          if (dead.fold !== null) deadSelections.set(path.node, dead);
+        },
         // detection names a computed member key through the TYPE layer's resolver rather than a
         // copy of its enum fold - one name, one resolver
         resolveStaticKey: (node, scope, path) => resolveClaimableComputedKeyName(node, scope, path),
@@ -2067,6 +2102,7 @@ export default function plugin(api, options) {
           injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
         }
         skippedNodes = new WeakSet();
+        deadSelections = new Map();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
         synthSwap = createSynthSwapEmitter({
@@ -2386,7 +2422,7 @@ export default function plugin(api, options) {
           VariableDeclarator: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
           AssignmentExpression: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
         });
-        withMemberContextCache(!isPure, () => path.traverse(visitors));
+        withTraversalCaches(!isPure, () => path.traverse(visitors));
         processDeferredSideEffects(path);
         destructureEmit.pruneEmptiedHostDeclarators();
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
@@ -2414,6 +2450,7 @@ export default function plugin(api, options) {
         // handles any synth-swap registrations from `reTraverseHelperBodies` (sibling-
         // injected nodes), idempotent via per-pending `applied` flag
         synthSwap?.apply(path);
+        foldDeadSelections(path);
         injector?.flush();
         injector?.localizeVarlessRefs();
         // snapshot AFTER flush + deferred SE so programExit's reTraverseHelperBodies skips
@@ -2449,6 +2486,22 @@ export default function plugin(api, options) {
         }
       }
 
+      // the partly dead user selections still standing once the claims rendered fold to what they yield
+      // - an operand, kept a value in a reference slot (`foldedOperandNeedsValue`), or the value a decided
+      // test answers: a claim owns the selection it reads and has already dropped what never runs where
+      // it took the rest
+      function foldDeadSelections(programPath) {
+        if (!deadSelections.size) return;
+        programPath.traverse({
+          'LogicalExpression|ConditionalExpression'(selection) {
+            if (!deadSelections.has(selection.node)) return;
+            const { fold, slot } = deadSelections.get(selection.node);
+            const operand = typeof fold === 'boolean' ? t.booleanLiteral(fold) : selection.node[fold];
+            selection.replaceWith(foldedOperandNeedsValue(operand, slot) ? t.sequenceExpression([t.numericLiteral(0), operand]) : operand);
+          },
+        });
+      }
+
       // one whole-program post-sweep for built-ins a sibling transform injects AFTER our pre-pass.
       // BOTH methods need it: usage-pure SUBSTITUTES the introduced reference (`Promise`->`_Promise`),
       // usage-global INJECTS the side-effect import - either way the reference surfaced after pre() ran,
@@ -2473,7 +2526,8 @@ export default function plugin(api, options) {
         // there is nothing to sweep - skip the whole-program walk
         if (!memberHandler) return;
         const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
-        path.traverse({
+        // read-only where the primary traversal is: its climbs share the same runs
+        withTraversalCaches(!isPure, () => path.traverse({
           'MemberExpression|OptionalMemberExpression'(member) {
             const obj = member.node.object;
             // gate the object on `isKnownGlobalName`, NOT shape alone: the plugin's own synthetic
@@ -2515,7 +2569,7 @@ export default function plugin(api, options) {
             if (isHandled?.(idPath.node)) return;
             usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
           },
-        });
+        }));
       }
 
       function programExit(path) {
@@ -2567,6 +2621,7 @@ export default function plugin(api, options) {
         // with the preTraverse call at the head of program() - both gated on the same
         // factory-time conditional that may leave `synthSwap` undefined
         synthSwap?.apply(path);
+        foldDeadSelections(path);
         injector?.flush();
         finalizeInjector();
         // a moved head no claim took up goes back, once the flush has placed its refs
@@ -2635,6 +2690,7 @@ export default function plugin(api, options) {
         originalBodyNodes = null;
         parensPending = true;
         skippedNodes = new WeakSet();
+        deadSelections = new Map();
       }
 
       // post-flush import-region housekeeping: canonical-sort the union of all flushed

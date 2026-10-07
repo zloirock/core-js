@@ -44,6 +44,7 @@ import {
 import {
   GET_ITERATOR_ENTRY,
   IS_ITERABLE_ENTRY,
+  NATIVE_STATIC_OWNERS,
   staticReceiverHint,
   SYMBOL_ITERATOR_PURE_RESULT,
   isSourcedSymbolIteratorMeta,
@@ -52,6 +53,7 @@ import {
 import {
   aliasWriteCtorNames,
   attachMemberUnionExtras,
+  decidingFallbackLeft,
   flattenFallbackBranches,
   importedStaticReadMeta,
   navigatedChainKeys,
@@ -82,6 +84,7 @@ import {
   inlineCallReturnExpression,
   interopDefaultProxyName,
   isCallShape,
+  isKnownStaticGlobal,
   isStaticPlacement,
   maximalProxyGlobalPrefix,
   mutationGuardKeepingHop,
@@ -1055,14 +1058,27 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
   const sideEffects = [];
+  // a sequence-prefix element the receiver owes: one whose discard keeps anything
+  function keepsEffect(element) {
+    return discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0;
+  }
   // `obj` is then passed to `resolveObjectName` which calls `unwrapTransparentSeq` again - idempotent
   // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
   // walk is cheap; avoids threading an "already-unwrapped" flag through every caller.
   // receiver-SE comes first (source eval order). the emit decides how to replay it: peel +
   // prepend (non-optional) vs the null-guard memoize (optional, where it re-runs) - in the
   // memoize case the suppress path drops this prefix and folds only the trailing key-SE
-  const obj = unwrapParensCollectingEffects(node.object, sideEffects,
-    element => discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0);
+  let obj = unwrapParensCollectingEffects(node.object, sideEffects, keepsEffect);
+  // a `||` / `??` its LEFT always decides never runs its right: where that left names a constructor,
+  // the claim reads the static off it and the receiver owes the left's effects alone
+  // (`(Map || Set).groupBy` reads `Map.groupBy`). any other left keeps the selection whole, and so
+  // does a stored one, whose write the chain-assignment channel replays off the receiver it spells
+  const decided = decidingFallbackLeft(obj, { scope, adapter, path });
+  const decidedValue = decided && peelReceiverSequenceTail(decided);
+  if (decidedValue && !peelChainAssignment(decidedValue).outer
+    && isKnownStaticGlobal(resolveObjectName({ objectNode: decidedValue, scope, adapter, path }) ?? '', adapter)) {
+    obj = unwrapParensCollectingEffects(decided, sideEffects, keepsEffect);
+  }
   // `this.#foo` / `obj.#field` - private field access; not a candidate for any polyfill
   // table (keys never carry `#` prefix). skip explicitly so downstream resolver scans
   // don't chase a doomed key lookup. the canon recognises the private-name node under either
@@ -1187,13 +1203,20 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
       ? staticContainerReceiverName({ node: classifyTarget, scope, adapter: readKeepingAdapter(adapter), path }) : null;
     // Unproven call returns still name possible constructors. Keep the receiver and let
     // the existing identity guard choose its static only when that value actually arrived.
+    // ... and so does a SELECTION's native-owner arm (`(shim || Array).from`): core-js ships no
+    // replacement of that constructor, so the arm stays raw and its static has no channel but the guard -
+    // the one the destructure form puts over the same selection; an arm swapped whole reads its own statics
     const guardedConstructors = conditionalReceiver ? [conditionalReceiver]
       : keptReadReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(keptReadReceiver) && isStaticPlacement(keptReadReceiver) === 'static'
         && !isMutatedGlobalSlot(adapter, keptReadReceiver) && !adapter.isMutatedStatic?.(keptReadReceiver, key) ? [keptReadReceiver]
-      : !objectName && isCallShape(unwrapRuntimeExpr(classifyTarget)) && adapter.method === 'usage-pure'
-      ? containerUnion.filter(name => !POSSIBLE_GLOBAL_OBJECTS.has(name)
+      : objectName || adapter.method !== 'usage-pure' ? []
+      : isCallShape(unwrapRuntimeExpr(classifyTarget)) ? containerUnion.filter(name => !POSSIBLE_GLOBAL_OBJECTS.has(name)
         && isStaticPlacement(name) === 'static' && !isMutatedGlobalSlot(adapter, name)
-        && !adapter.isMutatedStatic?.(name, key)) : [];
+        && !adapter.isMutatedStatic?.(name, key))
+      : getFallbackBranchSlots(peelFallbackReceiver(classifyTarget))
+        ? flattenFallbackBranches({ node: classifyTarget, key, scope, adapter, path }).map(branch => branch.object)
+          .filter(name => NATIVE_STATIC_OWNERS.has(name) && !isMutatedGlobalSlot(adapter, name))
+        : [];
     if (guardedConstructors.length && !keyEffects.length) Object.assign(meta, {
       guardedAliasHint: guardedConstructors[0], guardedWriteObjects: guardedConstructors, captureGuardReceiver: true,
       definedGuardReceiver: Boolean(conditionalReceiver),
@@ -1352,8 +1375,10 @@ function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
 // render inputs - the unwrapped receiver identifier (or, for a meta asking `captureGuardReceiver`,
 // the receiver NODE the emitter captures into a ref of its own - `captureReceiver`), the static's
 // pure entry, callee-ness (the raw branch then binds `this`), and the ctor comparator (the swapped
-// pure binding; its raw global name when the ctor does not polyfill for the targets; a member of
-// the realm entry when that raw name is shadowed; realm proxies share the realm root's comparator)
+// pure binding - never equal to a native the receiver read off the realm where pure wraps that
+// constructor, a dead branch accepted since no data tells which wrap; its raw global name when the
+// ctor does not polyfill for the targets; a member of the realm entry when that raw name is shadowed
+// or the configured set does not carry it; realm proxies share the realm root's comparator)
 export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure, adapter = null, pattern = null }) {
   if (memberNode.type !== 'MemberExpression' && memberNode.type !== 'OptionalMemberExpression') return null;
   // A lowered optional still observes the environment probe; substituting a backed
@@ -1453,27 +1478,29 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     const pure = resolvePure({ kind: 'global', name: candidate.ctorName }, null);
     const ctorPure = pure && pure.kind !== 'instance' ? pure : null;
     // A native constructor has no imported comparator. Under a local shadow its raw name means
-    // the user's value, so compare through the realm entry instead; without that entry no safe
-    // comparator can be emitted at this site. the realm root itself needs none: with no entry
-    // every target carries `globalThis` natively, and the raw name IS the realm
-    const shadowed = !ctorPure && adapter?.hasBinding?.(path?.scope, candidate.ctorName, path);
-    const ctorRealmPure = shadowed ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
-    if (shadowed && (!ctorRealmPure || ctorRealmPure.kind === 'instance')) return [];
+    // the user's value, and one the configured set does not carry (`available`: an excluded
+    // constructor, one below the mode) may be missing, where the raw read throws - so compare through
+    // the realm entry instead; without that entry no safe comparator can be emitted at this site. the
+    // realm root itself needs none: with no entry every target carries `globalThis` natively, and the
+    // raw name IS the realm
+    const realmRead = !ctorPure && (adapter?.hasBinding?.(path?.scope, candidate.ctorName, path)
+      || adapter?.available?.({ kind: 'global', name: candidate.ctorName }) === false);
+    const ctorRealmPure = realmRead ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
+    if (realmRead && (!ctorRealmPure || ctorRealmPure.kind === 'instance')) return [];
     return [{ ...candidate, ctorPure, ctorRealmPure }];
   });
   if (!branches.length) return meta.guardOnly ? { bail: true } : null;
   const [primary] = branches;
   const instanceFallback = resolvePure({ kind: 'property', key: meta.key, placement: 'prototype' }, path);
-  const callInBranches = absorbableCall && instanceFallback?.kind !== 'instance';
-  // Captured calls must preserve argument evaluation before a non-callable method throws.
-  // Only the ordinary static call has that render; other invocation shapes stay raw. under a live
-  // `?.` the instance fallback is not one of them either - its bound raw branch reads through the
-  // very value the short-circuit answers for
-  if (captureReceiver && isCallee && !callInBranches) {
+  // Captured calls must preserve argument evaluation before a non-callable method throws, so only the
+  // absorbed call renders - its raw branch invoking the instance dispatch's method through `.call` where
+  // the key has one, as the ordinary dispatch invokes it. other invocation shapes keep that dispatch
+  // alone, or stay raw under a live `?.`
+  if (captureReceiver && isCallee && !absorbableCall) {
     return instanceFallback?.kind === 'instance' && !parent.optional && !optionalHops.length
       ? null : { bail: true };
   }
-  const absorbedCall = callInBranches ? parent : null;
+  const absorbedCall = absorbableCall ? parent : null;
   // an OPTIONAL hop the chain continues past: the member-level conditional cannot carry the `?.` to
   // the hops above it, so the short-circuit is spelled ONCE over the whole continuation instead
   // (`realm?.Map.groupBy` -> `null == realm ? void 0 : (realm === _globalThis ? _Map : realm.Map)
@@ -1494,7 +1521,7 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // source's `?.` in its raw branch, which is exact where the chain ends there
   const hoisted = Boolean(captureChain || receiverHop || (memberNode.optional && (captureReceiver || chainTail.length)));
   return {
-    callInBranches,
+    callInBranches: absorbableCall,
     hoisted,
     hoistInsideCapture: Boolean(hoisted && captureReceiver && !receiverHop),
     receiverHop,
@@ -1754,11 +1781,11 @@ export function handleMemberExpressionNode({
     // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
     // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
     // are guard candidates; a receiver resolved to a real global keeps its normal dispatch
-    // Opaque iteration or selection may carry a namespace with no whole-value ponyfill (Array).
+    // Opaque iteration or selection may carry a namespace with no whole-value ponyfill (`NATIVE_STATIC_OWNERS`).
     // Its known families are guard candidates, never proof that this receiver is that constructor.
     const iteratedObjects = adapter.method === 'usage-pure' && hasStaticDefinitionKey(meta?.key ?? staticMemberKeyName(node))
       ? [...CENSUS_STATIC_RECEIVERS.get(rootProgramOf(path))?.(recvIdent) ?? []]
-        .filter(name => !resolveBuiltIn({ kind: 'global', name })
+        .filter(name => NATIVE_STATIC_OWNERS.has(name)
           && !isMutatedGlobalSlot(adapter, name) && !adapter.isMutatedStatic?.(name, meta?.key ?? staticMemberKeyName(node))) : [];
     if ((!meta || !meta.object || echoesLocalName) && (recvIdent?.type === 'Identifier' || iteratedObjects.length)) {
       // a write whose RHS is itself a resolvable global (`M = globalThis.Map`) is swapped by the

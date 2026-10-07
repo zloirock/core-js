@@ -118,7 +118,7 @@ function mark(t, v) {
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
   const {
     [(eff('k'), 'Array')]: _ref
-  } = null == _globalThis ? _globalThis[""] : _globalThis;
+  } = _globalThis;
   const f2 = _valuesMaybeArray(_ref.prototype);
 }
 {
@@ -142,7 +142,7 @@ function mark(t, v) {
     return t;
   }
   const _ref2 = [1, 2],
-    a = null == _ref2 ? _ref2[""] : (eff('k'), _atMaybeArray(_ref2)),
+    a = (eff('k'), _atMaybeArray(_ref2)),
     {
       z
     } = _ref2;

@@ -987,7 +987,7 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
   // ... and a capitalised name is classifiable as a BINDING the class walk reads; unbound, it reads a
   // realm slot, which only a known built-in proves present - a user global may hold `undefined`
   if (node.name[0] >= 'A' && node.name[0] <= 'Z') {
-    return !scope || !adapter || adapter.hasBinding(scope, node.name) || isKnownStaticGlobal(node.name);
+    return !scope || !adapter || adapter.hasBinding(scope, node.name) || isKnownStaticGlobal(node.name, adapter);
   }
   return !!(scope && adapter) && isProxyGlobalIdentifierNode({ node, scope, adapter });
 }

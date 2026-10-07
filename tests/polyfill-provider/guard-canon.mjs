@@ -210,7 +210,15 @@ runBoth('guarded static keeps the instance fallback', 'receiver.entries;', (adap
   check(`${ label }/unknown receiver retains dispatch`, plan.instanceFallback.kind, 'instance');
 });
 
-runBoth('captured static with instance fallback keeps ordinary dispatch', 'held.Object.entries(effect());', (adapter, program, label) => {
+// a captured static whose key other receivers carry as an instance method absorbs the call too: the raw
+// branch invokes the instance dispatch's method through `.call`, the captured receiver leading the
+// arguments, as the ordinary dispatch invokes it - a nullish method throws ahead of them there alike, and
+// an absorbed `?.()` asks the method itself. a tagged template keeps that ordinary dispatch
+for (const [source, expected] of [
+  ['held.Object.entries(effect());', 'call'],
+  ['held.Object.entries?.(effect());', 'call'],
+  ['held.Object.entries`value`;', 'dispatch'],
+]) runBoth(`captured static with instance fallback/${ source }`, source, (adapter, program, label) => {
   const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'entries');
   const plan = planGuardedStaticNarrow({
     memberNode: path.node, parent: path.parentPath.node, path,
@@ -219,7 +227,19 @@ runBoth('captured static with instance fallback keeps ordinary dispatch', 'held.
       ? { kind: 'instance', entry: 'actual/instance/entries', hintName: 'entries' }
       : meta.placement === 'static' ? { kind: 'static', entry: 'actual/object/entries', hintName: 'Object$entries' } : null,
   });
-  check(`${ label }/ordinary dispatcher remains available`, plan, null);
+  check(`${ label }/route`, plan === null ? 'dispatch' : plan.bail ? 'bail' : plan.callInBranches ? 'call' : 'read', expected);
+  if (!plan?.callInBranches) return;
+  const rendered = renderCtorIdentityNarrow(plan, identifier('raw'), {
+    injectImport,
+    spellRecv: () => identifier('ref'),
+    invoke: (callee, raw, thisArg) => ({
+      type: 'CallExpression', callee, arguments: [...thisArg ? [thisArg] : [], identifier('argument')],
+    }),
+  });
+  check(`${ label }/pure call`, rendered.consequent.callee.name, '_Object$entries');
+  check(`${ label }/raw dispatcher`, rendered.alternate.callee.object.callee.name, '_entries');
+  check(`${ label }/raw invokes through call`, rendered.alternate.callee.property.name, 'call');
+  check(`${ label }/raw receiver leads the arguments`, rendered.alternate.arguments.map(node => node.name).join(','), 'ref,argument');
 });
 
 // WHICH invocation a captured receiver may move into the guard's branches: an ordinary call and a
