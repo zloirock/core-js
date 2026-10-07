@@ -41,6 +41,6 @@ export function following(effect) {
       }
     },
     _ref = Array.prototype,
-    flat = null == _ref ? _ref[""] : (effect(), _flatMaybeArray(_ref));
+    flat = (effect(), _flatMaybeArray(_ref));
   return [from, flat];
 }

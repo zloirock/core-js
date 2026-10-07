@@ -19,9 +19,7 @@ const fake = {
 };
 var {
   Map: M2
-} = fake || {
-  Map: _Map
-};
+} = fake || _globalThis;
 export const viaReversedOr = typeof M2;
 var {
   Map: M3
@@ -31,13 +29,7 @@ var {
 export const viaAnd = cond && (M3 === _Map ? _Map$groupBy : M3.groupBy.bind(M3))(['b'], x => x);
 
 // defaulted forms keep folding: the fallback only runs where the global is absent
-var {
-  Map: M4
-} = typeof _globalThis === 'undefined' ? {
-  Map: null
-} : {
-  Map: _Map
-};
+var M4 = _Map;
 export const viaDefaultedTernary = _Map$groupBy(['c'], x => x);
 var M5 = _Map;
 export const viaDefaultedNullish = _Map$groupBy(['d'], x => x);

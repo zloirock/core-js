@@ -66,22 +66,22 @@ while (k < 0) var lead8 = pre(),
 // control-flow hosts retain that position, and exports expose only the source bindings.
 var t1 = 0,
   _ref = [1],
-  a1 = null == _ref ? _ref[""] : (k++, _atMaybeArray(_ref));
+  a1 = (k++, _atMaybeArray(_ref));
 var _ref2 = [1],
-  a2 = null == _ref2 ? _ref2[""] : (k++, _atMaybeArray(_ref2)),
+  a2 = (k++, _atMaybeArray(_ref2)),
   t2 = 0;
 var t3 = 0,
   _ref3 = [1],
-  a3 = null == _ref3 ? _ref3[""] : (k++, _atMaybeArray(_ref3)),
+  a3 = (k++, _atMaybeArray(_ref3)),
   {
     other3
   } = _ref3;
-for (var t4 = 0, _ref4 = [1], a4 = null == _ref4 ? _ref4[""] : (k++, _atMaybeArray(_ref4)); false;) break;
+for (var t4 = 0, _ref4 = [1], a4 = (k++, _atMaybeArray(_ref4)); false;) break;
 if (k) var t5 = 0,
   _ref5 = [1],
-  a5 = null == _ref5 ? _ref5[""] : (k++, _atMaybeArray(_ref5));
+  a5 = (k++, _atMaybeArray(_ref5));
 export const t6 = 0,
-  a6 = (_ref6 = [1], null == _ref6 ? _ref6[""] : (k++, _atMaybeArray(_ref6)));
+  a6 = (_ref6 = [1], k++, _atMaybeArray(_ref6));
 
 // Claimed and unclaimed keys interleave in source order: key, read, key, read. Sibling
 // properties following an instance claim are read only after its dispatch.
@@ -94,7 +94,7 @@ var _ref7 = [1],
     m7b
   } = _ref7;
 var _ref8 = [1],
-  a8 = null == _ref8 ? _ref8[""] : (k++, _atMaybeArray(_ref8)),
+  a8 = (k++, _atMaybeArray(_ref8)),
   {
     m8b
   } = _ref8,
@@ -118,7 +118,7 @@ do var {
   tail9 = 1; while (k < 0);
 if (k) var lead10 = pre(),
   _ref9 = [1, 2],
-  a10 = null == _ref9 ? _ref9[""] : (k++, _atMaybeArray(_ref9)),
+  a10 = (k++, _atMaybeArray(_ref9)),
   {
     m10
   } = _ref9;

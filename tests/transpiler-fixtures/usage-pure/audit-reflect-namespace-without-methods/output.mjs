@@ -1,5 +1,5 @@
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
-// a value-only DETECT reads whether the object EXISTS and nothing off it, so it owes the bare
-// namespace entry and no method modules. an ESCAPE of the same namespace is the other question and
-// owes the family - its own fixture, because the family here would swallow this evidence whole
-export const supported = _Reflect ? "yes" : "no";
+// a value-only DETECT reads whether the object EXISTS and nothing off it: usage-global owes it the
+// bare namespace entry and no method modules, and an ESCAPE of the same namespace owes the family - its
+// own fixture. pure substitutes the namespace, always an object here, so the test is decided and folds
+// to its answer, owing nothing
+export const supported = "yes";

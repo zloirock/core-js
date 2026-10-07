@@ -1,5 +1,6 @@
 // A static reached through a call keeps that call and neighboring effects in source order.
-// Known constructor arms receive pure values; user branches keep their own members.
+// Known constructor arms receive pure values; user branches keep their own members, and an arm the
+// selection never reaches drops with it.
 const c = 1;
 const userObj = {};
 const log = [];

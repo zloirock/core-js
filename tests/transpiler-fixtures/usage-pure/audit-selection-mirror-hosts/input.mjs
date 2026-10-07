@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Claimed statics retain their polyfills beside object rest, and a selection whose left the build serves
+// drops its dead right (`alt`). Rest keeps its source and exclusions; instance slots remain native.
 let cond = c1;
 const alt = { Array: {}, JSON: {} };
 const eff = () => 1;

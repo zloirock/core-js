@@ -819,6 +819,7 @@ export function createUsageVisitors({
   onSuppressedProxyHop = null,
   suppressKeptNavHop = null,
   suppressKeptNavRoot = null,
+  onDeadBranch = null,
   onUsage,
   resolveMeta,
   resolvePure = null,
@@ -975,6 +976,13 @@ export function createUsageVisitors({
       handleDestructuring(path);
     },
     BinaryExpression: core.emitBinaryInUsage,
+    // the part of a selection the build never evaluates is no usage: the host skips and folds it
+    'LogicalExpression|ConditionalExpression|IfStatement'(path) {
+      const dead = core.deadBranchOf(path);
+      if (!dead) return;
+      if (onDeadBranch) onDeadBranch(path, dead);
+      else if (dead.skip) path.skipKey(dead.skip);
+    },
     TSInstantiationExpression: foldInstantiationTypeArguments,
     // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so @babel/traverse
     // never descends into a legacy param decorator's expression on a constructor parameter-property

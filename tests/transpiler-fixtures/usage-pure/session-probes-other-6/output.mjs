@@ -88,7 +88,7 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const s = null == arr ? arr[""] : (k(), _atMaybeArray(arr));
+  const s = (k(), _atMaybeArray(arr));
   s();
 }
 {
@@ -147,9 +147,8 @@ function mark(t, v) {
   s(r, f);
 }
 {
-  const {} = arr,
-    s = (k(), _atMaybeArray(arr)),
-    f = null == arr ? arr[""] : (k2(), _flatMaybeArray(arr)),
+  const s = (k(), _atMaybeArray(arr)),
+    f = (k2(), _flatMaybeArray(arr)),
     {
       z
     } = arr;
@@ -166,7 +165,7 @@ function mark(t, v) {
 }
 {
   const _ref4 = [1, 2],
-    s = null == _ref4 ? _ref4[""] : (k(), _atMaybeArray(_ref4)),
+    s = (k(), _atMaybeArray(_ref4)),
     {
       z
     } = _ref4,
@@ -174,8 +173,7 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const {} = arr,
-    s = (k(), _atMaybeArray(arr)),
+  const s = (k(), _atMaybeArray(arr)),
     {
       z
     } = arr,
@@ -183,8 +181,7 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const {} = arr,
-    s = (k(), _atMaybeArray(arr)),
+  const s = (k(), _atMaybeArray(arr)),
     {
       z
     } = arr;
@@ -225,7 +222,7 @@ function mark(t, v) {
 }
 {
   const _ref7 = _globalThis.Array.prototype,
-    s = null == _ref7 ? _ref7[""] : (k(), _atMaybeArray(_ref7)),
+    s = (k(), _atMaybeArray(_ref7)),
     {
       z
     } = _ref7,
@@ -234,7 +231,7 @@ function mark(t, v) {
 }
 {
   const _ref8 = _globalThis.Array.prototype,
-    s = null == _ref8 ? _ref8[""] : (k(), _atMaybeArray(_ref8)),
+    s = (k(), _atMaybeArray(_ref8)),
     {
       z
     } = _ref8;
@@ -259,7 +256,7 @@ function mark(t, v) {
 }
 {
   const _ref11 = _self.Array.prototype,
-    s = null == _ref11 ? _ref11[""] : (k(), _atMaybeArray(_ref11)),
+    s = (k(), _atMaybeArray(_ref11)),
     {
       z
     } = _ref11;

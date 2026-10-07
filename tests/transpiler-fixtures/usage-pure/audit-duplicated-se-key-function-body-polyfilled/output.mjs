@@ -8,5 +8,5 @@ const _ref2 = [() => {
     var _ref;
     return _flatMaybeArray(_ref = [3, 4]).call(_ref);
   }],
-  n = null == _ref2 ? _ref2[""] : (log++, _includesMaybeArray(_ref2));
+  n = (log++, _includesMaybeArray(_ref2));
 export const out = [n, log];

@@ -99,7 +99,6 @@ import {
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
   guaranteedRealmObjectName,
-  isKnownStaticGlobal,
   isStaticPlacement,
   navValueCanShortCircuit,
   peelRealmLogicalDefault,
@@ -110,6 +109,7 @@ import {
   memberTargetTakesExtraction,
   resolveObjectName,
   callYieldedLiteral,
+  realmLevelNamesCtor,
   yieldedSlotValue,
 } from './resolve.js';
 import {
@@ -2620,7 +2620,9 @@ export function buildNestedDestructurePlan({
         const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
           ? hostPattern.properties[0] : null;
         const key = prop ? propKeyNameScoped(prop) : null;
-        const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isKnownStaticGlobal(key)
+        // a DEFAULT on the key's level stays live where the slot may be empty (`realmLevelNamesCtor`), and the
+        // anchor would discard it (`{ WeakRef: { of } = Array }` read `of` off an empty slot)
+        const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && realmLevelNamesCtor(key, prop.value, adapter)
           ? patternSlotTarget(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
         const restPure = inner.properties.some(isRestProperty) && hasConstructorEntry(key) && resolveGlobalPolyfill(key);

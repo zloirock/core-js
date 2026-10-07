@@ -22,7 +22,8 @@ const { h: { plain } = {} } = src;
 const { Set: { union } = Set } = globalThis;
 // a BRANCHY default declines: this channel answers with a receiver NAME, and a name cannot say
 // "either branch" - mirroring one of them would emit the wrong branch's static whenever the other
-// fires. the flat twin affords these shapes only because its meta carries a fallback flag
+// fires. the flat twin affords these shapes only because its meta carries a fallback flag. a `||`
+// whose left always yields (`Array`) has no other branch to fire: its dead right injects nothing
 const { b1: { from: fromOr } = Array || Iterator } = src;
 const { b2: { groupBy: groupTernary } = flag ? Map : Object } = src;
 // the same rule on an INSTANCE receiver: the default is the receiver, so the mirror carries the

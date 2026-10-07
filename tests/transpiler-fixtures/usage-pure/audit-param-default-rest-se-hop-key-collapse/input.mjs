@@ -4,7 +4,8 @@ let eff = 0;
 function f({ from, ...rest } = globalThis[(eff++, 'self')].Array) { return [from, rest]; }
 f();
 
-// each operand of a retained logical default takes the same per-operand dispatch
+// a logical default whose left the build serves folds to it, the right dead: `.Array`, and `.Number`
+// (the last row), a global core-js extends in place
 function g({ of, ...rest } = globalThis[(eff++, 'self')].Array || Set) { return [of, rest]; }
 g();
 
@@ -24,3 +25,5 @@ p();
 // a STATIC computed hop key keeps the plain single-hop delete
 function h({ isArray, ...rest } = globalThis['self'].Array) { return [isArray, rest]; }
 h();
+function k({ isInteger, ...rest } = globalThis[(eff++, 'self')].Number || Set) { return [isInteger, rest]; }
+k();

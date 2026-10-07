@@ -94,23 +94,23 @@ function mark(t, v) {
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag)!;
-  const a = null == arr ? arr[""] : (k('at'), _atMaybeArray(arr));
+  const a = (k('at'), _atMaybeArray(arr));
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag);
-  const a = null == arr ? arr[""] : ((k as any)('at'), _atMaybeArray(arr));
+  const a = ((k as any)('at'), _atMaybeArray(arr));
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag);
-  const a = null == arr ? arr[""] : (k('at' as string), _atMaybeArray(arr));
+  const a = (k('at' as string), _atMaybeArray(arr));
 }
 {
   const k = (tag: string): string => (_pushMaybeArray(log).call(log, tag), tag);
-  const a = null == arr ? arr[""] : (k('at'), _atMaybeArray(arr));
+  const a = (k('at'), _atMaybeArray(arr));
 }
 {
   const k = <T,>(tag: T): T => (_pushMaybeArray(log).call(log, String(tag)), tag);
-  const a = null == arr ? arr[""] : (k<string>('at'), _atMaybeArray(arr));
+  const a = (k<string>('at'), _atMaybeArray(arr));
 }
 {
   const r = (([{

@@ -421,6 +421,15 @@ export default class ImportInjector extends ImportInjectorState {
       const call = block?.parentPath?.parentPath;
       const returned = emptyMemoActivationValue(call?.node, this.#memoActivations);
       if (returned) call.replaceWith(returned);
+      // ... and an arrow the source wrote with an expression body, which babel braced to host the
+      // declarator (`scope.push`), gets its expression back once the declarator leaves: the block is
+      // no text the source wrote. an arrow the allocator minted is the activation's own, above
+      else if (block?.isBlockStatement() && block.parentPath?.isArrowFunctionExpression()
+        && Number.isInteger(block.parentPath.node.start) && !Number.isInteger(block.node.start)
+        && !block.node.directives?.length && block.node.body.length === 1
+        && block.node.body[0].type === 'ReturnStatement' && block.node.body[0].argument) {
+        block.replaceWith(block.node.body[0].argument);
+      }
     }
     return survivor;
   }

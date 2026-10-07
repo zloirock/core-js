@@ -163,6 +163,49 @@ for (const parser of adapters) for (const [name, source, capture, mutated = fals
   check(`${ parser.name }: ${ name }: one identity test`, plan.branches.length, 1);
 }
 
+// ... where the family is a constructor core-js ships no whole-value replacement of - its statics' own owner,
+// `Number` as much as `Array` - and never one it replaces whole (`Map`)
+for (const parser of adapters) for (const [owner, key, candidate] of [['Number', 'isInteger', true], ['Map', 'groupBy', false]]) {
+  const program = parser.parseAndScope(`async function f() { for await (const value of [${ owner }]) value.${ key }(3); }`);
+  collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
+  const usage = parser.pickPath(program, 'MemberExpression', path => path.parentPath?.node.type === 'CallExpression');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  const meta = handleMemberExpressionNode({
+    node: usage.node,
+    path: usage,
+    scope: usage.scope,
+    adapter,
+    resolvePure: resolve,
+    handledObjects: new WeakSet(),
+    suppressProxyGlobals: new WeakSet(),
+  });
+  check(`${ parser.name }: opaque head of ${ owner }: guarded candidate`, meta?.guardedAliasHint === owner, candidate);
+}
+
+// ... and so does a SELECTION's native-owner arm read straight off it - unless the file writes that static or
+// the global's slot, where the arm may hold the user's value; an arm swapped whole reads its own statics
+for (const parser of adapters) for (const [name, source, owner, mutated, candidate] of [
+  ['owner arm', 'function f(shim) { return (shim || Array).of(3); }', 'Array', null, true],
+  ['patched static', 'function f(shim) { return (shim || Array).of(3); }', 'Array', ['Array', 'of'], false],
+  ['written slot', 'function f(shim) { return (shim || Array).of(3); }', 'Array', ['globalThis', 'Array'], false],
+  ['swapped arm', 'function f(shim) { return (shim || Map).groupBy([], x => x); }', 'Map', null, false],
+]) {
+  const program = parser.parseAndScope(source);
+  const usage = parser.pickPath(program, 'MemberExpression', path => path.parentPath?.node.type === 'CallExpression');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  adapter.isMutatedStatic = (object, key) => !!mutated && object === mutated[0] && key === mutated[1];
+  const meta = handleMemberExpressionNode({
+    node: usage.node,
+    path: usage,
+    scope: usage.scope,
+    adapter,
+    resolvePure: resolve,
+    handledObjects: new WeakSet(),
+    suppressProxyGlobals: new WeakSet(),
+  });
+  check(`${ parser.name }: selection ${ name }: guarded candidate`, meta?.guardedWriteObjects?.includes(owner) ?? false, candidate);
+}
+
 // Only a possible static key needs the opaque family's walk. Unknown and branching global keys
 // retain it, while ordinary instance and user keys must not pay for a query whose result is unused.
 for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {

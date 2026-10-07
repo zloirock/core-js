@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
@@ -10,7 +11,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _self from "@core-js/pure/actual/self";
-var _ref;
+var _ref, _ref2;
 // the HOST positions a kept proxy root can sit in. the rule is the same everywhere - the assignment stays
 // as the root, its redundant proxy hops still drop - but each host reaches the collapse through its own
 // emit path, so each has to be pinned separately: a `new` callee, a write target, a logical operand, a
@@ -47,11 +48,17 @@ export const ofSynthKept = (({
   of: _Array$of
 })) ?? {});
 export { c2 };
-// NEGATIVES for the synth-claim yield: the same kept+SE-key chain in a LOGICAL and a TERNARY carrier
-// with NO pending synth - the drive still owns the collapse (nothing claimed the receiver)
+// NEGATIVES for the synth-claim yield: the same kept+SE-key chain in a TERNARY carrier and in a LOGICAL one
+// whose fallback disagrees (a user binding) with NO pending synth - the drive still owns the collapse (nothing
+// claimed the receiver), and the LOGICAL's `Array` arm takes its static through the identity guard over the
+// captured selection. a LOGICAL whose every operand reads `Array` directly, the last a bare global, is that
+// global whichever runs: `from` is claimed off it, the selection staying as an effect prefix, its hop collapsed
 let c3 = 0;
 let ln;
-export const logicalNoSynth = ((ln = _globalThis.window)?.[c3++, "Array"] ?? Array).from([1]);
+export const logicalNoSynth = ((ln = _globalThis.window)?.[c3++, "Array"] ?? Array, _Array$from)([1]);
+const fallbackArray = makeArray();
+let lu;
+export const logicalUserFallback = (_ref = (lu = _globalThis.window)?.[c3++, "Array"] ?? fallbackArray, _ref === Array ? _Array$fromAsync([1]) : _ref.fromAsync([1]));
 let tn;
 export const ternaryNoSynth = (1 ? null == (tn = _globalThis.window) ? void 0 : _findLastMaybeArray(tn[c3++, "Array"].prototype) : 0).call([1, 2], v => v < 2);
 export { c3 };
@@ -93,7 +100,7 @@ const holder = {
     q: [4, [5]]
   }
 };
-export const ordinaryDoubleOptional = null == (_ref = holder.p?.q) ? void 0 : _findLastIndexMaybeArray(_ref).call(_ref, v => Array.isArray(v));
+export const ordinaryDoubleOptional = null == (_ref2 = holder.p?.q) ? void 0 : _findLastIndexMaybeArray(_ref2).call(_ref2, v => Array.isArray(v));
 
 // The ASSIGNMENT form of a destructure over the kept chain: same ownership rule as the declarator -
 // the extraction claims the pattern, the drive still collapses the kept source under it.
