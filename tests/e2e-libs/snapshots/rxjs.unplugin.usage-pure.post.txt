@@ -1,0 +1,2 @@
+-@core-js/pure/full/reflect/namespace
++@core-js/pure/full/reflect

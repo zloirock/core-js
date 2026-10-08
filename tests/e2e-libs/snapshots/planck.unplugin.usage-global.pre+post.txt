@@ -1,0 +1,2 @@
++core-js/modules/es.iterator.every
++core-js/modules/esnext.async-iterator.every

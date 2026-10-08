@@ -1,0 +1,2 @@
+-core-js/modules/es.object.get-own-property-descriptor
+-core-js/modules/es.object.get-own-property-descriptors

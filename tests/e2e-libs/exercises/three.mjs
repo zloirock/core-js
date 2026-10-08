@@ -1,0 +1,415 @@
+// A headless three.js project: scene graph, transforms, geometry, curves, raycasting, an animation
+// step, serialization round-trips and five official addons, verified by its numeric state - so a green
+// run means the project still COMPUTES after unplugin and Babel, not merely that it builds.
+//
+// Nothing here may call the stdlib on three's behalf, and `async`/`await` stays out: the async tail is
+// a plain `.then`, so the regenerator machinery that runs is three's own `parseAsync`. The one
+// exception is deliberate - spreading a three iterable drives three's `*[Symbol.iterator]`.
+//
+// TYPED-ARRAY PROTOTYPE METHODS ARE EXCLUDED, and that is not a gap waiting to be filled. `usage-pure`
+// cannot serve them structurally: a prototype method needs the prototype patched, which is the one
+// thing `pure` exists to avoid, so the binary-data modules are stubbed out of `@core-js/pure` and no
+// typed-array receiver exists in the instance-method dispatch. unplugin cannot know a receiver is not
+// an Array, so `floats.slice(a, b)` becomes a helper that falls through to `floats.slice` - `undefined`
+// on IE11. That is what keeps `KeyframeTrack#trim`/`#clone`, `AnimationUtils.subclip`/`makeClipAdditive`,
+// `BatchedMesh`, `InstancedMesh#setColorAt`, `mergeVertices` and `radixSort` out of this file, and
+// `Array#find` with them - outside the node-material graph, which is renderer-only anyway,
+// `makeClipAdditive` is its one call site in three. `usage-global` covers that ground; on
+// `usage-pure` there is nothing to cover.
+//
+// `Array#includes`, `.keys()`/`.values()`, `Math.log2` and `self` are reachable only through a
+// renderer - WebGL, WebGPU, the node-material graph behind it, WebXR - or through a helper nothing
+// but a renderer calls, so no headless path executes them however the bundle is built. Which files
+// hold them moves with every three release; that no headless path reaches one does not.
+import * as THREE from 'three';
+import { deinterleaveAttribute, interleaveAttributes, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { reduceVertices, traverseGenerator } from 'three/addons/utils/SceneUtils.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { EdgeSplitModifier } from 'three/addons/modifiers/EdgeSplitModifier.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { checker } from './checks.mjs';
+
+function round(n, d = 3) {
+  return +n.toFixed(d);
+}
+function arr(vector, digits = 3) {
+  const parts = vector.toArray(); // Vector3/Quaternion#toArray - not an iterator helper
+  return parts.map(part => round(part, digits));
+}
+
+// A 4x4 square with a 1x1 square hole, for the Earcut / ExtrudeGeometry path. Attributing each call
+// to its immediate frame while this file runs: `Array#forEach` from `ShapeUtils.triangulateShape`
+// and from `ExtrudeGeometry`'s contour prep, `Array#splice` and `Array#concat` from that same prep,
+// and `Number.EPSILON` from `getBevelVec` - which runs because the extrude below sets `bevelEnabled`.
+// `Math.sign` is NOT reached from here: `getBevelVec`'s only `Math.sign` sits in its collinear-edges
+// branch, and a right-angled contour never enters it. It comes from `AnimationMixer#update` and from
+// the `RoundedBoxGeometry` addon instead.
+function squareWithHole() {
+  const shape = new THREE.Shape();
+  shape.moveTo(-2, -2);
+  shape.lineTo(2, -2);
+  shape.lineTo(2, 2);
+  shape.lineTo(-2, 2);
+  shape.lineTo(-2, -2);
+  const hole = new THREE.Path();
+  hole.moveTo(-0.5, -0.5);
+  hole.lineTo(-0.5, 0.5);
+  hole.lineTo(0.5, 0.5);
+  hole.lineTo(0.5, -0.5);
+  hole.lineTo(-0.5, -0.5);
+  shape.holes.push(hole);
+  return shape;
+}
+
+// A scene carrying everything `toJSON` has to serialize the hard way: a DataTexture (whose image is
+// serialized through `Array.from` + `constructor.name`), an integer background (which `ObjectLoader`
+// reads back through `Number.isInteger`), and nested userData (deep-cloned through JSON).
+function buildScene() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x112233);
+  scene.userData = { tag: 'root', nested: { n: [1, 2, 3] } };
+  const texture = new THREE.DataTexture(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), 2, 1);
+  texture.needsUpdate = true;
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xFF8800, map: texture }));
+  mesh.name = 'boxy';
+  mesh.position.set(1, 2, 3);
+  scene.add(mesh);
+  // toJSON serializes `matrix`, not `position` - without this the transform round-trips as identity
+  scene.updateMatrixWorld(true);
+  return scene;
+}
+
+// A skinned mesh whose bones form a chain - enough for Skeleton + SkeletonUtils.clone.
+function buildSkinned() {
+  const bones = [new THREE.Bone(), new THREE.Bone()];
+  bones[0].add(bones[1]);
+  bones[1].position.y = 2;
+  const geometry = new THREE.BoxGeometry(1, 4, 1);
+  const { count } = geometry.getAttribute('position');
+  geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Uint16Array(count * 4), 4));
+  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(new Float32Array(count * 4), 4));
+  const weight = geometry.getAttribute('skinWeight');
+  for (let i = 0; i < count; i++) weight.setX(i, 1);
+  const mesh = new THREE.SkinnedMesh(geometry, new THREE.MeshBasicMaterial());
+  mesh.add(bones[0]);
+  mesh.bind(new THREE.Skeleton(bones));
+  return mesh;
+}
+
+export function run() {
+  const { checks, check } = checker();
+
+  // --- vector / quaternion math ---
+  check('vec_length', round(new THREE.Vector3(3, 4, 0).length()), 5);
+  check('vec_dot', new THREE.Vector3(1, 2, 3).dot(new THREE.Vector3(4, 5, 6)), 32);
+  check('vec_cross', arr(new THREE.Vector3(1, 0, 0).cross(new THREE.Vector3(0, 1, 0))), [0, 0, 1]);
+  check('vec_lerp', arr(new THREE.Vector3(0, 0, 0).lerp(new THREE.Vector3(10, 20, 30), 0.5)), [5, 10, 15]);
+  check('quat_y90', arr(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0))), [0, 0.707, 0, 0.707]);
+
+  // --- iterators: every spread below drives a `*[Symbol.iterator]` generator inside three ---
+  check('iter_vector2', [...new THREE.Vector2(3, 4)], [3, 4]);
+  check('iter_vector3', [...new THREE.Vector3(1, 2, 3)], [1, 2, 3]);
+  check('iter_vector4', [...new THREE.Vector4(1, 2, 3, 4)], [1, 2, 3, 4]);
+  check('iter_quaternion', [...new THREE.Quaternion()], [0, 0, 0, 1]);
+  check('iter_euler', [...new THREE.Euler(0.5, 0, 0, 'ZYX')], [0.5, 0, 0, 'ZYX']);
+  check('iter_color', [...new THREE.Color(1, 0.5, 0)], [1, 0.5, 0]);
+  const [dx, dy, dz] = new THREE.Vector3(7, 8, 9);
+  check('iter_destructure', [dx, dy, dz], [7, 8, 9]);
+
+  // --- MathUtils: Math.trunc (roundToZero), Math.imul (Mulberry32), the clamp name-collision ---
+  check('math_round_to_zero', arr(new THREE.Vector3(1.7, -2.7, 3.2).roundToZero()), [1, -2, 3]);
+  // The two values are Mulberry32's output for this seed - pinned, and not the "magic total" the
+  // suite's own rule forbids: they are defined by the algorithm, not by a version, so they move only
+  // if three replaces its generator, which is exactly when this check should be re-read. Determinism
+  // alone would not do: a `Math.imul` that returns the wrong number is still deterministic.
+  THREE.MathUtils.seededRandom(42);
+  check('math_seeded_random', [round(THREE.MathUtils.seededRandom(), 6), round(THREE.MathUtils.seededRandom(), 6)], [0.448291, 0.852466]);
+  check('math_vector_clamp', arr(new THREE.Vector3(5, -5, 0).clamp(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1))), [1, -1, 0]);
+  const unitBox = new THREE.Box3(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1));
+  check('math_box_clamp_point', arr(unitBox.clampPoint(new THREE.Vector3(4, 0, 0), new THREE.Vector3())), [1, 0, 0]);
+  check('math_utils_scalars', [
+    THREE.MathUtils.clamp(9, 0, 5), THREE.MathUtils.euclideanModulo(-7, 3),
+    THREE.MathUtils.pingpong(3.5, 2), THREE.MathUtils.inverseLerp(2, 6, 4),
+  ], [5, 2, 0.5, 0.5]);
+  check('math_half_float', THREE.DataUtils.fromHalfFloat(THREE.DataUtils.toHalfFloat(1.5)), 1.5);
+
+  // --- scene graph + world transforms ---
+  const scene = new THREE.Scene();
+  const group = new THREE.Group();
+  const geo = new THREE.BoxGeometry(2, 2, 2);
+  const mesh = new THREE.Mesh(geo);
+  mesh.position.set(1, 2, 3);
+  group.add(mesh);
+  scene.add(group);
+  group.position.set(10, 0, 0);
+  scene.updateMatrixWorld(true);
+  const worldPos = new THREE.Vector3();
+  mesh.getWorldPosition(worldPos);
+  check('world_position', arr(worldPos), [11, 2, 3]);
+
+  let count = 0;
+  scene.traverse(() => count++);
+  check('traverse_count', count, 3); // scene + group + mesh
+
+  // --- geometry bounds ---
+  geo.computeBoundingSphere();
+  check('bounding_radius', round(geo.boundingSphere.radius), 1.732); // half-diagonal of a 2x2x2 box = sqrt(3)
+  geo.computeBoundingBox();
+  check('bounding_box', [arr(geo.boundingBox.min), arr(geo.boundingBox.max)], [[-1, -1, -1], [1, 1, 1]]);
+
+  // --- raycasting (Ray#at is one of the name collisions: unplugin rewrites `.at(` and the pure
+  // helper must hand back three's own method rather than Array.prototype.at) ---
+  // The ray is off the face centre and the material is double-sided on purpose. A quad is two
+  // triangles sharing a diagonal through its centre, so a ray down the centre intersects both and
+  // reports the SAME point twice; and the default material culls the back face, so a ray that does
+  // pass through cannot come out. Off the diagonal with both sides kept, the two hits are the entry
+  // and the exit of a 2-deep box - which the differing distances is what proves.
+  mesh.material.side = THREE.DoubleSide;
+  const ray = new THREE.Raycaster(new THREE.Vector3(11.3, 2, 20), new THREE.Vector3(0, 0, -1));
+  const hits = ray.intersectObject(mesh, true);
+  check('raycast_hits', hits.length, 2);
+  check('raycast_dist', [round(hits[0].distance), round(hits[1].distance)], [16, 18]);
+
+  // --- matrix4: translate(5,0,0) * scale(2) applied to (1,1,1) -> (7,2,2) ---
+  const matrix = new THREE.Matrix4().makeTranslation(5, 0, 0).multiply(new THREE.Matrix4().makeScale(2, 2, 2));
+  check('matrix_apply', arr(new THREE.Vector3(1, 1, 1).applyMatrix4(matrix)), [7, 2, 2]);
+
+  // --- Box3 from points ---
+  const box = new THREE.Box3().setFromPoints([new THREE.Vector3(-3, 0, 1), new THREE.Vector3(2, 5, -4)]);
+  check('box3_bounds', [arr(box.min), arr(box.max)], [[-3, 0, -4], [2, 5, 1]]);
+
+  // --- curves. computeFrenetFrames and EllipseCurve both branch on Number.EPSILON ---
+  const curve = new THREE.LineCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 10));
+  check('curve_length', round(curve.getLength()), 10);
+  check('curve_midpoint', arr(curve.getPoint(0.5)), [0, 0, 5]);
+  const frames = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 2, 0), new THREE.Vector3(3, 0, 1)]).computeFrenetFrames(4, false);
+  check('curve_frenet_frames', [frames.tangents.length, frames.normals.length, frames.binormals.length], [5, 5, 5]);
+  const tube = new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(), new THREE.Vector3(0, 0, 4)), 4, 0.5, 6, false);
+  check('curve_tube_vertices', tube.getAttribute('position').count, 35); // (4+1) rings x (6+1) ring verts
+  check('curve_ellipse_quarter', arr(new THREE.EllipseCurve(0, 0, 2, 1, 0, 2 * Math.PI, false, 0).getPoint(0.25)), [0, 1]);
+
+  // --- a deterministic "animation": rotate the group 90deg about Y, read the child's new world pos.
+  // Y-90 sends local (1,2,3) -> (3,2,-1), plus the group's (10,0,0) -> (13,2,-1).
+  group.rotateY(Math.PI / 4);
+  group.rotateY(Math.PI / 4);
+  scene.updateMatrixWorld(true);
+  mesh.getWorldPosition(worldPos);
+  check('animated_world_pos', arr(worldPos, 2), [13, 2, -1]);
+
+  // --- shapes with holes -> Earcut ---
+  const shape = squareWithHole();
+  const outer = [new THREE.Vector2(0, 0), new THREE.Vector2(4, 0), new THREE.Vector2(4, 4), new THREE.Vector2(0, 4)];
+  const inner = [[new THREE.Vector2(1, 1), new THREE.Vector2(1, 2), new THREE.Vector2(2, 2), new THREE.Vector2(2, 1)]];
+  check('shape_triangulate_faces', THREE.ShapeUtils.triangulateShape(outer, inner).length, 8); // a quad with a quad hole -> 8 triangles
+  const triangle = [new THREE.Vector2(0, 0), new THREE.Vector2(2, 0), new THREE.Vector2(2, 2)];
+  check('shape_area_and_winding', [THREE.ShapeUtils.area(triangle), THREE.ShapeUtils.isClockWise(triangle)], [2, false]);
+  const shapeGeo = new THREE.ShapeGeometry(shape, 2);
+  check('shape_geometry_indices', shapeGeo.getIndex().count, 24); // 8 triangles x 3
+  const extruded = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: true, bevelSegments: 2, bevelSize: 0.2, bevelThickness: 0.2, steps: 2, curveSegments: 4 });
+  extruded.computeBoundingBox();
+  // half-extent 2 grown by bevelSize 0.2; depth 1 grown by bevelThickness 0.2 at the front
+  check('shape_extrude_bounds', [arr(extruded.boundingBox.min), arr(extruded.boundingBox.max)], [[-2.2, -2.2, -0.2], [2.2, 2.2, 1.2]]);
+  const shapePath = new THREE.ShapePath();
+  shapePath.moveTo(0, 0);
+  shapePath.lineTo(4, 0);
+  shapePath.lineTo(4, 4);
+  shapePath.lineTo(0, 4);
+  shapePath.lineTo(0, 0);
+  shapePath.moveTo(1, 1);
+  shapePath.lineTo(1, 2);
+  shapePath.lineTo(2, 2);
+  shapePath.lineTo(2, 1);
+  shapePath.lineTo(1, 1);
+  const shapes = shapePath.toShapes(true); // the one `new Map()` in three's core
+  check('shape_path_to_shapes', [shapes.length, shapes[0].holes.length], [1, 1]);
+
+  // --- geometry derived from a Set inside three ---
+  check('geom_wireframe_segments', new THREE.WireframeGeometry(new THREE.BoxGeometry(1, 1, 1)).getAttribute('position').count, 36); // 18 unique edges x 2 endpoints
+  check('geom_hard_edges', new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1), 1).getAttribute('position').count, 24); // a cube has 12 hard edges
+  const layered = new THREE.DataArrayTexture(new Uint8Array(32), 2, 2, 2);
+  check('geom_data_array_texture', [layered.image.width, layered.image.height, layered.image.depth], [2, 2, 2]);
+
+  // --- serialization: Array.from over typed arrays, `constructor.name`, JSON deep clone ---
+  const attrJson = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1], 3)).toJSON().data.attributes.position;
+  check('json_attribute_type', attrJson.type, 'Float32Array');
+  check('json_attribute_array', attrJson.array, [0, 0, 0, 1, 1, 1]);
+  const interleaved = new THREE.BufferGeometry();
+  interleaved.setAttribute('position', new THREE.InterleavedBufferAttribute(new THREE.InterleavedBuffer(new Float32Array([0, 0, 0, 1, 1, 1, 1, 1]), 4), 3, 0));
+  const interleavedJson = interleaved.toJSON({ geometries: {}, materials: {}, textures: {}, images: {}, shapes: {}, skeletons: {}, animations: {}, nodes: {} });
+  // uuid-keyed, and the uuids are random - read the single entry rather than asserting the key
+  const interleavedBuffer = interleavedJson.data.interleavedBuffers[Object.keys(interleavedJson.data.interleavedBuffers)[0]];
+  check('json_interleaved_type', [interleavedBuffer.type, interleavedBuffer.stride], ['Float32Array', 4]);
+  // InterleavedBuffer#toJSON reinterprets the buffer as a Uint32Array through Array.from, so a
+  // float 1.0 must arrive as its IEEE-754 bit pattern 0x3F800000
+  const ONE = 0x3F800000;
+  const rawBuffer = interleavedJson.data.arrayBuffers[Object.keys(interleavedJson.data.arrayBuffers)[0]];
+  check('json_interleaved_array_buffer', rawBuffer, [0, 0, 0, ONE, ONE, ONE, ONE, ONE]);
+
+  const sceneJson = buildScene().toJSON();
+  check('json_image_type', sceneJson.images[0].url.type, 'Uint8Array');
+  check('json_image_data', sceneJson.images[0].url.data, [1, 2, 3, 4, 5, 6, 7, 8]);
+  const parsed = new THREE.ObjectLoader().parse(sceneJson);
+  check('json_roundtrip_position', arr(parsed.getObjectByName('boxy').position), [1, 2, 3]);
+  check('json_roundtrip_background', parsed.background.getHex(), 0x112233); // read back through Number.isInteger
+  check('json_roundtrip_userdata', parsed.userData.nested.n, [1, 2, 3]);
+  check('json_roundtrip_texture', parsed.getObjectByName('boxy').material.map.image.width, 2);
+
+  // --- textures: `Texture#repeat` collides with String#repeat, and three reads it in copy/toJSON/parse ---
+  const texture = new THREE.DataTexture(new Uint8Array(64), 4, 4); // 4x4 RGBA
+  texture.repeat.set(2, 3);
+  texture.updateMatrix();
+  check('tex_repeat_matrix', [texture.matrix.elements[0], texture.matrix.elements[4]], [2, 3]);
+  THREE.TextureUtils.contain(texture, 2);
+  check('tex_contain', [texture.repeat.x, texture.repeat.y], [2, 1]);
+  // eslint-disable-next-line unicorn/no-array-fill-with-reference-type -- three's TextureUtils.fill, not Array#fill (one of the name collisions this fixture exists to exercise)
+  THREE.TextureUtils.fill(texture);
+  check('tex_fill', [texture.repeat.x, texture.repeat.y], [1, 1]);
+
+  // --- colour: the non-sRGB branch of getStyle formats through Number#toFixed ---
+  // setStyle parses as sRGB and getStyle writes sRGB back, so this round-trips exactly; the raw
+  // components in between are working-space (linear-sRGB) and would NOT read back as 255,128,0
+  check('color_style_srgb', new THREE.Color().setStyle('rgb(255, 128, 0)').getStyle(), 'rgb(255,128,0)');
+  check('color_style_linear', new THREE.Color(1, 0.5, 0).getStyle(THREE.LinearSRGBColorSpace), 'color(srgb-linear 1.000 0.500 0.000)');
+  check('color_set_style_rgb', new THREE.Color().setStyle('rgb(255, 128, 0)').getHexString(), 'ff8000');
+  check('color_set_style_hsl', new THREE.Color().setStyle('hsl(120, 50%, 50%)').getHexString(), '40bf40');
+  check('color_by_name', new THREE.Color().setColorName('rebeccapurple').getHexString(), '663399');
+
+  // --- animation: Math.sign in the mixer, RegExp construction in PropertyBinding, JSON in the clip ---
+  const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+  cube.name = 'Cube';
+  const clip = new THREE.AnimationClip('move', 2, [
+    new THREE.VectorKeyframeTrack('.position', [0, 1, 2], [0, 0, 0, 5, 0, 0, 10, 0, 0]),
+    new THREE.QuaternionKeyframeTrack('.quaternion', [0, 1], [0, 0, 0, 1, 0, 0.707, 0, 0.707]),
+  ]);
+  const mixer = new THREE.AnimationMixer(cube);
+  mixer.clipAction(clip).play();
+  mixer.update(0.5);
+  check('anim_mixer_half_step', arr(cube.position), [2.5, 0, 0]);
+  mixer.update(1);
+  check('anim_mixer_full_step', arr(cube.position), [7.5, 0, 0]);
+
+  const fade = new THREE.AnimationClip('fade', 1, [new THREE.NumberKeyframeTrack('.material.opacity', [0, 1], [0, 1])]);
+  fade.userData = { note: 'hi' };
+  const fadeBack = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(fade));
+  check('anim_clip_roundtrip', [fadeBack.name, fadeBack.tracks.length, fadeBack.userData.note], ['fade', 1, 'hi']);
+  const binding = THREE.PropertyBinding.parseTrackName('Cube.material[color].r');
+  check('anim_parse_track_name', [binding.nodeName, binding.objectName, binding.objectIndex, binding.propertyName], ['Cube', 'material', 'color', 'r']);
+
+  // --- instancing. `setColorAt` is deliberately NOT called: see the typed-array note in the header ---
+  const instanced = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), 3);
+  for (let i = 0; i < 3; i++) instanced.setMatrixAt(i, new THREE.Matrix4().makeTranslation(i * 2, 0, 0));
+  instanced.computeBoundingBox();
+  // off the centre and double-sided for the reason the mesh raycast above states: entry and exit of
+  // the middle instance, which is also what pins the hits to that instance rather than a neighbour
+  const instancedHits = new THREE.Raycaster(new THREE.Vector3(2.2, 0, 10), new THREE.Vector3(0, 0, -1)).intersectObject(instanced, true);
+  check('inst_raycast_hits', [instancedHits.length, instancedHits[0].instanceId], [2, 1]);
+  check('inst_raycast_dist', [round(instancedHits[0].distance), round(instancedHits[1].distance)], [9.5, 10.5]);
+  check('inst_bounds', [arr(instanced.boundingBox.min), arr(instanced.boundingBox.max)], [[-0.5, -0.5, -0.5], [4.5, 0.5, 0.5]]);
+
+  // --- skinning ---
+  const skinned = buildSkinned();
+  // POSED before the transform is asked for. Unposed, every bone matrix is the identity, so
+  // `applyBoneTransform` handed back the vertex it was given and this check asserted its own input:
+  // the vertex is at (0.5, 2, 0.5) in the geometry and the expectation said (0.5, 2, 0.5). The root
+  // bone is the one to move, since `skinWeight` binds every vertex to it with weight 1.
+  skinned.skeleton.bones[0].position.set(0, 1, 0);
+  skinned.skeleton.bones[0].updateMatrixWorld(true);
+  skinned.skeleton.update();
+  const skinnedVertex = new THREE.Vector3().fromBufferAttribute(skinned.geometry.getAttribute('position'), 0);
+  skinned.applyBoneTransform(0, skinnedVertex);
+  // the second half is `skeleton.update()`'s OWN product: it fills `boneMatrices` from the posed
+  // bones, `applyBoneTransform` reads the matrices rather than those, and nothing else here touches
+  // them - so without this element that call is dead code sitting above a passing check. Element 13
+  // is the Y translation of bone 0's column-major 4x4, which is the axis the pose above moved
+  check('skin_bone_transform', [arr(skinnedVertex), round(skinned.skeleton.boneMatrices[13])], [[0.5, 3, 0.5], 1]);
+
+  // --- Cache keys go through `new URL()` inside three's isBlobURL ---
+  THREE.Cache.enabled = true;
+  const cacheKey = 'json:https://example.com/a.json';
+  // bound once on purpose: `cache_blob_not_stored` passes BECAUSE this lookup misses, so two
+  // literals that drifted apart would make it green for the wrong reason
+  const blobKey = 'blob:blob:https://example.com/deadbeef';
+  THREE.Cache.add(cacheKey, { v: 1 });
+  const cached = THREE.Cache.get(cacheKey);
+  THREE.Cache.add(blobKey, { v: 2 });
+  const blobCached = THREE.Cache.get(blobKey);
+  THREE.Cache.clear();
+  THREE.Cache.enabled = false;
+  check('cache_url_hit', cached.v, 1);
+  check('cache_blob_not_stored', blobCached === undefined, true);
+
+  // --- three's own log path runs String#startsWith; capture it instead of printing it ---
+  const logged = [];
+  THREE.setConsoleFunction((level, message) => logged.push({ level, message }));
+  const selfParent = new THREE.Object3D();
+  selfParent.add(selfParent);
+  THREE.setConsoleFunction(null);
+  // the wording is three's to reword in any release; what this pins is that the log path ran at all -
+  // it is where `String#startsWith` lives - at the level and about the call that provoked it
+  check('warn_self_add', [logged.length, logged[0].level, /Object3D\.add/.test(logged[0].message)], [1, 'error', true]);
+
+  // --- addons (three/addons/*, same package) ---
+  check('addon_merge_geometries_groups', mergeGeometries([new THREE.BoxGeometry(1, 1, 1), new THREE.SphereGeometry(0.5, 6, 4)], true).groups.length, 2);
+  const indexedBox = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
+  const interleavedAttrs = interleaveAttributes([indexedBox.getAttribute('position'), indexedBox.getAttribute('normal')]);
+  // the STRIDE and the offsets are what interleaving produces - two attributes woven into one buffer -
+  // and nothing else here is. The vertex count is the INPUT's, so it is compared BACK to the input
+  // rather than pinned: a retessellation upstream moves it and says nothing about weaving. Both reads
+  // go through `?.`, and `deinterleaveAttribute` is called only behind the same guard, because it
+  // reaches into `.data.array` itself: an `interleaveAttributes` that hands its argument straight
+  // back would throw from inside three and cost the whole exercise instead of reddening this check
+  const [woven] = interleavedAttrs;
+  check('addon_interleave_roundtrip', [
+    woven?.data?.stride,
+    interleavedAttrs.map(attribute => attribute.offset),
+    woven?.data ? deinterleaveAttribute(woven).count === indexedBox.getAttribute('position').count : undefined,
+  ], [6, [0, 3], true]);
+  // traverseGenerator is a recursive `yield*` - the delegation machinery that runs is the addon's
+  check('addon_traverse_generator', [...traverseGenerator(scene)].length, 3);
+  const reduceMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+  check('addon_reduce_vertices', round(reduceVertices(reduceMesh, (max, vertex) => Math.max(max, vertex.x), 0)), 0.5);
+  const skeletonSource = buildSkinned();
+  const skeletonClone = cloneSkinned(skeletonSource);
+  // that it is a CLONE: new bone objects, with the parent link rebuilt among THEM. The bone count is
+  // the source's own property, so a `clone` that returned its argument satisfied it
+  check('addon_skeleton_clone', [
+    skeletonClone.skeleton.bones.length,
+    skeletonClone.skeleton.bones[0] !== skeletonSource.skeleton.bones[0],
+    skeletonClone.skeleton.bones[1].parent === skeletonClone.skeleton.bones[0],
+  ], [2, true, true]);
+  const splitInput = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
+  const beforeSplit = splitInput.getAttribute('position').count;
+  const beforeIndices = splitInput.getIndex().count;
+  const split = new EdgeSplitModifier().modify(splitInput, 1);
+  // splitting at the cube's hard edges duplicates the vertices sitting on them and drops no indices,
+  // so the vertex count has to GROW while the index count stays put - and growing it is the part a
+  // `modify` returning its argument cannot fake. Both halves are RELATIONS to the input: the totals
+  // themselves are properties of the geometry, and a retessellation upstream would redden them for
+  // no reason of ours
+  check('addon_edge_split',
+    [split.getAttribute('position').count > beforeSplit, split.getIndex().count === beforeIndices], [true, true]);
+  const rounded = new RoundedBoxGeometry(1, 1, 1, 2, 0.2); // Math.sign, seven sites
+  rounded.computeBoundingBox();
+  // the bounds alone cannot tell a rounded box from a plain one - both span -0.5..0.5 - so the
+  // rounding this line is named after was not observed by it at all. The CORNERS are what the radius
+  // removes: a BoxGeometry has vertices exactly at (+-0.5, +-0.5, +-0.5), a rounded one has none
+  let exactCorners = 0;
+  const roundedPosition = rounded.getAttribute('position');
+  for (let i = 0; i < roundedPosition.count; i++) {
+    const vertex = new THREE.Vector3().fromBufferAttribute(roundedPosition, i);
+    if (Math.abs(vertex.x) === 0.5 && Math.abs(vertex.y) === 0.5 && Math.abs(vertex.z) === 0.5) exactCorners++;
+  }
+  check('addon_rounded_box_bounds',
+    [arr(rounded.boundingBox.min), arr(rounded.boundingBox.max), exactCorners],
+    [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5], 0]);
+
+  // --- async tail: three's `async parseAsync`, driven by a plain `.then` so the regenerator +
+  // Promise machinery that actually runs belongs to three, not to this module ---
+  // eslint-disable-next-line promise/prefer-await-to-then -- .then not await: keeps this module regenerator-free so the async machinery under test is three's own (see header)
+  return new THREE.ObjectLoader().parseAsync(buildScene().toJSON()).then(loaded => {
+    check('json_async_background', loaded.background.getHex(), 0x112233);
+    check('json_async_material', loaded.getObjectByName('boxy').material.type, 'MeshStandardMaterial');
+    check('json_async_image_width', loaded.getObjectByName('boxy').material.map.image.width, 2);
+    return { checks };
+  });
+}
