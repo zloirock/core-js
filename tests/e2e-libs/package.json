@@ -30,6 +30,7 @@
     "graphql": "^16.14.2",
     "htmlparser2": "^12.0.0",
     "kysely": "^0.29.6",
+    "markdown-it": "^15.0.2",
     "ml-matrix": "^6.15.0",
     "nth-check": "^3.0.1",
     "planck": "^1.5.0",
