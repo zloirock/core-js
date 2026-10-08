@@ -7,7 +7,7 @@ import { HERE } from './paths.mjs';
 
 const NAMES = [
   'rxjs', 'codemirror', 'three', 'htmlparser2', 'echarts', 'planck', 'tanstack-table', 'es-toolkit', 'ml-matrix',
-  'colorjs', 'd3-scale', 'graphql', 'kysely', 'markdown-it',
+  'colorjs', 'd3-scale', 'graphql', 'kysely', 'markdown-it', 'zod3',
 ];
 
 const PLAIN_SEGMENT = /^[\w\-.]+$/;
