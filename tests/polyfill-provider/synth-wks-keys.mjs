@@ -3,7 +3,6 @@
 // answers which symbol a key names whatever spelling it wears - through both parsers,
 // since the fold rides each parser's own binding + polyfill-hint channel
 import {
-  hasRealBinding,
   isReplayableSynthKey,
   isSynthSimpleObjectPattern,
   spelledSlotName,
@@ -94,8 +93,8 @@ check('admit/pattern with an unresolvable key does not',
 const keyAdapter = {
   isStringLiteral(n) { return n.type === 'StringLiteral' || (n.type === 'Literal' && typeof n.value === 'string'); },
   getStringValue(n) { return n.value; },
-  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
-  getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+  hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
+  getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
   method: 'usage-pure',
 };
 function foldKey(adapter, prog) {
@@ -187,31 +186,6 @@ runBoth('spelling/numeric key is respelled', 'const { 0: v } = o;', (adapter, pr
   const spelled = synthEntryKey({ keyNode, dedupKey: '0', slotKey: '0', lookupKey: '0', computedKey: false });
   check(`${ lbl } fromSource`, !!spelled.fromSource, false);
   check(`${ lbl } value`, spelled.key.value, '0');
-});
-
-// --- hasRealBinding: does anything in a pattern still bind a real name? ---
-
-// the whole-consume drop asks this before removing a declarator, and BOTH dialects reach it -
-// a dialect-blind walk answered "nothing binds" for babel's own patterns and dropped a live
-// user binding with the residual
-runBoth('binding/live name is found', 'const { at: kept } = o;', (adapter, prog, lbl) => {
-  const pattern = adapter.pickPath(prog, 'ObjectPattern');
-  checkTruthy(lbl, hasRealBinding(pattern.node, new Set(['_unused'])));
-});
-
-runBoth('binding/all sentinels', 'const { at: _unused, keys: _unused2 } = o;', (adapter, prog, lbl) => {
-  const pattern = adapter.pickPath(prog, 'ObjectPattern');
-  check(lbl, hasRealBinding(pattern.node, new Set(['_unused', '_unused2'])), false);
-});
-
-runBoth('binding/nested live name', 'const { inner: { at: kept } } = o;', (adapter, prog, lbl) => {
-  const pattern = adapter.pickPath(prog, 'ObjectPattern');
-  checkTruthy(lbl, hasRealBinding(pattern.node, new Set(['_unused'])));
-});
-
-runBoth('binding/rest binds', 'const { at: _unused, ...rest } = o;', (adapter, prog, lbl) => {
-  const pattern = adapter.pickPath(prog, 'ObjectPattern');
-  checkTruthy(lbl, hasRealBinding(pattern.node, new Set(['_unused'])));
 });
 
 // --- buildPatternRenderPlan: the shared render plan both emitters read ---

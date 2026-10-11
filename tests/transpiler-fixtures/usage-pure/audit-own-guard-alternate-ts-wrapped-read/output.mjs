@@ -6,12 +6,13 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // negative that pins WHERE the climb runs: its wrapper sits BELOW the read, off the climb entirely,
 // and the render still stands - a census that peeled downward would nest there alone.
 // the receiver has to stay opaque, so the guarded name is one core-js never replaces (`Array`,
-// `Object`, `String`): a replaceable name folds the destructure to its own minted binding and there
-// is no raw read left to keep. such a name also owns no constructor module, so the render a pass
-// leaves behind tests against the BARE global rather than an imported binding
+// `Object`, `String`), written on one path only: a replaceable name folds the destructure to its own
+// minted binding, and a write every path runs names the value outright - neither leaves a raw read to
+// keep. such a name also owns no constructor module, so the render a pass leaves behind tests against
+// the BARE global rather than an imported binding
 import _Array$of from '@core-js/pure/actual/array/of';
 let h;
-if (_globalThis) ({
+if (flag) ({
   Array: h
 } = _globalThis);
 export const bare = h === Array ? _Array$of : h.of;

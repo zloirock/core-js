@@ -1,9 +1,10 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
 // a super-class alias written on a path the class definition may take - a conditional, a closure
 // that ran, a try block - can be either constructor when `extends` captures it: usage-global unions
 // the written constructors' statics beside the live init, exactly as a member read off such an alias
-// does. usage-pure substitutes only a provable base and keeps every one of these native
+// does. usage-pure substitutes only a provable base and keeps every one of these native, so the
+// constructor such a base may hold takes its whole entry (`Promise` and `Map` here)
 
 let viaBranch = Object;
 if (c) viaBranch = Array;
@@ -26,13 +27,13 @@ class Closure extends viaClosure {
 export const closureWrite = Closure.go();
 let viaTry = Object;
 try {
-  viaTry = _Reflect;
+  viaTry = _Map;
 } catch (e) {
   void e;
 }
 class Try extends viaTry {
   static go() {
-    return super.ownKeys({});
+    return super.groupBy([], () => 1);
   }
 }
 export const tryWrite = Try.go();

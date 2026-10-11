@@ -46,7 +46,7 @@ import {
   peelTSParenthesized,
   propertyInstallsPrototype,
 } from '../helpers/ast-patterns.js';
-import { nodeAlwaysExits } from './exit-analysis.js';
+import { EXIT_STATEMENTS, nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
   getScopeBinding,
@@ -77,6 +77,7 @@ export function createReturnType({
   resolveDestructuredMember,
   resolveObjectMemberPath,
   walkObjectLiteralPropertyPath,
+  decidedLiveKey,
 }) {
   // sidecar map (typeParamMap -> paramName -> arg NodePath) so indexed-access resolution
   // can inspect the actual call arg - the declared constraint is usually broader.
@@ -231,14 +232,14 @@ export function createReturnType({
     // the slot itself is the shared rule's (a spread no position survives, an `undefined` / `void`
     // argument that runs the default - narrowing to it would drop the polyfill)
     return argumentOverridesSlot(args, argIndexForParam(fnPath.node.params, found.index),
-      () => !!getScopeBinding(callPath.scope, 'undefined'));
+      () => !!getScopeBinding({ scope: callPath.scope, name: 'undefined' }));
   }
 
   // resolve expression type within a function body, with fallback to call-site parameter inference
   function resolveBodyExpr(path, fnPath, callPath, unionHints = false, depth = 0) {
     const resolved = callPath ? resolvePath(path) : null;
     const refBinding = resolved && t.isIdentifier(resolved.node)
-      ? getScopeBinding(resolved.scope, resolved.node.name, resolved) : null;
+      ? getScopeBinding({ scope: resolved.scope, name: resolved.node.name, path: resolved }) : null;
     const validBinding = refBinding && !refBinding.constantViolations?.length ? refBinding : null;
     // one scan for all three readers below
     const found = validBinding ? findBindingParam(validBinding, fnPath) : null;
@@ -268,16 +269,41 @@ export function createReturnType({
       (path, nextDepth) => resolveBodyExpr(path, fnPath, callPath, true, nextDepth));
   }
 
+  // does the statement at `path` always leave the list it stands in, so no statement after it runs: a
+  // return, throw, break or continue, a block holding one that does, an `if` whose every arm does - the
+  // arm this build always takes alone where it decides the test (`decidedLiveKey`). any other statement
+  // answers false: a loop may not run, and a label or a switch catches a break that resumes after it
+  function alwaysLeavesList(path, depth = 0) {
+    const { node } = path;
+    if (depth > MAX_DEPTH) return false;
+    if (EXIT_STATEMENTS.has(node.type)) return true;
+    if (node.type === 'BlockStatement') return path.get('body').some(child => alwaysLeavesList(child, depth + 1));
+    if (node.type !== 'IfStatement') return false;
+    const live = decidedLiveKey(node, path);
+    if (live === 'consequent' || live === 'alternate') return !!node[live] && alwaysLeavesList(path.get(live), depth + 1);
+    return !!node.alternate && alwaysLeavesList(path.get('consequent'), depth + 1) && alwaysLeavesList(path.get('alternate'), depth + 1);
+  }
+
   // collect return statement paths from a block body, skipping nested functions
   // per JS spec, `return` in `finally` overrides `return` in the try/catch of the
   // same TryStatement ONLY when the finalizer terminates unconditionally on every
   // path. a conditional finalizer (`finally { if (cond) return ... }`) may fall
   // through, so its branches must merge with try/catch returns rather than
   // shadow them. this is handled per-TryStatement, not globally - returns outside
-  // a try-finally are unaffected
+  // a try-finally are unaffected. a return the build never reaches is none: one in
+  // the dead arm of an `if` it decides, or after a statement that always leaves its list
   function collectReturnPaths(blockPath) {
     function getChildren(path, key) {
       return Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
+    }
+    // the returns of a statement list, up to the first statement that always leaves it
+    function collectList(paths, depth) {
+      const result = [];
+      for (const [index, p] of paths.entries()) {
+        for (const r of collect(p, depth)) result.push(r);
+        if (index < paths.length - 1 && alwaysLeavesList(p)) break;
+      }
+      return result;
     }
     function collect(path, depth = 0) {
       if (depth > MAX_DEPTH || !path.node || t.isFunction(path.node)) return [];
@@ -290,7 +316,7 @@ export function createReturnType({
         // their abrupt completions also discard try/catch returns. when no return
         // is present (only throws), finalizerReturns is empty and the function
         // contributes no return type from this try, which is correct
-        if (node.finalizer && nodeAlwaysExits(node.finalizer)) return finalizerReturns;
+        if (node.finalizer && (nodeAlwaysExits(node.finalizer) || alwaysLeavesList(path.get('finalizer')))) return finalizerReturns;
         const result = [];
         if (node.block) for (const r of collect(path.get('block'), depth + 1)) result.push(r);
         if (node.handler) for (const r of collect(path.get('handler'), depth + 1)) result.push(r);
@@ -299,17 +325,18 @@ export function createReturnType({
         for (const r of finalizerReturns) result.push(r);
         return result;
       }
+      // an `if` this build decides runs its live arm alone
+      const live = node.type === 'IfStatement' ? decidedLiveKey(node, path) : null;
+      if (live === 'consequent' || live === 'alternate') return node[live] ? collect(path.get(live), depth + 1) : [];
       // recurse into block/control-flow children
       const result = [];
-      if (node.body) for (const p of getChildren(path, 'body')) for (const r of collect(p, depth + 1)) result.push(r);
-      if (node.consequent) for (const p of getChildren(path, 'consequent')) for (const r of collect(p, depth + 1)) result.push(r);
+      if (node.body) for (const r of collectList(getChildren(path, 'body'), depth + 1)) result.push(r);
+      if (node.consequent) for (const r of collectList(getChildren(path, 'consequent'), depth + 1)) result.push(r);
       if (node.alternate) for (const r of collect(path.get('alternate'), depth + 1)) result.push(r);
       if (node.cases) for (const p of path.get('cases')) for (const r of collect(p, depth + 1)) result.push(r);
       return result;
     }
-    const result = [];
-    for (const stmt of blockPath.get('body')) for (const r of collect(stmt)) result.push(r);
-    return result;
+    return collectList(blockPath.get('body'), 0);
   }
 
   function resolveBodyReturnType(fnPath, callPath) {
@@ -362,7 +389,7 @@ export function createReturnType({
     // a body that can FALL OFF THE END returns implicit undefined - same nullish arm as an
     // explicit bare `return`, just without a ReturnStatement to collect; without this the
     // conditionally-returning body (`if (c) return [1, 2];`) yields its survivor unmarked
-    if (!nodeAlwaysExits(body.node)) droppedNullish = true;
+    if (!nodeAlwaysExits(body.node) && !alwaysLeavesList(body)) droppedNullish = true;
     // a dropped nullable / bare-return arm still returns at runtime, so the fold survivor
     // is not always-truthy: mark it so an enclosing logical fold keeps the two-operand
     // union (`f() ?? 'x'` may yield 'x'). mirrors foldUnionTypes / the `?:` branch fold

@@ -50,6 +50,7 @@ import {
   provablyPrecedes,
   reassignmentDominatesUsage,
   staticMemberKeyName,
+  writeNeverRuns,
   ESCAPED_CONTAINER_NAMES,
   CENSUS_ENUM_RECEIVERS,
   rootProgramOf,
@@ -118,6 +119,7 @@ export function createMemberResolve({
   resolveEnumType,
   resolveNodeType,
   functionTypeParams,
+  getDecisionAdapter = () => null,
 }) {
   // --- Member-chain walker (predicate-guards integration) ---
 
@@ -143,7 +145,7 @@ export function createMemberResolve({
       node = unwrapRuntimeExpr(node.object);
     }
     if (node?.type !== 'Identifier' || !props.length) return null;
-    const binding = getScopeBinding(scope, node.name);
+    const binding = getScopeBinding({ scope, name: node.name });
     if (!binding) return null;
     // anchor on the DECLARATION for the whole member walk below, not just for reading the
     // annotation: every hop re-resolves type NAMES, and under the use-site anchor those names
@@ -409,7 +411,7 @@ export function createMemberResolve({
     let annotation, scope;
     let anchorPath = null;
     if (t.isIdentifier(objectPath.node)) {
-      const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
+      const binding = getScopeBinding({ scope: objectPath.scope, name: objectPath.node.name, path: objectPath });
       if (!binding) return null;
       // an annotation written ON a destructuring pattern describes the CONTAINER, not the name
       // bound out of it - the rule `resolveBindingType` states before its own direct-annotation
@@ -555,7 +557,7 @@ export function createMemberResolve({
       // is NOT that class: babel registers no value binding for the type-param, so getBinding would
       // wrongly return the outer class. bail so the caller resolves the type-param via its constraint
       if (findTypeParameter(typeName.name, scope)) return null;
-      const binding = getScopeBinding(scope, typeName.name);
+      const binding = getScopeBinding({ scope, name: typeName.name });
       if (binding) return t.isClassDeclaration(binding.path.node) ? binding.path : null;
       // no value binding -> an ambient `declare class` (oxc binds it, babel doesn't); recover it
       // through the same scan the qualified branch uses so the element type stays parser-consistent
@@ -960,15 +962,17 @@ export function createMemberResolve({
 
   // `permutes`, where the caller passes a list, asks the UNION question instead: which values may an
   // element hold at all. a permuting mutator is admitted there and records its key, and a destructure
-  // of the binding - which copies elements out and puts none back - reads like any other read
-  function arrayElementsMayBeRetyped(objectPath, anchorPath, elementWrites = null, permutes = null) {
+  // of the binding - which copies elements out and puts none back - reads like any other read.
+  // `followed` is the reference an alias read reached this binding through (`aliasedElementsMayBeRetyped`)
+  function arrayElementsMayBeRetyped(objectPath, anchorPath, { elementWrites = null, permutes = null, followed = null } = {}) {
     // a receiver that is a STORED SLOT rather than a binding (`o.xs[0]`) is UNKNOWN, not clean: this
     // walk enumerates a binding's references and finds nothing for a member path, so answering "no
     // retype" kept the element narrow over writes nobody looked for - `o.xs[0] = "abc"` then
     // `o.xs[0].at(0)` handed the array helper a string. every OTHER non-binding receiver keeps the
     // clean answer on purpose: a call result (`a.splice(0, 1)[0]`) takes its element from the
     // resolved TYPE, which no element write into some other array can invalidate. an ALIAS needs no
-    // hop of its own - `const a = arr` is itself a retentive reference of `arr` below
+    // hop of its own - `const a = arr` is itself a retentive reference of `arr` below; a read THROUGH the
+    // alias asks the source too (`aliasedElementsMayBeRetyped`)
     // a member-chain receiver (`o.xs[0]`, `nested[0][0]`) names no binding of its own, so this walk
     // found nothing for it and answered "clean" - the element narrow then survived `o.xs[0] = "abc"`.
     // its ROOT binding is what the writes go through, so ask about that instead of bailing: the
@@ -976,7 +980,7 @@ export function createMemberResolve({
     // writes (`nested[0][0]`) precise
     objectPath = memberChainRootPath(objectPath);
     if (!t.isIdentifier(objectPath?.node)) return false;
-    const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
+    const binding = getScopeBinding({ scope: objectPath.scope, name: objectPath.node.name, path: objectPath });
     if (!binding) return true;
     const references = collectBindingReferences(binding, anchorPath);
     // a null reference set is "could not be enumerated", the opposite verdict from an empty one:
@@ -984,6 +988,7 @@ export function createMemberResolve({
     // the element narrow alive over writes nobody looked at
     if (!references) return true;
     for (const ref of references) {
+      if (ref.node === followed) continue;
       const member = ref.parentPath;
       const memberNode = member?.node;
       // a WHOLE-binding write (plain reassign / update / for-x head) is the FLOW layer's
@@ -1068,6 +1073,15 @@ export function createMemberResolve({
     return false;
   }
 
+  // may a binding an alias read reaches the array through retype its elements? `hops` are the references
+  // the value walk followed (`resolveRuntimeExpression`): `const list = arr` is a retentive reference of
+  // `arr`, so a read through `arr` sees writes through the alias - but a read through `list` sees
+  // `arr.unshift(x)` only by asking `arr`, where the reference the read followed is no escape and every
+  // other one is. `permutes` as `arrayElementsMayBeRetyped` takes it
+  function aliasedElementsMayBeRetyped(hops, anchorPath, permutes = null) {
+    return hops.slice(1).some(hop => arrayElementsMayBeRetyped(hop, anchorPath, { permutes, followed: hop.node }));
+  }
+
   function resolveArrayIndexAccess(path) {
     if (!path.node.computed) return null;
     const resolvedProp = resolveRuntimeExpression(path.get('property'));
@@ -1075,15 +1089,20 @@ export function createMemberResolve({
     const index = resolvedProp.node.value;
     if (!Number.isInteger(index) || index < 0) return null;
     const rawObject = path.get('object');
-    const objectPath = resolveRuntimeExpression(rawObject);
+    const hops = [];
+    const objectPath = resolveRuntimeExpression(rawObject, hops);
     const elementWrites = t.isIdentifier(rawObject.node) && t.isArrayExpression(objectPath.node) ? [] : null;
-    if (arrayElementsMayBeRetyped(rawObject, path, elementWrites)) return null;
-    if (elementWrites?.length) {
+    if (arrayElementsMayBeRetyped(rawObject, path, { elementWrites }) || aliasedElementsMayBeRetyped(hops, path)) return null;
+    // a write in an arm the build never takes is no write (`writeNeverRuns`), and one in an arm it
+    // always takes is unconditional (the dominance ask's adapter)
+    const adapter = getDecisionAdapter();
+    const liveWrites = elementWrites?.filter(write => !writeNeverRuns({ write: write.node, usagePath: path, adapter }));
+    if (liveWrites?.length) {
       // A single observed write must precede and dominate this read. Multiple writes,
       // deferred execution and conditional replacement keep the element type unknown.
-      const [write] = elementWrites;
-      return elementWrites.length === 1 && provablyPrecedes(write.node, path.node)
-        && reassignmentDominatesUsage({ reassignmentNodes: [write.node], usagePath: path })
+      const [write] = liveWrites;
+      return liveWrites.length === 1 && provablyPrecedes(write.node, path.node)
+        && reassignmentDominatesUsage({ reassignmentNodes: [write.node], usagePath: path, adapter })
         ? resolveNodeType(write.get('right')) : null;
     }
     if (t.isArrayExpression(objectPath.node)) return resolveArrayLiteralElement(objectPath, index);
@@ -1211,6 +1230,7 @@ export function createMemberResolve({
     typedIndexElement,
     arrayElementOfType,
     arrayElementsMayBeRetyped,
+    aliasedElementsMayBeRetyped,
     resolveEnumMemberAccess,
   };
 }

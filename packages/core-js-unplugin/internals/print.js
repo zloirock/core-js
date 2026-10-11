@@ -2,7 +2,7 @@ import { print } from 'esrap';
 import ts from 'esrap/languages/ts';
 import tsx from 'esrap/languages/tsx';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { buildOffsetToLoc } from '@core-js/polyfill-provider/helpers/source-scan';
+import { buildOffsetToLoc, isLineBoundDisableDirective } from '@core-js/polyfill-provider/helpers/source-scan';
 import { TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // the esrap printer adapter: oxc-parser hands out offsets, esrap attaches comments and
@@ -154,14 +154,31 @@ function synthesizeLocs(program, comments, source) {
   // one closes later too, and a file dense in such hosts pays a binary search per host, not a scan
   function commentBetween(outer, inner) {
     if (typeof outer.start !== 'number' || typeof inner.start !== 'number') return false;
+    const comment = firstCommentFrom(outer.start);
+    return !!comment && comment.end <= inner.start;
+  }
+  // the first comment opening at or after `offset`, or null: the list is source-ordered
+  function firstCommentFrom(offset) {
     let lo = 0;
     let hi = comments.length;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
-      if (comments[mid].start < outer.start) lo = mid + 1;
+      if (comments[mid].start < offset) lo = mid + 1;
       else hi = mid;
     }
-    return lo < comments.length && comments[lo].end <= inner.start;
+    return comments[lo] ?? null;
+  }
+  // ... and a binding host's VALUE that a line-bound directive opens its own line ahead of
+  // (`const x =\n  // core-js-disable-next-line\n  v`): esrap flushes the comment after the `=`, which
+  // moves the directive off its line - the value prints in the kept paren layer instead, the throw /
+  // yield operand's rule. `slots` is the host's entry (`DIRECTIVE_VALUE_SLOTS`), asked once per node by the walk
+  function directiveLedValue(node, slots) {
+    const left = node[slots[0]];
+    const value = node[slots[1]];
+    if (typeof left?.end !== 'number' || typeof value?.start !== 'number') return false;
+    const comment = firstCommentFrom(left.end);
+    return !!comment && comment.end <= value.start && isLineBoundDisableDirective(comment.value)
+      && opensOwnLine(source, comment.start);
   }
   const locate = buildOffsetToLoc(source);
   let hasChainExpression = false;
@@ -201,13 +218,19 @@ function synthesizeLocs(program, comments, source) {
         node.loc = { start: anchor.start, end: anchor.start };
       }
     }
+    const directiveSlots = DIRECTIVE_VALUE_SLOTS[node.type];
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       if (key === 'loc' || key === 'replacedSpan') continue;
       const value = node[key];
       if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i++) value[i] = peelParens(value[i], node, commentBetween);
-      } else node[key] = peelParens(value, node, commentBetween);
+      } else {
+        node[key] = peelParens(value, node, commentBetween);
+        if (directiveSlots && key === directiveSlots[1] && directiveLedValue(node, directiveSlots)) {
+          node[key] = { type: 'ParenthesizedExpression', expression: node[key], commentInside: true };
+        }
+      }
       walk(node[key], anchor);
     }
   })(program, null);
@@ -240,6 +263,23 @@ function synthesizeLocs(program, comments, source) {
 // horizontal whitespace - what an indent is made of and what a same-line scan steps over
 function isIndentChar(code) {
   return code === 0x20 || code === 0x09;
+}
+
+// the binding hosts whose value slot a directive may lead: [the slot ahead of the `=`, the value slot]
+const DIRECTIVE_VALUE_SLOTS = {
+  VariableDeclarator: ['id', 'init'],
+  AssignmentPattern: ['left', 'right'],
+  AssignmentExpression: ['left', 'right'],
+};
+
+// does nothing but horizontal whitespace precede `offset` on its line?
+function opensOwnLine(source, offset) {
+  for (let i = offset - 1; i >= 0; i--) {
+    const code = source.charCodeAt(i);
+    if (isIndentChar(code)) continue;
+    return code === 0x0A || code === 0x0D || code === 0x2028 || code === 0x2029;
+  }
+  return true;
 }
 
 // does a token follow `offset` on the same line? horizontal whitespace is skipped; a line

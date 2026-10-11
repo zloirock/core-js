@@ -522,7 +522,7 @@ export function guardProbeUndefinable(probe, {
     // an INIT-LESS declaration (`let condFn;` + conditional assigns) is nullish on the
     // unassigned path - the callee canon only follows kept proxy writes
     if (probeCallee?.type === 'Identifier') {
-      const calleeBinding = adapter.getBinding(metaPath.scope, probeCallee.name, metaPath);
+      const calleeBinding = adapter.getBinding({ scope: metaPath.scope, name: probeCallee.name, path: metaPath });
       if (calleeBinding?.node?.type === 'VariableDeclarator' && !calleeBinding.node.init) return true;
     }
     return false;

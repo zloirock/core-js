@@ -21,6 +21,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 - Emitted nodes must survive subsequent Babel lowerings. Restructure unnecessary grouping during emission; restore necessary `ParenthesizedExpression` nodes in `post()`, after sibling `Program:exit` hooks. Earlier insertion can break regenerator on `await` / `yield`.
 - Clone through `rangePreservingTypes`. Babel cloning drops `start` / `end`; the wrapper restores them from `loc` for the provider's positional proofs.
 - Use the injector's scope bags for Babel 7 object maps and Babel 8 `referencesSet` / `uidsSet`.
+- Remove a pattern slot through `removePatternSlot`. Babel's `remove()` would also drop the binding an assignment-pattern slot only writes.
 - Ask `resolveModuleFormat` with the filename and explicit parse goal. A declared script is evidence; Babel's default `module` goal is not.
 
 ## Validation

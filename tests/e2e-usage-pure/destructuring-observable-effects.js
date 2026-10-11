@@ -48,6 +48,26 @@ QUnit.test('destructuring: spread getters run before the pattern writes its firs
   assert.same(other, 8);
 });
 
+QUnit.test('destructuring: a getter ahead of a spread or an unknown key keeps its prefix read', assert => {
+  const events = [];
+  const extra = {};
+  const viaSpread = {
+    get value() { events.push('spread'); return 0; },
+    ...extra,
+  };
+  const { prototype: { at } } = (viaSpread.value, String);
+  assert.same(at.call('ab', -1), 'b');
+  const key = ['un', 'known'].join('');
+  const viaKey = {
+    get value() { events.push('key'); return 0; },
+    [key]: 1,
+  };
+  const { prototype: { includes } } = (viaKey.value, Array);
+  assert.true(includes.call([1], 1));
+  assert.same(viaKey[key], 1);
+  assert.deepEqual(events, ['spread', 'key']);
+});
+
 QUnit.test('destructuring: discarded sequence tails keep receiver effects and both assignments', assert => {
   const events = [];
   function make() {

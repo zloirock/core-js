@@ -30,7 +30,8 @@ function outer() {
   return inner;
 }
 export const r4 = [D.includes('d'), outer()];
-// an EXPORTED lagged alias resolves through the export wrapper the same as a plain one
+// an EXPORTED lagged alias resolves through the export wrapper the same as a plain one, while the
+// realm's `Map` it holds until the reassignment leaves through the export: the file takes the whole entry
 export let E;
 ({ Map: E } = globalThis);
 E = [9];

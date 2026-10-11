@@ -14,9 +14,13 @@
 //   objectBindingName(objectPath)            - declarator name (only stable form) | null
 //   isMemberRefReceiver(parent, refNode)     - `<name>.X` / `<name>?.X` receiver predicate
 //   resolveStaticCalleePair(hop, { method? })  - `(constructor, method)` pair from various
-//                                              member-access shapes of the callee the hop stands on;
+//                                              member-access shapes of the callee the hop stands on,
+//                                              and through the canon where it stands on its own path;
 //                                              `method` restricts it to that one name, decided off
 //                                              the node where the shape allows
+//   protoSetterCalleeArms(calleePath)        - `Object` / `Reflect` `setPrototypeOf` recognizer: 'lone'
+//                                              for its canonical spelling, 'every' / 'some' for an open
+//                                              selection every / some arm of which is one, else null
 //   resolveKnownStaticEntry(callee, refPath) - registry lookup via the resolved pair
 //   isReflectConstructCallee(callee, scope)  - non-shadowed Reflect.construct recognizer
 //   isKnownNonMutatingCallSite               - SpreadElement-aware non-mutating arg check
@@ -27,8 +31,9 @@
 //   computeAliasClosureFromBinding           - the main closure walker
 //
 // Service object passes factory helpers (`memoize`, `findProgramPath`, `getDeclaratorBindingName`,
-// `staticPairFromPolyfillEntry`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the
-// Babel/ESTree type adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
+// `staticPairFromPolyfillEntry`, `resolveGlobalMember`, `globalNamedThroughOwnImport`,
+// `staticPairFromDestructure`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the Babel/ESTree type
+// adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
 import { MAX_DEPTH, PRIMITIVES } from './base.js';
 import { resolveInlineCalleeFunction } from '../detect-usage/resolve.js';
 import {
@@ -36,9 +41,12 @@ import {
   TS_EXPR_WRAPPERS,
   calleeParameterMemberRead,
   annexBHoistOutrunsBinding,
+  ancestorChainDetached,
+  bindingBoundName,
   isBindingDeclarationPath,
   isForXStatement,
   isMemberAccessNode,
+  getFallbackBranchSlots,
   NO_PROTOTYPE_VALUE,
   installedPrototypeValueAt,
   prototypeValueMayDispatch,
@@ -50,6 +58,7 @@ import {
   patternSlotHost,
   objectOwnThisMethodInfo,
   ownThisMethodKeyMatches,
+  peelSkippableWrapperPath,
   peelTransparentExprAncestorPath,
   prototypeWriteHostPath,
   aliasTargetName,
@@ -80,6 +89,10 @@ export function createBindingAnalysis({
   getDeclaratorBindingName,
   staticPairFromPolyfillEntry,
   namespaceFromPolyfillBinding,
+  resolveGlobalMember,
+  globalNamedThroughOwnImport,
+  // late-bound: the call-resolution cluster instantiates after this one
+  staticPairFromDestructure,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
   // thunk (late-binding: sibling clusters instantiate after this one) returning the visitor
@@ -223,8 +236,9 @@ export function createBindingAnalysis({
   //   3. post-rewrite polyfill alias `_Object$assign` - identifier resolves through the
   //      injector's binding hint via `staticPairFromPolyfillEntry`
   //   4. Reflect.construct etc - handled identically by the same shapes
-  // returns `{ constructor, method }` or null. computed callees and non-Identifier slots
-  // bail uniformly. callers add their own table lookup (`KNOWN_STATIC_METHOD_RETURN_TYPES`)
+  // every other spelling goes to the canon where the hop stands on the callee's own path
+  // (`canonicalCalleePair`) and bails without one. returns `{ constructor, method }` or null.
+  // callers add their own table lookup (`KNOWN_STATIC_METHOD_RETURN_TYPES`)
   // or pair match (Reflect.construct) on top of the resolved pair
   // `method`, when given, is the only method name the caller can accept. a member-spelled callee
   // carries that name ON THE NODE, so the mismatch is decided there instead of after the two
@@ -252,9 +266,10 @@ export function createBindingAnalysis({
         // the registry and fall through to the shadow bail exactly as before
         const aliased = namespaceFromPolyfillBinding(callee.object.name, { ...hop, node: callee.object });
         if (aliased) return { constructor: aliased, method: callee.property.name };
-        // RAW existence check on purpose: a user shadow must bail even when the funnel's
-        // twin filter would drop a namespace-local binding for a pathless lookup
-        if (scope?.getBinding?.(callee.object.name)) return null;
+        // RAW existence check on purpose: a user binding is no global even when the funnel's
+        // twin filter would drop a namespace-local binding for a pathless lookup - only the
+        // canon can tell an alias of the global from a shadow
+        if (scope?.getBinding?.(callee.object.name)) return canonicalCalleePair(hop, method);
         return { constructor: callee.object.name, method: callee.property.name };
       }
       if ((callee.object?.type === 'MemberExpression' || callee.object?.type === 'OptionalMemberExpression')
@@ -266,14 +281,39 @@ export function createBindingAnalysis({
         && !scope?.getBinding?.(callee.object.object.name)) {
         return { constructor: callee.object.property.name, method: callee.property.name };
       }
-      return null;
+      return canonicalCalleePair(hop, method);
     }
-    if (callee.type !== 'Identifier' || !scope) return null;
     // the alias spelling carries no readable method name, so the filter applies to the RESOLVED
     // pair here. it is the whole contract either way: with `method` given, a returned pair always
     // names it, and a caller matching a fixed pair only has to compare the constructor
-    const pair = staticPairFromPolyfillEntry(callee.name, hop);
-    return method !== null && pair?.method !== method ? null : pair;
+    const pair = callee.type === 'Identifier' && scope ? staticPairFromPolyfillEntry(callee.name, hop) : null;
+    if (pair) return method !== null && pair.method !== method ? null : pair;
+    return canonicalCalleePair(hop, method);
+  }
+
+  // the spellings the shapes above leave to the canon, asked only where the hop stands on the
+  // callee's own path: the value walk follows an alias of the static (`const sp =
+  // Object.setPrototypeOf`) and steps a selection this build decides, the owner resolves the way
+  // every static read of this layer resolves it (`resolveGlobalMember`: a constructor alias, a proxy
+  // hop over this build's own import, a decided `(typeof Symbol != 'undefined' ? Object :
+  // Reflect).setPrototypeOf`), and a name this build's import or a destructure binds pairs as the
+  // call lanes pair it (`const { setPrototypeOf } = Object`)
+  function canonicalCalleePair({ node, ctx: { path } }, method) {
+    if (!path || path.node !== node) return null;
+    const resolved = resolveRuntimeExpression(path);
+    let pair = null;
+    if (isMemberAccessNode(resolved.node)) {
+      // a member names its method on the node, so a mismatch is decided there - before the owner walk
+      const { computed, property } = resolved.node;
+      if (method !== null && !computed && property?.type === 'Identifier' && property.name !== method) return null;
+      const member = resolveGlobalMember(resolved);
+      if (member) pair = { constructor: member.objectName, method: member.memberName };
+    } else if (resolved.node?.type === 'Identifier') {
+      pair = (resolved.node !== node
+        && staticPairFromPolyfillEntry(resolved.node.name, { node: resolved.node, ctx: { scope: resolved.scope, path: resolved } }))
+        || staticPairFromDestructure(resolved.scope, resolved.node.name, resolved);
+    }
+    return pair && (method === null || pair.method === method) ? pair : null;
   }
 
   // resolve callee to the entry from `KNOWN_STATIC_METHOD_RETURN_TYPES` (mutation profile,
@@ -454,25 +494,47 @@ export function createBindingAnalysis({
     return memoize(programIndexCache, programPath.node, () => {
       const { referenceIdentifierPaths, newExprByName } = programCensus(programPath);
       const identifierByBinding = new Map();
+      // the binding each reference position resolves to, null for one that names no binding
+      const bindingAtPosition = new Map();
       for (const p of referenceIdentifierPaths) {
-        const binding = getScopeBinding(p.scope, p.node.name, p);
+        const binding = getScopeBinding({ scope: p.scope, name: p.node.name, path: p });
+        bindingAtPosition.set(nodeSpan(p.node)?.start ?? p.node, binding ?? null);
         if (binding) pushByKey(identifierByBinding, binding, p);
       }
       // ESTree keeps source references under `references`, but misses some TS wrappers.
       // Merge the census additions by source position, keeping the native path where an
       // emitter replaced its parent. A cloned receiver passed to our helper is still the
-      // original member read, rather than a new handout to an unknown call.
+      // original member read, rather than a new handout to an unknown call. A native reference
+      // the census resolves elsewhere stays there: a tracker without a scope for a loop body, a
+      // case block or a namespace lists a nested namesake's references under the outer binding
       for (const [binding, indexed] of identifierByBinding) {
         if (currentTreeReferences || !Array.isArray(binding.references)) continue;
+        const declaration = binding.path?.node ?? binding.node;
         const references = new Map();
-        for (const ref of binding.references) references.set(nodeSpan(ref.node)?.start ?? ref.node, ref);
+        for (const ref of binding.references) {
+          const key = nodeSpan(ref.node)?.start ?? ref.node;
+          const resolved = bindingAtPosition.get(key);
+          if (resolved === undefined || (resolved && (resolved.path?.node ?? resolved.node) === declaration)) references.set(key, ref);
+        }
         for (const ref of indexed) {
           const key = nodeSpan(ref.node)?.start ?? ref.node;
           if (!references.has(key)) references.set(key, ref);
         }
         identifierByBinding.set(binding, references.values().toArray());
       }
-      return { identifierByBinding, newExprByName };
+      // a scope tracker may hand a later lookup another object for the same binding: its declaration and
+      // its name identify it, so the references are found through that too - by both, since a pattern, a
+      // catch parameter or a parameter list declares several bindings at one node
+      const bindingByDeclaration = new Map();
+      for (const [binding, indexed] of identifierByBinding) {
+        const declaration = binding.path?.node ?? binding.node;
+        const name = indexed[0]?.node.name;
+        if (!declaration || !name) continue;
+        let byName = bindingByDeclaration.get(declaration);
+        if (!byName) bindingByDeclaration.set(declaration, byName = new Map());
+        if (!byName.has(name)) byName.set(name, binding);
+      }
+      return { identifierByBinding, bindingByDeclaration, newExprByName };
     });
   }
 
@@ -503,7 +565,9 @@ export function createBindingAnalysis({
     }
     const program = findProgramPath(anchorPath);
     if (!program) return null;
-    return buildProgramIndex(program).identifierByBinding.get(binding) ?? [];
+    const { identifierByBinding, bindingByDeclaration } = buildProgramIndex(program);
+    const sameDeclaration = bindingByDeclaration.get(binding.path?.node ?? binding.node);
+    return identifierByBinding.get(binding) ?? identifierByBinding.get(sameDeclaration?.get(bindingBoundName(binding))) ?? [];
   }
 
   // computed member key that's a compile-time constant - a write through it touches a KNOWN
@@ -852,11 +916,72 @@ export function createBindingAnalysis({
     return parent?.type === 'ForOfStatement' && parent.right === refNode;
   }
 
-  // `Object.setPrototypeOf` / `Reflect.setPrototypeOf` through the canonical callee resolver - the
-  // member spelling with its shadow bail, a proxy-global hop, the plugin's own injected static binding
-  function isProtoSetterCallee(calleePath) {
-    const pair = resolveStaticCalleePair({ node: calleePath.node, ctx: { scope: calleePath.scope, path: calleePath } });
-    return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
+  // `Object.setPrototypeOf` / `Reflect.setPrototypeOf` only - a same-named method on any other object
+  // installs nothing. the owner is RESOLVED through the canonical callee resolver, never name-matched:
+  // a shadowed `Object` is rejected, while an alias, a proxy-global hop, a selection this build decides
+  // and the plugin's own injected static binding (usage-pure may have rewritten the call before a
+  // later receiver is typed) all name it: `lone`, the spelling no render takes out of the tree. A
+  // selection the build leaves open names no one pair, yet installs through whichever arm runs, and an
+  // arm that is no setter installs nothing: the install runs with the call where `every` arm is a
+  // setter, only where a setter arm runs where `some` is, and never where none is (null). such a
+  // selection is one of setters, spelled in place or held by a name (`(c ? Object.setPrototypeOf :
+  // fn)`), or one of their owners the setter is read off (`(c ? Object : shim).setPrototypeOf`, a name
+  // holding one included). the setter read off a name the pair cannot follow to its owner installs on
+  // `every` run: the pair's alias walk names constructors alone, and `Reflect` is a namespace (`const R
+  // = Reflect`). only those spellings reach the value walk - any other call the pair rejects pays a node
+  // test. a call the build replaced itself (pure's guard over owners whose setter it imports absorbs
+  // the call into its arms) survives in one emitter's cached reference chain alone, detached from the
+  // tree, so neither reads it. shared by the type layer's install channel and the closure classifier,
+  // so the two cannot disagree on which call installs a prototype
+  function protoSetterCalleeArms(calleePath) {
+    if (namesProtoSetter(calleePath)) return 'lone';
+    const callee = peelSkippableWrapperPath(calleePath);
+    const { node } = callee;
+    const readOffOwners = isMemberAccessNode(node) && !node.computed
+      && node.property?.type === 'Identifier' && node.property.name === 'setPrototypeOf';
+    if (!readOffOwners && node.type !== 'Identifier' && !getFallbackBranchSlots(node)) return null;
+    const value = resolveRuntimeExpression(readOffOwners ? callee.get('object') : callee);
+    const selection = !!getFallbackBranchSlots(value.node);
+    if (!selection && !readOffOwners || ancestorChainDetached(callee)) return null;
+    if (selection) return openArmsPassing(value, readOffOwners ? namesProtoSetterOwner : namesProtoSetter);
+    return namesProtoSetterOwner(value) ? 'every' : null;
+  }
+
+  // the lone spelling: the canonical callee pair
+  function namesProtoSetter(calleePath) {
+    const hop = { node: calleePath.node, ctx: { scope: calleePath.scope, path: calleePath } };
+    const pair = resolveStaticCalleePair(hop, { method: 'setPrototypeOf' });
+    return pair?.constructor === 'Object' || pair?.constructor === 'Reflect';
+  }
+
+  // an owner arm, read through the value walk the callee pair reads its callee through (an alias, a
+  // selection this build decides) to the global it names - or to this build's own import of the
+  // namespace (`_Reflect`), which a rewrite may have put there before the install is read
+  function namesProtoSetterOwner(armPath) {
+    const name = globalNamedThroughOwnImport(resolveRuntimeExpression(armPath));
+    return name === 'Object' || name === 'Reflect';
+  }
+
+  // which arms of the open selection `path` stands on pass `test`: `every` one, only `some`, or none
+  // (null). an arm failing it is read through the value walk - an alias, a selection this build decides,
+  // whose arm it never takes passes nothing - and asked of its own arms where it holds an open selection.
+  // each selection is walked once per question: one reached again inside its own walk passes nothing
+  function openArmsPassing(path, test, verdicts = new Map()) {
+    const slots = getFallbackBranchSlots(path.node);
+    if (!slots) return null;
+    if (verdicts.has(path.node)) return verdicts.get(path.node);
+    verdicts.set(path.node, null);
+    let every = true;
+    let some = false;
+    for (const slot of slots) {
+      const arm = peelSkippableWrapperPath(path.get(slot));
+      const verdict = test(arm) ? 'every' : openArmsPassing(resolveRuntimeExpression(arm), test, verdicts);
+      every &&= verdict === 'every';
+      some ||= verdict !== null;
+    }
+    const verdict = every ? 'every' : some ? 'some' : null;
+    verdicts.set(path.node, verdict);
+    return verdict;
   }
 
   // does this REFERENCE to the holder INSTALL a body nobody read? two shapes reach that, and the
@@ -882,8 +1007,8 @@ export function createBindingAnalysis({
     // can sit under (`setPrototypeOf((eff(), o), P)`) and covers the `o.__proto__ = P` spelling. the
     // VALUE is this arm's own question: the canon reports the slot, its consumers decide what landed
     // in it. a missing second argument makes the call throw, so nothing is installed
-    const undefinedShadowed = !!getScopeBinding(refPath?.scope, 'undefined');
-    const installed = installedPrototypeValueAt(refPath, isProtoSetterCallee, undefinedShadowed);
+    const undefinedShadowed = !!getScopeBinding({ scope: refPath?.scope, name: 'undefined' });
+    const installed = installedPrototypeValueAt(refPath, protoSetterCalleeArms, undefinedShadowed);
     return !!installed && installed !== NO_PROTOTYPE_VALUE
       && prototypeValueMayDispatch(unwrapRuntimeExpr(installed), undefinedShadowed);
   }
@@ -1186,7 +1311,7 @@ export function createBindingAnalysis({
           // 3rd arg is a use-PATH (drives rebuildLaggedScopeBinding / pathContainedBy recovery), not
           // a node: `parent` is `refContext.parent` (a VariableDeclarator NODE) and defeats both
           // recoveries -> over-bail. pass the reference PATH, mirroring the sibling site
-          const aliasBinding = getScopeBinding(refContext.scope, aliasName, refContext);
+          const aliasBinding = getScopeBinding({ scope: refContext.scope, name: aliasName, path: refContext });
           if (!aliasBinding) return null;
           if (closure.has(aliasBinding)) continue;
           closure.set(aliasBinding, aliasName);
@@ -1221,7 +1346,7 @@ export function createBindingAnalysis({
 
   // cluster-private helpers (used only by other cluster functions, not by the factory
   // or other clusters): `getExportedNames` / `isMemberRefReceiver` /
-  // `resolveStaticCalleePair` / `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
+  // `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
   // `defaultAliasRefClassifier` / `isTypePositionParent`
   return {
     buildProgramIndex,
@@ -1229,6 +1354,7 @@ export function createBindingAnalysis({
     collectBindingReferences,
     isBindingExportedByName,
     resolveStaticCalleePair,
+    protoSetterCalleeArms,
     classBindingName,
     isClassExported,
     isNewOfClass,

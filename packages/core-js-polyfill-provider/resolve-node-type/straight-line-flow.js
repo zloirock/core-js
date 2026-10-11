@@ -6,20 +6,19 @@
 //
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
-import { nodeAlwaysHardExits } from './exit-analysis.js';
+import { nodeAlwaysHardExits, subtreeLeavesThroughExit } from './exit-analysis.js';
 import {
   bindingLoopAnchor,
   usageCrossesLoopBackEdgeReassign,
   isDeferredContextStep,
-  NESTED_BINDING_INTRODUCERS,
   peelTransparentExpr,
   readRunsDeferredWithin,
   runsAtImmediateInvocation,
   TS_EXPR_WRAPPERS,
   anyWriteOutrunsUse,
   writeIsInOppositeBranch,
+  writeNeverRuns,
 } from '../helpers/ast-patterns.js';
-import { isLoopStatement } from '../destructure-host-shape.js';
 
 // always-evaluated wrappers between assignment and its enclosing statement. spelled out from
 // THAT question rather than borrowed from the IIFE call-path table: the two sets look alike but
@@ -43,49 +42,6 @@ const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
   'LabeledStatement',
 ]);
 
-// shadows an unlabeled `break` / `continue` - the subtree walker tracks whether we are inside one.
-// composed on the canonical loop set rather than re-listing it: this asks a DIFFERENT question,
-// and `switch` is exactly the one non-loop member that answers it too
-function shadowsUnlabeledExit(node) {
-  return isLoopStatement(node) || node.type === 'SwitchStatement';
-}
-
-function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
-  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
-  if (node.type === 'BreakStatement' || node.type === 'ContinueStatement') {
-    // unlabeled inside loop/switch is local; labeled targets a scope above - local
-    // when the label is in our descent path (LabeledStatement we walked through)
-    if (!node.label) return !inLoopOrSwitch;
-    return !labels?.has(node.label.name);
-  }
-  if (node.type === 'ReturnStatement' || node.type === 'ThrowStatement') return true;
-  if (NESTED_BINDING_INTRODUCERS.has(node.type)) return false;
-  const nextInLoop = inLoopOrSwitch || shadowsUnlabeledExit(node);
-  let nextLabels = labels;
-  if (node.type === 'LabeledStatement' && node.label) {
-    nextLabels = new Set(labels);
-    nextLabels.add(node.label.name);
-  }
-  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in node) {
-    const value = node[key];
-    if (Array.isArray(value)) {
-      for (const v of value) if (subtreeContainsExit(v, nextInLoop, nextLabels)) return true;
-    } else if (subtreeContainsExit(value, nextInLoop, nextLabels)) return true;
-  }
-  return false;
-}
-
-// default-entry memo: the sibling scans below re-ask the same statements across queries, and
-// the top-level answer depends only on the node (the loop / label parameters vary only INSIDE
-// the recursion). same per-node staleness contract as the resolver caches
-const subtreeExitCache = new WeakMap();
-function cachedSubtreeContainsExit(node) {
-  let result = subtreeExitCache.get(node);
-  if (result === undefined) subtreeExitCache.set(node, result = subtreeContainsExit(node));
-  return result;
-}
-
 // per-BODY position + first-exit index, built once per statement list: the per-query scan
 // this replaces re-ran `indexOf` plus a linear exit sweep over the same list for every query -
 // O(statements) each, quadratic across a large flat scope. same per-node staleness contract
@@ -97,7 +53,7 @@ function bodyFlowIndex(body) {
   let firstExit = Infinity;
   for (let i = 0; i < body.length; i++) {
     positions.set(body[i], i);
-    if (firstExit === Infinity && cachedSubtreeContainsExit(body[i])) firstExit = i;
+    if (firstExit === Infinity && subtreeLeavesThroughExit(body[i])) firstExit = i;
   }
   index = { positions, firstExit };
   bodyFlowIndexCache.set(body, index);
@@ -156,7 +112,7 @@ function findEnclosingStatement(path, stmtType) {
   return p?.node ? p : null;
 }
 
-// every wrapping statement from startPath up to endNode is in the passthrough set -
+// every wrapping statement from fromPath up to endNode is in the passthrough set -
 // rejects if / switch / loop / try / etc. endNode is the binding's var-scope body (outer)
 // or an IIFE function body (inner during lift). a detached ancestor (stale path) rejects -
 // the straight-line reach cannot be proven through a dead chain.
@@ -165,16 +121,18 @@ function findEnclosingStatement(path, stmtType) {
 // only via the fall-through branch, so its trailing assignment dominates every later
 // position (`if (typeof x === "string") { x = 5; } else throw 0; x.at(0)` - the use
 // always sees 5). climbs from the test slot or from the EXITING branch stay conditional;
-// `else if` chains compose - each level requires its own sibling branch to hard-exit
-function reachesStraightLine(startPath, endNode) {
-  for (let prev = null, p = startPath; p; prev = p, p = p.parentPath) {
+// `else if` chains compose - each level requires its own sibling branch to hard-exit.
+// a branch the build always takes (`armAlwaysTaken(ifPath, branchPath)`) passes the same way.
+// `fromPath` is the child the climb leaves first: an unbraced branch is the statement itself
+function reachesStraightLine(fromPath, endNode, armAlwaysTaken) {
+  for (let prev = fromPath, p = fromPath.parentPath; p; prev = p, p = p.parentPath) {
     if (p.node === endNode) return true;
     if (!p.node) return false;
     if (STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) continue;
     if (p.node.type === 'IfStatement' && prev
       && (prev.node === p.node.consequent || prev.node === p.node.alternate)) {
       const other = prev.node === p.node.consequent ? p.node.alternate : p.node.consequent;
-      if (other && nodeAlwaysHardExits(other)) continue;
+      if ((other && nodeAlwaysHardExits(other)) || armAlwaysTaken(p, prev)) continue;
     }
     return false;
   }
@@ -199,7 +157,15 @@ function dominanceStart(startPath, endNode, fallback) {
   return from;
 }
 
-export function createStraightLineFlow({ t, babelNodeType }) {
+// the finder above, bound to the type layer's node classification and the build's decisions (`decidedLiveNode`,
+// `getDecisionAdapter`): a write in an arm the build never takes precedes nothing
+export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () => null, getDecisionAdapter = () => null }) {
+  // is `branchPath` the arm of the selection `hostPath` - an `if`, a ternary, an `&&` / `||` / `??` -
+  // this build always takes (`decidedLiveNode`)
+  function armAlwaysTaken(hostPath, branchPath) {
+    return decidedLiveNode(hostPath.node, hostPath) === branchPath.node;
+  }
+
   // walk constant-violation up to AssignmentExpression / VariableDeclarator.
   // babel: violation IS the AE / VD. estree-toolkit: violation is LHS Identifier,
   // walk up through Property / ObjectPattern - depth scales with destructure nesting
@@ -258,11 +224,12 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return false;
   }
 
-  // every wrapper from `path` up to `stmt` (exclusive) is always-evaluating.
+  // every wrapper from `path` up to `stmt` (exclusive) is always-evaluating, or a selection whose arm
+  // the climb leaves is the one this build always takes, as `reachesStraightLine` reads an `if`.
   // catches `false && (x = 'hi')`, `cond ? (x = 'hi') : 0`, `flag ||= (x = 'hi', flag)`
   function isStraightLineExpressionChain(path, stmt) {
-    for (let cur = path.parentPath; cur && cur.node !== stmt.node; cur = cur.parentPath) {
-      if (!isAlwaysEvaluatingWrapper(cur.node)) return false;
+    for (let child = path, cur = path.parentPath; cur && cur.node !== stmt.node; child = cur, cur = cur.parentPath) {
+      if (!isAlwaysEvaluatingWrapper(cur.node) && !armAlwaysTaken(cur, child)) return false;
     }
     return true;
   }
@@ -273,7 +240,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // var-scope and return / throw / break / continue inside IIFE body
   function passesStraightLineCheck(effectiveAp, endNode, wrapStmtType) {
     const stmt = findEnclosingStatement(effectiveAp, wrapStmtType);
-    if (!stmt || !reachesStraightLine(stmt.parentPath, endNode)) return false;
+    if (!stmt || !reachesStraightLine(stmt, endNode, armAlwaysTaken)) return false;
     if (!precedingSiblingsExitFree(stmt, endNode)) return false;
     return isStraightLineExpressionChain(effectiveAp, stmt);
   }
@@ -427,11 +394,13 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     const chosen = sortedAssigns[idx];
     // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
     // the chosen assignment and the use can overwrite it at runtime, except in the opposite arm
-    // of the same conditional - otherwise degrade to the generic / union path
+    // of the same conditional or in an arm the build never takes - otherwise degrade to the generic
+    // / union path
+    const adapter = getDecisionAdapter();
     for (const v of violations) {
       const vStart = v.node?.start;
       if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos
-        && !writeIsInOppositeBranch(v.node, usagePath)) return null;
+        && !writeIsInOppositeBranch(v.node, usagePath) && !writeNeverRuns({ write: v.node, usagePath, adapter })) return null;
     }
     return chosen.ap;
   }

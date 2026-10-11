@@ -1,5 +1,6 @@
 // A spread owns its property/iterator reads. The discard and placement decisions must
-// agree on that evaluation while quiet literals retain the ordinary lifted-slot route.
+// agree on that evaluation while quiet literals retain the ordinary lifted-slot route,
+// and the husk they leave is dead only once every leaf it binds is a minted sentinel.
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
@@ -29,6 +30,25 @@ for (const [name, init, runs, rescues] of [
     check(`${ label }/husk`, residualHuskIsDead({
       pattern: path.node.id, init: path.node.init, isSentinel: node => node.name === '_unused', ...ctx,
     }), !rescues);
+  });
+}
+
+// the pattern half of the husk: a live user name - at any level - or a rest keeps it, in both dialects
+// (babel spells a destructure property `ObjectProperty`, estree `Property`: a walk blind to one of them
+// dropped a live user binding with the residual)
+for (const [name, pattern, dead] of [
+  ['live name', '{ at: kept }', false],
+  ['all sentinels', '{ at: _unused, keys: _unused2 }', true],
+  ['nested live name', '{ inner: { at: kept } }', false],
+  ['nested sentinel', '{ inner: { at: _unused } }', true],
+  ['rest beside a sentinel', '{ at: _unused, ...rest }', false],
+]) {
+  runBoth(`husk pattern/${ name }`, `const ${ pattern } = quiet;`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+    check(label, residualHuskIsDead({
+      pattern: path.node.id, init: path.node.init, isSentinel: node => node.name.startsWith('_unused'), scope: path.scope, adapter, path,
+    }), dead);
   });
 }
 

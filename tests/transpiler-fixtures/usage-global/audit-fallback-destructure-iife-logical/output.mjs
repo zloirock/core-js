@@ -1,6 +1,5 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
@@ -21,11 +20,9 @@ import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.iterator.windows";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// IIFE wrapping a LogicalExpression `&&` fallback shape: `(() => Array && Iterator)()`.
-// distinct branch shape from ConditionalExpression, resolved recursively after the IIFE
-// peels. `&&` is always conditional (right taken only when left is truthy, else falsy
-// left), so when the two sides resolve to different objects both must contribute: Array.from
-// and Iterator.from emitted via per-branch enumeration.
+// IIFE wrapping a LogicalExpression `&&`: `(() => Array && Iterator)()`, resolved after the IIFE peels. its
+// left is a global the build serves, so it always passes and the IIFE yields its right: `Iterator.from` is
+// injected and the left names no static
 const {
   from
 } = (() => Array && Iterator)();

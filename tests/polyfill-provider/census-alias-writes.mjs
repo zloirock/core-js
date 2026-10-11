@@ -80,15 +80,76 @@ const rows = [
   ['unused pattern member head stays local', 'function expose() { const box = {}; for ({ value: box.value } of [{ value: Map }]) {} }', false],
   ['member head static is held only in pure', 'function expose() { const box = {}; for (box.value of [Map]) {} box.value.groupBy([], x => x); }', true, false, false],
   // a slot write through a plain alias lands on the container its source holds - and the alias class
-  // ties bindings, so namesakes in other functions bridge nothing
+  // ties bindings, so namesakes in other functions bridge nothing. an alias of a parameter writes into
+  // the object a caller passes, which pure keeps as it keeps a write spelled through the parameter, while
+  // the global flavor sees no escape through the namesake handout
   ['write through an alias reaches its source', 'function expose() { const o = {}; const a = o; a.g = Map; hand(o); }'],
   [
     'namesakes bridge no alias class',
     'function f(p) { const q = p; return q; } function g(q) { const r = q; r.g = Map; } function expose(p) { hand(p); }',
+    true,
+    false,
+    false,
+  ],
+  [
+    'namesake locals bridge no alias class',
+    'function f(p) { const q = p; return q; } function g() { const q = {}; const r = q; r.g = Map; } function expose(p) { hand(p); }',
     false,
   ],
   // ... a parameter records no value of its own, and its declaration still makes it a binding apart
-  ['namesake parameters bridge no alias class', 'function install(p) { const q = p; q.g = Map; } function expose(p) { hand(p); }', false],
+  ['namesake parameters bridge no alias class', 'function install(p) { const q = p; q.g = Map; } function expose(p) { hand(p); }', true, false, false],
+  // a write through an alias takes the verdict of the name it lands under: an object no declaration of
+  // this file reaches hands the value out, a container read back keeps it, one nothing reads drops it
+  ['write through an alias of an export object escapes', 'var e = module.exports; e.store = Map;'],
+  ['write through an alias of an alias of a global member escapes', 'const v = sink.inner; const w = v; w.store = Map;'],
+  ['unknown-key write through a member-path alias is kept by the read', 'const box = { inner: {} }; const b = box.inner; b[k] = Map; void box.inner.g;', true, false, false],
+  ['unknown-key write through a plain alias is kept by the read', 'const box = {}; const b = box; b[k] = Map; void box.g;', true, false, false],
+  ['write through an alias of a container nothing reads stays local', 'const box = {}; const b = box; b.g = Map;', false],
+  // a write through a selection arm, a member path or a pattern binding unseats the constructor the container's
+  // slot holds whatever it stores, so pure keeps the statics read back off that slot; another key unseats nothing.
+  // a container stored that way hands its constructors out with its host
+  [
+    'write through an arm unseats the constructor the slot holds',
+    'const box = { C: Map }; const spare = {}; const via = c ? box : spare; via.C = user; box.C.groupBy([], x => x);',
+    true,
+    false,
+    false,
+  ],
+  [
+    'write through a member path unseats the constructor the slot holds',
+    'const box = { inner: { C: Map } }; const v = box.inner; v.C = Object; box.inner.C.groupBy([], x => x);',
+    true,
+    false,
+    false,
+  ],
+  [
+    'write through a pattern binding unseats the constructor the slot holds',
+    'const box = { inner: { C: Map } }; const { inner: v } = box; v.C = user; box.inner.C.groupBy([], x => x);',
+    true,
+    false,
+    false,
+  ],
+  [
+    'write through an arm holding a plain alias unseats the constructor the slot holds',
+    'const box = { C: Map }; const alias = box; const spare = {}; const via = c ? alias : spare; via.C = user; box.C.groupBy([], x => x);',
+    true,
+    false,
+    false,
+  ],
+  [
+    'write through an arm under another key leaves the slot served',
+    'const box = { C: Map }; const spare = {}; const via = c ? box : spare; via.D = user; box.C.groupBy([], x => x);',
+    false,
+  ],
+  [
+    'container written through an arm hands its constructors out with its host',
+    'const box = {}; const spare = {}; const via = c ? box : spare; via.C = { D: Map }; hand(box);',
+  ],
+  [
+    'container written through an arm of a host nothing reads stays local',
+    'const box = {}; const spare = {}; const via = c ? box : spare; via.C = { D: Map };',
+    false,
+  ],
 ];
 const orders = [
   () => [escapedCtorReferencesReducer()],

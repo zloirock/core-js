@@ -47,7 +47,7 @@ import {
   isDeleteTarget,
 } from '../helpers/ast-patterns.js';
 import { isPrivateMemberNode, moduleStatements } from './ast-shapes.js';
-import { isLoopStatement } from '../destructure-host-shape.js';
+import { isLoopStatement } from './exit-analysis.js';
 import { $Object, $Primitive, nodeRangeContains } from './base.js';
 
 // Index key for a dynamic computed `this[expr]` write in a receiver body.

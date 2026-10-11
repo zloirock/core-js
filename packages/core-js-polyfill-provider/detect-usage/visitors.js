@@ -21,16 +21,16 @@ import {
 import { agreeingTernaryArm, resolveObjectName } from './resolve.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
 import {
+  assignmentValueDiscarded,
   canonQuestionScope,
   destructureReceiverNode,
   hasObjectRestAncestor,
   ownRelocatedHeadElement,
   hasRestSiblingExcept,
-  isCalleeReference,
-  isMemberAccessNode,
   isTypeAnnotationNodeType,
+  pathValueSlot,
   patternSlotTarget,
-  peelParenAndTSParentPath,
+  SKIPPABLE_WRAPPER_TYPES,
   typeDeclarationUnreferencedInFile,
   unwrapParens,
   unwrapRuntimeExpr,
@@ -38,19 +38,9 @@ import {
   withCanonQuestion,
 } from '../helpers/ast-patterns.js';
 
-// does the operand a dead selection folds to need `(0, operand)` to stay the VALUE the selection
-// yielded in its `slot` (`deadBranchOf`): a member as a callee or a tag would bind `this` to its
-// object and as a `delete` operand would delete; a bare name as a `delete` operand is a strict-mode
-// error and as a `typeof` operand stops throwing
-export function foldedOperandNeedsValue(operand, slot) {
-  const inner = unwrapRuntimeExpr(operand);
-  if (isMemberAccessNode(inner)) return slot === 'callee' || slot === 'delete';
-  return inner?.type === 'Identifier' && (slot === 'delete' || slot === 'typeof');
-}
-
 export function createUsageHandlerCore({
   adapter,
-  onUsage,
+  onUsage: reportUsage,
   method,
   isEntryAvailable,
   resolveMeta,
@@ -62,7 +52,14 @@ export function createUsageHandlerCore({
   keptProxyHops = null,
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
+  // told of a usage-pure claim standing where its value is discarded: its render may perform nothing
+  // there, so the emitter's leave walk has to run (`renderPerformsNothing`)
+  onDiscardedClaim = null,
 }) {
+  function onUsage(meta, path) {
+    if (onDiscardedClaim && method === 'usage-pure' && assignmentValueDiscarded(path, SKIPPABLE_WRAPPER_TYPES)) onDiscardedClaim();
+    reportUsage(meta, path);
+  }
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
@@ -95,7 +92,7 @@ export function createUsageHandlerCore({
     // a name the file BINDS is that binding's, wherever the declaration sits: the sloppy host is a
     // CommonJS wrapper, so a top-level `var` binds afresh like every other one and a self-reference
     // (`var X = X`) reads the hoisted undefined rather than the realm
-    if (adapter.hasBinding(path.scope, node.name, path)) return;
+    if (adapter.hasBinding({ scope: path.scope, name: node.name, path })) return;
     // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
     onUsage({ kind: 'global', name: node.name }, path);
@@ -139,13 +136,17 @@ export function createUsageHandlerCore({
   function holdsUnboundGlobal(dead, path) {
     let holds = false;
     walkAstNodes({ root: dead, visit(node) {
-      holds ||= node.type === 'Identifier' && isKnownGlobalName(node.name) && !adapter.hasBinding(path.scope, node.name, path);
+      holds ||= node.type === 'Identifier' && isKnownGlobalName(node.name) && !adapter.hasBinding({
+        scope: path.scope,
+        name: node.name,
+        path,
+      });
       return !holds;
     } });
     return holds;
   }
 
-  // the reference slots outer folds hand down, by the selection each puts there (`deadBranchOf`)
+  // the slots outer folds hand down, by the selection each puts there (`deadBranchOf`)
   const inheritedSlots = new WeakMap();
 
   // the question scope a selection level asked in (`withCanonQuestion`), held for the visit of its left
@@ -168,21 +169,12 @@ export function createUsageHandlerCore({
     };
   }
 
-  // the slot a selection fills where its parent reads a REFERENCE through it - `callee` for a call's
-  // callee or a template's tag (`this`), `delete` / `typeof` for that operator's operand - else null
-  function referenceSlot(path) {
-    const parent = peelParenAndTSParentPath(path)?.node;
-    if ((parent?.type !== 'NewExpression' && isCalleeReference(parent, path.node))
-      || (parent?.type === 'TaggedTemplateExpression' && unwrapRuntimeExpr(parent.tag) === path.node)) return 'callee';
-    return parent?.type === 'UnaryExpression' && (parent.operator === 'delete' || parent.operator === 'typeof') ? parent.operator : null;
-  }
-
   // the part of a user selection this build never evaluates, asked by each emitter's visitor of a
   // `||` / `??` / `&&`, a conditional and an `if`: `{ skip, fold, slot }` - `skip` the key of the
   // operand that never runs (null where only the test is dead text, or the `if` has no such branch),
   // `fold` what usage-pure replaces the selection with once the claims rendered (an operand key, or
   // `true` / `false` for the value a decided test yields), null where the selection keeps its text,
-  // and `slot` the reference slot it folds in (`foldedOperandNeedsValue`) - or null
+  // and `slot` the slot it folds in (`pathValueSlot`, read by `foldedOperandNeedsValue`) - or null
   function deadBranchOf(path) {
     const scope = method === 'usage-pure' ? levelQuestionScope(path.node) : null;
     // an `if` only where nothing is rewritten: usage-pure has no fold for a statement yet, and a dead
@@ -192,7 +184,7 @@ export function createUsageHandlerCore({
     if (!dead) return null;
     const skipped = dead.skip && path.node[dead.skip];
     const folds = method === 'usage-pure' && (dead.substituted || (skipped && holdsUnboundGlobal(skipped, path)));
-    const slot = folds ? inheritedSlots.get(path.node) ?? referenceSlot(path) : null;
+    const slot = folds ? inheritedSlots.get(path.node) ?? pathValueSlot(path) : null;
     // the operand a fold puts where the selection stood fills its slot: a selection there folds for it
     if (slot && typeof dead.fold === 'string') inheritedSlots.set(unwrapRuntimeExpr(path.node[dead.fold]), slot);
     return { skip: skipped ? dead.skip : null, fold: folds ? dead.fold : null, slot };

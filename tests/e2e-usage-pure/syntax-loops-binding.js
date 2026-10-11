@@ -359,6 +359,21 @@ QUnit.test('loop: inner-scope shadow keeps the polyfill on each value', assert =
   assert.same(x.at(-1), 3);
 });
 
+/* eslint-disable no-var, block-scoped-var -- a body `var` the loop head reads is the form under test */
+QUnit.test('loop: a head reads the var its body declares', assert => {
+  const seen = [];
+  for (var i = 0; i < 2; seen.push(last.at(-1)), i++) {
+    var last = [i, `pass${ i }`];
+  }
+  let n = 0;
+  while (n++ < 1 || tail.at(-1) !== 'done') {
+    var tail = ['start', 'done'];
+  }
+  seen.push(tail.at(0));
+  assert.deepEqual(seen, ['pass0', 'pass1', 'start']);
+});
+/* eslint-enable no-var, block-scoped-var -- the rest of the module keeps these rules */
+
 // --- for-of / for-in over polyfill-built collections ---
 
 QUnit.test('loop: for-of with object-destructure head over polyfilled entries', assert => {
@@ -811,4 +826,20 @@ QUnit.test('syntax loops: a member target in a for-of head reads the element key
   const target = {};
   for ({ groupBy: target.fn } of [Map, { groupBy: 7 }]) seen.push(typeof target.fn);
   assert.deepEqual(seen, ['function', 'number']);
+});
+
+// an alias reads its source where it is declared, so a `var` of the same name in a block of a function
+// the use stands in - hoisted to that function, not to the alias - leaves the alias on the global
+QUnit.test('syntax loops: an alias of a global stays put past a nested var of its name', assert => {
+  const B = Array;
+  function made(redeclare) {
+    if (redeclare) {
+      // eslint-disable-next-line no-var, sonarjs/prefer-immediate-return -- the nested var is the case under test
+      var Array = 'local';
+      return Array;
+    }
+    return B.from('ab');
+  }
+  assert.deepEqual(made(false), ['a', 'b']);
+  assert.same(made(true), 'local');
 });

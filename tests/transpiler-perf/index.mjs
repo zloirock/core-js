@@ -1,12 +1,12 @@
 // Transpiler performance gates: REAL large single-scope bundles (three.js builds, pinned in
 // THIS directory's package.json - zxi installs it) plus a synthetic reassignment-heavy
-// stress, through BOTH emitters in
-// usage-global mode. The bounds are complexity-CLASS discriminators with wide headroom - a
-// quadratic scope / flow-analysis regression overshoots them on any machine, ordinary machine
-// variance does not. The synthetic deliberately maximizes WRITTEN top-level names: real
-// bundles rarely reassign at that density, and quadratic roots in the reassignment / flow
-// machinery are invisible on three.js yet catastrophic on this shape. Each transform also
-// asserts an injection happened, so a detection-dead run cannot pass vacuously fast.
+// stress, through BOTH emitters in every mode a case's bounds name. The bounds are
+// complexity-CLASS discriminators with wide headroom - a quadratic scope / flow-analysis
+// regression overshoots them on any machine, ordinary machine variance does not. The
+// synthetic deliberately maximizes WRITTEN top-level names: real bundles rarely reassign at
+// that density, and quadratic roots in the reassignment / flow machinery are invisible on
+// three.js yet catastrophic on this shape. Each transform also asserts an injection
+// happened, so a detection-dead run cannot pass vacuously fast.
 //
 // A case's `source()` may also return an ARRAY of module sources, transformed one-by-one the way
 // a bundler feeds them. Those cases gate the PER-CALL axis: everything above pays setup once on a
@@ -23,7 +23,6 @@ const { readdir, readFile } = fs;
 const { dirname, join } = path;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MODES = ['usage-global', 'usage-pure'];
 const SAMPLES = argv.samples ?? 3;
 if (!Number.isSafeInteger(SAMPLES) || SAMPLES < 1) {
   throw new Error('--samples must be a positive integer');
@@ -59,11 +58,22 @@ function syntheticGuardDense(names) {
 // and the write set grows with the statement list those scans walk: a per-write walk of the
 // preceding siblings, or a per-use re-derivation of the write set, is CUBIC in the statement count
 // on this shape while staying flat on every other case here. real bundles carry the shape as a
-// long-lived reassigned accumulator read throughout a module
-function syntheticWriteDenseBinding(uses) {
+// long-lived reassigned accumulator read throughout a module. the writes stop at the write ceiling
+// (`writesPastCeiling` in the provider), the most a read follows: past it the binding is not followed
+// at all, which the next case measures
+function syntheticWriteDenseBinding(uses, writes) {
   const parts = ['let w = [0];', "if (typeof w !== 'object') throw new Error('x');"];
   for (let i = 0; i < uses; i++) parts.push(`w.at(${ i });`);
-  for (let i = 0; i < uses; i++) parts.push(`w = [${ i }];`);
+  for (let i = 0; i < writes; i++) parts.push(`w = [${ i }];`);
+  return parts.join('\n');
+}
+
+// ONE binding written past the write ceiling, each write behind a guard and destructuring a realm member, and
+// each followed by a static read through the binding: every analysis a read asks walked all the writes, quadratic
+// in them on every lane, until a binding written more often than a read follows was not followed at all
+function syntheticWrittenPastTheCeiling(writes) {
+  const parts = ['let M;'];
+  for (let i = 0; i < writes; i++) parts.push('c && ({ Map: M } = globalThis);', `export const r${ i } = M.groupBy([${ i }], pick);`);
   return parts.join('\n');
 }
 
@@ -132,7 +142,8 @@ function syntheticArraySlotReads(size) {
 }
 
 // Hold source length and use count steady while the number of distinct entries grows.
-// Repeating one method cannot expose a prune pass that scans the body once per entry.
+// Repeating one method cannot expose a prune pass that scans the body once per entry. Each read is consumed:
+// a bare `Array.from;` renders to a minted import that performs nothing, and that statement leaves with it
 const STATIC_READS = [
   'Array.from', 'Array.of', 'Object.assign', 'Object.entries', 'Object.values',
   'Object.fromEntries', 'Object.hasOwn', 'Object.groupBy', 'Map.groupBy', 'String.raw',
@@ -143,7 +154,7 @@ const STATIC_READS = [
   'Math.sign', 'Math.sinh',
 ];
 function syntheticImportWidth(width) {
-  return Array.from({ length: 4096 }, (unused, index) => `${ STATIC_READS[index % width] };`).join('\n');
+  return Array.from({ length: 4096 }, (unused, index) => `sink(${ STATIC_READS[index % width] });`).join('\n');
 }
 
 function syntheticUnionWidth(width) {
@@ -231,6 +242,39 @@ function syntheticNamesakeMethods(classes) {
 // the synthetic lines `line(i)` spells for every i below `count`, one per line
 function syntheticLines(count, line) {
   return Array.from({ length: count }, (_, i) => line(i)).join('\n');
+}
+
+// Selections that each tie the next one in only once their own class stores a constructor, plainly and
+// through member paths: drawing the alias classes again per tie, or checking every pending selection
+// again per round, is cubic in the chain on this shape and invisible on every other one here
+function syntheticSelectionChains(links) {
+  return [
+    'const box = {};',
+    syntheticLines(links, i => `var s${ i } = c ? a${ i } : s${ i + 1 };`),
+    syntheticLines(links, i => `var q${ i } = box.k${ i }; var t${ i } = c ? q${ i } : t${ i + 1 };`),
+    's0.C = Map;',
+    't0.C = Map;',
+    'Array.from([1]);',
+  ].join('\n');
+}
+
+// Minified namesakes: every function spells a cursor off its parameter, one stores a constructor through
+// it, and the escape census shares the writes of one spelling. copying the shared writes under every
+// cursor's path is quadratic in the functions, and a cursor tied back to the parameter makes every path
+// pass through every other one
+function syntheticNamesakePaths(functions) {
+  return [
+    syntheticLines(functions, i => `function f${ i }(e) { var t = e.x; t.y${ i } = ${ i }; return t; }`),
+    syntheticLines(functions, i => `function h${ i }(e) { var u = e.x; u = e; u.y${ i } = ${ i }; return u; }`),
+    'function g(e) { var t = e.x; t.P = Map; var u = e.x; u.P = Map; return [t, u]; }',
+    'Array.from([1]);',
+  ].join('\n');
+}
+
+// Member paths of one hub, each alias also tied back to the hub: one class holds every path's root, and
+// filing through every alias of that class from every other one is quadratic in the aliases
+function syntheticHubTies(aliases) {
+  return ['var hub = {};', syntheticLines(aliases, i => `var p${ i } = hub.k${ i }; p${ i } = hub;`), 'p0.C = Map;', 'Array.from([1]);'].join('\n');
 }
 
 // A pattern read of every slot a file wrote: each guard the reads render attaches a subtree, and the
@@ -389,8 +433,9 @@ async function packageModules(...directories) {
 const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', '@lezer/lr/dist',
   '@lezer/highlight/dist', '@lezer/javascript/dist'];
 
-// bounds are per (mode, emitter), set at ~3x the measured wall time of a healthy run on the reference
-// machine, rounded UP to a whole second (re-derive the same way after intentional perf work)
+// bounds are per (mode, emitter) - a case runs in exactly the modes they name - set at ~3x the measured wall
+// time of a healthy run on the reference machine, rounded UP to a whole second (re-derive the same way after
+// intentional perf work)
 // Slow synthetics target ~0.3s in their fastest lane; the same rule sets every other lane's bound.
 // usage-pure REWRITES every detected use, so its budgets run higher than the injection-only usage-global ones.
 // `injections` is the vacuous-run floor - how many modules must inject. Single-source cases need their one;
@@ -400,7 +445,7 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 const CASES = [
   ...['three.core.js', 'three.module.js'].map(file => ({
     name: `entry-global ${ file }`, source: async () => `import 'core-js/actual';\n${ await threeBuild(file) }`,
-    modes: ['entry-global'], bounds: { 'entry-global': { babel: 1, unplugin: 1 } },
+    bounds: { 'entry-global': { babel: 1, unplugin: 1 } },
   })),
   { name: 'rxjs pre+post, shared snapshot lifecycle', source: () => packageModules('rxjs/dist/esm'),
     emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
@@ -445,6 +490,15 @@ const CASES = [
   { name: 'synthetic namesake methods, 1300 classes', source: () => syntheticNamesakeMethods(1300), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
+  { name: 'synthetic selection chains, 1000 links each', source: () => syntheticSelectionChains(1000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic namesake member paths, 500 functions of each spelling', source: () => syntheticNamesakePaths(500), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic hub ties, 1000 aliases', source: () => syntheticHubTies(1000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
   { name: 'synthetic written slot reads, 1000 slots', source: () => syntheticWrittenSlotReads(1000), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
@@ -487,8 +541,11 @@ const CASES = [
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
-  { name: 'synthetic write-dense binding, 600 uses', source: () => syntheticWriteDenseBinding(600), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  { name: 'synthetic write-dense binding, 900 uses of 64 writes', source: () => syntheticWriteDenseBinding(900, 64), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic binding written past the write ceiling, 900 writes and reads', source: () => syntheticWrittenPastTheCeiling(900), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
@@ -573,14 +630,23 @@ function createTransform(emitter, mode, ts, phase = 'pre', compact = 'auto') {
 }
 
 let failed = 0;
-for (const { name, source, ts = false, injections = 1, entries = 0, bounds,
-  modes = MODES, emitters = ['babel', 'unplugin'], phase, compact } of CASES) {
+for (const {
+  name,
+  source,
+  ts = false,
+  injections = 1,
+  entries = 0,
+  bounds,
+  emitters = ['babel', 'unplugin'],
+  phase,
+  compact,
+} of CASES) {
   const input = await source();
   // single-source cases are just a one-module list; multi-module ones gate the per-call axis
   const modules = Array.isArray(input) ? input : [input];
   const bytes = modules.reduce((total, module) => total + Buffer.byteLength(module), 0);
   const size = bytes < 1024 ? `${ cyan(bytes) } B` : `${ cyan((bytes / 1024).toFixed(1)) } KiB`;
-  for (const mode of modes) {
+  for (const [mode, modeBounds] of Object.entries(bounds)) {
     for (const emitter of emitters) {
       const transform = createTransform(emitter, mode, ts, phase, compact);
       const samples = [];
@@ -608,7 +674,7 @@ for (const { name, source, ts = false, injections = 1, entries = 0, bounds,
       const seconds = SAMPLES % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
       const injectionFloor = typeof injections === 'number' ? injections : injections[mode];
       const detected = injected >= injectionFloor && distinctEntries >= entries;
-      const bound = bounds[mode][emitter] ?? bounds[mode].unplugin;
+      const bound = modeBounds[emitter] ?? modeBounds.unplugin;
       const ok = detected && seconds < bound;
       if (!ok) failed++;
       // Highlight the failing datum: the verdict alone does not identify an over-bound time

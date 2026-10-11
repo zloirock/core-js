@@ -11,6 +11,7 @@ import './positional-element-types.mjs';
 import './flow-class-members.mjs';
 import './class-flow-order.mjs';
 import './field-union-hints.mjs';
+import './prototype-install-receivers.mjs';
 import './written-function-calls.mjs';
 import './container-navigation-opaque-values.mjs';
 import './container-alias-alternatives.mjs';
@@ -29,6 +30,15 @@ import './retained-getter-locals.mjs';
 import './retained-return-paths.mjs';
 import './selected-realm-receivers.mjs';
 import './proxy-chain-complexity.mjs';
+import './alias-chain-depth.mjs';
+import './wrapper-chain-depth.mjs';
+import './destructure-chain-complexity.mjs';
+import './census-never-run-writes.mjs';
+import './census-settling-complexity.mjs';
+import './self-reading-writes-complexity.mjs';
+import './narrowed-settling-complexity.mjs';
+import './write-ceiling.mjs';
+import './written-binding-complexity.mjs';
 import './served-reads.mjs';
 import './member-context-paths.mjs';
 import './ast-input-context.mjs';
@@ -76,6 +86,8 @@ import './holder-receiver-body-channels.mjs';
 import './mutation-return-channels.mjs';
 // ... and the mutation gate's alias closure cost, counted in global-object probes on namesake alias chains
 import './mutation-gate-complexity.mjs';
+// ... and the escape census' alias classes, counted in reads of the selections a chain of them spells
+import './alias-class-complexity.mjs';
 // the escape STAMP's node identity: the census writes a stamp and the pure claim reads one, and a
 // spelling only one half knows is a silently dropped widening, not a failure
 import './escaped-ctor-stamp.mjs';

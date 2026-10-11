@@ -3,7 +3,6 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 import { createUsageGlobalCallback } from '../../packages/core-js-polyfill-provider/plugin-options/usage-callback.js';
 import {
-  enclosingParameterListOwner,
   findNearestVarScopeOwner,
   findTSRuntimeBindingInPath,
   isForXWriteTarget,
@@ -12,6 +11,7 @@ import {
   nonEmittedExpressionAncestor,
   staticMemberKeyName,
   withTraversalCaches,
+  withVarScopeOwners,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -21,23 +21,23 @@ const nav = `globalThis${ '.self'.repeat(16) }.Map`;
 // These are syntax-position questions, including type keys that TS rejects on type grounds.
 // The parser accepts them; an erased interface key must not become a runtime reference.
 const rows = [
-  ['program', `${ nav };`, false, false, false, 'Program'],
-  ['body', `function f() { enum Map { A } return ${ nav }; }`, false, true, false, 'FunctionDeclaration'],
-  ['parameter', `function f(x = ${ nav }) { enum Map { A } }`, false, false, true, 'FunctionDeclaration'],
-  ['computed field', `class C { [${ nav }] = 1; }`, false, false, false, 'Program'],
-  ['interface', `interface I { [${ nav }]: number }`, true, false, false, 'Program'],
-  ['type literal', `type T = { [${ nav }]: number };`, true, false, false, 'Program'],
-  ['static block', `class C { static { enum Map { A } ${ nav }; } }`, false, true, false, 'StaticBlock'],
-  ['method key', `class C { [${ nav }]() { enum Map { A } } }`, false, false, false],
-  ['object key', `const o = { [${ nav }]() { enum Map { A } } };`, false, false, false],
-  ['method decorator', `class C { @dec(${ nav }) m() { enum Map { A } } }`, false, false, false],
-  ['parameter property', `class C { constructor(private Map: number) { ${ nav }; } }`, false, true, false],
-  ['computed function', `host[(() => { enum Map { A } return ${ nav }; })()].tail;`, false, true, false, 'ArrowFunctionExpression'],
-  ['type cast', `const x = (${ nav } as any).self;`, false, false, false, 'Program'],
+  ['program', `${ nav };`, false, false, 'Program'],
+  ['body', `function f() { enum Map { A } return ${ nav }; }`, false, true, 'FunctionDeclaration'],
+  ['parameter', `function f(x = ${ nav }) { enum Map { A } }`, false, false, 'FunctionDeclaration'],
+  ['computed field', `class C { [${ nav }] = 1; }`, false, false, 'Program'],
+  ['interface', `interface I { [${ nav }]: number }`, true, false, 'Program'],
+  ['type literal', `type T = { [${ nav }]: number };`, true, false, 'Program'],
+  ['static block', `class C { static { enum Map { A } ${ nav }; } }`, false, true, 'StaticBlock'],
+  ['method key', `class C { [${ nav }]() { enum Map { A } } }`, false, false],
+  ['object key', `const o = { [${ nav }]() { enum Map { A } } };`, false, false],
+  ['method decorator', `class C { @dec(${ nav }) m() { enum Map { A } } }`, false, false],
+  ['parameter property', `class C { constructor(private Map: number) { ${ nav }; } }`, false, true],
+  ['computed function', `host[(() => { enum Map { A } return ${ nav }; })()].tail;`, false, true, 'ArrowFunctionExpression'],
+  ['type cast', `const x = (${ nav } as any).self;`, false, false, 'Program'],
 ];
 
 for (const parser of adapters) {
-  for (const [name, source, erased, bound, parameter, owner] of rows) {
+  for (const [name, source, erased, bound, owner] of rows) {
     const program = parser.parseAndScope(source, 'module', ['decorators']);
     const paths = parser.collectPaths(program, 'MemberExpression', path => path.node.property.name === 'Map');
     check(`${ parser.name }/${ name }/one probe`, paths.length, 1);
@@ -45,7 +45,6 @@ for (const parser of adapters) {
     for (let pass = 0; pass < 2; pass++) {
       check(`${ parser.name }/${ name }/${ pass }/type context`, isTSTypeOnlyIdentifierPath(path), erased);
       check(`${ parser.name }/${ name }/${ pass }/TS binding`, findTSRuntimeBindingInPath(path, 'Map'), bound);
-      check(`${ parser.name }/${ name }/${ pass }/parameter`, !!enclosingParameterListOwner(path), parameter);
       if (owner) check(`${ parser.name }/${ name }/${ pass }/var owner`, findNearestVarScopeOwner(path)?.node.type, owner);
       // Every inner member has the same surroundings, including computed keys.
       const inner = path.get('object');
@@ -140,6 +139,64 @@ for (const parser of adapters) {
     });
   }
 
+  // The nearest var-scope owner is kept per path for a walk: a second ask climbs nothing, and a later
+  // ask outside the walk climbs again. A read-only walk keeps it with its other caches, a rewriting
+  // walk whose parser keys a path by its parent path keeps it alone (`withVarScopeOwners`)
+  for (const scoped of ['read-only', 'rewriting']) {
+    const program = parser.parseAndScope('function f() { use(value.self.at); }');
+    const inner = parser.pickPath(program, 'Identifier', path => path.node.name === 'value');
+    let climbs = 0;
+    const { parentPath } = inner;
+    Object.defineProperty(inner, 'parentPath', {
+      configurable: true,
+      get() {
+        climbs++;
+        return parentPath;
+      },
+    });
+    const walk = scoped === 'read-only' ? visit => withTraversalCaches(true, visit) : withVarScopeOwners;
+    let kept = 0;
+    walk(() => {
+      check(`${ parser.name }/${ scoped }/owner`, findNearestVarScopeOwner(inner)?.node.type, 'FunctionDeclaration');
+      kept = climbs;
+      checkTruthy(`${ parser.name }/${ scoped }/owner climbed`, kept > 0);
+      check(`${ parser.name }/${ scoped }/owner kept`, findNearestVarScopeOwner(inner)?.node.type, 'FunctionDeclaration');
+      check(`${ parser.name }/${ scoped }/no second climb`, climbs, kept);
+    });
+    findNearestVarScopeOwner(inner);
+    checkTruthy(`${ parser.name }/${ scoped }/released with the walk`, climbs > kept);
+  }
+
+  // ... which holds while the walk rewrites: a render moving a subtree into a new activation (a memo
+  // IIFE) puts a call in the position, and the moved subtree is reached through NEW paths - the old
+  // path answers what a climb from it answers, the new one its activation
+  {
+    const program = parser.parseAndScope('function f() { use(value.self.at); }');
+    const inner = parser.pickPath(program, 'Identifier', path => path.node.name === 'value');
+    withVarScopeOwners(() => {
+      check(`${ parser.name }/rewriting/owner before the move`, findNearestVarScopeOwner(inner)?.node.type, 'FunctionDeclaration');
+      const call = parser.pickPath(program, 'CallExpression');
+      call.replaceWith({
+        type: 'CallExpression',
+        callee: {
+          type: 'ArrowFunctionExpression',
+          params: [],
+          async: false,
+          expression: false,
+          generator: false,
+          body: { type: 'BlockStatement', body: [{ type: 'ReturnStatement', argument: call.node }], directives: [] },
+        },
+        arguments: [],
+        optional: false,
+      });
+      const live = parser.pickPath(program, 'Identifier', path => path.node.name === 'value');
+      check(`${ parser.name }/rewriting/moved node reached through a new path`, live !== inner, true);
+      check(`${ parser.name }/rewriting/moved node owner`, findNearestVarScopeOwner(live)?.node.type, 'ArrowFunctionExpression');
+      check(`${ parser.name }/rewriting/old path owner`, findNearestVarScopeOwner(inner)?.node.type, 'FunctionDeclaration');
+    });
+    check(`${ parser.name }/rewriting/old path climbed afresh`, findNearestVarScopeOwner(inner)?.node.type, 'FunctionDeclaration');
+  }
+
   // Import-equals names share one statement index, including repeated misses.
   // Count yielded source statements after parsing so native scope setup is outside the budget.
   for (const size of [32, 128]) {
@@ -156,8 +213,8 @@ for (const parser of adapters) {
     };
     const adapter = createEstreeAdapter({ method: 'usage-global' });
     for (let i = 0; i < size; i++) {
-      check(`${ parser.name }/indexed import ${ i }`, adapter.getTSImportEqualsNode(path.scope, `g${ i }`, path)?.id.name, `g${ i }`);
-      check(`${ parser.name }/indexed miss ${ i }`, adapter.getTSImportEqualsNode(path.scope, `missing${ i }`, path), null);
+      check(`${ parser.name }/indexed import ${ i }`, adapter.getTSImportEqualsNode({ scope: path.scope, name: `g${ i }`, path })?.id.name, `g${ i }`);
+      check(`${ parser.name }/indexed miss ${ i }`, adapter.getTSImportEqualsNode({ scope: path.scope, name: `missing${ i }`, path }), null);
     }
     checkTruthy(`${ parser.name }/${ size }/linear declaration reads`, reads > 0 && reads <= body.length, `${ reads } statements`);
   }
@@ -175,8 +232,8 @@ for (const parser of adapters) {
     const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'Map');
     const adapter = createEstreeAdapter({ method: 'usage-global' });
     for (let pass = 0; pass < 2; pass++) {
-      check(`${ parser.name }/${ name }/${ pass }/missing import`, adapter.getTSImportEqualsNode(path.scope, 'missing', path), null);
-      const declaration = adapter.getTSImportEqualsNode(path.scope, 'g', path);
+      check(`${ parser.name }/${ name }/${ pass }/missing import`, adapter.getTSImportEqualsNode({ scope: path.scope, name: 'missing', path }), null);
+      const declaration = adapter.getTSImportEqualsNode({ scope: path.scope, name: 'g', path });
       const reference = declaration?.moduleReference;
       check(`${ parser.name }/${ name }/${ pass }/import source`, reference?.expression?.value ?? reference?.right?.name ?? null, expected);
     }
@@ -226,10 +283,10 @@ for (const parser of adapters) {
       const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
       const scope = outerLookup ? program.scope : path.scope;
       withTraversalCaches(readOnly, () => {
-        const binding = adapter.getBinding(scope, 'value', path);
+        const binding = adapter.getBinding({ scope, name: 'value', path });
         check(`${ label }/nearest source node`, binding?.node, declaration.node);
         check(`${ label }/nearest declaration path`, binding?.declarationPath?.node, declaration.node);
-        check(`${ label }/node type agrees`, adapter.getBindingNodeType(scope, 'value', path), declaration.node.type);
+        check(`${ label }/node type agrees`, adapter.getBindingNodeType({ scope, name: 'value', path }), declaration.node.type);
         if (expected === 'property' || expected === 'default' || expected === 'parameter') check(`${ label }/parameter kind`, binding?.kind, 'param');
       });
     }

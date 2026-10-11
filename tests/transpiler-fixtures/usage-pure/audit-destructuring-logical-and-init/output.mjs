@@ -1,9 +1,6 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// destructure with `&&` logical-and init: when the LHS is truthy, both branches must
-// produce a consistent polyfill rewrite shape.
+// destructure with a `&&` init whose left the build serves: the left always passes, so the right is
+// the receiver alone and the left names no static - `Promise` has no `from`, the read stays native
 const {
   from
-} = {
-  from: _Array$from
-} && _Promise;
+} = Array && _Promise;

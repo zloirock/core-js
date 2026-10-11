@@ -9,7 +9,7 @@
 //
 // Cluster-internal: `resolveNewExpressionType`, `resolveCallExpressionType`,
 // `resolveYieldExpressionType`. extracted into helpers to keep the switch under the
-// max-statements lint threshold; called only from `resolveNodeTypeExpression`.
+// max-statements lint threshold; called only from that switch (`resolveRuntimeNodeType`).
 //
 // resolvedTypeCache short-circuit lives at the top of the entry to avoid round-trip info
 // loss when a sibling polyfill plugin stashes a pre-mutation Type for the rewritten node.
@@ -17,14 +17,18 @@
 import { $Object, $Primitive } from './base.js';
 import {
   NO_PROTOTYPE_VALUE,
+  ancestorChainDetached,
+  bindingLoopAnchor,
   cachedContainerPaths,
   installedPrototypeValueAt,
   isTaggedTemplateQuasiPosition,
+  noReassignmentReachesUsage,
   objectLiteralPrototypeValue,
-  peelSkippableWrapperPath,
   peelTransparentExprAncestorPath,
   prototypeValueMayDispatch,
   prototypeWriteHostPath,
+  reassignmentDominatesUsage,
+  writeNeverRuns,
 } from '../helpers/ast-patterns.js';
 import { unaryOperatorResultKind } from './value-ops.js';
 
@@ -36,7 +40,8 @@ export function createExpressionDispatch({
   getScopeBinding,
   collectBindingReferences,
   resolveStaticCalleePair,
-  namespaceFromPolyfillBinding,
+  protoSetterCalleeArms,
+  globalNamedThroughOwnImport,
   babelNodeType,
   KNOWN_GLOBAL_METHOD_RETURN_TYPES,
   getCachedType,
@@ -73,6 +78,9 @@ export function createExpressionDispatch({
   resolveAwaitExpressionType,
   generatorTypeParams,
   resolveGeneratorTypeParam,
+  decidedOperandPath,
+  spellsMemberKey,
+  getDecisionAdapter,
 }) {
   function resolveNewExpressionType(path) {
     const callee = path.get('callee');
@@ -114,16 +122,12 @@ export function createExpressionDispatch({
   }
 
   // the type a CALL evaluates to: the known static / global / instance-method return tables, the
-  // `Object.create` prototype model, user functions and class constructors through their own resolvers
+  // `Object.create` / `Object.setPrototypeOf` prototype model, user functions and class constructors
+  // through their own resolvers
   function resolveCallExpressionType(path) {
     // resolvedTypeCache short-circuit handled at the top of resolveNodeTypeExpression
     const callee = path.get('callee');
-    const value = peelSkippableWrapperPath(callee);
-    // Only a whole-constructor entry proves the call identity; a static helper shares its
-    // owner's hint but can return a different family (Object.keys returns an array).
-    const name = t.isIdentifier(value.node)
-      && namespaceFromPolyfillBinding(value.node.name, { node: value.node, ctx: { scope: value.scope, path: value } })
-      || resolveGlobalName(callee);
+    const name = globalNamedThroughOwnImport(callee);
     if (name) {
       // known constructor called without `new`: String(), Array(), etc.
       const known = resolveConstructorCallType(name, path);
@@ -145,9 +149,18 @@ export function createExpressionDispatch({
     const calleePair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method: 'create' });
     if (calleePair?.constructor === 'Object'
       && !isMutatedStatic('Object', 'create')
-      && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding(path.scope, 'undefined', path))) {
+      && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding({ scope: path.scope, name: 'undefined', path }))) {
       return new $Object('Object');
     }
+    // `Object.setPrototypeOf(o, P)` hands `o` back over P: a P that may dispatch leaves it no instance of
+    // what `o` was, the argument directive's answer, so it stays unmodelled like `Object.create(P)` and
+    // the install channel names its family (`installedPrototypeFamilies`)
+    const installed = resultPrototypeArgumentPath(path, 'setPrototypeOf');
+    if (installed && prototypeValueMayDispatch(installed.node, !!getScopeBinding({
+      scope: path.scope,
+      name: 'undefined',
+      path,
+    }))) return null;
     // `import(...)` as a CallExpression with an `Import` callee is the babel@7 spelling and the only
     // one that reaches here: babel@8 and the ESTree pipeline both emit `ImportExpression`, which the
     // node-type switch below answers on its own. Live on that leg, so not dead - and never widen the
@@ -196,20 +209,21 @@ export function createExpressionDispatch({
   // every prototype installed on the object `path`, as the value PATHS the channels write. null when
   // the reference set itself cannot be enumerated - an install may then exist that this never saw.
   // the ONE walk of the install channels: both the "is any prototype installed" question and the
-  // family read below run off it, so the channel list cannot drift between them. remembered per
-  // literal for the file: every reference to a binding resolves to its ONE initializer, and walking
-  // that binding's references again for each of them is quadratic in the references
+  // family read below run off it, so the channel list cannot drift between them. the walks are
+  // remembered per literal for the file: every reference to a binding resolves to its ONE initializer,
+  // and walking that binding's references again for each of them is quadratic in the references
   let prototypeInstalls = new WeakMap();
   function installedPrototypeValuePaths(path) {
-    if (prototypeInstalls.has(path.node)) return prototypeInstalls.get(path.node);
-    const values = collectPrototypeInstalls(path);
-    prototypeInstalls.set(path.node, values);
-    return values;
+    let own = prototypeInstalls.get(path.node);
+    if (!own) prototypeInstalls.set(path.node, own = ownPrototypeInstalls(path));
+    const found = bindingPrototypeInstalls(path, own.undefinedShadowed);
+    return found && [...own.values, ...found.installs.map(({ value }) => value)];
   }
 
-  // ... the walk itself, once per literal
-  function collectPrototypeInstalls(path) {
-    const undefinedShadowed = !!getScopeBinding(path.scope, 'undefined', path);
+  // ... the installs the object's own expression makes: a `__proto__:` property of a literal, and the
+  // prototype `Object.create(P)` / `Object.setPrototypeOf(o, P)` hand an object back over
+  function ownPrototypeInstalls(path) {
+    const undefinedShadowed = !!getScopeBinding({ scope: path.scope, name: 'undefined', path });
     const values = [];
     if (path.node?.type === 'ObjectExpression') {
       const literalValue = objectLiteralPrototypeValue(path.node, undefinedShadowed);
@@ -219,27 +233,90 @@ export function createExpressionDispatch({
           ?? NO_PROTOTYPE_VALUE);
       }
     }
-    // `Object.create(P)` installs P directly; a non-dispatching argument is already inert upstream
-    const created = createdPrototypeArgumentPath(path);
+    // a non-dispatching argument is already inert upstream
+    const created = resultPrototypeArgumentPath(path, 'create') ?? resultPrototypeArgumentPath(path, 'setPrototypeOf');
     if (created) values.push(created);
+    return { values, undefinedShadowed };
+  }
+
+  // ... its half over the references of the binding a declarator's initializer `path` fills: `{ binding,
+  // installs }`, each install a `{ value, ref, absorbable, partial }` that may run - one in an arm the build
+  // never takes is none (`writeNeverRuns`), and a partial one lands only where a setter arm of its callee
+  // runs (`installCalleeArms`). the reference walk is remembered per initializer, and every ask
+  // checks that each install a render may take out of the tree still stands there: pure's guard over the
+  // owners of an open selection replaces the call carrying one, and an answer kept from before that render
+  // would make a later read take it after an earlier read alone. a render never puts one back, so a
+  // detached install is dropped for good. an initializer typed by its own node asks this half alone
+  // (`initGainsDispatchingPrototype`)
+  let bindingInstalls = new WeakMap();
+  function bindingPrototypeInstalls(path, undefinedShadowed = null) {
+    let found = bindingInstalls.get(path.node);
+    if (found === undefined) bindingInstalls.set(path.node, found = findBindingPrototypeInstalls(path, undefinedShadowed));
+    if (found?.installs.some(({ ref, absorbable }) => absorbable && ancestorChainDetached(ref))) {
+      found.installs = found.installs.filter(({ ref, absorbable }) => !absorbable || !ancestorChainDetached(ref));
+    }
+    return found;
+  }
+
+  // ... the reference walk itself, once per initializer
+  function findBindingPrototypeInstalls(path, undefinedShadowed) {
     const host = peelTransparentExprAncestorPath(path);
     const declarator = host.parentPath?.node;
-    if (declarator?.type !== 'VariableDeclarator' || declarator.init !== host.node
-      || declarator.id?.type !== 'Identifier') return values;
-    const binding = getScopeBinding(host.scope, declarator.id.name, host);
-    if (!binding) return values;
-    const refs = collectBindingReferences(binding, host);
-    if (refs === null) return null;
+    const binding = declarator?.type === 'VariableDeclarator' && declarator.init === host.node
+      && declarator.id?.type === 'Identifier' ? getScopeBinding({ scope: host.scope, name: declarator.id.name, path: host }) : null;
+    const refs = binding ? collectBindingReferences(binding, host) : [];
+    if (!refs) return null;
+    const shadowed = undefinedShadowed ?? (refs.length ? !!getScopeBinding({ scope: path.scope, name: 'undefined', path }) : false);
+    const adapter = getDecisionAdapter();
+    const installs = [];
     for (const ref of refs) {
-      const installed = installedPrototypeValuePathAt(ref, undefinedShadowed);
-      if (installed) values.push(installed);
+      const value = installedPrototypeValuePathAt(ref, shadowed);
+      if (!value || writeNeverRuns({ write: ref.node, usagePath: ref, adapter })) continue;
+      const arms = installCalleeArms(ref);
+      installs.push({ value, ref, absorbable: arms === 'every' || arms === 'some', partial: arms === 'some' });
     }
-    return values;
+    return { binding, installs, undefinedShadowed: shadowed };
+  }
+
+  // ... how the setter call carrying this install spells its callee (`protoSetterCalleeArms`), null for a
+  // `__proto__` write, which is no call. a render may take the call out of the tree where it is spelled
+  // through a selection, which pure's guard over its owners replaces whole - the lone canonical spelling
+  // stays a call of the setter, whatever a rewrite makes of its callee - and one only some arm of which is
+  // a setter installs only where such an arm runs
+  function installCalleeArms(ref) {
+    const call = prototypeWriteHostPath(ref)?.parentPath;
+    const isCall = call?.node?.type === 'CallExpression' || call?.node?.type === 'OptionalCallExpression';
+    return isCall ? protoSetterCalleeArms(call.get('callee')) : null;
+  }
+
+  // an object a declarator's initializer builds and the binding later hands a dispatching prototype
+  // (`const m = new Map(); Object.setPrototypeOf(m, Array.prototype)`) is no instance of what the
+  // initializer built, as a literal is not (that one answers for itself): the install channel names
+  // its family. a read of the binding (`readPath`) takes an install only where it may run before the
+  // read, as a write of the binding reaches it (`noReassignmentReachesUsage`): one the read precedes in
+  // its own frame, re-run by no loop, leaves the read the initializer's type. the reference walk is the
+  // cost, so it runs only in a file whose identifier-rooted member chains spell an install's key
+  // (`spellsMemberKey`): a file that spells its installs without one (a destructured setter alone)
+  // leaves the initializer's type
+  function initGainsDispatchingPrototype(path, readPath = null) {
+    if (path.node?.type === 'ObjectExpression' || !spellsMemberKey('setPrototypeOf') && !spellsMemberKey('__proto__')) return false;
+    const found = bindingPrototypeInstalls(path);
+    if (found === null) return true;
+    const { binding, installs } = found;
+    return installs.some(({ ref }) => !readPath || !noReassignmentReachesUsage({
+      reassignmentNodes: [ref.node],
+      usagePath: readPath,
+      bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node ?? null,
+      bindingAnchor: bindingLoopAnchor(binding),
+    }));
   }
 
   // the FAMILIES those prototypes dispatch. null when any of them cannot be named - the receiver then
-  // keeps the full dispatch, since an unnamed prototype may carry any family's methods
-  function installedPrototypeFamilies(path) {
+  // keeps the full dispatch, since an unnamed prototype may carry any family's methods. a read
+  // (`readPath`) no install provably runs before - one a loop re-runs past it, one in a closure created
+  // ahead of it, one under a condition it does not share, one through a selection only some arm of which
+  // is a setter - may still see the object its initializer built, so that family joins them
+  function installedPrototypeFamilies(path, readPath = null) {
     const values = installedPrototypeValuePaths(path);
     if (values === null) return null;
     const families = new Set();
@@ -248,13 +325,31 @@ export function createExpressionDispatch({
       if (!family) return null;
       families.add(family);
     }
+    if (!families.size || !readPath || installRunsBeforeRead(path, readPath)) return families;
+    const own = resolveRuntimeNodeType(path, path.node)?.constructor;
+    if (!own) return null;
+    families.add(own);
     return families;
+  }
+
+  // ... does an install provably run before the read: the object's own expression installs as it builds
+  // the object, and a binding's install that dominates the read has run by it (`reassignmentDominatesUsage`)
+  // unless it is partial: its call runs where no setter arm does as well
+  function installRunsBeforeRead(path, readPath) {
+    if (prototypeInstalls.get(path.node)?.values.length) return true;
+    const installs = bindingPrototypeInstalls(path)?.installs ?? [];
+    return reassignmentDominatesUsage({
+      reassignmentNodes: installs.filter(({ partial }) => !partial).map(({ ref }) => ref.node),
+      usagePath: readPath,
+      adapter: getDecisionAdapter(),
+      climb: true,
+    });
   }
 
   // the value PATH of a reference's prototype install: the canon decides WHETHER the reference
   // installs, this only re-reads the value slot it matched off the same host
   function installedPrototypeValuePathAt(ref, undefinedShadowed) {
-    const valueNode = installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedShadowed);
+    const valueNode = installedPrototypeValueAt(ref, protoSetterCalleeArms, undefinedShadowed);
     if (!valueNode || valueNode === NO_PROTOTYPE_VALUE) return valueNode ? NO_PROTOTYPE_VALUE : null;
     // the SAME host climb the canon matched on - transparent wrappers plus sequence-VALUE positions.
     // re-deriving it with a narrower walk dropped every install made through a sequence
@@ -267,27 +362,19 @@ export function createExpressionDispatch({
     return parent?.get('arguments')?.[1] ?? null;
   }
 
-  // the PROTOTYPE argument PATH of a native `Object.create` call, null when the call is anything else
-  function createdPrototypeArgumentPath(path) {
+  // the PROTOTYPE argument PATH of a native `Object[method]` call whose RESULT is an object over it,
+  // null when the call is anything else: `Object.create(P)` builds one, `Object.setPrototypeOf(o, P)`
+  // hands an object `o` back over P - a primitive `o` comes back as itself, and the `Reflect` twin
+  // answers a boolean. a user-replaced static may return anything, so a mutated slot stays unmodelled
+  function resultPrototypeArgumentPath(path, method) {
     if (path.node?.type !== 'CallExpression' && path.node?.type !== 'OptionalCallExpression') return null;
     const callee = path.get('callee');
-    const pair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } });
-    if (pair?.constructor !== 'Object' || pair.method !== 'create' || isMutatedStatic('Object', 'create')) return null;
-    return path.get('arguments')?.[0] ?? null;
-  }
-
-  // `Object.setPrototypeOf` / `Reflect.setPrototypeOf` only - a same-named method on any other object
-  // installs nothing, and the owner is resolved (not name-matched) so a shadowed `Object` is rejected.
-  // usage-pure polyfills `setPrototypeOf` itself, so the call may already read as the injected static
-  // binding by the time a later receiver is typed; those are minted `_<Ctor>$<method>` (plus babel's
-  // collision suffix), a namespace the plugin reserves
-  // `Object.setPrototypeOf` / `Reflect.setPrototypeOf` only. the canonical callee resolver handles
-  // every spelling this needs - the source member form (with its shadow bail), a proxy-global hop,
-  // and the plugin's own injected static binding after usage-pure rewrites the call - so identity is
-  // RESOLVED rather than name-matched at every one of them
-  function isProtoSetterCallee(calleePath) {
-    const pair = resolveStaticCalleePair({ node: calleePath.node, ctx: { scope: calleePath.scope, path: calleePath } });
-    return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
+    const pair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method });
+    if (pair?.constructor !== 'Object' || isMutatedStatic('Object', method)) return null;
+    const args = path.get('arguments') ?? [];
+    if (method === 'create') return args[0] ?? null;
+    const target = args[0]?.node ? resolveNodeType(args[0]) : null;
+    return target && !target.primitive ? args[1] ?? null : null;
   }
 
   function resolveNodeTypeExpression(path) {
@@ -306,10 +393,17 @@ export function createExpressionDispatch({
     const cached = getCachedType(path.node);
     if (cached) return cached;
     const entryNode = path.node;
+    const entryPath = path;
     path = resolvePath(path);
     const cachedAfter = getCachedType(path.node);
     if (cachedAfter) return cachedAfter;
+    const type = resolveRuntimeNodeType(path, entryNode);
+    // a value reached through a binding is read where the binding was asked
+    return type && !type.primitive && initGainsDispatchingPrototype(path, path.node === entryNode ? null : entryPath) ? null : type;
+  }
 
+  // the switch over the runtime node the value-follow landed on; `entryNode` is the node first asked
+  function resolveRuntimeNodeType(path, entryNode) {
     switch (babelNodeType(path.node)) {
       // ESTree wraps optional chains in ChainExpression, preserves parentheses - unwrap
       case 'ChainExpression':
@@ -447,6 +541,8 @@ export function createExpressionDispatch({
         // expression canon, which descends the same way
         const ownNarrow = ownCtorNarrowAlternatePath(path);
         if (ownNarrow) return resolveNodeType(ownNarrow);
+        const decided = decidedOperandPath(path);
+        if (decided) return resolveNodeType(decided);
         // transpilers desugar destructuring defaults to a self-ternary - positive
         // (`_ref === void 0 ? D : _ref`), inverse (`_ref !== void 0 ? _ref : D`),
         // and loose-eq (`_ref == null ? D : _ref`). when one branch is the same identifier as
@@ -455,8 +551,10 @@ export function createExpressionDispatch({
         return resolveDesugarDefaultTernary(path)
           || resolveUnionType(path.get('consequent'), path.get('alternate'), '?:');
       }
-      case 'LogicalExpression':
-        return resolveUnionType(path.get('left'), path.get('right'), path.node.operator);
+      case 'LogicalExpression': {
+        const decided = decidedOperandPath(path);
+        return decided ? resolveNodeType(decided) : resolveUnionType(path.get('left'), path.get('right'), path.node.operator);
+      }
       case 'TSAsExpression':
       case 'TSTypeAssertion':
       case 'TypeCastExpression':
@@ -477,6 +575,7 @@ export function createExpressionDispatch({
     resolveNodeTypeExpression,
     reset() {
       prototypeInstalls = new WeakMap();
+      bindingInstalls = new WeakMap();
     },
   };
 }

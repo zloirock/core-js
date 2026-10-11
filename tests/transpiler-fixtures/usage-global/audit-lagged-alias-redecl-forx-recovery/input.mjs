@@ -22,7 +22,8 @@ function outer() {
   return inner;
 }
 export const r3 = [D.includes('d'), outer()];
-// an EXPORTED lagged alias: the redecl value's variant joins the alias candidates in the union
+// an EXPORTED lagged alias: the redecl value's variant joins the alias candidates in the union, while the
+// realm's `Map` it holds until then leaves through the export and owes the constructor's statics
 export let E;
 ({ Map: E } = globalThis);
 E = [9];

@@ -1,12 +1,8 @@
-// a `??` / `||` over a guaranteed realm name ITSELF always yields that left operand - `globalThis`
-// is guaranteed by the language, `self` by its own pure entry (the read resolves through the
-// ponyfill, always the realm object) - and an object is neither nullish nor falsy, so the defensive
-// right side is dead code and BOTH channels collapse: the TYPE channel types the static (no
-// `function/instance/name` for a `.name` on a NUMBER) and the VALUE channel substitutes it. the
-// guarantee holds at every nesting level, so a stacked default collapses too.
-// the boundary: `window` has no pure entry and stays the environment PROBE, a nav that can
-// short-circuit makes the right side live, and a conditional is two arms with no dead one - all
-// three keep the carrier opaque
+// a `??` / `||` over `globalThis` or `self` - the realm object, guaranteed by the language or by its pure
+// entry, never nullish or falsy - always yields its left, so the right side is dead and both channels
+// collapse at any nesting: the static is substituted and typed (no `.name` dispatch on a number). `window`,
+// which has no pure entry, a nav that can short-circuit and a conditional's two live arms keep the carrier
+// opaque: the static reads through an identity guard on the `Number` it yields, a native static owner
 let out;
 const c = 1;
 const overRealm = (globalThis ?? {}).Number.MAX_SAFE_INTEGER.name;

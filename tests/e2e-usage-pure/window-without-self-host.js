@@ -27,9 +27,10 @@ export function withRealmSlot(name, value, read) {
 
 // ... and a realm with a `self` of its own, for a read that navigates it as written: Node has none,
 // a browser does, so it is built only where missing - here too, so the file reading it stays free of
-// a `self` write and of any handout that names the slot
+// a `self` write and of any handout that names the slot. the probe reads through a join-built key: a
+// plain read ahead of every write of the slot takes the pure `self`, which is never missing
 export function withRealmSelf(read) {
-  const built = globalThis.self === undefined;
+  const built = globalThis[['se', 'lf'].join('')] === undefined;
   if (built) globalThis.self = globalThis;
   try {
     return read();

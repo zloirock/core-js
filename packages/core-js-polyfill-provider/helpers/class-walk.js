@@ -1,6 +1,7 @@
 import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
+import { hasRange, nodeRangeContains } from '../resolve-node-type/base.js';
 import {
   CLASS_DATA_FIELD_TYPES,
   privateNameSpelling,
@@ -43,9 +44,12 @@ import {
   pureReturnBodyValue,
   singleReturnBodyExpression,
   staticEvaluationReaderIndex,
+  subtreeContainsNode,
   isMemberAccessNode,
   memberKeyName,
   walkAstNodes,
+  withCanonicalViolations,
+  writesPastCeiling,
 } from './ast-patterns.js';
 // the proxy-global recogniser lives with the value canon it narrows:
 // asking "does this binding hold a proxy global" is asking the canon what the binding holds and
@@ -60,9 +64,7 @@ import {
 } from '../detect-usage/resolve.js';
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
-// to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`. exported so the unplugin
-// destructure emitter can tell a buried receiver effect (in the member - survives) from a liftable
-// top-level prefix (peeled away here)
+// to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`
 function unwrapInitForResolution(node) {
   while (node) {
     // ... and the chain-assignment layers (`B = C = Array` writes the value into both names), so a
@@ -104,7 +106,7 @@ function branchingInitResolves(node, ctx, resolvesBranch) {
     if (consequent && alternate) return true;
     if (!consequent && !alternate) return false;
     const defaultSlot = matchSelfDefaultTernarySlot(node, {
-      isLocalUndefinedName: () => !!ctx.adapter?.getBinding?.(ctx.scope, 'undefined', ctx.path ?? null),
+      isLocalUndefinedName: () => !!ctx.adapter?.getBinding?.({ scope: ctx.scope, name: 'undefined', path: ctx.path ?? null }),
     });
     if (!defaultSlot) return false;
     return defaultSlot === 'consequent' ? alternate : consequent;
@@ -212,7 +214,8 @@ function declaratorInitResolvesForName({ id, init, boundName, ctx }) {
 // placement with the binding alive): the init-less declarator carries the global in that single write,
 // so every violation must fall inside its span - any OTHER write makes the value flow-dependent -> native
 export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector, boundName = null, path = null }) {
-  if (info?.source !== null || binding?.path?.node?.type !== 'VariableDeclarator') return false;
+  if (info?.source !== null || binding?.path?.node?.type !== 'VariableDeclarator'
+    || writesPastCeiling(binding.constantViolations)) return false;
   const { id, init } = binding.path.node;
   const ctx = { scope, adapter, injector, path };
   // the writes that COUNT: a valueless twin, the declarator's own loop re-init and an identity
@@ -239,6 +242,13 @@ export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector
   });
 }
 
+// the read an alias of a REALM makes where its statement captures it: one captured ahead of every write of the
+// realm's slot holds the realm (`hintedRealmIsPristine`). a constructor hint is asked with no read - its
+// capture order is not modeled
+function realmCaptureRead(hint, stmtPath) {
+  return POSSIBLE_GLOBAL_OBJECTS.has(hint) && stmtPath?.node ? { node: stmtPath.node, path: stmtPath } : null;
+}
+
 // registration-time gate for an ASSIGNMENT-form ctor alias (`let M; ({ Map: M } = globalThis)`): register
 // the alias hint ONLY when, with the binding still alive, the write is provably the binding's sole value
 // source on every path reaching later reads:
@@ -252,8 +262,9 @@ export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector
 export function maybeRegisterAssignmentAliasWrite({ injector, adapter = null, binding, localName, hint, assignNode, stmtPath }) {
   // the hint asserts "this alias holds the pristine global" - with the hint's own SLOT
   // recorded mutated the capture order decides what the alias holds, which no span model
-  // covers; decline like the binding-less form so reads stay on the live-value channels
-  if (isMutatedGlobalSlot(adapter, hint)) return false;
+  // covers but a realm's (`realmCaptureRead`); decline like the binding-less form so reads stay on
+  // the live-value channels
+  if (isMutatedGlobalSlot(adapter, hint, realmCaptureRead(hint, stmtPath))) return false;
   const bindingNode = binding?.node ?? binding?.path?.node ?? null;
   // the span the alias is VISIBLE in, by the binding's kind like the declaration form: a `var`
   // reaches its whole function, a block-scoped binding its declaring block only - a function-wide
@@ -289,7 +300,11 @@ export function maybeRegisterAssignmentAliasWrite({ injector, adapter = null, bi
 export function soleAliasWrite({ binding, assignNode }) {
   const declarator = binding?.node ?? binding?.path?.node;
   if (declarator?.type !== 'VariableDeclarator' || declarator.init) return false;
-  const violations = binding.constantViolations ?? [];
+  // the COMPLETE write set: a native lookup misses what its tracker never records - a write through a
+  // wrapped target (`(M as any) = x`), a cross-block `var` write - and a sole-write verdict over that
+  // partial list trusted the alias past a later write (`withCanonicalViolations`)
+  const violations = withCanonicalViolations(binding, declarator.id?.type === 'Identifier' ? declarator.id.name : null)
+    .constantViolations ?? [];
   // identity first: a SYNTHETIC write (an AST emitter's own memo assign on a re-visit)
   // carries no positions, and the babel violation path IS the assignment node
   if (!violations.length) return false;
@@ -397,7 +412,7 @@ export function registerCtorAliasExtractions({ plan, declarator, scope, adapter,
   for (const node of plan.outerProps) {
     for (const e of node.extractions ?? []) {
       if (e.kind !== 'global') continue;
-      const binding = adapter.getBinding(scope, e.localName, path);
+      const binding = adapter.getBinding({ scope, name: e.localName, path });
       if (!binding?.node && !binding?.path) {
         registerBindinglessCtorAlias({ injector, adapter, localName: e.localName, hint: e.hint });
       } else if (isAssignmentHost) {
@@ -485,7 +500,7 @@ export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, 
     // hint a split-anchor / hoisted-var alias never resolves (pure keeps the static raw,
     // usage-global drops the injection - the unsafe direction)
     if (!isKnownGlobalName(hint)) continue;
-    const binding = adapter.getBinding(scope, localName, path);
+    const binding = adapter.getBinding({ scope, name: localName, path });
     if (!binding?.node && !binding?.path) {
       registerBindinglessCtorAlias({ injector, adapter, localName, hint });
     } else if (assignNode) {
@@ -571,9 +586,13 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode =
     // the slot is not re-tested against the child: a render REPLACES what stands in it, and the
     // climb from the detached node then ran past the statement, past the program, and answered
     // "conditional" from a walk that had lost its terminator. a slot that runs on SOME evaluations
-    // of its statement only - a loop update, a do-while test, a `case` test, a for-x head - is
-    // refused first: the statement runs, the write may not
-    if (conditionalEvaluationEdge(parent?.node, stmt.node)) return false;
+    // of its statement only - a loop update, a do-while test, a `case` test, a for-x head, a
+    // default - is refused first: the statement runs, the write may not - unless the read stands
+    // in that same slot, which runs both or neither, as across a function boundary below. a slot a
+    // render rebuilt (a helper call around a default) keeps no span, and holds the read by identity
+    if (conditionalEvaluationEdge(parent?.node, stmt.node)) {
+      return nodeRangeContains(stmt.node, readNode) || (!hasRange(stmt.node) && subtreeContainsNode(stmt.node, readNode));
+    }
     if (CONTROL_TEST_HOSTS.has(parentType)) {
       stmt = parent;
       break;
@@ -584,8 +603,7 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode =
     // defers the same way (it runs per instantiation), and answers to the same rule
     if (parentType && !STATEMENT_HOST_TYPES.has(parentType)
       && (FUNCTION_LIKE_NODE_TYPES.has(parentType) || CLASS_FIELD_TYPES.has(parentType))) {
-      return typeof readNode?.start === 'number' && typeof parent.node.start === 'number'
-        && readNode.start >= parent.node.start && readNode.end <= parent.node.end;
+      return nodeRangeContains(parent.node, readNode);
     }
     stmt = parent;
   }
@@ -667,7 +685,7 @@ export function registerDeclAliasIfSound({
   injector, adapter = null, kind, localName, hint, stmtPath, bindingNode = null, binding = null,
 }) {
   // mutated-slot hint: same decline as the assignment form - see maybeRegisterAssignmentAliasWrite
-  if (isMutatedGlobalSlot(adapter, hint)) return false;
+  if (isMutatedGlobalSlot(adapter, hint, realmCaptureRead(hint, stmtPath))) return false;
   let stmt = stmtPath;
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) stmt = stmt.parentPath;
   const declSpan = stmt?.node ? { start: stmt.node.start, end: stmt.node.end } : null;
@@ -710,8 +728,8 @@ export function registerDeclAliasIfSound({
 function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured, keyCtx = null) {
   if (!node) return false;
   // a SLOT-mutated `Symbol` is the user's replacement and its keys are not the well-known symbols -
-  // the half `resolvesToGlobalSymbol` asks before any name walk, owed by this fork too
-  if (isMutatedGlobalSlot(adapter, 'Symbol')) return false;
+  // the half `resolvesToGlobalSymbol` asks before any name walk, owed by this fork too, with the read
+  if (isMutatedGlobalSlot(adapter, 'Symbol', keyCtx?.path && { node, path: keyCtx.path })) return false;
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
     return branchingInitResolves(node, { scope, adapter, path: keyCtx?.path ?? null },
       branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured, keyCtx));
@@ -721,7 +739,7 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
     // a bare `Symbol` counts only while unshadowed - a user binding (`const Symbol = Array`)
     // redirects the read to the user object, and folding its keys as well-known symbols
     // would substitute the wrong VALUE
-    if (peeled.name === 'Symbol') return !adapter?.hasBinding?.(scope, 'Symbol', keyCtx?.path ?? null);
+    if (peeled.name === 'Symbol') return !adapter?.hasBinding?.({ scope, name: 'Symbol', path: keyCtx?.path ?? null, read: peeled });
     // plugin-minted imports only (`_Symbol` after an in-place rewrite): a USER-named
     // body-extract record carries its binding NAME as the fallback hint, so a user binding
     // that happens to be NAMED `Symbol` (`const { iterator: Symbol } = ...`) would masquerade
@@ -757,7 +775,12 @@ function hopAnchoredCtx(keyCtx, binding) {
 function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured, keyCtx = null) {
   // the adapters run this walk from inside their own `getBinding`, so a self-referential init
   // (`const { at } = at`) re-enters it through this lookup before `seen` is ever consulted
-  const binding = withBindingLookupGuard(scope, node.name, () => adapter?.getBinding?.(scope, node.name, keyCtx?.path ?? null));
+  const binding = withBindingLookupGuard(scope, node.name, () => adapter?.getBinding?.({
+    scope,
+    name: node.name,
+    path: keyCtx?.path ?? null,
+    read: node,
+  }));
   // an assignment-form ctor alias (`let S; ({ Symbol: S } = globalThis)`) carries an init-less
   // declarator, but the adapter's hint machinery already verified its write shape AND that the
   // write span dominates the read anchored at `keyCtx.path` - the surfaced hint IS the
@@ -787,24 +810,32 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
   // estree side follows it likewise or the non-defaulted consumer desyncs
   const literalPath = patternLiteralKeyPath(peeled.id, node.name);
   if (literalPath) {
-    return followDestructured && destructuredGlobalKeyPathNamesSymbol(peeled.init, literalPath, nextScope, adapter, next);
+    return followDestructured && destructuredGlobalKeyPathNamesSymbol({
+      init: peeled.init, keyPath: literalPath, scope: nextScope, adapter, seen: next, path: hopCtx?.path ?? null,
+    });
   }
   if (!keyCtx) return false;
   // the computed key EVALUATES at the alias declarator, not at the eventual use: anchor the
   // key canon's dominance / reaching-value analysis there via `usageNode`, or a key reassigned
   // AFTER the capture would resolve to the post-capture value - a wrong-value fold
-  return destructuredGlobalKeyPathNamesSymbol(peeled.init,
-    patternLiteralKeyPath(peeled.id, node.name,
+  return destructuredGlobalKeyPathNamesSymbol({
+    init: peeled.init,
+    keyPath: patternLiteralKeyPath(peeled.id, node.name,
       { resolveKey: keyCtx.resolveKey, scope: nextScope, adapter, path: binding.path ?? keyCtx.path ?? null, usageNode: declarator }),
-    nextScope, adapter, next);
+    scope: nextScope,
+    adapter,
+    seen: next,
+    path: hopCtx?.path ?? null,
+  });
 }
 
 // resolve a destructure key-path (`['self','Symbol']`) off a proxy-global init to the Symbol leaf,
 // mirroring globalProxyMemberName's chain walk: the root must be a proxy-global, every intermediate
-// hop must stay on the proxy-global surface (and be un-mutated), the leaf must name Symbol
-function destructuredGlobalKeyPathNamesSymbol(init, keyPath, scope, adapter, seen) {
+// hop must stay on the proxy-global surface (and be un-mutated), the leaf must name Symbol - un-mutated
+// where the capture of `init` at `path` reads it
+function destructuredGlobalKeyPathNamesSymbol({ init, keyPath, scope, adapter, seen, path = null }) {
   const leaf = destructuredGlobalKeyPathLeaf(init, keyPath, scope, adapter, seen);
-  return leaf === 'Symbol' && !isMutatedGlobalSlot(adapter, leaf);
+  return leaf === 'Symbol' && !isMutatedGlobalSlot(adapter, leaf, path && { node: init, path });
 }
 
 // resolve a destructure key-path off a proxy-global init to its LEAF name, mirroring
@@ -907,7 +938,7 @@ export function isSymbolDestructureAliasBinding({
   // (missed polyfill on ie:11) while the mutation-free estree side folds
   if (declarator.id?.type === 'Identifier' && declarator.id.name === boundName && declarator.init && !writes.length) {
     const guardSlot = declarator.init.type === 'ConditionalExpression'
-      ? matchSelfDefaultTernarySlot(declarator.init, { isLocalUndefinedName: () => !!adapter?.getBinding?.(scope, 'undefined') })
+      ? matchSelfDefaultTernarySlot(declarator.init, { isLocalUndefinedName: () => !!adapter?.getBinding?.({ scope, name: 'undefined' }) })
       : null;
     const guarded = guardSlot === 'consequent' ? declarator.init.alternate
       : guardSlot === 'alternate' ? declarator.init.consequent : declarator.init;
@@ -981,13 +1012,13 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
   if (node?.type !== 'Identifier') return false;
   if (node.name === 'undefined') {
     if (!scope || !adapter) return false;
-    return adapter.hasBinding(scope, 'undefined');
+    return adapter.hasBinding({ scope, name: 'undefined' });
   }
   if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return true;
   // ... and a capitalised name is classifiable as a BINDING the class walk reads; unbound, it reads a
   // realm slot, which only a known built-in proves present - a user global may hold `undefined`
   if (node.name[0] >= 'A' && node.name[0] <= 'Z') {
-    return !scope || !adapter || adapter.hasBinding(scope, node.name) || isKnownStaticGlobal(node.name, adapter);
+    return !scope || !adapter || adapter.hasBinding({ scope, name: node.name }) || isKnownStaticGlobal(node.name, adapter);
   }
   return !!(scope && adapter) && isProxyGlobalIdentifierNode({ node, scope, adapter });
 }
@@ -1182,6 +1213,9 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
     // field spells the key
     const late = members.filter(m => m.type === 'StaticBlock' || (m.static && CLASS_DATA_FIELD_TYPES.has(m.type)));
     const early = members.filter(m => m.static && !CLASS_DATA_FIELD_TYPES.has(m.type));
+    // ... and a static setter keeps the getter of its pair, which is what a read runs - asked where the
+    // caller wants to know whether the read runs an accessor (`rescueSink`), as the object twin below
+    let setterSeen = false;
     for (const phase of [late, early]) {
       // every block runs after the methods are defined, and any of them may redefine the key
       if (phase === early && late.some(m => m.type === 'StaticBlock')) return null;
@@ -1200,6 +1234,11 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
           continue;
         }
         if (verdict === 'skip') continue;
+        if (phase === early && rescueSink && m.kind === 'set') {
+          setterSeen = true;
+          continue;
+        }
+        if (setterSeen && m.kind !== 'get') return null;
         // a static method / setter winning the key is dynamic - bail; a static field returns its init,
         // and a static GETTER of one pure return names its value the same way (the object twin below)
         return phase === late ? m.value ?? null : readValue(m);
@@ -1229,8 +1268,9 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       }
       if (verdict === 'skip') continue;
       // A setter preserves an earlier getter, but replaces an earlier data descriptor.
-      // Keep that getter as a candidate only when the caller retains the original read.
-      if (!spreadVetoes && p.kind === 'set') {
+      // Keep that getter as a candidate only when the caller retains the original read - or asks
+      // whether the read runs an accessor (`rescueSink`): the pair's getter is what the read runs
+      if ((!spreadVetoes || rescueSink) && p.kind === 'set') {
         setterSeen = true;
         continue;
       }
@@ -1338,15 +1378,17 @@ export function createClassHelpers({
 
   // follow `const X = Y` aliases to the first unshadowed global; null on real local bindings.
   // ES imports pass through for `resolveSuperImportName` to remap via injector's `#byName`.
-  // `seen` is shared with `resolveBindingToGlobalName` so namespace-cycle detection survives
-  function resolveSuperClassName(startName, scope, seen = new Set(), path = null, classAnchor = null) {
-    let name = startName;
+  // `seen` is shared with `resolveBindingToGlobalName` so namespace-cycle detection survives.
+  // `start` is the identifier read first; each hop's name is read at the value naming it
+  function resolveSuperClassName(start, scope, seen = new Set(), path = null, classAnchor = null) {
+    let { name } = start;
+    let read = start;
     while (!seen.has(name)) {
       seen.add(name);
       // polyfillHint wins: `handleDestructuredProperty` rewrites destructure-with-default
       // shapes in-place, so `binding.path.init` is unrecoverable. plugin adapters expose
       // via binding object; resolver-tier adapter via side-channel
-      const hintBinding = adapter.getBinding?.(scope, name);
+      const hintBinding = adapter.getBinding?.({ scope, name });
       const hint = bindingPolyfillHint({ binding: hintBinding, scope, name, adapter });
       if (hint) {
         // usage-pure must not trust an assignment-form hint whose write ENDS after the capture read
@@ -1363,7 +1405,7 @@ export function createClassHelpers({
       // no binding: TS-runtime fallback (`enum X` / `namespace X` / `import X = require()`)
       // anchored on `path` - estree-toolkit's scope tracker misses these
       if (!binding) {
-        if (path && adapter.hasBinding?.(scope, name, path)) return null;
+        if (path && adapter.hasBinding?.({ scope, name, path, read })) return null;
         return name;
       }
       // method-aware reassignment bail: usage-global keeps resolving the super-class alias when the
@@ -1386,6 +1428,7 @@ export function createClassHelpers({
         const reachingValue = unwrapInitForResolution(reaching);
         if (reachingValue?.type === 'Identifier') {
           name = reachingValue.name;
+          read = reachingValue;
           continue;
         }
         return resolveBindingToGlobalName(reachingValue, scope, seen, anchor, anchor);
@@ -1439,6 +1482,7 @@ export function createClassHelpers({
       }
       if (init?.type === 'Identifier') {
         name = init.name;
+        read = init;
         scope = declScope;
         classAnchor = captureAnchor;
         continue;
@@ -1530,7 +1574,7 @@ export function createClassHelpers({
   // mutually-recursive alias cycle detection; `path` anchors TS-runtime shadow checks
   function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null, classAnchor = null) {
     const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node));
-    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path, classAnchor);
+    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled, scope, seen, path, classAnchor);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });
     if (proxyKey !== null) return proxyKey;

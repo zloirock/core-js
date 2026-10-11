@@ -298,7 +298,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   function ambientShadowedByValue(name, scope, found) {
     const paths = Array.isArray(found) ? found : found ? [found] : [];
     if (!paths.length) return found;
-    const binding = getScopeBinding(scope, name);
+    const binding = getScopeBinding({ scope, name });
     const shadowed = binding
       && paths.every(p => p.node !== binding.path?.node && p.scope !== binding.scope);
     return shadowed ? (Array.isArray(found) ? [] : null) : found;

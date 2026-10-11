@@ -48,8 +48,7 @@ var {
       entries: _Object$entries
     }
   },
-  {} = (eff(), Array),
-  of4 = (k4++, _Array$of),
+  of4 = (eff(), k4++, _Array$of),
   {
     other4
   } = Array;

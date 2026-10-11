@@ -83,7 +83,7 @@ for (const adapter of adapters) {
     const program = adapter.parseAndScope(row.code);
     const usagePath = adapter.pickPath(program, 'CallExpression', candidate => candidate.node.callee?.name === 'observe');
     checkTruthy(`${ adapter.name }: ${ row.name }: usage path`, usagePath);
-    const binding = bindings.getBinding(usagePath.scope, 'holder', usagePath);
+    const binding = bindings.getBinding({ scope: usagePath.scope, name: 'holder', path: usagePath });
     checkTruthy(`${ adapter.name }: ${ row.name }: holder binding`, binding);
     const reaching = reachingReassignmentValueNode({ binding, usagePath });
     check(`${ adapter.name }: ${ row.name }: reaching RHS`, reaching?.name ?? null, row.expected);
@@ -101,7 +101,7 @@ for (const parser of adapters) {
     for (const index of missing) delete writes[index].node.start;
     const usagePath = parser.pickPath(program, 'CallExpression');
     const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
-    const binding = adapter.getBinding(usagePath.scope, 'holder', usagePath);
+    const binding = adapter.getBinding({ scope: usagePath.scope, name: 'holder', path: usagePath });
     const value = reachingReassignmentValueNode({ binding, usagePath });
     check(`${ parser.name }: missing positions ${ missing }`, value?.name ?? null, missing.length ? null : 'second');
   }
@@ -109,7 +109,7 @@ for (const parser of adapters) {
   delete parser.pickPath(program, 'AssignmentExpression').node.start;
   const usagePath = parser.pickPath(program, 'CallExpression');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
-  const binding = adapter.getBinding(usagePath.scope, 'holder', usagePath);
+  const binding = adapter.getBinding({ scope: usagePath.scope, name: 'holder', path: usagePath });
   check(`${ parser.name }: one generated write needs no ordering`, reachingReassignmentValueNode({ binding, usagePath })?.name, 'source');
 }
 finish();

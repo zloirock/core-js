@@ -24,13 +24,14 @@ import {
   suspensionPointBefore,
   loopReExecRegionHasViolation,
   bindingLoopAnchor,
+  writesPastCeiling,
 } from '../helpers/ast-patterns.js';
 import {
   isUnionType,
   OPEN_KEYWORD_ANNOTATION_TYPES,
   violationInCapturedFunction,
 } from './ast-shapes.js';
-import { isLoopStatement } from '../destructure-host-shape.js';
+import { isLoopStatement } from './exit-analysis.js';
 import {
   $Object,
   $Primitive,
@@ -478,9 +479,10 @@ export function createNarrowByGuards({
     const { node } = path;
     if (guardsCache.has(node)) return guardsCache.get(node);
     const { name } = node;
-    const binding = getScopeBinding(path.scope, name, path);
+    const binding = getScopeBinding({ scope: path.scope, name, path });
     let result = null;
-    if (binding) {
+    // a binding written past the ceiling is not followed through its writes (`writesPastCeiling`): no guard narrows it
+    if (binding && !writesPastCeiling(binding.constantViolations)) {
       const classification = classifyGuardAnnotation(binding);
       if (classification.kind !== 'closed') {
         const isConst = !binding.constantViolations?.length;

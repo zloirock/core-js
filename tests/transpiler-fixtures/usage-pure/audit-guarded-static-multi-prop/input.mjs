@@ -4,7 +4,7 @@
 // statics splits into one read per prop, in source order - each with its own guard. a prop this plan
 // cannot answer stays in the ORIGINAL pattern node (a spliced one would depend on a later visit, which
 // only one leg makes), and only the claims at the pattern's EDGE detach, so source order holds
-let M = globalThis.Array;
+let M = pickConstructor();
 if (!M) M = Array;
 const { from, of } = M;
 // ... the claim's own position in the pattern decides nothing - the reads keep source order

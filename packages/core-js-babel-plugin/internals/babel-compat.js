@@ -47,7 +47,7 @@ import {
   planClaimlessCallRootedNav,
   proxyRunLandingPure,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { decidedReusableReceiver, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   chainValueCarrier,
   isNullLiteralNode,
@@ -115,6 +115,52 @@ function isOptionalOperand(child, parent) {
     : parent.isOptionalCallExpression() ? 'callee' : null;
   if (!slot) return false;
   return peelTransparentExpr(parent.node[slot]) === child.node;
+}
+
+// remove a pattern slot, keeping the bindings it WRITES: babel's `remove()` unregisters every name the
+// removed node could declare, and a slot of an assignment pattern declares none - the binding it writes is
+// declared elsewhere and outlives the slot, so a later lookup still finds it. a slot declaring its name
+// leaves with it
+export function removePatternSlot(slot) {
+  const kept = [];
+  for (const [name, ids] of Object.entries(slot.getBindingIdentifiers(true))) {
+    const binding = slot.scope.getBinding(name);
+    if (binding && !ids.includes(binding.identifier)) kept.push([name, binding]);
+  }
+  slot.remove();
+  for (const [name, binding] of kept) {
+    if (!binding.scope.hasOwnBinding(name)) binding.scope.bindings[name] = binding;
+  }
+}
+
+// write `rendered` into the slot the value peel ended on, replayed by its keys (`receiverSequenceTailKeys`):
+// the effect prefixes, nested sequences and paren nodes standing above the value keep running where the
+// source wrote them. walking raw `SequenceExpression` nodes instead reads a parser that keeps paren nodes
+// as "nothing to descend", and writing into the outer sequence's last element replaces a nested one whole.
+// `overTailLayers` replaces the layers wrapping the tail itself along with it, as wherever a bare global
+// is replaced (`globalThis as any` -> `_globalThis`)
+export function landInSequenceTail(host, slot, rendered, { overTailLayers = false } = {}) {
+  const keys = receiverSequenceTailKeys(host[slot]);
+  if (overTailLayers) while (keys.at(-1) === 'expression') keys.pop();
+  let holder = host;
+  let key = slot;
+  for (const next of keys) {
+    holder = holder[key];
+    key = next;
+  }
+  holder[key] = rendered;
+}
+
+// the slot the swap of a proxy hop replaces: the transparent wrappers over the hop go with the substituted spelling,
+// but one a user store holds (`storedUserAssignmentOf`) is written around the value the store hands on and stays
+// (`kv = globalThis.self as any` stores `_self as any`), where the other leg's landing ends its climb too
+export function proxyHopSwapSlotPath(path) {
+  let slot = path;
+  for (let up = slot.parentPath; up?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type); up = slot.parentPath) {
+    if (up.node.type !== 'ParenthesizedExpression' && storedUserAssignmentOf(up, { throughReads: false })) break;
+    slot = up;
+  }
+  return slot;
 }
 
 // the babel dialect spells the two optional-chain links as their own node TYPES. asking by type
@@ -1446,23 +1492,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   // the stored value's own SEQUENCE hands its TAIL on: where the PLAN peeled that tail, the render
-  // lands in the same slot so the prefix keeps running where the source wrote it - replacing the
-  // whole value dropped its effects. the descent is the PLAN's own peel, replayed by its keys:
-  // walking raw `SequenceExpression` nodes instead read a parser that KEEPS wrapper nodes as
-  // "nothing to descend" and landed on the whole value. only where the plan says it peeled: a plan
-  // that read the whole value re-emits the effects itself, and its render owns the whole slot.
-  // every channel that writes a stored value goes through here - in place, at the host's exit, and
-  // at the program-exit backstop
+  // lands in the same slot (`landInSequenceTail`) so the prefix keeps running where the source wrote it -
+  // replacing the whole value dropped its effects. only where the plan says it peeled: a plan that read
+  // the whole value re-emits the effects itself, and its render owns the whole slot. every plan channel
+  // that writes a stored value goes through here - in place, at the host's exit, and at the program-exit
+  // backstop
   function landStoredValue(plan, step, rendered) {
-    let holder = step;
-    let key = 'right';
-    if (plan.storedValueSeqDescended) {
-      for (const next of receiverSequenceTailKeys(step.right)) {
-        holder = holder[key];
-        key = next;
-      }
-    }
-    holder[key] = rendered;
+    if (plan.storedValueSeqDescended) landInSequenceTail(step, 'right', rendered);
+    else step.right = rendered;
   }
 
   // is the `?.` over this store DEAD? the store hands its value on, so a stored NAVIGATION the value
@@ -2496,7 +2533,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // released hop re-claimed it as `_self.Array`)
     const { root } = descendToChainRoot(nav);
     const rootBinding = root?.type === 'Identifier'
-      ? getAdapter?.()?.getBinding(path?.scope, root.name, path) : null;
+      ? getAdapter?.()?.getBinding({ scope: path?.scope, name: root.name, path }) : null;
     // an INJECTED import binding is the mark of a rendered nav; a source ALIAS of the surface
     // (`const ga = globalThis`) carries the same proxy hint and is still the source's own spelling
     if (rootBinding?.polyfillHint && rootBinding.importSource) return node;
@@ -2587,12 +2624,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         check = probeYieldMemoRetarget(chainStart, key, path, aboveChainStart);
         if (check === null) {
           const memoNode = releaseReemittedReceiver(rootNode, chainStart);
-          [check, ref] = memoize(memoNode, path.scope, chainStart.node, false, {
-            scope: path.scope,
-            path: chainStart,
-            adapter: getAdapter?.(),
-            injectorState: getInjector(),
-          }, key === 'callee');
+          const memoCtx = { scope: path.scope, path: chainStart, adapter: getAdapter?.(), injectorState: getInjector() };
+          // a hop off a selection the build decides re-reads the name it folds to (`decidedReusableReceiver`),
+          // the other leg's hop split: the read above it then takes the identity guard that name's read takes
+          const decided = key === 'object' && decidedReusableReceiver(memoNode, memoCtx);
+          [check, ref] = decided ? [t.cloneNode(memoNode), t.cloneNode(decided)]
+            : memoize(memoNode, path.scope, chainStart.node, false, memoCtx, key === 'callee');
           chainStart.node[key] = seededRefClone(ref, memoType);
           tagProxyGlobalMemoRef(ref, memoNode, path.scope);
           // proven-nav memo RHS: render the nested test via the shared kept-nav plan (see the

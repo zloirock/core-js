@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$getOwnPropertySymbols from "@core-js/pure/actual/object/get-own-property-symbols";
 // An array pattern binds the contained object whose slot is subsequently replaced.
 const escapedByArrayPatternInit = function () {

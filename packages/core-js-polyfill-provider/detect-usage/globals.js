@@ -44,6 +44,24 @@ export const NATIVE_STATIC_OWNERS = new Set(Object.entries(builtInDefinitions.st
 // namespace, so a path-only match reads all three as well-known symbols
 export const SYMBOL_STATIC_KEYS = new Set(Object.keys(builtInDefinitions.statics.Symbol));
 
+// the `typeof` a static of the global `owner` reads where the built-in catalogue names it a METHOD: a function
+// wherever this build serves it. null for every other static - a well-known symbol among them, whose `typeof` an
+// engine core-js polyfills it on answers apart
+export function staticMethodType(owner, key) {
+  return Object.hasOwn(knownBuiltInReturnTypes.staticMethods[owner] ?? {}, key) ? 'function' : null;
+}
+
+// does core-js implement the prototype method `key` of the global constructor `owner` the way pure serves it:
+// on the prototype of the constructor it substitutes (`carried` - a variant the definitions give the owner's
+// type, `Promise#finally`, or a method the catalogue lists, `Map#forEach`), or through a pure dispatcher off a
+// receiver that stays native (`dispatched` - `_includesMaybeArray(Array.prototype)`)
+export function implementsPrototypeMethod(owner, key, how) {
+  const desc = builtInDefinitions.instance[key];
+  const type = owner.toLowerCase();
+  if (how === 'dispatched') return !!desc?.pure?.[type];
+  return !!(desc?.pure?.[type] || desc?.global?.[type]) || Object.hasOwn(knownBuiltInReturnTypes.instanceMethods[owner] ?? {}, key);
+}
+
 // covers constructors / global methods / namespaces / proxy globals - any polyfillable name
 export function isKnownGlobalName(name) {
   return KNOWN_FUNCTION_GLOBALS.has(name) || KNOWN_NAMESPACE_GLOBALS.has(name)

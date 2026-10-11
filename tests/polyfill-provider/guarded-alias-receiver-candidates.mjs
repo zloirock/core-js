@@ -70,8 +70,8 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
       const origin = registration === 'init'
         ? parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'held')
         : parser.pickPath(program, 'AssignmentExpression', p => p.node.right.name === 'globalThis');
-      adapter.getBinding = (scope, boundName, path) => {
-        const binding = getBinding(scope, boundName, path);
+      adapter.getBinding = ({ scope, name: boundName, path }) => {
+        const binding = getBinding({ scope, name: boundName, path });
         return binding && boundName === 'held' ? {
           ...binding, guardedAliasHint: 'globalThis', guardedAliasHints: ['globalThis'], guardedAliasWrite: origin.node,
         } : binding;

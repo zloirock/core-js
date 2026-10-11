@@ -223,6 +223,295 @@ QUnit.test('Symbol.iterator: for-init destructure alias folds inside the loop bo
   assert.same(collected[0].call([30, 31]).next().value, 30);
 });
 
+// a key binding only an assignment gives a value holds the well-known symbol at the read - written
+// plainly or under a presence test the build always answers. the read must find the iterator method
+// on an engine without a native Symbol too, where a raw read of the pure key misses it
+QUnit.test('Symbol.iterator: assignment-written key alias reads the iterator method', assert => {
+  let assignedKey;
+  // eslint-disable-next-line prefer-const -- the separate key WRITE is the case under test
+  assignedKey = Symbol.iterator;
+  function readAssigned(receiver) {
+    return receiver[assignedKey];
+  }
+  let guardedKey;
+  if (typeof Symbol != 'undefined') guardedKey = Symbol.iterator;
+  function readGuarded(receiver) {
+    return receiver[guardedKey];
+  }
+  assert.same(readAssigned([40, 41]).call([40, 41]).next().value, 40);
+  assert.same(readGuarded([42, 43]).call([42, 43]).next().value, 42);
+});
+
+// the fallback a decided presence test selects against never runs - the else arm of an `if`, the
+// other arm of a ternary, a pattern write over the init - so the key stays the well-known symbol,
+// aliased or spelled in the member
+QUnit.test('Symbol.iterator: decided presence test with a fallback reads the iterator method', assert => {
+  let elseKey;
+  if (typeof Symbol != 'undefined') elseKey = Symbol.iterator;
+  else elseKey = '@@iterator';
+  function readElse(receiver) {
+    return receiver[elseKey];
+  }
+  const ternaryKey = typeof Symbol == 'undefined' ? '@@iterator' : Symbol.iterator;
+  function readTernary(receiver) {
+    return receiver[ternaryKey];
+  }
+  function readDirect(receiver) {
+    return receiver[typeof Symbol != 'undefined' ? Symbol.iterator : '@@iterator'];
+  }
+  let functionKey;
+  // eslint-disable-next-line yoda -- the reversed operand order of babel's minified helpers IS the case under test
+  if ('function' == typeof Symbol) functionKey = Symbol.iterator;
+  else functionKey = '@@iterator';
+  function readFunction(receiver) {
+    return receiver[functionKey];
+  }
+  function readFunctionDirect(receiver) {
+    return receiver[typeof Symbol !== 'function' ? '@@iterator' : Symbol.iterator];
+  }
+  let patternKey = Symbol.iterator;
+  if (typeof Symbol == 'undefined') [patternKey] = ['@@iterator'];
+  function readPattern(receiver) {
+    return receiver[patternKey];
+  }
+  assert.same(readElse([60, 61]).call([60, 61]).next().value, 60);
+  assert.same(readTernary([62, 63]).call([62, 63]).next().value, 62);
+  assert.same(readDirect([64, 65]).call([64, 65]).next().value, 64);
+  assert.same(readFunction([66, 67]).call([66, 67]).next().value, 66);
+  assert.same(readFunctionDirect([68, 69]).call([68, 69]).next().value, 68);
+  assert.same(readPattern([70, 71]).call([70, 71]).next().value, 70);
+});
+
+// a logical selection over a decided presence test yields one operand on every path - `&&` its right
+// where the test always holds, as tslib's `__values` and React's iterator lookup spell it, `||` its right
+// where the test always fails - so the key is that operand, and a string selection names its method
+QUnit.test('Symbol.iterator: decided logical selection reads the iterator method', assert => {
+  const maybeKey = typeof Symbol !== 'undefined' && Symbol.iterator;
+  function readMaybe(receiver) {
+    return receiver[maybeKey];
+  }
+  function values(receiver) {
+    const key = typeof Symbol === 'function' && Symbol.iterator;
+    return key && receiver[key];
+  }
+  const deadTestKey = typeof Symbol == 'undefined' || Symbol.iterator;
+  function readDeadTest(receiver) {
+    return receiver[deadTestKey];
+  }
+  // eslint-disable-next-line yoda -- the reversed operand order of minified helpers IS the case under test
+  const methodName = 'function' == typeof Symbol && 'findLast';
+  assert.same(readMaybe([72, 73]).call([72, 73]).next().value, 72);
+  assert.same(values([74, 75]).call([74, 75]).next().value, 74);
+  assert.same(readDeadTest([76, 77]).call([76, 77]).next().value, 76);
+  assert.same([78, 79][methodName](it => it > 78), 79);
+});
+
+// the iterator key the regenerator helpers, `regenerator-runtime` and immutable spell - a `||` / `??` whose
+// left is the well-known symbol through a decided `&&`, an alias of one, a static read off a decided realm
+// selection or the symbol itself - always takes the left, so each read is the iterator method where an
+// engine lacks `Symbol`
+QUnit.test('Symbol.iterator: helper key selections read the iterator method', assert => {
+  const realm = typeof Symbol == 'function' ? Symbol : {};
+  const realmKey = realm.iterator || '@@iterator';
+  function viaRealm(receiver) {
+    return receiver[realmKey];
+  }
+  function viaValues(receiver) {
+    return receiver[typeof Symbol == 'function' && Symbol.iterator || '@@iterator'];
+  }
+  const realKey = typeof Symbol === 'function' && Symbol.iterator;
+  const fauxKey = '@@iterator';
+  const iteratorKey = realKey || fauxKey;
+  function viaAlias(receiver) {
+    return receiver[iteratorKey];
+  }
+  function viaMember(receiver) {
+    return receiver[realm.iterator];
+  }
+  const orKey = Symbol.iterator || '@@iterator';
+  const nullishKey = Symbol.iterator ?? '@@iterator';
+  function viaOr(receiver) {
+    return receiver[orKey];
+  }
+  function viaNullish(receiver) {
+    return receiver[nullishKey];
+  }
+  assert.same(viaRealm([80, 81]).call([80, 81]).next().value, 80);
+  assert.same(viaValues([82, 83]).call([82, 83]).next().value, 82);
+  assert.same(viaAlias([84, 85]).call([84, 85]).next().value, 84);
+  assert.same(viaMember([86, 87]).call([86, 87]).next().value, 86);
+  assert.same(viaOr([89, 90]).call([89, 90]).next().value, 89);
+  assert.same(viaNullish([91, 92]).call([91, 92]).next().value, 91);
+  assert.true(realm.iterator in [88]);
+});
+
+// the async iterator helpers' lookup tries the symbol a decided test installs, then its `'@@iterator'`
+// fallback, in a loop: every value the key holds reads the iterator method
+QUnit.test('Symbol.iterator: helper loop keys read the iterator method', assert => {
+  function lookup(receiver) {
+    let method, asyncKey, syncKey;
+    let retry = 2;
+    for (typeof Symbol != 'undefined' && (asyncKey = Symbol.asyncIterator, syncKey = Symbol.iterator); retry--;) {
+      if (asyncKey && (method = receiver[asyncKey])) return method;
+      if (syncKey && (method = receiver[syncKey])) return method;
+      asyncKey = '@@asyncIterator';
+      syncKey = '@@iterator';
+    }
+  }
+  function iterable(receiver) {
+    let key;
+    let retry = 2;
+    for (typeof Symbol != 'undefined' && (key = Symbol.iterator); retry--;) {
+      if (key in receiver) return true;
+      key = '@@iterator';
+    }
+    return false;
+  }
+  assert.same(lookup([90, 91]).call([90, 91]).next().value, 90);
+  assert.true(iterable([92]));
+});
+
+// a key a decided test installs is often tested before the read: the read after the test is still
+// the iterator method
+QUnit.test('Symbol.iterator: key tested before its read reads the iterator method', assert => {
+  let key;
+  if (typeof Symbol != 'undefined') key = Symbol.iterator;
+  function read(receiver) {
+    return key && receiver[key];
+  }
+  assert.same(read([94, 95]).call([94, 95]).next().value, 94);
+});
+
+// a write a presence test may skip - an undecided test, or one the build always answers false -
+// leaves the key undefined, an undecided ternary may yield its fallback, and the read stays the
+// native miss a fold would turn into the method
+QUnit.test('Symbol.iterator: possibly-unwritten key alias keeps the native read', assert => {
+  const flag = false;
+  let undecidedKey;
+  if (flag) undecidedKey = Symbol.iterator;
+  let falseKey;
+  if (typeof Symbol == 'undefined') falseKey = Symbol.iterator;
+  let notFunctionKey;
+  if (typeof Symbol != 'function') notFunctionKey = Symbol.iterator;
+  const undecidedTernaryKey = flag ? Symbol.iterator : '@@iterator';
+  assert.same([50, 51][undecidedKey], undefined);
+  assert.same([52, 53][falseKey], undefined);
+  assert.same([54, 55][notFunctionKey], undefined);
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the fallback key IS the case under test
+  assert.same([56, 57][undecidedTernaryKey], undefined);
+});
+
+// the value an assignment gives a key alias resolves where the assignment stands: a block around the
+// write, or around a closure reading the key, may rebind a name the value reads, and a block holding
+// the declaration and the write rebinds it for both. a pattern write reads its own key names there
+// too, and so do both arms of a settled write. the keys name ES5 statics every engine carries, which
+// tell an own non-enumerable key apart - but one, a method only the claim serves where it is missing
+QUnit.test('assigned key alias resolves where it was written', assert => {
+  const hidden = Object.defineProperty({}, 'own', { value: 1 });
+  const source = 'keys';
+  let written;
+  {
+    // eslint-disable-next-line no-shadow -- the same-name block shadow IS the case
+    const source = 'getOwnPropertyNames';
+    written = source;
+  }
+  function viaWritten(object) {
+    return Object[written](object);
+  }
+  let outer;
+  // eslint-disable-next-line prefer-const -- the separate key WRITE is the case under test
+  outer = source;
+  let viaOuter;
+  {
+    // eslint-disable-next-line no-shadow, no-unused-vars -- the same-name block shadow IS the case
+    const source = 'getOwnPropertyNames';
+    viaOuter = object => Object[outer](object);
+  }
+  let symbolKey;
+  {
+    const Symbol = { iterator: 'own' };
+    symbolKey = Symbol.iterator;
+  }
+  function viaSymbolKey(receiver) {
+    return receiver[symbolKey];
+  }
+  let viaShared;
+  {
+    // eslint-disable-next-line no-shadow -- the same-name block shadow IS the case
+    const source = 'getOwnPropertyNames';
+    let shared;
+    // eslint-disable-next-line prefer-const -- the separate key WRITE is the case under test
+    shared = source;
+    viaShared = object => Object[shared](object);
+  }
+  const slot = 'k1';
+  let paired;
+  // eslint-disable-next-line prefer-const -- the separate pattern WRITE is the case under test
+  ({ [slot]: paired } = { k1: 'getOwnPropertyNames', k2: 'keys' });
+  let viaPatternKey;
+  {
+    // eslint-disable-next-line no-shadow, no-unused-vars -- the same-name block shadow IS the case
+    const slot = 'k2';
+    viaPatternKey = object => Object[paired](object);
+  }
+  let patternUnderBlock;
+  {
+    // eslint-disable-next-line no-shadow -- the same-name block shadow IS the case
+    const slot = 'k2';
+    ({ [slot]: patternUnderBlock } = { k1: 'getOwnPropertyNames', k2: 'keys' });
+  }
+  function viaPatternUnderBlock(object) {
+    return Object[patternUnderBlock](object);
+  }
+  function viaSettledArms(object, flag) {
+    let armKey;
+    if (flag) {
+      // eslint-disable-next-line no-shadow -- the same-name block shadow IS the case
+      const source = 'getOwnPropertyNames';
+      armKey = source;
+    // eslint-disable-next-line unicorn/no-duplicate-if-branches, sonarjs/no-duplicated-branches -- a write in each arm IS the settled case
+    } else {
+      // eslint-disable-next-line no-shadow -- the same-name block shadow IS the case
+      const source = 'getOwnPropertyNames';
+      armKey = source;
+    }
+    return Object[armKey](object);
+  }
+  // eslint-disable-next-line no-unused-vars -- the outer name a wrong resolution would read IS the case
+  const pick = 'find';
+  let blockMethod;
+  {
+    // eslint-disable-next-line no-shadow -- the same-name block shadow IS the case
+    const pick = 'findLast';
+    blockMethod = pick;
+  }
+  function viaBlockMethod(list) {
+    return list[blockMethod](it => it < 3);
+  }
+  assert.deepEqual(viaWritten(hidden), ['own']);
+  assert.same(viaBlockMethod([1, 2, 3]), 2);
+  assert.deepEqual(viaOuter(hidden), []);
+  assert.same(viaSymbolKey({ own: 'hit' }), 'hit');
+  assert.deepEqual(viaShared(hidden), ['own']);
+  assert.deepEqual(viaPatternKey(hidden), ['own']);
+  assert.deepEqual(viaPatternUnderBlock(hidden), []);
+  assert.deepEqual(viaSettledArms(hidden, true), ['own']);
+});
+
+// a key declared with `var` in both arms of an undecided test holds whichever arm ran
+QUnit.test('var key alias declared in both arms keeps the arm that ran', assert => {
+  const hidden = Object.defineProperty({}, 'own', { value: 1 });
+  function pick(flag) {
+    // eslint-disable-next-line no-var -- the hoisted var in both arms IS the case
+    if (flag) var key = 'getOwnPropertyNames';
+    // eslint-disable-next-line no-var, no-redeclare -- the hoisted var in both arms IS the case
+    else var key = 'keys';
+    return Object[key](hidden);
+  }
+  assert.deepEqual(pick(true), ['own']);
+  assert.deepEqual(pick(false), []);
+});
+
 // a computed key that merely SPELLS 'Symbol.iterator' as a string is a plain property read,
 // NOT the well-known symbol - it must not route through the iterator-method helper. live
 // runtime oracle: fail-before compiled the call to a get-iterator helper that returns an

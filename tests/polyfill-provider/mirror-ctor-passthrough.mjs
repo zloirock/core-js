@@ -19,8 +19,8 @@ for (const [nested, expected] of [
         method: 'usage-pure',
         isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
         getStringValue: node => node.value,
-        hasBinding: (scope, name) => !!scope?.getBinding(name),
-        getBinding: (scope, name) => scope?.getBinding(name),
+        hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+        getBinding: ({ scope, name }) => scope?.getBinding(name),
       };
       const plan = buildNestedParamSynthPlan({
         leafPatternPath, adapter, meta: { object: 'globalThis', key: 'Set', placement: 'static' },
@@ -44,8 +44,8 @@ for (const calls of ['read([[]]);', 'read([[]]); read([[]]);', 'read([[]]); read
       const callPaths = parser.collectPaths(program, 'CallExpression');
       const adapter = {
         method: 'usage-pure',
-        hasBinding: (scope, name) => !!scope?.getBinding(name),
-        getBinding: (scope, name) => scope?.getBinding(name),
+        hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+        getBinding: ({ scope, name }) => scope?.getBinding(name),
       };
       const plan = buildParameterArgumentSynthPlan({
         leafPatternPath, adapter, meta: { object: 'globalThis', key: 'WeakSet', placement: 'static' },
@@ -75,8 +75,8 @@ for (const [pattern, safe] of [
       method: 'usage-pure',
       isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
       getStringValue: node => node.value,
-      hasBinding: (scope, name) => !!scope?.getBinding(name),
-      getBinding: (scope, name) => scope?.getBinding(name),
+      hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+      getBinding: ({ scope, name }) => scope?.getBinding(name),
     };
     const options = {
       leafPatternPath,

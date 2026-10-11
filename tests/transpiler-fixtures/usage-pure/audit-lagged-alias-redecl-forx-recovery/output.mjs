@@ -9,7 +9,7 @@ import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _includes from "@core-js/pure/actual/instance/includes";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // a LAGGED alias binding (babel drops it from its scope registry after the destructure-
 // assignment rewrite) crossed with sibling redeclarations and a for-of head write. the
@@ -43,7 +43,8 @@ function outer() {
   return inner;
 }
 export const r4 = [_includes(D).call(D, 'd'), outer()];
-// an EXPORTED lagged alias resolves through the export wrapper the same as a plain one
+// an EXPORTED lagged alias resolves through the export wrapper the same as a plain one, while the
+// realm's `Map` it holds until the reassignment leaves through the export: the file takes the whole entry
 export let E;
 E = _Map;
 E = [9];

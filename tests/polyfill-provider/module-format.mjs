@@ -11,6 +11,7 @@ import {
   isSloppyAtPath,
   moduleFormatReducer,
   moduleFormatMarkers,
+  programTopLevelIsRealm,
   resolveModuleFormat,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
@@ -231,6 +232,29 @@ for (const [label, id, source, declaredSourceType, importStyleOption, sourceType
       sourceType: format.sourceType,
       importStyle: format.importStyle,
     }, { sourceType, importStyle });
+  });
+}
+
+// --- the realm half: a script no CommonJS wrapper is known to host may run bare ---
+
+// `[label, id, source, declaredSourceType, realm]` - where a top-level `var` may be the global object's own slot
+const REALM = [
+  ['declared script, bare body', '/p.js', 'g();', 'script', true],
+  ['declared script, no id', null, 'g();', 'script', true],
+  ['declared script, cjs body', '/p.js', 'module.exports = 1;', 'script', false],
+  ['declared script, cjs id', '/p.cjs', 'g();', 'script', false],
+  ['cjs body, nothing declared', '/p.js', 'module.exports = 1;', 'module', false],
+  ['cjs id, nothing declared', '/p.cjs', 'g();', 'module', false],
+  ['bare body, nothing declared', '/p.js', 'g();', 'module', false],
+  ['esm body under a declared script', '/p.js', 'export const a = 1;', 'script', false],
+];
+
+for (const [label, id, source, declaredSourceType, realm] of REALM) {
+  runBoth(`realm: ${ label }`, source, (adapter, prog, rowLabel) => {
+    const program = prog.node ?? prog;
+    program.sourceType = declaredSourceType;
+    resolveModuleFormat({ id, program, declaredSourceType });
+    check(rowLabel, programTopLevelIsRealm(program), realm);
   });
 }
 

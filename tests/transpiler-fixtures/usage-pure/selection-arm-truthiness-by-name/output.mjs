@@ -32,7 +32,8 @@ const {
   }
 };
 // A static container is truthy too - a name bound to a literal, or to a call the call canon proves
-// to yield one - so the right arm beside it is dead text on both legs, not a mirror of the realm.
+// to yield one - so the right arm beside it is dead text on both legs, not a mirror of the realm; the
+// call spelled in place is a left the build decides, and the dead right folds away.
 const held = {
   Array: {
     from: () => []
@@ -58,5 +59,5 @@ const {
   Array: {
     from: viaCall
   }
-} = build() || _globalThis;
+} = build();
 export { viaUnbacked, viaProbe, viaRealm, viaHeld, viaBuilt, viaCall };

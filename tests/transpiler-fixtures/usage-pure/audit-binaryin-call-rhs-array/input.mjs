@@ -1,7 +1,7 @@
-// receiver inlining for `key in CALL()` covers: (1) direct IIFE arrow / function-expression
-// with a single-return body, (2) identifier-bound arrow / function-expression called as `f()`,
-// (3) const-binding whose init is itself one of those call shapes. opaque callees (free
-// Identifier, callee params, multi-return blocks) stay raw - inline result would be ambiguous
+// receiver inlining for `key in CALL()` covers: (1) direct IIFE arrow / function-expression with a single-return
+// body, (2) identifier-bound arrow / function-expression called as `f()`, (3) const-binding whose init is itself one
+// of those call shapes - each test folds to `true`, which as a statement performs nothing and leaves. opaque callees
+// (free Identifier, callee params, multi-return blocks) stay raw - inline result would be ambiguous
 
 'from' in someFn();
 const xs = Array.from(src);
