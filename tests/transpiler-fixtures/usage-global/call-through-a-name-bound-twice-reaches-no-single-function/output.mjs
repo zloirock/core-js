@@ -1,0 +1,41 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.chunks";
+import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.iterator.drop";
+import "core-js/modules/es.iterator.every";
+import "core-js/modules/es.iterator.filter";
+import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.iterator.join";
+import "core-js/modules/es.iterator.map";
+import "core-js/modules/es.iterator.reduce";
+import "core-js/modules/es.iterator.some";
+import "core-js/modules/es.iterator.take";
+import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.windows";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// A call through a name bound twice in one scope reaches no single local function: the constructor it hands
+// over may land in whatever else the name holds, and its statics are injected. A binding a call cannot reach -
+// none, or a primitive - is no second one, and the constructor handed past it stays narrow.
+let viaCall = make();
+if (c) viaCall = function (handed) {};
+viaCall(Map);
+let viaInitless;
+viaInitless = function (handed) {};
+viaInitless(Promise);
+let viaPrimitive = function (handed) {};
+if (c) viaPrimitive = 0;
+viaPrimitive(Iterator);

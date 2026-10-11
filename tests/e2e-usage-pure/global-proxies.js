@@ -245,7 +245,6 @@ QUnit.test('global-proxy: a realm ternary keeps the arm its test decides', asser
   const onWindow = globalThis.window !== undefined;
   const { Array: { of: viaForeignTest } } = onWindow ? globalThis.window : globalThis;
   assert.same(viaForeignTest(8).at(0), 8);
-  // eslint-disable-next-line unicorn/prefer-logical-operator-over-ternary -- the TERNARY is the subject
   const { Array: { of: viaProbeTest } } = globalThis.window ? globalThis.window : globalThis;
   assert.same(viaProbeTest(9).at(0), 9);
   // ... and the arm the test picks keeps its OWN value: the probe arm is not swapped for an
@@ -1505,6 +1504,24 @@ QUnit.test('lagged alias binding: sibling redeclarations and for-of head write',
   for (F of [[[3]]]) laps++;
   assert.same(laps, 1);
   assert.deepEqual(F.flat(), [3]);
+});
+
+QUnit.test('alias written on one path: the read takes the value that ran', assert => {
+  function read(flag) {
+    let early;
+    if (flag) ({ Map: early } = globalThis);
+    // a read ahead of the write below, so the binding writes are indexed before that write is rendered
+    const before = typeof early?.groupBy;
+    let M;
+    flag && ({ Map: M } = globalThis);
+    try {
+      return [before, M.groupBy([1, 2], it => it % 2).get(1)[0]];
+    } catch (error) {
+      return [before, error instanceof TypeError];
+    }
+  }
+  assert.deepEqual(read(true), ['function', 1]);
+  assert.deepEqual(read(false), ['undefined', true]);
 });
 
 testUnlessDetectLowered('global-proxy: parens seal the chain and the call throws on the absent root', assert => {

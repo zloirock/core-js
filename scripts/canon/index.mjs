@@ -18,18 +18,21 @@ const PACKAGES = [
 ];
 
 const CACHE_DIR = path.join(os.homedir(), '.cache', 'core-js-canon');
-// the cache is valid only when built by THIS exact extraction, and developers run different
-// branches against one shared cache dir - so the hash of everything extraction depends on keys
-// the cache file: the script itself (import.meta.url, not `__filename` - under the zxi bootstrap
-// the global names the BOOTSTRAP script) plus the @babel/parser version (a caret dependency:
-// installs diverge while the script hash stays put). no manual schema number, no collisions
+// the cache is valid only when built by THIS exact extraction over THIS checkout, and developers run
+// different branches - and copies of one branch - against one shared cache dir - so the hash of
+// everything extraction depends on keys the cache file: the script itself (import.meta.url, not
+// `__filename` - under the zxi bootstrap the global names the BOOTSTRAP script), the @babel/parser
+// version (a caret dependency: installs diverge while the script hash stays put) and the directory the
+// scan runs in (two checkouts with the same file count would otherwise take each other's index for
+// fresh). no manual schema number, no collisions
 const PARSER_VERSION = createRequire(import.meta.url)('@babel/parser/package.json').version;
-const SCRIPT_HASH = createHash('sha256')
+const INDEX_KEY = createHash('sha256')
   .update(await fs.readFile(new URL(import.meta.url)))
   .update(PARSER_VERSION)
+  .update(process.cwd())
   .digest('hex')
   .slice(0, 12);
-const INDEX_PATH = path.join(CACHE_DIR, `helpers-index-${ SCRIPT_HASH }.json`);
+const INDEX_PATH = path.join(CACHE_DIR, `helpers-index-${ INDEX_KEY }.json`);
 
 const FUNCTION_EXPRESSION_TYPES = new Set(['FunctionExpression', 'ArrowFunctionExpression']);
 // every scope-opening function form - the NAME chain is not a scope proxy: private methods and

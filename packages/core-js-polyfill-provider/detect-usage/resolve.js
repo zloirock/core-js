@@ -21,6 +21,7 @@ import {
   assignmentAliasHintSoundAtRead,
   bindingDeclarationPath,
   bindingDeclaratorNode,
+  bindingHoldsNoGlobal,
   bindingLoopAnchor,
   bindingPolyfillHint,
   bindsModuleDefault,
@@ -29,6 +30,7 @@ import {
   prototypeChainMayLend,
   callPairing,
   canonAnswerTable,
+  canonContextPath,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
   collectParamBindingNames,
@@ -72,6 +74,7 @@ import {
   memberChainEndPath,
   memberKeyName,
   memberProxyHopName,
+  mutatedStaticKey,
   nodeCarriesSourceSpan,
   noReassignmentReachesUsage,
   pathOfNode,
@@ -83,6 +86,7 @@ import {
   paramListRunsWork,
   paramReboundInBody,
   paramReturnsTheValue,
+  patternBoundAliasSlotInit,
   patternSlotValueAmbiguous,
   patternSlotTarget,
   patternSlotValues,
@@ -100,9 +104,13 @@ import {
   pureImportSourceEntry,
   reachingReassignmentValueNode,
   reassignBailApplies,
+  reassignmentReachesUsage,
+  runtimeChainRoot,
   reassignmentBlocksGlobalResolve,
   reassignmentValueEnumeration,
+  bindingWrittenBeforeUsage,
   reassignmentValueNodes,
+  readsOffBindingItself,
   requireCallSource,
   resolveCallArgument,
   PARAMETER_STATIC_SOURCES,
@@ -111,8 +119,10 @@ import {
   sequencePrefixWithSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
+  SELECTION_TEST_FIELDS,
   SKIPPABLE_WRAPPER_TYPES,
   spelledSlotName,
+  staticMemberFromEntrySegment,
   staticMemberKeyName,
   stepOverChainWrappers,
   synthSwapPropKey,
@@ -121,15 +131,15 @@ import {
   tsImportEqualsProxyName,
   tsImportEqualsRequireSource,
   unwrapParens,
-  forOfIterableElements,
+  forOfHeadDeclarationOf,
   forOfHeadIterableElements,
   forXHeadLoopPath,
-  isForXStatement,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   subtreeContainsNode,
   unwrapTransparentSeq,
   varInitDominatesUsage,
+  violationNode,
   writeIsInOppositeBranch,
   writtenPatternSlotValues,
   provablyPrecedes,
@@ -140,14 +150,30 @@ import {
   extractStaticString,
   cycleGuardCuts,
   cycleGuardHas,
+  cutDeepWalk,
+  guardSettlingInFlight,
   withCanonQuestion,
+  withPresenceReadQuestion,
   withReentrantQuestion,
+  refuseReentry,
+  writeScopeAt,
+  peelTransparentWrapperPath,
+  writesPastCeiling,
 } from '../helpers/ast-patterns.js';
-import { KNOWN_FUNCTION_GLOBALS, NATIVE_STATIC_OWNERS, SYMBOL_STATIC_KEYS, isKnownGlobalName, symbolKeyToEntry } from './globals.js';
+import {
+  KNOWN_FUNCTION_GLOBALS,
+  NATIVE_STATIC_OWNERS,
+  SYMBOL_STATIC_KEYS,
+  implementsPrototypeMethod,
+  isKnownGlobalName,
+  staticMethodType,
+  symbolKeyToEntry,
+} from './globals.js';
 import { argIndexForParam, dropLeadingThisParam, nodeRangeContains } from '../resolve-node-type/base.js';
 
-// same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
-// exported so cohort recursive walkers (`isSymbolSourcedKey` in members.js) share the bound
+// same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains. the bound
+// every alias-chain walk of this file shares: the key walks (`isSymbolSourcedKey` among them) and the
+// object-name and binding walks (`withinAliasWalkBudget`)
 const MAX_KEY_DEPTH = 64;
 
 // SequenceExpression collect mode: push side-effect preceding elements into `effects` for
@@ -200,6 +226,27 @@ export function receiverSequenceTailKeys(node) {
     }
   }
   return keys;
+}
+
+// the spelling a receiver runs as where the tail of that peel is a `||` / `??` the build decides for its
+// left (`left`, which the member and destructure metas record as `decidedReceiver`): the same spine
+// re-spelled shallowly with that tail replaced by the left, so wrappers and effect prefixes stand where
+// the source has them and every question over the spelling answers as for the left spelled alone. the
+// receiver itself where no left is handed or the tail is no such selection
+export function decidedReceiverSpelling(node, left) {
+  if (!left) return node;
+  function respelled(current) {
+    if (isTransparentWrapper(current)) {
+      const inner = respelled(current.expression);
+      return inner && { ...current, expression: inner };
+    }
+    if (current?.type === 'SequenceExpression' && current.expressions?.length) {
+      const tail = respelled(current.expressions.at(-1));
+      return tail && { ...current, expressions: [...current.expressions.slice(0, -1), tail] };
+    }
+    return current?.type === 'LogicalExpression' && current.operator !== '&&' ? left : null;
+  }
+  return respelled(node) ?? node;
 }
 
 // the sequence prefixes the hop OBJECTS of a sealed nav carry, in source-eval order. the guard
@@ -972,7 +1019,7 @@ export function claimAlreadyRendered(node, { scope, adapter, path }) {
   const index = parts.indexOf(node);
   if (index === -1 || index === parts.length - 1) return false;
   const tail = parts.at(-1);
-  return tail?.type === 'Identifier' && !!adapter?.getBinding?.(scope, tail.name, path)?.polyfillHint;
+  return tail?.type === 'Identifier' && !!adapter?.getBinding?.({ scope, name: tail.name, path, read: tail })?.polyfillHint;
 }
 
 // the RECEIVER-position twin: a receiver spelled as our probe sequence (`(held.X, _Ponyfill)
@@ -984,7 +1031,7 @@ export function probeRenderedReceiver(objectNode, { scope, adapter, path }) {
   const receiver = unwrapRuntimeExpr(objectNode);
   if (receiver?.type !== 'SequenceExpression') return false;
   const tail = unwrapRuntimeExpr(receiver.expressions.at(-1));
-  return tail?.type === 'Identifier' && !!adapter?.getBinding?.(scope, tail.name, path)?.polyfillHint;
+  return tail?.type === 'Identifier' && !!adapter?.getBinding?.({ scope, name: tail.name, path })?.polyfillHint;
 }
 
 // the VALUE canon asked THROUGH an Identifier alias: follow the binding to what it holds and
@@ -1011,7 +1058,7 @@ function aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx) {
 // one defined through its own binding (`const v = v?.at`, `let v; v = v?.at`) comes back here
 // through a fresh `proxyReceiverValueCanBeUndefined` walk, so the entered values ride on the ctx
 function aliasHeldValueStep(node, aliasCtx) {
-  const binding = aliasCtx.adapter?.getBinding?.(aliasCtx.scope, node.name, aliasCtx.path);
+  const binding = aliasCtx.adapter?.getBinding?.({ scope: aliasCtx.scope, name: node.name, path: aliasCtx.path, read: node });
   // pattern-gated: a destructure declarator binds the name to a SLOT, not the init it follows
   let held = binding ? identifierDeclaratorInit(binding) : null;
   if (!held && binding?.constantViolations?.length === 1) {
@@ -1051,7 +1098,12 @@ export function isKnownStaticGlobal(name, adapter = null) {
 // implements (its pure flavor), installed where a target lacks it (a module of its entry a filter drops leaves
 // the global itself standing), or one it extends in place on every engine's own (`NATIVE_STATIC_OWNERS`), and
 // replaced by no write the census sees. a known name core-js implements nothing of (`WeakRef`, `BigInt`,
-// `Float16Array`, whose definition lists methods alone) may be missing on a target, its default live
+// `Float16Array`, whose definition lists methods alone) may be missing on a target, its default live, and an
+// excluded constructor counts as missing even over a deficient native (`Map` on IE 11). pure still leaves two
+// such defaults native, usage-global loading their modules: beside a sibling the build claims (`{ Float16Array:
+// { from } = Array, Map: M } = globalThis` - the leaf is classified after the render spelled the realm read into a
+// literal, and a second pass mirrors it), and in a selection default whose realm-read left has a same-named static
+// without a pure entry (`({ from } = globalThis.Float16Array ?? Array)`)
 export function realmLevelNamesCtor(name, levelValue, adapter) {
   return isKnownStaticGlobal(name, adapter) && (levelValue?.type !== 'AssignmentPattern'
     || !adapter?.isMutatedStaticSlot?.('globalThis', name)
@@ -1079,15 +1131,14 @@ function enterIdentifierBindingFollow(hop) {
   const { node, readNode: usageNode = null, seen } = hop;
   const { scope, adapter, path = null } = hop.ctx;
   if (cycleGuardHas(seen, node.name)) return null;
-  const binding = adapter.getBinding(scope, node.name, path);
+  const binding = adapter.getBinding({ scope, name: node.name, path, read: node });
   // method-aware reassignment bail: usage-global keeps following a reassigned key/value alias when the
   // reassignment does not dominate the use; pure / narrowing keep the flat bail. `usageNode` anchors the
   // dominance at THIS hop's read site so a multi-hop key alias (`let k='from'; const j=k; k='of';
   // Array[j]`) sees `k='of'` as after the `const j=k` read, not dominating - `j` keeps 'from'
   // the assignment-form Symbol alias's ONLY write IS the aliasing destructure: its write set
-  // was already judged clean by the shadow-safe predicate that surfaced `aliasSymbolSource`.
-  // blocking on that same write kept the fold babel-only (babel's in-place rewrite hides the
-  // write from its own scope tracker, the mutation-free estree side always saw it)
+  // was already judged clean by the shadow-safe predicate that surfaced `aliasSymbolSource`, and
+  // blocking on that same write would refuse the alias its one write makes
   // ... and a binding whose every reachable value NAMES THE REALM is no alias risk at all: the writes
   // spell one object under several names, so the read answers the same whichever reached the use
   if (!binding || (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })
@@ -1146,7 +1197,7 @@ export function bindingSymbolKey(binding, packages = null, ctx = null) {
       usageNode: ctx.usageNode, kind: binding.kind })) return null;
   const keys = patternLiteralKeyPath(declarator.id, ctx.name);
   if (keys?.length !== 1 || !SYMBOL_STATIC_KEYS.has(keys[0])
-    || ctx.adapter.isMutatedStatic?.('Symbol', keys[0])) return null;
+    || ctx.adapter.isMutatedStatic?.('Symbol', keys[0], ctx.path && { node: declarator, path: ctx.path })) return null;
   const source = moduleDefaultSource({ node: declarator.init, adapter: ctx.adapter,
     scope: aliasDeclScope(binding, ctx.scope), path: binding.declarationPath ?? binding.path ?? ctx.path });
   if (!source) return asSymbolRef({
@@ -1198,16 +1249,16 @@ function isInteropDefaultCallee(callee, scope, adapter, path) {
     && callee.object?.type === 'Identifier' && callee.object.name === 'babelHelpers'
     // a LOCAL `babelHelpers` binding shadows the external-helpers global - same shadow
     // discipline as `requireCallSource`'s require check
-    && !adapter.hasBinding(scope, 'babelHelpers', path)
+    && !adapter.hasBinding({ scope, name: 'babelHelpers', path })
     && callee.property?.type === 'Identifier' && /^interopRequire(?:Default|Wildcard)$/.test(callee.property.name)) {
     return true;
   }
   if (callee?.type !== 'Identifier') return false;
   if (INTEROP_DEFAULT_CALLEE.test(callee.name)) return true;
-  const binding = adapter.getBinding(scope, callee.name, path);
+  const binding = adapter.getBinding({ scope, name: callee.name, path });
   // no binding OBJECT: estree surfaces TSImportEquals only through the dedicated lookup
   if (!binding) {
-    const tsNode = adapter.getTSImportEqualsNode?.(scope, callee.name, path);
+    const tsNode = adapter.getTSImportEqualsNode?.({ scope, name: callee.name, path });
     const tsSource = tsImportEqualsRequireSource(tsNode, adapter);
     return typeof tsSource === 'string' && INTEROP_HELPER_SOURCE.test(tsSource);
   }
@@ -1262,7 +1313,12 @@ export function moduleDefaultSource({ node, scope, adapter, path, namespace = fa
     }
     if (node.type !== 'Identifier' || seen.has(node.name)) return null;
     seen.add(node.name);
-    const binding = getBinding ? getBinding(scope, node.name, path) : adapter.getBinding(scope, node.name, path);
+    const binding = getBinding ? getBinding({
+      scope,
+      name: node.name,
+      path,
+      read: node,
+    }) : adapter.getBinding({ scope, name: node.name, path, read: node });
     if (!binding) return null;
     followed.push({ binding, node, path });
     if (namespace && binding.node?.type === 'ImportNamespaceSpecifier') {
@@ -1299,7 +1355,7 @@ export function interopDefaultProxyName({ objectNode, ...ctx }) {
 // unwrapped CJS shape `module.exports` IS the global object, with no `.default` hop between
 export function requireBoundProxyGlobalName({ node, scope, adapter, path }) {
   if (node?.type !== 'Identifier') return null;
-  const binding = adapter.getBinding?.(scope, node.name, path);
+  const binding = adapter.getBinding?.({ scope, name: node.name, path });
   if (!binding || isReassignedBeyondDeclarator(binding)) return null;
   const init = binding.node?.type === 'VariableDeclarator' && binding.node.id?.type === 'Identifier'
     ? unwrapTransparentSeq(binding.node.init) : null;
@@ -1329,10 +1385,13 @@ export function withBindingLookupGuard(owner, name, question) {
   const key = owner ?? OWNERLESS;
   let names = inFlightBindingLookups.get(key);
   if (!names) inFlightBindingLookups.set(key, names = new Set());
-  if (names.has(name)) return undefined;
+  if (names.has(name)) {
+    refuseReentry();
+    return undefined;
+  }
   names.add(name);
   try {
-    return withReentrantQuestion(question);
+    return withReentrantQuestion(question, 'lookup');
   } finally {
     names.delete(name);
   }
@@ -1366,12 +1425,12 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   if (binding === null) {
     // `undefined` (never `null`) marks the re-entrant lookup the guard refused - a resolved-but-absent
     // binding is `null` and must keep flowing into the binding-less arms below
-    binding = withBindingLookupGuard(scope, node.name, () => adapter.getBinding(scope, node.name, path) ?? null);
+    binding = withBindingLookupGuard(scope, node.name, () => adapter.getBinding({ scope, name: node.name, path }) ?? null);
     // the re-entrancy and cycle fallbacks name the proxy global like every other arm here, so they
     // owe the SAME second half: a name whose slot the user overwrote holds the replacement, and
     // answering it pristine only because the walk had to stop is the one shape where a cycle
     // changes a VALUE verdict
-    if (binding === undefined) return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
+    if (binding === undefined) return isPristineProxyGlobal(adapter, node.name, path && { node, path }) ? node.name : null;
   }
   // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
@@ -1385,7 +1444,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   if (hint) {
     // `readNode` carries an alias hop's declarator NODE (babel bindings surface no path for it)
     if (!assignmentAliasHintSoundAtRead({ binding, adapter, readNode: readNode ?? (usageNode ?? path)?.node ?? null })) return null;
-    return isPristineProxyGlobal(adapter, hint) ? hint : null;
+    return hintedRealmIsPristine(adapter, hint, binding) ? hint : null;
   }
   // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
   // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
@@ -1403,7 +1462,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // estree-toolkit registers no binding for TSImportEquals - the dedicated adapter lookup
   // surfaces the declaration node instead, mirroring the name-resolution canon's fallback
   if (!binding && adapter.getTSImportEqualsNode) {
-    const tsImportNode = adapter.getTSImportEqualsNode(scope, node.name, path);
+    const tsImportNode = adapter.getTSImportEqualsNode({ scope, name: node.name, path });
     const viaTsImport = tsImportNode && tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
     if (viaTsImport) return isPristineProxyGlobal(adapter, viaTsImport) ? viaTsImport : null;
   }
@@ -1424,7 +1483,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
     }
     const nextSeen = new Set(seen).add(node.name);
     const held = resolveVariableBindingToGlobal({ name: node.name, binding, scope, adapter, seen: nextSeen, path, usageNode, readNode });
-    if (held) return isPristineProxyGlobal(adapter, held) ? held : null;
+    if (held) return hintedRealmIsPristine(adapter, held, binding) ? held : null;
     // the REALM narrow the value canon cannot make: the proxy globals are ONE object, so a
     // reassignment the canon bails on still leaves the binding naming that surface when the value
     // it reaches is itself a proxy global (`let A = globalThis; A = self; A.Array.from` collapses).
@@ -1437,8 +1496,8 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
     });
     return isPristineProxyGlobal(adapter, reached) ? reached : null;
   }
-  if (adapter.hasBinding?.(scope, node.name, path)) return null;
-  return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
+  if (adapter.hasBinding?.({ scope, name: node.name, path })) return null;
+  return isPristineProxyGlobal(adapter, node.name, path && { node, path }) ? node.name : null;
 }
 
 // a for-x HEAD's element binding holds what the loop ITERATES, which no init can carry: where the
@@ -1447,25 +1506,20 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
 // is dead - without it the hop under such a head reads as a user object and every claim below it
 // keeps the source's own read, losing the ponyfill the same shape gets on any other host. A single
 // element that is anything else takes the whole answer away: the loop then really does see two
-// different objects, and the guard is the right render
+// different objects, and the guard is the right render. the head is the declaration a read in its loop's
+// body resolves to and the binding's only write (`forOfHeadDeclarationOf`); a pattern head holds a slot of
+// each element instead
 function forXElementProxyGlobal({ name, scope, adapter, path, seen }) {
-  for (let up = path; up?.node; up = up.parentPath) {
-    if (!isForXStatement(up.node)) continue;
-    const { left } = up.node;
-    const declared = left?.type === 'VariableDeclaration' ? left.declarations?.[0]?.id : left;
-    if (declared?.type !== 'Identifier' || declared.name !== name) continue;
-    const elements = forOfIterableElements(up.node);
-    if (!elements?.length) return null;
-    let held = null;
-    for (const element of elements) {
-      const realm = element
-        && proxyGlobalRootName({ node: unwrapRuntimeExpr(element), scope, adapter, path: up, seen });
-      if (!realm || (held !== null && held !== realm)) return null;
-      held = realm;
-    }
-    return held;
+  const head = forOfHeadDeclarationOf(name, { scope, adapter, path });
+  if (head?.declaration.node.id?.type !== 'Identifier') return null;
+  let held = null;
+  for (const element of head.elements) {
+    const realm = element
+      && proxyGlobalRootName({ node: unwrapRuntimeExpr(element), scope, adapter, path: head.loop, seen });
+    if (!realm || (held !== null && held !== realm)) return null;
+    held = realm;
   }
-  return null;
+  return held;
 }
 
 // boolean view for the call sites that only ask "is it a proxy root", not "which one"
@@ -1496,7 +1550,7 @@ export function globalProxyMemberName({ node, scope, adapter, path, seen, resolv
     // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
     // global-object surface, so it must not resolve to the leaf global
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
-      || isMutatedGlobalSlot(adapter, linkName)) return null;
+      || isMutatedGlobalSlot(adapter, linkName, path && { node: object, path })) return null;
     object = peelProxyGlobalObject(object.object);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path, seen })) return null;
@@ -1505,27 +1559,39 @@ export function globalProxyMemberName({ node, scope, adapter, path, seen, resolv
   // decline through the recognizers' own gates (capture order decides what an alias holds,
   // which no span model covers)
   if (object?.type === 'Identifier'
-    && isMutatedGlobalSlot(adapter, object.name)) return null;
+    && isMutatedGlobalSlot(adapter, object.name, path && { node: object, path })) return null;
   const leaf = keyOf(node) || null;
   // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
   // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,
-  // typing) must fall back to its raw / generic path
-  return isMutatedGlobalSlot(adapter, leaf) ? null : leaf;
+  // typing) must fall back to its raw / generic path - save a read the write does not reach
+  return isMutatedGlobalSlot(adapter, leaf, path && { node, path }) ? null : leaf;
+}
+
+// does a hinted alias still name the pristine realm `hint`? the alias CAPTURES the realm where its declaration
+// stands, so one captured ahead of every write of the realm's slot holds the served realm, while one captured
+// after a write reads the user's slot. a hint with no declaration behind it is a minted import or memo - this
+// build's own value, which no write of the slot reaches
+function hintedRealmIsPristine(adapter, hint, binding) {
+  if (!binding?.node) return POSSIBLE_GLOBAL_OBJECTS.has(hint);
+  const path = bindingDeclarationPath(binding);
+  const node = path?.node;
+  return isPristineProxyGlobal(adapter, hint, typeof node?.start === 'number' ? { node, path } : null);
 }
 
 // the global a name stands for when NO scope binding backs it. a plugin-MINTED alias carries the
 // original through the injector's hint hook - `_globalThis` has no scope entry of its own after the
 // in-place rewrite, and reading the raw spelling called it no global at all - otherwise the spelling
 // itself must pass the direct read's admission (capitalised, or a known proxy). a mutated proxy SLOT
-// is the user's replacement whichever route reached the name
-function bindingLessGlobalName(name, { scope, adapter }) {
+// is the user's replacement whichever route reached the name - save a spelled read (`read`: `{ node,
+// path }`) that runs before every write of it
+function bindingLessGlobalName(name, { scope, adapter, read = null }) {
   // only a PROXY hint is taken: the same hook also carries a `*/constructor` stub, whose hint is the
   // constructor NAME (`_Map` hints `Map`) - and that binding serves no statics, so reading it as the
   // global puts a static read back on the entry that cannot answer it
   const held = asProxyGlobalName(bindingPolyfillHint({ binding: null, scope, name, adapter })) ?? name;
   // a proxy name whose SLOT the file overwrote is the user's replacement - that pair is the pristine
   // predicate's own question, asked here rather than re-spelled
-  if (asProxyGlobalName(held) && !isPristineProxyGlobal(adapter, held)) return null;
+  if (asProxyGlobalName(held) && !isPristineProxyGlobal(adapter, held, held === name ? read : null)) return null;
   return isStaticPlacement(held) ? held : null;
 }
 
@@ -1536,7 +1602,7 @@ function bindingLessGlobalName(name, { scope, adapter }) {
 // `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the StaticBlock
 // to find the enum. babel's scope tracker does anchor at StaticBlock so the legacy `scope.path`
 // fallback works for it; estree-toolkit needs the explicit path
-function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null }) {
+function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null, read = null }) {
   seen ??= new Set();
   if (cycleGuardHas(seen, name)) return null;
   // `seen` is a recursion STACK, not a visited set: only names on the CURRENT descent stay
@@ -1546,17 +1612,18 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = 
   // element independently; a visited-set left every later element unresolvable
   seen.add(name);
   try {
-    return resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode, readNode });
+    return withinAliasWalkBudget(resolveGuardedBindingToGlobal, { name, scope, adapter, seen, path, usageNode, readNode, read });
   } finally {
     seen.delete(name);
   }
 }
 
-function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null }) {
+function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null, read = null }) {
   // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk.
   // pass `path` so the adapter's var-hoist fallback can surface a nested-block `var` alias
-  // (`var g = globalThis` inside an `if`) that estree-toolkit's name-only scope index misses
-  const binding = adapter.getBinding(scope, name, path);
+  // (`var g = globalThis` inside an `if`) that estree-toolkit's name-only scope index misses, and
+  // the node the name is read at (`read`) where that is not the use - an alias's initializer
+  const binding = adapter.getBinding({ scope, name, path, read });
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
@@ -1579,7 +1646,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // slot the file itself overwrote no longer stands for the pristine global. registration does not
   // mint hints for mutated slots today, so this only pins the invariant against the fork drifting
   if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))
-    && (!POSSIBLE_GLOBAL_OBJECTS.has(hint) || isPristineProxyGlobal(adapter, hint))) {
+    && (!POSSIBLE_GLOBAL_OBJECTS.has(hint) || hintedRealmIsPristine(adapter, hint, binding))) {
     // pure only - the hint drives a receiver-dropping rewrite, so it must be flow-sound at THIS use;
     // global / entry modes inject side-effect imports and stay sound regardless (over-inject-safe).
     // an `aliasWrite` hint was verified clean at REGISTRATION (single write, unconditional same-scope
@@ -1596,7 +1663,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
         || initializerReachesRead({ adapter, binding, declaratorNode: binding.node, usagePath: path, usageNode }));
     if (hintFlowSound) return hint;
   }
-  const bindingType = adapter.getBindingNodeType(scope, name, path);
+  const bindingType = adapter.getBindingNodeType({ scope, name, path, read });
   // an import binding maps to a known global ONLY through a pure GLOBAL-PROXY entry source
   // (`import g from '<pkg>/<mode>/global-this'`) - any other imported value stays opaque;
   // catch / class names fall through to the final null; parameters need their own proof below.
@@ -1620,7 +1687,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // declaration node through a dedicated lookup instead (adapters with native bindings
   // resolve through the branch above and don't implement it)
   if (!bindingType && adapter.getTSImportEqualsNode) {
-    const tsImportNode = adapter.getTSImportEqualsNode(scope, name, path);
+    const tsImportNode = adapter.getTSImportEqualsNode({ scope, name, path, read });
     if (tsImportNode) return tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
   }
   if (bindingType === 'VariableDeclarator') {
@@ -1645,7 +1712,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     const sites = adapter.parameterCallSites?.(parameter, { staticIsMutated: adapter.isMutatedStatic });
     if (!sites?.length) return null;
     const source = parameterStaticSource(sites, null, (value, { callPath }) => {
-      const sourceBinding = value.type === 'Identifier' && adapter.getBinding(callPath.scope, value.name, callPath);
+      const sourceBinding = value.type === 'Identifier' && adapter.getBinding({ scope: callPath.scope, name: value.name, path: callPath });
       if (adapter.method !== 'usage-global' && sourceBinding
         && !bindingPolyfillHint({ binding: sourceBinding, scope: callPath.scope, name: value.name, adapter })) return null;
       const object = resolveObjectName({ objectNode: value, scope: callPath.scope, adapter, path: callPath, seen: new Set() });
@@ -1658,11 +1725,13 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
 }
 
 // the ONE value a reassigned KEY binding holds at the read, with the scope it is spelled in: the
-// reaching write's value (usage-pure: the single observable one), or - where that write is a pattern
-// over a CALL (`({ K } = f())`) - the one value the site pairs through the call canon, in the scope
-// the callee spelled it. null where the value is flow-dependent
+// reaching write's value (usage-pure: the single observable one), in the scope that write stands in - a
+// block around it may rebind a name it reads, one around the read rebinds nothing the write saw - or,
+// where that write is a pattern over a CALL (`({ K } = f())`), the one value the site pairs through the
+// call canon, in the scope the callee spelled it. null where the value is flow-dependent
 function reachingKeyValue({ binding, name, scope, adapter, path, usageNode, seen }) {
   const callSites = [];
+  const writeScopes = [];
   const reaching = reachingReassignmentValueNode({
     binding,
     usagePath: path,
@@ -1670,8 +1739,9 @@ function reachingKeyValue({ binding, name, scope, adapter, path, usageNode, seen
     usageNode,
     requireSingleObservation: adapter.method === 'usage-pure',
     callSites,
+    writeScopes,
   });
-  if (reaching) return { node: reaching, scope };
+  if (reaching) return { node: reaching, scope: writeScopes[0] ?? aliasDeclScope(binding, scope) };
   return callSites.length === 1 ? certainPairedSlotValue({
     pattern: callSites[0].pattern,
     init: callSites[0].value,
@@ -1689,13 +1759,19 @@ function reachingKeyValue({ binding, name, scope, adapter, path, usageNode, seen
 // inject-safe). shared by the key (resolveKey) and receiver (resolveVariableBindingToGlobal) follows
 // usage-pure takes the reaching value on the container walk's terms (`reachingContainerValueNode`):
 // only when that write is the ONLY value the read can observe - the bare canon and the walk lifted
-// from it answer one reassigned binding alike (`var g = globalThis; g = plain; g = self; g.Map`)
-function reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode = null }) {
+// from it answer one reassigned binding alike (`var g = globalThis; g = plain; g = self; g.Map`).
+// a `writeScopes` sink takes the value in the scope its write stands in (the key follow), see
+// `reachingReassignmentValueNode`
+function reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode = null, writeScopes = null }) {
   const { method } = adapter;
   if ((method !== 'usage-global' && method !== 'usage-pure') || !isReassignedBeyondDeclarator(binding)) return null;
   return reachingReassignmentValueNode({
-    binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode,
-    requireSingleObservation: method === 'usage-pure', plainWritesOnly: method === 'usage-pure',
+    binding,
+    usagePath: path,
+    ctx: { scope, adapter, path, resolveKey },
+    usageNode,
+    requireSingleObservation: method === 'usage-pure',
+    writeScopes,
   });
 }
 
@@ -1703,7 +1779,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // the declarator through the canonical view: the proxy-root recogniser hands this the raw babel
   // scope Binding of the type-resolution adapter, whose `.node` is not the declarator
   const declarator = bindingDeclaratorNode(binding);
-  if (!declarator) return null;
+  // ... and a binding no value of which stands for a global names none, whichever of its writes reaches the
+  // read: asking which do settles the guards of every write, and a guard testing the binding asks this again
+  // ... and one written past the ceiling names none: no read follows its writes (`writesPastCeiling`)
+  if (!declarator || writesPastCeiling(binding.constantViolations) || bindingHoldsNoGlobal(binding)) return null;
   // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
   // flow-dependent. usage-pure resolves ONLY a provable value: the live init when no reassignment
   // reaches the use, else the ONE plain write the read can observe (the container walk's rule,
@@ -1729,11 +1808,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     const write = adapter.findTrustedAliasWrite(scope, name);
     if (write && (adapter.method !== 'usage-pure'
       || aliasSpanDominatesUse({ span: write, useStart: (usageNode ?? path?.node)?.start ?? 0, usagePath: path }))) {
-      // the write is adapter-verified as unconditionally placed in the binding's OWN scope, so its
-      // RHS receiver resolves there - `scope` (the use site) only located the write; resolving the
-      // RHS in it would rebind an outer receiver to an inner shadow (same missed-sibling gap as the
-      // declarator-init delegations)
-      const writeScope = aliasDeclScope(binding, scope);
+      // the write's RHS receiver resolves where the write stands - `scope` (the use site) only located
+      // the write; resolving the RHS in it would rebind an outer receiver to an inner shadow (same
+      // missed-sibling gap as the declarator-init delegations)
+      const writeScope = writeScopeAt(path, write, aliasDeclScope(binding, scope));
       const alias = write.left?.type === 'ObjectPattern'
         ? resolveProxyGlobalDestructureAlias({ pattern: write.left, init: write.right, name, scope: writeScope, adapter, seen, path })
         : write.left?.type === 'ArrayPattern'
@@ -1753,7 +1831,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
       // stops the assign peel's own SE-bailing sequence walk, and the binding then resolved to
       // nothing - every claim read off it stayed raw off the ponyfill
       const alias = resolveAliasValueNode({
-        value: peelChainRootValue(idWrite.right), name, binding, scope, adapter, seen, path,
+        value: peelChainRootValue(idWrite.right), name, binding, scope, adapter, seen, path, valueScope: writeScopeAt(path, idWrite),
       });
       if (alias) return alias;
     }
@@ -1773,7 +1851,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // own - a class computed key or decorator, a case test a `default` body is reached through, a
   // destructuring right-hand side - sits PAST the use by span, so neither the dominance gate below
   // nor the reaching walk sees it, and the declarator init is not what the read observes
-  if (anyWriteOutrunsUse((binding.constantViolations ?? []).map(v => v.node), path)) return null;
+  if (anyWriteOutrunsUse((binding.constantViolations ?? []).map(violationNode), path)) return null;
   const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode });
   if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path, usageNode })
     && !reaching
@@ -1874,15 +1952,16 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
 }
 
 // resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
-// assignment-form write's RHS (both feed the same canon so the two spellings cannot drift). every
+// assignment-form write's RHS (both feed the same canon so the two spellings cannot drift), in the
+// alias's declaration scope or, for a write, where it stands (`valueScope`). every
 // level of an alias chain asks the levels below it, so the answer is kept per value node
 // (`canonAnswerTable`) under every other input the walk reads. the cycle guard is one of them - it
 // holds the alias's own name beside whatever the walks above it hold: an answer is kept only from a
 // walk that met no cut (`cycleGuardCuts`), which is the answer of a walk handed the alias's name alone, and
 // only an ask handed that alone reads it
 function resolveAliasValueNode(options) {
-  const { value, name, binding, scope, adapter, seen, path } = options;
-  const answers = canonAnswerTable(resolveAliasValueNode, [aliasDeclScope(binding, scope), adapter, path, name]);
+  const { value, name, binding, scope, adapter, seen, path, valueScope = null } = options;
+  const answers = canonAnswerTable(resolveAliasValueNode, [valueScope ?? aliasDeclScope(binding, scope), adapter, path, name]);
   if (seen?.size === 1 && answers?.has(value)) return answers.get(value);
   const cuts = cycleGuardCuts();
   const held = walkAliasValueNode(options);
@@ -1890,7 +1969,7 @@ function resolveAliasValueNode(options) {
   return held;
 }
 
-function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path }) {
+function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path, valueScope = null }) {
   // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value off its tail.
   // the binding's init declaration stays verbatim (only USES of the binding are rewritten / import-
   // injected), so preceding SE effects are preserved in place - resolution peels to the tail value
@@ -1900,8 +1979,8 @@ function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path }
   // so a later hop reading an outer-declared receiver must not bind to an inner shadow of it. EVERY
   // init-shape delegation below threads `initScope`; passing the raw use `scope` was the missed-
   // sibling gap that dropped injection under an inner-shadowed alias hop (`var g = a.Map` used where
-  // `a` is a shadowing param)
-  const initScope = aliasDeclScope(binding, scope);
+  // `a` is a shadowing param). a write's RHS was written where the write stands
+  const initScope = valueScope ?? aliasDeclScope(binding, scope);
   // a guard-shaped conditional value (the stored kept-nav render - `null == _globalThis.window
   // ? void 0 : _self.window` - or any user ternary of the same shape) stores either undefined
   // or the defined branch: classification follows that branch, and the undefinable verdict
@@ -1913,7 +1992,7 @@ function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path }
   const definedBranch = definedBranchOfGuardConditional(unwrapped);
   if (definedBranch) {
     return isRenderedStoredValue(unwrapped) || aliasReadGuardedAgainstNullish(path, name)
-      ? resolveAliasValueNode({ value: definedBranch, name, binding, scope, adapter, seen, path })
+      ? resolveAliasValueNode({ value: definedBranch, name, binding, scope, adapter, seen, path, valueScope })
       : null;
   }
   if (unwrapped?.type === 'Identifier') {
@@ -1931,10 +2010,10 @@ function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path }
     // (`resolveObjectName`: capitalised or a known proxy) - without it an alias of any free
     // lowercase name reported a "global" receiver the direct read would never claim
     if (unwrapped.name === name) return null;
-    if (!adapter.hasBinding(initScope, unwrapped.name, path)) {
-      return bindingLessGlobalName(unwrapped.name, { scope: initScope, adapter });
+    if (!adapter.hasBinding({ scope: initScope, name: unwrapped.name, path, read: unwrapped })) {
+      return bindingLessGlobalName(unwrapped.name, { scope: initScope, adapter, read: path && { node: unwrapped, path } });
     }
-    return resolveBindingToGlobal({ name: unwrapped.name, scope: initScope, adapter, seen, path, usageNode: unwrapped });
+    return resolveBindingToGlobal({ name: unwrapped.name, scope: initScope, adapter, seen, path, usageNode: unwrapped, read: unwrapped });
   }
   // identity / param-free / SE-prefix IIFE peel applied ONLY in the binding-init walk,
   // not in `resolveObjectName`'s generic CallExpression branch: the const intermediate
@@ -1970,18 +2049,21 @@ function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path }
 // shaped leaf keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned - `const { foo } =
 // globalThis` should not push `'foo'` into downstream global lookups
 function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path }) {
-  const receiver = resolveObjectName({ objectNode: init, scope, adapter, seen, path, usageNode: init });
-  // a mutated proxy RECEIVER (`window = fake; const { Promise: P } = window`) destructures the
-  // user's replacement - the pattern keys no longer name pristine globals (the key-level gate
-  // below covers mutated LEAF keys; this covers the replaced container itself)
-  if (!receiver || !isPristineProxyGlobal(adapter, receiver)) return null;
   // the pattern's computed keys EVALUATE at the destructure site: a use-site anchor would
   // resolve a key reassigned AFTER the capture to its post-capture value - a wrong-value
   // alias (`let k = "Array"; const { [k]: S } = globalThis; k = "Symbol";` must resolve S
   // as Array, not Symbol). anchor on the PATTERN, not the init: babel may have substituted
   // the init already (`_globalThis`, a synthetic positionless node the position math
-  // cannot order against), while the pattern keeps its source positions on both parsers
-  return walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode: pattern });
+  // cannot order against), while the pattern keeps its source positions on both parsers.
+  // asked ahead of the receiver, which it does not read: a key naming no global leaves the init
+  // unresolved, and a binding a pattern takes off the one before it walks no chain below it here
+  const key = walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode: pattern });
+  if (!key) return null;
+  const receiver = resolveObjectName({ objectNode: init, scope, adapter, seen, path, usageNode: init });
+  // a mutated proxy RECEIVER (`window = fake; const { Promise: P } = window`) destructures the
+  // user's replacement - the pattern keys no longer name pristine globals (the key-level gate
+  // in the walk covers mutated LEAF keys; this covers the replaced container itself)
+  return receiver && isPristineProxyGlobal(adapter, receiver) ? key : null;
 }
 
 // descend array-wrapper layers pairing each pattern element to its init element positionally: an
@@ -2015,8 +2097,9 @@ function walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path
     const key = resolveKey({ node: p.key, computed: p.computed, scope, adapter, seen, path, usageNode });
     if (!key || !isStaticPlacement(key)) continue;
     // a mutated slot (`globalThis.Array = Fake`) leaves the binding holding the replacement,
-    // so neither the leaf alias nor a hop descent may resolve it as the pristine global
-    if (isMutatedGlobalSlot(adapter, key)) continue;
+    // so neither the leaf alias nor a hop descent may resolve it as the pristine global - save a
+    // realm key the pattern reads ahead of every write of its slot (`realmCaptureRead`'s rule)
+    if (isMutatedGlobalSlot(adapter, key, POSSIBLE_GLOBAL_OBJECTS.has(key) && path ? { node: p, path } : null)) continue;
     if (patternBindingName(p.value) === name) return key;
     // nested ObjectPattern through a proxy-global intermediate key (`window`, `self`, ...)
     // re-enters the same global-object surface at runtime - recurse so `const {window:
@@ -2046,14 +2129,7 @@ function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageN
   const bindingNode = binding?.node ?? binding?.path?.node;
   const init = bindingNode?.type === 'VariableDeclarator' && bindingNode.id?.type === 'Identifier'
     ? unwrapRuntimeExpr(bindingNode.init) : null;
-  if (!init) return false;
-  const enumeration = reassignmentValueEnumeration({ binding, usagePath: path, name, ctx, usageNode });
-  // a value set the enumerator could not close - a site it could not read, a pattern write whose
-  // value is a call, a head it cannot enumerate - names nothing for certain, whatever its listed
-  // values name
-  if (!enumeration.complete) return false;
-  const values = [init, ...enumeration.nodes];
-  return values.length > 1 && values.every(value => {
+  function namesRealm(value) {
     // a decided selection is the operand it always yields (`decidedSelectionValue`)
     const named = peelRealmLogicalDefault(unwrapRuntimeExpr(ctx ? decidedSelectionValue(value, ctx) : value));
     if (named?.type !== 'Identifier') return false;
@@ -2066,11 +2142,22 @@ function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageN
     // and the hint is what names the realm behind it
     const hint = ctx?.adapter?.getBindingPolyfillHint?.(ctx.scope, named.name)
       ?? bindingPolyfillHint({
-        binding: ctx?.adapter?.getBinding?.(ctx.scope, named.name, ctx.path), scope: ctx?.scope, name: named.name,
+        binding: ctx?.adapter?.getBinding?.({ scope: ctx.scope, name: named.name, path: ctx.path, read: named }),
+        scope: ctx?.scope,
+        name: named.name,
         adapter: ctx?.adapter,
       });
     return !!hint && guaranteedRealmObjectName(hint);
-  });
+  }
+  // the init is one of the values, so an init naming no realm answers before the writes are enumerated:
+  // the enumeration settles the guards of every write, and a guard testing the binding asks this again
+  if (!init || !namesRealm(init)) return false;
+  const enumeration = reassignmentValueEnumeration({ binding, usagePath: path, name, ctx, usageNode });
+  // a value set the enumerator could not close - a site it could not read, a pattern write whose
+  // value is a call, a head it cannot enumerate - names nothing for certain, whatever its listed
+  // values name
+  if (!enumeration.complete) return false;
+  return enumeration.nodes.length > 0 && enumeration.nodes.every(namesRealm);
 }
 
 // a bare proxy-global NAME whose read is guaranteed to yield the realm object, making the right
@@ -2085,48 +2172,204 @@ export function guaranteedRealmObjectName(name) {
   return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveBuiltInMeta({ kind: 'global', name });
 }
 
+// the (global, member) a pure entry names - `array/of` -> Array + `of`, a family entry
+// (`map`, `map/constructor`) naming the global with no member of its own. the segment split
+// is the injector's, so a member whose spelling the kebab head cannot carry reads the same
+export function pureEntryTarget(entry) {
+  const family = entryToGlobalHint(entry);
+  if (family !== null) return { global: family, member: null };
+  const segments = typeof entry === 'string' ? entry.split('/') : [];
+  const global = segments.length < 2 ? null : entryToGlobalHint(segments.at(-2));
+  return global === null ? null : { global, member: staticMemberFromEntrySegment(global, segments.at(-1)) };
+}
+
+// the name this build mints for a pure import of a static (`_Array$from`, `_Array$from2`)
+export const MINTED_STATIC_NAME = /^_+(?<global>[A-Z]\w*)\$(?<member>\w+)$/u;
+
+// the static a minted pure import carries (`_Array$from` from `actual/array/from`) - `{ global, member }` -
+// or null. the binding's own source answers, so a user binding wearing the shape decides nothing, and only
+// a name of that shape is looked up: every identifier a selection reads asks this, a const alias chain
+// at each of its levels
+function pureImportedStatic(node, ctx) {
+  const source = node?.type === 'Identifier' && MINTED_STATIC_NAME.test(node.name)
+    ? ctx.adapter?.getBinding?.({ scope: ctx.scope, name: node.name, path: ctx.path })?.importSource
+    : null;
+  const target = source ? pureEntryTarget(pureImportSourceEntry(source)) : null;
+  return target?.member ? target : null;
+}
+
+// is the binding `name` declared through a pattern slot whose value is not ONE certain node: what
+// the certain-init canon declines - several values, a default, a slot the runtime may fill from a
+// spread the pairing cannot enumerate (`const [, O] = [...xs, Array]`, `{ 1: O } = [...xs,
+// Array]`), a slot of a container the file wrote (`patternSlotWritten`) - or a lone value
+// whose arms branch (`[A] = [c ? Array : Map]`)? such a declarator
+// resolves its primary only as a MAYBE, or not at all, and every consumer that would read it as
+// certain (the instance-free proof, the constructor candidates of an unresolved receiver, a decided
+// selection's left) asks this one question
+export function patternBoundSlotOpen({ binding, name, scope, adapter, path }) {
+  const declarator = bindingDeclaratorNode(binding);
+  if (declarator?.type !== 'VariableDeclarator' || declarator.id?.type === 'Identifier' || !declarator.init) return false;
+  const declScope = aliasDeclScope(binding, scope);
+  const ctx = { scope: declScope, adapter, path, resolveKey };
+  // a CALL init pairs through the call canon's literal, which is then the init the certainty canon reads
+  const called = callInitSlotValues({
+    pattern: declarator.id, init: declarator.init, name, scope: declScope, adapter, path, resolveKey,
+  });
+  if (called && !called.complete) return true;
+  if (patternSlotWritten({ pattern: declarator.id, init: declarator.init, name, ctx })) return true;
+  const certain = patternBoundAliasSlotInit(binding, name, called ? called.ctx : ctx, called ? { init: called.literal } : {});
+  return !certain || flattenBranchingValueNodes([certain]).length > 1;
+}
+
+// does a read through `node` go through a name written beyond its declarator where the write may reach the
+// read - the name itself, or one a const alias of it holds (`reassignmentReachesUsage`) - or through a name a
+// pattern binds to a slot holding no one certain value (`patternBoundSlotOpen`: `o.C = null; const { C: M } =
+// o`), or through a hoisted `var` whose initializer may not have run by the read, which holds `undefined` there
+// (`varInitDominatesUsage`, the gate a reader dropping the read asks)? such a name holds no one value there,
+// whatever usage-global resolves it may hold for its injection. each name is looked up where the one before it
+// was declared, and a pattern hands on the container it reads
+export function readsReachedAlias(node, ctx) {
+  let usageNode = node;
+  let { scope } = ctx;
+  for (let root = runtimeChainRoot(node), seen = new Set(); root?.type === 'Identifier' && !seen.has(root.name);) {
+    seen.add(root.name);
+    const binding = ctx.adapter?.getBinding?.({ scope, name: root.name, path: ctx.path, read: root });
+    if (!binding) return false;
+    if (isReassignedBeyondDeclarator(binding)
+      && reassignmentReachesUsage({ binding, adapter: ctx.adapter, path: ctx.path, usageNode })) return true;
+    if (patternBoundSlotOpen({ binding, name: root.name, scope, adapter: ctx.adapter, path: ctx.path })) return true;
+    const declarator = bindingDeclaratorNode(binding);
+    if (binding.kind === 'var' && declarator?.type === 'VariableDeclarator' && declarator.init && !varInitDominatesUsage({
+      declaratorNode: declarator, usagePath: ctx.path, usageNode, kind: 'var', adapter: ctx.adapter,
+    })) return true;
+    usageNode = declarator?.type === 'VariableDeclarator' ? declarator.init : null;
+    scope = aliasDeclScope(binding, scope);
+    root = usageNode && runtimeChainRoot(unwrapRuntimeExpr(usageNode));
+  }
+  return false;
+}
+
 // a read of a global or of a static off one that is a DEFINED value wherever this build runs: one
 // core-js implements that the build backs (the adapter's `served`, given the read's meta: `{ substituted }`
 // or null) or a global it extends in place on every engine's own, and replaced by no write the census
 // sees - in either method: usage-global asks the cheap shape census (`isMutatedStaticSlot`), which may
 // name a slot the scoped pass would clear and then decides nothing. `{ global, type, substituted }` - the
-// global's name and `typeof` for a global read (the root resolver names constructors, namespaces and the
-// realm alone) - or null
+// global's name for a global read (the root resolver names constructors, namespaces and the realm alone),
+// and the `typeof` the read answers where it is known (`staticMethodType` for a static) - or null
 export function servedRead(node, ctx) {
   // a read the user opted out of is not rewritten, so nothing of this build serves it
   if (ctx.adapter?.isOptedOut?.(node)) return null;
   const value = peelChainRootValue(peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr }));
-  const name = resolveObjectName({ objectNode: value, ...ctx });
-  if (name && ctx.adapter?.isMutatedStaticSlot?.('globalThis', name)) return null;
-  const type = name && (KNOWN_FUNCTION_GLOBALS.has(name) ? 'function' : 'object');
-  const object = !name && isMemberAccessNode(value) ? resolveObjectName({ objectNode: value.object, ...ctx }) : null;
-  const key = object && staticMemberKeyName(value);
-  if (!name && (!key || ctx.adapter?.isMutatedStaticSlot?.('globalThis', object)
-    || ctx.adapter?.isMutatedStaticSlot?.(object, key))) return null;
-  const meta = name ? { kind: 'global', name } : { kind: 'property', object, key, placement: 'static' };
-  // only the read's own definition backs it, and only a pure one: `resolve` answers a static with none
-  // from the instance methods of its key (`Map.keys`), which back no static, and a definition of the global
-  // flavor alone may list only what a use of it needs (`Float16Array` - the typed-array methods). a global
-  // with no pure flavor - no definition at all, or a global module patching the engine's own (`Number`) - is
-  // backed by the engine where core-js extends it in place (`NATIVE_STATIC_OWNERS`)
+  // the read is the use an alias it goes through must reach, wherever `ctx.path` anchors the ask (a guard
+  // settled in its owner's scope: `decidedGuards`)
+  const readCtx = ctx.usageNode ? ctx : { ...ctx, usageNode: value };
+  const name = resolveObjectName({ objectNode: value, ...readCtx });
+  // ... a read before every write of the slot excepted, which still sees what this build serves, and a read
+  // of this build's own import, which no write of the global reaches. an alias read the global where it
+  // captured it, so that read is the one asked - its use only re-reads the binding - and the alias is
+  // followed only over a slot a write may replace at all, which the answer without a read bounds
+  if (name && ctx.adapter?.isMutatedStaticSlot?.('globalThis', name)) {
+    const captured = value?.type === 'Identifier' && ctx.adapter.hasBinding?.({ scope: ctx.scope, name: value.name, path: ctx.path })
+      ? followConstIdentifierInit({ node: value, readNode: null, ctx }) : { node: value, ctx };
+    const read = captured.node;
+    if (ctx.adapter.isMutatedStaticSlot('globalThis', name, ctx.path && { node: read, path: ctx.path })
+      && !(read?.type === 'Identifier' && ctx.adapter.getBinding?.({
+        scope: captured.ctx.scope,
+        name: read.name,
+        path: ctx.path,
+      })?.polyfillHint)) return null;
+  }
+  // ... and a static read off its global, the read before every write of either slot excepted, or through
+  // this build's pure import of it (`_Array$from`), which no write of the slot reaches either
+  const imported = name ? null : pureImportedStatic(value, ctx);
+  const object = imported?.global
+    ?? (!name && isMemberAccessNode(value) ? resolveObjectName({ objectNode: value.object, ...readCtx }) : null);
+  const key = imported?.member ?? (object && staticMemberKeyName(value));
+  if (!name && !key) return null;
+  const backing = name ? servedBacking({ kind: 'global', name }, ctx, ctx.path && { node: value, path: ctx.path })
+    : servedStaticBacking({ object, key, read: value, ctx, imported: !!imported });
+  // ... and only what the read always holds: usage-global resolves an alias by what it may hold
+  if (!backing || (ctx.adapter?.method === 'usage-global' && readsReachedAlias(value, ctx))) return null;
+  const type = name ? KNOWN_FUNCTION_GLOBALS.has(name) ? 'function' : 'object' : staticMethodType(object, key);
+  return { global: name, type, substituted: backing.substituted };
+}
+
+// what backs the static `key` of the global `object` a `read` (a node) reads, the read before every write of
+// either slot excepted - `{ substituted }` or null. `imported`: the read is this build's own pure import of
+// it, which no write reaches
+function servedStaticBacking({ object, key, read, ctx, imported = false }) {
+  const staticRead = ctx.path && { node: read, path: ctx.path };
+  if (!imported && (ctx.adapter?.isMutatedStaticSlot?.('globalThis', object, staticRead)
+    || ctx.adapter?.isMutatedStaticSlot?.(object, key, staticRead))) return null;
+  return servedBacking({ kind: 'property', object, key, placement: 'static' }, ctx, staticRead);
+}
+
+// what backs a global or static `meta` in this build - `{ substituted }` or null. only the read's own
+// definition backs it, and only a pure one: `resolve` answers a static with none from the instance
+// methods of its key (`Map.keys`), which back no static, and a definition of the global flavor alone may
+// list only what a use of it needs (`Float16Array` - the typed-array methods). a global with no pure
+// flavor - no definition at all, or a global module patching the engine's own (`Number`) - is backed by
+// the engine where core-js extends it in place (`NATIVE_STATIC_OWNERS`). the adapter is asked with the
+// `read` (`{ node, path }`) itself, wherever `path` anchors the ask: a guard settled in its owner's scope reads
+// its test where the test stands
+function servedBacking(meta, { adapter, path }, read) {
   const definition = resolveBuiltInMeta(meta);
-  const backing = definition?.desc?.pure ? definition.kind !== 'instance' && ctx.adapter?.served?.(meta, ctx.path)
-    : !!name && NATIVE_STATIC_OWNERS.has(name) && !!ctx.adapter?.served && { substituted: false };
-  return backing ? { global: name, type, substituted: backing.substituted } : null;
+  return definition?.desc?.pure ? definition.kind !== 'instance' && adapter?.served?.(meta, path, read)
+    : meta.kind === 'global' && NATIVE_STATIC_OWNERS.has(meta.name) && !!adapter?.served && { substituted: false };
+}
+
+// ... and a prototype method read off a served constructor (`Promise.prototype.finally`), a function wherever this
+// build runs where core-js implements it the way pure serves it (`implementsPrototypeMethod`): carried on the
+// prototype of the constructor pure substitutes, or dispatched off a native one - and where no write the census
+// sees replaces the method or the prototype. `{ global: null, type: 'function', substituted: true }` or null
+function servedPrototypeRead(node, ctx) {
+  const value = unwrapRuntimeExpr(node);
+  const prototype = isMemberAccessNode(value) && !value.optional ? unwrapRuntimeExpr(value.object) : null;
+  const key = prototype && staticMemberKeyName(value);
+  if (!key || !isPrototypeRead(prototype)) return null;
+  return servedPrototypeMethod({ constructorNode: prototype.object, key, read: value, ctx });
+}
+
+// is `node` a plain `<constructor>.prototype` read
+function isPrototypeRead(node) {
+  return isMemberAccessNode(node) && !node.optional && staticMemberKeyName(node) === 'prototype';
+}
+
+// the prototype method `key` of the constructor `constructorNode` reads, as a `read` (a node) at its position reads it
+function servedPrototypeMethod({ constructorNode, key, read, ctx }) {
+  const owner = servedRead(constructorNode, ctx);
+  if (!owner?.global || !implementsPrototypeMethod(owner.global, key, owner.substituted ? 'carried' : 'dispatched')) return null;
+  const at = ctx.path && { node: read, path: ctx.path };
+  if (ctx.adapter?.isMutatedStaticSlot?.(`${ owner.global }.prototype`, key, at)
+    || ctx.adapter?.isMutatedStaticSlot?.(owner.global, 'prototype', at)) return null;
+  return { global: null, type: 'function', substituted: true };
 }
 
 const EQUALITY_OPERATORS = new Set(['==', '===', '!=', '!==']);
 
 // a read a presence test can be dropped with: a name, or a plain member chain off one - no call, no
-// `?.` that may yield nothing, no hop through an environment probe (`window`, `global`) a host may lack
+// `?.` that may yield nothing, and no hop through an environment probe (`window`, `global`) a host may
+// lack, save one pure respells away with the read (`droppableServedRead`)
 function droppablePresenceRead(node) {
   let current = unwrapRuntimeExpr(node);
+  let probes = false;
   while (isMemberAccessNode(current)) {
     const key = staticMemberKeyName(current);
-    if (current.optional || key === null || (POSSIBLE_GLOBAL_OBJECTS.has(key) && !guaranteedRealmObjectName(key))) return false;
+    if (current.optional || key === null) return false;
+    probes ||= POSSIBLE_GLOBAL_OBJECTS.has(key) && !guaranteedRealmObjectName(key);
     current = unwrapRuntimeExpr(current.object);
   }
-  return current?.type === 'Identifier' && (!POSSIBLE_GLOBAL_OBJECTS.has(current.name) || guaranteedRealmObjectName(current.name));
+  if (current?.type !== 'Identifier') return false;
+  return probes || (POSSIBLE_GLOBAL_OBJECTS.has(current.name) && !guaranteedRealmObjectName(current.name)) ? 'probe' : true;
+}
+
+// ... the served read of such a test, or null where the fold may not drop it: an environment probe stays
+// only where pure respells the whole read to its import (`substituted`), which runs no probe either way. a
+// prototype method of a served constructor reads as one (`servedPrototypeRead`)
+function droppableServedRead(node, ctx) {
+  const droppable = droppablePresenceRead(node);
+  const read = droppable ? presenceReadServed(node, ctx) ?? servedPrototypeRead(node, ctx) : null;
+  return read && (droppable !== 'probe' || read.substituted) ? read : null;
 }
 
 // a presence test's own read resolves with no selection decided or walked below it (`presenceDecision`,
@@ -2134,42 +2377,125 @@ function droppablePresenceRead(node) {
 // a !== 'undefined' ? a : 0`) would otherwise resolve each level twice - in its test and through its live
 // operand - doubling the walk per level of the chain
 let presenceTestDepth = 0;
+// ... save the receiver of a STATIC an outermost test reads (`presenceReadServed`): the alias it reads off
+// may stand on a selection the build decides (`var r = typeof Symbol == 'function' ? Symbol : {};
+// r.iterator || '@@iterator'`), named through that alias's live operand - one level, never relieved again
+// below it, so a chain of aliases still resolves each level once
+let staticReceiverRelief = false;
 
 // what a PRESENCE test always answers in this build - `typeof X === 'function'` / `!== 'undefined'`
-// over a global (either operand order, loose or strict), a global or a static read as a truth value,
-// `!` of either - `{ value, substituted, boolean }`, or null where it may answer both ways. `boolean`:
-// the test evaluates to `value` itself; a read is only truthy, its value the object it reads. the read
-// is one the fold may drop (`droppablePresenceRead`); a static's typeof is not asked: it may be a
-// function, a symbol or a number, which the definitions do not tell
+// over a global, a static method or a prototype method (either operand order, loose or strict), a global, a
+// static or a prototype method read as a truth value, an `in` test of a key one of them serves, `!` of any, and
+// a `||` / `&&` / `??` of such tests - `{ value, substituted, boolean }`, or null where it may answer both ways.
+// `boolean`: the test evaluates to `value` itself; a read is only truthy, its value the object it reads. the
+// read is one the fold may drop (`droppableServedRead`); a static's typeof is asked of the catalogue
+// (`staticMethodType`): a constant may be a symbol an engine core-js polyfills answers apart
 function presenceTestValue(test, ctx) {
+  // asked from the root of the selection spine the test stands on (`canonContextPath`), and an outermost test
+  // keeps the answers of its `||` / `&&` / `??` levels where a question scope is open, none while a guard is
+  // being settled (`guardSettlingInFlight`)
+  const spineCtx = { ...ctx, path: canonContextPath(ctx.path) };
+  const answers = presenceTestDepth || guardSettlingInFlight() ? null
+    : canonAnswerTable(presenceTestAnswer, [spineCtx.scope, spineCtx.adapter, spineCtx.path]);
   presenceTestDepth++;
   try {
-    return withReentrantQuestion(() => presenceTestAnswer(test, ctx));
+    return withPresenceReadQuestion(() => presenceTestAnswer(test, spineCtx, answers));
   } finally {
     presenceTestDepth--;
   }
 }
 
-// the answer itself, asked through `presenceTestValue`, which bounds the walk below it
-function presenceTestAnswer(test, ctx) {
+// the answer itself, asked through `presenceTestValue`, which bounds the walk below it. the node's type is read
+// once: a level of a long selection is asked again from each level above it
+function presenceTestAnswer(test, ctx, answers = null) {
   const node = unwrapRuntimeExpr(test);
-  if (node?.type === 'UnaryExpression' && node.operator === '!') {
-    const inner = presenceTestAnswer(node.argument, ctx);
+  if (answers?.has(node)) return answers.get(node);
+  const type = node?.type;
+  if (type === 'LogicalExpression') return logicalPresenceAnswer(node, ctx, answers);
+  if (type === 'UnaryExpression' && node.operator === '!') {
+    const inner = presenceTestAnswer(node.argument, ctx, answers);
     return inner && { value: !inner.value, substituted: inner.substituted, boolean: true };
   }
-  if (node?.type === 'BinaryExpression' && EQUALITY_OPERATORS.has(node.operator)) {
-    const left = unwrapRuntimeExpr(node.left);
-    const typeofLeft = left?.type === 'UnaryExpression' && left.operator === 'typeof';
-    const probe = typeofLeft ? left : unwrapRuntimeExpr(node.right);
-    if (probe?.type !== 'UnaryExpression' || probe.operator !== 'typeof') return null;
-    const expected = extractStaticString(typeofLeft ? node.right : node.left, null);
-    const read = typeof expected === 'string' && droppablePresenceRead(probe.argument) ? servedRead(probe.argument, ctx) : null;
-    if (!read?.type) return null;
-    const equal = read.type === expected;
-    return { value: node.operator.startsWith('=') ? equal : !equal, substituted: read.substituted, boolean: true };
+  if (type === 'BinaryExpression') {
+    if (node.operator === 'in') return presenceInAnswer(node, ctx);
+    return EQUALITY_OPERATORS.has(node.operator) ? presenceTypeofAnswer(node, ctx) : null;
   }
-  const read = droppablePresenceRead(node) ? servedRead(node, ctx) : null;
+  const read = droppableServedRead(node, ctx);
   return read && { value: true, substituted: read.substituted, boolean: false };
+}
+
+// ... a `typeof` of a served read against the string it always answers, either operand order
+function presenceTypeofAnswer(node, ctx) {
+  const left = unwrapRuntimeExpr(node.left);
+  const typeofLeft = left?.type === 'UnaryExpression' && left.operator === 'typeof';
+  const probe = typeofLeft ? left : unwrapRuntimeExpr(node.right);
+  if (probe?.type !== 'UnaryExpression' || probe.operator !== 'typeof') return null;
+  const expected = extractStaticString(typeofLeft ? node.right : node.left, null);
+  const read = typeof expected === 'string' ? droppableServedRead(probe.argument, ctx) : null;
+  if (!read?.type) return null;
+  const equal = read.type === expected;
+  return { value: node.operator.startsWith('=') ? equal : !equal, substituted: read.substituted, boolean: true };
+}
+
+// ... a `||` / `&&` / `??` answers by its operands: the left where it settles the operator, the right where the
+// left lets it run - no answer is nullish, so a `??` never runs its right. kept per level (`answers`) from a walk
+// that cut nothing (`cycleGuardCuts`): each level of a long chain is asked the levels below it
+function logicalPresenceAnswer(node, ctx, answers) {
+  const cuts = cycleGuardCuts();
+  const left = presenceTestAnswer(node.left, ctx, answers);
+  const truthy = left && (!left.boolean || left.value);
+  const settled = left && (node.operator === '&&' ? !truthy : node.operator !== '||' || truthy);
+  const right = left && !settled ? presenceTestAnswer(node.right, ctx, answers) : null;
+  const answer = settled ? left : right && { ...right, substituted: left.substituted || right.substituted };
+  if (answers && cycleGuardCuts() === cuts) answers.set(node, answer);
+  return answer;
+}
+
+// ... an `in` test of a static key on a served global (`'allSettled' in Promise`), true where the build serves the
+// static - pure reads it off the namespace a constructor tested by key resolves to - or of a method key on its
+// prototype, true where a read of the method would be (`'finally' in Promise.prototype`)
+function presenceInAnswer(node, ctx) {
+  const key = extractStaticString(node.left, null);
+  const receiver = unwrapRuntimeExpr(node.right);
+  if (typeof key !== 'string' || !droppablePresenceRead(receiver)) return null;
+  const owner = presenceReadServed(receiver, ctx);
+  if (owner?.global) {
+    const backing = servedStaticBacking({ object: owner.global, key, read: receiver, ctx });
+    return backing && { value: true, substituted: owner.substituted || backing.substituted, boolean: true };
+  }
+  const method = isPrototypeRead(receiver)
+    && servedPrototypeMethod({ constructorNode: unwrapRuntimeExpr(receiver.object), key, read: receiver, ctx });
+  return method ? { value: true, substituted: method.substituted, boolean: true } : null;
+}
+
+// a presence test's read as this build serves it (`servedRead`) - a static read of an outermost test with its
+// receiver resolved as outside the test (`staticReceiverRelief`)
+function presenceReadServed(node, ctx) {
+  if (staticReceiverRelief || presenceTestDepth !== 1 || !isMemberAccessNode(unwrapRuntimeExpr(node))) return servedRead(node, ctx);
+  staticReceiverRelief = true;
+  presenceTestDepth--;
+  try {
+    return servedRead(node, ctx);
+  } finally {
+    presenceTestDepth++;
+    staticReceiverRelief = false;
+  }
+}
+
+// ... and a question asked afresh from inside such a read: a guard's settling (`decidedGuards`) decides its host
+// as an outermost test of its own, so the test whose read reached the settling neither refuses that host nor
+// lends it its relief - whoever asks, a guard takes one arm
+export function withFreshPresenceQuestion(question) {
+  const depth = presenceTestDepth;
+  const relief = staticReceiverRelief;
+  presenceTestDepth = 0;
+  staticReceiverRelief = false;
+  try {
+    return question();
+  } finally {
+    presenceTestDepth = depth;
+    staticReceiverRelief = relief;
+  }
 }
 
 // what a PRESENCE test decides of the selection it guards - a conditional or an `if` over it, an `&&` /
@@ -2178,8 +2504,9 @@ function presenceTestAnswer(test, ctx) {
 // the test may answer both ways. `decidedSelection` adds the decided `||` / `??` left to it
 export function presenceDecision(node, ctx) {
   if (presenceTestDepth) return null;
-  if (node?.type !== 'LogicalExpression' && node?.type !== 'ConditionalExpression' && node?.type !== 'IfStatement') return null;
-  const answer = presenceTestValue(node.type === 'LogicalExpression' ? node.left : node.test, ctx);
+  const testField = SELECTION_TEST_FIELDS[node?.type];
+  if (!testField) return null;
+  const answer = presenceTestValue(node[testField], ctx);
   if (!answer) return null;
   const { value, substituted, boolean } = answer;
   if (node.type !== 'LogicalExpression') {
@@ -2199,13 +2526,86 @@ function valueCanonDecision(node, ctx) {
   return presenceTestDepth ? null : (ctx.adapter?.decidedSelection ?? presenceDecision)(node, ctx);
 }
 
-// the value a selection IS in this build where the build decides it, level after level: the operand
-// each decided level yields, the node itself where nothing is decided. the value identity of an alias,
+// the value a selection IS in this build where the build decides it, level after level: the part of
+// each decided level that runs (`decidedLiveOperand`), the node itself where nothing is decided - a level
+// yielding its test's own answer is that test, never the operand it skips. the value identity of an alias,
 // a receiver and a realm selection reads a decided selection as that operand alone
 export function decidedSelectionValue(node, ctx) {
   let current = node;
-  for (let decided = valueCanonDecision(current, ctx); typeof decided?.fold === 'string'; decided = valueCanonDecision(current, ctx)) {
-    current = peelChainRootValue(current[decided.fold]);
+  for (let operand = decidedLiveOperand(current, ctx); operand; operand = decidedLiveOperand(current, ctx)) {
+    current = peelChainRootValue(operand);
+  }
+  return current;
+}
+
+// ... one level of it: the part of a decided selection that ever runs, for a walk over its arms: the
+// operand it yields, or its test where it yields the test's own answer (`typeof X === 'undefined' && 'a'`
+// is `false`, its right never runs) - null where the build decides nothing. a computed-key walk steps
+// through it like an alias hop and normalizes the operand itself
+export function decidedLiveOperand(node, ctx) {
+  const key = decidedLiveOperandKey(node, ctx);
+  return key ? node[key] : null;
+}
+
+// ... and the one a computed key's `||` / `??` always yields where only the key walk sees why: a left the
+// walk proves the well-known symbol the build serves - always truthy - through what it alone follows (an
+// alias of a decided selection, `REAL || '@@iterator'`; a static read off a decided realm selection,
+// `$Symbol.iterator || '@@iterator'`; a static this file already substituted). the left as written, or null.
+// an undecided ternary whose arms name one key, provenance included, yields it whichever runs
+// (`c ? 'at' : 'at'`) - the key twin of `agreeingTernaryArm`
+function decidedKeyOperand(node, { scope, adapter, path, seen, depth }) {
+  const operand = decidedLiveOperand(node, { scope, adapter, path });
+  if (!operand && node?.type === 'ConditionalExpression') return agreeingKeyArm(node, { scope, adapter, path, seen, depth });
+  if (operand || node?.type !== 'LogicalExpression' || node.operator === '&&') return operand;
+  const key = resolveKey({ node: node.left, computed: true, scope, adapter, seen, path, depth: depth + 1 });
+  const member = typeof key === 'string' && key.startsWith('Symbol.') ? key.slice('Symbol.'.length) : null;
+  return member && !adapter.isMutatedStaticSlot?.('Symbol', member)
+    && servedBacking({ kind: 'property', object: 'Symbol', key: member, placement: 'static' }, { adapter, path })
+    && isSymbolSourcedKey({ node: node.left, scope, adapter, seen, path, depth: depth + 1 }) ? node.left : null;
+}
+
+// ... the agreeing arm itself: the consequent where both arms fold to one key and agree on whether it is
+// a well-known symbol's, or null
+function agreeingKeyArm(node, { scope, adapter, path, seen, depth }) {
+  const ctx = { computed: true, scope, adapter, path, seen, depth: depth + 1 };
+  const key = resolveKey({ node: node.consequent, ...ctx });
+  if (key === null || key !== resolveKey({ node: node.alternate, ...ctx })) return null;
+  const symbolCtx = { scope, adapter, seen, path, depth: depth + 1 };
+  return isSymbolSourcedKey({ node: node.consequent, ...symbolCtx }) === isSymbolSourcedKey({ node: node.alternate, ...symbolCtx })
+    ? node.consequent : null;
+}
+
+// the key the part of a decided selection that ever runs stands at (`decidedLiveOperand` reads through it), for
+// a walker holding a path to the selection rather than its node - null where the build decides nothing
+export function decidedLiveOperandKey(node, ctx) {
+  const decided = valueCanonDecision(node, ctx);
+  if (typeof decided?.fold === 'string') return decided.fold;
+  return decided?.skip === 'right' ? 'left' : null;
+}
+
+// the part of a value that runs, through every ternary and `&&` the build decides, as written: what a discard
+// of the value owes is that part's - a decided test is a plain read, and the rest never runs. a `||` / `??` its
+// left decides answers through its own rescue (`decidingFallbackLeft`), which follows the left's harvest
+// rather than its spelling
+export function decidedRunningPart(node, ctx) {
+  for (let core = unwrapRuntimeExpr(node); core?.type === 'ConditionalExpression'
+    || (core?.type === 'LogicalExpression' && core.operator === '&&'); core = unwrapRuntimeExpr(node)) {
+    const live = decidedLiveOperand(core, ctx);
+    if (!live) break;
+    node = live;
+  }
+  return node;
+}
+
+// ... and the path of that part, transparent wrappers stepped through, for a walker holding a path to the
+// value (both legs' path API): what a render replacing the value replaces
+export function decidedRunningPath(path, adapter) {
+  let current = peelTransparentWrapperPath(path);
+  while (current?.node?.type === 'ConditionalExpression'
+    || (current?.node?.type === 'LogicalExpression' && current.node.operator === '&&')) {
+    const key = decidedLiveOperandKey(current.node, { scope: current.scope, adapter, path: current });
+    if (!key) break;
+    current = peelTransparentWrapperPath(current.get(key));
   }
   return current;
 }
@@ -2418,7 +2818,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       // a `.default` hop off a CJS-interop-wrapped pure global-proxy require re-enters it
       // (`X.default.Map.groupBy()`) exactly like the top-level interop read the sibling
       // resolver recognizes - the wrapper below the hop IS the chain's global root then
-      if (!memberKey || !isPristineProxyGlobal(adapter, memberKey)) {
+      if (!memberKey || !isPristineProxyGlobal(adapter, memberKey, path && { node: obj, path })) {
         return memberKey === 'default'
           && !!interopDefaultProxyName({ objectNode: obj.object, scope, adapter, path });
       }
@@ -2447,7 +2847,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
     if (obj.type === 'ConditionalExpression' || obj.type === 'LogicalExpression') {
       return isPristineProxyGlobal(adapter, resolveObjectName({
         objectNode: obj, scope, adapter, seen, path, usageNode, resolveStaticKey,
-      }));
+      }), path && { node: obj, path });
     }
     // mutated-root gating (direct name AND alias-resolved) lives inside the recognizer.
     // a binding bound to a bare `require('<pkg>/<mode>/global-this')` holds the global object
@@ -2482,8 +2882,20 @@ export function memberTargetTakesExtraction(valueNode, { scope = null, adapter =
     if (root.computed || root.optional) return null;
     root = root.object;
   }
-  if (root?.type !== 'Identifier' || !adapter.hasBinding(scope, root.name, path)) return null;
+  if (root?.type !== 'Identifier' || !adapter.hasBinding({ scope, name: root.name, path, read: root })) return null;
   return resolveObjectName({ objectNode: root, scope, adapter, path }) === null ? target : null;
+}
+
+// would putting the ponyfill into this leaf's slot WRITE it into the realm? a binding the pattern declares, or the
+// re-anchor onto the ctor's PURE binding, is what a realm WITHOUT the constructor has instead of it, so declining it
+// is a lost polyfill - WHICH value the binding answers for a given member is the runtime's own business (a
+// `*/constructor` entry exposes the ctor's prototype members as statics and installs none of its own until another
+// entry decorates it). The one thing it may not do is land the ponyfill in the realm: a MEMBER target is the
+// author's own slot and takes the ponyfill like a declared binding, unless its ROOT stands for a global, which is
+// the question the extraction canon asks of the same target (`memberTargetTakesExtraction`)
+export function residualLeafWritesIntoRealm(prop, memberRoot = null) {
+  const target = patternSlotTarget(prop?.value);
+  return isMemberAccessNode(target) && !memberTargetTakesExtraction(prop.value, memberRoot ?? {});
 }
 
 // the slot a static claim's own DEFAULT may fill where no mirror or extraction spells it: a binding,
@@ -2516,7 +2928,12 @@ export function agreeingTernaryArm(selecting, path, adapter, { preservesEffects 
 // operand is asked first, so a chain ending in anything else names nothing without a walk of the rest
 function agreeingOperandsName(node, ctx) {
   function indirect(read) {
-    return read?.type === 'Identifier' ? ctx.adapter.hasBinding(ctx.scope, read.name, ctx.path) : !isMemberAccessNode(read);
+    return read?.type === 'Identifier' ? ctx.adapter.hasBinding({
+      scope: ctx.scope,
+      name: read.name,
+      path: ctx.path,
+      read,
+    }) : !isMemberAccessNode(read);
   }
   const last = unwrapRuntimeExpr(peelReceiverSequenceTail(node.right));
   if (indirect(last) || (!(last.type === 'Identifier' && isKnownGlobalName(last.name))
@@ -2538,11 +2955,33 @@ function agreeingOperandsName(node, ctx) {
   return name;
 }
 
+// the alias walks open now - the object-name walk (`resolveObjectName`), the binding walk
+// (`resolveBindingToGlobal`), a hop of the reachable-value union (`reachableAliasValues`) and of the branch
+// flatten (`flattenFallbackBranches`), one per link of an alias chain (`var a2 = a1.x`, `var a1 = a0`) - so a
+// chain past the alias-chain ceiling (`MAX_KEY_DEPTH`) names nothing more (`cutDeepWalk`) and its reads stay
+// raw, instead of exhausting the stack
+let aliasWalks = 0;
+export function withinAliasWalkBudget(walk, ask) {
+  if (aliasWalks >= MAX_KEY_DEPTH) return cutDeepWalk();
+  aliasWalks++;
+  try {
+    return walk(ask);
+  } finally {
+    aliasWalks--;
+  }
+}
+
+// the global a receiver node names (`Array` for `globalThis.Array`, an alias of one, a selection the build decides),
+// or null: the walk (`objectNameAt`) under the alias-chain budget (`withinAliasWalkBudget`)
+export function resolveObjectName(ask) {
+  return withinAliasWalkBudget(objectNameAt, ask);
+}
+
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow.
 // initialize at entry so the cycle guard accumulates across recursion regardless of whether
 // the caller passed one - matches resolveBindingToGlobal's convention
-export function resolveObjectName({
+function objectNameAt({
   objectNode, scope, adapter, seen, path, usageNode = null, readNode = null, resolveStaticKey = null,
   proxySegments = null,
 }) {
@@ -2565,7 +3004,7 @@ export function resolveObjectName({
     && (left.operator === '??' || left.operator === '||');) {
     left = peelChainAssignmentDeep(left.left);
     if (left?.type === 'Identifier' && guaranteedRealmObjectName(left.name)
-      && !adapter.hasBinding(scope, left.name, path)) {
+      && !adapter.hasBinding({ scope, name: left.name, path, read: left })) {
       objectNode = left;
       break;
     }
@@ -2588,12 +3027,15 @@ export function resolveObjectName({
         injectorState: null,
         allowEffectfulTest: true,
         throughRealmHop: guaranteedRealmObjectName,
+        // the selection's own read: a realm name read ahead of every write of its slot is the realm still.
+        // no scope - the binding question stays the node-only one this family asks
+        path,
         readSurface: value => {
           const leaf = peelChainRootValue(value);
           return proxyRunValueIsProven(leaf, resolveBuiltInMeta, { scope, adapter, seen, path })
             && isPristineProxyGlobal(adapter, resolveObjectName({
               objectNode: leaf, scope, adapter, seen, path, usageNode, readNode, resolveStaticKey,
-            }));
+            }), path && { node: leaf, path });
         },
       })) {
       const selected = firstProxyBranch(objectNode, { truthyAnd: true });
@@ -2608,14 +3050,14 @@ export function resolveObjectName({
     }
   }
   if (objectNode.type === 'Identifier') {
-    if (adapter.hasBinding(scope, objectNode.name, path)) {
-      return resolveBindingToGlobal({ name: objectNode.name, scope, adapter, seen, path, usageNode, readNode });
+    if (adapter.hasBinding({ scope, name: objectNode.name, path, read: objectNode })) {
+      return resolveBindingToGlobal({ name: objectNode.name, scope, adapter, seen, path, usageNode, readNode, read: objectNode });
     }
     // no binding - global only if starts with uppercase or is a known global proxy.
     // a mutated proxy SLOT (`globalThis.self = fake`) is the user's replacement, not the
     // global - the bare name no longer roots a global surface (the recognizer and the
     // member-tail hop already decline it; this is the binding-less name's own spelling)
-    return bindingLessGlobalName(objectNode.name, { scope, adapter });
+    return bindingLessGlobalName(objectNode.name, { scope, adapter, read: path && { node: objectNode, path } });
   }
   // Every invocation the value walks follow (`realmYieldingCallView`) shares the scoped return proof,
   // including returned arguments. This classifies the value only; emitters preserve its effects.
@@ -2652,8 +3094,9 @@ export function resolveObjectName({
   })) return null;
   // a mutated ctor slot read THROUGH the global (`globalThis.Map = Shim; globalThis.Map.<...>`)
   // holds the user's replacement - the member chain no longer names the pristine built-in, so
-  // property reads behind it must stay raw instead of resolving to pure statics
-  return isMutatedGlobalSlot(adapter, propertyName) ? null : propertyName;
+  // property reads behind it must stay raw instead of resolving to pure statics - save a read before
+  // every write of the slot, as its bare twin is (`isMutatedStatic`)
+  return isMutatedGlobalSlot(adapter, propertyName, path && { node: objectNode, path }) ? null : propertyName;
 }
 
 // the values a reassigned alias's reachable writes install, each with the scope and path its
@@ -2663,15 +3106,18 @@ export function resolveObjectName({
 // value is a CALL, paired through the call canon - the enumerator hands such a site back unpaired,
 // and the callee's literal resolves in the callee's scope. the alias name activates pattern-LHS
 // pairing (`[A] = [Iterator]`) in the enumerator: adapter binding wrappers do not all surface the
-// bound identifier
-function reassignedAliasValues({ binding, name, scope, declScope, adapter, path, usageNode, seen }) {
+// bound identifier. a value read off the binding itself (`node = node.prev`, `readsOffBindingItself`)
+// is left out: it names a global only through a slot of another of these values, a route the readers
+// of this union do not take, and following it reads the binding again - once per such write, at
+// every level of a walk standing on the binding
+export function reassignedAliasValues({ binding, name, scope, declScope, adapter, path, usageNode, seen }) {
   const enumeration = reassignmentValueEnumeration({
     binding, usagePath: path, name, ctx: { scope, adapter, path, resolveKey }, usageNode,
   });
   const called = enumeration.callSites.flatMap(({ pattern, value: init }) => callInitSlotValues({
     pattern, init, name, scope: declScope, adapter, path, seen, resolveKey,
   })?.values ?? []);
-  return [...enumeration.nodes.map(node => {
+  return [...enumeration.nodes.filter(node => !readsOffBindingItself(node, name)).map(node => {
     const site = pathOfNode(path, node);
     return { node, scope: site?.scope ?? declScope, path: site };
   }), ...called];
@@ -2679,11 +3125,14 @@ function reassignedAliasValues({ binding, name, scope, declScope, adapter, path,
 
 // ... and each such value is READ where the write evaluates it: every reader of the union keeps that
 // read (an identity guard's candidate, a global import), so the init-order gates ask it as one
-// (`initializerReachesRead`) - the view every reader that keeps its read resolves through
+// (`initializerReachesRead`) - the view every reader that keeps its read resolves through. a view
+// delegating to the adapter, never a copy: an emitter swaps per-transform members in and out of it and
+// its getters answer per transform (`createDetectionAdapter`), so a copy kept per adapter would serve
+// the first transform's members to every later file and keep that file's tree alive
 const READ_KEEPING_ADAPTERS = new WeakMap();
 export function readKeepingAdapter(adapter) {
   let view = READ_KEEPING_ADAPTERS.get(adapter);
-  if (!view) READ_KEEPING_ADAPTERS.set(adapter, view = { ...adapter, keepsReads: true });
+  if (!view) READ_KEEPING_ADAPTERS.set(adapter, view = Object.create(adapter, { keepsReads: { value: true } }));
   return view;
 }
 
@@ -2723,7 +3172,8 @@ export function reachableAliasValues({
     // the dominance check at the alias-read, excluding a dead factory init. an Identifier receiver
     // already gets its declared value from the caller's primary, so re-resolving it would double-count
     // (and mis-anchor a dead init) - it stays null
-    values.push(...reachableAliasValues({
+    // a hop past the alias-chain ceiling reaches nothing more (`withinAliasWalkBudget`)
+    values.push(...withinAliasWalkBudget(reachableAliasValues, {
       aliasNode: recursed,
       resolve,
       primary: asCall ? resolve({ node: recursed, readNode: node, ctx: { scope: sourceScope, adapter, path: sourcePath } }) : null,
@@ -2733,10 +3183,10 @@ export function reachableAliasValues({
       seen: new Set(seen).add(currentName),
       usageNode: node,
       includeDeclaredCandidates,
-    }));
+    }) ?? []);
   }
   if (aliasNode?.type === 'Identifier') {
-    const binding = adapter.getBinding(scope, aliasNode.name, path);
+    const binding = adapter.getBinding({ scope, name: aliasNode.name, path, read: aliasNode });
     const declScope = binding ? aliasDeclScope(binding, scope) : scope;
     // A loop declaration has no initializer. Its finite elements are candidates just like
     // written values, even when no single one proves the receiver's identity. a PATTERN head pairs
@@ -2800,14 +3250,15 @@ export function reachableAliasValues({
       // reaches both). the primary names the slot only where every arm agrees, so a disagreeing
       // slot reaches the union through these arms alone; a lone agreeing arm just repeats it
       if (!init && declarator?.type === 'VariableDeclarator' && declarator.init) {
-        const ctx = { scope: declScope, adapter, path: declaration, resolveKey };
+        const ctx = { scope: declScope, adapter, path: declaration, resolveKey, liveArmsOnly: true };
         const slotValues = pairedSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx, seen });
         // ... and the values the file WROTE into that slot: the read lands on one of them where the
         // write reached the container, so each joins the union beside the literal's own
         const written = writtenPatternSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx })
           .map(node => ({ node, scope: declScope }));
         const arms = [...slotValues, ...written]
-          .flatMap(({ node, scope: valueScope }) => flattenBranchingValueNodes([node]).map(arm => [arm, valueScope]));
+          .flatMap(({ node, scope: valueScope }) => flattenBranchingValueNodes([node], { ctx: { ...ctx, scope: valueScope } })
+            .map(arm => [arm, valueScope]));
         for (const [arm, valueScope] of arms) {
           const value = resolve({ node: arm, readNode: arm, ctx: { ...ctx, scope: valueScope } });
           if (value) values.push(value);
@@ -2821,7 +3272,7 @@ export function reachableAliasValues({
     // () => Object; f = () => Array; f().from()`) still injects the reaching value's polyfill - the
     // direct-Identifier-receiver union path could not, since `f()` is not an Identifier alias
     const callee = unwrapTransparentSeq(aliasNode.callee);
-    const binding = callee.type === 'Identifier' ? adapter.getBinding(scope, callee.name, path) : null;
+    const binding = callee.type === 'Identifier' ? adapter.getBinding({ scope, name: callee.name, path, read: callee }) : null;
     const declScope = binding ? aliasDeclScope(binding, scope) : scope;
     if (binding && isReassignedBeyondDeclarator(binding)) {
       // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
@@ -2852,7 +3303,7 @@ export function reachableAliasValues({
 function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
   if (invocationNode(node) !== node) return null;
   const pairing = callPairing(node, null, {
-    nameIsShadowed: name => adapter.hasBinding(scope, name, path),
+    nameIsShadowed: (name, read) => adapter.hasBinding({ scope, name, path, read }),
     staticIsMutated: adapter.isMutatedStatic ?? null,
     getCalleeEntry: callee => pureImportSourceEntry(moduleDefaultSource({ node: callee, scope, adapter, path, getBinding })),
   });
@@ -2998,7 +3449,7 @@ export function certainPairedSlotValue({ pattern, init, name, ctx, seen = new Se
 function pairSlotValues({ pattern, init, name, ctx, seen }) {
   const valueScopes = new Map();
   function levelSources(rhs, levelCtx) {
-    const arms = flattenBranchingValueNodes([rhs]);
+    const arms = flattenBranchingValueNodes([rhs], { ctx: { ...ctx, scope: levelCtx.scope } });
     if (arms.length !== 1 || arms[0] !== rhs) return arms.map(arm => ({ source: arm }));
     const paired = callPairingSources({ init: rhs, scope: levelCtx.scope, adapter: ctx.adapter, path: ctx.path, seen });
     return paired?.sources.map(({ literal, scope }) => ({
@@ -3073,12 +3524,12 @@ export function resolveInlineCalleeFunction(hop, {
   // callees. Share full records only during this proof, at the same scope and read.
   // The returned hop keeps the original adapter, so no lookup cache escapes.
   const bindings = hop.node.callee?.type === 'Identifier' ? new Map() : null;
-  function calleeBinding(scope, name, readPath) {
-    if (!bindings) return adapter.getBinding(scope, name, readPath);
+  function calleeBinding({ scope, name, path: readPath, read = null }) {
+    if (!bindings) return adapter.getBinding({ scope, name, path: readPath, read });
     const hit = bindings.get(name);
-    if (hit && hit.scope === scope && hit.path === readPath) return hit.binding;
-    const binding = adapter.getBinding(scope, name, readPath);
-    bindings.set(name, { scope, path: readPath, binding });
+    if (hit && hit.scope === scope && hit.path === readPath && hit.read === read) return hit.binding;
+    const binding = adapter.getBinding({ scope, name, path: readPath, read });
+    bindings.set(name, { scope, path: readPath, read, binding });
     return binding;
   }
   const seen = new Set(hop.seen);
@@ -3099,7 +3550,12 @@ export function resolveInlineCalleeFunction(hop, {
   // path by scanning the file again
   function memberHop(member) {
     const owner = unwrapTransparentSeq(member.object);
-    const binding = owner?.type === 'Identifier' ? calleeBinding(hopScope, owner.name, lookupPath) : null;
+    const binding = owner?.type === 'Identifier' ? calleeBinding({
+      scope: hopScope,
+      name: owner.name,
+      path: lookupPath,
+      read: owner,
+    }) : null;
     if (binding && !initAvailable({
       declaratorNode: binding.path?.node ?? binding.node,
       usagePath: lookupPath,
@@ -3138,7 +3594,7 @@ export function resolveInlineCalleeFunction(hop, {
     // ... and the one write storing a MEMBER the census resolved (`let mk; mk = o.make`) hands the
     // walk that member, the conditional proof of the literal write below applying to it alike
     const next = bound?.callee ?? (isMemberAccessNode(rhs) ? rhs : null);
-    if (next && (!rhs || !rejectConditional)) return { next, scope: bound?.scope ?? (rhs && pathOfNode(lookupPath, write)?.scope) };
+    if (next && (!rhs || !rejectConditional)) return { next, scope: bound?.scope ?? (rhs && writeScopeAt(lookupPath, write)) };
     if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return { done: null };
     // callers asking whether the call's VALUE is defined get no proof from a conditional
     // one: the unassigned path is exactly the value they must keep guarding
@@ -3150,7 +3606,7 @@ export function resolveInlineCalleeFunction(hop, {
       hop,
       callee: rhs,
       args,
-      scope: pathOfNode(lookupPath, write)?.scope ?? aliasDeclScope(binding, hopScope),
+      scope: writeScopeAt(lookupPath, write, aliasDeclScope(binding, hopScope)),
       seen,
       allowIdentityParam,
       allowAsync,
@@ -3166,7 +3622,7 @@ export function resolveInlineCalleeFunction(hop, {
     }
     const { name } = callee;
     if (cycleGuardHas(seen, name)) return null;
-    const binding = calleeBinding(hopScope, name, lookupPath);
+    const binding = calleeBinding({ scope: hopScope, name, path: lookupPath, read: callee });
     if (!binding) return null;
     const isDeclarator = bindingDeclaratorNode(binding)?.type === 'VariableDeclarator';
     // the shared accessor covers both binding shapes (detect adapters carry `.node`, the
@@ -3370,7 +3826,7 @@ export function inlineCallReturnExpression(hop, {
     // ends this descent is the finite tree, since every step moves strictly inward
     let source;
     if (param.type === 'AssignmentPattern' && !argumentOverridesSlot(resolved.args, argIndex,
-      () => !!hop.ctx.adapter.getBinding(hop.ctx.scope, 'undefined', hop.ctx.path))) {
+      read => !!hop.ctx.adapter.getBinding({ scope: hop.ctx.scope, name: 'undefined', path: hop.ctx.path, read }))) {
       const names = collectParamBindingNames(callee.params);
       if (!names || identifierReferencedInSubtree(param.right, names)
         || identifierReferencedInSubtree(param.right, 'arguments')) return null;
@@ -3382,7 +3838,7 @@ export function inlineCallReturnExpression(hop, {
       // undefined - an object-valued literal, a global constructor - or the default answers instead
       const value = unwrapRuntimeExpr(argument);
       const globalName = value?.type === 'Identifier' && isStaticPlacement(value.name)
-        && !hop.ctx.adapter.getBinding(hop.ctx.scope, value.name, hop.ctx.path);
+        && !hop.ctx.adapter.getBinding({ scope: hop.ctx.scope, name: value.name, path: hop.ctx.path, read: value });
       if (param.type === 'AssignmentPattern' && !ALWAYS_TRUTHY_OBJECT_NODES.has(value?.type) && !globalName) return null;
       source = { ...hop, node: argument, seen: new Set(hop.seen) };
     }
@@ -3502,6 +3958,7 @@ function bareProxyGlobalAliasName(node, aliasCtx) {
       if (write) {
         cur = unwrapTransparentSeq(write.right);
         subject = cur;
+        ctx = { ...ctx, scope: writeScopeAt(ctx.path, write, ctx.scope) };
         continue;
       }
       // a TERMINAL init-less identifier that is a plugin-minted pure import (`const g =
@@ -3606,21 +4063,35 @@ export function handsValueOn(host, child) {
   }
 }
 
+// does a write TARGET land on the slot of the pair a read names? a bare name no local binds is the realm's
+// slot of that name, a member the pair its key and resolved object spell - every realm name one object, as
+// the census keys them (`mutatedStaticKey`): `WeakSet = self.WeakSet` and `self.Promise = globalThis.Promise`
+// write the slot they read
+export function writeTargetsReadSlot(target, { objectName, keyName, scope, adapter, path }) {
+  const left = unwrapTransparentSeq(target);
+  const readSlot = mutatedStaticKey(objectName, keyName);
+  if (left?.type === 'Identifier') {
+    return mutatedStaticKey('globalThis', left.name) === readSlot && !adapter?.hasBinding?.({ scope, name: left.name, path, read: left });
+  }
+  const key = staticMemberKeyName(left);
+  if (key === null) return false;
+  const object = resolveObjectName({ objectNode: left.object, scope, adapter, path });
+  return !!object && mutatedStaticKey(object, key) === readSlot;
+}
+
 // is this member READ the value the write to its OWN slot computes from? `X.y = X.y || patch` reads
 // the slot to DETECT it, and that read runs BEFORE the write lands - so the mutation the census
 // records for the pair says nothing about it, and the polyfill belongs exactly there: satisfied, the
 // detect never installs the third-party patch, and what the slot then holds is core-js's own
-// implementation, which is what every read AFTER the write goes on reading raw. the climb is the
-// value-carrier set's, so the detect is recognised through the shapes that hand a value on
-export function readFeedsOwnSlotWrite(readPath, { objectName, keyName, scope, adapter, path }) {
+// implementation, which is what every read AFTER the write goes on reading raw - an earlier write of
+// the slot included: core-js wins every detect. the climb is the value-carrier set's, so the detect is
+// recognised through the shapes that hand a value on, whichever realm name spells the read or the write
+// (`writeTargetsReadSlot`)
+export function readFeedsOwnSlotWrite(readPath, ctx) {
   let child = readPath?.node;
   let up = readPath?.parentPath;
   while (up?.node && handsValueOn(up.node, child)) {
-    if (up.node.type === 'AssignmentExpression') {
-      const left = unwrapTransparentSeq(up.node.left);
-      if (staticMemberKeyName(left) !== keyName) return false;
-      return resolveObjectName({ objectNode: left.object, scope, adapter, path }) === objectName;
-    }
+    if (up.node.type === 'AssignmentExpression') return writeTargetsReadSlot(up.node.left, ctx);
     child = up.node;
     up = up.parentPath;
   }
@@ -3899,10 +4370,10 @@ function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure }) {
 // wrote is load-bearing. what a computed key spells is not part of the question: the hop is named by
 // the canon like any other, and only a key carrying EFFECTS stays, because folding it would fold
 // them away with it - refusing every computed spelling kept a hop its dotted twin drops
-function foldReadThroughRealmHops(hops, { adapter, resolvePure, keptProbe = null, keepTerminal = true }) {
+function foldReadThroughRealmHops(hops, { adapter, resolvePure, keptProbe = null, keepTerminal = true, path = null }) {
   let overPure = false;
   return hops.filter((hop, index) => {
-    if (!foldableRealmHopKey(hop.name, { adapter, resolvePure })) {
+    if (!foldableRealmHopKey(hop.name, { adapter, resolvePure }, path && { node: hop.node, path })) {
       overPure = !!resolvePure({ kind: 'global', name: hop.name });
       return true;
     }
@@ -3949,7 +4420,7 @@ export function planProvenNavGuardCollapse({
     // the dotted key through the canon: a PRIVATE name carries `.name` too, and read raw it passed
     // for the realm self-reference it can never be
     const dottedKey = node.computed ? null : memberKeyName(node);
-    if (!node.computed && !isPristineProxyGlobal(adapter, dottedKey)) return null;
+    if (!node.computed && !isPristineProxyGlobal(adapter, dottedKey, path && { node, path })) return null;
     hops.unshift({ name: dottedKey, node, optional: !!node.optional, keySeExprs: null });
     return unwrapTransparentSeq(node.object);
   }
@@ -4039,7 +4510,7 @@ export function planProvenNavGuardCollapse({
     && (storedValueConsumedAbove(path)
       || (isMemberAccessNode(path?.node) && nodeRangeContains(path.node, topAssign)));
   hops.splice(0, hops.length, ...foldReadThroughRealmHops(hops,
-    { adapter, resolvePure, keptProbe, keepTerminal: !consumedStore }));
+    { adapter, resolvePure, keptProbe, keepTerminal: !consumedStore, path }));
   let collapseIdx = -1;
   // proving WHICH global a call root yields is not proving it yields a DEFINED one: a body reaching
   // the environment probe (`() => globalThis.window`) is undefined off-window. every render this plan
@@ -4366,7 +4837,7 @@ function isNumericLiteralKeyNode(node) {
 function resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey) {
   if (!computed) return null;
   if (node?.type === 'Identifier' && adapter.method === 'usage-global') {
-    const binding = adapter.getBinding?.(scope, node.name, path);
+    const binding = adapter.getBinding?.({ scope, name: node.name, path, read: node });
     const declaration = bindingDeclaratorNode(binding);
     return declaration?.type === 'VariableDeclarator' && declaration.id?.type === 'Identifier'
       && !declaration.init && !declaration.declare && !binding.constantViolations?.length
@@ -4389,6 +4860,70 @@ function resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStati
   return container && program && ESCAPED_CONTAINER_NAMES.get(program)?.has(container) ? null : named;
 }
 
+// one IDENTIFIER hop of a computed-key walk - the folding one (`resolveKey`) and the provenance one
+// (`isSymbolSourcedKey`) alike, so both answer of the value the read observes: the registered Symbol.X
+// alias the binding carries (`{ symbolKey }`: `const { iterator } = Symbol`, a minted import), else the
+// value node with the scope its own names resolve in and the advanced cycle guard - the declarator init,
+// or the reaching write over a dead one, or the reaching write of a binding only writes give a value
+// (`let K; K = 'of'`). `{ refused }` where usage-pure must not follow a conditionally-initialized alias
+// (`if (c) var K = 'fromEntries'` - substituting the literal masks the native TypeError on the skipped
+// path; usage-global over-injects and keeps following). null where nothing is followed
+function followKeyIdentifier({ node, seen, scope, adapter, path, usageNode }) {
+  const entry = enterIdentifierBindingFollow({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
+  if (entry) {
+    // the registered alias runs BEFORE the init: following a destructure init resolves the WHOLE
+    // receiver (`Symbol`), losing the `.iterator` slot
+    const symbolKey = bindingSymbolKey(entry.binding, adapter.packages, { name: node.name, scope, adapter, path, usageNode });
+    if (symbolKey) return { symbolKey };
+    if (!entry.node) return null;
+    if (adapter.method === 'usage-pure' && !initializerReachesRead({
+      adapter, binding: entry.binding, declaratorNode: entry.binding.node, usagePath: path, usageNode,
+    })) return { refused: true };
+    // usage-global: an unconditional reassignment can kill the init before the use - including one
+    // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
+    // Array[K]` can never dispatch Array.of) - read in the scope that write stands in, as the
+    // reaching lane below reads it
+    const writeScopes = [];
+    const value = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode, writeScopes });
+    return { node: value || entry.node, seen: entry.seen, scope: value && writeScopes[0] || entry.ctx.scope };
+  }
+  if (cycleGuardHas(seen, node.name)) return null;
+  // the alias-follow bailed on a reassignment (declarator init dead at the use): the reaching
+  // definition (`K = 'of'` in `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous
+  const binding = adapter.getBinding({ scope, name: node.name, path, read: node });
+  if (!binding || !isReassignedBeyondDeclarator(binding)) return null;
+  const reaching = reachingKeyValue({ binding, name: node.name, scope, adapter, path, usageNode, seen });
+  if (reaching) return { node: reaching.node, seen: new Set(seen).add(node.name), scope: reaching.scope };
+  return iteratorOrFallbackKey({ binding, name: node.name, scope, adapter, path, usageNode, seen })
+    ? { symbolKey: 'Symbol.iterator' } : null;
+}
+
+// ... and a key the walk cannot pin to one write but whose every value is the iterator symbol or its
+// `'@@iterator'` fallback - the helpers' loop trying one and then the other (`_asyncIterator`) - which
+// the iterator method's lookup answers either way: a write always lands before the read, and each one
+// the read may see installs one of the two, the symbol at least once. read as the iterator symbol, so
+// only a READ renders through the helper; a write keyed by it keeps the alias
+function iteratorOrFallbackKey({ binding, name, scope, adapter, path, usageNode, seen }) {
+  if (identifierDeclaratorInit(binding) || !bindingWrittenBeforeUsage({ binding, usagePath: path, usageNode, adapter })) return false;
+  const { nodes, complete } = reassignmentValueEnumeration({
+    binding, usagePath: path, name, ctx: { scope, adapter, path, resolveKey }, usageNode,
+  });
+  if (!complete) return false;
+  let symbol = false;
+  for (const value of nodes) {
+    const valueCtx = { scope: writeScopeAt(path, value, aliasDeclScope(binding, scope)), adapter, seen: new Set(seen).add(name), path };
+    const key = resolveKey({ node: value, computed: true, ...valueCtx });
+    if (key === 'Symbol.iterator' && isSymbolSourcedKey({ node: value, ...valueCtx })) symbol = true;
+    else if (key !== '@@iterator') return false;
+  }
+  return symbol;
+}
+
+// the property name a key node folds to, or null: an identifier or literal spelling, a template or `+`
+// concat of folds, an alias through its binding (`followKeyIdentifier`), the operand a selection the build
+// decides always yields, a `Symbol.X` spelling as `'Symbol.X'` (its provenance is `isSymbolSourcedKey`'s),
+// an enum member through the type layer. `usageNode` anchors the read an alias hop observes; a key whose
+// evaluation runs code bails under `bailOnSideEffectKey`
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false,
   usageNode = null, resolveStaticKey = null, keepsKeyNode = false }) {
   while (true) {
@@ -4399,6 +4934,12 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     if (computed) {
       node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, { scope, adapter, path, usageNode, seen, keepsKeyNode });
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
+      const operand = decidedKeyOperand(node, { scope, adapter, path, seen, depth });
+      if (operand) {
+        node = operand;
+        depth += 1;
+        continue;
+      }
     }
     if (!computed && node.type === 'Identifier') return node.name;
     // a NUMERIC literal names its slot as much as the string spelling does (`obj[0]` and `obj['0']`
@@ -4433,51 +4974,15 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       }
       return out;
     }
-    // computed: const variable - follow to init, else fall back to plugin-managed bindings
-    // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
-    // polyfill packages from `additionalPackages`)
     if (node.type === 'Identifier' && computed) {
-      const entry = enterIdentifierBindingFollow({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
-      if (entry) {
-        // a registered Symbol.X alias resolves the key regardless of the binding's (possibly mutated /
-        // pattern) init: `const { iterator } = Symbol; obj[iterator]`. must run BEFORE the init branch -
-        // following a destructure init resolves the WHOLE receiver (`Symbol`), losing the `.iterator` slot
-        const aliasKey = bindingSymbolKey(entry.binding, adapter.packages, { name: node.name, scope, adapter, path, usageNode });
-        if (aliasKey) return aliasKey;
-        if (entry.node) {
-          // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
-          // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
-          // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
-          // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
-          if (adapter.method === 'usage-pure' && !initializerReachesRead({
-            adapter, binding: entry.binding, declaratorNode: entry.binding.node, usagePath: path, usageNode,
-          })) return null;
-          // usage-global: an unconditional reassignment can kill the init before the use - including one
-          // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
-          // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
-          // become the primary key; fall through to the init when no such value is determinable
-          const target = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode }) || entry.node;
-          node = usageNode = target;
-          ({ seen } = entry);
-          scope = entry.ctx.scope;
-          depth += 1;
-          continue;
-        }
-      } else if (!cycleGuardHas(seen, node.name)) {
-        // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
-        // from the value the use actually sees - the reaching definition (`K = 'of'` in
-        // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
-        const binding = adapter.getBinding(scope, node.name, path);
-        const reaching = binding && isReassignedBeyondDeclarator(binding)
-          ? reachingKeyValue({ binding, name: node.name, scope, adapter, path, usageNode, seen }) : null;
-        if (reaching) {
-          // extend the cycle-guard set BEFORE overwriting `node` - it reads the current name
-          seen = new Set(seen).add(node.name);
-          ({ node, scope } = reaching);
-          depth += 1;
-          usageNode = node;
-          continue;
-        }
+      const hop = followKeyIdentifier({ node, seen, scope, adapter, path, usageNode });
+      if (hop?.symbolKey) return hop.symbolKey;
+      if (hop?.refused) return null;
+      if (hop) {
+        ({ node, seen, scope } = hop);
+        usageNode = node;
+        depth += 1;
+        continue;
       }
     }
     // string concatenation: 'a' + 'b'
@@ -4568,27 +5073,39 @@ export function consumableHopSlotName(prop, keyCtx = null) {
 }
 
 // bare unbound `Symbol` / capitalised const-alias (`const Sym = Symbol`) /
-// proxy-global access (`globalThis.Symbol`, `self.window.Symbol`). lowercase idents skip
-// the const-chain walk - `Symbol` aliases are capitalised by convention.
+// proxy-global access (`globalThis.Symbol`, `self.window.Symbol`). other idents skip the
+// const-chain walk unless their declaration may name `Symbol` (`symbolAliasShapedInit`) -
+// `Symbol` aliases are capitalised by convention, minified helpers' are not.
 // `seen` threaded through so callers caught in a cyclic const-alias chain
 // (`const a = b.Symbol; const b = a;`) don't restart the cycle guard
 function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
   // a SLOT-mutated `Symbol` (`globalThis.Symbol = Fake`) is the user's replacement: its keys
   // are not the well-known symbols, so recognition bails and the key stays a raw member read
-  // (the bare `Symbol` identifier then re-routes through the global-object binding)
-  if (isMutatedGlobalSlot(adapter, 'Symbol')) return false;
+  // (the bare `Symbol` identifier then re-routes through the global-object binding) - save a read
+  // the write does not reach: one before every write, or below a patch the build never runs
+  if (isMutatedGlobalSlot(adapter, 'Symbol', path && { node, path })) return false;
   if (node.type === 'Identifier') {
-    if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol', path);
+    if (node.name === 'Symbol') return !adapter.hasBinding({ scope, name: 'Symbol', path, read: node });
     // the capitalisation probe bounds the const-alias walk for USER names only - a binding this
     // plugin minted in place (`Symbol` -> `_Symbol`) carries its original global in the
     // `polyfillHint` side-channel and is NOT capitalised, so the hint is asked first: gating it
     // behind the convention makes the plugin fail to recognise its own rewrite
-    if (!CAPITALISED_IDENT.test(node.name) && !bindingPolyfillHint({
-      binding: adapter.getBinding(scope, node.name, path), scope, name: node.name, adapter,
-    })) return false;
-    return resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path }) === 'Symbol';
+    if (!CAPITALISED_IDENT.test(node.name)) {
+      const binding = adapter.getBinding({ scope, name: node.name, path, read: node });
+      if (!bindingPolyfillHint({ binding, scope, name: node.name, adapter }) && !symbolAliasShapedInit(binding)) return false;
+    }
+    return resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path, read: node }) === 'Symbol';
   }
   return globalProxyMemberName({ node, scope, adapter, path }) === 'Symbol';
+}
+
+// may a name's declaration hold `Symbol` - its init a name, a selection or a `.Symbol` read - the shapes a
+// minified helper spells the alias with (`i = "function" == typeof Symbol ? Symbol : {}`). a cheap screen
+// ahead of the alias walk, which every member key's receiver would otherwise pay
+function symbolAliasShapedInit(binding) {
+  const init = binding ? unwrapRuntimeExpr(identifierDeclaratorInit(binding)) : null;
+  return init?.type === 'Identifier' || init?.type === 'ConditionalExpression' || init?.type === 'LogicalExpression'
+    || (isMemberAccessNode(init) && memberKeyName(init) === 'Symbol');
 }
 
 // the re-key question BOTH destructure emitters ask of an anchored residual: does this key READ a
@@ -4714,7 +5231,7 @@ export function deletedRunCarriesMutatedRealmHop(path, { adapter, unwrap = node 
   for (let cur = isMemberAccessNode(end) ? unwrap(end.object) : null;
     isMemberAccessNode(cur); cur = unwrap(cur.object)) {
     const key = realmHopKeyName(cur, aliasCtx, { allowSideEffectKeys: true });
-    if (key && POSSIBLE_GLOBAL_OBJECTS.has(key) && !isPristineProxyGlobal(adapter, key)) return true;
+    if (key && POSSIBLE_GLOBAL_OBJECTS.has(key) && !isPristineProxyGlobal(adapter, key, path && { node: cur, path })) return true;
   }
   return false;
 }
@@ -4749,7 +5266,7 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null, { allowSideEffec
     const key = realmHopKeyName(member, aliasCtx, { allowSideEffectKeys });
     // a mutated hop slot (`window.self = fake`) is the user's redirection - collapsing the hop
     // away would silently read the pristine global instead of the replacement
-    if (key && isPristineProxyGlobal(aliasCtx?.adapter, key)) prefix = member;
+    if (key && isPristineProxyGlobal(aliasCtx?.adapter, key, aliasCtx?.path && { node: member, path: aliasCtx.path })) prefix = member;
     else break;
   }
   return prefix;
@@ -5241,9 +5758,9 @@ export function storeReadHopOptional(navNode) {
 // PRISTINE, because a slot the source itself wrote holds the user's own object. what SPELLS the key
 // is the name canon's question and lives at the node-shaped ask below. the positional half - which
 // hops stand over a ponyfill - belongs to the caller: the nav plan for a planned collapse, the
-// emitters' own tail walks for the hops a plan does not reach
-function foldableRealmHopKey(key, { adapter, resolvePure }) {
-  return proxyHopLacksPureEntry(key, resolvePure) && isPristineProxyGlobal(adapter, key);
+// emitters' own tail walks for the hops a plan does not reach. a caller holding the hop's read hands it
+function foldableRealmHopKey(key, { adapter, resolvePure }, read = null) {
+  return proxyHopLacksPureEntry(key, resolvePure) && isPristineProxyGlobal(adapter, key, read);
 }
 
 // the node-shaped ask of the same verdict. WHICH name the hop has is the name canon's question,
@@ -5253,7 +5770,7 @@ function foldableRealmHopKey(key, { adapter, resolvePure }) {
 // carries no slot to replay it in, and this verdict carries none
 export function foldableRealmHop(node, ctx) {
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
-  return foldableRealmHopKey(realmHopKeyName(node, ctx?.scope ? ctx : null), ctx);
+  return foldableRealmHopKey(realmHopKeyName(node, ctx?.scope ? ctx : null), ctx, ctx?.path ? { node, path: ctx.path } : null);
 }
 
 // the UNBACKED half alone, node-shaped: a hop READ the pure package cannot back (`window` - there is
@@ -5443,7 +5960,7 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
         || !isPristineProxyGlobal(ctx.adapter, staticMemberKeyName(node))) {
         return memberProxyHopName(node) || node.computed || node.optional ? null : fold;
       }
-    } else if (!foldableRealmHop(node, ctx)) {
+    } else if (!foldableRealmHop(node, { ...ctx, path: up })) {
       // a MUTATED slot holds the user's own object, and the read flavor owes the same verdict the
       // delete flavor gives it: the run deopts WHOLE. the hops BELOW such a hop fold only together
       // with the read above them, so folding them out leaves the kept hop reading off a base the
@@ -5575,8 +6092,10 @@ export function seBearingChainRootCall({ node, scope, adapter, path }) {
 // and the fallback-logical synth-collapse (`{from} = LEFT || Set`) for the resolved LEFT it folds
 // away; callers re-emit the returned nodes ahead of the extraction / polyfill literal or keep the
 // init verbatim. NOT for the `in` fold, whose planner rescues a DIRECT assignment RHS itself -
-// routing it through here would double-rescue
-export function discardRescueNodes({ node, scope, adapter, path }) {
+// routing it through here would double-rescue. a value the build decides owes what the part of it that
+// runs owes (`decidedRunningPart`)
+export function discardRescueNodes({ node: value, scope, adapter, path }) {
+  const node = decidedRunningPart(value, { scope, adapter, path });
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
   return collectFoldedReceiverSideEffects(node, { rescue: rootCall ? new Set([rootCall]) : null, ctx: { scope, adapter, path } });
 }
@@ -5584,12 +6103,19 @@ export function discardRescueNodes({ node, scope, adapter, path }) {
 // `resolveKey` can fold StringLiteral / TemplateLiteral / `+` concat to the string
 // `'Symbol.X'`, but none of those are the well-known symbol. this predicate rejects
 // string-sourced keys so `'Symbol.iterator' in Array` isn't miscategorised as an
-// is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches
-// minus the string-folding cases
+// is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches and its
+// decided-selection step, minus the string-folding cases
 export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
+  let usageNode = null;
   while (true) {
     if (depth > MAX_KEY_DEPTH) return false;
     node = unwrapTransparentSeq(node);
+    const operand = decidedKeyOperand(node, { scope, adapter, path, seen, depth });
+    if (operand) {
+      node = operand;
+      depth += 1;
+      continue;
+    }
     const { type } = node;
     // string-folded sources - plain strings, not the symbol
     if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
@@ -5620,22 +6146,13 @@ export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0
       return true;
     }
     if (type !== 'Identifier') return false;
-    const entry = enterIdentifierBindingFollow({ node, seen, ctx: { scope, adapter, path } });
-    if (!entry) return false;
-    // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
-    // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
-    // to the whole receiver and lose the `.iterator` slot
-    if (bindingSymbolKey(entry.binding, adapter.packages, { name: node.name, scope, adapter, path }) !== null) return true;
-    // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
-    // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
-    // user-aliased polyfill packages from `additionalPackages`)
-    if (entry.node) {
-      ({ node, seen } = entry);
-      scope = entry.ctx.scope;
-      depth += 1;
-      continue;
-    }
-    return false;
+    // the alias hop the fold takes, so the provenance is of the value the fold named
+    const hop = followKeyIdentifier({ node, seen, scope, adapter, path, usageNode });
+    if (!hop || hop.refused) return false;
+    if (hop.symbolKey) return true;
+    ({ node, seen, scope } = hop);
+    usageNode = node;
+    depth += 1;
   }
 }
 
@@ -5686,7 +6203,7 @@ export function isAliasProxyHopChain(node, aliasCtx, allowSideEffectKeys = false
   if (!hasProxyHopKey || cur?.type !== 'Identifier') return false;
   return isAliasProxyRoot(cur, aliasCtx)
     || (throughStore && POSSIBLE_GLOBAL_OBJECTS.has(cur.name)
-      && !aliasCtx.adapter?.hasBinding?.(aliasCtx.scope, cur.name, aliasCtx.path));
+      && !aliasCtx.adapter?.hasBinding?.({ scope: aliasCtx.scope, name: cur.name, path: aliasCtx.path }));
 }
 
 // transparent value-position wrappers between a proxy-global receiver and its binding context. the

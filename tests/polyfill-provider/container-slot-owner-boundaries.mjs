@@ -103,6 +103,33 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     check(`${ label }: a dominating write survives cloning`,
       writesAdapter.containerSlotWriteDominatesUsage(['value'], node, usage, usage.node), true);
   }
+  // A write an enclosing owner completes before the reading closure is created dominates a read whose
+  // caller names the replacement. A closure created first - above the write, or a function declaration,
+  // created when its scope is entered - may read the initial value, and so may one whose write is conditional.
+  for (const [name, source, named, expected] of [
+    ['closure created after the write', 'const box = { C: Array }; box.C = Map; const read = () => box.C.from;', true, true],
+    ['nested closure created after the write', 'const box = { C: Array }; box.C = Map; const read = () => () => box.C.from;', true, true],
+    ['closure created before the write', 'const box = { C: Array }; const read = () => box.C.from; box.C = Map;', true, false],
+    ['function declaration after the write', 'const box = { C: Array }; box.C = Map; function read() { return box.C.from; }', true, false],
+    ['closure in a function declaration', 'const box = { C: Array }; box.C = Map; function read() { return () => box.C.from; }', true, false],
+    ['conditional write', 'const box = { C: Array }; if (flag) box.C = Map; const read = () => box.C.from;', true, false],
+    ['unnamed replacement', 'const box = { C: Array }; box.C = {}; const read = () => box.C.from;', false, false],
+    ['same-scope unnamed replacement', 'const box = { C: Array }; box.C = {}; box.C.from;', false, true],
+  ]) {
+    const tree = parser.parseAndScope(source);
+    const data = collectFileCensus(tree.node, [mutationShapesReducer()]);
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method,
+      getWrittenContainerSlots: () => data.writtenContainerSlots,
+      getContainerSlotIndex: () => data.containerSlotIndex,
+    });
+    const declaration = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'box').node;
+    const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
+    // the replacement is read where its write stands, which the read's own owner does not hold
+    const acceptValue = named ? (value, writePath) => value?.type === 'Identifier' && writePath?.node?.right === value : null;
+    check(`${ label }: ${ name }`,
+      reader.containerSlotWriteDominatesUsage(['C'], declaration, read, read.node, acceptValue), expected);
+  }
   // Synthesized declarations have no source span: only that exact node owns their records.
   const synthetic = parser.parseAndScope('const box = []; box.push(Map);');
   const syntheticOwner = parser.pickPath(synthetic, 'VariableDeclarator').node;
@@ -147,7 +174,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     getContainerSlotIndex: () => classData.containerSlotIndex,
   });
   const classRead = parser.pickPath(classTree, 'MemberExpression', path => path.node.property.name === 'groupBy');
-  const classBinding = classAdapter.getBinding(classRead.scope, 'Box', classRead);
+  const classBinding = classAdapter.getBinding({ scope: classRead.scope, name: 'Box', path: classRead });
   check(`${ label }: class declarations retain their loop anchor`, bindingLoopAnchor(classBinding).decl?.name, 'Box');
   const classCandidates = [];
   staticContainerReceiverName({ node: classRead.node.object, scope: classRead.scope, adapter: classAdapter, path: classRead,
@@ -157,8 +184,8 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     ['assignment capture', 'let item; const box = { item: Array }; item = box.item; box.item = {}; item.from;', 'Array'],
     ['var sibling capture', 'let item; { var box = { item: Array }; item = box.item; } { var box = { item: {} }; box.item = {}; } item.from;', 'Array'],
     ['conditional capture', 'let item; const box = { item: Array }; if (unknown) item = box.item; item.from;', null],
-    ['pattern write belongs to the registry', 'let item; ({ Array: item } = globalThis); item.from;', null],
-    ['repeated pattern writes belong to the registry', 'let item; ({ Map: item } = globalThis); ({ Array: item } = globalThis); item.from;', null],
+    ['pattern write is the reaching value', 'let item; ({ Array: item } = globalThis); item.from;', 'Array'],
+    ['last of repeated pattern writes is the reaching value', 'let item; ({ Map: item } = globalThis); ({ Array: item } = globalThis); item.from;', 'Array'],
     ['nested class capture', 'function test() { (() => { class Box { static item = Array; } const item = Box.item; Box.item = {}; item.from; })(); }', 'Array'],
     ['deferred class capture', 'class Box { static item = Array; } function test() { const item = Box.item; item.from; } Box.item = {};', null],
   ]) {
@@ -181,7 +208,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     const tree = parser.parseAndScope(source);
     const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
     const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
-    const binding = reader.getBinding(read.scope, 'item', read);
+    const binding = reader.getBinding({ scope: read.scope, name: 'item', path: read });
     const reached = reachingContainerValueNode(binding, {
       node: read.node.object, readNode: read.node.object, ctx: { scope: read.scope, adapter: reader, path: read },
     });

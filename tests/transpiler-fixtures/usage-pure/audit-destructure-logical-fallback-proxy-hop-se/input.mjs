@@ -5,7 +5,7 @@
 // identifies the triggering line: proxy as `||` left, proxy as `&&` left (the always-truthy left narrows
 // the value to the `{}` right - nothing to polyfill, the line stays a verbatim passthrough), proxy as
 // short-circuited `||` right (the always-truthy object left decides the value, so the extraction declines
-// and the DEAD right operand stays verbatim on both emitters - it never evaluates), real-object left
+// and the selection folds to that left on both emitters - the dead right never evaluates), real-object left
 // (control - no proxy).
 // the trailing counter proves the live-operand side effects run in source order.
 let c = 0;

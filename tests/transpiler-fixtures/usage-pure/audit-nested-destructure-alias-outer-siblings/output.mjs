@@ -1,11 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// outer pattern has siblings - `{ Array: { from }, Symbol } = globalThis`. flatten
-// extracts `const from = _Array$from` above the declaration and drops the now-empty
-// inner pattern plus the outer `Array:` property. `Symbol` remains in a single-sibling
-// outer destructure which the existing top-level proxy-global path rewrites to
-// `const Symbol = _Symbol`
+// outer pattern has siblings - `{ Array: { from }, Symbol } = globalThis`: the receiver is mirrored with the pure
+// imports in its slots, so a static read off the bound `Symbol` respells too - standing alone as a statement it
+// performs nothing and leaves, while a value keeps it
 const {
   Array: {
     from
@@ -18,4 +16,4 @@ const {
   Symbol: _Symbol
 };
 from([1]);
-_Symbol$iterator;
+export const iterator = _Symbol$iterator;

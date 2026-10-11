@@ -218,3 +218,92 @@ QUnit.test('constructor selections: a key other receivers carry as an instance m
   assert.deepEqual(values(undefined), [2]);
   assert.same(values({}), undefined);
 });
+
+QUnit.test('constructor selections: a static read through a selection of containers', assert => {
+  // a selection the build decides is its live container, so the read is that container's static; an
+  // undecided one is captured once and the arm that ran picks the read - a native static owner's through
+  // the polyfill, an arm swapped whole through its own statics - held, in a slot or spelled in place
+  const decided = typeof Symbol != 'undefined' ? { C: Object } : { C: Array };
+  assert.deepEqual(decided.C.groupBy([1, 2, 3], x => x % 2)[1], [1, 3]);
+  function held(flag) {
+    const box = flag ? { C: Map } : { C: Object };
+    return box.C.groupBy([4, 5], x => x % 2);
+  }
+  assert.true(held(true) instanceof Map);
+  assert.deepEqual(held(false)[0], [4]);
+  function inSlot(flag) {
+    const box = { C: flag ? Map : Object };
+    return box.C.groupBy([6, 7], x => x % 2);
+  }
+  assert.deepEqual(inSlot(true).get(1), [7]);
+  assert.deepEqual(inSlot(false)[0], [6]);
+  function inPlace(flag) {
+    return (flag ? { C: Map } : { C: Object }).C.groupBy([8, 9], x => x % 2);
+  }
+  assert.false(inPlace(false) instanceof Map);
+  assert.deepEqual(inPlace(false)[1], [9]);
+});
+
+QUnit.test('constructor selections: a fallback after a decided object literal reads the literal', assert => {
+  // an object literal is always truthy, so the right of a `||` it decides never runs: a static read
+  // through the literal's slot is that constructor's, held in a const or spelled in place
+  let effects = 0;
+  const box = typeof Symbol != 'undefined' && { A: Array } || (effects++, { A: Object });
+  assert.deepEqual(box.A.of(1, 2), [1, 2]);
+  assert.deepEqual(((typeof Symbol != 'undefined' ? { A: Array } : null) || (effects++, { A: Object })).A.from('ab'), ['a', 'b']);
+  assert.same(effects, 0);
+});
+
+QUnit.test('constructor selections: a static read through a selection of containers under a pattern', assert => {
+  // a nested pattern reads the slot of the arm that ran, declared or assigned: an arm pure swaps whole
+  // serves its own static as a native static owner's arm does
+  function declared(flag) {
+    const { C: { groupBy } } = flag ? { C: Map } : { C: Object };
+    return groupBy([1, 2, 3], x => x % 2);
+  }
+  assert.deepEqual(declared(true).get(1), [1, 3]);
+  assert.false(declared(false) instanceof Map);
+  assert.deepEqual(declared(false)[0], [2]);
+  let from;
+  function assign(flag) {
+    ({ C: { from } } = flag ? { C: Iterator } : { C: Array });
+  }
+  assign(true);
+  assert.deepEqual(Array.from(from([4, 5])), [4, 5]);
+  assign(false);
+  assert.deepEqual(from([6, 7]), [6, 7]);
+});
+
+QUnit.test('constructor selections: an arm read off a container slot serves what the slot holds', assert => {
+  function read(flag) {
+    const shelf = { M: Map };
+    const { groupBy, extra } = flag ? shelf.M : Object;
+    const nest = { inner: { P: Promise } };
+    const { allSettled } = flag ? nest.inner.P : Object;
+    return [groupBy, extra, typeof allSettled];
+  }
+  const [groupBy, extra, settled] = read(true);
+  assert.deepEqual(groupBy([1, 2, 3], x => x % 2).get(1), [1, 3]);
+  assert.same(extra, undefined);
+  assert.same(settled, 'function');
+  assert.same(typeof read(false)[0], 'function');
+});
+
+QUnit.test('constructor selections: a pattern over a decided test answer or a right its test runs', assert => {
+  // a selection the build decides to its test's own answer yields that boolean, so a nested pattern over it
+  // throws as native does; a `||` whose test fails runs its right, read as that right alone
+  assert.throws(() => {
+    const { C: { groupBy } } = typeof Symbol == 'undefined' && { C: Map };
+    return groupBy;
+  }, TypeError);
+  assert.throws(() => {
+    const { A: { B: { fromEntries } } } = typeof Symbol != 'undefined' || { A: { B: Object } };
+    return fromEntries;
+  }, TypeError);
+  const { C: { from } } = typeof Symbol == 'undefined' || { C: Array };
+  assert.deepEqual(from('ab'), ['a', 'b']);
+  function read({ C: { hasOwn } } = typeof Symbol == 'undefined' || { C: Object }) {
+    return hasOwn({ k: 1 }, 'k');
+  }
+  assert.true(read());
+});

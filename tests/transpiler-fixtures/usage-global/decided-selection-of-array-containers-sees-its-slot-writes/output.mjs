@@ -1,0 +1,51 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.try";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.chunks";
+import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.iterator.drop";
+import "core-js/modules/es.iterator.every";
+import "core-js/modules/es.iterator.filter";
+import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.from";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.iterator.join";
+import "core-js/modules/es.iterator.map";
+import "core-js/modules/es.iterator.reduce";
+import "core-js/modules/es.iterator.some";
+import "core-js/modules/es.iterator.take";
+import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.windows";
+import "core-js/modules/es.number.constructor";
+import "core-js/modules/es.number.is-integer";
+import "core-js/modules/es.set.constructor";
+import "core-js/modules/es.set.species";
+import "core-js/modules/es.set.difference";
+import "core-js/modules/es.set.intersection";
+import "core-js/modules/es.set.is-disjoint-from";
+import "core-js/modules/es.set.is-subset-of";
+import "core-js/modules/es.set.is-superset-of";
+import "core-js/modules/es.set.symmetric-difference";
+import "core-js/modules/es.set.union";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// a binding holding a selection of array literals the build decides holds whichever arm ran, so a write of
+// a slot through it reaches the slot a later read takes, as it does for a selection of object literals:
+// the read takes the written value, never the static of the arm the selection yields. with no write the
+// decided arm's slot is read as its static
+const ternary = typeof Symbol != 'undefined' ? [Array] : [Set];
+ternary[0] = Iterator;
+export const iterated = ternary[0].from([1]);
+const fallback = [Set] || [Map];
+fallback[0] = Promise;
+export const attempted = fallback[0].try(() => 1);
+const untouched = typeof Symbol != 'undefined' ? [Number] : [Set];
+export const integral = untouched[0].isInteger(1);

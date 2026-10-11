@@ -4,6 +4,7 @@ import _DisposableStack from "@core-js/pure/actual/disposable-stack";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _queueMicrotask from "@core-js/pure/actual/queue-microtask";
@@ -12,12 +13,15 @@ import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // A presence test this build always answers - `typeof` over a global it serves (either operand order,
-// parenthesized or not), a global or a static read as a truth value - folds in pure to the operand it
+// parenthesized or not), a global or a static read as a truth value, an `in` test of a static or of a prototype
+// method's key (`'finally' in Promise.prototype`) - folds in pure to the operand it
 // yields, the test's own import and the dead branch gone. A probe (`window`) keeps its test, so does a
 // function global the root resolver does not name (`queueMicrotask`), and an `if` keeps its shape:
 // pure folds no statement.
 export const resolved = _Promise$resolve(1);
 export const viaStatic = _Array$from(list);
+export const keyed = _Promise$allSettled(list);
+export const prototyped = task.finally(done);
 export const fallbackOf = _Array$of;
 export const symbolic = _Symbol('x');
 export const legacy = new _Map();

@@ -30,6 +30,7 @@ Keep the emitter dependency graph acyclic. `proxy-spine`, `optional-dispatch` an
 - Undo detection-only mutations such as `neutralizeUnwalkedParamPatterns` before printing.
 - Normalize TS instantiation before optional calls in every method: `((X)<T>)?.(a)` becomes `(X)?.<T>(a)`. Babel's later optional-call lowering otherwise loses `this`; doing it only at post is too late.
 - Nodes acquired from another evaluation frame need `stampNodeSite`; scope-aware queries use `nodeSite`, and copies use `cloneStamped`. Do not substitute an unrelated `metaPath`.
+- A proxy collapse climbs through realm hops only while each is a read: it stops below a member the source writes (`isMemberWriteHost` - an assignment, `delete`, a pattern or a for-x head), whose receiver is the slot the operator lands on whether the write runs or not.
 - Clone host source nodes before embedding them in another tree position, including keys marked `fromSource` by `synthEntryKey`. Reusing one node aliases subsequent mutations even when printed output looks correct.
 
 ## Validation and sidecars

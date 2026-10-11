@@ -29,12 +29,15 @@ const ALLOWED = new Map([
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
   ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
   ['user-selection-native-left', ['globalThis', 'globalThis']],
-  // Slot writes deopt the original live binding, including compound writes and aliases.
+  // Slot writes deopt the original live binding, including compound writes and aliases - for the reads
+  // after them: a read ahead of every write still takes the ponyfill.
   ['audit-mutated-globalthis-container', ['globalThis']],
   ['audit-mutated-hop-slot-reads', ['self']],
   ['audit-mutated-proxy-root-reads', ['self', 'self']],
-  ['audit-mutated-self-copy-mutated-receiver', ['self', 'self']],
+  ['audit-mutated-self-copy-mutated-receiver', ['self']],
   ['audit-nested-proxy-destructure-binding-narrows', Array(4).fill('self')],
+  ['realm-name-install-leaves-bare-globals-served', ['globalThis', 'globalThis', 'globalThis']],
+  ['realm-root-replaced-keeps-the-generic-dispatch', ['self']],
   // Babel's scope tracker does not register these TS runtime bindings before lowering.
   ['audit-logical-assign-namespace-shadow-silent', ['globalThis', 'globalThis']],
   ['audit-parameter-property-shadows-proxy-global', ['globalThis', 'globalThis']],

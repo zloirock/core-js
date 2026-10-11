@@ -256,7 +256,7 @@ export function createCallResolution({
   // reassigned bindings bail (current value may differ from pattern-init), except the
   // single-violation `let x; ({x} = Source)` shape which routes to `pairFromAssignmentDestructure`
   function staticPairFromDestructure(scope, name, path = null) {
-    const binding = getScopeBinding(scope, name, path);
+    const binding = getScopeBinding({ scope, name, path });
     if (!binding?.path) return null;
     // a conditionally-executed aliasing write assigns on one path only - the SAME poison the
     // injector's body-extract route applies at registration. without this bail the value-flow
@@ -770,7 +770,7 @@ export function createCallResolution({
       return findExpressionAnnotation(path.get('expression'), depth + 1);
     }
     if (t.isIdentifier(path.node)) {
-      const binding = getScopeBinding(path.scope, path.node.name, path);
+      const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
       if (!binding) return null;
       const annotation = findBindingAnnotation(binding.path);
       if (annotation) {
@@ -957,10 +957,11 @@ export function createCallResolution({
 
   // cluster-private: `resolveMemberAnnotation` / `resolveMemberInTypeMembers` /
   // `inferCallSiteSubst` (consumed only by `findExpressionAnnotation` / `resolveCallReturnType`
-  // internally), and likewise `resolveCallReturnTypeFromAnnotation` / `staticPairFromDestructure`,
-  // which the header used to advertise while no consumer outside this file called either
+  // internally), and likewise `resolveCallReturnTypeFromAnnotation`. `staticPairFromDestructure`
+  // also names the static a destructured callee calls (`resolveStaticCalleePair`)
   return {
     resolveCallReturnType,
+    staticPairFromDestructure,
     violationToAssignment,
     functionTypeReturnAnnotation,
     shadowedAliasReturnAnnotation,

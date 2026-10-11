@@ -1,6 +1,6 @@
 // Repeated writes of the same realm object keep the alias trustworthy at both reads.
 // The plain window.self navigation lands on the backed self entry while assignments remain.
-// Pattern writes to M store different constructors; identity checks preserve the selected value.
+// Pattern writes to M store different constructors: they agree on none, and the read takes the last one.
 let v, g, out, out2;
 out = (g = globalThis, v = g.window.self)?.Promise.race.zzz;
 out2 = (g = globalThis, v = g.window.self)?.Promise.race.zzz;

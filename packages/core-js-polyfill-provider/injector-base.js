@@ -3,6 +3,7 @@ import { findUniqueName } from './helpers/pattern-matching.js';
 import {
   bindingDeclarationPath,
   blocksUidSlot,
+  chainValueSlot,
   cleanDestructureAliasWrites,
   conditionalEvaluationEdge,
   definedBranchOfGuardConditional,
@@ -30,12 +31,15 @@ import {
   plainSynthKeyName,
   peelNestedSequenceExpressions,
   peelSequenceTail,
+  performsNothing,
   pureImportSourceEntry,
+  sequenceElementsKept,
   staticMemberFromEntrySegment,
   statementListOf,
   unwrapRuntimeExpr,
   varlessMemoSlot,
   walkAstNodes,
+  writesPastCeiling,
 } from './helpers/ast-patterns.js';
 import {
   cloneNode,
@@ -403,9 +407,9 @@ export default class ImportInjectorState {
       return;
     }
     // a prior registration of this binding was poisoned (unclean / guarded write set): a
-    // lagged re-registration (babel's scope after the first in-place rewrite no longer shows
-    // the sibling writes) must not resurrect the fold source the pristine-tree judgment
-    // refused. positional lookup keeps a SIBLING-scope same-name binding registerable
+    // re-registration over the tree a first in-place rewrite left must not resurrect the fold
+    // source the pristine-tree judgment refused. positional lookup keeps a SIBLING-scope
+    // same-name binding registerable
     if (this.isReassignedBinding(name, sourceBinding)) return;
     // the span of the scope hosting the binding (babel scopes carry the AST node on `.block`,
     // estree-toolkit ones on `.path.node`); binding-less registrations stay file-wide
@@ -1272,14 +1276,16 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
         && binding.reads[0].keys.at(-4) === writer.keys.at(-1) + 1
         || binding.reads[0].ancestors.at(-6) === writer.ancestors.at(-3)
           && binding.reads[0].keys.at(-5) === writer.keys.at(-2) + 1)) {
-      const source = ctx.adapter?.getBinding?.(ctx.scope, sourceValue.name, ctx.path);
+      const source = ctx.adapter?.getBinding?.({ scope: ctx.scope, name: sourceValue.name, path: ctx.path });
       quietGuardStore = ['let', 'const'].includes(source?.kind) && isReusableReceiver(sourceValue, { directCallee: true, ctx });
       if (quietGuardStore) tail = sourceValue;
     }
     if (stored) {
-      const source = ctx.adapter?.getBinding?.(ctx.scope, tail.name, ctx.path);
+      const source = ctx.adapter?.getBinding?.({ scope: ctx.scope, name: tail.name, path: ctx.path, read: tail });
       const declaration = bindingDeclarationPath(source);
       const frame = findNearestVarScopeOwner(declaration)?.node;
+      // a source written past the ceiling is no single writer (`writesPastCeiling`)
+      if (writesPastCeiling(source?.constantViolations)) continue;
       const writes = cleanDestructureAliasWrites(source);
       const write = writes[0]?.node ?? writes[0];
       const site = nodeSpan(write);
@@ -1299,14 +1305,15 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
       && binding.declarations[0].frame === writer.frame && primary.declarations[0].frame === writer.frame
       && (immutablePrimary || isGeneratedMemoDeclarator(binding.declarations[0].parent)
         && isGeneratedMemoDeclarator(primary.declarations[0].parent)) ? primary.writes[0] : null;
-    const scoped = !member && ctx.adapter?.getBinding?.(ctx.scope, tail.name, ctx.path);
+    const scoped = !member && ctx.adapter?.getBinding?.({ scope: ctx.scope, name: tail.name, path: ctx.path, read: tail });
     const sourceDeclaration = !stored && !member && !alias && !injectorState.isOwnPassGeneratedName(tail.name)
       && bindingDeclarationPath(scoped)?.node;
     // A lowered pattern default may write the source between the capture and later
     // siblings. Its old text offset can precede the RHS while its live slot follows it.
     const statementAt = writer.listKeys.findLastIndex((slot, i) => slot && statementListOf(writer.ancestors[i - 1]));
-    if (sourceDeclaration && statementAt !== -1 && cleanDestructureAliasWrites(scoped)
-      .some(write => subtreeContainsNode(writer.ancestors[statementAt], write.node ?? write))) continue;
+    const statement = writer.ancestors[statementAt];
+    if (sourceDeclaration && statementAt !== -1 && (writesPastCeiling(scoped.constantViolations)
+      || cleanDestructureAliasWrites(scoped).some(write => subtreeContainsNode(statement, write.node ?? write)))) continue;
     if (!stored && !member && (alias ? !injectorState.isOwnPassGeneratedName(tail.name)
       : !injectorState.isOwnPassPureBinding(tail.name) && !sourceDeclaration)) continue;
     if (!stored && !quietGuardStore
@@ -1324,7 +1331,7 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
       // declaration, as resolved at each final tree position rather than by spelling.
       if (sourceDeclaration) {
         const readCtx = contextForMemo(name, later.node, later);
-        const source = readCtx && readCtx.adapter?.getBinding?.(readCtx.scope, tail.name, readCtx.path);
+        const source = readCtx && readCtx.adapter?.getBinding?.({ scope: readCtx.scope, name: tail.name, path: readCtx.path, read: tail });
         if (bindingDeclarationPath(source)?.node !== sourceDeclaration) {
           reusable = false;
           break;
@@ -1434,29 +1441,44 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
     }
     census.refCounts.set(name, binding.declarations.length);
   }
+  // A memo no read reached - a capture whose readers a later claim consumed - folds the same
+  // way in a statement list as in a loop header; only such an initialized memo of a statement
+  // list (a loop header's is no valid binding here) opens the pass.
+  // A retired one is not unread: its reads now spell its value, and the split below owns it.
+  function unreadListMemo(name, write) {
+    return generatedNameFamilyOf(name) === '_ref' && !retiredDeclarations.has(write);
+  }
+  const unreadMemo = census.memoBindings.entries().some(([name, binding]) => !binding.invalid
+    && injectorState.isOwnPassGeneratedName(name) && census.refCounts.get(name) === census.refDeclIdCounts.get(name)
+    && binding.writes.some(({ write }) => write.type === 'VariableDeclarator' && unreadListMemo(name, write)));
   // Declaration writes retire after every positional question was answered, so splitting
   // a list never invalidates a later candidate's slot. Keep each entire first initializer
   // in its original order; adjacent source declarators retain their declaration kind.
   for (const { declaration, list, index, loop } of census.memoDeclarations.toReversed()) {
-    if (loop) {
+    if (loop || unreadMemo) {
       const retired = new Set();
       for (let at = 0; at < declaration.declarations.length; at++) {
         const item = declaration.declarations[at];
         const name = item.id?.name;
         if (item.id?.type !== 'Identifier' || !item.init || !injectorState.isOwnPassGeneratedName(name)
-          || census.refCounts.get(name) !== census.refDeclIdCounts.get(name)) continue;
+          || census.refCounts.get(name) !== census.refDeclIdCounts.get(name) || !loop && !unreadListMemo(name, item)) continue;
         const next = declaration.declarations[at + 1];
         // An unused loop-header store can move into the adjacent initialized binding.
         // Preserve every source read and effect; only a verified immutable import or
         // pristine built-in terminal contributes no work to the discarded value.
-        if (!next?.init && (next || retired.size !== at)) continue;
+        if (!next?.init && (!loop || next || retired.size !== at)) continue;
         const writer = census.memoBindings.get(name)?.writes.find(occurrence => occurrence.write === item);
         const ctx = writer && contextForMemo(name, item, writer);
         if (!ctx) continue;
         const { prefix, tail } = peelNestedSequenceExpressions(item.init);
         const pure = tail?.type === 'Identifier' && injectorState.isOwnPassPureBinding(tail.name)
           && isReusableReceiver(tail, { interveningEffects: true, ctx: { ...ctx, injectorState } });
-        const builtin = tail?.type === 'Identifier' && !ctx.adapter?.hasBinding(ctx.scope, tail.name, ctx.path)
+        const builtin = tail?.type === 'Identifier' && !ctx.adapter?.hasBinding({
+          scope: ctx.scope,
+          name: tail.name,
+          path: ctx.path,
+          read: tail,
+        })
           && ctx.adapter?.isKnownGlobalName?.(tail.name) && !ctx.adapter?.isMutatedStaticSlot?.('globalThis', tail.name);
         const effects = prefix.filter(expression => !isQuietLiteralOperand(expression));
         if (!pure && !builtin) effects.push(tail);
@@ -1471,7 +1493,7 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
         census.refNodes.delete(item.id);
       }
       declaration.declarations = declaration.declarations.filter(item => !retired.has(item));
-      continue;
+      if (loop) continue;
     }
     if (declaration.declarations.every(item => !retiredDeclarations.has(item))) continue;
     const statements = [];
@@ -1514,28 +1536,29 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
     }
     list.splice(index, 1, ...statements);
   }
-  for (const { node, parent, keys, listKeys, ctx } of sequenceTrims) {
-    const prefix = node.expressions.slice(0, -1);
-    const kept = observableSequenceElements(prefix, ctx, { preserveSourceReads: true });
-    for (const expression of prefix) {
-      const { prefix: nestedPrefix, tail } = peelNestedSequenceExpressions(expression);
-      for (const element of [...nestedPrefix, tail]) {
-        if (kept.includes(element)) continue;
-        const value = unwrapRuntimeExpr(element);
-        if (value?.type === 'Identifier') {
-          if (census.pureNames.has(value.name)) census.pureCounts.set(value.name, (census.pureCounts.get(value.name) ?? 1) - 1);
-          else if (census.refCounts.has(value.name)) {
-            census.refCounts.set(value.name, census.refCounts.get(value.name) - 1);
-            // A replacement can share this node with a surviving sequence tail. Keep
-            // its rename membership; the occurrence count alone decides liveness.
-          }
+  for (const { node, parent, keys, listKeys, ancestors, ctx } of sequenceTrims) {
+    // a prefix element that is a sequence itself spills its elements into the one list
+    const elements = [...node.expressions.slice(0, -1).flatMap(expression => {
+      const { prefix, tail } = peelNestedSequenceExpressions(expression);
+      return [...prefix, tail];
+    }), node.expressions.at(-1)];
+    const kept = sequenceElementsKept(elements, element => performsNothing(element, ctx), () => chainValueSlot(ancestors));
+    for (const element of elements) {
+      if (kept.includes(element)) continue;
+      const value = unwrapRuntimeExpr(element);
+      if (value?.type === 'Identifier') {
+        if (census.pureNames.has(value.name)) census.pureCounts.set(value.name, (census.pureCounts.get(value.name) ?? 1) - 1);
+        else if (census.refCounts.has(value.name)) {
+          census.refCounts.set(value.name, census.refCounts.get(value.name) - 1);
+          // A replacement can share this node with a surviving sequence tail. Keep
+          // its rename membership; the occurrence count alone decides liveness.
         }
       }
     }
-    node.expressions = [...kept, node.expressions.at(-1)];
+    node.expressions = kept;
     const container = listKeys.at(-1) ? parent[listKeys.at(-1)] : parent;
-    const [first] = node.expressions;
-    if (node.expressions.length === 1 && container[keys.at(-1)] === node) container[keys.at(-1)] = first;
+    const [first] = kept;
+    if (kept.length === 1 && container[keys.at(-1)] === node) container[keys.at(-1)] = first;
   }
 }
 

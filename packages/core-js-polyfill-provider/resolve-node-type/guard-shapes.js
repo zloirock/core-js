@@ -167,7 +167,7 @@ export function createPredicateGuards({
     if (literalKind !== null) return literalKind;
     const unwrapped = unwrapSafeSequenceTail(argNode);
     if (unwrapped.type !== 'Identifier') return null;
-    const binding = getScopeBinding(scope, unwrapped.name);
+    const binding = getScopeBinding({ scope, name: unwrapped.name });
     const annotation = binding ? unwrapTypeAnnotation(findBindingAnnotation(binding.path)) : null;
     return keywordPrimitiveKind(annotation);
   }
@@ -226,7 +226,7 @@ export function createPredicateGuards({
     }
     if (peeled?.type !== 'Identifier') return [];
     const out = [];
-    const binding = getScopeBinding(scope, peeled.name);
+    const binding = getScopeBinding({ scope, name: peeled.name });
     const seen = new Set();
     function push(path) {
       if (seen.has(path)) return;
