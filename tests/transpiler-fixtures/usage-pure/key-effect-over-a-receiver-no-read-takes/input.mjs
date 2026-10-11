@@ -1,0 +1,9 @@
+// a computed key consuming the whole declaration over a proven receiver no read takes owes that receiver
+// only what discarding it runs: the init's effect leads the key on every declarator host - the export
+// store, a declarator list, a call - and nothing binds the receiver or imports a constructor for it
+export const log = [];
+export const { [(log.push('k1'), 'try')]: attempt } = (log.push('i1'), Promise);
+let first = 1, { [(log.push('k2'), 'of')]: of } = (log.push('i2'), Array);
+function make() { log.push('i3'); return Array; }
+const { [(log.push('k3'), 'from')]: from } = make();
+export { first, of, from };

@@ -1,6 +1,5 @@
+import "core-js/modules/es.object.group-by";
 import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.reflect.namespace";
-import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
@@ -8,6 +7,11 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // a super-class alias written on a path the class definition may take - a conditional, a closure
@@ -36,13 +40,13 @@ class Closure extends viaClosure {
 export const closureWrite = Closure.go();
 let viaTry = Object;
 try {
-  viaTry = Reflect;
+  viaTry = Map;
 } catch (e) {
   void e;
 }
 class Try extends viaTry {
   static go() {
-    return super.ownKeys({});
+    return super.groupBy([], () => 1);
   }
 }
 export const tryWrite = Try.go();

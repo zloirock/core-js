@@ -1,9 +1,10 @@
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
+// A global copied back into its own slot (`Symbol`) takes its whole entry there.
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
+import _Symbol from "@core-js/pure/actual/symbol";
 
 var _unused, _unused2;
 

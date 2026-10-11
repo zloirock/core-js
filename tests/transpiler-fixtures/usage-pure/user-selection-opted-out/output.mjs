@@ -21,3 +21,9 @@ export const bareLine = (WeakRef || Object).fromEntries(pairs); // core-js-disab
 // core-js-disable-next-line
 const R = FinalizationRegistry ?? Promise;
 export const viaBareAlias = (R === _Promise ? _Promise$allSettled : R.allSettled.bind(R))(list);
+// core-js-disable-next-line
+export const freshLine = ({
+  C: Map
+} || {
+  C: Object
+}).C.groupBy(items, key); // core-js-disable-line

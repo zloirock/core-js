@@ -1,5 +1,6 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
+  appendMemoDeclarator,
   isInitlessVarDecl,
   emptyMemoActivationValue,
   isNonReferencePosition,
@@ -244,9 +245,9 @@ export default class ImportInjector extends ImportInjectorState {
 
   // append a `var <id>;` declarator to `target`'s scope. first ref per scope goes through
   // babel's own `scope.push` (block-ensure / params-push semantics stay babel's); every
-  // later ref appends a declarator to the SAME hosting declaration directly and registers
-  // it through an INDEXED path get - babel's `push` re-materializes a path for every
-  // existing declarator on each call, quadratic on memo-dense files. a params-push landing
+  // later ref appends a declarator to the SAME hosting declaration directly, path-less
+  // (`appendMemoDeclarator`) - babel's `push` re-materializes a path for every existing
+  // declarator on each call, quadratic on memo-dense files. a params-push landing
   // (arrow expression body / IIFE FunctionExpression - no declaration to append to) is
   // detected by the trailing param and recorded for the post-pass normalizer, falling back
   // to per-ref `scope.push` for that scope
@@ -261,8 +262,7 @@ export default class ImportInjector extends ImportInjectorState {
       // memo-dense files), name collisions are guarded by the injector's own `usedNames`
       // (not scope lookups), and `pruneUnusedRefs` re-crawls the scope at programExit
       // before anything reads these bindings
-      const declarator = markGeneratedMemoDeclarator(this.#t.variableDeclarator(id));
-      host.node.declarations.push(declarator);
+      const declarator = appendMemoDeclarator(host.node, this.#t.variableDeclarator(id));
       this.#memoDeclarators.set(id.name, declarator);
       return;
     }

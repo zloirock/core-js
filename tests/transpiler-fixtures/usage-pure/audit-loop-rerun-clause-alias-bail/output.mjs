@@ -1,6 +1,6 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Promise from "@core-js/pure/actual/promise";
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Reflect from "@core-js/pure/actual/reflect";
 // a loop back-edge re-runs more than the body: the for TEST and UPDATE, the while/do-while
 // TEST and the for-in/of LEFT (its pattern defaults and computed keys) all re-execute per
 // iteration, so an alias-keyed static read there observes a textually-later write on iteration

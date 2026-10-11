@@ -286,7 +286,7 @@ export function createValueOps({
   // distinguishes bare global-`undefined` from a shadowed identifier
   function matchSelfDefaultTernarySlotBound(node, scope) {
     return matchSelfDefaultTernarySlot(node, {
-      isLocalUndefinedName: () => !!getScopeBinding(scope, 'undefined'),
+      isLocalUndefinedName: () => !!getScopeBinding({ scope, name: 'undefined' }),
     });
   }
 

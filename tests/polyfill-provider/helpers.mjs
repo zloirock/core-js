@@ -38,6 +38,7 @@ import {
   arrayLiteralIterableElements,
   findNearestVarScopeOwner,
   forOfIterableElements,
+  foldWalkReach,
   bindingBoundName,
   bindingWrittenBeyondItsFrame,
   buildScopeReassignmentIndex,
@@ -80,7 +81,7 @@ import {
   directiveValue,
   defaultImportSourcesOf,
   extractIndirectRequireSEPrefix,
-  findFunctionScopeVarInPath,
+  hoistedDeclarationInScope,
   findObjectKeyBeforeSpread,
   findTSRuntimeBindingInPath,
   findVarOwnerDeclaring,
@@ -129,7 +130,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { brand, tagError, wrapWithCause } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
-import { adapters, babelAdapter, createChecker, findTypeNode } from './harness.mjs';
+import { adapters, babelAdapter, createChecker, findNode, findTypeNode } from './harness.mjs';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
@@ -1689,7 +1690,7 @@ check('programPrologueEndIndex/an unknown string stops the scan at itself',
     findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator' }), 'Set'), false);
 }
 
-// --- nodeHasUseStrict directive-shape coverage (end-to-end via findFunctionScopeVarInPath) ---
+// --- nodeHasUseStrict directive-shape coverage (end-to-end via hoistedDeclarationInScope) ---
 // a sloppy-mode block-nested `function Foo(){}` Annex-B-hoists to the function scope and shadows the
 // outer name, so usage-pure must NOT substitute. a `'use strict'` on the enclosing function block-
 // scopes the declaration -> no shadow -> the global resolves. the strict signal must be read from
@@ -1711,14 +1712,14 @@ check('programPrologueEndIndex/an unknown string stops the scan at itself',
   const stmtMarker = { type: 'ExpressionStatement', directive: 'use strict', expression: { type: 'Literal', value: 'use strict' } };
   const innerMarker = { type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } };
   // sloppy (no directive): the Annex-B block-function shadow is detected
-  checkTruthy('findFunctionScopeVarInPath/sloppy block-fn shadow detected',
-    findFunctionScopeVarInPath(buildSloppyShadowPath(null), 'Foo'));
+  checkTruthy('hoistedDeclarationInScope/sloppy block-fn shadow detected',
+    !!hoistedDeclarationInScope(null, buildSloppyShadowPath(null), 'Foo'));
   // strict via statement marker: shadow block-scoped, gate stays silent
-  check('findFunctionScopeVarInPath/strict stmt-marker suppresses shadow',
-    findFunctionScopeVarInPath(buildSloppyShadowPath(stmtMarker), 'Foo'), false);
+  check('hoistedDeclarationInScope/strict stmt-marker suppresses shadow',
+    !!hoistedDeclarationInScope(null, buildSloppyShadowPath(stmtMarker), 'Foo'), false);
   // strict via inner-literal marker: same suppression
-  check('findFunctionScopeVarInPath/strict inner-literal suppresses shadow',
-    findFunctionScopeVarInPath(buildSloppyShadowPath(innerMarker), 'Foo'), false);
+  check('hoistedDeclarationInScope/strict inner-literal suppresses shadow',
+    !!hoistedDeclarationInScope(null, buildSloppyShadowPath(innerMarker), 'Foo'), false);
 }
 
 // --- extractIndirectRequireSEPrefix ---
@@ -2128,7 +2129,7 @@ for (const [label, source, expected, writerExpected, effectExpected = expected] 
   const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   const ctx = { scope: path.scope, adapter, path };
-  const binding = adapter.getBinding(path.scope, path.node.object.name, path);
+  const binding = adapter.getBinding({ scope: path.scope, name: path.node.object.name, path });
   check(`${ row }/writer frame`, bindingWrittenBeyondItsFrame(binding), writerExpected);
   check(row, isReusableReceiver(path.node.object, { ctx }), expected);
   check(`${ row }/key effects use the same activation proof`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), effectExpected);
@@ -2141,7 +2142,7 @@ runBoth('isReusableReceiver/definition-time method decorator write',
     const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
     const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
     const ctx = { scope: path.scope, adapter, path };
-    const binding = adapter.getBinding(path.scope, path.node.object.name, path);
+    const binding = adapter.getBinding({ scope: path.scope, name: path.node.object.name, path });
     check(`${ row }/writer frame`, bindingWrittenBeyondItsFrame(binding), false);
     check(`${ row }/adjacent reuse`, isReusableReceiver(path.node.object, { ctx }), true);
     check(`${ row }/key effects use the definition-time proof`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), true);
@@ -2201,14 +2202,15 @@ for (const [label, source, dropped, expected, carriedImportHint, priorPass] of [
 for (const [label, source] of [
   ['inner var shadow', 'var rows = []; function read() { var rows = globalThis; return rows.at(0); }'],
   ['inner parameter property', 'const rows = []; class C { constructor(private rows: any) { rows.at(0); } }'],
+  ['inner enum', 'const rows = []; function read() { enum rows { at = 1 } return rows.at; }'],
 ]) runBoth(`wrapScopeBindingLookup/explicit declaration scope ${ label }`, source, (parser, program, row) => {
   const use = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
   const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
   const native = program.scope.getBinding('rows');
-  const binding = lookup(program.scope, 'rows', use);
+  const binding = lookup({ scope: program.scope, name: 'rows', path: use });
   check(`${ row }/keeps outer declaration`, binding?.path === native.path, true);
   check(`${ row }/keeps outer scope`, binding?.scope === native.scope, true);
-  check(`${ row }/actual inner scope still shadows`, lookup(use.scope, 'rows', use)?.path === native.path, false);
+  check(`${ row }/actual inner scope still shadows`, lookup({ scope: use.scope, name: 'rows', path: use })?.path === native.path, false);
 });
 
 // A later sibling can add or remove a parameter property on an existing constructor node.
@@ -2218,12 +2220,12 @@ runBoth('wrapScopeBindingLookup/current parameter property shape',
     const use = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
     const owner = findNearestVarScopeOwner(use).node;
     const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
-    const outer = lookup(use.scope, 'rows', use);
+    const outer = lookup({ scope: use.scope, name: 'rows', path: use });
     const property = parser.pickPath(parser.parseAndScope('class C { constructor(public rows: any) {} }'), 'TSParameterProperty').node;
     owner.params.push(property);
-    check(`${ row }/new property shadows outer binding`, lookup(use.scope, 'rows', use)?.kind, 'param');
+    check(`${ row }/new property shadows outer binding`, lookup({ scope: use.scope, name: 'rows', path: use })?.kind, 'param');
     owner.params.pop();
-    check(`${ row }/removed property restores outer binding`, lookup(use.scope, 'rows', use)?.path, outer.path);
+    check(`${ row }/removed property restores outer binding`, lookup({ scope: use.scope, name: 'rows', path: use })?.path, outer.path);
   });
 
 // Only the exact empty lexical activation an allocator owns may lose its frame.
@@ -2861,6 +2863,15 @@ for (const adapter of adapters) {
     buildScopeReassignmentIndex(fn.node).get('K').length, 2);
   check(`buildScopeReassignmentIndex/at the switch root the discriminant is skipped [${ adapter.name }]`,
     buildScopeReassignmentIndex(adapter.pickPath(switched, 'SwitchStatement').node).get('K').length, 1);
+
+  // a loop's body block is a scope of its own, so a namesake it declares owns the writes there: the head
+  // keeps the writes of its own name in the body
+  const twinned = adapter.parseAndScope("for (let s = 'abc'; c; ) { let s = [1]; s = [2]; }");
+  check(`buildScopeReassignmentIndex/a loop body namesake owns its writes [${ adapter.name }]`,
+    buildScopeReassignmentIndex(adapter.pickPath(twinned, 'ForStatement').node).get('s')?.length ?? 0, 0);
+  const headWritten = adapter.parseAndScope("for (let s = 'abc'; c; ) { s = [2]; }");
+  check(`buildScopeReassignmentIndex/a loop body write of the head counts [${ adapter.name }]`,
+    buildScopeReassignmentIndex(adapter.pickPath(headWritten, 'ForStatement').node).get('s')?.length ?? 0, 1);
 
   const annexB = adapter.parseAndScope('function h() { var A = 1; function inner() { { function A() {} } A = 2; } }');
   const owner = adapter.pickPath(annexB, 'FunctionDeclaration').node;
@@ -3647,6 +3658,47 @@ for (const adapter of adapters) for (const [label, source] of [
   pruneEmptiedHopProps(pattern, { mint: () => ({ type: 'Identifier', name: '_unused' }), consumedPatterns: new Set([changed]) });
   check(`${ label } [${ adapter.name }]: only consumed hop retired`, pattern.properties.length, 1);
   check(`${ label } [${ adapter.name }]: native empty sibling retained`, pattern.properties[0], sibling);
+}
+
+// --- foldWalkReach ---
+
+// the fold walk stands in every selection the build decided and every statement or sequence an answer may stand in -
+// a binding this pass minted, a literal no source position marks the user's - with all their ancestors, and nowhere
+// else; a tree too deep to tell asks for every node
+for (const adapter of adapters) {
+  const label = `foldWalkReach [${ adapter.name }]`;
+  const root = adapter.parseAndScope(`function untouched() { return b ? c : d; }
+export function f() {
+  (_ref, 0);
+  _ref;
+  x = y || z;
+  if (q) { 0; }
+}`).node;
+  const decided = findNode(root, node => node.type === 'LogicalExpression');
+  const rendered = { type: 'ExpressionStatement', expression: { type: adapter.name === 'babel' ? 'BooleanLiteral' : 'Literal', value: true } };
+  root.body.push(rendered);
+  const injectorState = { isOwnPassGeneratedName: name => name === '_ref' };
+  const reach = foldWalkReach(root, { isDecided: node => node === decided, injectorState });
+  const f = findNode(root, node => node.type === 'FunctionDeclaration' && node.id.name === 'f');
+  const [sequenceStatement, mintedStatement, decidedStatement, guard] = f.body.body;
+  check(`${ label }: the decided selection`, reach.has(decided), true);
+  check(`${ label }: its statement`, reach.has(decidedStatement), true);
+  check(`${ label }: a sequence leading with a minted binding`, reach.has(findNode(root, node => node.type === 'SequenceExpression')), true);
+  check(`${ label }: its statement too`, reach.has(sequenceStatement), true);
+  check(`${ label }: a statement of a minted binding`, reach.has(mintedStatement), true);
+  check(`${ label }: an unpositioned rendered literal`, reach.has(rendered), true);
+  check(`${ label }: the function holding them`, reach.has(f), true);
+  check(`${ label }: the program`, reach.has(root), true);
+  check(`${ label }: an undecided selection`, reach.has(findNode(root, node => node.type === 'ConditionalExpression')), false);
+  check(`${ label }: the function holding it`, reach.has(root.body[0]), false);
+  check(`${ label }: the user's own literal statement`, reach.has(guard.consequent.body[0]), false);
+  check(`${ label }: the statement holding it`, reach.has(guard), false);
+}
+{
+  let deep = { type: 'Identifier', name: 'leaf' };
+  for (let depth = 0; depth < 1100; depth++) deep = { type: 'UnaryExpression', operator: '!', prefix: true, argument: deep };
+  const root = { type: 'Program', body: [{ type: 'ExpressionStatement', expression: deep }] };
+  check('foldWalkReach: a tree too deep to tell', foldWalkReach(root, { isDecided: () => false, injectorState: null }), null);
 }
 
 finish();

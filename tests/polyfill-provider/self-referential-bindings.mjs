@@ -100,7 +100,7 @@ for (const [source, names] of [
   const adapter = makeAdapter(parser, registryOf(Object.fromEntries(names.map(name => [name, 'instance/at']))));
   for (const name of names) {
     const read = pickNamed(parser, program, ['Identifier'], name);
-    check(`${ label }: ${ name } is no Symbol.X alias`, adapter.getBinding(read.scope, name, read)?.aliasSymbolSource, null);
+    check(`${ label }: ${ name } is no Symbol.X alias`, adapter.getBinding({ scope: read.scope, name, path: read })?.aliasSymbolSource, null);
   }
 });
 
@@ -110,15 +110,15 @@ runBoth('symbol alias judgment: a self-referential shadow of a Symbol.X alias',
   'const { iterator } = Symbol; { const { iterator } = iterator; x[iterator]; } y[iterator];', (parser, program, label) => {
     const adapter = makeAdapter(parser, registryOf({ iterator: 'symbol/iterator' }));
     const [inner, outer] = parser.collectPaths(program, 'MemberExpression').map(path => path.get('property'));
-    check(`${ label }: the shadow`, adapter.getBinding(inner.scope, 'iterator', inner)?.aliasSymbolSource, null);
-    check(`${ label }: the alias`, adapter.getBinding(outer.scope, 'iterator', outer)?.aliasSymbolSource, '@core-js/pure/actual/symbol/iterator');
+    check(`${ label }: the shadow`, adapter.getBinding({ scope: inner.scope, name: 'iterator', path: inner })?.aliasSymbolSource, null);
+    check(`${ label }: the alias`, adapter.getBinding({ scope: outer.scope, name: 'iterator', path: outer })?.aliasSymbolSource, '@core-js/pure/actual/symbol/iterator');
   });
 
 runBoth('symbol alias judgment control: an alias of Symbol still folds',
   'const S = Symbol; const { iterator } = S; x[iterator];', (parser, program, label) => {
     const adapter = makeAdapter(parser, registryOf({ iterator: 'symbol/iterator' }));
     const read = parser.pickPath(program, 'MemberExpression').get('property');
-    check(label, adapter.getBinding(read.scope, 'iterator', read)?.aliasSymbolSource, '@core-js/pure/actual/symbol/iterator');
+    check(label, adapter.getBinding({ scope: read.scope, name: 'iterator', path: read })?.aliasSymbolSource, '@core-js/pure/actual/symbol/iterator');
   });
 
 // --- the inline callee walk through a pattern slot ---

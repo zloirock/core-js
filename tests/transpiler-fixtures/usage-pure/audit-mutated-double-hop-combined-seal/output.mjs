@@ -4,6 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _self from "@core-js/pure/actual/self";
+import _Set from "@core-js/pure/actual/set";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
 // a MUTATED static behind a double proxy-hop optional chain: the mutation cancels the
 // always-defined claim the proxy-prefix deopt leans on, so the `?.` must keep its guard and
@@ -13,7 +14,7 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
 _globalThis.Array.of = function patched() {
   return [7];
 };
-_globalThis.Set = class PatchedSet extends Set {};
+_globalThis.Set = class PatchedSet extends _Set {};
 let n;
 export const doubleHop = null == (n = _globalThis.window) ? void 0 : _flatMaybeArray(_ref = n.Array.of(1))?.call(_ref);
 let p;

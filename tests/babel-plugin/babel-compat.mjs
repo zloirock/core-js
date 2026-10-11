@@ -1563,7 +1563,7 @@ for (const [typed, call] of [[false, "events.push('hop')"], [true, "events.push(
 // These native runtime checks use fresh VM arrays and the actual pure helpers.
 for (const [fixture, needle, method, binding] of [
   ['positional-read-inline-spread', 'toSpliced: viaIndexKey', 'toSpliced', 'viaIndexKey'],
-  ['session-probes-other-3', 'const { [k]: { at: m } } = { ...spread', 'at', 'm'],
+  ['bound-computed-key-under-a-hop-names-its-slot', 'const { [k]: { at: m } } = { ...spread', 'at', 'm'],
 ]) {
   const input = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
   const source = input.split('\n').find(line => line.includes(needle));

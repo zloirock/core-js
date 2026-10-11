@@ -33,10 +33,9 @@ import {
   loopReExecRegionHasViolation,
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { nodeAlwaysHardExits } from './exit-analysis.js';
+import { isLoopStatement, nodeAlwaysHardExits } from './exit-analysis.js';
 import { isUnionType, violationInCapturedFunction } from './ast-shapes.js';
 import { MAX_DEPTH, hasRange } from './base.js';
-import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
 // would TypeError on these at runtime, so the branch is unreachable in the guarded
@@ -223,7 +222,7 @@ export function createDiscriminantNarrow({
   // re-resolving across each guard check
   function buildDiscriminantContext(varPath, targetKey) {
     const [rootName] = targetKey.split('.', 1);
-    const objectBinding = rootName === 'this' ? null : getScopeBinding(varPath.scope, rootName, varPath);
+    const objectBinding = rootName === 'this' ? null : getScopeBinding({ scope: varPath.scope, name: rootName, path: varPath });
     // `violations` = reassignments of the narrowed value's IDENTITY (binding reassignments + writes to
     // the exact narrowed path / a shallower prefix); they invalidate the narrow unconditionally and feed
     // the loop / function-boundary checks. `fieldWrites` = writes to a DIRECT field, kept apart because
@@ -243,10 +242,11 @@ export function createDiscriminantNarrow({
   // counts against THIS guard when it targets one of them (`s.kind` flips `if (s.kind === ...)` / a
   // `switch (s.kind)`, an unrelated `s.data = ...` does not). a comparison guard parses through
   // `parseDiscriminantCheck`; a switch discriminant is the BARE member `s.kind`, so fall back to
-  // `matchTargetFieldPath`. `fieldPath` is a segment array - join with `.` so a nested field addresses
-  function guardDiscriminantWriteKeys(testNode, targetKey, scope) {
+  // `matchTargetFieldPath`. `fieldPath` is a segment array - join with `.` so a nested field addresses.
+  // the parts are the ones the clause parser reads (`pushDiscriminantClauses`), asked from the same host
+  function guardDiscriminantWriteKeys(testNode, targetKey, scope, hostPath) {
     const keys = new Set();
-    for (const part of flattenCondition(testNode, '&&').concat(flattenCondition(testNode, '||'))) {
+    for (const part of flattenCondition(testNode, '&&', hostPath).concat(flattenCondition(testNode, '||', hostPath))) {
       const fieldPath = parseDiscriminantCheck({ rawTest: part, targetKey, conditionTrue: true, scope })?.fieldPath
         ?? matchTargetFieldPath(unwrapRuntimeExpr(part), targetKey, scope);
       if (fieldPath?.length) keys.add(`${ targetKey }.${ fieldPath.join('.') }`);
@@ -256,9 +256,9 @@ export function createDiscriminantNarrow({
 
   // identity violations plus only the field writes whose key is a discriminant of THIS guard - an
   // unrelated field write must not invalidate the variant narrow
-  function relevantGuardViolations({ violations, fieldWrites }, testNode, targetKey, scope) {
+  function relevantGuardViolations({ violations, fieldWrites }, testNode, targetKey, hostPath) {
     if (!fieldWrites.length) return violations;
-    const discriminantKeys = guardDiscriminantWriteKeys(testNode, targetKey, scope);
+    const discriminantKeys = guardDiscriminantWriteKeys(testNode, targetKey, hostPath?.scope, hostPath);
     return violations.concat(fieldWrites.filter(w => writeAffectsDiscriminant(w.writeKey, discriminantKeys)));
   }
 
@@ -306,9 +306,9 @@ export function createDiscriminantNarrow({
     const { rootName, objectBinding, targetKey, objectStart, varPath } = ctx;
     const scope = testPath?.scope;
     if (rootName !== 'this' && objectBinding
-      && getScopeBinding(scope, rootName, testPath) !== objectBinding) return false;
+      && getScopeBinding({ scope, name: rootName, path: testPath }) !== objectBinding) return false;
     // a direct field write only flips THIS guard when the field is one of its discriminants
-    const relevant = relevantGuardViolations(ctx, testNode, targetKey, scope);
+    const relevant = relevantGuardViolations(ctx, testNode, targetKey, testPath);
     if (objectBinding && violationInCapturedFunction(relevant, objectBinding.scope?.path)) return false;
     // the intervals below are bounded ABOVE by the use, so a write whose slot runs ahead of the use's
     // own - a class key or decorator, a case test a `default` body is reached through - lands past
@@ -331,10 +331,12 @@ export function createDiscriminantNarrow({
   // flatten `&&` (truthy) / `||` (falsy) chains so a discriminant clause embedded alongside
   // other tests (`if (x && f.kind === 'a')` / `if (!ready || f.kind !== 'b') return;`) still
   // contributes its narrowing. each clause goes through `parseDiscriminantCheck` (which peels
-  // its own `!`/parens), survivors append to `out`. `scope` threads through to enable
-  // enum-member / alias-chain resolution on the literal side of the comparison
-  function pushDiscriminantClauses({ test, conditionTrue, targetKey, out, scope }) {
-    const parts = flattenCondition(test, conditionTrue ? '&&' : '||');
+  // its own `!`/parens), survivors append to `out`. `hostPath` - the statement or expression the
+  // test stands in - lends its scope to enum-member / alias-chain resolution on the literal side of
+  // the comparison, and a selection this build decides tests as its live part (`flattenCondition`)
+  function pushDiscriminantClauses({ test, conditionTrue, targetKey, out, hostPath }) {
+    const { scope } = hostPath;
+    const parts = flattenCondition(test, conditionTrue ? '&&' : '||', hostPath);
     for (const part of parts) {
       const guard = parseDiscriminantCheck({ rawTest: part, targetKey, conditionTrue, scope });
       if (guard) out.push(guard);
@@ -345,10 +347,15 @@ export function createDiscriminantNarrow({
   // of a member chain on either side of an eq/neq comparison (`u.m.kind !== 'a'` -> `u`,
   // `this.box.kind === X` -> `this`). purely syntactic - `matchTargetFieldPath` compares the
   // chain against the use's `pathKey` hop by hop, so a statement mentioning no member-chain
-  // root can never produce a discriminant guard for ANY use
-  function collectDiscriminantRoots(testNode, conditionTrue, out) {
-    for (const part of flattenCondition(testNode, conditionTrue ? '&&' : '||')) {
-      const { test } = peelNegation(part);
+  // root can never produce a discriminant guard for ANY use. every operand of every `&&` / `||` /
+  // `?:` is visited whatever the polarity: a clause the build's decisions leave live may stand
+  // under any of them, and an index wider than the clauses only visits a statement more
+  function collectDiscriminantRoots(testNode, out) {
+    for (const stack = [testNode]; stack.length;) {
+      const { test: peeled } = peelNegation(stack.pop());
+      const test = unwrapRuntimeExpr(peeled);
+      if (test?.type === 'LogicalExpression') stack.push(test.left, test.right);
+      else if (test?.type === 'ConditionalExpression') stack.push(test.test, test.consequent, test.alternate);
       if (test?.type !== 'BinaryExpression') continue;
       const { operator } = test;
       if (operator !== '===' && operator !== '==' && operator !== '!==' && operator !== '!=') continue;
@@ -378,7 +385,7 @@ export function createDiscriminantNarrow({
         const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
         if (conditionTrue === null) continue;
         const roots = [];
-        collectDiscriminantRoots(peeled.node.test, conditionTrue, roots);
+        collectDiscriminantRoots(peeled.node.test, roots);
         for (const root of new Set(roots)) {
           let positions = byRoot.get(root);
           if (!positions) byRoot.set(root, positions = []);
@@ -406,7 +413,7 @@ export function createDiscriminantNarrow({
       if (i >= current.key) continue;
       const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
       if (!discriminantGuardApplies(peeled, peeled.node.test, ctx, deferredUpper)) continue;
-      pushDiscriminantClauses({ test: peeled.node.test, conditionTrue, targetKey, out, scope: peeled.scope });
+      pushDiscriminantClauses({ test: peeled.node.test, conditionTrue, targetKey, out, hostPath: peeled });
     }
   }
 
@@ -528,7 +535,7 @@ export function createDiscriminantNarrow({
         continue;
       }
       if (!discriminantGuardApplies(parent, test, ctx, deferredUpper)) continue;
-      pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, scope: parent.scope });
+      pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, hostPath: parent });
     }
     return guards;
   }
@@ -587,7 +594,7 @@ export function createDiscriminantNarrow({
       exprPath = exprPath.get('expression');
     }
     if (!assignmentBindsTarget(expr, targetName, sibPath.scope)) return null;
-    return !binding || getScopeBinding(sibPath.scope, targetName, sibPath) === binding ? exprPath : null;
+    return !binding || getScopeBinding({ scope: sibPath.scope, name: targetName, path: sibPath }) === binding ? exprPath : null;
   }
 
   // a preceding IF whose one branch unconditionally HARD-exits (return / throw) is
@@ -735,7 +742,7 @@ export function createDiscriminantNarrow({
   // declared union. permissive: branches with non-literal members or missing RHS keys pass
   // through, single-branch result wins
   function narrowUnionByAssignmentLiteral(varPath, annotation, scope) {
-    const binding = getScopeBinding(varPath.scope, varPath.node?.name, varPath);
+    const binding = getScopeBinding({ scope: varPath.scope, name: varPath.node?.name, path: varPath });
     if (!binding) return null;
     const lastAssign = findPrecedingBlockAssignment(binding, varPath);
     const rhs = lastAssign?.node?.right;

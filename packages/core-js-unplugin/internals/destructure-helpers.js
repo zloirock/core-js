@@ -20,10 +20,13 @@ import {
   receiverPerformsEveryInitEffect,
   resolveNestedReceiverNode,
   synthPropDedupKey,
+  decidedRunningOperand,
   decidingFallbackLeft,
   discardRescueNodesWithReads,
   liftedRealmNavEffect,
   observablePrefixElements,
+  liftedPrefixSplit,
+  staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
 import { readStandsOverAbsentableStore, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
@@ -49,7 +52,6 @@ import {
   allProxySelectingInit,
   computedKeyHasSideEffects,
   dropDeadSequenceElements,
-  findIifeArgPath,
   findObjectKeyBeforeSpread,
   hasRestSiblingExcept,
   isMemberAccessNode,
@@ -70,7 +72,6 @@ import {
   patternLevelKeepsEffectfulHop,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
-  peelSkippableWrapperPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   propBindingIdentifier,
@@ -79,14 +80,13 @@ import {
   SINGLE_STATEMENT_SLOTS,
   spelledSlotName,
   statementListOf,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { hostLevelSurvives } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
-import { detectIifeArgReceiver } from './destructure-emit-utils.js';
+import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
 import { mintedProxyGlobalName, proxyStoreIsSpellable, replaceNodeInTree } from './emit-shared.js';
@@ -324,19 +324,18 @@ export function liftedPrefixStatements(prefix, ctx = null) {
 
 // the LIVE tail, taken for the reason the prefix is: the registration-time node is a pre-swap
 // copy, so a residual bound off it ships the RAW receiver the collapse had already substituted
-export function liveTailOf(declarator, seqPrefix, initTail) {
-  const liveInit = peelTransparentExpr(declarator.init);
-  const { prefix, tail } = peelNestedSequenceExpressions(liveInit);
-  return liveInit?.type === 'SequenceExpression' && prefix.length === seqPrefix.length ? tail : initTail;
+export function liveTailOf(declarator, { seqPrefix, initTail, ctx }) {
+  const { prefix, tail } = liftedPrefixSplit(peelTransparentExpr(declarator.init), ctx);
+  return prefix.length === seqPrefix.length ? tail : initTail;
 }
 
-// the prefix of a declarator's SOURCE sequence init (`key`: an assignment's `right`), taken off so the
-// declarator reads the bare tail. one the collapse MINTED is the value's own spelling and stays whole,
-// which its missing span tells us
-function takeSourceSequencePrefix(declarator, key = 'init') {
+// the prefix of a declarator's SOURCE init (`key`: an assignment's `right`), taken off so the declarator
+// reads the bare tail: a sequence's, and the live arm's of a selection the build decides (`liftedPrefixSplit`).
+// one the collapse MINTED is the value's own spelling and stays whole, which its missing span tells us
+function takeSourceSequencePrefix(declarator, key, ctx) {
   const init = peelTransparentExpr(declarator[key]);
-  if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return [];
-  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  if (!Number.isInteger(init?.start)) return [];
+  const { prefix, tail } = liftedPrefixSplit(init, ctx);
   if (prefix.length) declarator[key] = tail;
   return prefix;
 }
@@ -346,7 +345,7 @@ function takeSourceSequencePrefix(declarator, key = 'init') {
 // tail still evaluates - none where an extraction reads the receiver, which spells the init itself
 export function takeForInitPrefix(declarator, declJobs, extracted, ctx) {
   if (!extracted.length || declJobs.some(job => job.readsReceiver)) return [];
-  const prefix = takeSourceSequencePrefix(declarator);
+  const prefix = takeSourceSequencePrefix(declarator, 'init', ctx);
   const lifted = prefix.length ? liftedPrefixExpression(prefix, ctx) : null;
   if (!lifted) return [];
   return lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
@@ -365,7 +364,7 @@ export function carryForInitPrefixIntoFirst(extracted, carried) {
 export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 'init') {
   if (!declJobs.length) return [];
   // per element, the grouping the other leg's declarator lift prints for the same shape
-  return observableSequenceElements(takeSourceSequencePrefix(declarator, key), ctx).map(expr => expressionStatement(expr));
+  return observableSequenceElements(takeSourceSequencePrefix(declarator, key, ctx), ctx).map(expr => expressionStatement(expr));
 }
 
 // a BODYLESS assignment host (`if (c) ({ Map: M } = g);`) has no statement list to splice into:
@@ -405,21 +404,25 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // it spells is its own, which the lift canon reads below - matched against the record by count, its
   // tail was taken for a quiet receiver (`(log(), mk().Map ?? Set)` lost the `mk()` call)
   const wholeRight = !writeRight && seqPrefix?.length === 1 && seqPrefix[0] === bodylessAssign.right;
+  const liftCtx = { ...nodeSite(bodylessAssign.right, jobs[0].metaPath), adapter: memoCtx?.adapter };
+  // the right as it stands now, split the way the record was (`liftedPrefixSplit`): the same elements, live
+  const liveSplit = !writeRight && !wholeRight && seqPrefix?.length ? liftedPrefixSplit(peeledRight, liftCtx) : null;
   const liveSeq = writeRight ? [peeledRight, peelChainRootValue(peeledRight)]
-    : !wholeRight && seqPrefix?.length && peeledRight?.type === 'SequenceExpression'
-      && peeledRight.expressions.length === seqPrefix.length + 1 ? peeledRight.expressions : null;
+    : liveSplit && liveSplit.prefix.length === seqPrefix.length ? [...liveSplit.prefix, liveSplit.tail] : null;
   // ... and a WHOLE right the consume discards owes what the lift canon says, as on the statement
   // host: nothing past a deciding left (`if (c) ({ of } = Array ?? (log(), Set))` lifts nothing),
   // spelled as the one expression the statement host prints
-  const liftCtx = { ...nodeSite(bodylessAssign.right, jobs[0].metaPath), adapter: memoCtx?.adapter };
   const wholeRightLift = wholeRight && !residualSurvives ? liftedRealmNavEffect(bodylessAssign.right, liftCtx) : null;
   // ... and past it, the elements of that right read through its wrappers, which the trim canon keeps
   // where they run something - the statement host's lift (a TS wrapper leaves with the value it wraps,
   // a quiet tail behind a prefix with nothing it reads: `if (c) ({ of } = (log(), X || Set))` lifts `log()`)
   const wholeRightSeq = wholeRight && !residualSurvives && !wholeRightLift ? peelNestedSequenceExpressions(peeledRight) : null;
+  // ... per element ahead of a SURVIVING residual, the statement host's lift there (`f(); g(); m = _Array$from;`)
   const prefixStatements = wholeRightLift ? liftedPrefixStatements(wholeRightLift.effects, liftCtx)
     : wholeRightSeq ? liftedPrefixStatements([...wholeRightSeq.prefix, wholeRightSeq.tail], liftCtx)
-    : liftedPrefixStatements(writeRight && residualSurvives ? [] : liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? []);
+    : residualSurvives && liveSeq && !writeRight
+      ? observablePrefixElements(liveSeq.slice(0, -1), liftCtx).map(expr => expressionStatement(expr))
+      : liftedPrefixStatements(writeRight && residualSurvives ? [] : liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? []);
   // ... and an extraction that READS the receiver beside a surviving residual needs a memo, which a
   // lifted prefix leaves no slot for - unless the quiet tail is a surface both may re-read for free
   if (residualSurvives && seqPrefix?.length && jobs.some(job => job.readsReceiver)
@@ -686,13 +689,14 @@ export function keptWriteRidesValue(node, { adapter, injectorState, resolveGloba
 // source SEQUENCE hands over its tail, a chain ASSIGNMENT the value it stored. a hop ANCHOR in a
 // sequence slot takes neither - it has no statement ahead of it, so the write rides the
 // re-anchored read where the source wrote it (`({ customX } = (wx = _globalThis, _Map))`)
-// the sequence is read through the canon peel: a NESTED run (`(f(), (g(), globalThis))`) hands over
-// every prefix in source order, and a defensive realm default on the tail (`(f(), globalThis ?? {})`)
-// reads as the realm it names - the discarding peel, since the residual then reads this receiver
-export function planLiftedRhsPrefix(right, { anchorsInSequence, guardCtx = null }) {
+// the sequence is read through the canon split (`liftedPrefixSplit`): a NESTED run (`(f(), (g(), globalThis))`)
+// hands over every prefix in source order, a decided selection's live arm its own, and a defensive realm default
+// on the tail (`(f(), globalThis ?? {})`) reads as the realm it names - the discarding peel, since the residual
+// then reads this receiver
+export function planLiftedRhsPrefix(right, { anchorsInSequence, guardCtx = null, ctx = null }) {
   const peeled = peelTransparentExpr(right);
   if (peeled?.type === 'SequenceExpression') {
-    const { prefix, tail } = peelNestedSequenceExpressions(peeled);
+    const { prefix, tail } = liftedPrefixSplit(peeled, ctx);
     const receiver = peelRealmLogicalDefault(tail, { discarding: true });
     if (isPureNavReceiver(receiver, guardCtx)) return { prefix, receiver };
   }
@@ -954,7 +958,7 @@ export function divergingSentinelSelectorDeclines({ declarator, meta, metaPath, 
     }
     if (operand?.type === 'Identifier') {
       return proxySurfaceIdentifier(operand, { adapter, injectorState })
-        || (!adapter.getBinding(nodeSite(operand, metaPath).scope, operand.name, nodeSite(operand, metaPath).path)
+        || (!adapter.getBinding({ scope: nodeSite(operand, metaPath).scope, name: operand.name, path: nodeSite(operand, metaPath).path })
           && !!resolveGlobalPolyfill(operand.name));
     }
     return !!findProxyGlobal(operand, { ...nodeSite(operand, metaPath), adapter });
@@ -973,7 +977,7 @@ export function registerAssignmentExtractAlias({ prop, kind, entry, hintName, ho
   if (prop.value.type !== 'Identifier') return;
   const localName = propLocalName(prop);
   if (kind === 'global' && hintName) {
-    const aliasBinding = adapter.getBinding(metaPath.scope, localName, metaPath);
+    const aliasBinding = adapter.getBinding({ scope: metaPath.scope, name: localName, path: metaPath });
     if (!aliasBinding?.node) {
       registerBindinglessCtorAlias({ injector: injectorState, adapter, localName, hint: hintName });
     } else {
@@ -992,7 +996,6 @@ export function registerAssignmentExtractAlias({ prop, kind, entry, hintName, ho
   }
 }
 
-// swap the surface VALUE slot for `replacement` (null = re-read the surface itself)
 // a receiver spelled a SECOND time: the clone is taken off the rewritten tree (its claims
 // ride along), and the refs the walk planted inside its own functions re-mint - they have
 // no declaration in the copy otherwise
@@ -1317,7 +1320,7 @@ export function bareProxyGlobalPure(node, metaPath, { adapter, resolveGlobalPoly
   if (node?.type !== 'Identifier') return null;
   const site = nodeSite(node, metaPath);
   return isPristineProxyGlobal(adapter, node.name)
-    || (!adapter.getBinding(site.scope, node.name, site.path) && !isMutatedGlobalSlot(adapter, node.name))
+    || (!adapter.getBinding({ scope: site.scope, name: node.name, path: site.path }) && !isMutatedGlobalSlot(adapter, node.name))
     ? resolveGlobalPolyfill(node.name) : null;
 }
 
@@ -1328,7 +1331,11 @@ export function bareProxyGlobalPure(node, metaPath, { adapter, resolveGlobalPoly
 export function substituteProxyRootsInClone(root, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport }) {
   function proxyRootSwap(node) {
     if (!POSSIBLE_GLOBAL_OBJECTS.has(node.name) || !isPristineProxyGlobal(adapter, node.name)) return null;
-    if (adapter.getBinding(nodeSite(node, metaPath).scope, node.name, nodeSite(node, metaPath).path)?.node) return null;
+    if (adapter.getBinding({
+      scope: nodeSite(node, metaPath).scope,
+      name: node.name,
+      path: nodeSite(node, metaPath).path,
+    })?.node) return null;
     const pure = resolveGlobalPolyfill(node.name);
     return pure ? identifier(injectPureImport(pure.entry, pure.hintName)) : null;
   }
@@ -1580,8 +1587,8 @@ export function planSentinelMemo({ sentinel, declarator, kind, allProxyInit }) {
   return { sentinelMemoEligible, memoSibling: sentinelMemoEligible };
 }
 
-// Returns the matching logical left or an agreeing ternary arm with no test effects.
-// Instance claims and unproven selections return null.
+// Returns the matching logical left, the operand an `&&` the build decides yields, or an agreeing
+// ternary arm with no test effects. Instance claims and unproven selections return null.
 export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding, chain, adapter, kind }) {
   // only a STATIC / ctor claim proves the left operand IS the named built-in, so the
   // fallback right is dead. an INSTANCE claim resolved off an opaque receiver proves
@@ -1595,15 +1602,24 @@ export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding,
   // receiver either way, so the test is dead text and the read is the source's own
   // (`{ Array: { of } } = g.setTimeout ? g.window : g.window`)
   if (selecting.type === 'ConditionalExpression') return agreeingTernaryArm(selecting, metaPath, adapter);
+  // ... a logical the build decides selects the operand of it that runs (`decidedRunningOperand`), as a decided
+  // ternary arm does: a test is a plain read, a `||` / `??` its left decides never runs its right, and the
+  // operand's own effects are the receiver's. an `&&` selects nothing otherwise
+  if (selecting.type === 'LogicalExpression') {
+    const running = decidedRunningOperand(selecting, { ...nodeSite(selecting, metaPath), adapter });
+    if (running !== selecting) return running;
+    if (selecting.operator === '&&') return null;
+  }
   if (selecting.type !== 'LogicalExpression' || !meta?.object || chain.length > 0) return null;
   if (!soleBinding && mayHaveSideEffects(selecting)) return null;
   // an SE-bearing left names its built-in through the sequence TAIL - the prefix is the
   // effect the discarded read re-emits, not part of the name
-  // (`{ from } = (e++, globalThis.self.Array) || Set`)
+  // (`{ from } = (e++, globalThis.self.Array) || Set`) - and a static container's slot names the one it
+  // holds, as the meta named it (`box.U` over `const box = { U: Map }`)
   const left = peelTransparentExpr(selecting.left);
-  const leftName = resolveObjectName({
-    objectNode: peelTransparentExpr(peelReceiverSequenceTail(left)), ...nodeSite(left, metaPath), adapter,
-  });
+  const named = peelTransparentExpr(peelReceiverSequenceTail(left));
+  const site = { ...nodeSite(left, metaPath), adapter };
+  const leftName = resolveObjectName({ objectNode: named, ...site }) ?? staticContainerReceiverName({ node: named, ...site });
   return leftName === meta.object ? left : null;
 }
 
@@ -1825,8 +1841,8 @@ export function registerHopInstanceSynthSlot({ metaPath, kind, entry, hintName }
   if (!climbed) return false;
   const { host } = climbed;
   const basePath = host.node.type === 'AssignmentPattern' ? host.get('right')
-    : iifeArgumentPathFor(host, climbed.hostPattern.node, detectIifeArgReceiver(host, climbed.hostPattern.node));
-  const slotPath = basePath ? descendReceiverPathByKeys(basePath, climbed.hops) : null;
+    : detectIifeArgReceiverPath(host, climbed.hostPattern.node, adapter);
+  const slotPath = basePath ? descendReceiverPathByKeys(basePath, climbed.hops, adapter) : null;
   if (!slotPath || (slotPath.node.type === 'Identifier'
     && ownOutputTests(injectorState).isOwnPassBinding(slotPath.node.name))) return false;
   return paramDefaultInstanceSynthAllowed({
@@ -1839,7 +1855,6 @@ export function registerHopInstanceSynthSlot({ metaPath, kind, entry, hintName }
   }) && registerInstanceSynthSlot({
     metaPath,
     pattern: innerPattern.node,
-    hostParent: host,
     entry,
     hintName,
     receiver: slotPath.node,
@@ -1849,10 +1864,10 @@ export function registerHopInstanceSynthSlot({ metaPath, kind, entry, hintName }
   });
 }
 
-// `receiverPath`: the receiver's own path where the caller already holds it (a slot descended
-// inside a literal) - the host-relative lookup below serves the flat default and the IIFE argument
+// `receiverPath`: the receiver's own path - the type resolver descends by PATH (an array literal's common
+// element type is a per-element walk), and that is where the receiver's own position lives
 export function registerInstanceSynthSlot({
-  metaPath, pattern, hostParent, entry, hintName, receiver, synthLedger, ctx, receiverPath: givenReceiverPath = null,
+  metaPath, pattern, entry, hintName, receiver, synthLedger, ctx, receiverPath,
 }) {
   const dedupKey = synthPropDedupKey(metaPath.node, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter });
   if (!dedupKey) return false;
@@ -1865,14 +1880,6 @@ export function registerInstanceSynthSlot({
     synthLedger.set(pattern, pending);
   }
   const lookupKey = pending.plan.find(item => item.dedupKey === dedupKey)?.lookupKey ?? null;
-  // the resolver descends by PATH (an array literal's common element type is a per-element
-  // walk), so the default is asked through its own path - a wrapped one has none
-  // the default's path is read PEELED like its node (`= ([1, 2] as number[])` - the cast is printer
-  // trivia to the type the synth dispatches on), else a TS-wrapped default typed nothing on this leg
-  const defaultPath = hostParent.node.type === 'AssignmentPattern'
-    ? peelSkippableWrapperPath(hostParent.get('right'), TRANSPARENT_EXPR_WRAPPER_TYPES) : null;
-  const receiverPath = givenReceiverPath ?? (defaultPath?.node === receiver ? defaultPath
-    : iifeArgumentPathFor(hostParent, pattern, receiver));
   const objectHint = lookupKey && receiverPath && ctx.resolveNodeType && ctx.toHint
     ? ctx.toHint(ctx.resolveNodeType(receiverPath)) : null;
   const typed = objectHint
@@ -1882,20 +1889,6 @@ export function registerInstanceSynthSlot({
   ctx.skippedNodes.add(receiver);
   pending.slots.set(dedupKey, { helper: ctx.injectPureImport(use.entry, use.hintName), receiver });
   return true;
-}
-
-// the ARGUMENT path holding an immediately-invoked host's receiver: located by the shared
-// `findIifeArgPath` (the call past the wrappers the source may spell, an inline-array spread
-// expanded), then peeled the way the detect side peeled the node (`unwrapSafeSequenceTail`: the
-// argument's SEQUENCE TAIL is the receiver, and the type is read off the tail's own path). the
-// type resolver descends by PATH, and this is where the receiver's own position lives
-function iifeArgumentPathFor(hostParent, pattern, receiver) {
-  function peeledPath(path) {
-    return peelSkippableWrapperPath(path, TRANSPARENT_EXPR_WRAPPER_TYPES);
-  }
-  let peeled = peeledPath(findIifeArgPath(hostParent, pattern));
-  while (peeled?.node?.type === 'SequenceExpression') peeled = peeledPath(peeled.get('expressions').at(-1));
-  return peeled?.node === receiver ? peeled : null;
 }
 
 // the anchoring bar the slot DEFAULTS set: a re-anchored render spells a default verbatim, so

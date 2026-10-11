@@ -31,6 +31,5 @@ export const {
   stillOther
 } = _globalThis;
 let k = 0;
-const _ref = (eff(), Array),
-  kf = ((k++, 'fr') + 'om', _Array$from);
+const kf = (eff(), (k++, 'fr') + 'om', _Array$from);
 export const r = [mm, oo, vs, alsoOther, nf, isArray, xw, stillOther, kf, k];

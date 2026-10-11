@@ -1,10 +1,13 @@
 // A presence test this build always answers - `typeof` over a global it serves (either operand order,
-// parenthesized or not), a global or a static read as a truth value - folds in pure to the operand it
+// parenthesized or not), a global or a static read as a truth value, an `in` test of a static or of a prototype
+// method's key (`'finally' in Promise.prototype`) - folds in pure to the operand it
 // yields, the test's own import and the dead branch gone. A probe (`window`) keeps its test, so does a
 // function global the root resolver does not name (`queueMicrotask`), and an `if` keeps its shape:
 // pure folds no statement.
 export const resolved = typeof Promise != 'undefined' && Promise.resolve(1);
 export const viaStatic = Array.from ? Array.from(list) : legacyFrom(list);
+export const keyed = 'allSettled' in Promise ? Promise.allSettled(list) : Array.fromAsync(list);
+export const prototyped = 'finally' in Promise.prototype ? task.finally(done) : Iterator.concat(list);
 export const fallbackOf = Array.of || legacyOf;
 export const symbolic = typeof Symbol === 'function' ? Symbol('x') : '@@x';
 export const legacy = typeof Map === 'undefined' ? legacyMap() : new Map();

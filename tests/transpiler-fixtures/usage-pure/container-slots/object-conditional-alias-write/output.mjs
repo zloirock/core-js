@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 // A write through a conditional container alias may replace the matching slot of either arm.

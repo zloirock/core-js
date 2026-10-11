@@ -22,9 +22,9 @@ let assignedLet;
 ({ asyncIterator: assignedLet } = Symbol);
 export const viaAssignLet = [][assignedLet];
 
-// a REPEATED aliasing write keeps the read native on both emitters: the pristine-tree
-// judgment refuses the multi-write set, and a lagged re-registration (babel's scope after
-// the first in-place rewrite hides the sibling write) cannot resurrect the fold source
+// a REPEATED aliasing write is no registered alias - the pristine-tree judgment refuses the
+// multi-write set - while the write reaching the read still names the key, so the read takes
+// the iterator method on both emitters
 let twice;
 ({ iterator: twice } = Symbol);
 ({ iterator: twice } = Symbol);

@@ -1,13 +1,12 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
 // Object-rest keeps named slots at that level and reads through it native in usage-pure.
 // Independent reads and key/default expressions still receive their own polyfills.
 // a binding that MAY be a constructor takes the identity guard, and a pattern reading several of its
 // statics splits into one read per prop, in source order - each with its own guard. a prop this plan
 // cannot answer stays in the ORIGINAL pattern node (a spliced one would depend on a later visit, which
 // only one leg makes), and only the claims at the pattern's EDGE detach, so source order holds
-let M = _globalThis.Array;
+let M = pickConstructor();
 if (!M) M = Array;
 const from = M === Array ? _Array$from : M.from,
   of = M === Array ? _Array$of : M.of;

@@ -78,14 +78,12 @@ import {
   bindingInvisibleFromUseRegion,
   BRACE_STATEMENT_HOST_TYPES,
   catchPropRewriteObservable,
-  enclosingParameterDecoratorOwner,
-  enclosingParameterListOwner,
-  findFunctionScopeVarDeclaratorInPath,
-  findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
+  hoistedDeclarationInScope,
   synthHoistedBinding,
   isForXWriteTarget,
   LET_SCOPE_HOST_TYPES,
+  nestedTSRuntimeDeclarationsReducer,
   noReassignmentReachesUsage,
   reassignmentDominatesUsage,
   RUNTIME_BLOCK_TYPES,
@@ -136,8 +134,8 @@ function annotationGlobals(prog, type) {
 // realm when nothing local shadows it), so the harness supplies the same two lookups the plugins'
 // adapters do. a raw-AST caller (the Flow leg) passes no scope and every name reads as unbound
 const annotationWalkAdapter = {
-  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
-  getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+  hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
+  getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
 };
 function annotationWalkCtx(prog) {
   return { scope: prog?.scope ?? null, adapter: annotationWalkAdapter, path: prog?.scope ? prog : null };
@@ -153,7 +151,7 @@ const minimalAdapter = {
   getStringValue(node) {
     return this.isStringLiteral(node) ? node.value : null;
   },
-  hasBinding(scope, name) {
+  hasBinding({ scope, name }) {
     return !!scope?.getBinding?.(name);
   },
 };
@@ -185,7 +183,7 @@ for (const method of ['usage-global', 'usage-pure']) {
       const core = createUsageHandlerCore({
         method,
         adapter: {
-          hasBinding(scope, name) {
+          hasBinding({ scope, name }) {
             queried.push(name);
             return !!scope.getBinding(name);
           },
@@ -1124,7 +1122,7 @@ runBoth('returnedReceiverHasEffects/member receiver -> false', 'globalThis.Array
   check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'MemberExpression')?.node), false);
 });
 
-// --- findFunctionScopeVarInPath: sloppy-mode Annex-B block-function shadow ---
+// --- hoistedDeclarationInScope: sloppy-mode Annex-B block-function shadow ---
 
 // pick the bare `Map` reference (the `var x = Map` init), not the block function's own id
 function pickMapInit(adapter, prog) {
@@ -1134,31 +1132,31 @@ function pickMapInit(adapter, prog) {
 
 // sloppy script: a block-nested `function Map(){}` is function-scope-hoisted (Annex-B), so the
 // outer `Map` resolves to the local function - the presence check must surface that shadow
-runBoth('findFunctionScopeVarInPath/sloppy block-function shadow', '{ function Map() {} } var x = Map;', (adapter, prog, lbl) => {
-  checkTruthy(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'));
+runBoth('hoistedDeclarationInScope/sloppy block-function shadow', '{ function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  checkTruthy(lbl, !!hoistedDeclarationInScope(null, pickMapInit(adapter, prog), 'Map'));
 }, undefined, 'script');
 
 // module (always strict): the same block function is block-scoped, so the outer `Map` IS the
 // global - reporting a shadow here would suppress a legitimate polyfill (usage-global miss)
-runBoth('findFunctionScopeVarInPath/strict module no shadow', '{ function Map() {} } var x = Map;', (adapter, prog, lbl) => {
-  check(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'), false);
+runBoth('hoistedDeclarationInScope/strict module no shadow', '{ function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  check(lbl, !!hoistedDeclarationInScope(null, pickMapInit(adapter, prog), 'Map'), false);
 });
 
 // script with `"use strict"`: the directive restores block-scoping for the function, so the
 // outer `Map` is the global again - no shadow
-runBoth('findFunctionScopeVarInPath/use-strict script no shadow', '"use strict"; { function Map() {} } var x = Map;', (adapter, prog, lbl) => {
-  check(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'), false);
+runBoth('hoistedDeclarationInScope/use-strict script no shadow', '"use strict"; { function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  check(lbl, !!hoistedDeclarationInScope(null, pickMapInit(adapter, prog), 'Map'), false);
 }, undefined, 'script');
 
 // a function-SCOPED `function Map(){}` (direct child of an inner function) does NOT hoist to the
 // outer scope, so an outer `Map` is still the global - the collector stops at the function boundary
-runBoth('findFunctionScopeVarInPath/inner-function decl does not leak out', 'function f() { function Map() {} } var x = Map;', (adapter, prog, lbl) => {
-  check(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'), false);
+runBoth('hoistedDeclarationInScope/inner-function decl does not leak out', 'function f() { function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  check(lbl, !!hoistedDeclarationInScope(null, pickMapInit(adapter, prog), 'Map'), false);
 }, undefined, 'script');
 
 // Annex-B hoisting reaches through arbitrarily nested blocks to the function/program var scope
-runBoth('findFunctionScopeVarInPath/deeply nested block-function shadow', '{ { function Map() {} } } var x = Map;', (adapter, prog, lbl) => {
-  checkTruthy(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'));
+runBoth('hoistedDeclarationInScope/deeply nested block-function shadow', '{ { function Map() {} } } var x = Map;', (adapter, prog, lbl) => {
+  checkTruthy(lbl, !!hoistedDeclarationInScope(null, pickMapInit(adapter, prog), 'Map'));
 }, undefined, 'script');
 
 // --- statement-host type-set lattice (canonical single source of truth, built by ADDITION) ---
@@ -1211,7 +1209,7 @@ runBoth('resolveKey/side-effect-free sequence key not bailed', '({ [(0, "from")]
 const provenanceAdapter = {
   isStringLiteral(n) { return n.type === 'StringLiteral' || (n.type === 'Literal' && typeof n.value === 'string'); },
   getStringValue(n) { return n.value; },
-  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+  hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
   method: 'usage-pure',
 };
 // babel exposes destructure props as ObjectProperty, oxc as Property
@@ -1268,12 +1266,12 @@ for (const [name, code, resolvePure, expected] of MACHINERY_CASES) {
 const unionAdapter = {
   ...provenanceAdapter,
   method: 'usage-global',
-  getBinding(scope, name) { return scope?.getBinding?.(name); },
+  getBinding({ scope, name }) { return scope?.getBinding?.(name); },
   // the branch-objects axis probes the receiver's declarator through the full scope-adapter
   // surface; a null node-type makes the indirection resolver bail, keeping these units on the
   // reachable-reassignment axis they lock
   getBindingNodeType() { return null; },
-  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+  hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
 };
 for (const [source, expected] of [
   ['for (const ctor of [Array]) { ctor.from; }', ['Array']],
@@ -1293,7 +1291,7 @@ for (const [source, expected] of [
 ]) runBoth(`alias guard candidates from a for-of head/${ source }`, source, (adapter, prog, lbl) => {
   const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'ctor');
   const getBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
-  const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: (scope, name, path) => !!getBinding(scope, name, path) };
+  const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: ({ scope, name, path }) => !!getBinding({ scope, name, path }) };
   checkDeep(lbl, aliasWriteCtorNames({ name: 'ctor', scope: read.scope, path: read, adapter: bindingAdapter }), expected);
 });
 // ... and a DECLARATOR pattern pairs its init the same way at every level: a level whose value is a
@@ -1312,7 +1310,7 @@ for (const [source, expected] of [
 ]) runBoth(`alias guard candidates from a declarator pattern/${ source }`, source, (adapter, prog, lbl) => {
   const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'ctor');
   const getBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
-  const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: (scope, name, path) => !!getBinding(scope, name, path) };
+  const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: ({ scope, name, path }) => !!getBinding({ scope, name, path }) };
   checkDeep(lbl, aliasWriteCtorNames({ name: 'ctor', scope: read.scope, path: read, adapter: bindingAdapter }).toSorted(), expected);
 });
 function unionExtras(adapter, prog, receiverIsStatic) {
@@ -1450,6 +1448,22 @@ for (const [source, names, complete] of [
         { first: 'maybe', arms: 41, objects: 40, complete: true });
     });
 }
+// a write the next unconditional one overwrites before the read installs nothing it sees: the union
+// drops it in either method, whose identity guards and imports read the same set
+for (const method of ['usage-pure', 'usage-global']) {
+  runBoth(`reassignmentValueEnumeration/superseded write ${ method }`,
+    'let C = Iterator; C = Object; C = Map; const read = () => C.groupBy; C = Set;', (adapter, prog, lbl) => {
+      const declarator = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'C');
+      const usage = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'C');
+      const { nodes } = reassignmentValueEnumeration({
+        binding: declarator.scope.getBinding('C'),
+        usagePath: usage,
+        name: 'C',
+        ctx: { scope: usage.scope, adapter: { ...unionAdapter, method }, path: usage },
+      });
+      checkDeep(lbl, nodes.map(node => node.name), ['Map', 'Set']);
+    });
+}
 // the prototype-navigated producer forces prototype placement: a reachable ctor value read
 // through `.prototype` dispatches the key as ITS prototype method, never as a static
 runBoth('collectMemberUnionCandidates/placement override types the reachable ctor as prototype',
@@ -1474,10 +1488,10 @@ const superBaseAdapter = {
   method: 'usage-global',
   isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
   getStringValue(node) { return node.value; },
-  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
-  getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+  hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
+  getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
   isMutatedStatic() { return false; },
-  getBinding(scope, name) {
+  getBinding({ scope, name }) {
     const binding = scope?.getBinding?.(name);
     return binding ? {
       node: binding.path?.node ?? null,
@@ -2076,9 +2090,9 @@ function realmScopeAdapter(adapter) {
     method: 'usage-pure',
     isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
     getStringValue(node) { return node.value; },
-    hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
-    getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
-    getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+    hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
+    getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
+    getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
     isMutatedStatic() { return false; },
   };
 }
@@ -2612,7 +2626,7 @@ function hintAdapter(hints) {
   return {
     ...minimalAdapter,
     method: 'usage-pure',
-    getBinding(scope, name) {
+    getBinding({ scope, name }) {
       const binding = scope?.getBinding?.(name);
       return binding && hints[name] ? { ...binding, polyfillHint: hints[name] } : binding;
     },
@@ -2655,37 +2669,37 @@ for (const [variant, code, hints, expected] of PROBE_RECEIVER_CASES) {
   });
 }
 
-// --- enclosingParameterListOwner / bindingInvisibleFromUseRegion ---
+// --- bindingInvisibleFromUseRegion: the parameter list ---
 
 // a parameter list is its own lexical region. both scope trackers hoist body declarations onto the
 // function scope, so without this rule `function f(x = Map) { var Map = 1 }` reads the body binding
 // where the language reads the OUTER one. the declaration is located STRUCTURALLY, not through a
 // tracker - the rule is what is under test, not either tracker's view of it
 const DECLARATION_ID_PARENTS = new Set(['VariableDeclarator', 'FunctionDeclaration', 'ClassDeclaration']);
-// oxc reports an object method as a FunctionExpression; both are the same parameter owner
 const PARAM_FRAME_CASES = [
-  ['default of a function declaration', 'function f(x = Map) { var Map = 1; }', ['FunctionDeclaration'], true],
-  ['default of an arrow', 'const f = (x = Map) => { let Map = 1; };', ['ArrowFunctionExpression'], true],
-  ['default of a method', 'const o = { m(x = Map) { const Map = 1; } };', ['ObjectMethod', 'FunctionExpression'], true],
-  ['second parameter default', 'function f(a, x = Map) { class Map {} }', ['FunctionDeclaration'], true],
-  ['destructured parameter default', 'function f({ y } = Map) { function Map() {} }', ['FunctionDeclaration'], true],
-  ['body declaration is nested in a block', 'function f(x = Map) { { var Map = 1; } }', ['FunctionDeclaration'], true],
-  ['a use in the BODY is not in the frame', 'function g(a) { var Map = 1; return Map; }', [], false],
-  ['an outer declaration is not the body', 'var Map = 1; function f(x = Map) { }', ['FunctionDeclaration'], false],
+  ['default of a function declaration', 'function f(x = Map) { var Map = 1; }', true],
+  ['default of an arrow', 'const f = (x = Map) => { let Map = 1; };', true],
+  ['default of a method', 'const o = { m(x = Map) { const Map = 1; } };', true],
+  ['second parameter default', 'function f(a, x = Map) { class Map {} }', true],
+  ['destructured parameter default', 'function f({ y } = Map) { function Map() {} }', true],
+  ['body declaration is nested in a block', 'function f(x = Map) { { var Map = 1; } }', true],
+  ['a use in the BODY is not in the frame', 'function g(a) { var Map = 1; return Map; }', false],
+  ['an outer declaration is not the body', 'var Map = 1; function f(x = Map) { }', false],
+  // a closure written in the list runs in the list's environment: it reads past the body as well
+  ['a closure in a default', 'function f(x = () => Map) { let Map = 1; }', true],
+  ['a closure in a default, body var', 'function f(x = () => Map) { var Map = 1; }', true],
 ];
-for (const [variant, code, ownerTypes, invisible] of PARAM_FRAME_CASES) {
+for (const [variant, code, invisible] of PARAM_FRAME_CASES) {
   runBoth(`parameterFrame/${ variant }`, code, (adapter, prog, lbl) => {
     const named = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map');
     const declId = named.find(p => DECLARATION_ID_PARENTS.has(p.parentPath?.node?.type)
       && p.parentPath.node.id === p.node);
     const use = named.find(p => p !== declId && p.parentPath?.node?.type !== 'VariableDeclarator');
-    const owner = enclosingParameterListOwner(use)?.node?.type ?? null;
-    check(`${ lbl }/owner`, owner === null ? 0 : ownerTypes.includes(owner) ? 1 : owner, ownerTypes.length ? 1 : 0);
     check(lbl, bindingInvisibleFromUseRegion(declId?.parentPath ?? null, use), invisible);
   });
 }
 
-// --- enclosingParameterDecoratorOwner ---
+// --- bindingInvisibleFromUseRegion: the parameter decorator ---
 
 // a parameter decorator is evaluated where the CLASS is defined, so nothing the decorated function
 // declares - parameters included - shadows a name it reads. only the parameter-property arm of this
@@ -2695,24 +2709,23 @@ for (const [variant, code, ownerTypes, invisible] of PARAM_FRAME_CASES) {
 // predicate can never be asked there. unplugin reaches the expression through its own subtree
 // walker and already resolves these reads to the global, so nothing depends on it
 const PARAM_DECORATOR_CASES = [
-  ['decorator over a parameter of that name', 'class C { constructor(@dec(Map) Map) {} }', true, true],
-  ['decorator over a parameter, body declares it', 'class C { constructor(@dec(Map) x) { let Map = 1; } }', true, true],
-  ['decorator on a method, not a parameter', 'class C { @dec(Map) m() { let Map = 1; } }', false, false],
-  ['decorator on a class', '@dec(Map) class C { }', false, false],
-  ['a parameter DEFAULT is not a decorator', 'class C { constructor(x = Map) { let Map = 1; } }', false, true],
+  ['decorator over a parameter of that name', 'class C { constructor(@dec(Map) Map) {} }', true],
+  ['decorator over a parameter, body declares it', 'class C { constructor(@dec(Map) x) { let Map = 1; } }', true],
+  ['decorator on a method, not a parameter', 'class C { @dec(Map) m() { let Map = 1; } }', false],
+  ['decorator on a class', '@dec(Map) class C { }', false],
+  ['a parameter DEFAULT is not a decorator', 'class C { constructor(x = Map) { let Map = 1; } }', true],
   // the carve-out is about what the DECORATED function declares. a binding written inside the
   // decorator sits in the same subtree as the use and covers it - reporting it invisible makes
   // usage-pure rewrite the user's own name
-  ['decorator argument declares the name itself', 'class C { constructor(@dec((Map) => f(Map)) x) {} }', true, false],
+  ['decorator argument declares the name itself', 'class C { constructor(@dec((Map) => f(Map)) x) {} }', false],
 ];
-for (const [variant, code, isDecorator, invisible] of PARAM_DECORATOR_CASES) {
+for (const [variant, code, invisible] of PARAM_DECORATOR_CASES) {
   const label = `parameterDecorator/${ variant } [babel]`;
   const prog = babelAdapter.parseAndScope(code, 'module', ['decorators-legacy']);
   // the READ, located structurally: the decorator call's argument, or a parameter default's right.
   // a positional pick would land on the same-named PARAMETER instead
   const [use] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
     && (p.parentPath?.node?.arguments?.includes(p.node) || p.parentPath?.node?.right === p.node));
-  check(`${ label }/owner`, !!enclosingParameterDecoratorOwner(use), isDecorator);
   const [decl] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
     && p.parentPath?.node?.type === 'VariableDeclarator' && p.parentPath.node.id === p.node);
   // in the first row the same-named PARAMETER is the declaration
@@ -2736,11 +2749,11 @@ for (const [variant, code, covered] of DECORATOR_VAR_CASES) {
   const prog = babelAdapter.parseAndScope(code, 'module', ['decorators-legacy']);
   const [use] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
     && p.parentPath?.node?.arguments?.includes(p.node));
-  check(`decoratorVarFrame/${ variant } [babel]`, !!findFunctionScopeVarInPath(use, 'Map'), covered);
+  check(`decoratorVarFrame/${ variant } [babel]`, !!hoistedDeclarationInScope(null, use, 'Map'), covered);
   // the same climb feeds the two RESOLVER-side readers; asked here directly rather than through the
   // emitted helper, which cannot tell them apart
   check(`decoratorVarFrame/${ variant } declarator [babel]`,
-    !!findFunctionScopeVarDeclaratorInPath(use, 'Map'), covered);
+    !!hoistedDeclarationInScope(null, use, 'Map')?.declarator, covered);
   check(`decoratorVarFrame/${ variant } synth twin [babel]`, !!synthHoistedBinding(use, 'Map'), covered);
   check(`decoratorVarFrame/${ variant } var owner [babel]`, !!findVarOwnerDeclaring(use, 'Map'), covered);
 }
@@ -2780,6 +2793,94 @@ for (const [variant, code, , invisible] of STATEMENT_HEAD_CASES) {
     check(lbl, bindingInvisibleFromUseRegion(declId?.parentPath ?? null, use), invisible);
   });
 }
+
+// --- bindingInvisibleFromUseRegion: the catch-parameter region ---
+
+// the fourth region: a catch parameter is evaluated outside the clause's body block, so what that block
+// binds in itself does not cover a use in the parameter. `var` and a sloppy block function hoist past
+// the block and do; a use in a closure written in the parameter is in the region as well - the closure
+// captures the parameter's environment, which the block never joins - as for a function's parameter list
+const CATCH_PARAM_CASES = [
+  ['let in the body', 'try {} catch ({ x = Map }) { let Map = 1; }', true],
+  ['const in the body', 'try {} catch ({ x = Map }) { const Map = 1; }', true],
+  ['class in the body', 'try {} catch ({ x = Map }) { class Map {} }', true],
+  ['strict function in the body', 'try {} catch ({ x = Map }) { function Map() {} }', true],
+  ['sloppy function in the body', 'try {} catch ({ x = Map }) { function Map() {} }', false, 'script'],
+  ['var in the body', 'try {} catch ({ x = Map }) { var Map = 1; }', false],
+  ['body declaration nested in a block', 'try {} catch ({ x = Map }) { { let Map = 1; } }', true],
+  ['a use in the BODY is not in the parameter', 'try {} catch (e) { let Map = 1; y(Map); }', false],
+  ['an outer declaration is not the body', 'let Map = 1; try {} catch ({ x = Map }) {}', false],
+  ['a closure in the parameter', 'try {} catch ({ x = () => Map }) { let Map = 1; }', true],
+  ['a closure in the parameter, body var', 'try {} catch ({ x = () => Map }) { var Map = 1; }', false],
+];
+for (const [variant, code, invisible, sourceType] of CATCH_PARAM_CASES) {
+  runBoth(`catchParameter/${ variant }`, code, (adapter, prog, lbl) => {
+    const named = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map');
+    const declId = named.find(p => DECLARATION_ID_PARENTS.has(p.parentPath?.node?.type)
+      && p.parentPath.node.id === p.node);
+    const use = named.find(p => p !== declId && p.parentPath?.node?.id !== p.node);
+    check(lbl, bindingInvisibleFromUseRegion(declId?.parentPath ?? null, use), invisible);
+  }, undefined, sourceType);
+}
+
+// --- wrapScopeBindingLookup: what the trackers hand back wrongly around nested declarations ---
+
+// the declaration the wrapped lookup answers for `name` read at the member keyed `key`, by node type
+function wrappedDeclarationType(adapter, prog, name, key) {
+  const use = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === key);
+  const binding = wrapScopeBindingLookup((scope, n) => scope.getBinding(n))({ scope: use.scope, name, path: use.get('object') });
+  return (binding?.path?.node ?? binding?.node)?.type ?? null;
+}
+
+// a name a catch parameter declares is that parameter's binding in its own later defaults - babel's
+// lookup from the parameter pattern skips the clause's bindings - while a body lexical is no parameter
+// name and stays out (the region above)
+for (const [variant, code, expected] of [
+  ['object pattern', 'try {} catch ({ Map, x = Map.from(y) }) {}', 'CatchClause'],
+  ['array pattern', 'try {} catch ([Map, x = Map.from(y)]) {}', 'CatchClause'],
+  ['nested pattern', 'try {} catch ({ o: { Map }, x = Map.from(y) }) {}', 'CatchClause'],
+  ['a body lexical is no parameter name', 'try {} catch ({ x = Map.from(y) }) { let Map = 1; }', null],
+]) runBoth(`catchParameterNames/${ variant }`, code, (adapter, prog, lbl) => {
+  check(lbl, wrappedDeclarationType(adapter, prog, 'Map', 'from'), expected);
+});
+
+// an enum or a namespace a block or a function declares shadows the binding further out there, which
+// neither tracker registers it over; a read outside that scope keeps the outer binding
+for (const [variant, code, expected] of [
+  ['enum in a block', 'const M = Map; { enum M { groupBy = 1 } M.groupBy; }', null],
+  ['enum in a function', 'const M = Map; function f() { enum M { groupBy = 1 } return M.groupBy; }', null],
+  ['namespace in a block', 'const M = Map; { namespace M { export const groupBy = 1; } M.groupBy; }', null],
+  ['a read outside the block', 'const M = Map; { enum M { A = 1 } } M.groupBy;', 'VariableDeclarator'],
+]) runBoth(`nestedTSRuntimeShadow/${ variant }`, code, (adapter, prog, lbl) => {
+  check(lbl, wrappedDeclarationType(adapter, prog, 'M', 'groupBy'), expected);
+});
+// ... the census gate the emitters open that question with: only a declaration below the top level counts
+for (const [variant, code, expected] of [
+  ['top-level enum', 'enum E { A }', false],
+  ['exported top-level enum', 'export enum E { A }', false],
+  ['enum in a block', '{ enum E { A } }', true],
+  ['namespace in a namespace', 'namespace O { namespace N { export const a = 1; } }', true],
+]) runBoth(`nestedTSRuntimeDeclarationsReducer/${ variant }`, code, (adapter, prog, lbl) => {
+  check(lbl, collectFileCensus(prog.node, [nestedTSRuntimeDeclarationsReducer()]).nestedTSRuntimeDeclarations, expected);
+});
+
+// a `var` a loop, a block, a catch body or a switch declares is its function's binding: the lookup
+// answers it there with the function's scope and the writes outside the nested scope, a closure's
+// included - one tracker registers it in the nested scope, missing them
+for (const [variant, code] of [
+  ['loop body', 'function f(c) { while (c) { var s = 1; s.at(0); } function w() { s = 2; } }'],
+  ['block', 'function f() { { var s = 1; s.at(0); } function w() { s = 2; } }'],
+  ['catch body', 'function f() { try {} catch { var s = 1; s.at(0); } function w() { s = 2; } }'],
+  ['switch case', 'function f(c) { switch (c) { case 1: var s = 1; s.at(0); } function w() { s = 2; } }'],
+  ['loop head', 'function f(c) { for (var s = 1; c; ) { s.at(0); } function w() { s = 2; } }'],
+  ['function top level', 'function f() { var s = 1; s.at(0); function w() { s = 2; } }'],
+]) runBoth(`nestedScopeVar/${ variant }`, code, (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  const binding = wrapScopeBindingLookup((scope, n) => scope.getBinding(n))({ scope: use.scope, name: 's', path: use.get('object') });
+  const closure = adapter.pickPath(prog, 'FunctionDeclaration', p => p.node.id?.name === 'w').node;
+  check(`${ lbl }/scope`, (binding?.scope?.block ?? binding?.scope?.path?.node)?.type, 'FunctionDeclaration');
+  check(`${ lbl }/closure write`, (binding?.constantViolations ?? []).some(v => (v.node ?? v).start > closure.start), true);
+});
 
 // --- type space vs value space for the same name ---
 // a type-only import is elided by tsc, so the VALUE of that name is the global and must still be
@@ -2836,8 +2937,8 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
   const landingAdapter = {
     isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
     getStringValue(node) { return node.value; },
-    hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
-    getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+    hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
+    getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
   };
   // the walk anchors at the hop whose key names the global, and climbs to the static above it
   function landingVerdict(adapter, prog, mutated) {
@@ -3516,7 +3617,10 @@ for (const [name, expression, mutated, expected] of [
   ['receiver guard', '(held = globalThis.window)?.Array', [], false],
 ]) runBoth(`optional static callee/${ name }`, `let held; const result = ${ expression };`, (parser, program, label) => {
   const value = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'result').get('init');
-  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  // the adapter answers the mutated static as the census-backed build does (`isDeoptedStaticRead`)
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(mutated),
+  });
   check(label, isPolyfillableOptional({
     node: unwrapRuntimeExpr(value.node), scope: value.scope, adapter, path: value, mutatedSet: new Set(mutated),
     resolve(meta) {

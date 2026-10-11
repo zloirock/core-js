@@ -5519,14 +5519,22 @@ QUnit.test('destructuring: a head-hosted claim reads its entry, not the raw slot
 });
 
 // a REST beside a guarded read cannot become a read of its own, so it stays behind them reading the
-// same receiver - and what it gathers has to be exactly what the source left it
+// same receiver - and what it gathers has to be exactly what the source left it. the guard's test is one
+// the build cannot decide; one it decides (`!D` over the realm's `Array`) never writes, so its read is
+// served like an unguarded one, and the rest beside it leaves the consumed key out all the same
 QUnit.test('destructuring: a guarded read keeps its rest sibling', assert => {
+  const unlikely = Math.random() > 2;
   let M = globalThis.Array;
-  if (!M) M = Array;
+  if (!M || unlikely) M = Array;
   const { from, ...rest } = M;
   assert.same(from, POST_LOWERED ? Array.from : nativeArrayFrom);
   if (from) assert.same(from([1]).length, 1, 'and calls through the present method');
   assert.same('from' in rest, false, 'and the rest no longer carries the key the read consumed');
+  let D = globalThis.Array;
+  if (!D) D = Array;
+  const { from: decidedFrom, ...decidedRest } = D;
+  assert.same(decidedFrom([1]).length, 1, 'a decided guard serves the read');
+  assert.same('from' in decidedRest, false, 'and its rest leaves the consumed key out');
   // ... and every key the read did NOT consume is still there
   let box = { from: 'mine', keep: 7 };
   if (!box) box = Array;
@@ -5959,6 +5967,25 @@ QUnit.test('destructuring: several claims over one stored or prefixed init run i
   assert.same(assignAt.call([4, 5], 1), 5);
   assert.deepEqual(assignKeys({ d: 4 }), ['d']);
   assert.deepEqual(order, ['w', 'x', 'y', 'z', 'v']);
+});
+
+QUnit.test('destructuring: a kept write storing a nested effect sequence runs each effect once', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  let stored;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the NESTED sequence is the subject
+  const { Array: { prototype: { keys: declKeys } } } = stored = (eff('a'), (eff('b'), globalThis));
+  assert.same(stored, globalThis);
+  assert.deepEqual(Array.from(declKeys.call([7, 8])), [0, 1]);
+  let assignAt;
+  // eslint-disable-next-line prefer-const, @stylistic/no-extra-parens -- the assignment host over a NESTED sequence
+  ({ Array: { prototype: { at: assignAt } } } = stored = (eff('c'), (eff('d'), globalThis)));
+  assert.same(stored, globalThis);
+  assert.same(assignAt.call([4, 5], -1), 5);
+  assert.deepEqual(order, ['a', 'b', 'c', 'd']);
 });
 
 QUnit.test('destructuring: a slot behind a spread, a loop head beside an effect and two extractions over one write', assert => {

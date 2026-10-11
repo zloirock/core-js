@@ -1,8 +1,9 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // chain-assignment carrying a conditional fallback expression: the chain-assign LHS
 // (`b = ...`) carries the receiver value that is in turn a conditional. fallback-receiver
 // peel alternates chain-assign + paren peels and reaches the inner ConditionalExpression
-// so each branch independently classifies. distinct methods isolate per-key dispatch
+// so each branch independently classifies. distinct methods isolate per-key dispatch. `b` and
+// `c`, declared nowhere, are realm slots: a constructor they store takes its whole entry
 const {
   from
 } = b = cond ? Array : _Map;

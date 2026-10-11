@@ -1,0 +1,6 @@
+// a declaration's keyed leaf the build serves by name, under a member receiver no mirror proves, takes the
+// capture of its hop and leaves the ref it binds unread: the slot is the source's own read of `w`, so only
+// the binding is dead
+const ns = { box: { w: Array, other: 1 } };
+const { w: { [(log('k'), 'from')]: from }, other } = ns.box;
+use(from, other);

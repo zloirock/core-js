@@ -5,13 +5,15 @@
 let M;
 let n = 0;
 let k = 0;
-if (globalThis) ({ Map: M } = globalThis);
+if (flag) ({ Map: M } = globalThis);
 
 export const plainReceiver = M.groupBy;
 export const seqReceiver = (n++, M).groupBy;
 export const seqReceiverCall = (n++, M).groupBy(new Map([[1, 1]]), x => x);
 // NEGATIVE: a side-effecting KEY stays raw - the guard's taken branch would skip the effect the
-// source always evaluates
+// source always evaluates. read raw off the swapped binding, it takes the static ON it: the alias
+// imports the whole constructor (`map`), where the narrow one answered only through the guarded
+// reads beside it, whose `map/group-by` sets the static on it
 export const seqKeyEffect = (n++, M)[(k++, 'groupBy')];
 // the DESTRUCTURED spelling of the same read renders the same guard as the declarator's value -
 // equivalent down to the throw, since the raw branch dereferences a nullish receiver exactly as the

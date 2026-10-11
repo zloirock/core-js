@@ -147,6 +147,25 @@ QUnit.test('expr: sequence expression runs side effect before the polyfill value
   assert.deepEqual(order, ['se']);
 });
 
+// a prefix the build respells to a pure import leaves its sequence only where the value alone reads the same
+// in the sequence's slot: a callee binds no receiver, a `delete` operand is no reference and a missing name
+// still throws as a `typeof` operand
+QUnit.test('expr: a sequence prefix respelled to a pure import keeps its callee unbound', assert => {
+  const box = { read() { return this; } };
+  assert.same((globalThis.Set, box.read)(), undefined);
+});
+
+QUnit.test('expr: a sequence prefix respelled to a pure import keeps a delete operand a value', assert => {
+  const box = { slot: 1 };
+  assert.true(delete (Array.from, box.slot));
+  assert.same(box.slot, 1);
+});
+
+QUnit.test('expr: a sequence prefix respelled to a pure import keeps a missing typeof operand throwing', assert => {
+  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- a name no realm declares is the case under test
+  assert.throws(() => typeof (globalThis.Map, missingGlobalName), ReferenceError);
+});
+
 QUnit.test('expr: logical && suppresses the polyfilled right side when left is falsy', assert => {
   let calls = 0;
   function right() {

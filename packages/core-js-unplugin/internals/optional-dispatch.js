@@ -20,7 +20,7 @@ import {
   peelChainRootValue,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { storedProxyNavProvesHop } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { decidedReusableReceiver, instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
@@ -396,7 +396,7 @@ export default function createOptionalDispatchChannel(ctx) {
       // binding-aware: a SHADOWED realm name holds the user's object, not the surface
       if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
         return isPristineProxyGlobal(adapter, value.name)
-          && !(metaPath && adapter.getBinding?.(metaPath.scope, value.name, metaPath)) ? value.name : null;
+          && !(metaPath && adapter.getBinding?.({ scope: metaPath.scope, name: value.name, path: metaPath })) ? value.name : null;
       }
       const minted = mintedProxyGlobalName(value.name, injectorState);
       if (minted) return minted;
@@ -851,8 +851,11 @@ export default function createOptionalDispatchChannel(ctx) {
     const surfaceHeld = holdsProxySurface(node.object, metaPath);
     const surfaceHop = surfaceHeld ? proxyHopKey(node, { allowOptional: true, metaPath }) : null;
     const leafKey = node.computed ? null : node.property?.name ?? null;
-    const { disjuncts, makeBase } = guardObject(node.object, metaPath,
-      { bareMemo: !!surfaceHop, mutatedLeaf: !!leafKey && isMutatedGlobalSlot(adapter, leafKey) });
+    // a hop off a selection the build decides re-reads the name it folds to (`decidedReusableReceiver`), the
+    // other leg's chain-base memo: the read above it then takes the identity guard that name's read takes
+    const decided = decidedReusableReceiver(node.object, { ...navAliasCtx, injectorState });
+    const { disjuncts, makeBase } = decided ? { disjuncts: [cloneNode(node.object)], makeBase: () => cloneNode(decided) }
+      : guardObject(node.object, metaPath, { bareMemo: !!surfaceHop, mutatedLeaf: !!leafKey && isMutatedGlobalSlot(adapter, leafKey) });
     // a pristine hop read off a guarded PROXY-surface value drops - `(q = gw)?.self
     // .Array` reads `_ref.Array` (window.self is the same surface, babel's kept canon);
     // an SE-bearing key's effects MIGRATE into the next surviving key (native order:
@@ -1170,7 +1173,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // binding-aware: a SHADOWED realm name holds the user's object, not the surface
     if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
       return isPristineProxyGlobal(adapter, value.name)
-        && !(metaPath && adapter.getBinding?.(metaPath.scope, value.name, metaPath));
+        && !(metaPath && adapter.getBinding?.({ scope: metaPath.scope, name: value.name, path: metaPath }));
     }
     // an ALIAS root resolves through the canon (`const w = globalThis.window; (a = w)`
     // holds the window surface exactly like the direct spelling)
@@ -1261,7 +1264,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // A current-pass pure import owns its stable receiver binding. An inherited import
     // hint alone does not prove that the adjacent reads still name the same value.
     const mintedImport = receiver.type === 'Identifier' && !!bindingPolyfillHint({
-      binding: adapter.getBinding(metaPath.scope, receiver.name, metaPath),
+      binding: adapter.getBinding({ scope: metaPath.scope, name: receiver.name, path: metaPath, read: receiver }),
       scope: metaPath.scope,
       name: receiver.name,
       adapter,
@@ -1347,7 +1350,11 @@ export default function createOptionalDispatchChannel(ctx) {
       if (cur?.type === 'Identifier') {
         // binding-aware like the ctor arm below: a SHADOWED realm name holds the user's object
         if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
-          return isPristineProxyGlobal(adapter, cur.name) && !adapter.getBinding?.(metaPath.scope, cur.name, metaPath);
+          return isPristineProxyGlobal(adapter, cur.name) && !adapter.getBinding?.({
+            scope: metaPath.scope,
+            name: cur.name,
+            path: metaPath,
+          });
         }
         // an ALIAS binding answers the same as the direct spelling - but only as the BARE
         // root: neither a kept write nor a hop above it may sit in between, which is where
@@ -1358,7 +1365,7 @@ export default function createOptionalDispatchChannel(ctx) {
         }
         // a RESOLVABLE global ctor substitutes to its always-defined pure - the `?.`
         // over it is dead (`Promise?.X.flat?.()` reads `_Promise.X`)
-        return !adapter.getBinding?.(metaPath.scope, cur.name)
+        return !adapter.getBinding?.({ scope: metaPath.scope, name: cur.name })
           && !isMutatedGlobalSlot(adapter, cur.name) && !!resolveGlobalPolyfill(cur.name);
       }
       if (cur?.type === 'CallExpression' && !cur.optional) {
@@ -1415,18 +1422,23 @@ export default function createOptionalDispatchChannel(ctx) {
       // only a KEPT WRITE of the call value erases (`(u = g())?.` - the write observes)
       if (unwrapRuntimeExpr(hop.object)?.type === 'CallExpression') return false;
       const hopKeyName = !hop.computed && hop.property?.name;
-      if (hopKeyName && POSSIBLE_GLOBAL_OBJECTS.has(hopKeyName) && !isPristineProxyGlobal(adapter, hopKeyName)) return false;
+      if (hopKeyName && POSSIBLE_GLOBAL_OBJECTS.has(hopKeyName)
+        && !isPristineProxyGlobal(adapter, hopKeyName, { node: hop, path: metaPath })) return false;
       if (chainContainsMutatedStatic(hop.object, { metaPath, adapter })) return false;
       // a hop that ITSELF resolves as a static claim substitutes to an always-defined
-      // import - its `?.` is as dead as the call-twin's (`Array?.from(x).at(0)` erases)
+      // import - its `?.` is as dead as the call-twin's (`Array?.from(x).at(0)` erases), the claim
+      // asked of the hop it reads (a read ahead of every write of the global's slot is served).
+      // named by its sequence TAIL, as the surface arm below reads one: the claim keeps the
+      // prefix, and a selection the build decides behind it names its operand
+      // (`(n++, Map || Set)?.groupBy` reads `Map.groupBy`, as its unprefixed twin does)
       if (hopKeyName && hop.property?.type === 'Identifier') {
         const hopObjName = resolveObjectName({
-          objectNode: hop.object,
+          objectNode: peelReceiverSequenceTail(hop.object),
           scope: metaPath.scope,
           adapter,
           path: metaPath,
         });
-        if (hopObjName && !adapter.isMutatedStatic?.(hopObjName, hopKeyName)) {
+        if (hopObjName && !adapter.isMutatedStatic?.(hopObjName, hopKeyName, { node: hop, path: metaPath })) {
           const hopClaim = resolvePure({
             kind: 'property', object: hopObjName, key: hopKeyName, placement: 'static',
           }, metaPath);
@@ -1460,7 +1472,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // built, and a MINTED name carries its realm in the import it was minted from. a bare one is the
     // realm only while nothing shadows it
     return !!mintedProxyGlobalName(root.name, injectorState)
-      || (isPristineProxyGlobal(adapter, root.name) && !adapter.getBinding?.(metaPath.scope, root.name, metaPath));
+      || (isPristineProxyGlobal(adapter, root.name) && !adapter.getBinding?.({ scope: metaPath.scope, name: root.name, path: metaPath }));
   }
 
   // the realm hops a SPLIT receiver reads off its own MEMO. inside the guard's alternate that memo is

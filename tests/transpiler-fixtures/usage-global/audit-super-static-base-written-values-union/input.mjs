@@ -19,8 +19,8 @@ class Closure extends viaClosure {
 export const closureWrite = Closure.go();
 
 let viaTry = Object;
-try { viaTry = Reflect; } catch (e) { void e; }
+try { viaTry = Map; } catch (e) { void e; }
 class Try extends viaTry {
-  static go() { return super.ownKeys({}); }
+  static go() { return super.groupBy([], () => 1); }
 }
 export const tryWrite = Try.go();

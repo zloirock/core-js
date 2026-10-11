@@ -3624,6 +3624,54 @@ function * generateDeleteSpanWrappers() {
   }
 }
 
+// --- A navigation read in the computed key of a deleted member ---
+// the delete-span family's key host, widened: a navigation in a computed KEY, or in an argument the
+// deleted chain passes to a call, is a value the engine reads before the operator acts - never a link
+// of the deleted run - so it owes what a plain read of it owes, whatever stands between it and the
+// `delete`: a nested key, a conditional arm, a call argument, the key of a member whose own object the
+// delete folds. the spellings are the runs whose read and delete answers part: a hop pure cannot back
+// read first or second, a live `?.` in the key's own run, a call root, a sequence carrier, a TS cast.
+// the import set is the sharp half (a key folded as if deleted drops the backed hop's module the read
+// pulls in), the readbacks the other: which holder slot went, and the realm slot a folded key would hit
+const DMK_KEYS = [
+  ['ws', 'globalThis.window.self.probe'],
+  ['sw', 'globalThis.self.window.probe'],
+  ['ws-optional', 'globalThis.window?.self.probe'],
+  ['sw-optional', 'globalThis.self?.window.probe'],
+  ['call', 'nrm().window.self.probe'],
+  ['sequence', '(0, globalThis.window.self).probe'],
+  ['cast', '(globalThis.window as any).self.probe', true],
+];
+const DMK_HOSTS = [
+  ['key', key => `delete holder[${ key }]`],
+  ['nested-key', key => `delete holder[pick[${ key }]]`],
+  ['arm-key', key => `delete holder[cond ? ${ key } : "w"]`],
+  ['argument-key', key => `delete holder[String(${ key })]`],
+  ['argument-object', key => `delete pickHolder(${ key }).w`],
+  ['key-of-deleted-run', key => `delete globalThis.window.self[${ key }]`],
+];
+
+function * generateDeletedMemberKeyReads() {
+  const readback = 'String("w" in holder), String("realm" in holder), String("realm" in globalThis), String("w" in box.self)';
+  for (const [keyId, key, ts = false] of DMK_KEYS) {
+    for (const [hostId, build] of DMK_HOSTS) {
+      // MUTATED: the file installs its own object on the realm's `window` slot ahead of the read, so a
+      // key navigating it reads the user's box. PRISTINE rides the rig, every hop a live alias of the realm
+      for (const mutated of [true, false]) {
+        const expr = '(() => { const box = { self: { probe: "w", w: 1 }, window: { probe: "w" }, probe: "w" };'
+          + ' const holder = { w: 1, realm: 1 }; const pick = { w: "w", realm: "realm" }; const pickHolder = () => holder;'
+          + `${ mutated ? ' globalThis.window = box;' : '' } globalThis.probe = "realm"; globalThis.realm = 1; try {`
+          + ` const gone = ${ build(key) };`
+          + ` return [String(gone), ${ readback }, log.length].join("|"); }`
+          + ` catch (e) { return ["throw", ${ readback }, log.length].join("|"); }`
+          + ' finally { delete globalThis.window; delete globalThis.probe; delete globalThis.realm; } })()';
+        const id = `deleted-member-key-reads/${ mutated ? 'mutated' : 'pristine' }-${ keyId }-${ hostId }`;
+        yield { ...snippet(id, expr, { rig: !mutated }), strip: false, ...ts ? { ts: true } : {} };
+      }
+    }
+  }
+}
+
 // --- A destructure source read through an optional chain ---
 // a pattern whose source navigates a `?.` and is handed on by a value-OBSERVING carrier keeps its
 // hop: on a realm without the hop the source reads an undefined step and THROWS before the carrier's
@@ -8025,8 +8073,8 @@ const M_STATICS = [
 // Cleanup runs in a foreign module, so it cannot make an unrecognized patch channel
 // appear recorded. Save exact descriptors: absent properties must stay absent afterwards.
 const RESTORE_IMPORT = `import { restoreProperty } from ${ JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href) };`;
-function mutationSnippet(name, body) {
-  const row = snippet(name, body);
+function mutationSnippet(name, body, options) {
+  const row = snippet(name, body, options);
   return { ...row, code: `${ RESTORE_IMPORT }\nconst _nativeObject = Object;\n${ row.code }`, strip: true };
 }
 const M_MUTATORS = [
@@ -16501,6 +16549,1602 @@ function * generateSelectionOwnerStatics() {
   }
 }
 
+// --- Decided guard writes ---
+// A presence test the build always answers takes one arm on every path: a binding written there holds
+// that value at the read and the fallback the other arm spells never runs, so a read claims through
+// it - stripped, a missed claim leaves the read raw. A write the test may skip - an undecided test, one
+// decided the other way, the dead arm - leaves the binding unwritten or on its fallback natively, and a
+// claim through it would turn that native answer into a polyfilled one. A logical selection over the
+// test yields one operand the same way - `&&` its right where the test holds, `||` where it fails - and
+// an `&&` the test always fails yields the test itself. Each decided host runs under every spelling of
+// the test, `on` always true and `off` always false, either operand order
+const DECIDED_GUARD_TESTS = [
+  ['undefined', "typeof Promise !== 'undefined'", "typeof Promise === 'undefined'"],
+  ['function', "typeof Promise == 'function'", "typeof Promise != 'function'"],
+  ['function-reversed', "'function' === typeof Promise", "'function' !== typeof Promise"],
+];
+const DECIDED_GUARD_HOSTS = [
+  ['if', (on, off, value) => ({ setup: `let held; if (${ on }) held = ${ value };` })],
+  ['and', (on, off, value) => ({ setup: `let held; ${ on } && (held = ${ value });` })],
+  ['or', (on, off, value) => ({ setup: `let held; ${ off } || (held = ${ value });` })],
+  ['if-else', (on, off, value, fallback) => ({ setup: `let held; if (${ on }) held = ${ value }; else held = ${ fallback };` })],
+  ['else-live', (on, off, value, fallback) => ({ setup: `let held; if (${ off }) held = ${ fallback }; else held = ${ value };` })],
+  ['fallback-init', (on, off, value, fallback) => ({ setup: `let held = ${ fallback }; if (${ on }) held = ${ value };` })],
+  ['nested', (on, off, value) => ({ setup: `let held; if (${ on }) { if (${ on }) held = ${ value }; }` })],
+  ['var-if', (on, off, value) => ({ setup: `if (${ on }) var held = ${ value };` })],
+  ['var-arms', (on, off, value, fallback) => ({ setup: `if (${ on }) { var held = ${ value }; } else { var held = ${ fallback }; }` })],
+  ['var-else-live', (on, off, value, fallback) => ({ setup: `if (${ off }) var held = ${ fallback }; else var held = ${ value };` })],
+  ['conditional-arms', (on, off, value, fallback) => ({ setup: `let held; ${ off } ? (held = ${ fallback }) : (held = ${ value });` })],
+  ['conditional-init', (on, off, value, fallback) => ({ setup: `const held = ${ on } ? ${ value } : ${ fallback };` })],
+  ['conditional-write', (on, off, value, fallback) => ({ setup: `let held; held = ${ off } ? ${ fallback } : ${ value };` })],
+  ['conditional-direct', (on, off, value, fallback) => ({ setup: '', subject: `(${ on } ? ${ value } : ${ fallback })` })],
+  ['if-false', (on, off, value) => ({ setup: `let held; if (${ off }) held = ${ value };` })],
+  ['dead-else', (on, off, value) => ({ setup: `let held; if (${ on }) {} else held = ${ value };` })],
+  ['dead-or', (on, off, value) => ({ setup: `let held; ${ on } || (held = ${ value });` })],
+  ['dead-and', (on, off, value) => ({ setup: `let held; ${ off } && (held = ${ value });` })],
+  ['dead-var', (on, off, value) => ({ setup: `if (${ off }) var held = ${ value };` })],
+  ['dead-conditional', (on, off, value, fallback) => ({ setup: `const held = ${ off } ? ${ value } : ${ fallback };` })],
+  ['and-init', (on, off, value) => ({ setup: `const held = ${ on } && ${ value };` })],
+  ['and-direct', (on, off, value) => ({ setup: '', subject: `(${ on } && ${ value })` })],
+  ['or-init', (on, off, value) => ({ setup: `const held = ${ off } || ${ value };` })],
+  ['dead-and-init', (on, off, value) => ({ setup: `const held = ${ off } && ${ value };` })],
+  ['dead-pattern-init', (on, off, value, fallback) => ({ setup: `let held = ${ value }; if (${ off }) [held] = [${ fallback }];` })],
+  // over a plain write the dead pattern is the alias registry's, and pure declines it by design, so the
+  // row rides the full-environment run alone
+  ['dead-pattern-write', (on, off, value, fallback) => ({
+    setup: `let held; held = ${ value }; if (${ off }) [held] = [${ fallback }];`,
+    strip: false,
+  })],
+];
+const UNDECIDED_GUARD_HOSTS = [
+  ['undecided', value => ({ setup: `let held; if (log.length > 9) held = ${ value };` })],
+  ['undecided-conditional', (value, fallback) => ({ setup: `const held = log.length > 9 ? ${ value } : ${ fallback };` })],
+  ['undecided-direct', (value, fallback) => ({ setup: '', subject: `(log.length > 9 ? ${ value } : ${ fallback })` })],
+  ['undecided-and', value => ({ setup: `const held = log.length > 9 && ${ value };` })],
+  // the arm that runs is not the textually last one; pure declines the pair by design, so the row rides
+  // the full-environment run alone
+  ['undecided-var-arms', (value, fallback) => ({ setup: `if (log.length < 9) var held = ${ value }; else var held = ${ fallback };`, strip: false })],
+];
+// the hosts that hand the value on through a selection instead of writing it
+const DECIDED_GUARD_SELECTIONS = new Set([
+  'conditional-init',
+  'conditional-write',
+  'conditional-direct',
+  'dead-conditional',
+  'and-init',
+  'and-direct',
+  'or-init',
+  'dead-and-init',
+  'undecided-conditional',
+  'undecided-direct',
+  'undecided-and',
+]);
+// a container a selection yields reaches its static through a slot of a selected literal, a route the
+// provider does not cover (its `AGENTS.md`: realistic spellings only), so the container rows take the
+// writing hosts alone
+const DECIDED_GUARD_WRITERS = [
+  ['string-key', "'at'", "'missing'", held => `[3, 4][${ held }](-1)`],
+  ['symbol-key', 'Symbol.iterator', "'@@iterator'", held => `typeof [3, 4][${ held }]`],
+  ['constructor', 'Map', 'Object', held => `${ held }.groupBy([3, 4], x => x % 2).size`],
+  ['container', '{ C: Map }', '{ C: Object }', held => `${ held }.C.groupBy([3, 4], x => x % 2).size`, { selected: false }],
+  ['realm-root', 'globalThis', '{ Array: Object }', held => `${ held }.Array.from([3, 4]).length`],
+];
+const DECIDED_GUARD_READS = [
+  ['same-scope', use => `return ${ use };`],
+  ['closure', use => `const read = () => ${ use }; return read();`],
+];
+function * decidedGuardRows(host, name, build) {
+  for (const [writer, value, fallback, use, { selected = true } = {}] of DECIDED_GUARD_WRITERS) {
+    if (!selected && DECIDED_GUARD_SELECTIONS.has(host)) continue;
+    const { setup, subject = 'held', strip = true } = build(value, fallback);
+    for (const [shape, read] of DECIDED_GUARD_READS) {
+      const body = `${ setup } try { ${ read(use(subject)) } } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`decided-guard-writes/${ name }/${ writer }/${ shape }`, `(() => { ${ body } })()`), strip };
+    }
+  }
+}
+function * generateDecidedGuardWrites() {
+  for (const [test, on, off] of DECIDED_GUARD_TESTS) {
+    for (const [host, build] of DECIDED_GUARD_HOSTS) {
+      yield * decidedGuardRows(host, `${ test }/${ host }`, (value, fallback) => build(on, off, value, fallback));
+    }
+  }
+  for (const [host, build] of UNDECIDED_GUARD_HOSTS) yield * decidedGuardRows(host, host, build);
+}
+
+// --- Reaching write scopes ---
+// The value a write gives a binding resolves where the write stands: a block around the read may
+// rebind a name the value reads, and the binding holds what the write saw - the key the read claims
+// is the write's. A block around the write rebinding that name names the value the write saw, and so
+// does a block holding the declaration, the write and the rebinding alike - not the function around
+// it. Read wrongly, the key names another method - the outer and inner values both name one - and the
+// receiver another constructor, whose `groupBy` answers another shape.
+const WRITE_SCOPE_HOSTS = [
+  ['write-block', { strip: true }, writer => ({
+    setup: `const src = ${ writer.outer }; let held; { const src = ${ writer.inner }; ${ heldWrite(writer) }; }`,
+    wrap: read => read,
+  })],
+  ['read-block', { strip: true }, writer => ({
+    setup: `const src = ${ writer.outer }; let held; ${ heldWrite(writer) };`,
+    wrap: read => `{ const src = ${ writer.inner }; ${ read } }`,
+  })],
+  // the block opens ahead of the `try` and closes after it: a write under the `try` is guarded, and
+  // pure leaves a guarded key native by design
+  ['shared-block', { strip: true }, writer => ({
+    setup: `const src = ${ writer.outer }; { const src = ${ writer.inner }; let held; ${ heldWrite(writer) };`,
+    wrap: read => read,
+    close: ' }',
+  })],
+];
+// the write a writer stores `held` with: a plain one off `src`, or the pattern it spells, whose slot
+// key reads `src`
+function heldWrite(writer) {
+  return writer.write ?? `held = ${ writer.pick }`;
+}
+const WRITE_SCOPE_WRITERS = [
+  { name: 'string-key', outer: "'flat'", inner: "'at'", pick: 'src', use: 'JSON.stringify([[3], [4]][held]())' },
+  { name: 'static-key', outer: "'from'", inner: "'of'", pick: 'src', use: 'Array[held](3).length' },
+  { name: 'symbol-key', outer: 'Symbol', inner: "{ iterator: 'own' }", pick: 'src.iterator', use: 'typeof ({ own: 1 })[held] + typeof [3, 4][held]' },
+  { name: 'receiver', outer: 'Map', inner: 'Object', pick: 'src', use: 'held.groupBy([3, 4], x => x % 2) instanceof Map' },
+  { name: 'pattern-key', outer: "'k1'", inner: "'k2'", write: "({ [src]: held } = { k1: 'flat', k2: 'at' })", use: 'JSON.stringify([[3], [4]][held]())' },
+];
+function * generateReachingWriteScopes() {
+  for (const [host, { strip }, build] of WRITE_SCOPE_HOSTS) {
+    for (const writer of WRITE_SCOPE_WRITERS) {
+      const { setup, wrap, close = '' } = build(writer);
+      for (const [shape, read] of DECIDED_GUARD_READS) {
+        const body = `${ setup } try { ${ wrap(read(writer.use)) } } catch (error) { return error.constructor.name; }${ close }`;
+        yield { ...snippet(`reaching-write-scopes/${ host }/${ writer.name }/${ shape }`, `(() => { ${ body } })()`), strip };
+      }
+    }
+  }
+}
+
+// --- Helper key selections ---
+// The iterator key helpers spell through a fallback the build decides - babel's regenerators, the
+// `regenerator-runtime` package, immutable: a `||` / `??` whose left is the well-known symbol, reached
+// through a decided `&&`, an alias of one or a static read off a decided realm selection, and that
+// static read spelled as the key itself. Each read is the iterator method under every spelling of the
+// test; the row compares the first value the method's iterator yields
+const HELPER_KEY_TESTS = [
+  ['function', "typeof Symbol == 'function'"],
+  ['function-reversed', "'function' == typeof Symbol"],
+  ['undefined', "typeof Symbol !== 'undefined'"],
+];
+const HELPER_KEY_SHAPES = [
+  ['realm-alias', on => `const realm = ${ on } ? Symbol : {}; const key = realm.iterator || '@@iterator';`, 'key'],
+  ['and-direct', () => '', on => `(${ on } && Symbol.iterator || '@@iterator')`],
+  ['alias-of-and', on => `const real = ${ on } && Symbol.iterator; const key = real || '@@iterator';`, 'key'],
+  ['realm-member', on => `const realm = ${ on } ? Symbol : {};`, 'realm.iterator'],
+  ['nullish', () => "const key = Symbol.iterator ?? '@@iterator';", 'key'],
+];
+function * generateHelperKeySelections() {
+  for (const [test, on] of HELPER_KEY_TESTS) {
+    for (const [shape, setup, key] of HELPER_KEY_SHAPES) {
+      const keyNode = typeof key === 'function' ? key(on) : key;
+      for (const [readShape, read] of DECIDED_GUARD_READS) {
+        const use = `[3, 4][${ keyNode }].call([3, 4]).next().value`;
+        const body = `${ setup(on) } try { ${ read(use) } } catch (error) { return error.constructor.name; }`;
+        yield { ...snippet(`helper-key-selections/${ test }/${ shape }/${ readShape }`, `(() => { ${ body } })()`), strip: true };
+      }
+    }
+  }
+}
+
+// --- Helper key loops ---
+// The async iterator helpers' lookup: a loop that tries the well-known symbol a decided test installs and
+// then its `'@@iterator'` fallback, the key read in the test, held, by `in` and by a call - beside the
+// async pair the helper spells too. Each read is the iterator method under every spelling of the test
+const HELPER_LOOP_SHAPES = [
+  ['tested', on => `for (${ on } && (o = Symbol.iterator); e--;) { if (o && null != (n = r[o])) return n.call(r).next().value; o = '@@iterator'; }`],
+  ['held', on => `for (${ on } && (o = Symbol.iterator); e--;) { n = r[o]; if (n) return n.call(r).next().value; o = '@@iterator'; }`],
+  ['in', on => `for (${ on } && (o = Symbol.iterator); e--;) { if (o in r) return 'iterable'; o = '@@iterator'; }`],
+  ['call', on => `for (${ on } && (o = Symbol.iterator); e--;) { if (o && r[o]) return r[o]().next().value; o = '@@iterator'; }`],
+  ['async-pair', on => `for (${ on } && (t = Symbol.asyncIterator, o = Symbol.iterator); e--;) {
+    if (t && null != (n = r[t])) return 'async';
+    if (o && null != (n = r[o])) return n.call(r).next().value;
+    t = '@@asyncIterator', o = '@@iterator';
+  }`],
+];
+function * generateHelperKeyLoops() {
+  for (const [test, on] of HELPER_KEY_TESTS) {
+    for (const [shape, loop] of HELPER_LOOP_SHAPES) {
+      const lookup = `function lookup(r) { var n, t, o, e = 2; ${ loop(on) } return 'none'; }`;
+      const body = `${ lookup } try { return lookup([3, 4]); } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`helper-key-loops/${ test }/${ shape }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
+// --- Selection container reads ---
+// A static read through a selection of containers: a decided one is its live container, an undecided one
+// is captured once and the arm that ran picks the read - held, in a slot, nested, spelled in place and under
+// a pattern. Each row reports which container answered and what it grouped
+const SELECTION_CONTAINER_TESTS = [
+  ['decided', () => "typeof Symbol != 'undefined'"],
+  ['undecided-true', flag => flag],
+  ['undecided-false', flag => `!${ flag }`],
+];
+const SELECTION_CONTAINER_SHAPES = [
+  ['held', on => `const box = ${ on } ? { C: Object } : { C: Map }; const r = box.C.groupBy([1, 2, 3], x => x % 2);`],
+  ['slot', on => `const box = { C: ${ on } ? Object : Map }; const r = box.C.groupBy([1, 2, 3], x => x % 2);`],
+  ['nested', on => `const box = { inner: ${ on } ? { C: Object } : { C: Map } }; const r = box.inner.C.groupBy([1, 2, 3], x => x % 2);`],
+  ['in-place', on => `const r = (${ on } ? { C: Object } : { C: Map }).C.groupBy([1, 2, 3], x => x % 2);`],
+  ['pattern', on => `const { C: { groupBy } } = ${ on } ? { C: Object } : { C: Map }; const r = groupBy([1, 2, 3], x => x % 2);`],
+];
+function * generateSelectionContainerReads() {
+  for (const [test, on] of SELECTION_CONTAINER_TESTS) {
+    for (const [shape, read] of SELECTION_CONTAINER_SHAPES) {
+      const report = "r instanceof Map ? 'map:' + r.get(1) : 'object:' + r[1]";
+      const body = `try { ${ read(on('flag')) } return ${ report }; } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`selection-container-reads/${ test }/${ shape }`, `(flag => { ${ body } })(true)`), strip: true };
+    }
+  }
+}
+
+// --- Agreeing key arms ---
+// A key both arms of an undecided test write, or a ternary whose arms spell it, is that key whichever arm
+// ran: read where it is written, from a closure, and spelled in place. The writes stand ahead of the `try`
+// the read is wrapped in - a construct under it is a guarded one, which pure leaves native by design
+const AGREEING_KEY_SHAPES = [
+  ['same-scope', "let key; if (flag) key = 'at'; else key = 'at';", 'return [1, 2][key](-1);'],
+  ['closure', "let key; if (flag) key = 'at'; else key = 'at'; const read = list => list[key](-1);", 'return read([1, 2]);'],
+  ['ternary', "const key = flag ? 'at' : 'at';", 'return [1, 2][key](-1);'],
+  ['in-place', '', "return [1, 2][flag ? 'at' : 'at'](-1);"],
+];
+function * generateAgreeingKeyArms() {
+  for (const flag of [true, false]) {
+    for (const [shape, setup, read] of AGREEING_KEY_SHAPES) {
+      const body = `${ setup } try { ${ read } } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`agreeing-key-arms/${ flag }/${ shape }`, `(flag => { ${ body } })(${ flag })`), strip: true };
+    }
+  }
+}
+
+// --- Patched global read order ---
+// A file that patches a global still reads the slot this build serves where the read runs before every
+// write of it in its frame - a value, a presence test deciding a key, a function patching it after the
+// read, the value a write of the slot stores - while a read after the patch, or deferred into a
+// function, reads the user's slot, and so does an alias captured there: a detect through it keeps its
+// fallback. The stripped
+// realm lacks `Promise`, so only the reads ahead of the patch run there. Every evaluation runs in the
+// shard's own realm, so the module puts the slot back as it ends, through a computed key no transform
+// reads as a write of it
+const PATCHED_GLOBAL_ROWS = [
+  ['early-value', 'const early = typeof Promise;', 'early', true],
+  [
+    'decided-key',
+    "let key; if (typeof Promise != 'undefined') key = 'at';",
+    '(() => { try { return [3, 4][key](-1); } catch (error) { return error.constructor.name; } })()',
+    true,
+  ],
+  ['late-value', '', 'Promise.name', false],
+  ['deferred-read', 'function read() { return typeof Promise; }', 'read()', false],
+  [
+    'function-read-ahead',
+    'function install() { const native = Promise; globalThis.Promise = function ShimPromise() {}; return native.name; }',
+    'install()',
+    true,
+  ],
+  ['own-value-wrap', 'let captured; globalThis.Promise = (value => (captured = value, value))(Promise);', 'typeof captured', true],
+  ['own-value-detect', 'let captured; globalThis.Promise = (captured = Promise) || function DetectShim() {};', 'typeof captured', true],
+  [
+    'alias-captured-after-patch',
+    'globalThis.Promise = undefined; const native = Promise; globalThis.Promise = native || function Shim() {}; const installed = globalThis.Promise;',
+    "typeof installed == 'function' ? installed.name : typeof installed",
+    false,
+  ],
+  [
+    'alias-captured-after-patch-ternary',
+    "globalThis.Promise = undefined; const native = Promise; globalThis.Promise = typeof native == 'function' ? native : function Shim() {}; const installed = globalThis.Promise;",
+    "typeof installed == 'function' ? installed.name : typeof installed",
+    false,
+  ],
+];
+const PROMISE_SLOT_SAVE = "const promiseKey = ['Pro', 'mise'].join(''); const savedPromise = globalThis[promiseKey];";
+const PROMISE_SLOT_RESTORE = 'if (savedPromise === undefined) delete globalThis[promiseKey]; else globalThis[promiseKey] = savedPromise;';
+function * generatePatchedGlobalReadOrder() {
+  for (const [name, before, result, strip] of PATCHED_GLOBAL_ROWS) {
+    const row = snippet(`patched-global-read-order/${ name }`, result);
+    const setup = `${ PROMISE_SLOT_SAVE } ${ before } globalThis.Promise = function ShimPromise() {};`;
+    const code = row.code.replace('export const r =', `${ setup }\nexport const r =`);
+    yield { ...row, code: `${ code }\n${ PROMISE_SLOT_RESTORE }`, strip };
+  }
+}
+
+// --- Decided for-of head reads ---
+// A `||` / `??` whose left is a for-of head over an inline list of built-ins never runs its right: each
+// pass holds one element, so every host reading the selection reads the head spelled alone - a member, a
+// pattern, an alias, an array element beside a sibling, a nested level, an `in` test, behind an effect
+// prefix, with `?.` - and the dead right's effect never runs. A falsy element, or a head the body writes,
+// keeps the right live, and its static answers the passes the element misses. Every pass reports what it
+// read, so a read served for one element and missed for another shows on the pass that missed it. A read the
+// rewrite leaves as written reads its static off the constructor the head holds, so nothing touches that static
+// ahead of the read: the entry the constructor takes is the choice such a row pins, and one carrying the static
+// keeps the result the snippet's own
+const RUN_SHOW = `function run(read) { try { return show(read()); } catch (error) { return error.constructor.name; } }
+  function show(value) {
+    if (value instanceof Map) return ['map', value.get(1)];
+    if (value && typeof value.next == 'function') return ['iterator', value.next().value];
+    if (value && typeof value == 'object') return ['object', value[1]];
+    return value;
+  }`;
+const HEAD_READ_LISTS = [
+  ['map-array', ['Map', 'Array'], 'groupBy', '[1, 2, 3], x => x % 2'],
+  ['array-number', ['Array', 'Number'], 'from', '[1, 2]'],
+  ['number', ['Number'], 'isInteger', '7'],
+  ['iterator-array', ['Iterator', 'Array'], 'from', '[1, 2]'],
+  // a falsy element keeps the right live: the pass holding it reads the right's static
+  ['map-null', ['Map', 'null'], 'groupBy', '[1, 2, 3], x => x % 2'],
+];
+const HEAD_READ_KINDS = [
+  ['const', elements => `const X of [${ elements.join(', ') }]`, ''],
+  ['let', elements => `let X of [${ elements.join(', ') }]`, ''],
+  ['var', elements => `var X of [${ elements.join(', ') }]`, ''],
+  ['array-pattern', elements => `const [X] of [${ elements.map(element => `[${ element }]`).join(', ') }]`, ''],
+  ['object-pattern', elements => `const { C: X } of [${ elements.map(element => `{ C: ${ element } }`).join(', ') }]`, ''],
+  // the body writes the head from the second pass on, so the right runs there
+  ['written', elements => `let X of [${ elements.join(', ') }]`, 'if (out.length) X = null;'],
+];
+const HEAD_READ_SELECTIONS = [
+  ['or', 'X || Object'],
+  ['nullish', 'X ?? Object'],
+  ['or-effect-right', "X || (log.push('r'), Object)"],
+];
+const HEAD_READ_HOSTS = [
+  ['member-call', (selection, key, args) => `return (${ selection }).${ key }(${ args });`],
+  ['member-read', (selection, key, args) => `const read = (${ selection }).${ key }; return read(${ args });`],
+  ['computed', (selection, key, args) => `return (${ selection })['${ key }'](${ args });`],
+  ['optional-member', (selection, key, args) => `return (${ selection })?.${ key }(${ args });`],
+  ['optional-call', (selection, key, args) => `return (${ selection }).${ key }?.(${ args });`],
+  ['effect-prefix', (selection, key, args) => `return (log.push('p'), ${ selection }).${ key }(${ args });`],
+  ['closure', (selection, key, args) => `const read = () => (${ selection }).${ key }(${ args }); return read();`],
+  ['declaration', (selection, key, args) => `const { ${ key }: read } = ${ selection }; return read(${ args });`],
+  ['assignment', (selection, key, args) => `let read; ({ ${ key }: read } = ${ selection }); return read(${ args });`],
+  ['param-default', (selection, key, args) => `return (({ ${ key }: read } = ${ selection }) => read(${ args }))();`],
+  ['nested-level', (selection, key, args) => `const { W: { ${ key }: read } } = { W: ${ selection } }; return read(${ args });`],
+  ['alias-member', (selection, key, args) => `const held = ${ selection }; return held.${ key }(${ args });`],
+  ['alias-pattern', (selection, key, args) => `const held = ${ selection }; const { ${ key }: read } = held; return read(${ args });`],
+  ['array-sibling', (selection, key, args) => `const [{ ${ key }: read }, count] = [${ selection }, 1]; log.push(count); return read(${ args });`],
+  ['in', (selection, key) => `return '${ key }' in (${ selection });`],
+];
+// the head kinds beside a plain `const` ride the hosts whose routes differ most
+const HEAD_READ_KIND_HOSTS = new Set(['member-call', 'declaration', 'alias-member']);
+// cells where both emitters leave the read native, as they leave its twin - the head spelled alone - native:
+// a decided selection reads as that twin, so these are the twin's gaps, not the decision's
+const HEAD_READ_GAPS = [
+  // a head over several elements, a native static owner among them, read with `?.`, as a parameter
+  // default's pattern or as an array element's pattern: the twin `X?.from` / `({ from } = X)` takes no
+  // per-element guard
+  { lists: ['array-number', 'iterator-array'], hosts: ['optional-member', 'optional-call', 'param-default', 'array-sibling'] },
+  // an `in` test over such a head, or over a head a falsy element leaves undecided, probes the native
+  // constructor (an undecided selection tested by `in` stays native by design)
+  { lists: ['array-number', 'iterator-array', 'map-null'], hosts: ['in'] },
+  // a written head is no decided left, and an undecided `||` whose left is a binding holding a native static
+  // owner among other values takes no guard where the twin `X.from` takes one
+  { lists: ['array-number', 'number'], kinds: ['written'] },
+];
+function headReadGap(list, kind, host) {
+  return HEAD_READ_GAPS.some(gap => gap.lists.includes(list) && (!gap.kinds || gap.kinds.includes(kind))
+    && (!gap.hosts || gap.hosts.includes(host)));
+}
+function * generateDecidedForOfHeadReads() {
+  for (const [list, elements, key, args] of HEAD_READ_LISTS) {
+    for (const [kind, head, write] of HEAD_READ_KINDS) {
+      for (const [selection, spelled] of HEAD_READ_SELECTIONS) {
+        if (kind !== 'const' && selection === 'or-effect-right') continue;
+        for (const [host, read] of HEAD_READ_HOSTS) {
+          if (kind !== 'const' && !HEAD_READ_KIND_HOSTS.has(host) || headReadGap(list, kind, host)) continue;
+          const body = `${ RUN_SHOW } const out = [];
+            for (${ head(elements) }) { ${ write } out.push(run(() => { ${ read(spelled, key, args) } })); }
+            return out;`;
+          yield { ...snippet(`decided-for-of-head-reads/${ list }/${ kind }/${ selection }/${ host }`, `(() => { ${ body } })()`), strip: true };
+        }
+      }
+    }
+  }
+}
+
+// --- Open pattern-slot lefts ---
+// A `||` / `??` or a presence test whose left reads a name a pattern binds to a slot holding no one certain
+// value - one a write replaced, one a call it escaped to replaced, one a spread shifted, one of a container a
+// write replaced, an alias of such a name, a name of an alias chain a parameter shadows at the read - decides
+// nothing in usage-global, and here the slot holds a falsy value, so the right runs and its static has to be
+// there. A slot captured before its write, and one nothing writes, hold the built-in
+const OPEN_SLOT_LEFTS = [
+  ['written-slot', 'const box = { C: Map }; box.C = null; const { C: L } = box;'],
+  ['escaped-slot', 'function clobber(target) { target.C = null; } const held = { C: Map }; clobber(held); const { C: L } = held;'],
+  ['spread-shifted', 'const extra = [null]; const [L] = [...extra, Map];'],
+  ['spread-shifted-hole', 'const extra = []; const [, L] = [...extra, Map];'],
+  ['written-element', 'const slots = [Map]; slots[0] = null; const [L] = slots;'],
+  ['written-container', 'let pair = { C: Map }; if (cond) pair = { C: null }; const { C: L } = pair;'],
+  ['nested-written-slot', 'const box = { W: { C: Map } }; box.W.C = null; const { W: { C: L } } = box;'],
+  ['alias-of-open', 'const box = { C: Map }; box.C = null; const { C: open } = box; const L = open;'],
+  // the read stands under a parameter named as the chain's written name, holding the unwritten built-in
+  ['shadowed-chain', 'let G = Map; if (cond) G = null; const L = G;', read => `(function (G) { return ${ read }; })(Map)`],
+  ['captured-before-write', 'const late = { C: Map }; const { C: L } = late; late.C = null;'],
+  ['unwritten', 'const plain = { C: Map }; const { C: L } = plain;'],
+];
+const OPEN_SLOT_SELECTIONS = [
+  ['or', 'L || Object'],
+  ['nullish', 'L ?? Object'],
+  ['typeof', "typeof L == 'function' ? L : Object"],
+  ['truthy', 'L ? L : Object'],
+];
+const OPEN_SLOT_HOSTS = [
+  ['member-call', selection => `(${ selection }).groupBy([1, 2, 3], x => x % 2)`],
+  ['declaration', selection => `(() => { const { groupBy: read } = ${ selection }; return read([1, 2, 3], x => x % 2); })()`],
+  ['alias-member', selection => `(() => { const held = ${ selection }; return held.groupBy([1, 2, 3], x => x % 2); })()`],
+];
+function * generateOpenPatternSlotLefts() {
+  for (const [left, setup, wrap = read => read] of OPEN_SLOT_LEFTS) {
+    for (const [selection, spelled] of OPEN_SLOT_SELECTIONS) {
+      for (const [host, read] of OPEN_SLOT_HOSTS) {
+        const body = `${ RUN_SHOW } ${ setup } return run(() => ${ wrap(read(spelled)) });`;
+        yield { ...snippet(`open-pattern-slot-lefts/${ left }/${ selection }/${ host }`, `(() => { ${ body } })()`), strip: true };
+      }
+    }
+  }
+}
+
+// --- Holder-written constructors ---
+// A constructor written through a name holding a selection of container names, a mixed selection, an alias
+// of a member path or a chain of them lands on the slot of whichever container the name reaches, so a static
+// read back by the container's path, through the holder, under a pattern or after the container is handed out
+// reaches the written constructor's static: usage-global loads it, and pure takes the entry carrying it. With
+// the flag off the write lands in the other arm, and the read takes the slot's own value
+const WRITTEN_HOLDERS = [
+  {
+    name: 'ternary',
+    setup: 'const listed = { C: Object }; const other = { C: Set }; const either = flag ? listed : other;',
+    holder: 'either',
+    path: 'listed',
+    root: 'listed',
+    rest: '',
+  },
+  {
+    name: 'logical',
+    setup: 'const first = { C: Object }; const second = { C: Set }; const pick = first || second;',
+    holder: 'pick',
+    path: 'first',
+    root: 'first',
+    rest: '',
+  },
+  {
+    name: 'alias-of-selection',
+    setup: 'const box = { C: Object }; const spare = { C: Set }; const held = flag ? box : spare; const named = held;',
+    holder: 'named',
+    path: 'box',
+    root: 'box',
+    rest: '',
+  },
+  {
+    name: 'decided',
+    setup: "const parsed = { C: Object }; const unused = { C: Set }; const decided = typeof Symbol != 'undefined' ? parsed : unused;",
+    holder: 'decided',
+    path: 'parsed',
+    root: 'parsed',
+    rest: '',
+  },
+  {
+    name: 'empty-arm',
+    setup: 'const empty = {}; const filled = { C: Set }; const via = flag ? empty : filled;',
+    holder: 'via',
+    path: 'empty',
+    root: 'empty',
+    rest: '',
+  },
+  {
+    name: 'mixed',
+    setup: 'const listed = { C: Object }; const either = flag ? listed : { C: Set };',
+    holder: 'either',
+    path: 'listed',
+    root: 'listed',
+    rest: '',
+  },
+  {
+    name: 'path-alias',
+    setup: 'const box = { inner: { C: Object } }; const alias = box.inner;',
+    holder: 'alias',
+    path: 'box.inner',
+    root: 'box',
+    rest: '.inner',
+  },
+  {
+    name: 'path-chain',
+    setup: 'const holder = { inner: { C: Object } }; const first = holder.inner; const second = first;',
+    holder: 'second',
+    path: 'holder.inner',
+    root: 'holder',
+    rest: '.inner',
+  },
+  {
+    name: 'deep-chain',
+    setup: 'const nest = { inner: { deep: { C: Object } } }; const outer = nest.inner; const deep = outer.deep;',
+    holder: 'deep',
+    path: 'nest.inner.deep',
+    root: 'nest',
+    rest: '.inner.deep',
+  },
+  {
+    name: 'middle-read',
+    setup: 'const tree = { inner: { deep: { C: Object } } }; const branch = tree.inner; const leaf = branch.deep;',
+    holder: 'leaf',
+    path: 'branch.deep',
+    root: 'tree',
+    rest: '.inner.deep',
+  },
+  {
+    name: 'path-off-selection',
+    setup: 'const first = { inner: { C: Object } }; const second = { inner: { C: Object } }; const picked = flag ? first : second; const held = picked.inner;',
+    holder: 'held',
+    path: 'first.inner',
+    root: 'first',
+    rest: '.inner',
+  },
+  {
+    name: 'selection-of-path',
+    setup: 'const wrapper = { inner: { C: Object } }; const spare = { C: Object }; const picked = flag ? wrapper.inner : spare;',
+    holder: 'picked',
+    path: 'wrapper.inner',
+    root: 'wrapper',
+    rest: '.inner',
+  },
+  {
+    name: 'alias-in-selection',
+    setup: 'const box = { inner: { C: Object } }; const other = { C: Object }; const alias = box.inner; const either = flag ? alias : other;',
+    holder: 'either',
+    path: 'box.inner',
+    root: 'box',
+    rest: '.inner',
+  },
+];
+const HOLDER_WRITERS = [
+  ['map', 'Map', 'groupBy', '[1, 2, 3], x => x % 2', true],
+  ['iterator', 'Iterator', 'from', '[1, 2]', true],
+  // a native static owner keeps its own name in pure, where a static read through a written slot stays
+  // native (realistic spellings only): the usage-global leg alone judges these rows
+  ['number', 'Number', 'isInteger', '7', false],
+];
+// each read runs in the frame of the write, past it, so the write dominates it. A container handed to a
+// function this file declares is read there through a parameter, which no census follows, so the handout
+// goes to code the build cannot see. `flag` off reads the slot's own value back, and pure leaves a static
+// read through a written slot native: a by-path or handed-out read of the native owner the slot keeps
+// rides the usage-global leg alone
+const HOLDER_READS = [
+  ['by-path', ({ path }, key, args) => `return show(${ path }.C.${ key }(${ args }));`, flag => flag],
+  ['by-holder', ({ holder }, key, args) => `return show(${ holder }.C.${ key }(${ args }));`, () => true],
+  ['pattern', ({ path }, key, args) => `const { C: { ${ key }: read } } = ${ path }; return show(read(${ args }));`, () => true],
+  [
+    'handed-out',
+    ({ root, rest }, key, args) => `const install = Function('target', 'return target${ rest }.C.${ key }(${ args });');
+      return show(install(${ root }));`,
+    flag => flag,
+  ],
+];
+function * generateHolderWrittenConstructors() {
+  for (const holder of WRITTEN_HOLDERS) {
+    for (const [writer, written, key, args, served] of HOLDER_WRITERS) {
+      for (const [shape, read, readServed] of HOLDER_READS) {
+        for (const flag of served ? [true, false] : [true]) {
+          const body = `${ RUN_SHOW } ${ holder.setup } ${ holder.holder }.C = ${ written };
+            try { ${ read(holder, key, args) } } catch (error) { return error.constructor.name; }`;
+          yield {
+            ...snippet(`holder-written-constructors/${ holder.name }/${ writer }/${ shape }/${ flag }`, `(flag => { ${ body } })(${ flag })`),
+            strip: served && readServed(flag),
+          };
+        }
+      }
+    }
+  }
+}
+
+// --- Container selections handed to calls ---
+// A selection of containers handed to a call that writes its slot through the parameter, or written through
+// the binding, holds what the write put there whichever arm the selection holds: usage-global loads the
+// written constructor's static, and pure reads the written slot natively, so those rows ride the usage-global
+// leg alone. A call that only reads the slot, or skips its write, leaves the arm the selection yields. The
+// read stands in the frame of the call, past it: a read deferred into a closure is no read the call-write
+// proof dominates
+const HANDED_SELECTIONS = [
+  ['open-ternary', 'flag ? { C: Map } : { C: Set }'],
+  ['decided-ternary', "typeof Symbol != 'undefined' ? { C: Map } : { C: Set }"],
+  ['decided-or', '{ C: Map } || { C: Set }'],
+];
+const HANDED_CALLS = [
+  ['read-only-call', 'function peek(target) { return target.C; } peek(grouped);', true],
+  ['writing-call', 'function regroup(target) { target.C = Object; } regroup(grouped);', false],
+  ['direct-write', 'grouped.C = Object;', false],
+  ['skipped-write-call', 'function maybe(target) { if (log.length > 99) target.C = Object; } maybe(grouped);', false],
+];
+const HANDED_READS = [
+  ['member', 'return show(grouped.C.groupBy([1, 2, 3], x => x % 2));'],
+  ['pattern', 'const { C: { groupBy: read } } = grouped; return show(read([1, 2, 3], x => x % 2));'],
+  ['alias', 'const owner = grouped.C; return show(owner.groupBy([1, 2, 3], x => x % 2));'],
+];
+function * generateContainerSelectionsHandedToCalls() {
+  for (const [selection, spelled] of HANDED_SELECTIONS) {
+    for (const [call, statements, strip] of HANDED_CALLS) {
+      for (const [shape, read] of HANDED_READS) {
+        for (const flag of [true, false]) {
+          const body = `${ RUN_SHOW } const grouped = ${ spelled }; ${ statements }
+            try { ${ read } } catch (error) { return error.constructor.name; }`;
+          yield {
+            ...snippet(`container-selections-handed-to-calls/${ selection }/${ call }/${ shape }/${ flag }`, `(flag => { ${ body } })(${ flag })`),
+            strip,
+          };
+        }
+      }
+    }
+  }
+}
+
+// --- Keyed captures beside siblings ---
+// A computed key under a hop beside a sibling the capture splits off, over a receiver read through a call,
+// behind an effect prefix, off a member path, through a getter or by name: the receiver is read once, the key
+// runs once where the source wrote it, the sibling reads the captured receiver, and the keyed leaf takes its
+// static - stripped, a leaf left on the native read is gone. Each receiver holds a literal of its own: a
+// literal stored into another one's slot leaves its own slots unproven
+const KEYED_CAPTURE_LITERAL = '{ w: Array, n: Number, d: { w: Array }, other: 1 }';
+const KEYED_CAPTURE_RECEIVERS = [
+  ['call', `const make = () => (log.push('make'), ${ KEYED_CAPTURE_LITERAL });`, 'make()'],
+  ['prefixed', `const box = ${ KEYED_CAPTURE_LITERAL };`, "(log.push('p'), box)"],
+  ['counter-prefixed', `const box = ${ KEYED_CAPTURE_LITERAL };`, '(count++, box)'],
+  ['member', `const ns = { box: ${ KEYED_CAPTURE_LITERAL } };`, 'ns.box'],
+  ['getter', `const lazy = { get box() { log.push('get'); return ${ KEYED_CAPTURE_LITERAL }; } };`, 'lazy.box'],
+  ['name', `const box = ${ KEYED_CAPTURE_LITERAL };`, 'box'],
+];
+const KEYED_CAPTURE_PATTERNS = [
+  ['sibling-after', "{ w: { [(log.push('k'), 'from')]: from }, other }", 'from, other', '[from([1, 2]).length, other, count]'],
+  ['sibling-before', "{ other, w: { [(log.push('k'), 'from')]: from } }", 'from, other', '[from([1, 2]).length, other, count]'],
+  ['inner-sibling', "{ w: { [(log.push('k'), 'from')]: from, of }, other }", 'from, of, other', '[from([1, 2]).length, of(5).length, other, count]'],
+  [
+    'two-keyed',
+    "{ w: { [(log.push('k1'), 'from')]: from }, n: { [(log.push('k2'), 'isInteger')]: isInteger } }",
+    'from, isInteger',
+    '[from([1, 2]).length, isInteger(7), count]',
+  ],
+  ['deeper', "{ d: { w: { [(log.push('k'), 'from')]: from } }, other }", 'from, other', '[from([1, 2]).length, other, count]'],
+];
+const KEYED_CAPTURE_HOSTS = [
+  ['const', (pattern, receiver, names, report) => `const ${ pattern } = ${ receiver }; return ${ report };`],
+  ['let', (pattern, receiver, names, report) => `let ${ pattern } = ${ receiver }; return ${ report };`],
+  ['var', (pattern, receiver, names, report) => `var ${ pattern } = ${ receiver }; return ${ report };`],
+  ['assignment', (pattern, receiver, names, report) => `let ${ names }; (${ pattern } = ${ receiver }); return ${ report };`],
+  ['for-init', (pattern, receiver, names, report) => `for (const ${ pattern } = ${ receiver }; ;) return ${ report };`],
+];
+// an assignment over a member receiver extracts its first keyed level and leaves the levels after it on a
+// native residual, whose statics both emitters leave unserved - a gap of the assignment host, the same
+// before this route
+const KEYED_CAPTURE_GAPS = new Set(['member/two-keyed/assignment', 'getter/two-keyed/assignment']);
+function * generateKeyedCapturesBesideSiblings() {
+  for (const [receiver, setup, spelled] of KEYED_CAPTURE_RECEIVERS) {
+    for (const [shape, pattern, names, report] of KEYED_CAPTURE_PATTERNS) {
+      for (const [host, build] of KEYED_CAPTURE_HOSTS) {
+        if (KEYED_CAPTURE_GAPS.has(`${ receiver }/${ shape }/${ host }`)) continue;
+        const body = `let count = 0; ${ setup }
+          try { ${ build(pattern, spelled, names, report) } } catch (error) { return error.constructor.name; }`;
+        yield { ...snippet(`keyed-captures-beside-siblings/${ receiver }/${ shape }/${ host }`, `(() => { ${ body } })()`), strip: true };
+      }
+    }
+  }
+}
+
+// --- Prototype installs through owners ---
+// The setter read off a name holding the `Object` / `Reflect` namespace - an alias of the global, of a realm
+// read, a chain of them, an open selection of owners or of setters - installs the prototype as the setter read
+// off the namespace itself does, so the object dispatches the installed family, a typed initializer included;
+// a user object owning a `setPrototypeOf` installs nothing. Each method lives on several families, so a target
+// typed as the wrong one reads another implementation
+const PROTOTYPE_INSTALLERS = [
+  ['reflect-alias', 'const R = Reflect;', 'R.setPrototypeOf'],
+  ['reflect-realm', 'const R = globalThis.Reflect;', 'R.setPrototypeOf'],
+  ['object-alias', 'const O = Object;', 'O.setPrototypeOf'],
+  ['object-realm', 'const O = globalThis.Object;', 'O.setPrototypeOf'],
+  ['alias-chain', 'const first = Reflect; const R = first;', 'R.setPrototypeOf'],
+  ['open-owners', '', '(flag ? Object : Reflect).setPrototypeOf'],
+  ['held-open-owners', 'const owner = flag ? Object : Reflect;', 'owner.setPrototypeOf'],
+  ['open-setters', '', '(flag ? Object.setPrototypeOf : Reflect.setPrototypeOf)'],
+  ['namespace', '', 'Reflect.setPrototypeOf'],
+  ['user-owner', 'const U = { setPrototypeOf() {} };', 'U.setPrototypeOf'],
+];
+const PROTOTYPE_INSTALL_TARGETS = [
+  ['literal', 'const target = { length: 2, 0: 4, 1: 3 };'],
+  ['typed', 'const target = new Map(); target.length = 2; target[0] = 4; target[1] = 3;'],
+];
+const PROTOTYPE_INSTALL_METHODS = [
+  ['at', 'target.at(-1)'],
+  ['includes', 'target.includes(3)'],
+  ['toSorted', 'target.toSorted()'],
+];
+// a typed initializer is read for a later install only in a file whose identifier-rooted member chains spell
+// the setter - a setter read straight off an open selection of owners spells none, so the target keeps its type
+const PROTOTYPE_INSTALL_GAPS = new Set(['open-owners/typed']);
+function * generatePrototypeInstallsThroughOwners() {
+  for (const [installer, setup, setter] of PROTOTYPE_INSTALLERS) {
+    const flags = `${ setup }${ setter }`.includes('flag') ? [true, false] : [true];
+    for (const [target, declare] of PROTOTYPE_INSTALL_TARGETS) {
+      if (PROTOTYPE_INSTALL_GAPS.has(`${ installer }/${ target }`)) continue;
+      for (const [method, read] of PROTOTYPE_INSTALL_METHODS) {
+        for (const flag of flags) {
+          const body = `${ RUN_SHOW } ${ setup } ${ declare } ${ setter }(target, Array.prototype);
+            try { return show(${ read }); } catch (error) { return error.constructor.name; }`;
+          yield {
+            ...snippet(`prototype-installs-through-owners/${ installer }/${ target }/${ method }/${ flag }`, `(flag => { ${ body } })(${ flag })`),
+            strip: true,
+          };
+        }
+      }
+    }
+  }
+}
+
+// --- Realm install read order ---
+// The realm's own install (`globalThis.self = globalThis`) writes the realm slot it names. The realm name
+// read as itself ahead of the install, in the install's own frame, is a global's read like any other and
+// takes what this build serves - in place, through an alias, under a pattern, behind a presence test -
+// while a read after it, or deferred into a function the code calls after it, reads the user's slot. A
+// realm name read as a KEY (`globalThis.self`) keeps or drops its hop by name alone, so what is read below
+// that hop stays raw on either side of the install, and those rows ride the full environment alone; a
+// global read off the realm root the install does not write is served everywhere. Node has no `self`, so
+// the rig holds the realm slots the install writes, and puts them back
+const REALM_INSTALL_WRITES = [
+  ['assign', 'globalThis.self = globalThis;'],
+  ['detect', 'globalThis.self = globalThis.self || globalThis;'],
+];
+// each read binds `value` in the frame it stands in
+const REALM_INSTALL_READS = [
+  ['as-itself', 'const value = self.Array.from([3, 4]).length;', 'served'],
+  ['as-itself-static', 'const value = self.Map.groupBy([3, 4], x => x % 2).size;', 'served'],
+  ['alias-as-itself', 'const realm = self; const value = realm.Array.of(3, 4).length;', 'served'],
+  ['pattern-as-itself', 'const { Array: { from } } = self; const value = from([3, 4]).length;', 'served'],
+  ['tested-as-itself', "const value = typeof self == 'object' ? self.Array.from([3]).length : -1;", 'served'],
+  ['hop', 'const value = globalThis.self.Array.from([3, 4]).length;', 'hop'],
+  ['computed-hop', "const value = globalThis['self'].Array.from([3, 4]).length;", 'hop'],
+  ['pattern-hop', 'const { self: realm } = globalThis; const value = realm.Array.from([3, 4]).length;', 'hop'],
+  ['nested-pattern-hop', 'const { self: { Array: { from } } } = globalThis; const value = from([3, 4]).length;', 'hop'],
+  ['root-global', 'const value = globalThis.Map.groupBy([3, 4], x => x % 2).size;', 'root'],
+];
+const REALM_INSTALL_POSITIONS = [
+  ['ahead', (install, read) => `${ read } ${ install } return value;`],
+  ['after', (install, read) => `${ install } ${ read } return value;`],
+  ['deferred', (install, read) => `const read = () => { ${ read } return value; }; ${ install } return read();`],
+];
+function * generateRealmInstallReadOrder() {
+  for (const [write, install] of REALM_INSTALL_WRITES) {
+    for (const [shape, read, kind] of REALM_INSTALL_READS) {
+      for (const [position, build] of REALM_INSTALL_POSITIONS) {
+        const body = `try { ${ build(install, read) } } catch (error) { return error.constructor.name; }`;
+        const strip = kind === 'root' || kind === 'served' && position === 'ahead';
+        yield { ...snippet(`realm-install-read-order/${ write }/${ shape }/${ position }`, `(() => { ${ body } })()`, { rig: true }), strip };
+      }
+    }
+  }
+}
+
+// --- Realm member presence tests ---
+// A presence test of a realm member decides like its `typeof` twin: the build serves the global, so the
+// install under it never runs, and every read of the global - ahead of the install, past it, through an
+// alias, under a pattern, deferred into a function - takes what this build serves; stripped, a test
+// left undecided leaves the reads past it on the slot the user may have written, which the stripped
+// realm lacks. The shim the install would put there answers differently, so an install a leg let run
+// shows in the full environment too
+const PRESENCE_MEMBER_TESTS = [
+  ['not-member', name => `!globalThis.${ name }`],
+  ['not-self-member', name => `!self.${ name }`],
+  ['typeof-member', name => `typeof globalThis.${ name } == 'undefined'`],
+  ['typeof-self-member', name => `typeof self.${ name } === 'undefined'`],
+  ['reversed-typeof-member', name => `'undefined' == typeof globalThis.${ name }`],
+  ['computed-member', name => `!globalThis['${ name }']`],
+  ['alias-member', name => `!realm.${ name }`],
+  ['typeof-bare', name => `typeof ${ name } == 'undefined'`],
+];
+const PRESENCE_MEMBER_HOSTS = [
+  ['if', (test, install) => `if (${ test }) ${ install };`],
+  ['and', (test, install) => `${ test } && (${ install });`],
+  ['ternary', (test, install) => `${ test } ? (${ install }) : 0;`],
+];
+const PRESENCE_MEMBER_GLOBALS = [
+  [
+    'map',
+    'Map',
+    'const Shim = { groupBy: () => ({ size: -1 }) };',
+    name => `${ name }.groupBy([3, 4], x => x % 2).size`,
+    'const { groupBy: read } = Map; return read([3, 4], x => x % 2).size;',
+  ],
+  [
+    'iterator',
+    'Iterator',
+    'const Shim = { from: () => ({ next: () => ({ value: -1 }) }) };',
+    name => `${ name }.from([3, 4]).next().value`,
+    'const { from: read } = Iterator; return read([3, 4]).next().value;',
+  ],
+];
+// where the reads stand against the guarded install
+const PRESENCE_MEMBER_READS = [
+  ['ahead', (global, use) => ({ before: `const value = ${ use(global) };`, after: 'return value;' })],
+  ['after', (global, use) => ({ before: '', after: `return ${ use(global) };` })],
+  ['alias', (global, use) => ({ before: '', after: `const held = ${ global }; return ${ use('held') };` })],
+  ['pattern', (global, use, pattern) => ({ before: '', after: pattern })],
+  ['deferred', (global, use) => ({ before: `const read = () => ${ use(global) };`, after: 'return read();' })],
+];
+function * generateRealmMemberPresenceTests() {
+  for (const [test, spell] of PRESENCE_MEMBER_TESTS) {
+    for (const [host, guard] of PRESENCE_MEMBER_HOSTS) {
+      for (const [label, global, shim, use, pattern] of PRESENCE_MEMBER_GLOBALS) {
+        for (const [shape, place] of PRESENCE_MEMBER_READS) {
+          const { before, after } = place(global, use, pattern);
+          const install = guard(spell(global), `globalThis.${ global } = Shim`);
+          const body = `${ shim } const realm = globalThis; try { ${ before } ${ install } ${ after } } catch (error) { return error.constructor.name; }`;
+          yield { ...snippet(`realm-member-presence-tests/${ test }/${ host }/${ label }/${ shape }`, `(() => { ${ body } })()`), strip: true };
+        }
+      }
+    }
+  }
+}
+
+// --- Installs in arms never taken ---
+// An install under a presence test the build always answers never runs, wherever it stands - at the top,
+// in a function called before or after the reads, in a closure nobody calls, in a loop, in a static
+// block - so every read of what it would write keeps what this build serves: a global, the realm's own
+// name, a static and a well-known symbol key alike. A static's `typeof` test is no presence test the build
+// answers (a static may be any value), so its install may run and the reads stay on the receiver: those
+// rows ride the full environment alone, and so do the symbol keys, which the stripped realm keeps. A static
+// install under a test of the static itself keeps every read of the pair on its receiver (the accepted
+// boundary of a static install): in the stripped realm the user's shim legitimately answers, so those rows
+// ride the full environment alone too
+const NEVER_TAKEN_INSTALLS = [
+  ['global', "typeof Iterator == 'undefined'", 'globalThis.Iterator = Shim', 'Iterator.from([3, 4]).next().value', true],
+  ['bare-global', "typeof Iterator == 'undefined'", 'Iterator = Shim', 'Iterator.from([3, 4]).next().value', true],
+  ['self-global', "typeof Iterator == 'undefined'", 'self.Iterator = Shim', 'Iterator.from([3, 4]).next().value', true],
+  ['realm', "typeof globalThis == 'undefined'", 'self.globalThis = self', 'globalThis.Map.groupBy([3, 4], x => x % 2).size', true],
+  ['static', '!Array.from', 'Array.from = Shim.from', 'Array.from([3, 4]).length', false],
+  ['realm-static', '!globalThis.Array.from', 'globalThis.Array.from = Shim.from', 'Array.from([3, 4]).length', false],
+  ['typeof-static', "typeof Map.groupBy != 'function'", 'Map.groupBy = Shim.groupBy', 'Map.groupBy([3, 4], x => x % 2).size', false],
+  ['symbol', "typeof Symbol == 'undefined'", 'globalThis.Symbol = Shim', '[3, 4][Symbol.iterator]().next().value', false],
+];
+const NEVER_TAKEN_SHIM = 'const Shim = { from: () => ({ next: () => ({ value: -1 }), length: -1 }), groupBy: () => ({ size: -1 }) };';
+const NEVER_TAKEN_FRAMES = [
+  ['top', (test, install, read) => `if (${ test }) ${ install }; return ${ read };`],
+  ['read-ahead', (test, install, read) => `const value = ${ read }; if (${ test }) ${ install }; return value;`],
+  ['called-before', (test, install, read) => `function polyfill() { if (${ test }) ${ install }; } polyfill(); return ${ read };`],
+  ['called-after', (test, install, read) => `function polyfill() { if (${ test }) ${ install }; } const value = ${ read }; polyfill(); return value;`],
+  ['never-called', (test, install, read) => `const polyfill = () => { if (${ test }) ${ install }; }; return ${ read };`],
+  ['loop', (test, install, read) => `let value; for (const pass of [1, 2]) { value = ${ read }; if (${ test }) ${ install }; } return value;`],
+  ['static-block', (test, install, read) => `class Setup { static { if (${ test }) ${ install }; } } return ${ read };`],
+  ['deferred-read', (test, install, read) => `const read = () => ${ read }; if (${ test }) ${ install }; return read();`],
+  ['and-host', (test, install, read) => `${ test } && (${ install }); return ${ read };`],
+];
+function * generateInstallsInArmsNeverTaken() {
+  for (const [kind, test, install, read, strip] of NEVER_TAKEN_INSTALLS) {
+    for (const [frame, build] of NEVER_TAKEN_FRAMES) {
+      const body = `${ NEVER_TAKEN_SHIM } try { ${ build(test, install, read) } } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`installs-in-arms-never-taken/${ kind }/${ frame }`, `(() => { ${ body } })()`), strip };
+    }
+  }
+}
+
+// --- Loop head sequence stores ---
+// A loop head's sequence init ending in a store keeps the init whole, so the setup ahead of the store and
+// the store itself run once, in source order, before the pattern binds - a member store, a binding store, a
+// chain of both and a store inside an array wrapper alike, under every declaration kind, beside a second
+// declarator and over a nested pattern, one beside a rest, or a leaf the body reads a static off. Each row
+// reports the extraction, what the store left where and how often the setup ran
+// the stored literal counts its own evaluations, so a store run twice shows
+const LOOP_STORE_STORES = [
+  ['member', 'box.slot = { C: Map, n: ++made }', 'object'],
+  ['binding', 'held = { C: Map, n: ++made }', 'object'],
+  ['chain', 'held = box.slot = { C: Map, n: ++made }', 'object'],
+  ['array-wrapper', '[box.slot = { C: Map, n: ++made }]', 'array'],
+];
+const LOOP_STORE_PREFIXES = [
+  ['none', ''],
+  ['one', "log.push('s'), "],
+  ['two', "log.push('a'), log.push('b'), "],
+  ['nested', "(log.push('a'), log.push('b')), "],
+];
+const LOOP_STORE_PATTERNS = [
+  ['nested', '{ C: { groupBy } }', 'groupBy([3, 4], x => x % 2).size'],
+  ['rest', '{ C: { groupBy, ...rest } }', '[groupBy([3, 4], x => x % 2).size, typeof rest]'],
+  ['leaf', '{ C: M }', 'M.groupBy([3, 4], x => x % 2).size'],
+];
+const LOOP_STORE_KINDS = [
+  ['const', (pattern, init) => `const ${ pattern } = ${ init };`],
+  ['let', (pattern, init) => `let ${ pattern } = ${ init };`],
+  ['var', (pattern, init) => `var ${ pattern } = ${ init };`],
+  ['second-declarator', (pattern, init) => `let pass = 0, ${ pattern } = ${ init }; pass < 1; pass++`],
+];
+function * generateLoopHeadSequenceStores() {
+  for (const [store, value, shape] of LOOP_STORE_STORES) {
+    for (const [prefix, spelled] of LOOP_STORE_PREFIXES) {
+      for (const [pattern, written, use] of LOOP_STORE_PATTERNS) {
+        for (const [kind, head] of LOOP_STORE_KINDS) {
+          const bound = shape === 'array' ? `[${ written }]` : written;
+          const init = `(${ spelled }${ value })`;
+          const header = kind === 'second-declarator' ? head(bound, init) : `${ head(bound, init) } ;`;
+          const body = `const box = {}; let held; let made = 0; try { for (${ header }) { return [${ use }, typeof box.slot, typeof held, made, log.length]; }
+            } catch (error) { return error.constructor.name; } return 'no-pass';`;
+          yield { ...snippet(`loop-head-sequence-stores/${ store }/${ prefix }/${ pattern }/${ kind }`, `(() => { ${ body } })()`), strip: true };
+        }
+      }
+    }
+  }
+}
+
+// --- Answer statements in wrappers ---
+// A listed statement holding nothing but a decided test's answer performs nothing and leaves however the test
+// is wrapped, while one in a single-statement slot, a label's body or read as a value keeps the answer. Every
+// statement around it still runs, in order, and the global the test guarded is read as served past it. Which
+// statement leaves is runtime-dead (the fixtures lock it), so one plain and one TS wrapper carry the hosts
+const ANSWER_TESTS = [
+  ['typeof-and', "typeof Map == 'undefined' && (globalThis.Map = Shim)"],
+  ['typeof-or', "typeof Map != 'undefined' || (globalThis.Map = Shim)"],
+  ['not-member-and', '!globalThis.Map && (globalThis.Map = Shim)'],
+  ['member-or', 'globalThis.Map || (globalThis.Map = Shim)'],
+];
+const ANSWER_WRAPPERS = [
+  ['parens', answer => `(${ answer })`, false],
+  ['as', answer => `(${ answer }) as unknown`, true],
+];
+const ANSWER_HOSTS = [
+  ['listed', answer => `log.push('before'); ${ answer }; log.push('after');`],
+  ['if-arm', answer => `if (log.length > -1) ${ answer }; log.push('after');`],
+  ['else-arm', answer => `if (log.length < -1) log.push('no'); else ${ answer }; log.push('after');`],
+  ['labeled', answer => `label: ${ answer }; log.push('after');`],
+  ['block', answer => `{ log.push('in'); ${ answer }; } log.push('after');`],
+  ['value', answer => `note(typeof (${ answer }));`],
+];
+function * generateAnswerStatementsInWrappers() {
+  for (const [test, answer] of ANSWER_TESTS) {
+    for (const [wrapper, wrap, ts] of ANSWER_WRAPPERS) {
+      for (const [host, place] of ANSWER_HOSTS) {
+        const body = `const Shim = { groupBy: () => ({ size: -1 }) }; const note = value => log.push(value); ${ place(wrap(answer)) }
+          try { return Map.groupBy([3, 4], x => x % 2).size; } catch (error) { return error.constructor.name; }`;
+        yield { ...snippet(`answer-statements-in-wrappers/${ test }/${ wrapper }/${ host }`, `(() => { ${ body } })()`), strip: true, ts };
+      }
+    }
+  }
+}
+
+// --- Selection slot arms ---
+// An arm of a selection reading a container slot that holds a constructor mirrors its statics like a named
+// arm does, a key the constructor does not serve re-reading the slot as spelled - flat, computed, deeper,
+// behind an effect prefix, through an alias of the container. A slot an accessor defines runs its getter
+// once wherever the arm is read, and a slot written after the read still holds the constructor when it is
+// read. Each pattern is read under both values of the flag, as a declaration and as an assignment. A rest
+// keeps the selection whole, as over named arms (a receiver that is no proven constructor keeps its source),
+// so the `Object` arm's static stays native there and those rows ride the full environment alone
+const SLOT_ARM_CONTAINERS = [
+  ['flat', 'const shelf = { M: Map };', 'shelf.M', ''],
+  ['computed', 'const shelf = { M: Map };', "shelf['M']", ''],
+  ['deep', 'const shelf = { inner: { M: Map } };', 'shelf.inner.M', ''],
+  ['prefixed', 'const shelf = { M: Map };', "(log.push('p'), shelf.M)", ''],
+  ['alias', 'const shelf = { M: Map }; const held = shelf;', 'held.M', ''],
+  ['getter', "const shelf = { get M() { log.push('get'); return Map; } };", 'shelf.M', ''],
+  ['written-after', 'const shelf = { M: Map };', 'shelf.M', 'shelf.M = Object;'],
+];
+const SLOT_ARM_PATTERNS = [
+  ['served', 'groupBy', '{ groupBy }', 'groupBy([3, 4], x => x % 2).size'],
+  ['served-passthrough', 'groupBy, prototype', '{ groupBy, prototype }', '[groupBy([3, 4], x => x % 2).size, typeof prototype]'],
+  ['passthrough', 'prototype', '{ prototype }', 'typeof prototype'],
+  ['default', 'groupBy', '{ groupBy = null }', 'groupBy === null ? null : groupBy([3, 4], x => x % 2).size'],
+  ['rest', 'groupBy, rest', '{ groupBy, ...rest }', '[groupBy([3, 4], x => x % 2).size, typeof rest]'],
+];
+const SLOT_ARM_HOSTS = [
+  ['declaration', (names, pattern, init) => `const ${ pattern } = ${ init };`],
+  ['assignment', (names, pattern, init) => `let ${ names }; (${ pattern } = ${ init });`],
+];
+function * generateSelectionSlotArms() {
+  for (const [container, setup, arm, after] of SLOT_ARM_CONTAINERS) {
+    for (const [pattern, names, spelled, use] of SLOT_ARM_PATTERNS) {
+      for (const [host, build] of SLOT_ARM_HOSTS) {
+        for (const flag of [true, false]) {
+          const body = `${ setup } try { ${ build(names, spelled, `flag ? ${ arm } : Object`) } ${ after } return ${ use };
+            } catch (error) { return error.constructor.name; }`;
+          yield {
+            ...snippet(`selection-slot-arms/${ container }/${ pattern }/${ host }/${ flag }`, `(flag => { ${ body } })(${ flag })`),
+            strip: pattern !== 'rest',
+          };
+        }
+      }
+    }
+  }
+}
+
+// --- Getter prefix key writes ---
+// A sequence prefix reading an accessor runs ahead of the extraction - once, in order - however the file
+// writes that key: through the setter of the pair, through `this` elsewhere, by a computed key, an explicit
+// store, a compound or a pattern write, before the extraction or after it. A read of a key only a setter
+// defines runs nothing; a data key reads nothing observable. Each row logs every accessor call
+const PREFIX_HOLDERS = [
+  ['object-pair', "const holder = { get value() { log.push('get'); return 0; }, set value(v) { log.push('set'); } };", 'holder'],
+  ['object-getter', "const holder = { get value() { log.push('get'); return 0; } };", 'holder'],
+  ['static-getter', "class holder { static get value() { log.push('get'); return 0; } }", 'holder'],
+  ['static-pair', "class holder { static get value() { log.push('get'); return 0; } static set value(v) { log.push('set'); } }", 'holder'],
+  ['setter-only', "const holder = { set value(v) { log.push('set'); } };", 'holder'],
+  ['data', 'const holder = { value: 0 };', 'holder'],
+];
+const PREFIX_KEY_WRITES = [
+  ['none', ''],
+  ['member', 'holder.value = 2;'],
+  ['this-elsewhere', 'function reset() { this.value = 0; }'],
+  ['computed', "holder['value'] = 2;"],
+  ['explicit-store', 'Object.assign(holder, { value: 2 });'],
+  ['pattern', '({ v: holder.value } = { v: 2 });'],
+];
+const PREFIX_READS = [
+  ['prototype-at', "const { prototype: { at } } = (holder.value, String); return [at.call('xyz', -1), log.join()];"],
+  ['static-from', 'const { from } = (holder.value, Array); return [from([3, 4]).length, log.join()];'],
+  ['assignment', "let at; ({ prototype: { at } } = (holder.value, String)); return [at.call('xyz', -1), log.join()];"],
+  ['two-prefixes', "const { prototype: { at } } = (log.push('a'), holder.value, String); return [at.call('xyz', -1), log.join()];"],
+];
+function * generateGetterPrefixKeyWrites() {
+  for (const [holder, setup] of PREFIX_HOLDERS) {
+    for (const [write, statement] of PREFIX_KEY_WRITES) {
+      for (const [read, use] of PREFIX_READS) {
+        for (const order of ['write-before', 'write-after']) {
+          if (write === 'none' && order === 'write-after') continue;
+          const [first, second] = order === 'write-before' ? [statement, ''] : ['', statement];
+          const body = `${ setup } try { ${ first } ${ use.replace('return', 'const result =').replace(/;$/, '') }; ${ second } return result;
+            } catch (error) { return [error.constructor.name, log.join()]; }`;
+          yield { ...snippet(`getter-prefix-key-writes/${ holder }/${ write }/${ read }/${ order }`, `(() => { ${ body } })()`), strip: true };
+        }
+      }
+    }
+  }
+}
+
+// --- Installs in rebuilt arguments ---
+// A decided install written straight into an argument or the receiver sequence of a call a claim rebuilds -
+// an instance dispatch, an optional one - is the same write as in an argument of a call nobody rewrites: its
+// test reads what this build serves, the install never runs, and a later read of the global takes the pure
+// import. Stripped, an install the rebuilt call left undecided keeps the later read on the slot the stripped
+// realm lacks; import parity sees a leg that decided it apart from one that did not
+const REBUILT_ARG_CALLS = [
+  ['push', arg => `[].push(${ arg })`],
+  ['includes', arg => `[1].includes(${ arg })`],
+  ['object-argument', arg => `[].push({ k: ${ arg } })`],
+  ['optional', arg => `[1]?.at(${ arg })`],
+  ['receiver-sequence', arg => `(${ arg }, [1]).at(0)`],
+  ['static-argument', arg => `Array.of(${ arg })`],
+  ['plain', arg => `note(${ arg })`],
+];
+const REBUILT_ARG_INSTALLS = [
+  ['and', "typeof Map == 'undefined' && (globalThis.Map = Shim)"],
+  ['or', 'globalThis.Map || (globalThis.Map = Shim)'],
+  ['ternary', "typeof Map == 'undefined' ? (globalThis.Map = Shim) : 0"],
+  ['not-and', '!globalThis.Map && (globalThis.Map = Shim)'],
+];
+function * generateInstallsInRebuiltArguments() {
+  for (const [call, spell] of REBUILT_ARG_CALLS) {
+    for (const [install, written] of REBUILT_ARG_INSTALLS) {
+      const body = `const Shim = { groupBy: () => ({ size: -1 }) }; const note = value => log.push(value); ${ spell(written) };
+        try { return Map.groupBy([3, 4], x => x % 2).size; } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`installs-in-rebuilt-arguments/${ call }/${ install }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
+// --- Key aliases rebound in blocks ---
+// A key alias a block reassigns from a name the block itself binds holds that block's value past it, read
+// where the block wrote it rather than where the alias is declared - past an outer namesake of the source
+// as well - and the dead initializer names nothing; a block the code may skip leaves both values live. The
+// two keys name statics that answer differently (`Array.from(3)` is empty, `Array.of(3)` holds 3)
+const KEY_BLOCK_HOSTS = [
+  ['block', assign => `{ ${ assign } }`, true],
+  ['labeled', assign => `label: { ${ assign } }`, true],
+  ['try', assign => `try { ${ assign } } catch (error) {}`, false],
+  ['for-once', assign => `for (const pass of [1]) { ${ assign } }`, false],
+  ['decided-if', assign => `if (typeof Symbol != 'undefined') { ${ assign } }`, true],
+  ['undecided-if', assign => `if (log.length > -1) { ${ assign } }`, false],
+  ['switch-case', assign => `switch (1) { case 1: { ${ assign } } }`, false],
+];
+const KEY_BLOCK_SOURCES = [
+  ['const', name => `const ${ name } = 'from';`],
+  ['let', name => `let ${ name } = 'from';`],
+];
+const KEY_BLOCK_WRITES = [
+  ['plain', name => `key = ${ name };`],
+  ['parens', name => `key = (${ name });`],
+  ['sequence', name => `key = (log.push('w'), ${ name });`],
+];
+const KEY_BLOCK_READS = [
+  ['same-scope', 'return Array[key](3).length;'],
+  ['closure', 'const read = n => Array[key](n); return read(3).length;'],
+  ['outer-namesake', "const source = 'of'; return [Array[key](3).length, source];"],
+];
+function * generateKeyAliasesReboundInBlocks() {
+  for (const [host, wrap, decided] of KEY_BLOCK_HOSTS) {
+    for (const [source, declare] of KEY_BLOCK_SOURCES) {
+      for (const [write, assign] of KEY_BLOCK_WRITES) {
+        for (const [read, use] of KEY_BLOCK_READS) {
+          const body = `let key = 'of'; ${ wrap(`${ declare('source') } ${ assign('source') }`) } try { ${ use } } catch (error) { return error.constructor.name; }`;
+          yield { ...snippet(`key-aliases-rebound-in-blocks/${ host }/${ source }/${ write }/${ read }`, `(() => { ${ body } })()`), strip: decided };
+        }
+      }
+    }
+  }
+}
+
+// --- Unknown slot alias writes ---
+// A write through a name holding a slot read by a key no canon names lands somewhere under the container
+// that slot sits in, as the write spelled through the slot does: a static read back through a path under it
+// reaches the written constructor's static where the key named that slot, and the slot's own value where it
+// named another. The slots start empty, so no native owner's static is read off a literal either way
+const UNKNOWN_SLOT_ALIASES = [
+  ['member', 'const alias = box[key];'],
+  ['nested-member', 'const alias = box.list[key];', 'list'],
+  ['assigned', 'let alias; alias = box[key];'],
+  ['pattern', 'const { [key]: alias } = box;'],
+  ['parens', 'const alias = (box[key]);'],
+];
+const UNKNOWN_SLOT_WRITES = [
+  ['member', 'alias.C = Map;'],
+  ['computed-known', "alias['C'] = Map;"],
+  ['explicit-store', 'Object.assign(alias, { C: Map });'],
+];
+const UNKNOWN_SLOT_READS = [
+  ['path', root => `return ${ root }.C.groupBy([3, 4], x => x % 2).size;`],
+  ['pattern', root => `const { C: { groupBy } } = ${ root }; return groupBy([3, 4], x => x % 2).size;`],
+  ['alias', root => `const owner = ${ root }.C; return owner.groupBy([3, 4], x => x % 2).size;`],
+];
+function * generateUnknownSlotAliasWrites() {
+  for (const [alias, declare, nest] of UNKNOWN_SLOT_ALIASES) {
+    for (const [write, statement] of UNKNOWN_SLOT_WRITES) {
+      for (const [read, use] of UNKNOWN_SLOT_READS) {
+        for (const lands of [true, false]) {
+          const root = nest ? 'box.list.inner' : 'box.inner';
+          const setup = nest ? 'const box = { list: { inner: {}, spare: {} } };' : 'const box = { inner: {}, spare: {} };';
+          const body = `${ setup } const key = ${ lands ? "'inner'" : "'spare'" }; ${ declare } ${ statement }
+            try { ${ use(root) } } catch (error) { return error.constructor.name; }`;
+          yield { ...snippet(`unknown-slot-alias-writes/${ alias }/${ write }/${ read }/${ lands ? 'lands' : 'elsewhere' }`, `(() => { ${ body } })()`), strip: true };
+        }
+      }
+    }
+  }
+}
+
+// --- Explicit member path stores ---
+// An explicit store into a member path lands on the slot under that path, as a member write spelled through
+// it does, so a static read back through the path - or an alias of it, or a pattern over it - reaches the
+// stored constructor's static: `Object.assign`, `Reflect.set`, `Object.defineProperty`, a getter source, a
+// deeper path and one through an alias of the container, the container handed out whole after it. The
+// stored slot starts as another constructor, so a store a leg missed reads that constructor's static instead
+const MEMBER_PATH_STORES = [
+  ['assign', 'Object.assign(box.inner, { C: Map });'],
+  ['reflect-set', "Reflect.set(box.inner, 'C', Map);"],
+  ['define-property', "Object.defineProperty(box.inner, 'C', { value: Map, writable: true, configurable: true, enumerable: true });"],
+  ['getter-source', 'Object.assign(box.inner, { get C() { return Map; } });'],
+  ['alias-path', 'const into = box.inner; Object.assign(into, { C: Map });'],
+  ['deeper', 'Object.assign(box.inner.deep, { C: Map });', 'deep'],
+];
+const MEMBER_PATH_READS = [
+  ['path', root => `return ${ root }.C.groupBy([3, 4], x => x % 2).size;`],
+  ['alias', root => `const owner = ${ root }.C; return owner.groupBy([3, 4], x => x % 2).size;`],
+  ['pattern', root => `const { C: { groupBy } } = ${ root }; return groupBy([3, 4], x => x % 2).size;`],
+  ['handed-out', root => `return Function('target', 'return target${ root.slice(3) }.C.groupBy([3, 4], x => x % 2).size;')(box);`],
+];
+function * generateExplicitMemberPathStores() {
+  for (const [store, statement, nest] of MEMBER_PATH_STORES) {
+    for (const [read, use] of MEMBER_PATH_READS) {
+      const root = nest ? 'box.inner.deep' : 'box.inner';
+      const setup = nest ? 'const box = { inner: { deep: { C: Object } } };' : 'const box = { inner: { C: Object } };';
+      const body = `${ setup } ${ statement } try { ${ use(root) } } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`explicit-member-path-stores/${ store }/${ read }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
+// --- Alias chains at the ceiling ---
+// An alias chain names what its far end holds as long as the walk reaches it, and past the alias-chain
+// ceiling it names nothing: the read stays raw - never a value the chain does not hold. A constructor read
+// through a chain is served below the ceiling; a container written through one end of a chain and read
+// through the other keeps the written constructor's static at every length, the census included. Lengths
+// straddle the ceiling; only the short ones ride the stripped realm, and a read past the ceiling, which
+// names nothing and so loads nothing in usage-global either, is asked only where a write could be lost
+const CHAIN_LENGTHS = [8, 31, 32, 33, 62, 63, 64, 65, 66, 80];
+const CHAIN_READ_CEILING = 62;
+function chainOf(base, length, value) {
+  const links = [`const ${ base }0 = ${ value };`];
+  for (let index = 1; index <= length; index++) links.push(`const ${ base }${ index } = ${ base }${ index - 1 };`);
+  return links.join(' ');
+}
+const CHAIN_SHAPES = [
+  ['constructor', length => `${ chainOf('a', length, 'Map') } return a${ length }.groupBy([3, 4], x => x % 2).size;`, true, true],
+  ['pattern', length => `${ chainOf('a', length, 'Map') } const { groupBy } = a${ length }; return groupBy([3, 4], x => x % 2).size;`, true, true],
+  ['write-far-read-near', length => `${ chainOf('b', length, '{ C: Object }') } b${ length }.C = Map; return b0.C.groupBy([3, 4], x => x % 2).size;`, false],
+  ['write-near-read-far', length => `${ chainOf('b', length, '{ C: Object }') } b0.C = Map; return b${ length }.C.groupBy([3, 4], x => x % 2).size;`, false, true],
+  [
+    'member-chain-write',
+    length => {
+      const links = ['const c0 = { C: Object };'];
+      for (let index = 1; index <= length; index++) links.push(`const c${ index } = { next: c${ index - 1 } };`);
+      return `${ links.join(' ') } c${ length }${ '.next'.repeat(length) }.C = Map; return c0.C.groupBy([3, 4], x => x % 2).size;`;
+    },
+    false,
+  ],
+];
+function * generateAliasChainsAtTheCeiling() {
+  for (const [shape, build, served, readsFar] of CHAIN_SHAPES) {
+    for (const length of CHAIN_LENGTHS) {
+      if (readsFar && length > CHAIN_READ_CEILING) continue;
+      const body = `try { ${ build(length) } } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`alias-chains-at-the-ceiling/${ shape }/${ length }`, `(() => { ${ body } })()`), strip: served && length < 32 };
+    }
+  }
+}
+
+// --- Prototype installs that may not run ---
+// An install of a dispatching prototype reaches a read only where it may run before it, and where it may also
+// NOT have run - a conditional install, a loop's first pass reading ahead of it, a closure called before it -
+// the read still holds the initializer's family on that path. `at` lives on both families, so a dispatch
+// through the installed family alone leaves the first family's method raw, which the stripped realm lacks
+const MAYBE_INSTALL_SHAPES = [
+  ['conditional-skipped', 'const target = [3, 4]; if (log.length > 9) Object.setPrototypeOf(target, String.prototype); return target.at(-1);'],
+  ['conditional-taken', 'const target = [3, 4]; if (log.length < 9) Object.setPrototypeOf(target, String.prototype); return typeof target.at;'],
+  ['loop-first-pass', 'const target = [3, 4]; let seen; for (const pass of [0]) { seen = target.at(-1); Object.setPrototypeOf(target, String.prototype); } return seen;'],
+  ['closure-before', 'const target = [3, 4]; const read = () => target.at(-1); const seen = read(); Object.setPrototypeOf(target, String.prototype); return seen;'],
+  ['dominating', 'const target = [3, 4]; Object.setPrototypeOf(target, String.prototype); return typeof target.at;'],
+  ['read-ahead', 'const target = [3, 4]; const seen = target.at(-1); Object.setPrototypeOf(target, String.prototype); return seen;'],
+];
+function * generatePrototypeInstallsThatMayNotRun() {
+  for (const [shape, body] of MAYBE_INSTALL_SHAPES) {
+    const guarded = `try { ${ body } } catch (error) { return error.constructor.name; }`;
+    yield { ...snippet(`prototype-installs-that-may-not-run/${ shape }`, `(() => { ${ guarded } })()`), strip: true };
+  }
+}
+
+// --- Pattern binding writes ---
+// A binding a pattern takes off a container slot stands for that slot, so a write through it lands on the
+// container and a static read back through the container's path reaches what the write stored - a
+// constructor or a user value alike - over a declaration, an assignment, a for-of head, a catch parameter
+// and a defaulted parameter. A user value owns no static the build serves: the read stays native and the
+// user's own static answers
+const PATTERN_WRITE_HOSTS = [
+  ['declaration', write => `const { inner: slot } = box; ${ write('slot') }`],
+  ['assignment', write => `let slot; ({ inner: slot } = box); ${ write('slot') }`],
+  ['for-of', write => `for (const { inner: slot } of [box]) ${ write('slot') }`],
+  ['catch', write => `try { throw box; } catch ({ inner: slot }) { ${ write('slot') } }`],
+  ['parameter', write => `function fill({ inner: slot } = box) { ${ write('slot') } } fill();`],
+  ['member-alias', write => `const slot = box.inner; ${ write('slot') }`],
+];
+const PATTERN_WRITE_VALUES = [
+  ['constructor', 'Map', true],
+  ['user-class', "class Mine { static groupBy() { return { size: 'mine' }; } }", false],
+  ['user-object', "const Mine = { groupBy: () => ({ size: 'mine' }) };", false],
+];
+function * generatePatternBindingWrites() {
+  for (const [host, build] of PATTERN_WRITE_HOSTS) {
+    for (const [value, spelled, served] of PATTERN_WRITE_VALUES) {
+      const setup = served ? '' : spelled;
+      const stored = served ? spelled : 'Mine';
+      const body = `${ setup } const box = { inner: { C: Object } }; ${ build(slot => `${ slot }.C = ${ stored };`) }
+        try { return box.inner.C.groupBy([3, 4], x => x % 2).size; } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`pattern-binding-writes/${ host }/${ value }`, `(() => { ${ body } })()`), strip: served };
+    }
+  }
+}
+
+// --- Prototype installs through a selection with a non-setter arm ---
+// An open selection of the setters or of their owners one arm of which is no setter installs where a setter
+// arm runs and nowhere else, so the object dispatches the installed family on that path and its own on the
+// other: a literal reads as a plain object without the install, and a `String` wrapper reads its own family.
+// Both of the wrapper's families carry both methods, so a dispatch through one of them alone leaves the
+// other's method raw, which the stripped realm lacks; the arm that is no setter is a user object owning one
+const PARTIAL_INSTALLERS = [
+  ['open-owners', '', '(flag ? Object : keeper).setPrototypeOf'],
+  ['held-open-owners', 'const owner = flag ? Reflect : keeper;', 'owner.setPrototypeOf'],
+  ['open-setters', '', '(flag ? Object.setPrototypeOf : keeper.setPrototypeOf)'],
+  ['held-open-setters', 'const setter = flag ? Reflect.setPrototypeOf : keeper.setPrototypeOf;', 'setter'],
+  ['written-proto-arm', '', '(flag ? (object, proto) => { object.__proto__ = proto; } : Object.setPrototypeOf)'],
+];
+const PARTIAL_INSTALL_TARGETS = [
+  ['literal', 'const target = { length: 2, 0: 4, 1: 3 };'],
+  ['typed', 'const target = new String("43");'],
+];
+const PARTIAL_INSTALL_METHODS = [
+  ['at', 'target.at(-1)'],
+  ['includes', 'target.includes(3)'],
+];
+// a typed initializer is read for a later install only in a file whose identifier-rooted member chains spell
+// the setter - a setter read straight off an open selection of owners spells none, so the target keeps its type
+const PARTIAL_INSTALL_GAPS = new Set(['open-owners/typed']);
+function * generatePrototypeInstallsThroughNonSetterArms() {
+  for (const [installer, setup, setter] of PARTIAL_INSTALLERS) {
+    for (const [target, declare] of PARTIAL_INSTALL_TARGETS) {
+      if (PARTIAL_INSTALL_GAPS.has(`${ installer }/${ target }`)) continue;
+      for (const [method, read] of PARTIAL_INSTALL_METHODS) {
+        for (const flag of [true, false]) {
+          const body = `${ RUN_SHOW } const keeper = { setPrototypeOf() {} }; ${ setup } ${ declare }
+            ${ setter }(target, Array.prototype);
+            try { return show(${ read }); } catch (error) { return error.constructor.name; }`;
+          yield {
+            ...snippet(`prototype-installs-through-non-setter-arms/${ installer }/${ target }/${ method }/${ flag }`, `(flag => { ${ body } })(${ flag })`),
+            strip: true,
+          };
+        }
+      }
+    }
+  }
+}
+
+// --- Decided folds in discarded places ---
+// A decided selection folded to what performs nothing - a test's answer, a literal operand, an import this build
+// minted - leaves a listed statement and a sequence ahead of its value, however it is wrapped, and so does what a
+// claim renders there that performs nothing - a served read respelled to a pure import, an `in` test folded to
+// `true`; a fold to a source read stays and reads it. A sequence whose value alone would read differently in its
+// slot - a callee, a `delete` or `typeof` operand - keeps an element ahead of it
+const DISCARDED_FOLDS = [
+  ['answer', "typeof Map == 'undefined' && (globalThis.Map = Shim)"],
+  ['literal', "typeof Map == 'undefined' ? (globalThis.Map = Shim) : 0"],
+  ['minted', 'globalThis.Map || (globalThis.Map = Shim)'],
+  ['served-read', 'globalThis.Map'],
+  ['source-read', "typeof Map == 'undefined' ? (globalThis.Map = Shim) : probe.value"],
+  ['in-test', "'groupBy' in Map"],
+  ['static-read', 'Map.groupBy'],
+];
+const DISCARDED_FOLD_WRAPPERS = [
+  ['plain', fold => fold, false],
+  ['as', fold => `(${ fold }) as unknown`, true],
+];
+const DISCARDING_HOSTS = [
+  ['statement', fold => `log.push('before'); ${ fold }; log.push('after');`],
+  ['sequence', fold => `note((${ fold }, 'value'));`],
+  ['sequence-value', fold => `note(typeof (log.push('first'), ${ fold }));`],
+  ['callee', fold => `note((${ fold }, box.read)() === undefined);`],
+  ['delete', fold => `note(delete (${ fold }, box.slot)); note('slot' in box);`],
+  ['typeof', fold => `try { note(typeof (${ fold }, missingGlobalName)); } catch (error) { note(error.constructor.name); }`],
+  ['if-arm', fold => `if (log.length > -1) ${ fold }; log.push('after');`],
+];
+function * generateDecidedFoldsInDiscardedPlaces() {
+  for (const [fold, spelled] of DISCARDED_FOLDS) {
+    for (const [wrapper, wrap, ts] of DISCARDED_FOLD_WRAPPERS) {
+      for (const [host, place] of DISCARDING_HOSTS) {
+        const body = `const Shim = { groupBy: () => ({ size: -1 }) }; const note = value => log.push(value);
+          const probe = { get value() { log.push('read'); return 1; } }; const box = { slot: 1, read() { return this; } };
+          ${ place(wrap(spelled)) } try { return Map.groupBy([3, 4], x => x % 2).size; } catch (error) { return error.constructor.name; }`;
+        yield { ...snippet(`decided-folds-in-discarded-places/${ fold }/${ wrapper }/${ host }`, `(() => { ${ body } })()`), strip: true, ts };
+      }
+    }
+  }
+}
+
+// --- Folds beside directives ---
+// A fold or a trimmed sequence never leaves a string alone as a whole statement, where it would read as a
+// directive: a string fold whose leaving would promote the statement after it keeps a value ahead of it, one
+// free to leave leaves, and a sequence trimmed down to its string value keeps the element ahead of it - the
+// script and a function body stay as sloppy as the source wrote them. No row reads a static: an injected
+// import ahead of the script's first statement would end its prologue and hide the directive
+const DIRECTIVE_FOLD_ROWS = [
+  ['blocked-fold', "typeof Map == 'undefined' ? (globalThis.Map = Shim) : 'ready';\n'use strict';", ''],
+  ['leaving-fold', "typeof Map == 'undefined' ? (globalThis.Map = Shim) : 'use strict';", ''],
+  ['folded-prefix', '', "(typeof Map == 'undefined' && (globalThis.Map = Shim), 'use strict');"],
+  ['served-prefix', '', "(globalThis.Map, 'use strict');"],
+];
+function * generateFoldsBesideDirectives() {
+  for (const [row, head, body] of DIRECTIVE_FOLD_ROWS) {
+    yield {
+      name: `folds-beside-directives/${ row }`,
+      code: `${ head }
+        var Shim = {};
+        var inner = function () { ${ body } return this !== undefined; };
+        var r = [inner(), (function () { return this !== undefined; })()];
+        var effects = []; module.exports = { r, effects };`,
+      sourceType: 'script',
+      strip: false,
+    };
+  }
+}
+
+// --- Decided test answers under patterns ---
+// A selection the build decides to its test's own answer - an `&&` whose test fails, a `||` / `??` whose test
+// holds - yields that answer: a nested pattern reading a static through it reads off a boolean and throws, the
+// operand it skips naming nothing. A `||` whose test fails runs its right, read as that right alone. Stripped,
+// a static the running right owes and the rewrite lost reads as no function
+const DECIDED_ANSWER_SELECTIONS = [
+  ['and-test-fails', "typeof Symbol == 'undefined' && { C: Object }"],
+  ['or-test-holds', "typeof Symbol != 'undefined' || { C: Object }"],
+  ['nullish-test-holds', "typeof Symbol != 'undefined' ?? { C: Object }"],
+  ['or-test-fails', "typeof Symbol == 'undefined' || { C: Object }"],
+  ['and-test-holds', "typeof Symbol != 'undefined' && { C: Object }"],
+  ['or-over-a-failing-and', "(typeof Symbol == 'undefined' && { C: Array }) || { C: Object }"],
+];
+const DECIDED_ANSWER_HOSTS = [
+  ['declaration', selection => `const { C: { groupBy } } = ${ selection }; return use(groupBy);`],
+  ['assignment', selection => `let groupBy; ({ C: { groupBy } } = ${ selection }); return use(groupBy);`],
+  ['default', selection => `return (function ({ C: { groupBy } } = ${ selection }) { return use(groupBy); })();`],
+  ['for-of', selection => `for (const { C: { groupBy } } of [${ selection }]) return use(groupBy);`],
+  ['slot', selection => `const { A: { C: { groupBy } } } = { A: ${ selection } }; return use(groupBy);`],
+  ['sibling', selection => `const { C: { groupBy }, D } = ${ selection }; return [use(groupBy), D];`],
+];
+function * generateDecidedAnswerReads() {
+  const use = "const use = read => typeof read == 'function' ? read([3, 4], x => x % 2)[1].length : typeof read;";
+  for (const [selection, source] of DECIDED_ANSWER_SELECTIONS) {
+    for (const [host, build] of DECIDED_ANSWER_HOSTS) {
+      yield {
+        ...snippet(`decided-answer-reads/${ selection }/${ host }`,
+          `(() => { ${ use } try { ${ build(source) } } catch (error) { return error.constructor.name; } })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
+// --- Constructors a slot holds under writes through aliases ---
+// A write through an alias that is no plain one - an arm of a selection of names, a member path, a binding a
+// pattern takes off a container, a path off such an alias, a slot an unknown key reads, the slot of a literal
+// spelled in place - lands on the slot it reaches whatever it stores, so a static read back through the container
+// stays a read of that slot: the constructor the container literal held there carries its statics where the write
+// does not run, and the user's own static answers where it does. Nothing touches `Map.groupBy` ahead of the read -
+// that import is the very entry choice the family pins, and the entry carrying the static keeps the result the
+// snippet's own
+const ALIAS_WRITE_ROUTES = [
+  ['ternary-arm', 'const box = { C: Map }; const spare = {}; const via = log.length < 9 ? box : spare;', 'box.C'],
+  ['or-arm', 'const box = { C: Map }; const via = nul || box;', 'box.C'],
+  ['nullish-arm', 'const box = { C: Map }; const via = nul ?? box;', 'box.C'],
+  ['and-arm', 'const box = { C: Map }; const via = cond && box;', 'box.C'],
+  ['decided-dead-arm', "const box = { C: Map }; const spare = {}; const via = typeof Symbol == 'undefined' ? box : spare;", 'box.C'],
+  ['decided-live-arm', "const box = { C: Map }; const spare = {}; const via = typeof Symbol != 'undefined' ? box : spare;", 'box.C'],
+  ['sequence-tail', 'const box = { C: Map }; const spare = {}; const via = (log.push("s"), log.length < 9 ? box : spare);', 'box.C'],
+  ['literal-in-place', 'const box = { C: Map }; const via = { held: box }.held;', 'box.C'],
+  ['member-path', 'const outer = { inner: { C: Map } }; const via = outer.inner;', 'outer.inner.C'],
+  ['pattern-path', 'const outer = { inner: { C: Map } }; const { inner: via } = outer;', 'outer.inner.C'],
+  ['nested-path', 'const outer = { a: { b: { C: Map } } }; const mid = outer.a; const via = mid.b;', 'outer.a.b.C'],
+  ['unknown-key', 'const outer = { inner: { C: Map } }; const via = outer[String(["inner"])];', 'outer.inner.C'],
+  ['pattern-binding-arm',
+    'const outer = { inner: { C: Map } }; const { inner: taken } = outer; const spare = {}; const via = log.length < 9 ? taken : spare;',
+    'outer.inner.C'],
+  ['alias-arm', 'const box = { C: Map }; const alias = box; const spare = {}; const via = log.length < 9 ? alias : spare;', 'box.C'],
+];
+// what the write stores, and whether it runs: a static owner with no constructor entry and a constructor are
+// only written where the write is skipped - one that runs would read a static the realm itself may lack
+const ALIAS_WRITE_VALUES = [
+  ['user-object', "const Mine = { groupBy: () => ({ size: 'mine' }) };", 'Mine', [false, true]],
+  ['static-owner', '', 'Object', [false]],
+  ['constructor', '', 'Set', [false]],
+];
+function * generateAliasWrittenSlotConstructors() {
+  for (const [route, setup, read] of ALIAS_WRITE_ROUTES) {
+    for (const [value, declared, stored, runs] of ALIAS_WRITE_VALUES) for (const taken of runs) {
+      const body = `${ declared } ${ setup } if (log.length ${ taken ? '<' : '>' } 9) via.C = ${ stored };
+        try { return ${ read }.groupBy([3, 4], x => x % 2).size; } catch (error) { return error.constructor.name; }`;
+      const name = `alias-written-slot-constructors/${ route }/${ value }/${ taken ? 'taken' : 'skipped' }`;
+      yield { ...snippet(name, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
+// --- Realm slot self-copies ---
+// A global's own value written back into its slot puts the whole entry there, in every spelling, and a static's
+// own value its own polyfill: OTHER code reading a static off the realm - through a lookup no emitter follows, by
+// a key spelled at runtime - answers as natively. `Map` keeps its constructor in the stripped realm and loses
+// `groupBy`, so a narrow entry left in the slot shows there
+const REALM_SELF_COPY_ROWS = [
+  ['bare-from-realm-member', 'Map = globalThis.Map;'],
+  ['bare-from-other-realm-name', 'Map = self.Map;', true],
+  ['pattern', '({ Map } = globalThis);'],
+  ['realm-member-from-bare', 'globalThis.Map = Map;'],
+  ['member-across-realm-names', 'self.Map = globalThis.Map;', true],
+  ['same-member', 'window.Map = window.Map;', true],
+  ['bare-from-bare', 'Map = Map;'],
+  ['chain', 'Map = globalThis.Map = self.Map;', true],
+  ['logical-and', 'Map &&= globalThis.Map;'],
+  ['nested-pattern', '({ self: { Map } } = globalThis);', true],
+  ['positional', '[Map] = [globalThis.Map];'],
+];
+function * generateRealmSelfCopies() {
+  for (const [id, write, rig = false] of REALM_SELF_COPY_ROWS) {
+    const body = "(() => { const realm = Function('return this')(); const slot = _nativeObject.getOwnPropertyDescriptor(realm, 'Map');"
+      + ` try { ${ write } return typeof Reflect.get(realm.Map, ['group', 'By'].join('')); }`
+      + " finally { restoreProperty(realm, 'Map', slot); } })()";
+    yield mutationSnippet(`realm-self-copy/${ id }`, body, { rig });
+  }
+  const body = "(() => { const realm = Function('return this')(); const key = ['fr', 'om'].join('');"
+    + ' const slot = _nativeObject.getOwnPropertyDescriptor(realm.Array, key);'
+    + ' try { Array.from = Array.from; return typeof Reflect.get(realm.Array, key); } finally { restoreProperty(realm.Array, key, slot); } })()';
+  yield mutationSnippet('realm-self-copy/static', body);
+}
+
+// --- Escapes through folded computed keys ---
+// A constructor read off the realm through a computed key the claim folds - an effect ahead of the name, a const
+// binding, a concat, a template, over a pattern or a member - and handed to a callee no emitter follows takes
+// its whole entry: the callee reads a static by a key spelled at runtime, as natively. Stripped, a narrow entry
+// answers no `groupBy`
+const FOLDED_KEY_ESCAPES = [
+  ['effect-pattern', "let k = 0; const { [(k++, 'Map')]: Held } = globalThis;"],
+  ['bound-pattern', "const K = 'Map'; const { [K]: Held } = globalThis;"],
+  ['concat-pattern', "const { ['M' + 'ap']: Held } = globalThis;"],
+  ['template-pattern', ['const { [`M$', "{ 'a' }p`]: Held } = globalThis;"].join('')],
+  ['bound-member', "const K = 'Map'; const Held = globalThis[K];"],
+  ['template-member', ['const Held = globalThis[`M$', "{ 'a' }p`];"].join('')],
+  ['effect-pattern-alias', "let k = 0; const { [(k++, 'Map')]: Taken } = globalThis; const Held = Taken;"],
+];
+function * generateFoldedKeyEscapes() {
+  for (const [id, read] of FOLDED_KEY_ESCAPES) {
+    yield {
+      ...snippet(`folded-key-escape/${ id }`, `(() => { ${ read } const sink = Function('value', 'return value');`
+        + " return typeof Reflect.get(sink(Held), ['group', 'By'].join('')); })()"),
+      strip: true,
+    };
+  }
+}
+
+// --- Pattern member targets handing out what they store ---
+// A pattern leaf whose target is a MEMBER stores its value there as the flat `target = value` does, so a
+// constructor it stores into a container handed to a callee no emitter follows takes its whole entry, whatever
+// spells the slot - a computed key bound to a constant, a proxy hop, a position, a deeper path, a sibling the
+// pattern extracts. The callee reads a static by a key spelled at runtime, as natively; stripped, a narrow
+// entry answers no `groupBy`
+const PATTERN_MEMBER_ESCAPES = [
+  ['flat', '({ Map: box.y } = globalThis);'],
+  ['const-key', "const k = 'Map'; ({ [k]: box.y } = globalThis);"],
+  ['proxy-hop', '({ self: { Map: box.y } } = globalThis);', true],
+  ['positional', '[box.y] = [globalThis.Map];'],
+  ['deeper-path', '({ Map: box.inner.y } = globalThis); box.y = box.inner.y;'],
+  ['extracted-sibling', 'let S; ({ Map: box.y, Set: S } = globalThis); void S;'],
+];
+function * generatePatternMemberEscapes() {
+  for (const [id, write, rig = false] of PATTERN_MEMBER_ESCAPES) {
+    yield {
+      ...snippet(`pattern-member-escape/${ id }`, `(() => { const box = { inner: {} }; ${ write }`
+        + " const sink = Function('value', 'return value');"
+        + " return typeof Reflect.get(sink(box).y, ['group', 'By'].join('')); })()", { rig }),
+      strip: true,
+    };
+  }
+}
+
+// --- Raw static reads over held constructors ---
+// A static read the rewrite leaves as written over a receiver that may hold a constructor - through a selection
+// one arm of which holds no such slot, through an alias of a member path whose slot a write may replace, off a
+// container a write through a wrapper slot may reach, or through an alias of a selection over a name some
+// write reassigns - reads the static off the binding pure puts there, so that constructor's entry has to carry
+// its statics. Nothing touches `Map.groupBy` ahead of the read - that import is the very entry choice the family
+// pins, and the entry carrying the static keeps the result the snippet's own. The controls the rewrite serves
+// by name or by guard stay served. Whether a container a route reaches holds such a constructor follows its slot
+// through a call handing its argument back, a name a pattern binds off one or off a selection, and an alias cycle
+// met ahead of the constructor or before a later write stores it
+const RAW_STATIC_READS = [
+  ['arm-lacking-slot/named', 'const spare = {}; const box = { C: Map }; const via = cond ? box : spare;', 'via.C'],
+  ['arm-lacking-slot/in-place', 'const box = { C: Map };', '(cond ? box : {}).C'],
+  ['arm-lacking-slot/array-hole', 'const holes = []; const box = [Map]; const via = cond ? box : holes;', 'via[0]'],
+  ['arm-lacking-slot/class', 'class Plain {} const box = { C: Map }; const via = cond ? box : Plain;', 'via.C'],
+  ['written-member-path/member-alias', 'const outer = { inner: { C: Map } }; const via = outer.inner; if (!cond) outer.inner.C = null;', 'via.C'],
+  ['written-member-path/pattern-alias', 'const outer = { inner: { C: Map } }; const { inner: via } = outer; if (!cond) outer.inner.C = null;', 'via.C'],
+  [
+    'written-member-path/other-alias',
+    'const outer = { a: { b: { C: Map } } }; const via = outer.a.b; const other = outer.a.b; if (!cond) other.C = null;',
+    'via.C',
+  ],
+  ['wrapper-written/object', 'const held = { C: Map }; const box = { inner: held }; if (!cond) box.inner.C = null;', 'held.C'],
+  ['wrapper-written/slot-alias', 'const held = { C: Map }; const box = { inner: held }; const via = box.inner; if (!cond) via.C = null;', 'held.C'],
+  ['wrapper-written/array', 'const held = { C: Map }; const list = [held]; if (!cond) list[0].C = null;', 'held.C'],
+  ['reassigned-selection/nullish', 'let M = Map; if (!cond) M = null; const held = M ?? Object;', 'held'],
+  ['reassigned-selection/or', 'let M = Map; if (!cond) M = null; const held = M || Object;', 'held'],
+  ['reassigned-selection/ternary', 'let M = Map; if (!cond) M = null; const held = log.length > 9 ? Object : M;', 'held'],
+  ['control/unwritten-member-path', 'const outer = { inner: { C: Map } }; const via = outer.inner;', 'via.C'],
+  ['control/plain-alias-of-reassigned', 'let M = Map; if (!cond) M = null; const held = M;', 'held'],
+  ['owner-question/passthrough-call-slot', 'function id(x) { return x; } const box = { C: id(Map) }; const via = cond ? box : {}; via.E = 1;', 'box.C'],
+  [
+    'owner-question/pattern-name-off-passthrough',
+    'function id(x) { return x; } const src = { C: Map }; const { C: s } = id(src); const box = { C: s }; const via = cond ? box : {}; via.E = 1;',
+    'box.C',
+  ],
+  [
+    'owner-question/pattern-name-off-selection',
+    'const src = { C: Map }; const other = { C: Object }; const { C: s } = cond ? src : other; const box = { C: s }; const via = cond ? box : {}; via.E = 1;',
+    'box.C',
+  ],
+  ['owner-question/cycle-ahead-of-the-owner', 'let p = {}; let q = p; p = q; const box = { D: p, C: Map }; const via = cond ? box : {}; via.E = 1;', 'box.C'],
+  ['owner-question/cycle-then-owner', 'let p = {}; let q = p; p = q; q = Map; const box = { C: q }; const via = cond ? box : {}; via.E = 1;', 'box.C'],
+];
+function * generateRawStaticReadsOverHeldConstructors() {
+  for (const [shape, setup, read] of RAW_STATIC_READS) {
+    const body = `${ setup } try { return ${ read }.groupBy([3, 4], x => x % 2).size; } catch (error) { return error.constructor.name; }`;
+    yield { ...snippet(`raw-static-reads-over-held-constructors/${ shape }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -16789,4 +18433,41 @@ export function * generate() {
   yield * generateDiscardedInitSpellings();
   yield * generateDecidedUserSelections();
   yield * generateSelectionOwnerStatics();
+  yield * generateDecidedGuardWrites();
+  yield * generateReachingWriteScopes();
+  yield * generateHelperKeySelections();
+  yield * generateHelperKeyLoops();
+  yield * generateSelectionContainerReads();
+  yield * generateAgreeingKeyArms();
+  yield * generatePatchedGlobalReadOrder();
+  yield * generateDecidedForOfHeadReads();
+  yield * generateOpenPatternSlotLefts();
+  yield * generateHolderWrittenConstructors();
+  yield * generateContainerSelectionsHandedToCalls();
+  yield * generateKeyedCapturesBesideSiblings();
+  yield * generatePrototypeInstallsThroughOwners();
+  yield * generateRealmInstallReadOrder();
+  yield * generateRealmMemberPresenceTests();
+  yield * generateInstallsInArmsNeverTaken();
+  yield * generateLoopHeadSequenceStores();
+  yield * generateAnswerStatementsInWrappers();
+  yield * generateSelectionSlotArms();
+  yield * generateGetterPrefixKeyWrites();
+  yield * generateInstallsInRebuiltArguments();
+  yield * generateKeyAliasesReboundInBlocks();
+  yield * generateUnknownSlotAliasWrites();
+  yield * generateExplicitMemberPathStores();
+  yield * generateAliasChainsAtTheCeiling();
+  yield * generatePrototypeInstallsThatMayNotRun();
+  yield * generatePatternBindingWrites();
+  yield * generatePrototypeInstallsThroughNonSetterArms();
+  yield * generateDecidedFoldsInDiscardedPlaces();
+  yield * generateFoldsBesideDirectives();
+  yield * generateDecidedAnswerReads();
+  yield * generateAliasWrittenSlotConstructors();
+  yield * generateDeletedMemberKeyReads();
+  yield * generateRealmSelfCopies();
+  yield * generateFoldedKeyEscapes();
+  yield * generatePatternMemberEscapes();
+  yield * generateRawStaticReadsOverHeldConstructors();
 }

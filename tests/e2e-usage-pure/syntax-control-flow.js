@@ -418,3 +418,23 @@ QUnit.test('control flow: a read off a branch-initialized container takes its po
   }
   assert.deepEqual(read(), [1, 2]);
 });
+
+// a switch tries every case test before it falls back to `default`, the tests below the default clause
+// included, so the default body reads what such a test stored
+QUnit.test('control flow: a case test below default writes before the default body', assert => {
+  let C;
+  // eslint-disable-next-line no-useless-assignment -- the test below default overwrites it first, the case under test
+  C = Map;
+  let grouped;
+  // eslint-disable-next-line sonarjs/no-small-switch -- a default above one writing test is the case under test
+  switch ([0].length) {
+    // eslint-disable-next-line default-case-last -- the default body above a writing test is the case under test
+    default:
+      grouped = C.groupBy([1, 2, 3], x => x % 2);
+      break;
+    // eslint-disable-next-line sonarjs/comma-or-logical-or-case, no-sequences -- the write in the test is the case under test
+    case C = Object, 2:
+      grouped = null;
+  }
+  assert.deepEqual(grouped[1], [1, 3]);
+});

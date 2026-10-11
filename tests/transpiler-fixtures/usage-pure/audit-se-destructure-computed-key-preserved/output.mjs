@@ -3,5 +3,5 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // at destructure time. When the property is removed during the static-extract rewrite, the key effect is
 // folded into the emitted value so it still runs exactly once.
 let keyEval = 0;
-const build = (keyEval++, "from", _Array$from);
+const build = (keyEval++, _Array$from);
 export const made = build([1]);

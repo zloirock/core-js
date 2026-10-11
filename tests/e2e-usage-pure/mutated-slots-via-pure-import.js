@@ -3,12 +3,14 @@
 // since the mutation prepass runs before pure-import registration), and isolation from every
 // other Map write keeps the taint attributable to THIS binding - mutated-slots.js already
 // taints Map through other channels, which would mask a recognition regression here.
-// per-name discipline: Map = default-import channel, Set = namespace channel - one writer each
+// per-name discipline: Map = default-import channel, Set = namespace channel - one writer each.
+// the original is captured through a join-built key: a plain read ahead of every write of the slot
+// takes the pure import, which the restore would install
 import pureGlobalThis from '@core-js/pure/full/global-this';
 import * as pureGlobalThisNs from '@core-js/pure/full/global-this';
 
 QUnit.test('mutated-slots-via-pure-import: slot write through the import binding taints bare reads', assert => {
-  const original = globalThis.Map;
+  const original = globalThis[['M', 'ap'].join('')];
   function ShimMap() { this.shim = true; }
   pureGlobalThis.Map = ShimMap;
   try {
@@ -24,7 +26,7 @@ QUnit.test('mutated-slots-via-pure-import: slot write through the import binding
 // the namespace channel: bundler CJS interop hangs the global on the namespace's `.default`,
 // so a slot write through it must taint like the default-import write above
 QUnit.test('mutated-slots-via-pure-import: slot write through the namespace .default taints bare reads', assert => {
-  const original = globalThis.Set;
+  const original = globalThis[['S', 'et'].join('')];
   function ShimSet() { this.shim = true; }
   pureGlobalThisNs.default.Set = ShimSet;
   try {

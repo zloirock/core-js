@@ -5,8 +5,11 @@ import _Map from "@core-js/pure/actual/map";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// an effect prefix on a destructure init runs once, ahead of every read the pattern makes, wherever the
+// extraction leaves it room: a statement of its own where one fits - in the block a bodyless `if` gains,
+// between the halves of a split declaration - else the head of the sequence an assignment becomes, the
+// first extracted initializer (in a for-init, ahead of a computed key's effect) or its place in a
+// mirrored literal
 function eff() {}
 function pre() {}
 var bm, bo;
@@ -28,8 +31,7 @@ var {
 } = _globalThis;
 let kk = 0;
 var lead = pre(),
-  {} = (eff(), Array),
-  ko = (kk++, _Array$of),
+  ko = (eff(), kk++, _Array$of),
   {
     alsoMore
   } = Array;

@@ -376,9 +376,10 @@ export function createKnownGlobals({
     return null;
   }
 
-  // `resolveGlobalMember` / `resolveArgumentDirective` stay cluster-private (used
-  // only inside `resolveKnownStaticReturnType` / `resolveGlobalStaticReference`)
+  // `resolveArgumentDirective` stays cluster-private (used only inside `typeFromDirective`);
+  // `resolveGlobalMember` also names the static a callee calls (`resolveStaticCalleePair`)
   return {
+    resolveGlobalMember,
     typeFromHint,
     resolveInnerType,
     unwrapPromise,

@@ -1,11 +1,14 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// `let X = Promise; X = Foo;` - X is reassigned, so its value at any given callsite
-// can't be statically pinned to Promise. `super.try(...)` stays raw; if plugin rewrote
-// to Promise.try, runtime behaviour would diverge once X points to Foo
-let X = _Promise;
-X = FooClass;
-class C extends X {
-  static run() {
-    return super.try(() => 1);
+import _Promise from "@core-js/pure/actual/promise";
+// `class C extends X` where a write MAY replace the `let` X before the class: the heritage is Promise or
+// the caller's class, so `super.try()` stays raw, and the init imports the namespace entry - where the
+// write does not run, the raw read finds `try` on it, which `*/constructor` lacks
+export function subclass(Custom) {
+  let X = _Promise;
+  if (Custom) X = Custom;
+  class C extends X {
+    static run() {
+      return super.try(() => 1);
+    }
   }
+  return C.run();
 }
