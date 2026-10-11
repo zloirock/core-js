@@ -68,12 +68,12 @@ assign(assert, {
       message,
     });
   },
-  isFunction(fn, message) {
+  isFunction(fn, message = 'The value is a function') {
     this.pushResult({
       result: typeof fn == 'function' || toString.call(fn).slice(8, -1) === 'Function',
       actual: typeof fn,
       expected: 'The value should be a function',
-      message: message ?? 'The value is a function',
+      message,
     });
   },
   isIterable(actual, message = 'The value is iterable') {
