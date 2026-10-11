@@ -8,8 +8,8 @@
 ## Built-ins signatures
 ```ts
 class Map {
-  getOrInsert(key: object | symbol, value: any): any;
-  getOrInsertComputed(key: object | symbol, (key: any) => value: any): any;
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
 }
 
 class WeakMap {
