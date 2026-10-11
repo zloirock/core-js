@@ -108,7 +108,7 @@ export function createClosureAnalysis({
   // collection; carrier names must not be mistaken for aliases of the object they contain.
   function carrierBindingClosure(scope, name, anchorPath, fieldPath, receiverClosure = null, valueRead = false) {
     const closure = computeAliasClosureFromBinding({
-      rootBinding: getScopeBinding(scope, name, anchorPath),
+      rootBinding: getScopeBinding({ scope, name, path: anchorPath }),
       rootName: name,
       anchorPath,
       fieldPath,
@@ -219,7 +219,7 @@ export function createClosureAnalysis({
       cur = unwrapRuntimeExpr(cur.object);
     }
     if (cur?.type !== 'Identifier') return true;
-    const binding = getScopeBinding(scope, cur.name);
+    const binding = getScopeBinding({ scope, name: cur.name });
     if (!binding || !LOCAL_VAR_KINDS.has(binding.kind)) return true;
     return carrierBindingClosure(scope, cur.name, anchorPath, [...steps, ...fieldPath], null, valueRead) === null;
   }
@@ -567,7 +567,7 @@ export function createClosureAnalysis({
         const rootName = objectBindingName(objectPath);
         if (rootName) {
           return computeAliasClosureFromBinding({
-            rootBinding: getScopeBinding(objectPath.scope, rootName, objectPath),
+            rootBinding: getScopeBinding({ scope: objectPath.scope, name: rootName, path: objectPath }),
             rootName,
             anchorPath: objectPath,
             valueRead,
@@ -589,7 +589,7 @@ export function createClosureAnalysis({
   function isReceiverInClosure(objPath, closure) {
     const node = unwrapRuntimeExpr(objPath.node);
     if (!t.isIdentifier(node)) return false;
-    const binding = getScopeBinding(objPath.scope, node.name, objPath);
+    const binding = getScopeBinding({ scope: objPath.scope, name: node.name, path: objPath });
     return !!binding && closure.has(binding);
   }
 
@@ -808,7 +808,7 @@ export function createClosureAnalysis({
     if (entry.assignmentInitName) {
       const assignPath = entry.wrapperPath.parentPath;
       const scope = assignPath?.scope;
-      if (!isSoleAssignmentSource(getScopeBinding(scope, entry.assignmentInitName))) return { bail: true };
+      if (!isSoleAssignmentSource(getScopeBinding({ scope, name: entry.assignmentInitName }))) return { bail: true };
       return { name: entry.assignmentInitName, scope, anchorPath: assignPath };
     }
     if (!entry.isDeclaratorInit) return null;
@@ -877,7 +877,7 @@ export function createClosureAnalysis({
       if (classCarriesDecorators(node)) acquires = true;
       else if (node?.superClass && !classAncestorPaths(entry).length) {
         const canon = extendsClauseCanonical(node.superClass, entry.scope);
-        acquires = !canon || !!getScopeBinding(canon.scope, canon.name, anchorPath)
+        acquires = !canon || !!getScopeBinding({ scope: canon.scope, name: canon.name, path: anchorPath })
           || !KNOWN_GLOBAL_CONSTRUCTORS.has(canon.name);
       }
     }
@@ -935,7 +935,7 @@ export function createClosureAnalysis({
         // all (e.g., `new C()` as MemberExpression receiver - already tracked elsewhere), skip
         if (source?.bail) return null;
         if (!source) continue;
-        const binding = getScopeBinding(source.scope, source.name);
+        const binding = getScopeBinding({ scope: source.scope, name: source.name });
         if (!binding) return null;
         const sub = computeAliasClosureFromBinding({
           rootBinding: binding,
@@ -1007,7 +1007,7 @@ export function createClosureAnalysis({
       classPath.node,
       () => {
         const className = classBindingName(classPath);
-        const binding = className ? getScopeBinding(classPath.scope, className, classPath) : null;
+        const binding = className ? getScopeBinding({ scope: classPath.scope, name: className, path: classPath }) : null;
         if (!binding) return null;
         const hierarchy = [classPath, ...classAncestorPaths(classPath)];
         // a STATIC member's `this` is the constructor: handing it out opens the same unmonitored
@@ -1063,7 +1063,7 @@ export function createClosureAnalysis({
   // declaration it just landed on, not against wherever the walk started.
   // null for anything else (external / unresolvable base)
   function classDeclFromBindingName(name, scope) {
-    const binding = getScopeBinding(scope, name);
+    const binding = getScopeBinding({ scope, name });
     const node = binding?.path?.node;
     const declScope = aliasDeclScope(binding, scope);
     // the PATH comes along for consumers that need to traverse the ancestor body, not just read its
@@ -1090,7 +1090,7 @@ export function createClosureAnalysis({
     const seen = new Set();
     while (!seen.has(name)) {
       seen.add(name);
-      const binding = getScopeBinding(scope, name);
+      const binding = getScopeBinding({ scope, name });
       if (binding?.constantViolations?.length) return null;
       const init = unwrapExpressionChain(binding?.path?.node?.init);
       if (init?.type !== 'Identifier') return { name, scope };

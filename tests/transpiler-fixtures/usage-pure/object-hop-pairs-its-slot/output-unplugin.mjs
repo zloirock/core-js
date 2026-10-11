@@ -11,7 +11,7 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";

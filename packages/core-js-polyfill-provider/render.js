@@ -542,7 +542,8 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
 
 // A sole computed-key extraction evaluates the initializer before the key runs. The
 // dispatch owns the single property read; keeping a sentinel would read that slot twice.
-// A proven identifier read by no dispatch (`readsReceiver`) needs no binding of its own.
+// A receiver nothing reads takes no binding: it arrives as `discarded`, what discarding
+// it runs, spelled ahead of the keys (`keyedReadDiscardedReceiver`).
 // Both bindings pass embedded source nodes and their already-built default guard.
 export function renderKeyedDestructureRead({
   receiverName,
@@ -553,17 +554,17 @@ export function renderKeyedDestructureRead({
   storeReceiver = false,
   proven = false,
   reuseReceiver = false,
-  readsReceiver = false,
+  discarded = null,
 }) {
-  const keyed = keys.length ? sequenceExpression([...keys, read]) : read;
+  const lead = [...discarded ?? [], ...keys];
+  const keyed = lead.length ? sequenceExpression([...lead, read]) : read;
   const value = proven ? keyed : conditionalExpression(
     nullFirstGuardTest(identifier(receiverName)),
     memberExpression(identifier(receiverName), literal(''), { computed: true }),
     keyed,
   );
   return [
-    ...reuseReceiver || storeReceiver || (proven && !readsReceiver && hostSlotNode(receiver)?.type === 'Identifier') ? []
-      : [variableDeclarator(identifier(receiverName), receiver)],
+    ...reuseReceiver || storeReceiver || discarded ? [] : [variableDeclarator(identifier(receiverName), receiver)],
     variableDeclarator(binding, storeReceiver
       ? sequenceExpression([assignmentExpression('=', identifier(receiverName), receiver), value]) : value),
   ];

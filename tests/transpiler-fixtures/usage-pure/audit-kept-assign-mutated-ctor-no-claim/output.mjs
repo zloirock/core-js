@@ -1,10 +1,11 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
+import _Set from "@core-js/pure/actual/set";
 // a MUTATED ctor under a kept-assign navigation never claims its ponyfill: the read goes
 // through the mutated-static receiver swap (the nearest proxy hop's ponyfill), so the user's
 // patch stays visible; the kept assignment and its value spelling survive as written
-_globalThis.Set = class extends Set {};
+_globalThis.Set = class extends _Set {};
 let m;
 export const mutatedHop = _nameMaybeFunction((m = _globalThis.window, _self).Set);
 let a;

@@ -4,7 +4,8 @@
 // decides nothing - unless core-js extends it in place and ships no pure replacement of it (none at all, or a
 // global module patching the engine's own), every static under its own entries, which every engine it supports
 // carries (`Array`, `Math`, `Number`, not `WebAssembly` or `Int8Array`). The build here backs every definition it
-// is asked about, so each verdict below is the read's definition alone.
+// is asked about, so each verdict below is the read's definition alone. A static's `typeof` is known where the
+// built-in catalogue names it a method, and a constant's - a well-known symbol among them - is not.
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { servedRead } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
@@ -17,7 +18,9 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
   adapter.served = () => ({ substituted: false });
   for (const [source, expected] of [
     ['Promise', { global: 'Promise', type: 'function', substituted: false }],
-    ['Promise.resolve', { global: null, type: null, substituted: false }],
+    ['Promise.resolve', { global: null, type: 'function', substituted: false }],
+    ['Array.from', { global: null, type: 'function', substituted: false }],
+    ['Symbol.asyncIterator', { global: null, type: null, substituted: false }],
     ['Map.keys', null],
     ['Float16Array', null],
     ['Array', { global: 'Array', type: 'function', substituted: false }],

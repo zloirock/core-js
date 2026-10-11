@@ -1,6 +1,7 @@
-// `class C extends X` where `X` is a `let` binding reassigned to something else. the
-// extends-target is no longer statically known to be Promise, so `super.try()` must
-// NOT polyfill - safe miss preferred over wrong static dispatch
+// `class C extends X` where the `let` X is overwritten before the class: the heritage is no longer
+// provably Promise, so `super.try()` stays raw - a safe miss over a wrong static dispatch. the census
+// holds every value ever written to the heritage binding, its overwritten init included, so that init
+// imports the namespace entry, not `*/constructor` - an accepted over-hold
 let X = Promise;
 X = something;
 class C extends X {

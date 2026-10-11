@@ -15,6 +15,7 @@ import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.includes";
@@ -50,7 +51,8 @@ function outer() {
   return inner;
 }
 export const r3 = [D.includes('d'), outer()];
-// an EXPORTED lagged alias: the redecl value's variant joins the alias candidates in the union
+// an EXPORTED lagged alias: the redecl value's variant joins the alias candidates in the union, while the
+// realm's `Map` it holds until then leaves through the export and owes the constructor's statics
 export let E;
 ({
   Map: E

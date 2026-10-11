@@ -1,5 +1,6 @@
 // a compound assignment DERIVES a new value - not the identity self-restore idiom - so the
-// slot write records and the name deopts; the plain `=` self-copy twin stays exempted
+// slot write records and the name deopts; the plain `=` self-copy twin stays exempted, its
+// later reads served, while the constructor it copies into the slot takes its whole entry
 Promise += globalThis.Promise;
 export const compound = Promise.try(() => 1);
 Map = globalThis.Map;

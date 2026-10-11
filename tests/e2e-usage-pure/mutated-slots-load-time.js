@@ -11,10 +11,11 @@
 // the identity self-copy exemption trusts its proxy receiver; when the file REPLACES that
 // receiver's slot the copy installs the replacement's value, so the copied name must deopt
 // and serve the fake - a pristine ponyfill here would silently bypass it. the `self` writes
-// stay transform-VISIBLE (the replaced receiver is the case), the RegExp restore does not
+// stay transform-VISIBLE (the replaced receiver is the case), the RegExp restore does not, and
+// the `self` capture reads through a join-built key: ahead of every write it would take the pure import
 const originalRegExp = globalThis.RegExp;
 const hadSelf = 'self' in globalThis;
-const originalSelf = globalThis.self;
+const originalSelf = globalThis[['se', 'lf'].join('')];
 globalThis.self = { RegExp: { escape: () => 'fake' } };
 // eslint-disable-next-line no-global-assign, no-restricted-globals, unicorn/prefer-global-this -- the bare `self` receiver self-copy IS the case under test
 RegExp = self.RegExp;

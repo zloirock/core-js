@@ -1,17 +1,19 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _at from "@core-js/pure/actual/instance/at";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 // what a realm run rides when this BUILD cannot spell its root: the entry exists in the package and
 // the configuration excluded it, so nothing may substitute the root itself - but the canon judges a
 // hop by the entry EXISTING, and `web.self` was not excluded, so the run still rides the deepest
 // span pure can back. marking those hops handled would strand the whole run raw, which is the one
-// spelling the pure method exists to prevent
+// spelling the pure method exists to prevent. a run read ahead of the `delete` below - the one write of
+// the `window` slot - reads the realm there, so a constructor through it takes its own import
 let q;
 export const probeRun = _self.window;
 export const navigated = _self.Array;
 export const value = _self;
-export const claimThrough = _self.window.Map;
-export const storeThrough = _nameMaybeFunction((q = _self.window).Map);
+export const claimThrough = _Map;
+export const storeThrough = _nameMaybeFunction((q = _self, _Map));
 
 // ... and every consumer of such a run rides the same span: a `delete` reaches its slot off it, and
 // a dispatch above it reads its receiver through it - a plan that stood down here left the whole

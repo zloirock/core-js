@@ -65,9 +65,9 @@ const [{ expression: sourceTail }] = programOf('raw;').body;
 const [{ declarations }] = programOf('var x = (first(), (second(), pure));').body;
 const [liveReceiver] = declarations;
 const recordedPrefix = [mintLiteral(1), mintLiteral(2)];
-check('live nested receiver/rewritten tail', liveTailOf(liveReceiver, recordedPrefix, sourceTail).name, 'pure');
-check('live nested receiver/changed prefix shape', liveTailOf(liveReceiver, [mintLiteral(1)], sourceTail), sourceTail);
-check('live nested receiver/non-sequence', liveTailOf({ init: sourceTail }, recordedPrefix, sourceTail), sourceTail);
+check('live nested receiver/rewritten tail', liveTailOf(liveReceiver, { seqPrefix: recordedPrefix, initTail: sourceTail }).name, 'pure');
+check('live nested receiver/changed prefix shape', liveTailOf(liveReceiver, { seqPrefix: [mintLiteral(1)], initTail: sourceTail }), sourceTail);
+check('live nested receiver/non-sequence', liveTailOf({ init: sourceTail }, { seqPrefix: recordedPrefix, initTail: sourceTail }), sourceTail);
 
 // A structural AST comparison cannot see any of these changes; the separate comment
 // channel must reject them, including a duplicate lost without changing the set of texts.
@@ -1654,6 +1654,12 @@ function checkPhaseSnapshotFlow() {
       // leaves `this` untyped. unreferenced on purpose - any escape makes pass one dispatch as well
       ['super rewritten to its polyfill import',
         'const C = class extends Set {\n  first() { return this.values().next().value; }\n};'],
+      // a constructor the prior pass wrote as our own import (`picked.C = _Map`) is the global its entry
+      // names: a selection of a pattern binding written with it ties the arms as the global did, or the next
+      // pass folds the static read back through the container's path onto the literal's constructor
+      ['constructor written as its own pure import through a selection of a pattern binding',
+        'const holder = { inner: { C: Object } };\nconst spare = { C: Object };\nconst { inner: held } = holder;\n'
+          + 'const picked = flag ? held : spare;\npicked.C = Map;\nexport const grouped = holder.inner.C.groupBy([1], x => x);'],
       // exotic-but-valid module forms flow through the whole pipeline and settle
       ['import attributes on a sibling import', 'import data from "./d.json" with { type: "json" };\nexport const r = Array.from(data);\nuse(r);'],
       ['astral-plane identifier', 'const \u{1D4B6}b = [1];\nexport const r = \u{1D4B6}b.flat();\nuse(r);'],
@@ -1924,9 +1930,9 @@ for (const [label, source, name] of [
   const adapter = createEstreeAdapter({ method: 'usage-pure' });
   let use;
   traverse(ast, { $: { scope: true }, ReturnStatement(path) { use = path.get('argument'); } });
-  const binding = adapter.getBinding(use.scope, name, use);
+  const binding = adapter.getBinding({ scope: use.scope, name, path: use });
   check(`hoisted declaration scope/${ label }/scope`, binding.scope, binding.declarationPath.scope);
-  const local = adapter.getBinding(binding.scope, label === 'arrow callee' ? 'Object' : 'root', use);
+  const local = adapter.getBinding({ scope: binding.scope, name: label === 'arrow callee' ? 'Object' : 'root', path: use });
   check(`hoisted declaration scope/${ label }/initializer shadow`, local.node.init.type, 'ObjectExpression');
 }
 
@@ -1949,9 +1955,9 @@ for (const [label, source, name] of [
   traverse(ast, { $: { scope: true }, Program(path) { declarationProgram = path; } });
   traverse(ast, { $: { scope: true }, MemberExpression(path) { use = path; } });
   const adapter = createEstreeAdapter({ method: 'usage-pure' });
-  const binding = adapter.getBinding(declarationProgram.scope, 'rows', use);
+  const binding = adapter.getBinding({ scope: declarationProgram.scope, name: 'rows', path: use });
   check('hoisted declaration scope/outer lookup across traversal views', binding.node.init.value, 'outer');
-  check('hoisted declaration scope/actual inner lookup', adapter.getBinding(use.scope, 'rows', use).node.init.value, 'inner');
+  check('hoisted declaration scope/actual inner lookup', adapter.getBinding({ scope: use.scope, name: 'rows', path: use }).node.init.value, 'inner');
 }
 
 // Runtime constructor parameters must reach the receiver proof through the same
@@ -1973,11 +1979,11 @@ for (const [label, source, expectedKind, expectedType, writes] of [
   const adapter = createEstreeAdapter({ method: 'usage-pure' });
   let use;
   traverse(ast, { $: { scope: true }, MemberExpression(path) { if (path.node.property.name === 'at') use = path; } });
-  const binding = adapter.getBinding(use.scope, 'value', use);
+  const binding = adapter.getBinding({ scope: use.scope, name: 'value', path: use });
   check(`property parameter/${ label }/kind`, binding?.kind, expectedKind);
   check(`property parameter/${ label }/declaration`, binding?.declarationPath?.node.type, expectedType);
   check(`property parameter/${ label }/writes`, binding?.constantViolations?.length, writes);
-  check(`property parameter/${ label }/node type`, adapter.getBindingNodeType(use.scope, 'value', use), expectedType);
+  check(`property parameter/${ label }/node type`, adapter.getBindingNodeType({ scope: use.scope, name: 'value', path: use }), expectedType);
   check(`property parameter/${ label }/receiver reuse`, isReusableReceiver(use.node.object, { ctx: { scope: use.scope, adapter, path: use } }), true);
 }
 
@@ -3387,6 +3393,23 @@ function checkRefusedModuleGoalIsScriptEvidence() {
 }
 checkRefusedModuleGoalIsScriptEvidence();
 
+// ... and the script a refused module goal leaves may run bare, its top level the realm: a top-level `var` there is
+// the global object's own slot and a `let` / `class` its shared lexical scope, another script reading either by
+// name, so the constructor it holds takes the whole entry. A CommonJS id is the body of the wrapper its loader puts
+// around it, and the same `var` keeps the narrow entry there
+function checkRefusedModuleGoalTopLevelBindingsLeaveTheFile() {
+  function promiseEntry(declaration, id) {
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(`<!-- legacy\n${ declaration }\n`, id);
+    return /@core-js\/pure\/actual\/(?<entry>promise[^"]*)"/.exec(out?.code ?? '')?.groups.entry ?? null;
+  }
+  check('refused-goal/a top-level var holds the realm slot', promiseEntry('var P = Promise;', '/a.js'), 'promise');
+  check('refused-goal/a top-level let is read by name', promiseEntry('let P = Promise;', '/a.js'), 'promise');
+  check('refused-goal/a top-level class is read by name', promiseEntry('class P extends Promise {}', '/a.js'), 'promise');
+  check('refused-goal/a CommonJS id keeps the var its own', promiseEntry('var P = Promise;', '/a.cjs'), 'promise/constructor');
+}
+checkRefusedModuleGoalTopLevelBindingsLeaveTheFile();
+
 // The admission table is asked with an `enforce`, and the WIRING that hands each stage its own is
 // what makes the phase-dependent half real: with `phase: 'pre+post'` the two stages must disagree
 // about a compiled SFC id, and the single-phase default must never admit one at all
@@ -4329,12 +4352,12 @@ for (const depth of [8, 64, 128]) {
   let liveQueries = 0;
   let deadQueries = 0;
   let replacements = 0;
-  adapter.hasBinding = (scope, name, path) => {
+  adapter.hasBinding = ({ scope, name, path }) => {
     let current = path;
     while (current && !current.removed) current = current.parentPath;
     if (current) deadQueries++;
     else liveQueries++;
-    return hasBinding(scope, name, path);
+    return hasBinding({ scope, name, path });
   };
   traverse(ast, {
     $: { scope: true },
@@ -4510,6 +4533,28 @@ function checkPhantomViolationFilter() {
   check('same-scope function redeclaration is recorded as a violation', redecl.constantViolations.length, 1);
   check('same-scope function redeclaration violation kept (not phantom)',
     withoutPhantomDeclarationViolations(redecl).constantViolations.length, 1);
+  // a loop body or a namespace block redeclaring the name binds it apart, while the tracker gives the
+  // block no scope of its own: the declaration and the writes there leave the outer binding's list - a
+  // `var` head's too - while a body `var` redeclaring a `var` head is the head's own write and stays
+  function firstBindingFilteredCount(src, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      Identifier(path) { if (!result && path.node.name === name) result = path.scope.getBinding(name); },
+    });
+    return withoutPhantomDeclarationViolations(result).constantViolations.length;
+  }
+  check('loop body namesake and its write leave a let head',
+    firstBindingFilteredCount('for (let s of xs) { let s = [1]; s = [2]; }', 's'), 0);
+  check('loop body namesake and its write leave a var head',
+    firstBindingFilteredCount('for (var s of xs) { let s = [1]; s = [2]; }', 's'), 0);
+  check('loop body var redeclaration stays on a var head', firstBindingFilteredCount('for (var s of xs) { var s = [1]; }', 's'), 1);
+  check('namespace namesake write leaves the outer binding',
+    firstBindingFilteredCount('let s = 1; namespace N { let s = 2; s = 3; }', 's'), 0);
+  // ... and a declaration is found through its pattern: a pattern for-init's own record is phantom too
+  check('object pattern for-init self record dropped', firstBindingFilteredCount('for (const { a } = x; c; ) { a.at(0); }', 'a'), 0);
+  check('array pattern for-init self record dropped', firstBindingFilteredCount('for (let [a] = x; c; ) { a.at(0); }', 'a'), 0);
 
   // identity: nothing to drop returns the SAME binding object (no needless wrapping)
   const realBinding = bindingFor('let x = 1; x = 2; x;', 'x');

@@ -9,7 +9,7 @@ import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 // and the third-party shim is what runs
 if (!Array.from) Array.from = shimFrom;
 export const r1 = Array.from(x);
-_Promise.allSettled = _Promise$allSettled || shimAllSettled;
+_Promise.allSettled = _Promise$allSettled;
 export const r2 = _Promise.allSettled(ps);
 _Iterator.from ||= shimIterFrom;
 export const r3 = _Iterator.from(it);

@@ -35,7 +35,6 @@ import {
   isChainAssignment,
   isDestructurePattern,
   isEffectfulKeyHop,
-  isMemberAccessNode,
   identifierReferencedInSubtree,
   isPropertyNode,
   isMirrorablePatternValue,
@@ -98,6 +97,7 @@ import {
   computedKeyIsWellKnownSymbol,
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
+  decidedSelectionValue,
   guaranteedRealmObjectName,
   isStaticPlacement,
   navValueCanShortCircuit,
@@ -107,6 +107,7 @@ import {
   proxyReceiverValueCanBeUndefined,
   resolveKey as sharedResolveKey,
   memberTargetTakesExtraction,
+  residualLeafWritesIntoRealm,
   resolveObjectName,
   callYieldedLiteral,
   realmLevelNamesCtor,
@@ -144,6 +145,8 @@ import {
   typedNavClaimShape,
   staticContainerReceiverName,
   walkStaticReceiverChain,
+  decidedRunningOperand,
+  decidedRunningValue,
 } from './destructure.js';
 
 // collapse a fallback init (logical / ternary / chain-assignment / transparent IIFE) to the
@@ -157,8 +160,11 @@ function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfil
     || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
     if (!fallbackInitWhollyDiscardable(init, true, { scope, adapter, path })) init = null;
     else for (let guard = 0; guard < 8 && init; guard++) {
-      const inlined = peelZeroArgIifeReturn(init);
-      if (inlined) init = unwrapExpressionChain(inlined);
+      // a selection the build decides is the operand it always yields: the rest never runs
+      const live = decidedSelectionValue(init, { scope, adapter, path });
+      const inlined = live === init && peelZeroArgIifeReturn(init);
+      if (live !== init) init = unwrapExpressionChain(live);
+      else if (inlined) init = unwrapExpressionChain(inlined);
       // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
       else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
       // a ternary collapses to its consequent ONLY when the alternate agrees on a global proxy
@@ -638,19 +644,6 @@ export function resolvePolyfillableStaticProp({
   return { pure, localName: valueNode?.name ?? null, targetNode };
 }
 
-// would re-anchoring this residual leaf onto the ctor's PURE binding WRITE the ponyfill into the
-// realm? that binding is what a realm WITHOUT the constructor has instead of it, so the re-anchor is
-// what keeps the read working there and declining it is a lost polyfill - WHICH value the binding
-// answers for a given member is the runtime's own business (a `*/constructor` entry exposes the
-// ctor's prototype members as statics and installs none of its own until another entry decorates
-// it). The one thing the re-anchor may not do is land the ponyfill in the realm: a MEMBER target is
-// the author's own slot and takes the binding like a declared one, unless its ROOT stands for a
-// global, and that is the same question the extraction canon asks of the same target
-function residualLeafWritesIntoRealm(prop, memberRoot = null) {
-  const target = patternSlotTarget(prop?.value);
-  return isMemberAccessNode(target) && !memberTargetTakesExtraction(prop.value, memberRoot ?? {});
-}
-
 // the extracted value IS the iterator method - a FUNCTION - so a leaf pulled out of it is an
 // INSTANCE member of that function. only the plan can say so: the extracted pattern's properties
 // are claimed (the re-visit must not re-enter the destructure pipeline on them), and that claim
@@ -845,7 +838,12 @@ function arrayReadingPropPlan(propPath, {
     if ((effectful || sharedLeaf) && (!keyedCapture || keyedCapture.leafPattern !== leaf.parentPath.node)) {
       return { kind: 'verbatim', prop };
     }
-    const binding = walk.root.type === 'Identifier' && adapter.getBinding(propPath.scope, walk.root.name, propPath);
+    const binding = walk.root.type === 'Identifier' && adapter.getBinding({
+      scope: propPath.scope,
+      name: walk.root.name,
+      path: propPath,
+      read: walk.root,
+    });
     if (!capturedRoot && binding && isReassignedBeyondDeclarator(binding)) return { kind: 'verbatim', prop };
     const nestedReceiver = resolveNestedReceiverNode(leaf, { allowNavSegments: true, allowSeFreeSingleRead: singleRead, adapter })
       ?? (capturedRoot && walk.keys.reduce(memberFromKeyName, walk.root));
@@ -973,7 +971,8 @@ function arrayReadingPropPlan(propPath, {
 // whichever claim asks first, so such a chain declines, whoever asks.
 function positionalArrayRoot(path, { adapter, resolvePure }) {
   const assignment = path.node.type === 'AssignmentExpression';
-  const init = assignment ? path.node.right : path.node.init;
+  // a value the build decides is the operand of it that runs (`decidedRunningOperand`)
+  const init = decidedRunningOperand(assignment ? path.node.right : path.node.init, { scope: path.scope, adapter, path });
   if (!init || (!assignment && path.parentPath?.node?.type !== 'VariableDeclaration')) return null;
   function claims(leaf) {
     const { meta } = destructurePropLeafMeta({
@@ -1106,7 +1105,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       && isInstanceSurfaceNav(surface, { ctx: { scope: propPath.scope, adapter, path: propPath } }))
       || (paired && isReReadableSurfaceNav(
         unwrapRuntimeExpr(paired),
-        name => !!adapter.getBinding(propPath.scope, name, propPath)?.polyfillHint,
+        name => !!adapter.getBinding({ scope: propPath.scope, name, path: propPath })?.polyfillHint,
         { ctx: { scope: propPath.scope, adapter, path: propPath } },
       )))) return null;
     const children = propPath.parentPath.get('properties').map(child => child.node.value?.type === 'AssignmentPattern'
@@ -1234,7 +1233,8 @@ export function descendArrayWrapperToSE(declaratorNode, {
 function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp, captureFor, injectorState }) {
   const assignment = path.node.type === 'AssignmentExpression';
   const pattern = assignment ? path.node.left : path.node.id;
-  const sourceInit = assignment ? path.node.right : path.node.init;
+  // a value the build decides is the operand of it that runs (`decidedRunningOperand`)
+  const sourceInit = decidedRunningOperand(assignment ? path.node.right : path.node.init, { scope: path.scope, adapter, path });
   if (captureFor) {
     if (assignment || pattern?.type !== 'ArrayPattern'
       || (captureFor.kind !== 'instance' && !(captureFor.kind === 'static'
@@ -1270,7 +1270,8 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     if (source !== sourceRoot && (aliasSlotWritten(sourceRoot, [key, 0], adapter, { scope: path.scope, path })
       || aliasEscaped(sourceRoot, adapter, path))) return null;
     const paired = key === null ? null : objectLevelPairedProperty(source, key);
-    const array = unwrapRuntimeExpr(paired?.read);
+    // the slot's value, through a value the build decides to the operand of it that runs (`decidedRunningOperand`)
+    const array = paired ? unwrapRuntimeExpr(decidedRunningOperand(paired.read, { scope: path.scope, adapter, path })) : undefined;
     const declaration = path.parentPath;
     const host = declaration?.parentPath?.node?.type === 'ExportNamedDeclaration' ? declaration.parentPath : declaration;
     const statement = assignment && peelToExpressionStatement(path)?.exprStmt;
@@ -1551,8 +1552,12 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     const nested = capture?.elements.filter(element => element.pattern.type === 'ObjectPattern');
     if (nested?.length !== 1 || nested[0].path.length < 2
       || capture.elements.some(element => element !== nested[0] && element.pattern.type !== 'Identifier')) return null;
+    // ... each level read as the value of it that runs, through a sequence to its tail and every decision on
+    // either side of it (`decidedRunningValue`): the capture evaluates the prefix where the source wrote it
     let receiver = sourceInit;
-    for (const index of nested[0].path) receiver = arrayLiteralIterableElements(receiver)?.[index];
+    for (const index of nested[0].path) {
+      receiver = arrayLiteralIterableElements(decidedRunningValue(receiver, { scope: path.scope, adapter, path }))?.[index];
+    }
     if (!receiver) return null;
     let objectPath = path.get(assignment ? 'left' : 'id');
     for (const index of nested[0].path) objectPath = objectPath.get('elements')[index];
@@ -1752,7 +1757,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
       } else {
         const hostPlan = shape ? planNestedLeafHost(walk, null, { pairing: true }) : null;
         if (!hostPlan?.navPlacement || receiver?.type === 'Identifier'
-          && isReassignedBeyondDeclarator(adapter.getBinding(path.scope, receiver.name, path) ?? {})) {
+          && isReassignedBeyondDeclarator(adapter.getBinding({ scope: path.scope, name: receiver.name, path }) ?? {})) {
           // The original element can carry its own receiver computation. Keep its
           // iteration and every RHS effect before reading the captured object; the
           // capture then plans every element off its own position.
@@ -2271,7 +2276,7 @@ export function buildNestedDestructurePlan({
     // read. the detection layer's shadow gate never dispatches these leaves themselves, but
     // a SIBLING / ctor-key meta still dispatches the HOST - so the plan re-checks, else the
     // structural match above steals the user's key into a synth extraction
-    if (scope && adapter?.hasBinding(scope, 'Symbol', path)) return { kind: 'verbatim', prop };
+    if (scope && adapter?.hasBinding({ scope, name: 'Symbol', path })) return { kind: 'verbatim', prop };
     if (leafDisabled(prop)) return { kind: 'verbatim', prop };
     const localName = symbolIteratorLocalName(prop);
     if (localName !== null) {
@@ -2314,7 +2319,9 @@ export function buildNestedDestructurePlan({
     // mutated proxy key. mirrors the single-ctor anchor's `anchorSlotMutated` bail and the
     // flat-path meta gate. `planReceiverName` is the function-scope mirror of the block-scoped
     // receiver (canonical at every fold depth - the hops alias the one global object)
-    if (adapter.isMutatedStatic?.(planReceiverName, name)) return { kind: 'verbatim', prop: outerProp };
+    if (adapter.isMutatedStatic?.(planReceiverName, name, path && { node: outerProp, path })) {
+      return { kind: 'verbatim', prop: outerProp };
+    }
     const value = patternSlotTarget(outerProp.value);
     if (value?.type === 'ObjectPattern') {
       // The retained capture reads the whole pattern from the constructor index.
@@ -2365,7 +2372,7 @@ export function buildNestedDestructurePlan({
     if (name === null || POSSIBLE_GLOBAL_OBJECTS.has(name)) return planned;
     // a MUTATED ctor (`globalThis.Map = Shim` in-file) must read off the PATCHED native binding, not the
     // pure import - the user's replacement wins. mirror the single-ctor anchor's `anchorSlotMutated` bail
-    if (adapter.isMutatedStatic?.(receiver, name)) return planned;
+    if (adapter.isMutatedStatic?.(receiver, name, path && { node: planned.prop, path })) return planned;
     const anchorPure = resolveGlobalPolyfill(name);
     if (!anchorPure) return planned;
     const inner = patternSlotTarget(planned.prop.value);
@@ -2373,7 +2380,7 @@ export function buildNestedDestructurePlan({
     // Assignment extraction reads the iterator helper from its own constructor anchor.
     // Declaration residuals retain the raw symbol slot; the key still receives its polyfill.
     const anchorWks = [];
-    const symbolShadowed = scope && adapter?.hasBinding(scope, 'Symbol', path);
+    const symbolShadowed = scope && adapter?.hasBinding({ scope, name: 'Symbol', path });
     const residualProps = (planned.kind === 'verbatim'
       ? inner.properties
       : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop)).filter(item => {
@@ -2636,7 +2643,7 @@ export function buildNestedDestructurePlan({
         // so static leaves stay verbatim on the raw residual instead of extracting pure
         // statics. a `[Symbol.iterator]` leaf still extracts - the synth is receiver-based
         // and reads off the RAW anchor member, so the replacement stays visible through it
-        const anchorSlotMutated = !!adapter.isMutatedStatic?.(receiver, key);
+        const anchorSlotMutated = !!adapter.isMutatedStatic?.(receiver, key, path && { node: prop, path });
         const outerProps = inner.properties.map(p => restPure ? { kind: 'verbatim', prop: p } : planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
         const anchorPure = anchorSlotMutated ? null : resolveGlobalPolyfill(key);
@@ -2703,7 +2710,8 @@ export function buildNestedDestructurePlan({
         while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
           const [prop] = effPattern.properties;
           const key = propKeyNameScoped(prop);
-          if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key) || leafDisabled(prop)) break;
+          if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key, path && { node: prop, path })
+            || leafDisabled(prop)) break;
           const inner = patternSlotTarget(prop.value);
           if (inner?.type !== 'ObjectPattern' || !inner.properties.length
             || inner.properties.some(isRestProperty)) break;

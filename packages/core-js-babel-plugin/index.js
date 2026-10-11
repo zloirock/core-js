@@ -16,14 +16,17 @@ import {
   logicalSlotPatchHost,
   isThisReceiver,
   isDeoptedGlobalSlotRead,
+  isDeoptedStaticRead,
   mutatedSlotLeftNativeWarning,
-  isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
+  foldWalkReach,
   methodReadsUsageCensus,
   withTraversalCaches,
+  withVarScopeOwners,
   memberKeyName,
   memberKeyNamesReducer,
+  nestedTSRuntimeDeclarationsReducer,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   nestedSequenceValueSpelling,
@@ -33,6 +36,12 @@ import {
   unwrapRuntimeExpr,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
+  leavingAnswerStatements,
+  foldedOperandNeedsValue,
+  pathValueSlot,
+  performsNothing,
+  renderPerformsNothing,
+  sequenceElementsKept,
   isConsumedEntryImport,
   resolveModuleFormat,
   moduleFormatReducer,
@@ -40,12 +49,14 @@ import {
   memberChainEndPath,
   peelParenAndTSSlotPath,
   peelSkippableWrapperPath,
+  peelTransparentExpr,
   subtreeContainsNode,
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   usableAliasInfo,
   isMemberAccessNode,
   POSSIBLE_GLOBAL_OBJECTS,
+  nodePositionKey,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   ownEmittedLogicalPatch,
@@ -59,6 +70,7 @@ import {
   enrichMutatedStatics,
   escapedCtorReferencesReducer,
   mutationShapesReducer,
+  settleCensusWrites,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
@@ -125,6 +137,7 @@ import {
   deleteGuardKeepingHop,
   deleteHostAboveCarriedChain,
   peelReceiverSequenceTail,
+  receiverSequenceTailKeys,
   probeRenderedReceiver,
   probeRunIsTheSourceValue,
   staticMayEraseReceiver,
@@ -136,7 +149,6 @@ import {
   deletedRunCarriesMutatedRealmHop,
   resolveKey as sharedResolveKey,
   globalProxyMemberName,
-  readFeedsOwnSlotWrite,
   realmSelectionCollapseOperand,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -147,13 +159,14 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
-import { foldedOperandNeedsValue } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
   rangePreservingTypes,
   destructuredValueAbove,
   isOptionalNode,
+  proxyHopSwapSlotPath,
+  removePatternSlot,
 } from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
@@ -208,6 +221,9 @@ export default function plugin(api, options) {
   // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
   const { types: babelTypes, caller } = api;
   const t = rangePreservingTypes(babelTypes);
+  // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
+  // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
+  const pathsKeepParent = Number.parseInt(api.version, 10) >= 8;
   // set at program entry, read by the late-bound compat callbacks below
   let currentSynthSwap = null;
   // late-bound like `currentSynthSwap`: the file's opt-out directives, which the shared canon reads
@@ -236,16 +252,19 @@ export default function plugin(api, options) {
       return usableAliasInfo(injector?.getBindingInfo?.(name, useStart))?.hint ?? null;
     },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
-    // babel loses a binding from its scope registry after the destructure-assignment alias
-    // rewrite while the declaration survives in the AST; without the recovery the resolver's
-    // reassignment follow degrades to generic where the estree side keeps the narrow
+    // a declaration the plugin's own render inserted is in the AST but not in babel's scope; without
+    // the recovery the resolver's reassignment follow degrades to generic where the estree side keeps
+    // the narrow
     getScopeBinding(scope, name, path = null) {
-      return scope?.getBinding(name) ?? (path ? rebuildLaggedScopeBinding(path, name) : null);
+      return scope?.getBinding(name) ?? (path ? rebuildLaggedScopeBinding(path, name, scope) : null);
     },
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
     // traversal, after init, so the deferred reference is safe
-    isMutatedStatic: (object, key) => adapter.isMutatedStaticSlot(object, key),
+    isMutatedStatic: (object, key, read) => adapter.isMutatedStaticSlot(object, key, read),
     isWrittenContainerSlot: (...args) => adapter.isWrittenContainerSlot(...args),
+    getDecisionAdapter: () => adapter,
+    spellsMemberKey: key => memberKeyNames?.has(key) ?? true,
+    nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
   });
   const {
     resolveClaimableComputedKeyName,
@@ -307,21 +326,25 @@ export default function plugin(api, options) {
   // bails on the very record its own writes feed. the unplugin twin nulls the same pair
   let writtenContainerSlots = null;
   let containerSlotIndex = null;
+  // the census's member-key names, which gate the type layer's install walk (`spellsMemberKey`): set
+  // with the slots above, after the pre-pass, as the unplugin twin sets its own - the window between
+  // reads the gate open in both emitters
+  let memberKeyNames = null;
+  // does the file declare a TS runtime binding below its top level (the census's
+  // `nestedTSRuntimeDeclarations`)? set with the census, before any scoped walk asks a binding
+  let nestedTSRuntimeDeclarations = null;
   let fileCensus = null;
   // the census's escape half, by NAME. Its sets also key AST-bearing escape-walk caches,
   // so the answer must be released with the rest of the census after each file.
   let escapedCtorNames = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
-  // filter, so the read keeps flowing through the substituted constructor instead
-  // ... and the one read a mutation does NOT speak for is the DETECT the write itself computes from:
-  // `X.y = X.y || patch` reads the slot before the write lands, so the polyfill belongs there - it
-  // satisfies the detect, the third-party patch never installs, and what the slot then holds is
-  // core-js's own implementation, which every read after the write goes on reading raw
-  function resolvePure(meta, path) {
-    return isMutatedStaticMeta(meta, mutatedStatics) && !readFeedsOwnSlotWrite(path, {
-      objectName: meta.object, keyName: meta.key, scope: path?.scope, adapter, path,
-    }) ? null : resolvePureUnfiltered(meta, path);
+  // filter, so the read keeps flowing through the substituted constructor instead - save a read
+  // the write does not speak for (`isDeoptedStaticRead`): the detect it computes from and a read
+  // running before every write of the pair, which take what this build serves. `read` - the read where the
+  // caller holds it apart from `path` (the adapter's `served`)
+  function resolvePure(meta, path, read = undefined) {
+    return isDeoptedStaticRead({ meta, adapter, path, read }) ? null : resolvePureUnfiltered(meta, path);
   }
 
   let injector, importStyle, format, debugOutput;
@@ -330,7 +353,7 @@ export default function plugin(api, options) {
   function noteDeoptedGlobal(name) {
     if (deoptNotedNames.has(name)) return;
     deoptNotedNames.add(name);
-    debugOutput?.warn(mutatedSlotLeftNativeWarning(name, mutatedStatics));
+    debugOutput?.warn(mutatedSlotLeftNativeWarning(name));
   }
 
   const {
@@ -401,6 +424,7 @@ export default function plugin(api, options) {
   // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const adapter = createBabelAdapter({
     getInjector: () => injector,
+    nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
     method,
     isOptedOut: node => !!currentIsDisabled?.(node),
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`)
@@ -459,8 +483,11 @@ export default function plugin(api, options) {
     ...(() => {
       let skippedNodes = new WeakSet();
       // the user selections the detect pass found partly dead, with what usage-pure folds each to once
-      // its claims rendered
+      // its claims rendered - keyed by source span, which a copy an emission took of one keeps, so the
+      // copy folds as its original does; a node without a span is keyed by itself
       let deadSelections = new Map();
+      // did a claim stand where its value is discarded? its render may then leave as a fold's answer does
+      let discardedClaims = false;
       let originalBodyNodes = new WeakSet();
       // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
       // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
@@ -908,12 +935,14 @@ export default function plugin(api, options) {
           : plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
         // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
         // the source runs it - so the raw branch reads off the bare identifier instead of re-running
-        // the sequence (`(n++, M === _Map ? _Map$groupBy : M.groupBy)`)
-        const readNode = plan.seqPrefix.length || plan.captureReceiver
-          ? t.memberExpression(t.cloneNode(plan.recvIdent),
-            memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
-            memberNode.computed)
-          : memberNode;
+        // the sequence (`(n++, M === _Map ? _Map$groupBy : M.groupBy)`), and so it does off the left
+        // of a selection the build decides, its dead right gone with the render. the member's own `?.`
+        // stays on that read unless a hoisted guard answers it
+        const readProperty = memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name);
+        const readNode = !(plan.seqPrefix.length || plan.captureReceiver || plan.decidedSelection) ? memberNode
+          : memberNode.optional && !plan.hoisted
+            ? t.optionalMemberExpression(t.cloneNode(plan.recvIdent), readProperty, memberNode.computed, true)
+            : t.memberExpression(t.cloneNode(plan.recvIdent), readProperty, memberNode.computed);
         // a hoisted chain guard has already proved the receiver, so the raw branch drops the `?.`
         // the source wrote on the hop - the tail above it rides inside the guard's live branch
         const plainRead = plan.hoisted && readNode === memberNode
@@ -1075,17 +1104,21 @@ export default function plugin(api, options) {
           declarator.insertAfter(extracted);
           return true;
         }
+        // a captured receiver (`const { groupBy } = box.C`) is read once into a ref the guard tests
+        const captureSource = plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
+        if (captureSource) plan.recvIdent = generateRef(prop.scope);
         const rawBranch = markedRawBranch(plan, meta.key);
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           spellRecv: () => hostSlot(t.cloneNode(plan.recvIdent)),
+          captureReceiver: captureSource ? hostSlot(captureSource) : null,
         }));
         const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
         if (detach) {
           const anchor = hostKind === 'declarator' ? host : peelParenAndTSSlotPath(host).parentPath;
           if (!Array.isArray(anchor.container)) return false;
-          prop.remove();
+          removePatternSlot(prop);
           const placed = hostKind === 'declarator'
             ? t.variableDeclarator(t.identifier(bindingName), value)
             : t.expressionStatement(t.assignmentExpression('=', t.identifier(bindingName), value));
@@ -1241,7 +1274,7 @@ export default function plugin(api, options) {
             // silently bypasses user's `Array.from = ...` monkey-patch
             // this-receiver dispatch cannot route through the substituted constructor object
             // (the patch lives on the namespace, not the prototype chain) - keep the bail
-            if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
+            if (inheritedStatic && isDeoptedStaticRead({ meta, adapter, path })) return;
             // the tag slot may hold a TS wrapper over the member (`(arr.at as any)\`x\`` - the
             // wrapper survives in babel's AST): climb to the tagged-template host; the shared
             // predicate unwraps its tag slot, so the identity subsumes the old `path.key` check
@@ -1256,8 +1289,8 @@ export default function plugin(api, options) {
 
         // a SLOT-mutated global name is DEOPTED (see the slot-deopt model in the provider's
         // mutation pre-pass): the file writes the name itself, so its reads stay verbatim on
-        // the live binding and the runtime serves what the user's writes left there
-        if (isDeoptedGlobalSlotRead(meta, adapter)) {
+        // the live binding - save a read running before every write (`isDeoptedGlobalSlotRead`)
+        if (isDeoptedGlobalSlotRead(meta, adapter, path)) {
           noteDeoptedGlobal(meta.name);
           return;
         }
@@ -1494,9 +1527,18 @@ export default function plugin(api, options) {
         // the hops onto the guarded ref. non-mutated ref-rooted navs keep their natural handling
         // (receiver-independent ctor substitution and the leaf ponyfill swap)
         if (kind === 'global' && !path.isObjectProperty()) {
+          // the walk to the ROOT steps through what stands BETWEEN two hops - a TS cast, a paren
+          // node, a sequence tail - by the shared root walk's own peel (`receiverSequenceTailKeys`
+          // replays `peelReceiverSequenceTail`). stopped at the first wrapper, the `delete` fold
+          // below took a mid-run member for the root and landed the hop's own ponyfill where the
+          // paren twin lands the root binding (`delete (f().window as any).self.k` -> `_self.k`).
+          // what wraps the root itself stays on the path, for the carrier reads below
           let chainRootPath = path;
           while (chainRootPath.isMemberExpression() || chainRootPath.isOptionalMemberExpression()) {
-            chainRootPath = chainRootPath.get('object');
+            const objectPath = chainRootPath.get('object');
+            const keys = receiverSequenceTailKeys(objectPath.node);
+            const core = keys.length ? objectPath.get(keys.join('.')) : objectPath;
+            chainRootPath = core.isMemberExpression() || core.isOptionalMemberExpression() ? core : objectPath;
           }
           // a hop a nav-collapse render already emitted keeps the shape the plan chose. asked at
           // the CHAIN ROOT, the node whose object is the render - the same anchor the sibling arm
@@ -1566,9 +1608,12 @@ export default function plugin(api, options) {
             // the `?.` the source wrote over the folded nav guards a read that never happens: the
             // fold landed the root binding, and the canon has spoken for the whole navigation -
             // the shared dangling-optional rule spells it, carriers and all
+            // ... and it lands in the slot the claim's own swap takes, the TS wrappers on the span
+            // included: the bare binding needs no assertion (`delete (f().window.self as any).k`)
             function landFoldedRoot(base) {
-              path.replaceWith(base);
-              deoptionalizeDanglingOptionalParent(path);
+              const landing = peelParenAndTSSlotPath(path);
+              landing.replaceWith(base);
+              deoptionalizeDanglingOptionalParent(landing);
             }
             // a PROVEN effect-free call yielding a DEFINED global is the identifier spelling's
             // twin and folds onto the same root ponyfill; a probe yield keeps the per-hop
@@ -1739,7 +1784,10 @@ export default function plugin(api, options) {
             replaceInheritedStatic(path, id, meta.sideEffects);
           } else {
             const wasOptional = (annotateCallReturnType(path), path.node.optional);
-            const replacePath = peelParenAndTSSlotPath(path);
+            const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+              && isMemberAccessNode(path.node);
+            // a wrapper a user store holds stays over a swapped proxy hop (`proxyHopSwapSlotPath`)
+            const replacePath = proxyHopClaim ? proxyHopSwapSlotPath(path) : peelParenAndTSSlotPath(path);
             // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` - preserve fn() via
             // SequenceExpression wrap since the MemberExpression replacement discards its
             // receiver/computed-key subtree.
@@ -1793,8 +1841,6 @@ export default function plugin(api, options) {
             // is the probe run standing over this claim the value the SOURCE reads? asked HERE,
             // while the spine is still standing - after the swap the path holds the ponyfill, and
             // both halves of the verdict read the member this claim came in on
-            const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
-              && isMemberAccessNode(path.node);
             const probeRunIsTheValue = proxyHopClaim && probeRunIsTheSourceValue(path,
               { resolvePure: m => resolvePure(m, path), effects: claimEffects });
             replacePath.replaceWith(withSideEffects(id,
@@ -1920,7 +1966,10 @@ export default function plugin(api, options) {
             t.traverseFast(path.node[dead.skip], node => skippedNodes.add(node));
             path.skipKey(dead.skip);
           }
-          if (dead.fold !== null) deadSelections.set(path.node, dead);
+          if (dead.fold !== null) deadSelections.set(nodePositionKey(path.node) ?? path.node, dead);
+        },
+        onDiscardedClaim() {
+          discardedClaims = true;
         },
         // detection names a computed member key through the TYPE layer's resolver rather than a
         // copy of its enum fold - one name, one resolver
@@ -2059,8 +2108,10 @@ export default function plugin(api, options) {
             escapedCtorReferencesReducer(),
             restSentinelNamesReducer(),
             proxyWriteOriginsReducer(),
+            nestedTSRuntimeDeclarationsReducer(),
           ] : [],
         ]);
+        nestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
         // before: a global-flavor bail there would drop an import instead of adding one.
@@ -2077,6 +2128,7 @@ export default function plugin(api, options) {
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
         containerSlotIndex = fileCensus.containerSlotIndex ?? null;
+        memberKeyNames = fileCensus.memberKeyNames ?? null;
         importStyle = format.importStyle;
         injector = new ImportInjector({
           t,
@@ -2089,6 +2141,9 @@ export default function plugin(api, options) {
           absoluteImports,
           emitsGlobalModules: method !== 'usage-pure',
         });
+        // every install's never-run answer is settled on the tree as the source wrote it, before a render
+        // rebuilds the node an install stands in
+        settleCensusWrites({ mutatedSet: mutatedStatics, adapter });
         // user-owned global-object property names: in a script-scope output a top-level
         // `var <name>` temp ALIASES `globalThis.<name>`, so a temp write would clobber the
         // user's slot. `program.globals` only sees unbound identifier REFERENCES - property
@@ -2103,6 +2158,7 @@ export default function plugin(api, options) {
         }
         skippedNodes = new WeakSet();
         deadSelections = new Map();
+        discardedClaims = false;
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
         synthSwap = createSynthSwapEmitter({
@@ -2422,7 +2478,10 @@ export default function plugin(api, options) {
           VariableDeclarator: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
           AssignmentExpression: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
         });
-        withTraversalCaches(!isPure, () => path.traverse(visitors));
+        function walk() {
+          return path.traverse(visitors);
+        }
+        withTraversalCaches(!isPure, isPure && pathsKeepParent ? () => withVarScopeOwners(walk) : walk);
         processDeferredSideEffects(path);
         destructureEmit.pruneEmptiedHostDeclarators();
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
@@ -2487,19 +2546,82 @@ export default function plugin(api, options) {
       }
 
       // the partly dead user selections still standing once the claims rendered fold to what they yield
-      // - an operand, kept a value in a reference slot (`foldedOperandNeedsValue`), or the value a decided
-      // test answers: a claim owns the selection it reads and has already dropped what never runs where
-      // it took the rest
+      // - an operand, kept a value in its slot (`foldedOperandNeedsValue`), or the value a decided test
+      // answers: a claim owns the selection it reads and has already dropped what never runs where it took
+      // the rest. a fold to what performs nothing (`performsNothing`: a literal, `void` of one, a binding
+      // this build minted) is an answer, and so is what a claim standing where its value is discarded
+      // rendered that performs nothing (`renderPerformsNothing`: `'from' in Array;` is `true`). an answer
+      // leaves the place discarding it - through any transparent wrapper, parens and TS casts alike - once
+      // the walk is out of that place, the unplugin leg's order: a sequence ahead of its value, save one its
+      // slot needs (`sequenceElementsKept`), and a listed statement holding nothing else, save one whose
+      // leaving would promote the next statement into a directive (`leaveAnswerStatement`) - no bare
+      // `false;`, `true;` or `_Set;` stays
       function foldDeadSelections(programPath) {
-        if (!deadSelections.size) return;
-        programPath.traverse({
-          'LogicalExpression|ConditionalExpression'(selection) {
-            if (!deadSelections.has(selection.node)) return;
-            const { fold, slot } = deadSelections.get(selection.node);
-            const operand = typeof fold === 'boolean' ? t.booleanLiteral(fold) : selection.node[fold];
-            selection.replaceWith(foldedOperandNeedsValue(operand, slot) ? t.sequenceExpression([t.numericLiteral(0), operand]) : operand);
-          },
+        if (!deadSelections.size && !discardedClaims) return;
+        const answers = new WeakSet();
+        function isAnswer(value, path) {
+          const inner = peelTransparentExpr(value);
+          return answers.has(inner)
+            || renderPerformsNothing(inner, { adapter, scope: path.scope, path, injectorState: injector });
+        }
+        // the walk stands only where a fold may act (`foldWalkReach`), and in what a fold puts in place
+        const reach = foldWalkReach(programPath.node, {
+          isDecided: node => deadSelections.has(nodePositionKey(node) ?? node),
+          injectorState: injector,
         });
+        programPath.traverse({
+          enter(path) {
+            if (reach && !reach.has(path.node)) path.skip();
+          },
+          'LogicalExpression|ConditionalExpression'(selection) {
+            const dead = deadSelections.get(nodePositionKey(selection.node) ?? selection.node);
+            if (!dead) return;
+            const { fold, slot } = dead;
+            const operand = typeof fold === 'boolean' ? t.booleanLiteral(fold) : selection.node[fold];
+            const replacement = foldedOperandNeedsValue(operand, slot) ? t.sequenceExpression([t.numericLiteral(0), operand]) : operand;
+            const ctx = { adapter, scope: selection.scope, path: selection, injectorState: injector };
+            if (performsNothing(operand, ctx)) answers.add(peelTransparentExpr(replacement));
+            reach?.add(replacement);
+            selection.replaceWith(replacement);
+          },
+          SequenceExpression: { exit(sequence) {
+            const { expressions } = sequence.node;
+            const kept = sequenceElementsKept(expressions, element => isAnswer(element, sequence),
+              () => pathValueSlot(sequence));
+            if (kept === expressions) return;
+            if (kept.length > 1) sequence.node.expressions = kept;
+            else sequence.replaceWith(kept[0]);
+          } },
+          ExpressionStatement: { exit(statement) {
+            if (statement.inList && isAnswer(statement.node.expression, statement)) leaveAnswerStatement(statement);
+          } },
+        });
+      }
+
+      // ... asked of the live list (a statement an earlier visit removed is gone from it already) less the
+      // nodes of ours standing in it: an import flushed ahead may leave with the answer it served (`typeof
+      // _Symbol` was its one read), so it holds no place in the prologue question - nor takes the comments
+      // the leaving statement carries, which go ahead of the source statement after it, else behind the one
+      // before it, else inside the body that held it
+      function leaveAnswerStatement(statement) {
+        const ours = new Set(injector?.survivingEmittedNodes(statement.container));
+        const body = ours.size ? statement.container.filter(node => !ours.has(node)) : statement.container;
+        const at = body.indexOf(statement.node);
+        if (!leavingAnswerStatements(body, [at]).length) return;
+        const { node } = statement;
+        const comments = [...node.leadingComments ?? [], ...node.trailingComments ?? []];
+        node.leadingComments = null;
+        node.trailingComments = null;
+        const next = body[at + 1];
+        const prev = body[at - 1];
+        if (comments.length && next) {
+          next.leadingComments = [...comments.filter(comment => !next.leadingComments?.includes(comment)),
+            ...next.leadingComments ?? []];
+        } else if (comments.length && prev) {
+          prev.trailingComments = [...prev.trailingComments ?? [],
+            ...comments.filter(comment => !prev.trailingComments?.includes(comment))];
+        } else if (comments.length) statement.parent.innerComments = [...statement.parent.innerComments ?? [], ...comments];
+        statement.remove();
       }
 
       // one whole-program post-sweep for built-ins a sibling transform injects AFTER our pre-pass.
@@ -2550,7 +2672,7 @@ export default function plugin(api, options) {
             // explicitly so the TS-runtime walk anchors at the reference site (catches
             // `function f() { enum Map; ... }` shadowing); without it the walk anchors at the
             // Program scope and misses nested TS-runtime bindings
-            if (adapter.hasBinding(idPath.scope, idPath.node.name, idPath)) return;
+            if (adapter.hasBinding({ scope: idPath.scope, name: idPath.node.name, path: idPath })) return;
             // skip a global at a write position - UpdateExpression operand (`Map++`), for-of /
             // for-in head bare-Identifier LHS (`for (Map of arr)`), or assignment LHS (`Map = x`,
             // `Map ||= x`). for usage-pure a frozen import binding cannot occupy that slot, so this is
@@ -2673,7 +2795,7 @@ export default function plugin(api, options) {
         // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
         // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
         // emitters do. its derived slots go with it - they are read only during traversal
-        fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = null;
+        fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = memberKeyNames = null;
       }
 
       // every per-file slot that is NOT heap-allocated, in one place: postHook nulls the
@@ -2691,6 +2813,8 @@ export default function plugin(api, options) {
         parensPending = true;
         skippedNodes = new WeakSet();
         deadSelections = new Map();
+        discardedClaims = false;
+        nestedTSRuntimeDeclarations = null;
       }
 
       // post-flush import-region housekeeping: canonical-sort the union of all flushed

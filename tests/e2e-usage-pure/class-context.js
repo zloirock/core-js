@@ -561,3 +561,17 @@ QUnit.test('class context: a class expression reads its own statics through its 
   assert.same(typeof Outer.attempt(), 'function');
   assert.deepEqual(Outer.concat([1], [2]).toArray(), [1, 2]);
 });
+
+// a class evaluates its computed keys before its static field values, so a write in a key reaches a
+// field read the source places above it: the field groups through what the key stored
+QUnit.test('class context: a key write reaches a static field read above it', assert => {
+  let C;
+  C = Map;
+  // eslint-disable-next-line unicorn/no-static-only-class -- the class's own key and field order is the case under test
+  class Keyed {
+    static grouped = C.groupBy([1, 2, 3], x => x % 2);
+    static [(C = Object, 'key')] = 1;
+  }
+  assert.false(Keyed.grouped instanceof Map);
+  assert.deepEqual(Keyed.grouped[1], [1, 3]);
+});

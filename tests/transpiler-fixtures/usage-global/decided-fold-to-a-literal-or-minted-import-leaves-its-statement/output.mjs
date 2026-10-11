@@ -1,0 +1,35 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.namespace";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.all-settled";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.global-this";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.set.constructor";
+import "core-js/modules/es.set.species";
+import "core-js/modules/es.set.difference";
+import "core-js/modules/es.set.intersection";
+import "core-js/modules/es.set.is-disjoint-from";
+import "core-js/modules/es.set.is-subset-of";
+import "core-js/modules/es.set.is-superset-of";
+import "core-js/modules/es.set.symmetric-difference";
+import "core-js/modules/es.set.union";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.weak-set.constructor";
+import "core-js/modules/web.dom-collections.iterator";
+// usage-global rewrites none of these statements: each loads the modules of the global its test or its
+// served left reads, folded away in pure or not
+typeof Map == 'undefined' ? installMap() : fallbackMap;
+globalThis.Set || (globalThis.Set = SetShim);
+typeof Symbol == 'undefined' ? installSymbol() : 0;
+typeof Reflect == 'undefined' ? installReflect() : void 0;
+if (ready) globalThis.WeakSet || (globalThis.WeakSet = WeakSetShim);
+export const settled = Promise.allSettled([]);
