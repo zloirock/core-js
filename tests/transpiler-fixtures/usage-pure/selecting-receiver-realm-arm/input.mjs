@@ -17,7 +17,8 @@ export function spelled(flag) {
 export function ctorStatic(flag) {
   return (flag ? realm() : opaque()).Map.groupBy([1, 2], value => value % 2);
 }
-// No arm names a realm: nothing to test against, the read stays native.
+// No arm names a realm: the container arm's constructor is the guard's only candidate, the opaque arm
+// its raw branch.
 export function opaqueOnly(flag) {
   return (flag ? opaque() : { Array }).Array.of(1);
 }

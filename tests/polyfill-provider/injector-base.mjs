@@ -11,6 +11,8 @@ import ImportInjectorState, {
   unwrapWriteOnlyGuardMemos,
 } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('injector-base');
@@ -391,6 +393,67 @@ for (const [label, receiver, expected, pureReads] of [
       check(`${ parser } :: ${ label }/shape`, value.type, expected ? 'SequenceExpression' : 'CallExpression');
       if (expected) check(`${ parser } :: ${ label }/effects retained`, value.expressions.map(node => node.type).join(','), expected);
       check(`${ parser } :: ${ label }/liveness`, census.pureCounts.get('_realm'), pureReads);
+    });
+}
+
+// a memo no read reached - a later claim consumed its readers - folds into the next initialized declarator
+// of its statement list as a loop header's does: its effects lead that initializer and an own pure terminal
+// leaves with it; a memo a read reaches, or one with no initialized declarator after it, stays, and so does
+// a rest sentinel, which captures nothing. A memo whose reads now spell its value retires through the split
+// alone: folding it as well would run its effects twice
+for (const [label, declarators, kept, folded] of [
+  ['unread memo before a binding', '_ref = (effect(), _realm), value = (key(), pony)', 'value', 'effect,key,pony'],
+  ['unread call memo', '_ref = make(), value = pony', 'value', 'make,pony'],
+  ['read memo', '_ref = (effect(), make()), value = use(_ref)', '_ref,value', null],
+  ['read memo beside an unread one', '_ref = (effect(), make()), value = use(_ref), _ref2 = make(), tail = pony', '_ref,value,tail', 'make,pony'],
+  ['last declarator', 'value = pony, _ref = (effect(), _realm)', 'value,_ref', null],
+  ['unread sentinel', '_unused = (effect(), _realm), value = (key(), pony)', '_unused,value', null],
+  ['retired memo', '_ref = (effect(), _realm), value = use(_ref)', 'value', null],
+]) {
+  runBoth(`census/unread statement memo/${ label }`,
+    `import _realm from '@core-js/pure/actual/global-this'; const ${ declarators };`,
+    (harnessParser, programPath, parser) => {
+      const adapter = (harnessParser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const injector = new TestInjector({ mode: 'actual', pkg: '@core-js/pure', importStyle: 'import' });
+      injector.addPureImport('global-this', 'realm');
+      injector.generateLocalRef();
+      injector.generateLocalRef();
+      injector.generateUnusedName();
+      const census = collectInjectorCensus(programPath.node, {
+        mintedRefNames: new Set(['_ref', '_ref2', '_unused']),
+        pureNames: new Set(['_realm']),
+        memoReuse: true,
+      });
+      const pureReads = census.pureCounts.get('_realm');
+      unwrapWriteOnlyGuardMemos(census, {
+        injectorState: injector,
+        contextForMemo(name, write, occurrence) {
+          let path = programPath;
+          for (let at = 1; at < occurrence.ancestors.length; at++) {
+            path = occurrence.listKeys[at] ? path.get(occurrence.listKeys[at])[occurrence.keys[at]] : path.get(occurrence.keys[at]);
+          }
+          return { scope: path.scope, path, adapter };
+        },
+      });
+      const declarations = programPath.node.body.filter(node => node.type === 'VariableDeclaration').flatMap(node => node.declarations);
+      check(`${ parser } :: ${ label }/declarators`, declarations.map(item => item.id.name).join(','), kept);
+      // the comma run as evaluated - a nested or parenthesized sequence groups nothing
+      function spelled(node) {
+        const value = unwrapRuntimeExpr(node);
+        return value.type === 'SequenceExpression' ? value.expressions.flatMap(spelled) : [value.callee?.name ?? value.name];
+      }
+      if (label === 'retired memo') {
+        // its effect runs once, ahead of the split, and the read spells the value
+        check(`${ parser } :: ${ label }/effect statements`, programPath.node.body.filter(node => node.type === 'ExpressionStatement').length, 1);
+        check(`${ parser } :: ${ label }/the read spells the value`, unwrapRuntimeExpr(declarations[0].init).arguments[0].name, '_realm');
+        return;
+      }
+      if (!folded) return;
+      const next = declarations.at(-1);
+      check(`${ parser } :: ${ label }/effects lead the next initializer`, spelled(next.init).join(','), folded);
+      check(`${ parser } :: ${ label }/the memo leaves the census`, census.refCounts.get(label.includes('beside') ? '_ref2' : '_ref'), 0);
+      check(`${ parser } :: ${ label }/an own terminal leaves the liveness count`, census.pureCounts.get('_realm'),
+        declarators.includes('_ref = (effect(), _realm)') ? pureReads - 1 : pureReads);
     });
 }
 

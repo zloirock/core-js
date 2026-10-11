@@ -8,7 +8,9 @@ import { restoreProperty } from '../helpers/restore-property.cjs';
 // Symbol / AggregateError / Async*) either pre-create the slot before a bare write (a strict
 // write to a MISSING global ReferenceErrors), keep member-form access, or assert the
 // native-faithful crash itself. every test restores what it writes - absent-before slots are
-// DELETED back (an `if (had)`-only restore would leak an own `undefined` property)
+// DELETED back (an `if (had)`-only restore would leak an own `undefined` property) - and captures
+// the original through a join-built key where a plain read would run ahead of every write of the
+// slot, which takes the pure import
 
 // a whole-constructor replacement on the global object owns EVERY read surface: bare
 // constructor references re-route through the global-object binding, so the file-wide
@@ -106,7 +108,7 @@ QUnit.test('mutated-slots: cross-alias slot mutation (self write, globalThis rea
 // reverse direction: a `globalThis` slot write must reach a destructure read through `self`
 QUnit.test('mutated-slots: cross-alias slot mutation (globalThis write, self read)', assert => {
   const had = 'WeakMap' in globalThis;
-  const original = globalThis.WeakMap;
+  const original = globalThis[['Weak', 'Map'].join('')];
   function Shim() { return null; }
   globalThis.WeakMap = Shim;
   try {
@@ -180,7 +182,7 @@ QUnit.test('mutated-slots: deopted slot reads are native-faithful', assert => {
 // symbols: the key read must go through the live slot instead of the symbol helper
 QUnit.test('mutated-slots: replaced Symbol slot keys read through the slot', assert => {
   const had = 'Symbol' in globalThis;
-  const original = globalThis.Symbol;
+  const original = globalThis[['Sym', 'bol'].join('')];
   globalThis.Symbol = { iterator: '@@fake' };
   try {
     const obj = { '@@fake': 42 };
@@ -228,7 +230,7 @@ QUnit.test('mutated-slots: replaced slot serves bare prototype reads', assert =>
 // a bare DESTRUCTURE-PATTERN element write (`[Set] = [shim]`) assigns the same global slot
 // as the flat reassignment - later bare constructor reads route the live slot
 QUnit.test('mutated-slots: pattern-element slot write routes later reads', assert => {
-  const original = globalThis.Set;
+  const original = globalThis[['S', 'et'].join('')];
   function ShimSet() { this.shimMarker = true; }
   /* eslint-disable no-global-assign -- the bare pattern-element write IS the case under test */
   [Set] = [ShimSet];
@@ -300,7 +302,7 @@ QUnit.test('mutated-slots: bare logical-assign stays verbatim', assert => {
 // slot skips the branch, a truthy one enters it - no ponyfill ever leaks into the probe
 QUnit.test('mutated-slots: presence guard probes the real binding', assert => {
   const had = 'AsyncDisposableStack' in globalThis;
-  const original = globalThis.AsyncDisposableStack;
+  const original = globalThis[['AsyncDisposable', 'Stack'].join('')];
   globalThis.AsyncDisposableStack = undefined;
   let entered = false;
   if (AsyncDisposableStack) entered = true;
@@ -376,7 +378,7 @@ testUnlessDetectLowered('mutated-slots: a delete through a probe nav reaches the
 // and the shim never ran
 QUnit.test('mutated-slots: a lowercase global slot write owns its reads', assert => {
   const had = 'structuredClone' in globalThis;
-  const original = globalThis.structuredClone;
+  const original = globalThis[['structured', 'Clone'].join('')];
   // pre-create the slot: a strict-mode bare write to a MISSING global ReferenceErrors, and the
   // stripped realm is exactly the environment this name is absent in
   if (!had) globalThis.structuredClone = function stub() { return null; };

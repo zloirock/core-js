@@ -1,9 +1,8 @@
 // a chain assignment writes its TAIL into every name on the chain, so a dominating `x = y = V` write
-// installs `V` whatever channel later reads the alias: a bare receiver, a computed key, a callee, an
-// array-wrapper alias, a class base and a class static container. one write-value canon answers
-// them all - a channel judging the raw `y = V` node resolves nothing and drops the polyfill
-// the bare receiver takes the tail as the ONE value its read observes: the dominating write is the
-// live value, so the static binds the ponyfill outright - no runtime ctor guard is owed
+// installs `V` whatever channel later reads the alias - a bare receiver, a computed key, a callee, an
+// array-wrapper alias, a class base or static container - and the static binds the ponyfill outright.
+// a reassigned heritage imports the namespace entry, not `*/constructor`: the census holds the family of
+// every value written to it, though the super read is served - an accepted over-hold
 
 let recv = Object, r2;
 recv = r2 = Array;
@@ -20,12 +19,12 @@ export const callee = mk().Array.of(1);
 let wrap = [Object], w2;
 wrap = w2 = [Promise];
 const [{ allSettled }] = wrap;
-export const wrapperAlias = allSettled([]);
+export const wrapperAlias = allSettled.call(Promise, []);
 
 let base = Object, b2;
-base = b2 = Reflect;
+base = b2 = Iterator;
 class Base extends base {
-  static go() { return super.ownKeys({}); }
+  static go() { return super.from([1]); }
 }
 export const classBase = Base.go();
 

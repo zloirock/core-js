@@ -1,0 +1,54 @@
+import "core-js/modules/es.object.entries";
+import "core-js/modules/es.object.group-by";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.aggregate-error.constructor";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.all-settled";
+import "core-js/modules/es.promise.any";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.chunks";
+import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.iterator.drop";
+import "core-js/modules/es.iterator.every";
+import "core-js/modules/es.iterator.filter";
+import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.iterator.join";
+import "core-js/modules/es.iterator.map";
+import "core-js/modules/es.iterator.reduce";
+import "core-js/modules/es.iterator.some";
+import "core-js/modules/es.iterator.take";
+import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.windows";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.weak-map.constructor";
+import "core-js/modules/es.weak-map.get-or-insert";
+import "core-js/modules/es.weak-map.get-or-insert-computed";
+import "core-js/modules/web.dom-collections.iterator";
+// a `||` / `??` over an alias decides by the value the alias holds: a global core-js does not know may
+// hold a falsy value (`opener` is null in most windows), so a write right of it runs and joins the values
+// the name may hold - a key, a constructor and a nullish key written there. a built-in is never falsy,
+// so a write right of it never runs
+const unknown = someGlobal;
+let key = 'from';
+unknown || (key = 'of');
+export const readKey = () => Array[key]([1]);
+let Ctor = Iterator;
+unknown || (Ctor = Object);
+export const readCtor = () => Ctor.groupBy([1], x => x);
+const named = someName;
+let combinator = 'any';
+named ?? (combinator = 'allSettled');
+export const readNullish = () => Promise[combinator]([]);
+const builtIn = WeakMap;
+let entriesKey = 'entries';
+builtIn || (entriesKey = 'values');
+export const readBuiltIn = item => Object[entriesKey](item);

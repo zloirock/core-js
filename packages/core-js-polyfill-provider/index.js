@@ -374,6 +374,22 @@ export function hasOwnStaticDefinition(object, key) {
   return hasOwn(statics, object) && hasOwn(statics[object], key);
 }
 
+// whether <object> owns any static in the definitions - a namespace (`Math`) as much as a constructor
+export function hasStaticDefinitions(object) {
+  return hasOwn(statics, object);
+}
+
+// does a pure import of the namespace entry `namespaced` (`es/promise`) carry `object`'s own static `key`:
+// the static's own entry exists at that namespace and every module of it ships in the import - `es` has
+// no `promise/all-keyed`, so `es/promise` does not carry `Promise.allKeyed` while `actual/promise` does
+export function namespaceEntryCarriesStatic(namespaced, object, key) {
+  const namespace = namespaced.slice(0, namespaced.indexOf('/'));
+  const carried = hasOwn(entries, namespaced) ? entries[namespaced] : null;
+  const own = hasOwnStaticDefinition(object, key) ? statics[object][key]?.pure?.dependencies : null;
+  return !!carried && !!own?.length && own.every(entry => hasOwn(entries, `${ namespace }/${ entry }`)
+    && entries[`${ namespace }/${ entry }`].every(module => carried.includes(module)));
+}
+
 const STATIC_DEFINITION_KEYS = new Set(Object.values(statics).flatMap(Object.keys));
 
 // Whether any built-in owns this static key. Receiver-family analysis cannot add a static
@@ -384,19 +400,32 @@ export function hasStaticDefinitionKey(key) {
 
 const CONSTRUCTOR_TAIL = '/constructor';
 
-// A constructor entry can widen to its whole static family; a namespace alone cannot.
-// Pure is the default; the global flavor can additionally supply unsupported pure constructors.
+// Whether an object rest over this global takes its whole index, and an explicit import of that index
+// keeps its own static reads: a constructor's only. A namespace - `Reflect` included - keeps a rest's
+// source and exclusions and serves an imported index's statics by name. Pure is the default; the global
+// flavor can additionally supply unsupported pure constructors.
 export function hasConstructorEntry(name, flavor = 'pure') {
   return globals[name]?.[flavor]?.dependencies?.some(entry => entry.endsWith(CONSTRUCTOR_TAIL)) ?? false;
 }
 
-const CONSTRUCTOR_STATIC_KEYS = new Set(Object.keys(statics).filter(name => hasConstructorEntry(name))
+// the entry of a global's bare value, which carries none of its own statics, in both spellings the
+// definitions use: a constructor's `<x>/constructor` and a namespace object's `<x>/namespace` (`Reflect`)
+export const NARROW_ENTRY = /\/(?:constructor|namespace)$/u;
+
+// Whether this global's entry is narrow, and so widens to its whole family where a read may reach its
+// statics through a value the build does not follow. A namespace with no entry of its own (`Math`) has
+// nothing to widen.
+export function hasNarrowEntry(name, flavor = 'pure') {
+  return globals[name]?.[flavor]?.dependencies?.some(entry => NARROW_ENTRY.test(entry)) ?? false;
+}
+
+const NARROW_ENTRY_STATIC_KEYS = new Set(Object.keys(statics).filter(name => hasNarrowEntry(name))
   .flatMap(name => Object.keys(statics[name])));
 
-// Whether this key is an own static of some global with a pure constructor entry: only such a
-// family has a narrow entry that lacks it, and so a whole entry to widen to.
-export function hasConstructorStaticKey(key) {
-  return CONSTRUCTOR_STATIC_KEYS.has(key);
+// Whether this key is an own static of some global with a pure narrow entry: only such a family
+// lacks it on that entry, and so has a whole entry to widen to.
+export function hasNarrowEntryStaticKey(key) {
+  return NARROW_ENTRY_STATIC_KEYS.has(key);
 }
 
 // entry heads mapped to their globals, in one pass over the pure dependencies of the globals and

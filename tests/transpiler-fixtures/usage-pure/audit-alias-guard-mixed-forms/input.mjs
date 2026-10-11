@@ -3,7 +3,9 @@
 // name-view ambiguity), and the guard hint is deterministically the LAST source write's ctor -
 // the earlier branch falls to the guard's raw read (value-exact under any flow). a
 // SIDE-EFFECTING computed key stays raw entirely: the guard's consequent replaces the whole
-// member and would skip the key effect the native evaluation always runs
+// member and would skip the key effect the native evaluation always runs. read raw off the
+// swapped binding, the static has to be ON it: the alias takes the whole constructor's entry
+// (`map`) - the narrow one carries no `groupBy`, and that read answered `undefined`
 function fwd(c, d) {
   if (c) { var { Map: M } = globalThis; }
   if (d) ({ Promise: M } = globalThis);

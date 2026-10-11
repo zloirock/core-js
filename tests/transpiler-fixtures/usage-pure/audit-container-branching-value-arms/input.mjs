@@ -1,8 +1,8 @@
-// Branching container slots do not prove a single static receiver; their reads stay native.
-// Constructor arms can still receive pure entries - whole ones, whose statics the native read
-// then finds. A bare selecting alias can instead
-// guard its named static against the captured constructor. Each row names a distinct method.
-const c = Math.random() > 0.5;
+// Branching container slots do not prove a single static receiver. An arm that is a native static
+// owner guards the static it names against the captured slot, as a bare selecting alias guards it
+// against the captured constructor; an arm pure swaps whole reads its own statics, and one naming
+// no such static leaves the read native. Each row names a distinct method.
+const c = typeof document == 'undefined';
 
 // branching IN the slot
 const inSlot = { Base: c ? Object : Array };
@@ -19,8 +19,8 @@ const aliasBranch = c ? nsLeft : nsRight;
 export const viaAlias = aliasBranch.Base.groupBy([], x => x);
 
 // an ARRAY slot indexes a branching value like a keyed one does
-const inElement = [c ? String : Object, 0];
-export const viaElement = inElement[0].raw`x`;
+const inElement = [c ? Object : String, 0];
+export const viaElement = inElement[0].raw({ raw: ['x'] });
 
 // a NESTED container descends to the branching slot
 const nested = { inner: { Base: c ? Object : Reflect } };

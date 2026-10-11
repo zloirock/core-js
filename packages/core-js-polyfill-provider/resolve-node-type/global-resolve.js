@@ -54,6 +54,7 @@ export function createGlobalResolve({
   resolveComputedKeyName,
   getKeyName,
   babelBindingAdapter,
+  decidedOperandPath,
 }) {
   // a destructure key-path context for `patternLiteralKeyPath`: a computed key that is a
   // const-bound string (`const k = 'Array'; { [k]: A } = globalThis`) folds through the canonical
@@ -76,7 +77,7 @@ export function createGlobalResolve({
   // `declare global {}` binding does not read as a local shadow of the global for a use OUTSIDE
   // the block (estree side). babel's default hook is the raw lookup, so this stays a no-op there
   function hasRuntimeBinding(scope, name, path = null) {
-    const binding = getScopeBinding(scope, name, path);
+    const binding = getScopeBinding({ scope, name, path });
     if (!binding) return false;
     return !isAmbientBindingShape(binding.path?.node, binding.path?.parent);
   }
@@ -95,7 +96,7 @@ export function createGlobalResolve({
     // through it would narrow to the pristine constructor's type on a foreign runtime value
     // (the detect-usage walk already honors the slot; this is its type-channel mirror)
     return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName)
-      && !isMutatedGlobalSlot(babelBindingAdapter, propName)
+      && !isMutatedGlobalSlot(babelBindingAdapter, propName, { node: objectPath.node, path: objectPath })
       && isGlobalProxy(objectPath.get('object'));
   }
 
@@ -204,7 +205,7 @@ export function createGlobalResolve({
   // `resolveAliasedGlobalName` bails at `followableVarInit` on ObjectPattern ids. the array-wrap
   // positional peel is shared with the class-walk symbol-alias chain-follow
   function resolveDestructuredGlobalName(path) {
-    const binding = getScopeBinding(path.scope, path.node.name, path);
+    const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
     const declarator = binding?.path?.node;
     if (!declarator || binding.constantViolations?.length || !t.isVariableDeclarator(declarator)) return null;
     if (!declarator.init) return null;
@@ -234,9 +235,12 @@ export function createGlobalResolve({
   // ParenthesizedExpression + ChainExpression that babel drops at parse): `(Array)`,
   // `(globalThis).Map`, `(globalThis.Array).from`, `new (globalThis?.Array)()`. canonical
   // peelSkippableWrapperPath covers paren + ChainExpression + TS (a paren-only peel left an oxc
-  // `(globalThis?.Array)` as a ChainExpression -> not member-like -> under-narrowed)
+  // `(globalThis?.Array)` as a ChainExpression -> not member-like -> under-narrowed).
+  // a selection this build decides names what the operand it yields names (`decidedOperandPath`):
+  // `new (typeof Symbol != 'undefined' ? Array : String)()`
   function resolveGlobalName(path) {
     path = peelSkippableWrapperPath(path);
+    for (let operand = decidedOperandPath(path); operand; operand = decidedOperandPath(path)) path = peelSkippableWrapperPath(operand);
     if (t.isIdentifier(path.node)) {
       if (!hasRuntimeBinding(path.scope, path.node.name, path)) return path.node.name;
       return resolveAliasedGlobalName(path) ?? resolveDestructuredGlobalName(path);
@@ -280,7 +284,7 @@ export function createGlobalResolve({
         : null;
     }
     if (!t.isIdentifier(path.node)) return null;
-    const binding = getScopeBinding(path.scope, path.node.name, path);
+    const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
     if (!binding || binding.constantViolations?.length) return null;
     if (!isDestructuredAsPrototype(binding.path, path.node.name)) return null;
     return knownConstructorAt(binding.path.get('init'));

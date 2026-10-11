@@ -1,7 +1,5 @@
-// IIFE wrapping a LogicalExpression `&&` fallback shape: `(() => Array && Iterator)()`.
-// distinct branch shape from ConditionalExpression, resolved recursively after the IIFE
-// peels. `&&` is always conditional (right taken only when left is truthy, else falsy
-// left), so when the two sides resolve to different objects both must contribute: Array.from
-// and Iterator.from emitted via per-branch enumeration.
+// IIFE wrapping a LogicalExpression `&&`: `(() => Array && Iterator)()`, resolved after the IIFE peels. its
+// left is a global the build serves, so it always passes and the IIFE yields its right: `Iterator.from` is
+// injected and the left names no static
 const { from } = (() => Array && Iterator)();
 from([1, 2]);

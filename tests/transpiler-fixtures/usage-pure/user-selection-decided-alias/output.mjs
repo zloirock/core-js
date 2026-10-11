@@ -3,7 +3,7 @@ import _DOMException from "@core-js/pure/actual/dom-exception/constructor";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Reflect from "@core-js/pure/actual/reflect";
 import _Symbol from "@core-js/pure/actual/symbol";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
 import _URL from "@core-js/pure/actual/url";

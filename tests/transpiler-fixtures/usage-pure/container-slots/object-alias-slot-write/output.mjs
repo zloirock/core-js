@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // A write through a definite alias replaces the original container's constructor slot.
 const escapedByAlias = function () {
   const aliasedBox = {

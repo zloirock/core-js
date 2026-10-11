@@ -8,6 +8,7 @@ import {
   resolveObjectName,
   sealedLayerBetween,
   storedNavHopClaimSuppressed,
+  storedUserAssignmentOf,
   unbackedRealmHopFoldAbove,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -169,7 +170,7 @@ export function landingOverSubstitutedSpan(path) {
     up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === cursor.node;
     up = cursor.parentPath) {
     if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type)
-      && up.node.type !== 'ParenthesizedExpression' && assignmentHoldsValue(up)) break;
+      && up.node.type !== 'ParenthesizedExpression' && storedUserAssignmentOf(up, { throughReads: false })) break;
     cursor = up;
     if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type)) landing = up;
   }
@@ -641,7 +642,7 @@ export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destruc
   }
   // a MUTATED slot's drain route speaks for a declarator only - an assignment residual has its
   // own channel and no slot for it; the UNTOUCHED re-anchor reads the drain's assignment view
-  if (adapter.isMutatedStatic?.('globalThis', hopKey)) {
+  if (adapter.isMutatedStatic?.('globalThis', hopKey, { node: hop, path: metaPath })) {
     if (!assignHost) destructureEmit.noteMutatedCtorHopHost(host);
     return;
   }
@@ -711,19 +712,6 @@ export function isDeleteOperand(metaPath) {
   const host = climbToCallerPath(metaPath)?.node;
   if (host?.type === 'UnaryExpression' && host.operator === 'delete') return true;
   return claimDeleteOperand(metaPath);
-}
-
-// is this node the VALUE a plain assignment stores (through the parens it may wear)?
-export function assignmentHoldsValue(path) {
-  let cur = path;
-  for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
-    if (up.node.type === 'ParenthesizedExpression' && up.node.expression === cur.node) {
-      cur = up;
-      continue;
-    }
-    return up.node.type === 'AssignmentExpression' && up.node.operator === '=' && up.node.right === cur.node;
-  }
-  return false;
 }
 
 // does the member chain read a MUTATED static anywhere (`globalThis.Array.of = patched`
