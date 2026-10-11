@@ -1115,3 +1115,49 @@ QUnit.test('consumed parameters: method aliases preserve custom receivers and ef
   assert.deepEqual(read({ slot: [custom] })(3), ['custom', 3]);
   assert.deepEqual(events, ['body', 'get', 'body']);
 });
+
+// --- A closure written in a parameter runs in the parameter's environment ---
+
+// the body's declarations never join that environment - a `var` included, which gets one of its own once
+// the list holds an expression - so the closure reads past them to the outer binding or the global
+QUnit.test('params: a closure in a default reads past the body declarations of its names', assert => {
+  const s = 'abc';
+  function last(p = () => s.at(-1)) {
+    // eslint-disable-next-line no-shadow -- the body declaration of the name is the case under test
+    const s = [1, 2];
+    return [p(), s.length];
+  }
+  // eslint-disable-next-line es/no-nonstandard-number-prototype-properties -- the closure reads the global, not the body's number
+  function settled(r = () => Promise.resolve(7)) {
+    const Promise = 1;
+    return [typeof r().then, Promise];
+  }
+  assert.deepEqual(last(), ['c', 2]);
+  assert.deepEqual(settled(), ['function', 1]);
+});
+
+// ... and so does a closure written in a catch parameter, past the clause's body block. Babel's lowering
+// moves the parameter's default into that block, where the body's declaration captures the name before
+// post-only detection runs
+const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+testUnlessDetectLowered('params: a closure in a catch parameter reads past the clause body', assert => {
+  let grouped;
+  try {
+    throw {};
+  } catch ({ g = () => Map.groupBy([1, 2, 3], x => x % 2).get(1) }) {
+    const Map = 1;
+    grouped = [g(), Map];
+  }
+  assert.deepEqual(grouped, [[1, 3], 1]);
+});
+
+// ... while it reads the names the parameter itself declares
+QUnit.test('params: a closure in a catch parameter reads the names the parameter declares', assert => {
+  let resolved;
+  try {
+    throw { Promise: { resolve: value => `user:${ value }` } };
+  } catch ({ Promise, p = () => Promise.resolve(1) }) {
+    resolved = p();
+  }
+  assert.same(resolved, 'user:1');
+});

@@ -5,7 +5,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Set from "@core-js/pure/actual/set/constructor";

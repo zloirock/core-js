@@ -84,6 +84,7 @@ function flipGuardEntries(entries) {
 
 export function createTypeofGuards({
   t,
+  decidedLiveNode,
   getScopeBinding,
   peelNegation,
   isLiteralOf,
@@ -104,21 +105,26 @@ export function createTypeofGuards({
   // is resolved, and the injector's hint channel is how every other reader recovers the original; a
   // user binding shadows the name (`const Array = Map; x instanceof Array` really tests `instanceof
   // Map`, so narrowing to the built-in would suppress its polyfill where a real instance flows in).
-  // a member spelling (`globalThis.Array`) is the shared proxy-nav walk's, shadow gate included
-  function builtInNamedBy(node, scope) {
+  // a member spelling (`globalThis.Array`) is the shared proxy-nav walk's, shadow gate included. asked
+  // from the `hostPath` the test stands in, a selection this build decides names what the part of it
+  // that runs names (`decidedLiveNode`): `x instanceof (typeof Symbol != 'undefined' ? Array : String)`
+  function builtInNamedBy(node, scope, hostPath = null) {
+    for (let live = hostPath && decidedLiveNode(node, hostPath); live; live = decidedLiveNode(node, hostPath)) {
+      node = unwrapRuntimeExpr(live);
+    }
     if (node.type !== 'Identifier') return globalProxyMemberName({ node, scope, adapter: babelBindingAdapter, path: null });
-    if (!scope || !babelBindingAdapter.hasBinding(scope, node.name)) return node.name;
+    if (!scope || !babelBindingAdapter.hasBinding({ scope, name: node.name })) return node.name;
     return babelBindingAdapter.getBindingPolyfillHint(scope, node.name);
   }
 
   // the `{ constructor, method }` a static-guard CALLEE names, or null: the source's member spelling
   // on a built-in namespace, or the bare pure-import binding a rewrite left in its place, mapped
   // back through the injector's entry path
-  function staticGuardCallee(callee, scope) {
+  function staticGuardCallee(callee, scope, hostPath = null) {
     const peeled = unwrapRuntimeExpr(callee);
     const method = getMemberProperty(peeled);
     if (method !== null) {
-      const constructor = builtInNamedBy(unwrapRuntimeExpr(peeled.object), scope);
+      const constructor = builtInNamedBy(unwrapRuntimeExpr(peeled.object), scope, hostPath);
       return constructor ? { constructor, method } : null;
     }
     return peeled.type === 'Identifier' && scope
@@ -129,8 +135,9 @@ export function createTypeofGuards({
   // expression carries. most shapes name exactly one variable; a user-predicate call may
   // name several through distinct overload headers. per-name consumers filter the entries.
   // `scope` is the scope the TEST evaluates in - it gates every built-in identification above
-  // and resolves user predicates, so no lane may drop it
-  function parseTypeGuardEntries(testNode, scope) {
+  // and resolves user predicates, so no lane may drop it; `hostPath`, the host it stands in, lends
+  // the build's decisions to its constructor operands (`builtInNamedBy`)
+  function parseTypeGuardEntries(testNode, scope, hostPath = null) {
     const peeled = peelNegation(testNode);
     // unwrapExpressionChain alternates paren / chain / TS-wrapper / SequenceExpression-tail
     // peels until stable. peelNegation only strips unary `!`; without this, mixed wrappers
@@ -170,7 +177,7 @@ export function createTypeofGuards({
         if (litLeft || litRight) {
           const litSide = litLeft ? left : right;
           const innerExpr = litLeft ? right : left;
-          const innerEntries = parseTypeGuardEntries(innerExpr, scope);
+          const innerEntries = parseTypeGuardEntries(innerExpr, scope, hostPath);
           // the flip algebra holds over `{ true, false }`. a guard whose call may not have run is
           // THREE-valued - `undefined` on a short-circuit - and a comparison against `false` cannot
           // tell that from a genuine answer on either side (`undefined !== false` is truthy, `undefined
@@ -180,7 +187,7 @@ export function createTypeofGuards({
         }
       }
       if (operator === 'instanceof' && left.type === 'Identifier') {
-        const constructorName = builtInNamedBy(right, scope);
+        const constructorName = builtInNamedBy(right, scope, hostPath);
         if (constructorName) return [{ varName: left.name, guard: instanceofGuard(constructorName, negated) }];
       }
     }
@@ -199,7 +206,7 @@ export function createTypeofGuards({
       const optionalCall = hasOptionalChainInCall(test);
       const { callee } = test;
       let hintEntry = null;
-      const staticGuard = staticGuardCallee(callee, scope);
+      const staticGuard = staticGuardCallee(callee, scope, hostPath);
       if (staticGuard) {
         // `unwrapExpressionChain` peels paren + ChainExpression + TS expression wrappers
         // (`as`, `satisfies`, `<T>cast`, `!`) AND SequenceExpression tail. parity with
@@ -223,13 +230,18 @@ export function createTypeofGuards({
   }
 
   // flatten a && b && c when condition is true, or a || b || c when condition is false
-  // only flattens the matching operator; mixed operators stay as opaque nodes
-  function flattenCondition(node, operator) {
+  // only flattens the matching operator; mixed operators stay as opaque nodes - except, asked from a
+  // `hostPath`, a selection this build decides, which tests as the part of it that runs
+  // (`decidedLiveNode`): `typeof Symbol == 'undefined' || typeof x == 'string'` tests `x` alone
+  function flattenCondition(node, operator, hostPath = null) {
     const result = [];
     const stack = [unwrapParens(node)];
     while (stack.length) {
       const current = unwrapParens(stack.pop());
-      if (current.type === 'LogicalExpression' && current.operator === operator) {
+      const live = hostPath && decidedLiveNode(current, hostPath);
+      if (live) {
+        stack.push(live);
+      } else if (current.type === 'LogicalExpression' && current.operator === operator) {
         stack.push(current.right, current.left);
       } else {
         result.push(current);
@@ -273,15 +285,16 @@ export function createTypeofGuards({
   // memoised per (test node, polarity): the guard climb re-asks one condition for every use
   // below it and for every level of the mutation walk, and the user-predicate lane resolves a
   // callee each time. a test node evaluates in one scope and the descriptors are read-only
-  // once stamped, so the cached entries are shared
+  // once stamped, so the cached entries are shared - the build's decisions of its selections
+  // (`hostPath`, the host the test stands in) do not move within a file either
   let conditionEntriesCache = new WeakMap();
-  function extractConditionGuardEntries({ testNode, conditionTrue, scope }) {
+  function extractConditionGuardEntries({ testNode, conditionTrue, scope, hostPath }) {
     const byPolarity = getOrInitMap(conditionEntriesCache, testNode);
     if (byPolarity.has(conditionTrue)) return byPolarity.get(conditionTrue);
-    const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||');
+    const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||', hostPath);
     const entries = [];
     for (const part of parts) {
-      let partEntries = parseTypeGuardEntries(part, scope);
+      let partEntries = parseTypeGuardEntries(part, scope, hostPath);
       if (!partEntries.length) {
         const orEntry = parseTypeofOrGuardEntry(part, conditionTrue, scope);
         if (orEntry) partEntries = [orEntry];
@@ -294,9 +307,9 @@ export function createTypeofGuards({
 
   // per-name view over the var-agnostic extraction - serves the parent-climb shapes
   // (conditional / switch hosts), which query one binding at a time
-  function parseGuardsFromCondition({ testNode, conditionTrue, varName, scope }) {
+  function parseGuardsFromCondition({ testNode, conditionTrue, varName, scope, hostPath }) {
     const guards = [];
-    for (const entry of extractConditionGuardEntries({ testNode, conditionTrue, scope })) {
+    for (const entry of extractConditionGuardEntries({ testNode, conditionTrue, scope, hostPath })) {
       if (entry.varName === varName) guards.push(entry.guard);
     }
     return guards;
@@ -311,7 +324,7 @@ export function createTypeofGuards({
   // nested-block `var` (one hoists it natively, the other needs the synthesized twin) -
   // `testPath` anchors that synthesis, so it must be the path the scope was taken from
   function guardAppliesToBinding(testPath, varName, binding) {
-    return !binding || getScopeBinding(testPath.scope, varName, testPath) === binding;
+    return !binding || getScopeBinding({ scope: testPath.scope, name: varName, path: testPath }) === binding;
   }
 
   // if / ternary / && / || - unified: parse guards from condition, determine polarity. the
@@ -333,7 +346,7 @@ export function createTypeofGuards({
       testNode = parent.node.left;
     } else return EMPTY_ENTRIES;
     if (!guardAppliesToBinding(parent, varName, binding)) return EMPTY_ENTRIES;
-    return parseGuardsFromCondition({ testNode, conditionTrue, varName, scope: parent.scope });
+    return parseGuardsFromCondition({ testNode, conditionTrue, varName, scope: parent.scope, hostPath: parent });
   }
 
   // resolve a string value from a case test: StringLiteral directly or constant Identifier binding
@@ -457,7 +470,7 @@ export function createTypeofGuards({
       const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
       if (!peeled) continue;
       const entries = conditionTrue !== null
-        ? extractConditionGuardEntries({ testNode: peeled.node.test, conditionTrue, scope: peeled.scope })
+        ? extractConditionGuardEntries({ testNode: peeled.node.test, conditionTrue, scope: peeled.scope, hostPath: peeled })
         : parseAssertionGuardEntries(peeled);
       for (const { varName, guard } of entries) {
         let blocks = index.byName.get(varName);

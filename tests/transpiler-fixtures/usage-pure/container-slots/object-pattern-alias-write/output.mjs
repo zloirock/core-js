@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // An object pattern binds the contained object whose slot is subsequently replaced.
 const escapedByObjectPatternInit = function () {

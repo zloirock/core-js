@@ -353,9 +353,9 @@ runBoth('callee aliases reuse their binding records',
     const counted = {
       ...reader,
       get unrelatedFact() { unrelatedReads++; return null; },
-      getBinding(scope, name, readPath) {
+      getBinding({ scope, name, path: readPath }) {
         bindingReads++;
-        return name === 'first' && !firstAvailable ? null : reader.getBinding(scope, name, readPath);
+        return name === 'first' && !firstAvailable ? null : reader.getBinding({ scope, name, path: readPath });
       },
       hasBinding(...args) { extraLookups++; return reader.hasBinding(...args); },
       getBindingNodeType(...args) { extraLookups++; return reader.getBindingNodeType(...args); },
@@ -668,7 +668,7 @@ for (const spanless of [false, true]) {
       });
       const plan = planSynthReceiverGuard({
         receiver: receiverPath.node, scope: receiverPath.scope, path: receiverPath,
-        adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) },
+        adapter: { ...adapter, hasBinding: ({ scope, name }) => !!scope.getBinding(name) },
         resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
       });
       check(`${ label }/probe`, plan?.probe.type, 'AssignmentExpression');
@@ -683,7 +683,7 @@ for (const source of ['globalThis.self.Array ?? {};', '(globalThis.window?.self)
     const receiverPath = adapter.pickPath(program, 'LogicalExpression');
     check(label, planSynthReceiverGuard({
       receiver: receiverPath.node, scope: receiverPath.scope, path: receiverPath,
-      adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) },
+      adapter: { ...adapter, hasBinding: ({ scope, name }) => !!scope.getBinding(name) },
       resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
     }), null);
   });
@@ -707,7 +707,7 @@ for (const [source, guarded] of [
   for (const path of [receiverPath, propertyPath]) check(`${ label }/${ path === receiverPath ? 'receiver' : 'pattern' }`,
     !!planSynthReceiverGuard({
       receiver: receiverPath.node, scope: receiverPath.scope, path,
-      adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) },
+      adapter: { ...adapter, hasBinding: ({ scope, name }) => !!scope.getBinding(name) },
       resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
     }), guarded);
 });
@@ -719,7 +719,7 @@ for (const [source, collapsible] of [
   const receiverPath = adapter.pickPath(program, 'ExpressionStatement').get('expression');
   const receiver = unwrapRuntimeExpr(receiverPath.node);
   const aliasCtx = { scope: receiverPath.scope, path: receiverPath,
-    adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) } };
+    adapter: { ...adapter, hasBinding: ({ scope, name }) => !!scope.getBinding(name) } };
   function resolvePure({ name }) {
     return ['globalThis', 'self'].includes(name) ? { entry: name } : null;
   }

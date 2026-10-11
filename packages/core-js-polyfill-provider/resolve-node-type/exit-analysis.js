@@ -7,7 +7,7 @@
 // factory focused on the type-resolution path; `MAX_DEPTH` is the shared recursion budget
 import { MAX_DEPTH } from './base.js';
 
-const EXIT_STATEMENTS = new Set([
+export const EXIT_STATEMENTS = new Set([
   'BreakStatement',
   'ContinueStatement',
   'ReturnStatement',
@@ -23,37 +23,59 @@ const FUNCTION_EXIT_STATEMENTS = new Set([
   'ThrowStatement',
 ]);
 
-// scan a statement list IN ORDER and stop at the first statement that diverts control - a
-// later exit is unreachable through it. the divert probe runs on the FULL exit set and with
-// no blocked labels, because any break / continue / return / throw leaves the current list no
-// matter which construct it targets. it can only disagree with the exit question above when
-// that question is narrower - the function-level set, where `break` diverts without matching
-// (`{ break; return; }` is not an unconditional return) - or when a blocked label suppresses
-// the match (`outer: { break outer; return; }` leaves the label, so the return is dead too).
-// otherwise both questions read the same statement the same way and the probe is skipped
+// iteration statements: `continue <label>` can target a label on one of these, and value flow has
+// a back-edge here. `t.isLoop` is a babel-types alias the hand-written estree adapter doesn't
+// expose, so this shared classifier owns the predicate - imported by the resolver's flow analysis
+// (class-fields / narrow-by-guards / discriminant-narrow) and read by the exit walk below
+const LOOP_STATEMENT_TYPES = new Set([
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+]);
+
+export function isLoopStatement(node) {
+  return LOOP_STATEMENT_TYPES.has(node?.type);
+}
+
+// does an exit statement end the question `exitTypes` asks? a labeled break / continue to an
+// enclosing LabeledStatement the walk blocked exits only the labeled wrapper, not the surrounding
+// case / function. the check matters on the full EXIT_STATEMENTS walk (`canFallThrough` via
+// `nodeAlwaysExits`): without it `case A: outer: { break outer; }` would count as a case exit and
+// wrongly mark the case non-falling-through. the FUNCTION_EXIT_STATEMENTS set never matches
+// break / continue
+function exitCounts(node, exitTypes, blockedLabels) {
+  return exitTypes.has(node.type) && !(node.label && blockedLabels?.has(node.label.name));
+}
+
+// scan a statement list IN ORDER and stop at the first statement that always exits. a statement
+// that MAY leave the list through an exit the question does not count ends the scan without one:
+// that path never reaches a later exit. only a break / continue can be one - any of them under the
+// function-level set (`{ if (c) break; return; }` is no unconditional return), one to a blocked
+// label under the full set (`outer: { if (c) break outer; return; }` completes the label on one
+// path). under the full set with no blocked label every exit counts, and the probe is skipped
 function statementsExit(body, depth, exitTypes, blockedLabels) {
-  const divertMayDiffer = exitTypes !== EXIT_STATEMENTS || Boolean(blockedLabels?.size);
+  const mayLeaveUncounted = uncountedExitProbe(exitTypes, blockedLabels);
   for (let i = 0; i < body.length; i++) {
     if (alwaysExitsWithKind(body[i], depth + 1, exitTypes, blockedLabels)) return true;
-    if (divertMayDiffer && alwaysExitsWithKind(body[i], depth + 1, EXIT_STATEMENTS, null)) return false;
+    if (mayLeaveUncounted?.(body[i])) return false;
   }
   return false;
+}
+
+// ... the probe itself, or null where every exit counts. the function-level set leaves exactly the
+// jumps uncounted, whatever labels it blocks - a fact of the statement alone, asked by every scan
+function uncountedExitProbe(exitTypes, blockedLabels) {
+  if (exitTypes === FUNCTION_EXIT_STATEMENTS) return subtreeLeavesThroughJump;
+  if (!blockedLabels?.size) return null;
+  return node => subtreeContainsExit(node, exit => !exitCounts(exit, exitTypes, blockedLabels));
 }
 
 function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
   while (true) {
     if (depth > MAX_DEPTH) return false;
-    if (exitTypes.has(node.type)) {
-      // labeled break/continue to an enclosing LabeledStatement exits only the labeled
-      // wrapper, not the surrounding case/function. the check matters on the full
-      // EXIT_STATEMENTS walk (`canFallThrough` via `nodeAlwaysExits`): without it
-      // `case A: outer: { break outer; }` would count as a case exit and wrongly mark
-      // the case non-falling-through. the switch-exit recursion is immune - its
-      // FUNCTION_EXIT_STATEMENTS set never matches break/continue
-      const isLabeled = (node.type === 'BreakStatement' || node.type === 'ContinueStatement')
-        && node.label && blockedLabels?.has(node.label.name);
-      return !isLabeled;
-    }
+    if (EXIT_STATEMENTS.has(node.type)) return exitCounts(node, exitTypes, blockedLabels);
     if (node.type === 'BlockStatement') {
       return statementsExit(node.body, depth, exitTypes, blockedLabels);
     }
@@ -156,45 +178,96 @@ export function nodeAlwaysReaches(node, hit, depth = 0) {
   return hasDefault;
 }
 
-// a statement a divert can leave through: the reach walk below asks whether EVERY path through a
-// list satisfies `hit`, and a path that leaves early satisfies nothing - so the question there is
-// whether a divert is POSSIBLE, never whether it is certain. `alwaysExits` is the wrong strength for
-// it: `if (c) break;` neither satisfies `hit` nor always exits, and a scan that walks past it credits
-// the write after it to a path that never runs it - which is how a receiver the source leaves
-// `undefined` became a receiver-less polyfill and the native TypeError went missing.
-// deliberately COARSE: any break / continue / return / throw the statement carries outside a nested
-// function counts, one a loop or switch inside it would have captured included. refusing is the
-// direction every caller of the reach walk wants, and a narrower answer here would have to model
-// which construct each divert targets - the exit walk's own question, asked the other way round
-const DIVERT_OPAQUE_TYPES = new Set([
-  'FunctionDeclaration',
-  'FunctionExpression',
+// nodes that introduce their own scope and may shadow outer bindings - subtree walkers
+// stop at these boundaries: `bodyHasParamReference` (ast-patterns) treats them as opaque (can't
+// reason about inner bindings statically), `subtreeContainsExit` below as bodies an exit inside
+// cannot leave
+export const NESTED_BINDING_INTRODUCERS = new Set([
   'ArrowFunctionExpression',
-  'ClassDeclaration',
+  'FunctionExpression',
+  'FunctionDeclaration',
   'ClassExpression',
+  'ClassDeclaration',
+  // babel-only AST node for `{ foo() {} }` shorthand methods. carries its own scope and
+  // body; descent into the inline-literal must stop here so an inner `return` doesn't
+  // get treated as a propagating exit. estree-toolkit normalises to Property + FnExpr,
+  // which already terminate via FunctionExpression. ClassMethod / ClassPrivateMethod live
+  // inside ClassExpression / ClassDeclaration which already terminate descent above
+  'ObjectMethod',
 ]);
 
-function nodeMayDivert(node, depth) {
-  if (!node || typeof node !== 'object' || depth > MAX_DEPTH) return true;
-  if (EXIT_STATEMENTS.has(node.type)) return true;
-  if (DIVERT_OPAQUE_TYPES.has(node.type)) return false;
-  for (const [key, value] of Object.entries(node)) {
-    if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
+// the jumps resuming inside the statements a walk has descended through: a loop captures an
+// unlabeled `break` and `continue`, a `switch` an unlabeled `break` alone, a label every jump naming it
+const NOTHING_CAPTURED = { breaks: false, continues: false, labels: null };
+
+function capturesBelow(node, captured) {
+  if (isLoopStatement(node)) return { ...captured, breaks: true, continues: true };
+  if (node.type === 'SwitchStatement') return { ...captured, breaks: true };
+  if (node.type === 'LabeledStatement' && node.label) return { ...captured, labels: new Set(captured.labels).add(node.label.name) };
+  return captured;
+}
+
+function everyExit() {
+  return true;
+}
+
+function isJump(exit) {
+  return exit.type === 'BreakStatement' || exit.type === 'ContinueStatement';
+}
+
+// the two questions the statement scans repeat across queries, memoized per node: may `node` be left
+// through any exit, and through a jump. the answer depends only on the node (the captured jumps vary
+// only INSIDE the walk). same per-node staleness contract as the resolver caches
+const exitLeavesCache = new WeakMap();
+const jumpLeavesCache = new WeakMap();
+
+export function subtreeLeavesThroughExit(node) {
+  return memoizedSubtreeExit(exitLeavesCache, node, everyExit);
+}
+
+function subtreeLeavesThroughJump(node) {
+  return memoizedSubtreeExit(jumpLeavesCache, node, isJump);
+}
+
+function memoizedSubtreeExit(cache, node, counts) {
+  let result = cache.get(node);
+  if (result === undefined) cache.set(node, result = subtreeContainsExit(node, counts));
+  return result;
+}
+
+// does `node` hold an exit statement that LEAVES it and that `counts` accepts: a return or a throw, a
+// break or a continue no loop, switch or label inside `node` captures? an exit in a nested function or
+// class body leaves only that body
+function subtreeContainsExit(node, counts, captured = NOTHING_CAPTURED) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (isJump(node)) {
+    const label = node.label?.name;
+    if (label ? captured.labels?.has(label) : captured[node.type === 'BreakStatement' ? 'breaks' : 'continues']) return false;
+    return counts(node);
+  }
+  if (node.type === 'ReturnStatement' || node.type === 'ThrowStatement') return counts(node);
+  if (NESTED_BINDING_INTRODUCERS.has(node.type)) return false;
+  const below = capturesBelow(node, captured);
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(item => item && typeof item === 'object' && nodeMayDivert(item, depth + 1))) return true;
-    } else if (value && typeof value === 'object' && typeof value.type === 'string'
-      && nodeMayDivert(value, depth + 1)) return true;
+      for (const item of value) if (subtreeContainsExit(item, counts, below)) return true;
+    } else if (subtreeContainsExit(value, counts, below)) return true;
   }
   return false;
 }
 
 // the statement-list half: scan IN ORDER and answer at the first statement that satisfies `hit`; a
 // statement a divert can leave the list through ends it without one - whatever follows is unreachable
-// through that path
+// through that path. the question is whether a divert is POSSIBLE, never whether it is certain:
+// `if (c) break;` neither satisfies `hit` nor always exits, and a scan that walks past it credits the
+// write after it to a path that never runs it - which is how a receiver the source leaves `undefined`
+// became a receiver-less polyfill and the native TypeError went missing
 function statementsReach(body, hit, depth) {
   for (let i = 0; i < body.length; i++) {
     if (nodeAlwaysReaches(body[i], hit, depth + 1)) return true;
-    if (nodeMayDivert(body[i], depth + 1)) return false;
+    if (subtreeLeavesThroughExit(body[i])) return false;
   }
   return false;
 }

@@ -9,8 +9,7 @@ export const of = _Array$of;
 export const name = _nameMaybeFunction(Array);
 export const at = _atMaybeArray((0, arr));
 export const from = _Array$from;
-const {} = (0, Array),
-  of2 = _Array$of,
+const of2 = _Array$of,
   {
     of: _unused,
     ...rest

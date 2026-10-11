@@ -13,7 +13,13 @@ import {
   collectPrePassSites as collectEstreePrePassSites,
   createEstreeAdapter,
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { blockAlwaysExits, canFallThrough, nodeAlwaysExits, nodeAlwaysHardExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
+import {
+  blockAlwaysExits,
+  canFallThrough,
+  nodeAlwaysExits,
+  nodeAlwaysHardExits,
+  nodeAlwaysReaches,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
 import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
 import { createKnownGlobals } from '../../packages/core-js-polyfill-provider/resolve-node-type/known-globals.js';
 import {
@@ -7911,6 +7917,97 @@ runBoth('the subclass own namespace export outranks the parent one',
     nodeAlwaysExits(labeledBreakThenReturn), false);
 }
 
+// --- exit-analysis: a jump the question does not count, taken on SOME path, ends the list too ---
+
+// a conditional break / continue leaves the list on its own path, so an exit after it is not
+// unconditional where the question does not count that jump: any of them under the function-level
+// question, one to a blocked label under the full set. a jump a loop, a switch or a label INSIDE the
+// statement captures resumes inside it and changes nothing
+{
+  function block(body) {
+    return { type: 'BlockStatement', body };
+  }
+  function ifThen(consequent) {
+    return { type: 'IfStatement', consequent, alternate: null };
+  }
+  const outer = { name: 'outer' };
+  const labeledConditionalBreak = {
+    type: 'LabeledStatement',
+    label: outer,
+    body: block([ifThen({ type: 'BreakStatement', label: outer }), { type: 'ThrowStatement' }]),
+  };
+  check('exit-analysis: labeled conditional break then throw does not exit',
+    nodeAlwaysExits(labeledConditionalBreak), false);
+  check('exit-analysis: labeled conditional break then throw does not hard-exit',
+    nodeAlwaysHardExits(labeledConditionalBreak), false);
+  check('exit-analysis: case holding a labeled conditional break can fall through',
+    canFallThrough({ consequent: [labeledConditionalBreak] }), true);
+  for (const type of ['BreakStatement', 'ContinueStatement']) {
+    const conditionalJumpThenThrow = block([ifThen({ type }), { type: 'ThrowStatement' }]);
+    check(`exit-analysis: conditional ${ type } then throw does not hard-exit`,
+      nodeAlwaysHardExits(conditionalJumpThenThrow), false);
+    checkTruthy(`exit-analysis: conditional ${ type } then throw exits`,
+      nodeAlwaysExits(conditionalJumpThenThrow));
+  }
+  const captured = [
+    ['loop break', { type: 'ForStatement', body: block([ifThen({ type: 'BreakStatement' })]) }, true],
+    ['loop continue', { type: 'WhileStatement', body: block([ifThen({ type: 'ContinueStatement' })]) }, true],
+    ['switch break', { type: 'SwitchStatement', cases: [{ type: 'SwitchCase', test: {}, consequent: [{ type: 'BreakStatement' }] }] }, true],
+    // a switch captures no `continue`: it resumes the enclosing loop, past the throw
+    ['switch continue', { type: 'SwitchStatement', cases: [{ type: 'SwitchCase', test: {}, consequent: [{ type: 'ContinueStatement' }] }] }, false],
+  ];
+  for (const [name, statement, hardExits] of captured) {
+    check(`exit-analysis: ${ name } then throw`,
+      nodeAlwaysHardExits(block([statement, { type: 'ThrowStatement' }])), hardExits);
+  }
+  // babel's shorthand method is a body of its own, as estree's Property over a FunctionExpression is:
+  // the `return` inside it diverts nothing of the list it stands in
+  function hit(statement) {
+    return statement.type === 'ExpressionStatement' && statement.expression?.type === 'AssignmentExpression';
+  }
+  const methodHolder = {
+    type: 'ExpressionStatement',
+    expression: { type: 'ObjectExpression', properties: [{ type: 'ObjectMethod', body: block([{ type: 'ReturnStatement' }]) }] },
+  };
+  checkTruthy('exit-analysis: a shorthand method return does not divert its holder',
+    nodeAlwaysReaches(block([methodHolder, { type: 'ExpressionStatement', expression: { type: 'AssignmentExpression' } }]), hit));
+}
+
+// --- exit-analysis: a statement's subtree is walked once per question, whatever asks ---
+
+// every scan passing a statement asks whether a jump or an exit may leave it, and the reach walk asks again
+// for each name it is questioned about: a repeated ask reads the answer and walks nothing
+{
+  let reads = 0;
+  const counted = {
+    get type() {
+      reads++;
+      return 'Identifier';
+    },
+    name: 'x',
+  };
+  const statement = { type: 'ExpressionStatement', expression: counted };
+  const write = { type: 'ExpressionStatement', expression: { type: 'AssignmentExpression' } };
+  function block(body) {
+    return { type: 'BlockStatement', body };
+  }
+  checkTruthy('exit-analysis: a list past a statement no jump leaves hard-exits',
+    nodeAlwaysHardExits(block([statement, { type: 'ThrowStatement' }])));
+  const jumpWalk = reads;
+  checkTruthy('exit-analysis: the jump question walked the statement', jumpWalk > 0);
+  for (let i = 0; i < 4; i++) nodeAlwaysHardExits(block([statement, { type: 'ThrowStatement' }]));
+  check('exit-analysis: the jump question is not walked again', reads, jumpWalk);
+  // the list ends in a write rather than an exit, so the reach walk passes the statement on its own
+  for (const name of ['a', 'b', 'c', 'd']) {
+    checkTruthy(`exit-analysis: reach past a statement no exit leaves (${ name })`,
+      nodeAlwaysReaches(block([statement, write]), node => node === write && !!name));
+  }
+  const exitWalk = reads;
+  checkTruthy('exit-analysis: the exit question walked the statement', exitWalk > jumpWalk);
+  for (let i = 0; i < 4; i++) nodeAlwaysReaches(block([statement, write]), node => node === write);
+  check('exit-analysis: the exit question is not walked again', reads, exitWalk);
+}
+
 // --- name-resolution: ambient node predicates (module-level surface) ---
 
 {
@@ -8099,7 +8196,7 @@ runBoth('clean-alias recovery drops the for-x head that declares the alias',
 function constancyOf(adapter, prog) {
   const use = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'A');
   const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
-  return lookup(use.scope, 'A', use)?.constant;
+  return lookup({ scope: use.scope, name: 'A', path: use })?.constant;
 }
 
 runBoth('a recovered identity self-assign leaves the binding constant',
@@ -8380,7 +8477,7 @@ runBoth('a recovered write of another value costs the binding its constancy',
     // a nested lookup of a DIFFERENT name resolves normally; the SAME name is the cycle and answers
     // node-only instead of recursing
     let nestedOther = null;
-    const nesting = stubAdapter((sc, name) => {
+    const nesting = stubAdapter(({ scope: sc, name }) => {
       if (name === 'globalThis') {
         nestedOther = proxyGlobalRootName({ node: { type: 'Identifier', name: 'self' }, scope: sc, adapter: nesting, path: null });
       }
@@ -8390,7 +8487,7 @@ runBoth('a recovered write of another value costs the binding its constancy',
     check('class-walk: in-flight guard leaves a different name resolvable', nestedOther, 'self');
 
     let nestedSame = null;
-    const cycling = stubAdapter((sc, name) => {
+    const cycling = stubAdapter(({ scope: sc, name }) => {
       nestedSame ??= proxyGlobalRootName({ node: { type: 'Identifier', name }, scope: sc, adapter: cycling, path: null });
       return null;
     });
