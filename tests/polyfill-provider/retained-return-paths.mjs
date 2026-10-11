@@ -182,29 +182,35 @@ for (const adapter of adapters) for (const [name, declaration, callee, held] of 
   check(`${ adapter.name }: ${ name }: return graph is scanned once per callee`, nameReads < size * 40, true);
 }
 // A parameter's caller fan and its static reads are independent dimensions. Revisiting every
-// source for every read is quadratic even when no source is a retained local call.
+// source for every read is quadratic even when no source is a retained local call. A namespace with
+// no entry of its own has no family to hold; `Reflect`'s narrow entry holds its family, as a
+// constructor's does, at one more linear pass over the sources.
 for (const adapter of adapters) {
   const size = 256;
-  const program = adapter.parseAndScope(`function read(ns) {
-    ${ 'ns.ownKeys({});'.repeat(size) }
-  } ${ 'read(Reflect);'.repeat(size) }`);
-  let sourceReads = 0;
-  for (const path of adapter.collectPaths(program, 'Identifier', candidate => candidate.node.name === 'Reflect')) {
-    Object.defineProperty(path.node, 'type', { configurable: true, get() {
-      sourceReads++;
-      return 'Identifier';
-    } });
+  const censusReads = {};
+  for (const [global, key, retained] of [['Math', 'trunc', false], ['Reflect', 'ownKeys', true]]) {
+    const program = adapter.parseAndScope(`function read(ns) {
+      ${ `ns.${ key }({});`.repeat(size) }
+    } ${ `read(${ global });`.repeat(size) }`);
+    let sourceReads = 0;
+    for (const path of adapter.collectPaths(program, 'Identifier', candidate => candidate.node.name === global)) {
+      Object.defineProperty(path.node, 'type', { configurable: true, get() {
+        sourceReads++;
+        return 'Identifier';
+      } });
+    }
+    const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+    censusReads[global] = sourceReads;
+    for (const path of adapter.collectPaths(program, 'MemberExpression', candidate => candidate.node.object?.name === 'ns')) {
+      CENSUS_STATIC_RECEIVERS.get(program.node)(path.node.object, true);
+    }
+    check(`${ adapter.name }: ${ global }: static reads do not expose the namespace`, escapedCtorNames.has(global), false);
+    check(`${ adapter.name }: ${ global }: static reads retain the pure namespace`, escapedCtorNames.has(global, true), retained);
+    check(`${ adapter.name }: ${ global }: caller-source query is live`, censusReads[global] > size, true);
+    check(`${ adapter.name }: ${ global }: repeated candidate queries share their source walk`, sourceReads - censusReads[global] < size * 24, true);
   }
-  const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
-  const censusReads = sourceReads;
-  for (const path of adapter.collectPaths(program, 'MemberExpression', candidate => candidate.node.object?.name === 'ns')) {
-    CENSUS_STATIC_RECEIVERS.get(program.node)(path.node.object, true);
-  }
-  check(`${ adapter.name }: static reads do not expose the namespace`, escapedCtorNames.has('Reflect'), false);
-  check(`${ adapter.name }: static reads do not retain the pure namespace`, escapedCtorNames.has('Reflect', true), false);
-  check(`${ adapter.name }: caller-source query is live`, censusReads > size, true);
-  check(`${ adapter.name }: caller sources are scanned linearly`, censusReads < size * 40, true);
-  check(`${ adapter.name }: repeated candidate queries share their source walk`, sourceReads - censusReads < size * 24, true);
+  check(`${ adapter.name }: caller sources are scanned linearly`, censusReads.Math < size * 40, true);
+  check(`${ adapter.name }: the held family adds a linear pass over the sources`, censusReads.Reflect - censusReads.Math <= size * 4, true);
 }
 // Reusing one root answer must preserve each key's obligation, including an unknown key after
 // a named read. Two bindings spelling the same name must never share that answer. a read through

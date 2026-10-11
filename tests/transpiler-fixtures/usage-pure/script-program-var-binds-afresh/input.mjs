@@ -4,9 +4,8 @@
 // function, and with no init at all. one global per position so a resurrected injection shows in the
 // import set, and the last row is the CONTROL - a name the file never declares, which still injects.
 // what a shadow leaves behind is decided by its own VALUE, not by the read: a flat `var Object = 1`
-// is a number and leaves nothing, while the loop-HEAD read is shadowed by a write in the loop BODY
-// that re-runs, so the receiver's value is unknown there and `.values` falls back to the instance
-// family - the only injection any shadowed row here accounts for
+// is a number and leaves nothing, and so does the loop-HEAD read - the `var` the loop BODY declares
+// covers the head, where it is still unassigned
 var beforeAssign = Reflect.ownKeys({ a: 1 });
 var Reflect = 1;
 var afterAssign = Reflect;

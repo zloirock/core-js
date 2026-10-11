@@ -13,6 +13,8 @@ import {
   dispatchMayReadNav,
   isReReferenceableAcrossReads,
   isSeFreeMemberReceiver,
+  liftedInitElements,
+  liftedPrefixSplit,
   liftedRealmNavEffect,
   planSynthReceiverGuard,
   pruneHopFromLevels,
@@ -36,6 +38,7 @@ import {
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
+  decidedRunningPart,
   discardRescueNodes,
   partitionEffectsAtProbe,
   navValueCanShortCircuit,
@@ -196,10 +199,6 @@ function pushConstructorStaticSlot({ receiverNode, key, metaPath, resolvePure, i
   return true;
 }
 
-// a host whose level keeps SIBLINGS (`hopSplitPlan`) stays where it is: the hop's prop leaves its
-// level, and the pair - memo, claims, and whatever the leaf kept, off the memo - stands beside the
-// statement: ahead of it where the hop led the host pattern, behind it otherwise. a host that
-// empties goes - nothing binds there any more, and its root is read nowhere else
 // the receiver spelling an instance synth hands its helper: the shared rule answers which bare
 // globals arrive as their injected pure binding, and everything else is a clone of the source node -
 // the synth literal is re-emitted where no visitor reaches it again, so a raw name would stay raw
@@ -210,6 +209,10 @@ function synthInstanceReceiver(receiver, metaPath, { adapter, resolvePure, injec
   return pure ? identifier(injectPureImport(pure.entry, pure.hintName)) : cloneNode(receiver);
 }
 
+// a host whose level keeps SIBLINGS (`hopSplitPlan`) stays where it is: the hop's prop leaves its
+// level, and the pair - memo, claims, and whatever the leaf kept, off the memo - stands beside the
+// statement: ahead of it where the hop led the host pattern, behind it otherwise. a host that
+// empties goes - nothing binds there any more, and its root is read nowhere else
 function splitHopOutOfHost({ job, kept, statements, body, at }) {
   if (kept.length) {
     job.leafPattern.properties = kept;
@@ -516,7 +519,7 @@ export default function createDestructureDrains(ctx) {
         // way, and the other binding dispatches `_nameMaybeFunction(_Promise)` for the same source
         const receiverSite = namelessRoot ? null : nodeSite(receiver, metaPath);
         const receiverBinding = namelessRoot ? null
-          : adapter.getBinding(receiverSite.scope, receiver.name, receiverSite.path);
+          : adapter.getBinding({ scope: receiverSite.scope, name: receiver.name, path: receiverSite.path, read: receiver });
         const aliasedRealm = receiverBinding && !receiverBinding.polyfillHint
           ? proxyGlobalRootName({ node: receiver, scope: receiverSite.scope, adapter, path: receiverSite.path }) : null;
         const rootIsAlias = aliasedRealm !== null && aliasedRealm !== receiver.name;
@@ -530,6 +533,8 @@ export default function createDestructureDrains(ctx) {
           // a nav ending on a polyfillable STATIC dispatches on the static's own ponyfill, never on
           // the raw static off the realm (`{ Array: { of: { name } } } = globalThis`)
           resolveStaticPolyfill: (ctor, key) => staticHopPure({ ctorName: ctor, key, resolvePure: m => resolvePure(m, metaPath) }),
+          // the chain is read where its receiver is
+          read: receiverSite && { node: receiver, path: receiverSite.path },
         });
         const ref = mintedMemo && !resolvedBase?.pure ? { name: receiver.name, path: chainKeys } : resolvedBase;
         if (!ref) return null;
@@ -659,7 +664,7 @@ export default function createDestructureDrains(ctx) {
     }
     // Babel exposes the replacement initializer immediately. Publish the same
     // module source only after this deferred declaration extraction is committed.
-    const binding = job.value?.moduleSource && adapter.getBinding(job.metaPath?.scope, job.local, job.metaPath);
+    const binding = job.value?.moduleSource && adapter.getBinding({ scope: job.metaPath?.scope, name: job.local, path: job.metaPath });
     if (job.declarator && bindingDeclaratorNode(binding) === job.declarator) {
       adapter.recordEmittedBindingSource(job.declarator, job.local, job.value.moduleSource);
     }
@@ -720,6 +725,7 @@ export default function createDestructureDrains(ctx) {
     metaPath = null,
     sealedProbePlan = null,
     guardedReceiverPlan = null,
+    passthroughBase = null,
   }) {
     // the read one slot passes through: the branch root's own name (its pure proxy import where the
     // canon names one) walked down the accumulated key path. `asRef` hands back the unwalked
@@ -903,11 +909,16 @@ export default function createDestructureDrains(ctx) {
         continue;
       }
       // passthrough needs a NAMED base to read through; a bare member receiver without one
-      // serves only a fully-covered pattern
-      if (!baseName && receiver?.type === 'MemberExpression') {
-        const clone = cloneStamped(receiver);
-        pushSlot(slotRead(metaPath ? substituteProxyRootsInClone(clone, metaPath,
-          { adapter, resolveGlobalPolyfill, injectPureImport }) : clone));
+      // serves only a fully-covered pattern, and so does the left a collapsed fallback re-spells
+      // (`passthroughBase`: `{ groupBy: _Map$groupBy, prototype: mkM().prototype }` for `mkM() || Object`).
+      // a `?.` it carries is a dead one (a live one took the nav branch above), sealed off from the
+      // read past it all the same, as the other leg prints the chain (`(box?.U).prototype`)
+      const spelledBase = passthroughBase ?? (receiver?.type === 'MemberExpression' ? receiver : null);
+      if (!baseName && spelledBase) {
+        const clone = cloneStamped(spelledBase);
+        const read = metaPath ? substituteProxyRootsInClone(clone, metaPath,
+          { adapter, resolveGlobalPolyfill, injectPureImport }) : clone;
+        pushSlot(slotRead(receiverCarriesLiveOptional(read) ? chainExpression(read) : read));
         continue;
       }
       const ref = passthroughSlotRef(planEntry, { asRef: true });
@@ -1176,6 +1187,7 @@ export default function createDestructureDrains(ctx) {
         instanceReceiver: pending.instanceReceiver ?? null, metaPath: pending.metaPath ?? null,
         sealedProbePlan: pending.sealedProbePlan ?? null,
         guardedReceiverPlan: pending.guardedReceiverPlan ?? null,
+        passthroughBase: pending.passthroughBase ?? null,
       });
       if (!rendered) continue;
       const synthGuard = pending.metaPath && planSynthReceiverGuard({
@@ -1193,8 +1205,11 @@ export default function createDestructureDrains(ctx) {
           ? renderSealedNavProbe(pending.sealedProbePlan, pending.metaPath, probeRenderCtx)
           : sealedNavProbeRead(receiver, pending.metaPath, probeRenderCtx);
         if (sealedProbe) rendered = sequenceExpression([sealedProbe, rendered]);
-        // a collapsed logical re-runs its left sequence prefix ahead of the literal
-        if (leadingEffects) rendered = sequenceExpression([...leadingEffects.expressions.slice(0, -1), rendered]);
+        // a collapsed logical re-runs its left sequence prefix ahead of the literal - what of it runs something,
+        // the shared trim canon's cut (a dead `0,` is a comma the source wrote)
+        const leading = leadingEffects && pending.metaPath ? observablePrefixElements(leadingEffects.expressions.slice(0, -1),
+          { ...nodeSite(receiver, pending.metaPath), adapter }) : leadingEffects?.expressions.slice(0, -1) ?? [];
+        if (leading.length) rendered = sequenceExpression([...leading, rendered]);
       }
       if (replaceNodeInTree(program, receiver, rendered)) {
         markRewrite();
@@ -1214,21 +1229,25 @@ export default function createDestructureDrains(ctx) {
       const exported = exportBody?.find(node => node.type === 'ExportNamedDeclaration'
         && node.declaration?.declarations?.includes(job.declarator));
       if (exported) declaration = exported.declaration;
-      const receiver = unwrapRuntimeExpr(job.declarator.init);
+      const running = job.receiverSlot ? job.receiverSlot.owner[job.receiverSlot.key] : job.declarator.init;
+      const receiver = unwrapRuntimeExpr(running);
+      const discarded = job.discardedSlots?.map(({ owner, key }) => owner[key]);
       const reuseReceiver = job.keyReadPlan.reuseReceiver && receiver?.type === 'Identifier';
-      const receiverRef = reuseReceiver ? receiver.name : job.receiverName ?? mintRefName();
+      const receiverRef = reuseReceiver ? receiver.name : discarded ? null : job.receiverName ?? mintRefName();
       const liveKeys = destructureKeyReadPlan({
         node: job.prop,
         parentPath: { node: job.declarator.id },
       }, patternFrame(job.metaPath))?.keys ?? [];
       const rendered = renderKeyedDestructureRead({
-        receiverName: receiverRef, receiver: job.declarator.init,
-        binding: propBindingTarget(job.prop), keys: liveKeys.map(key => cloneNode(key)),
+        receiverName: receiverRef,
+        receiver: running,
+        binding: propBindingTarget(job.prop),
+        keys: liveKeys.map(key => cloneNode(key)),
         read: job.value(receiverRef),
-        storeReceiver: job.keyReadPlan.exported && !reuseReceiver,
+        storeReceiver: job.keyReadPlan.exported && !reuseReceiver && !discarded,
         reuseReceiver,
         proven: !!job.proven,
-        readsReceiver: !!job.readsReceiver,
+        discarded,
       });
       const slot = declaration.declarations.indexOf(job.declarator);
       declaration.declarations.splice(slot, 1, ...rendered);
@@ -1481,7 +1500,7 @@ export default function createDestructureDrains(ctx) {
     function erasableProxyArgument(argument) {
       const value = peelTransparentExpr(argument);
       return value?.type === 'Identifier' && isMintedOrProxyName(value.name, injectorState)
-        && !adapter.getBinding(metaPath.scope, value.name, metaPath)?.node;
+        && !adapter.getBinding({ scope: metaPath.scope, name: value.name, path: metaPath })?.node;
     }
     const erasableCall = spineRoot === initSpine && spineRoot?.type === 'CallExpression'
       && spineRoot.arguments.length > 0 && spineRoot.arguments.every(erasableProxyArgument);
@@ -1963,11 +1982,12 @@ export default function createDestructureDrains(ctx) {
       const init = seqTail && declarator.init === initBeforeReanchor && !residualRuns(declarator)
         && declJobs.every(job => !(job.buriedKeyEffect && job.chain?.length))
         ? peeledInit : null;
+      // ... every prefix that runs before the value, a decided selection's live arm's own included (`liftedPrefixSplit`)
       if (init?.type === 'SequenceExpression') {
-        statements.push(...observablePrefixElements(init.expressions.slice(0, -1),
-          { scope: declJobs[0]?.metaPath?.scope, adapter, path: declJobs[0]?.metaPath })
-          .map(expr => expressionStatement(expr)));
-        declarator.init = init.expressions.at(-1);
+        const frame = { scope: declJobs[0]?.metaPath?.scope, adapter, path: declJobs[0]?.metaPath };
+        const { prefix, tail } = liftedPrefixSplit(init, frame);
+        statements.push(...observablePrefixElements(prefix, frame).map(expr => expressionStatement(expr)));
+        declarator.init = tail;
       }
       if (pushSplitCtorHopPieces({ extracted, sourceOrder })) {
         return 'consumed';
@@ -2471,8 +2491,13 @@ export default function createDestructureDrains(ctx) {
     }
     // a nav off a call the census resolves to a realm keeps the call alone (the shared rule): its
     // hops are dead reads, and their fold would print a bare ponyfill read
-    const realmNav = liftedRealmNavEffect(assignment.right, { scope: metaPath.scope, adapter, path: metaPath });
-    return (realmNav ? realmNav.effects : [assignment.right]).map(expressionStatement);
+    const site = { scope: metaPath.scope, adapter, path: metaPath };
+    const realmNav = liftedRealmNavEffect(assignment.right, site);
+    if (realmNav) return realmNav.effects.map(expressionStatement);
+    // ... and the rest lifts as one statement less its dead tail, the other leg's lift (`liftedInitElements`),
+    // of the part of a right the build decides that runs (`decidedRunningPart`)
+    const kept = liftedInitElements(decidedRunningPart(assignment.right, site), site);
+    return [expressionStatement(kept.length === 1 ? kept[0] : sequenceExpression(kept))];
   }
 
   // the statement-position OVERWRITE host: the dispatches land after the destructure, and a slot the
@@ -2957,7 +2982,7 @@ export default function createDestructureDrains(ctx) {
       // a possible-global HOP over a guarded value navigates the same surface, so it drops with
       // the guard standing - the ctor-hop arm below is the one the guard shape serves
       if (POSSIBLE_GLOBAL_OBJECTS.has(keyName) && info.shape !== 'guard') {
-        if (!isPristineProxyGlobal(adapter, keyName)) return changed;
+        if (!isPristineProxyGlobal(adapter, keyName, metaPath && { node: hop, path: metaPath })) return changed;
         declarator.id = hopPattern;
         // the flatten rewrote the pattern, so the init re-emits as the surface it resolved to: a
         // TS assertion about the SOURCE spelling asserts nothing about that
@@ -2988,7 +3013,7 @@ export default function createDestructureDrains(ctx) {
       // a residual an extraction LEFT BEHIND keeps its nested spelling on a mutated hop
       // (babel anchors only what it consumed); a whole-declarator mutated hop flattens,
       // and only the drain's own note reaches here with that proof
-      const mutatedHop = adapter.isMutatedStatic('globalThis', keyName);
+      const mutatedHop = adapter.isMutatedStatic('globalThis', keyName, metaPath && { node: hop, path: metaPath });
       if (mutatedHop && !forceMutatedHop) return changed;
       // ... and the static hop below a ctor (entry-bearing or not) takes the whole residual onto the
       // static's ponyfill in one step (`{ Array: { of: { length } } }` -> `{ length } = _Array$of`)
@@ -3137,10 +3162,12 @@ export default function createDestructureDrains(ctx) {
     // recorded, so the recorded nodes can be the detached originals. only a sequence the
     // SOURCE wrote lifts - one the collapse MINTED (a kept write re-emitted beside the pure)
     // is the value's own spelling and stays whole, which its missing span tells us
-    const peeledRhs = peelTransparentExpr(assignment.right);
-    // the sequence read through the canon peel, as the lift plan read it: a NESTED comma run
-    // (`(f(), (g(), globalThis))`) lifts every prefix, where the outer level alone dropped the inner
-    const { prefix: rhsPrefix, tail: rhsTail } = peelNestedSequenceExpressions(peeledRhs);
+    // ... and of a right the build decides, what runs of it (`decidedRunningPart`): the rest never does
+    const peeledRhs = peelTransparentExpr(decidedRunningPart(assignment.right, patternFrame(jobs[0].metaPath)));
+    // the sequence read through the canon split, as the lift plan read it: a NESTED comma run
+    // (`(f(), (g(), globalThis))`) lifts every prefix, where the outer level alone dropped the inner, and so
+    // does the live arm of a selection the build decides behind it (`liftedPrefixSplit`)
+    const { prefix: rhsPrefix, tail: rhsTail } = liftedPrefixSplit(peeledRhs, patternFrame(jobs[0].metaPath));
     // the WHOLE right recorded as the prefix - the call-branch lift (`(() => ...)();`), a kept WRITE -
     // re-emits as a statement whatever the receiver shape is now, but only where the consume DISCARDS
     // it: a surviving residual performs a store where the source did, and the extractions demoted
@@ -3188,8 +3215,9 @@ export default function createDestructureDrains(ctx) {
         // ... a nav off a call the census resolves to a realm keeps only what the call owes (the
         // shared rule) - the whole read printed a dead `mk().Array;` where the babel leg lifts nothing -
         // as ONE expression, the flat consume's shape below (`eff(), mk(); g = _Map$groupBy;`).
-        // the rest lifts through the shared trim canon, a dead comma element left behind (`(0, f())`)
-        : liftedPrefixStatements(liftedRealmNavEffect(assignment.right, frame)?.effects ?? [...rhsPrefix, rhsTail], frame))
+        // the rest lifts through the shared trim canon (`liftedInitElements`, the other leg's lift), a
+        // dead comma element left behind (`(0, f())`) and a decided selection read as what runs of it
+        : liftedPrefixStatements(liftedRealmNavEffect(assignment.right, frame)?.effects ?? liftedInitElements(peeledRhs, frame), frame))
       // a FULLY consumed FLAT pattern discards its receiver, and what stays of it is ONE expression -
       // the shape the other leg's defer-SE route prints there (`eff(), eff2(); d = _WeakSet;`); a
       // SURVIVING residual and a NESTED claim take the per-element prefix both legs print for the
@@ -3313,10 +3341,9 @@ export default function createDestructureDrains(ctx) {
   // the LIVE prefix behind a recorded one: a claim inside the prefix renders by REPLACING its
   // node, so the nodes captured at registration are pre-swap copies - lifting those spells the
   // source read again with its own polyfill lost (`(arr.flat(), globalThis)`)
-  function livePrefixOf(declarator, seqPrefix) {
-    const liveInit = peelTransparentExpr(declarator.init);
-    const { prefix } = peelNestedSequenceExpressions(liveInit);
-    return liveInit?.type === 'SequenceExpression' && prefix.length === seqPrefix.length ? prefix : seqPrefix;
+  function livePrefixOf(declarator, seqPrefix, frame) {
+    const { prefix } = liftedPrefixSplit(peelTransparentExpr(declarator.init), frame);
+    return prefix.length === seqPrefix.length ? prefix : seqPrefix;
   }
 
   // a bodyless `var` destructure hosts its extractions in the slot: a block of `var local = pure;`
@@ -3394,7 +3421,8 @@ export default function createDestructureDrains(ctx) {
         // the LIVE prefix, like the lift below: a claim inside it renders by REPLACING its node, so
         // the registration-time copy is pre-swap and would ship the raw call (`log.push("e")` beside
         // a polyfilled twin on the other leg)
-        values[0].arguments[0] = sequenceExpression([...livePrefixOf(declarator, seqPrefix), values[0].arguments[0]]);
+        values[0].arguments[0] = sequenceExpression([...livePrefixOf(declarator, seqPrefix, patternFrame(jobs[0].metaPath)),
+          values[0].arguments[0]]);
       } else if (discardsInit) {
         // a DISCARDED init owes what its LIVE spelling still runs: the record ends with the init itself,
         // which the walk may have respelled past any count the record lines up with (`(arr.flat(),
@@ -3403,17 +3431,19 @@ export default function createDestructureDrains(ctx) {
         // the lift canon owes - a realm nav's call, a deciding left's effects - or the live elements
         // that run something
         // ... read through its wrappers: a TS wrapper leaves with the value it wraps
+        // ... and of an init the build decides, what runs of it (`decidedRunningPart`): the rest never does
         const frame = patternFrame(jobs[0].metaPath);
-        const init = peelTransparentExpr(declarator.init);
+        const init = peelTransparentExpr(decidedRunningPart(declarator.init, frame));
         const { prefix, tail } = peelNestedSequenceExpressions(init);
         const owed = pristineInitFacts.get(declarator)?.keepsWholeRead ? [init]
           : liftedRealmNavEffect(declarator.init, frame)?.effects ?? observablePrefixElements([...prefix, tail], frame);
         statements.push(...owed.map(expr => expressionStatement(expr)));
       } else {
-        const lifted = observablePrefixElements(livePrefixOf(declarator, seqPrefix), patternFrame(jobs[0].metaPath));
+        const lifted = observablePrefixElements(livePrefixOf(declarator, seqPrefix, patternFrame(jobs[0].metaPath)),
+          patternFrame(jobs[0].metaPath));
         statements.push(...lifted.map(expr => expressionStatement(expr)));
       }
-      if (seqPrefix?.length) declarator.init = liveTailOf(declarator, seqPrefix, initTail);
+      if (seqPrefix?.length) declarator.init = liveTailOf(declarator, { seqPrefix, initTail, ctx: patternFrame(jobs[0].metaPath) });
     }
     if (memoRef) {
       // the memo is the synthetic block's own binding, and its kind follows the SE-KEY

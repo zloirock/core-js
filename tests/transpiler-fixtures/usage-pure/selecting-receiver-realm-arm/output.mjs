@@ -33,9 +33,11 @@ export function ctorStatic(flag) {
   var _ref3;
   return (_ref3 = flag ? realm() : opaque(), _ref3 === _globalThis ? _Map : _ref3.Map).groupBy([1, 2], value => value % 2);
 }
-// No arm names a realm: nothing to test against, the read stays native.
+// No arm names a realm: the container arm's constructor is the guard's only candidate, the opaque arm
+// its raw branch.
 export function opaqueOnly(flag) {
-  return (flag ? opaque() : {
+  var _ref4;
+  return _ref4 = (flag ? opaque() : {
     Array
-  }).Array.of(1);
+  }).Array, _ref4 === Array ? _Array$of(1) : _ref4.of(1);
 }

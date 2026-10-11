@@ -1,11 +1,12 @@
 // the TS require-import channel of the pure global-this SLOT mutation - its own module for
 // the same isolation reason as the ESM twin. the `.ts` extension keeps the shape alive into
 // the transform on the legs that see the original source, while babel's TS lowering turns it
-// into the require-var form for the post leg - one test locks BOTH recognition channels
+// into the require-var form for the post leg - one test locks BOTH recognition channels. the original
+// is captured through a join-built key, like the ESM twin's
 import pureGlobalThis = require('@core-js/pure/full/global-this');
 
 QUnit.test('mutated-slots-via-pure-import-ts: slot write through import= taints bare reads', assert => {
-  const original = globalThis.Map;
+  const original = globalThis[['M', 'ap'].join('')];
   function ShimMap(this: { shim: boolean }) { this.shim = true; }
   pureGlobalThis.Map = ShimMap as never;
   try {

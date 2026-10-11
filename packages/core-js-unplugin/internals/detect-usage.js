@@ -11,11 +11,15 @@ import {
   ancestorChainDetached,
   bareAssignmentPatternLeafPath,
   bindingInvisibleFromUseRegion,
+  closestBindingVisibleAtUse,
+  lookupReadPath,
   cleanDestructureAliasWrites,
-  findFunctionScopeVarInPath,
+  declaredIdentifierNodes,
+  hoistedDeclarationInScope,
   findTSRuntimeBindingInPath,
   getDirectStatementBody,
   getTypeArgs,
+  hoistedBindingVisibleInScope,
   IMPORT_SPECIFIER_TYPES,
   importBindingView,
   isAmbientBindingShape,
@@ -33,16 +37,15 @@ import {
   pathContainedBy,
   peelTransparentExprAncestorPath,
   POSSIBLE_GLOBAL_OBJECTS,
-  recomputedBindingWrites,
+  liveBindingWrites,
   syntheticNodeAncestry,
-  synthHoistedBinding,
-  synthOwnerStrictlyInsideScope,
   unwrapExportedDeclaration,
   usableAliasInfo,
   useAnchorStart,
   walkPatternIdentifiers,
   unwrapTransparentSeq,
   wrapScopeBindingLookup,
+  writesPastCeiling,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -215,87 +218,184 @@ function caseBlockSwitchOf(native) {
 }
 // estree-toolkit does not model the switch CaseBlock (the braces around the cases) as its own
 // lexical scope: a case-body `let` (`case 1: let globalThis = ...`) reports as in scope at the
-// DISCRIMINANT and even outside the switch - regions the CaseBlock never covers. a raw global in
-// the discriminant then loses its substitution (ReferenceError on targets without it). true when
-// `native` is declared directly under a SwitchCase and `path` does NOT sit inside that switch's
-// cases region. babel scopes the CaseBlock correctly, so this fires only on the estree side; a
-// binding inside a nested block of a case is scoped by that block and never resolves out here
+// DISCRIMINANT - a region the CaseBlock never covers. a raw global in the discriminant then loses
+// its substitution (ReferenceError on targets without it). true when `native` is declared directly
+// under a SwitchCase and `path` sits in that switch ahead of its cases. a `path` outside the switch
+// anchors a lookup asked in the switch's own scope for code its cases hold - the initializer of a
+// `var` declared there, read where the `var` is used - and that code reads the case-level binding.
+// babel scopes the CaseBlock correctly, so this fires only on the estree side; a binding inside a
+// nested block of a case is scoped by that block and never resolves out here
 function isCaseBlockBindingOutsideCases(native, path) {
   if (!native?.path || !path?.node) return false;
   const switchNode = caseBlockSwitchOf(native);
   if (!switchNode) return false;
   const pos = path.node.start;
   const casesStart = switchNode.cases?.[0]?.start ?? switchNode.end;
-  return typeof pos === 'number' && !(pos >= casesStart && pos <= switchNode.end);
+  return typeof pos === 'number' && pos >= switchNode.start && pos < casesStart;
+}
+
+// the declaration estree-toolkit filed as a violation of a binding declares the violated Identifier: a
+// declarator, through any pattern, or a class or function declaration - null for a write
+const VIOLATION_DECLARATION_TYPES = new Set(['VariableDeclarator', 'ClassDeclaration', 'FunctionDeclaration']);
+function violationDeclarationOf(violation) {
+  for (let path = violation.parentPath; path?.node; path = path.parentPath) {
+    if (VIOLATION_DECLARATION_TYPES.has(path.node.type)) return declaredIdentifierNodes(path.node)?.has(violation.node) ? path : null;
+  }
+  return null;
+}
+
+// the loop a binding's declaration heads and the lexical declaration its body block redeclares the name
+// with (`{ region, twin, declared }`: the body, the declared Identifier and the declarator, class or
+// function declaring it), or null. estree-toolkit gives a loop's body block no scope of its own
+// (`shouldBlockStatementMakeScope`), so that declaration lands on the head's binding as a declaration
+// violation, where the body block binds it apart and shadows the head inside it - a `var` head as well,
+// whose own redeclaration in the body is the same binding and no twin. sloppy code may declare one
+// function name twice there, and the last declaration is the binding. a fact of the binding, asked on
+// every lookup: a binding no loop heads answers off its own nodes, and a head's is climbed once
+const loopBodyTwinCache = new WeakMap();
+function loopBodyTwinOf(native) {
+  const declaration = native?.path?.parentPath?.node;
+  const loop = native?.path?.parentPath?.parentPath?.node;
+  if (declaration?.type !== 'VariableDeclaration' || loop?.body?.type !== 'BlockStatement'
+    || (loop.left !== declaration && loop.init !== declaration)) return null;
+  if (loopBodyTwinCache.has(native)) return loopBodyTwinCache.get(native);
+  const twins = [];
+  for (const violation of native.constantViolations ?? []) {
+    const declared = bodyDeclarationOf(violation, loop.body);
+    if (declared) twins.push({ region: loop.body, twin: violation, declared });
+  }
+  const result = twins.length === 1 || twins.every(({ declared }) => declared.node.type === 'FunctionDeclaration')
+    ? twins.reduce((last, twin) => !last || twin.declared.node.start > last.declared.node.start ? twin : last, null) : null;
+  loopBodyTwinCache.set(native, result);
+  return result;
+}
+
+// ... the lexical declaration a statement of that body declares the violated Identifier with, or null
+function bodyDeclarationOf(violation, body) {
+  const declared = violationDeclarationOf(violation);
+  if (declared?.node.type !== 'VariableDeclarator') return declared?.parentPath?.node === body ? declared : null;
+  return declared.parent?.kind !== 'var' && declared.parentPath?.parentPath?.node === body ? declared : null;
+}
+
+// ... is the use inside that body, where the body's declaration answers instead of the head's binding
+function isLoopHeadShadowedAtUse(native, path) {
+  const shadow = loopBodyTwinOf(native);
+  return !!shadow && pathContainedBy(path, shadow.region);
+}
+
+// the declarations namespace blocks make of a binding's name, by the block making each (`{ region, twin,
+// declared }` as for a loop body): estree-toolkit gives a TSModuleBlock no scope of its own either, so a
+// declaration there lands on an outer binding declared before it as a declaration violation, where the
+// block binds it apart and shadows the outer binding inside it
+const namespaceTwinsCache = new WeakMap();
+function namespaceTwinsOf(native) {
+  if (!native?.constantViolations?.length) return null;
+  if (namespaceTwinsCache.has(native)) return namespaceTwinsCache.get(native);
+  const ownBlock = namespaceScopedBindingBlock(native);
+  let twins = null;
+  for (const violation of native.constantViolations) {
+    const declared = violationDeclarationOf(violation);
+    const region = declared && namespaceScopedBindingBlock({ path: declared });
+    if (region && region !== ownBlock && !twins?.has(region)) (twins ??= new Map()).set(region, { region, twin: violation, declared });
+  }
+  namespaceTwinsCache.set(native, twins);
+  return twins;
+}
+
+// ... the one whose block holds the use - the nearest, where namespaces nest
+function namespaceTwinAtUse(native, path) {
+  const twins = path ? namespaceTwinsOf(native) : null;
+  if (!twins) return null;
+  for (let cur = path.parentPath; cur?.node; cur = cur.parentPath) {
+    const twin = twins.get(cur.node);
+    if (twin) return twin;
+  }
+  return null;
 }
 
 // a native binding that does not actually cover the use site: an over-hoisted namespace-local
-// declaration, or a case-block lexical binding consulted from outside the cases region. callers
-// fall through to the TS-runtime / var-hoist fallbacks - a nested-block `var` may still bind
+// declaration, a case-block lexical binding consulted from outside the cases region, a loop head
+// the loop's body redeclares, consulted inside the body, or a binding a namespace block redeclares,
+// consulted inside the block. callers fall through to the TS-runtime / var-hoist fallbacks - a
+// nested-block `var` may still bind
 function nativeBindingInvisibleAtUse(native, path) {
   return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path)
+    || isLoopHeadShadowedAtUse(native, path) || !!namespaceTwinAtUse(native, path)
     || bindingInvisibleFromUseRegion(native?.path, path);
 }
 
 // estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a
 // same-named `namespace N {}` / `declare global {}` twin (over-hoisted onto the real binding), and a
-// for-init `let`/`const` recording its own declarator. both surface as an Identifier that is the
-// `id` of a declaration node (any kind: VariableDeclarator / FunctionDeclaration / ClassDeclaration /
-// enum ...), never a write. drop exactly those PATH-PRESERVING (a real reassignment's parent is an
-// Assignment/Update/for-x head, and `findPrecedingBlockAssignment` still reads the real write paths),
-// so the resolver's reassignment gates stop bailing on a phantom. estree-only - babel's default hook
-// keeps the raw list (babel scopes namespaces correctly). a declaration's name-id is phantom iff it
-// is EITHER the binding's own declaration (for-init self) OR over-hoisted from a namespace block; a
-// same-scope `function`/`class` redeclaration is neither, so its real last-wins shadow is kept
-// (a same-scope `var` redecl records no violation; a `let`/`const` one is a SyntaxError)
+// for-init `let`/`const` recording its own declarator. both surface as an Identifier a declaration
+// declares, through any pattern (`violationDeclarationOf`), never a write. drop exactly those
+// PATH-PRESERVING (a real reassignment's parent is an Assignment/Update/for-x head, and
+// `findPrecedingBlockAssignment` still reads the real write paths), so the resolver's reassignment
+// gates stop bailing on a phantom. estree-only - babel's default hook keeps the raw list (babel scopes
+// namespaces correctly). a declaration is phantom iff it is EITHER the binding's own declaration
+// (for-init self) OR over-hoisted from a namespace block; a same-scope `function`/`class`
+// redeclaration is neither, so its real last-wins shadow is kept (a same-scope `var` redecl records
+// no violation; a `let`/`const` one is a SyntaxError)
 function isPhantomDeclarationViolation(violation, binding) {
-  const declPath = violation?.parentPath;
-  const decl = declPath?.node;
-  if (!decl || decl.id !== violation.node) return false;
-  return decl === binding?.path?.node || !!namespaceScopedBindingBlock({ path: declPath });
+  const declPath = violationDeclarationOf(violation);
+  return !!declPath && (declPath.node === binding?.path?.node || !!namespaceScopedBindingBlock({ path: declPath }));
+}
+
+// ... and so is every violation inside a block the tracker gives no scope of its own that redeclares the
+// name - a loop body (`loopBodyTwinOf`), a namespace block (`namespaceTwinsOf`): the declaration and the
+// writes there belong to the block's binding, which shadows this one inside it
+function isTwinRegionViolation(violation, binding) {
+  const loopTwin = loopBodyTwinOf(binding);
+  if (loopTwin && pathContainedBy(violation, loopTwin.region)) return true;
+  const twins = namespaceTwinsOf(binding);
+  for (let cur = twins ? violation.parentPath : null; cur?.node; cur = cur.parentPath) {
+    if (twins.has(cur.node)) return true;
+  }
+  return false;
 }
 // one FILTERED stand-in per native binding: every identity consumer downstream (the
 // resolver's per-binding lookup cache, closure membership Sets, per-binding classification
 // Maps) keys by object identity, so a fresh copy per call would silently miss them all -
 // dropping recorded writes from the analyses those consumers feed. violations are stable
-// after the scope crawl, so the memoized copy never goes stale within a file
+// after the scope crawl, so the memoized answer never goes stale within a file - the binding
+// itself where nothing drops, which every lookup of it would otherwise scan its writes again for
 const phantomFilteredBindings = new WeakMap();
 export function withoutPhantomDeclarationViolations(binding) {
   const violations = binding.constantViolations;
   if (!violations?.length) return binding;
   const cached = phantomFilteredBindings.get(binding);
   if (cached) return cached;
-  const real = violations.filter(v => !isPhantomDeclarationViolation(v, binding));
-  if (real.length === violations.length) return binding;
+  const real = violations.filter(v => !isPhantomDeclarationViolation(v, binding) && !isTwinRegionViolation(v, binding));
   // spread copies the binding's OWN props (`path` / `scope` / `kind`) so a resolver consumer can
   // re-spread (`{ ...binding, constantViolations: combined }`) without losing them. carry
   // `constant` explicitly - it is a prototype getter on the estree Binding (not copied by spread)
   // and `constantBindingPath` reads it
-  const filtered = { ...binding, constantViolations: real, constant: real.length === 0 };
+  const filtered = real.length === violations.length ? binding : { ...binding, constantViolations: real, constant: real.length === 0 };
   phantomFilteredBindings.set(binding, filtered);
   return filtered;
 }
 
 // shared tail of every "no authoritative native binding" branch below: a TS-runtime
 // declaration (enum / namespace / import-equals) or a nested-block hoisted `var` may still
-// bind the name even when the scope tracker reports nothing usable
-function tsOrVarHoistFallback(scope, name, path) {
-  if (hasTSRuntimeBinding(scope, name, path)) return true;
+// bind the name even when the scope tracker reports nothing usable. a name read apart from the
+// use (`read`) is climbed for from where it is read (`lookupReadPath`)
+function tsOrVarHoistFallback(scope, name, path, read = null) {
+  const anchor = lookupReadPath(path, read);
+  if (hasTSRuntimeBinding(scope, name, anchor)) return true;
   // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
   // the enclosing function scope (babel's tracker does). without this fallback,
   // `function () { if (cond) { var globalThis = ...; } return globalThis; }` reports
   // no binding at the inner reference, so the Identifier visitor substitutes a USER
   // binding (`globalThis -> _globalThis`). walking `path` ancestors for var-scope owners
   // closes the gap
-  return path ? findFunctionScopeVarInPath(path, name) : false;
+  return !!anchor && !!hoistedDeclarationInScope(scope, anchor, name);
 }
 
-function hasRuntimeBinding(scope, name, path = null) {
+function hasRuntimeBinding(scope, name, path = null, read = null) {
   // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
   // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
   // it for position-aware block-scope shadow checks - the inner `let`/`const`/`catch.param`
   // binding only matches when the lookup site sits inside its containing block
-  if (!(scope?.hasBinding?.(name, path) ?? false)) return tsOrVarHoistFallback(scope, name, path);
+  if (!(scope?.hasBinding?.(name, path) ?? false)) return tsOrVarHoistFallback(scope, name, path, read);
   // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
   // their hasBinding=true is authoritative
@@ -311,7 +411,7 @@ function hasRuntimeBinding(scope, name, path = null) {
   // (`declare const Map: any; namespace Map {}`) still emits a real `var` after the TS
   // transform, so the use MUST stay on the user binding. no visible binding falls through to
   // the TS-runtime scan and the function-scope var walk, matching the babel adapter's ordering
-  if (!visible || isAmbientBinding(visible)) return tsOrVarHoistFallback(scope, name, path);
+  if (!visible || isAmbientBinding(visible)) return tsOrVarHoistFallback(scope, name, path, read);
   return true;
 }
 
@@ -406,12 +506,16 @@ export function registerAliasPrePassSites(sites, { adapter, injector }) {
 // namespace-SECOND order is the mirrored shape the phantom filter already strips). re-anchor the
 // binding onto that real declaration so a use outside the block keeps its narrow instead of
 // degrading to generic. exactly one visible candidate re-anchors - ambiguity stays on the walk.
+// a use inside a loop body or a namespace block redeclaring the name re-anchors onto that
+// declaration (`loopBodyTwinOf`, `namespaceTwinAtUse`), whose writes are the ones inside that
+// region - the binding's own declarator and its writes outside it belong to the binding
 // memoized per (binding, anchor): identity consumers downstream (per-binding resolver caches,
 // closure membership Sets) key by object identity, so a fresh copy per call would miss them all
 const reanchoredBindings = new WeakMap();
 function visibleSameScopeDeclarationTwin(native, path) {
-  if (!namespaceScopedBindingBlock(native)) return null;
-  const candidates = (native.constantViolations ?? []).filter(v => {
+  const shadow = (isLoopHeadShadowedAtUse(native, path) ? loopBodyTwinOf(native) : null) ?? namespaceTwinAtUse(native, path);
+  if (!shadow && !namespaceScopedBindingBlock(native)) return null;
+  const candidates = shadow ? [shadow.twin] : (native.constantViolations ?? []).filter(v => {
     const decl = v?.parentPath?.node;
     return decl && decl.id === v.node && decl !== native.path?.node
       && !nativeBindingInvisibleAtUse({ path: v.parentPath, scope: native.scope }, path);
@@ -420,11 +524,13 @@ function visibleSameScopeDeclarationTwin(native, path) {
   const [anchor] = candidates;
   const cached = reanchoredBindings.get(native)?.get(anchor);
   if (cached) return cached;
-  const violations = native.constantViolations.filter(v => v !== anchor);
+  const violations = native.constantViolations.filter(v => v !== anchor && (!shadow || pathContainedBy(v, shadow.region)));
+  const declared = shadow ? shadow.declared : anchor.parentPath;
   const reanchored = {
     ...native,
-    path: anchor.parentPath,
-    kind: anchor.parentPath.parent?.kind ?? native.kind,
+    path: declared,
+    // a region's class or function declaration binds as estree-toolkit files those: hoisted
+    kind: declared.parent?.kind ?? (shadow ? 'hoisted' : native.kind),
     constantViolations: violations,
     // `constant` is a prototype getter on the estree Binding (not copied by spread) - carry it
     constant: violations.length === 0,
@@ -440,14 +546,14 @@ function visibleSameScopeDeclarationTwin(native, path) {
 // re-anchors onto a same-scope declaration twin, then continues in the invisible binding's
 // enclosing scope: `const g = globalThis; switch (g.self.X) { case 1: let g; }` resolves the
 // discriminant `g` to the outer const (babel scopes these regions natively, so dead-ending here
-// desyncs the emitters - the alias-follow reports unbound and the proxy-hop collapse never fires)
+// desyncs the emitters - the alias-follow reports unbound and the proxy-hop collapse never fires).
+// the walk is the shared one (`closestBindingVisibleAtUse`), with this tracker's own misplacements
+// beside the region rule
 export function closestVisibleNativeBinding(scope, name, path) {
-  let native = scope?.getBinding?.(name, path) ?? null;
-  while (native && nativeBindingInvisibleAtUse(native, path)) {
-    native = visibleSameScopeDeclarationTwin(native, path)
-      ?? native.scope?.parent?.getBinding?.(name, path) ?? null;
-  }
-  return native;
+  return closestBindingVisibleAtUse(scope?.getBinding?.(name, path) ?? null, path, {
+    outer: native => visibleSameScopeDeclarationTwin(native, path) ?? native.scope?.parent?.getBinding?.(name, path) ?? null,
+    invisible: nativeBindingInvisibleAtUse,
+  });
 }
 
 // closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
@@ -458,15 +564,21 @@ export function closestVisibleNativeBinding(scope, name, path) {
 // binding there (estree-toolkit neither hoists it nor lets it shadow the outer name), while a
 // declaration INSIDE the owner (a param, a nearer lexical shadow) keeps the native view. a
 // native resolution of the SAME declarator keeps the native view too (richer info channel)
-function resolveClosestBinding(scope, name, path, getScopeBinding) {
-  return memoizeBindingLookup(scope, name, path, () => resolveClosestBindingUncached(scope, name, path, getScopeBinding));
+function resolveClosestBinding({ scope, name, path, getScopeBinding, read = null }) {
+  return memoizeBindingLookup({
+    scope,
+    name,
+    path,
+    compute: () => resolveClosestBindingUncached({ scope, name, path, getScopeBinding, read }),
+    read,
+  });
 }
 
-// ... the resolution itself, run once per (scope, name, use node) through the memo above
-function resolveClosestBindingUncached(scope, name, path, getScopeBinding) {
-  const native = getScopeBinding(scope, name, path);
-  const synth = path ? synthHoistedBinding(path, name) : null;
-  if (!synth || synthOwnerStrictlyInsideScope(scope, synth)) return { native, synth: null };
+// ... the resolution itself, run once per (scope, name, use node, read) through the memo above
+function resolveClosestBindingUncached({ scope, name, path, getScopeBinding, read }) {
+  const native = getScopeBinding({ scope, name, path, read });
+  const synth = hoistedBindingVisibleInScope(scope, path, name);
+  if (!synth) return { native, synth: null };
   if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
     return { native, synth: null };
   }
@@ -490,16 +602,22 @@ function resolveClosestBindingUncached(scope, name, path, getScopeBinding) {
 // proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
 // runTransform try/finally - early-returns before the save leave the outer injector intact.
 export function createEstreeAdapter(options = {}) {
-  const { getInjector = () => null } = options;
-  const getScopeBinding = wrapScopeBindingLookup(closestVisibleNativeBinding);
+  const { getInjector = () => null, nestedTSRuntimeDeclarations } = options;
+  const getScopeBinding = wrapScopeBindingLookup(closestVisibleNativeBinding, nestedTSRuntimeDeclarations);
+  // the read reaches the closest-binding resolution through the wrap's runtime-declaration climb alone,
+  // which runs only in a file declaring one below its top level: anywhere else a read keys no answer of
+  // its own, and the memo keeps one entry per use
+  function climbedRead(read) {
+    return nestedTSRuntimeDeclarations?.() ?? true ? read : null;
+  }
   return createDetectionAdapter(options, adapter => ({
-    hasBinding(scope, name, path = null) {
+    hasBinding({ scope, name, path = null, read = null }) {
       // a MINTED pure-import name answers like the printed tree will (see getBinding below):
       // without this, `resolveObjectName`'s unbound-identifier branch reads the UID as a
       // would-be global (`_Promise` - not capitalised - resolves to nothing). the registry
       // view applies the span discipline; a USER-named record out of its span must not
       // serve (out there the name is a different binding or the real global)
-      if (hasRuntimeBinding(scope, name, path)) return true;
+      if (hasRuntimeBinding(scope, name, path, read)) return true;
       const minted = getInjector()?.getBindingInfo?.(name, useAnchorStart(path));
       // ... and so does a plugin-MINTED blind alias holding a CONSTRUCTOR (a guard memo ref): its
       // `var _ref` is real but the scope registry lags the mid-traversal insertion, and reading it as
@@ -510,8 +628,8 @@ export function createEstreeAdapter(options = {}) {
       return !!(minted?.hint
         && ((minted.minted && !POSSIBLE_GLOBAL_OBJECTS.has(minted.hint)) || (minted.source && !minted.userNamed)));
     },
-    getBinding(scope, name, path = null) {
-      const { native: b, synth } = resolveClosestBinding(scope, name, path, getScopeBinding);
+    getBinding({ scope, name, path = null, read = null }) {
+      const { native: b, synth } = resolveClosestBinding({ scope, name, path, getScopeBinding, read: climbedRead(read) });
       // var-hoist branch (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var` from a
       // nested non-function block to its function scope, so `function f(){ if (c) { var g =
       // globalThis } g.Map.groupBy(...) }` either finds no native binding or resolves to an OUTER
@@ -608,13 +726,7 @@ export function createEstreeAdapter(options = {}) {
       // fallbacks (`!path`, a kind it does not cover) get the valueless-redeclaration
       // self-record (`var { Map: M } = g; var M;`) stripped inside it, so both adapters hand
       // the resolver the same violation list for identical source
-      const constantViolations = recomputedBindingWrites({
-        kind: b.kind,
-        bindingPath: b.path,
-        usePath: path,
-        name,
-        fallback: b.constantViolations,
-      });
+      const constantViolations = liveBindingWrites({ binding: b, name, usePath: path });
       // the shared alias guard reads the RECOMPUTED violations (an assignment-form alias matches them
       // against its registered write span; the raw estree list carries phantoms) - so it runs after them
       // a VERIFIED identity hit needs no live shape verification - see the babel twin
@@ -675,7 +787,9 @@ export function createEstreeAdapter(options = {}) {
     // AssignmentExpression, then run the shared trust predicate
     findTrustedAliasWrite(scope, name, { requirePlacement = true, readNode = null } = {}) {
       const raw = scope?.getBinding?.(name);
-      if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init) return null;
+      // a binding written past the ceiling holds no single trusted write (`writesPastCeiling`)
+      if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init
+        || writesPastCeiling(raw.constantViolations)) return null;
       // mirror the babel twin: count the writes the alias canon counts BEFORE the first-violation
       // pick - a trailing `var X;` lands in the raw list, the assignment climb dead-ends on its
       // declarator, and the trust predicate's every-violation span check fails, dropping the
@@ -704,20 +818,20 @@ export function createEstreeAdapter(options = {}) {
         : soleAliasWrite({ binding: b, assignNode }))
         ? assignNode : null;
     },
-    getBindingNodeType(scope, name, path = null) {
+    getBindingNodeType({ scope, name, path = null, read = null }) {
       // stay consistent with getBinding through the SAME closest-binding resolution: a
       // use-invisible native binding must not report its declarator type (else the resolver
       // type-gates into resolveVariableBindingToGlobal with the null binding getBinding
       // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
-      const { native, synth } = resolveClosestBinding(scope, name, path, getScopeBinding);
+      const { native, synth } = resolveClosestBinding({ scope, name, path, getScopeBinding, read: climbedRead(read) });
       return synth ? synth.node.type : native?.path?.node?.type ?? null;
     },
     // estree-toolkit registers no binding for TSImportEquals at all (see hasTSRuntimeBinding) -
     // surface the declaration node through a dedicated lookup so the resolution canon can read
     // its module reference. single-consumer, existing binding paths stay untouched; babel's
     // adapter resolves the same shape through its native binding and doesn't implement this
-    getTSImportEqualsNode(scope, name, path = null) {
-      const anchor = path ?? scope?.path ?? null;
+    getTSImportEqualsNode({ scope, name, path = null, read = null }) {
+      const anchor = lookupReadPath(path, read) ?? scope?.path ?? null;
       return anchor ? findTSImportEqualsDeclaration(anchor, name) : null;
     },
     // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression
@@ -1068,6 +1182,7 @@ export function createUsageVisitors({
   revisitDecorators = false,
   keepLive = null,
   onDeadBranch = null,
+  onDiscardedClaim = null,
 }) {
   const core = createUsageHandlerCore({
     adapter,
@@ -1080,6 +1195,7 @@ export function createUsageVisitors({
     suppressProxyGlobals,
     onSuppressedProxyHop,
     suppressKeptNavRoot,
+    onDiscardedClaim,
   });
   const { skipUpdateTargets } = core;
 
@@ -1166,7 +1282,7 @@ export function createUsageVisitors({
     // which JSXIdentifier claims a runtime value - a bare tag not spelled as an intrinsic element,
     // the root of a member tag, and only under the OPENING element - is the tag-root canon's answer
     if (!jsxTagRootReferencesBinding(path)) return;
-    if (adapter.hasBinding(path.scope, path.node.name, path)) return;
+    if (adapter.hasBinding({ scope: path.scope, name: path.node.name, path })) return;
     onUsage({ kind: 'global', name: path.node.name }, path);
   }
 

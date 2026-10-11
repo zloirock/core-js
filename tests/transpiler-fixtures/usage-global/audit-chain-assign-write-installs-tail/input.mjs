@@ -18,12 +18,12 @@ export const callee = mk().Array.of(1);
 let wrap = [Object], w2;
 wrap = w2 = [Promise];
 const [{ allSettled }] = wrap;
-export const wrapperAlias = allSettled([]);
+export const wrapperAlias = allSettled.call(Promise, []);
 
 let base = Object, b2;
-base = b2 = Reflect;
+base = b2 = Iterator;
 class Base extends base {
-  static go() { return super.ownKeys({}); }
+  static go() { return super.from([1]); }
 }
 export const classBase = Base.go();
 

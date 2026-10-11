@@ -3,7 +3,8 @@
 // call, bare ctor + static reads. a value DERIVED from a deopted ctor is an ordinary
 // unknown receiver: the untyped instance canon still applies its runtime-dispatch helper
 // (bias-safe degrade, not a pristine-type narrow). the identity self-copy coexists with a
-// later real write - the write deopts the name, the identity pattern stays whole
+// later real write - the write deopts the name, while the self-copy reads the slot ahead of
+// every write, so it installs the pure import like any detect
 Iterator = shim;
 class K extends Iterator {}
 use(K.range(0, 2));

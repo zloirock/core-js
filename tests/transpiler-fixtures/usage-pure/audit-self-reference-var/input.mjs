@@ -4,7 +4,8 @@
 // answers alike: a `new` on the shadowed name, a PROTOTYPE member, a parenthesised init one parser
 // keeps as a node and the other drops, and two STATICS that used to route through the member channel
 // while the declaration itself stayed put - the identifier lane and the member lane read one source
-// as one host. the last row is the control, a name the file never shadows
+// as one host. the last row is the control, a name the file never shadows - held by a top-level `const`,
+// which a bare run hands to other scripts, so it takes the whole entry
 var Map = Map;
 const m = new Map();
 Map.prototype.get;

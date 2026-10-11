@@ -5,31 +5,42 @@ import {
   BRACE_STATEMENT_HOST_TYPES,
   SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
+  chainValueSlot,
   collectFileCensus,
   createTypeAnnotationChecker,
+  foldedOperandNeedsValue,
+  isDeoptedStaticRead,
   isForXWriteTarget,
   isMemberWriteHost,
-  isMutatedStaticMeta,
   isStatementPosition,
   isThisReceiver,
+  leavingAnswerStatements,
   memberKeyNamesReducer,
+  nestedTSRuntimeDeclarationsReducer,
   methodReadsUsageCensus,
   withTraversalCaches,
+  withVarScopeOwners,
   runsWithoutOwnVarSlot,
+  sequenceElementsKept,
   mutatedGlobalSlotNames,
   namespaceScopedBindingBlock,
   peelParenAndTSParentPath,
+  peelTransparentExpr,
+  performsNothing,
   prologueEndIndex,
+  renderPerformsNothing,
   isConsumedEntryImport,
   resolveModuleFormat,
   moduleFormatReducer,
   usableAliasInfo,
   walkAstNodes,
+  nodePositionKey,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   enrichMutatedStatics,
   escapedCtorReferencesReducer,
   mutationShapesReducer,
+  settleCensusWrites,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import {
   createClassHelpers,
@@ -60,13 +71,9 @@ import {
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import {
-  readFeedsOwnSlotWrite,
-  resolveKey as sharedResolveKey,
-} from '@core-js/polyfill-provider/detect-usage/resolve';
+import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { minifierSequenceReducer, planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
-import { foldedOperandNeedsValue } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
 import applyEntryProgram, { extractEntrySideEffectPrefixes, injectImportStatements } from './entry.js';
@@ -374,6 +381,7 @@ export default function createPlugin(options) {
   // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const estreeAdapter = createEstreeAdapter({
     getInjector: () => currentInjector,
+    nestedTSRuntimeDeclarations: () => currentNestedTSRuntimeDeclarations ?? true,
     method: options.method,
     isOptedOut: node => !!currentIsOptedOut?.(node),
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`);
@@ -402,8 +410,11 @@ export default function createPlugin(options) {
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
     // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`
-    isMutatedStatic: (object, key) => estreeAdapter.isMutatedStaticSlot(object, key),
+    isMutatedStatic: (object, key, read) => estreeAdapter.isMutatedStaticSlot(object, key, read),
     isWrittenContainerSlot: (...args) => estreeAdapter.isWrittenContainerSlot(...args),
+    getDecisionAdapter: () => estreeAdapter,
+    spellsMemberKey: key => currentMemberKeyNames?.has(key) ?? true,
+    nestedTSRuntimeDeclarations: () => currentNestedTSRuntimeDeclarations ?? true,
     // estree-toolkit OVER-HOISTS `namespace N { export var x }` bindings to the enclosing
     // program / function scope - a raw lookup surfaced the namespace twin for a use OUTSIDE
     // the block and narrowed the outer binding to the WRONG flavor. position-aware (the
@@ -483,17 +494,19 @@ export default function createPlugin(options) {
   let currentMutationRoots = null;
   let currentWrittenContainerSlots = null;
   let currentContainerSlotIndex = null;
+  // the census's member-key names, which gate the type layer's install walk (`spellsMemberKey`)
+  let currentMemberKeyNames = null;
+  // does the file declare a TS runtime binding below its top level (the census's
+  // `nestedTSRuntimeDeclarations`)? gates every binding lookup's climb for one
+  let currentNestedTSRuntimeDeclarations = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
-  // filter, so the read keeps flowing through the substituted constructor instead
-  // ... and the one read a mutation does NOT speak for is the DETECT the write itself computes from:
-  // `X.y = X.y || patch` reads the slot before the write lands, so the polyfill belongs there - it
-  // satisfies the detect, the third-party patch never installs, and what the slot then holds is
-  // core-js's own implementation, which every read after the write goes on reading raw
-  function resolvePure(meta, path) {
-    return isMutatedStaticMeta(meta, currentMutatedStatics) && !readFeedsOwnSlotWrite(path, {
-      objectName: meta.object, keyName: meta.key, scope: path?.scope, adapter: estreeAdapter, path,
-    }) ? null : resolvePureUnfiltered(meta, path);
+  // filter, so the read keeps flowing through the substituted constructor instead - save a read
+  // the write does not speak for (`isDeoptedStaticRead`): the detect it computes from and a read
+  // running before every write of the pair, which take what this build serves. `read` - the read where the
+  // caller holds it apart from `path` (the adapter's `served`)
+  function resolvePure(meta, path, read = undefined) {
+    return isDeoptedStaticRead({ meta, adapter: estreeAdapter, path, read }) ? null : resolvePureUnfiltered(meta, path);
   }
   // `isWebpack` here is a behavior flag for the chunk-loader contract (see
   // `isChunkLoaderBundler` for the bundler set + rationale)
@@ -678,6 +691,7 @@ export default function createPlugin(options) {
         mutationShapesReducer(packages),
         ctorAliasShapesReducer(),
         proxyWriteOriginsReducer(),
+        nestedTSRuntimeDeclarationsReducer(),
       ] : [],
     ]);
     // Apply only the indexed positions, before any scoped walk. The census keeps the original
@@ -699,31 +713,40 @@ export default function createPlugin(options) {
       isDisabled: method === 'usage-pure' || method === 'usage-global' ? isDisabled : null,
     };
     let prePass = null;
-    // mutation collection is INJECTION policy only, so usage-pure only: a global-flavor bail here
-    // would drop an import instead of adding one. the typing side asks the same data separately
-    // and lazily (below)
-    if (method === 'usage-pure') {
-      // BOTH per-file records the shared read canons consult are hidden for this window: the
-      // mutation set for the reason above, and the container-slot record because the walk that
-      // REGISTERS a patch through a written slot would otherwise bail on the very record its own
-      // writes feed. a re-entrant inner transform used to read the OUTER file's map here
-      const outerMutatedStatics = currentMutatedStatics;
-      const outerEscapedCtorNames = currentEscapedCtorNames;
-      const outerWrittenContainerSlots = currentWrittenContainerSlots;
-      const outerContainerSlotIndex = currentContainerSlotIndex;
-      currentMutatedStatics = null;
-      currentEscapedCtorNames = null;
-      currentWrittenContainerSlots = null;
-      currentContainerSlotIndex = null;
-      try {
-        prePass = collectPrePassSites(prePassArgs);
-      } finally {
-        currentMutatedStatics = outerMutatedStatics;
-        currentEscapedCtorNames = outerEscapedCtorNames;
-        currentWrittenContainerSlots = outerWrittenContainerSlots;
-        currentContainerSlotIndex = outerContainerSlotIndex;
-      }
-    } else if (prePassArgs.isDisabled) prePass = collectPrePassSites(prePassArgs);
+    // the census's verdict on nested TS runtime declarations gates every binding lookup's climb for one
+    // (`wrapScopeBindingLookup`), the pre-pass's included: held for that window here, and with the other
+    // per-transform slots below
+    const outerNestedTSRuntimeDeclarations = currentNestedTSRuntimeDeclarations;
+    currentNestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
+    try {
+      // mutation collection is INJECTION policy only, so usage-pure only: a global-flavor bail here
+      // would drop an import instead of adding one. the typing side asks the same data separately
+      // and lazily (below)
+      if (method === 'usage-pure') {
+        // BOTH per-file records the shared read canons consult are hidden for this window: the
+        // mutation set for the reason above, and the container-slot record because the walk that
+        // REGISTERS a patch through a written slot would otherwise bail on the very record its own
+        // writes feed. a re-entrant inner transform used to read the OUTER file's map here
+        const outerMutatedStatics = currentMutatedStatics;
+        const outerEscapedCtorNames = currentEscapedCtorNames;
+        const outerWrittenContainerSlots = currentWrittenContainerSlots;
+        const outerContainerSlotIndex = currentContainerSlotIndex;
+        currentMutatedStatics = null;
+        currentEscapedCtorNames = null;
+        currentWrittenContainerSlots = null;
+        currentContainerSlotIndex = null;
+        try {
+          prePass = collectPrePassSites(prePassArgs);
+        } finally {
+          currentMutatedStatics = outerMutatedStatics;
+          currentEscapedCtorNames = outerEscapedCtorNames;
+          currentWrittenContainerSlots = outerWrittenContainerSlots;
+          currentContainerSlotIndex = outerContainerSlotIndex;
+        }
+      } else if (prePassArgs.isDisabled) prePass = collectPrePassSites(prePassArgs);
+    } finally {
+      currentNestedTSRuntimeDeclarations = outerNestedTSRuntimeDeclarations;
+    }
     let mutatedStatics = prePass?.mutated ?? null;
     // pre+post: union PRE's mutation set into post's own recompute. the keys are semantic
     // slot names, so they survive sibling rewrites of the receiver text that the prepass
@@ -767,6 +790,8 @@ export default function createPlugin(options) {
     const previousMutationRoots = currentMutationRoots;
     const previousWrittenContainerSlots = currentWrittenContainerSlots;
     const previousContainerSlotIndex = currentContainerSlotIndex;
+    const previousMemberKeyNames = currentMemberKeyNames;
+    const previousNestedTSRuntimeDeclarations = currentNestedTSRuntimeDeclarations;
     const previousThisStaticHost = estreeAdapter.resolveThisStaticHost;
     currentInjector = injector;
     currentIsOptedOut = isDisabled;
@@ -775,11 +800,16 @@ export default function createPlugin(options) {
     currentMutationRoots = fileCensus.mutationRoots ?? null;
     currentWrittenContainerSlots = fileCensus.writtenContainerSlots ?? null;
     currentContainerSlotIndex = fileCensus.containerSlotIndex ?? null;
+    currentMemberKeyNames = fileCensus.memberKeyNames ?? null;
+    currentNestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
     try {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
       const { names: bindingNames, declaredNames, orphanRefs, restSentinelNames } = fileCensus;
+      // every install's never-run answer is settled on the tree as the source wrote it, before a render
+      // rebuilds the node an install stands in
+      settleCensusWrites({ mutatedSet: mutatedStatics, adapter: estreeAdapter });
       if (readsCensus) injector.seedReservedNames(bindingNames);
       // user-owned global-object slot names the raw identifier scan above misses: computed
       // STRING-key member spellings (`globalThis['_ref']`) and string-key mutator writes
@@ -1119,8 +1149,12 @@ export default function createPlugin(options) {
         // live even inside consumed / detached spans, and land in place (the keep-live carve)
         const keepLive = new Set();
         const skippedNodes = Object.assign(new WeakSet(), { keepLive });
-        // the user selections the detect pass found partly dead, with what each folds to once the drain rendered
+        // the user selections the detect pass found partly dead, with what each folds to once the drain rendered -
+        // keyed by source span, which a copy the drain took of one keeps, so the copy folds as its original does;
+        // a node without a span is keyed by itself
         const deadSelections = new Map();
+        // did a claim stand where its value is discarded? its render may then leave as a fold's answer does
+        let discardedClaims = false;
         // a `_unused` sentinel carries its own declarator, so the flush owes it no `var` - but
         // it SHARES the minted-name family and must be in the census, or a sentinel the drain
         // dropped strands its slot and the survivors never renumber
@@ -1271,9 +1305,7 @@ export default function createPlugin(options) {
           memberWritePositionBails,
           isInheritedStaticLookup,
           resolveStaticInheritedMember,
-          isMutatedStatics: (m, p) => isMutatedStaticMeta(m, mutatedStatics) && !readFeedsOwnSlotWrite(p, {
-            objectName: m.object, keyName: m.key, scope: p?.scope, adapter: estreeAdapter, path: p,
-          }),
+          isMutatedStatics: (m, p) => isDeoptedStaticRead({ meta: m, adapter: estreeAdapter, path: p }),
           injectorState: injector,
           isEntryAvailable: isEntryNeeded,
           resolveGlobalPolyfill,
@@ -1296,7 +1328,10 @@ export default function createPlugin(options) {
               markSubtreeSkipped(skippedNodes, path.node[dead.skip]);
               path.get(dead.skip).skip();
             }
-            if (dead.fold !== null) deadSelections.set(path.node, dead);
+            if (dead.fold !== null) deadSelections.set(nodePositionKey(path.node) ?? path.node, dead);
+          },
+          onDiscardedClaim() {
+            discardedClaims = true;
           },
           parameterCallSites: typeResolvers.parameterCallSites,
           resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
@@ -1307,7 +1342,8 @@ export default function createPlugin(options) {
           resolvePure,
           revisitDecorators: true,
         };
-        traverse(ast, mergeVisitors({
+        // a pure walk rewrites as it goes, so only what holds through a rewrite is kept for it
+        withVarScopeOwners(() => traverse(ast, mergeVisitors({
           $: { scope: true },
           Program(path) {
             injector.rootScope = path.scope;
@@ -1324,21 +1360,81 @@ export default function createPlugin(options) {
           // the AST engine mutates the tree in place, so an emission inside a DECORATOR
           // (walked manually, with nothing re-queued) hides the replacement's own claims
           // from the traversal - the second pass reaches them
-        })));
+        }))));
         destructureEmit.drain();
         // the partly dead user selections still standing fold to what they yield - an operand, kept a
-        // value in a reference slot (`foldedOperandNeedsValue`), or the value a decided test answers: a
-        // claim owns the selection it reads and has already dropped what never runs where it took the rest.
-        // one walk, children first: a selection in another's live operand folds before the one yielding
-        // it, and no fold searches the tree from its root
-        if (deadSelections.size) walkAstNodes({ root: ast, visit: () => true, leave(selection, parent, key, listKey) {
-          const dead = parent && deadSelections.get(selection);
-          if (!dead) return;
-          const operand = typeof dead.fold === 'boolean' ? literal(dead.fold) : selection[dead.fold];
-          const folded = foldedOperandNeedsValue(operand, dead.slot) ? sequenceExpression([literal(0), operand]) : operand;
-          (listKey === null ? parent : parent[listKey])[key] = stampReplacementSpan(folded, selection);
-          astRewrote = true;
-        } });
+        // value in its slot (`foldedOperandNeedsValue`), or the value a decided test answers: a claim owns
+        // the selection it reads and has already dropped what never runs where it took the rest. one walk,
+        // children first: a selection in another's live operand folds before the one yielding it, and no
+        // fold searches the tree from its root. a fold to what performs nothing (`performsNothing`) is an
+        // answer, and so is what a claim standing where its value is discarded rendered that performs
+        // nothing (`renderPerformsNothing`). an answer leaves the place discarding it - through any
+        // transparent wrapper, parens and TS casts alike - the babel leg's rule: a sequence ahead of its
+        // value as the walk leaves the sequence, save one its slot needs (`sequenceElementsKept`), and a
+        // listed statement holding nothing else once the walk is done, save one whose leaving would promote
+        // the next statement into a directive (`leavingAnswerStatements`, asked per list of every answer it
+        // holds at once)
+        if (deadSelections.size || discardedClaims) {
+          const answers = new Set();
+          const leaving = [];
+          // the nodes the walk stands in, root first
+          const chain = [];
+          const foldCtx = { injectorState: injector };
+          function isAnswer(value) {
+            const inner = peelTransparentExpr(value);
+            return answers.has(inner) || renderPerformsNothing(inner, foldCtx);
+          }
+          function leaveFold(node, parent, key, listKey) {
+            const slots = listKey === null ? parent : parent?.[listKey];
+            if (node.type === 'ExpressionStatement') {
+              if (listKey !== null && isAnswer(node.expression)) leaving.push([slots, node]);
+              return;
+            }
+            if (node.type === 'SequenceExpression') {
+              const kept = sequenceElementsKept(node.expressions, isAnswer, () => chainValueSlot(chain));
+              if (kept === node.expressions) return;
+              const [first] = kept;
+              if (kept.length > 1) node.expressions = kept;
+              else slots[key] = first;
+              astRewrote = true;
+              return;
+            }
+            // a statement or a wrapper can share a selection's span: only the selection itself folds
+            const dead = parent && (node.type === 'LogicalExpression' || node.type === 'ConditionalExpression')
+              && deadSelections.get(nodePositionKey(node) ?? node);
+            if (!dead) return;
+            const operand = typeof dead.fold === 'boolean' ? literal(dead.fold) : node[dead.fold];
+            const folded = foldedOperandNeedsValue(operand, dead.slot) ? sequenceExpression([literal(0), operand]) : operand;
+            const replacement = stampReplacementSpan(folded, node);
+            slots[key] = replacement;
+            if (performsNothing(operand, foldCtx)) answers.add(peelTransparentExpr(replacement));
+            astRewrote = true;
+          }
+          walkAstNodes({
+            root: ast,
+            visit(node) {
+              chain.push(node);
+              return true;
+            },
+            leave(node, parent, key, listKey) {
+              leaveFold(node, parent, key, listKey);
+              chain.pop();
+            },
+          });
+          const answersByList = new Map();
+          for (const [list, statement] of leaving) {
+            if (!answersByList.has(list)) answersByList.set(list, []);
+            answersByList.get(list).push(list.indexOf(statement));
+          }
+          for (const [list, indices] of answersByList) {
+            const left = new Set(leavingAnswerStatements(list, indices.sort((a, b) => a - b)));
+            for (let at = list.length - 1; at >= 0; at--) {
+              if (!left.has(list[at])) continue;
+              list.splice(at, 1);
+              astRewrote = true;
+            }
+          }
+        }
         // a file that injected nothing prints as written: the wrapper splices are undone (the babel
         // leg's rule, kept here for the reprint a surgery alone still triggers)
         if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);
@@ -1387,6 +1483,8 @@ export default function createPlugin(options) {
       currentMutationRoots = previousMutationRoots;
       currentWrittenContainerSlots = previousWrittenContainerSlots;
       currentContainerSlotIndex = previousContainerSlotIndex;
+      currentMemberKeyNames = previousMemberKeyNames;
+      currentNestedTSRuntimeDeclarations = previousNestedTSRuntimeDeclarations;
       estreeAdapter.resolveThisStaticHost = previousThisStaticHost;
     }
   }

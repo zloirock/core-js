@@ -1,13 +1,15 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 import _JSON$rawJSON from "@core-js/pure/actual/json/raw-json";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
+import _Promise from "@core-js/pure/actual/promise";
 // a compound assignment DERIVES a new value - not the identity self-restore idiom - so the
-// slot write records and the name deopts; the plain `=` self-copy twin stays exempted
-Promise += _globalThis.Promise;
+// slot write records and the name deopts; the plain `=` self-copy twin stays exempted, its
+// later reads served, while the constructor it copies into the slot takes its whole entry
+Promise += _Promise;
 export const compound = Promise.try(() => 1);
 Map = _Map;
 export const identity = _Map$groupBy([1], x => x);

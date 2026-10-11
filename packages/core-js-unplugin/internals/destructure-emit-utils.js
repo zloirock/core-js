@@ -6,12 +6,16 @@ import {
   isReceiverShapedNode,
   invocationNode,
   findIifeArgForParam,
+  findIifeArgPath,
   findIifeCallSite,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg, isExpandedClassifiableReceiver } from '@core-js/polyfill-provider/helpers/class-walk';
+import { decidedLiveOperandKey, decidedRunningPart } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { nodeSite, stampNodeSite } from './nav-spine.js';
 import {
+  decidedRunningOperand,
+  decidedRunningOperandPath,
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 
@@ -27,6 +31,18 @@ export function detectIifeArgReceiver(wrapperPath, objectPattern) {
   if (!arg) return arg;
   const callPath = findIifeCallSite(wrapperPath, objectPattern)?.callPath;
   return stampNodeSite(unwrapSafeSequenceTail(arg), callPath && { scope: callPath.scope, path: callPath });
+}
+
+// ... and the PATH of the operand of that argument that runs, through a sequence's tail and a selection the
+// build decides (`decidedRunningOperandPath`), its node stamped the same way: the instance clause replaces
+// it with its literal and types the dispatch off its own position
+export function detectIifeArgReceiverPath(wrapperPath, objectPattern, adapter) {
+  const argPath = findIifeArgPath(wrapperPath, objectPattern);
+  const receiverPath = argPath && decidedRunningOperandPath(argPath, adapter);
+  if (!receiverPath?.node) return null;
+  const callPath = findIifeCallSite(wrapperPath, objectPattern)?.callPath;
+  stampNodeSite(receiverPath.node, callPath && { scope: callPath.scope, path: callPath });
+  return receiverPath;
 }
 
 // receiver node to swap; null means inline-default fallback. handles
@@ -50,14 +66,25 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // SE peel is unconditional - synth replaces only the tail node, prefix runs at
     // runtime as written. caller's `({from: customFn})` beats the synth (default fires
     // only when caller-arg is undefined), preserving caller-passed values
-    const peeled = unwrapSafeSequenceTail(wrapper.right);
+    let peeled = unwrapSafeSequenceTail(wrapper.right);
+    // ... and through a ternary or an `&&` the build decides to the operand it always yields
+    // (`decidedLiveOperandKey`): the synth replaces that operand, and the fold drops the dead arm around
+    // it. a `||` / `??` collapses whole below (`fallbackCollapse`)
+    while (peeled?.type !== 'LogicalExpression' || peeled.operator === '&&') {
+      const key = decidedLiveOperandKey(peeled, { scope, adapter, path: wrapperPath });
+      if (!key) break;
+      peeled = unwrapSafeSequenceTail(peeled[key]);
+    }
     // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order, babel-twin
     // contract): a classifiable live arg wins regardless of the wrapper-default's shape -
     // gating on the default first bailed `(({ from } = []) => ...)(Array)` to a native-first
     // inline default even though the live receiver was statically known
-    const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-    // the arg is classified and resolved WHERE IT EVALUATES - the detector stamped that frame on it
-    const { scope: argScope, path: argPath } = nodeSite(argReceiver, wrapperPath);
+    const rawArgReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+    // the arg is classified and resolved WHERE IT EVALUATES - the detector stamped that frame on it -
+    // and, where the build decides it, by the operand of it that runs (`decidedRunningOperand`)
+    const { scope: argScope, path: argPath } = nodeSite(rawArgReceiver, wrapperPath);
+    const argReceiver = rawArgReceiver
+      && unwrapSafeSequenceTail(decidedRunningOperand(rawArgReceiver, { scope: argScope, adapter, path: argPath }));
     if (isClassifiableReceiverArg(argReceiver, argScope, adapter)) return argReceiver;
     // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
     // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
@@ -74,8 +101,11 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     })) return argReceiver;
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
+    // ... a left the build decides counts by the part of it that runs (`decidedRunningPart`)
+    const fallbackLeft = peeled?.type === 'LogicalExpression'
+      ? unwrapSafeSequenceTail(decidedRunningPart(peeled.left, { scope, adapter, path: wrapperPath })) : null;
     const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'
-      && (isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left)) || !!invocationNode(unwrapSafeSequenceTail(peeled.left)));
+      && (isReceiverShapedNode(fallbackLeft) || !!invocationNode(fallbackLeft));
     // a `this` default inside a STATIC method reads the inherited static surface: the meta
     // funnel already resolved it against the extends host (resolution is the drain gate -
     // an unresolved `this` never reaches the synth registration), so the shape is admitted
@@ -86,6 +116,9 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
   // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
   // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
   // succeeds, otherwise destructure-emitter falls through to inline-default
-  const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
+  const rawArgReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
+  const site = nodeSite(rawArgReceiver, wrapperPath);
+  const argReceiver = rawArgReceiver
+    && unwrapSafeSequenceTail(decidedRunningOperand(rawArgReceiver, { scope: site.scope, adapter, path: site.path }));
   return isExpandedClassifiableReceiver({ node: argReceiver }) ? argReceiver : null;
 }

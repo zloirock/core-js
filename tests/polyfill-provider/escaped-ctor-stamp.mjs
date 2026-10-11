@@ -529,15 +529,16 @@ const NAME_ROWS = [
   },
   // a static read on a receiver that may hold more than one value is served by no name, so pure reads
   // it raw off whatever arrived - where it minted the constructor into that value's spelling, the entry
-  // it picks has to carry the statics. a single proven value, a reassigned name its writes guard, a
-  // static of another family, a namespace with no constructor entry and a destructure the plan
-  // mirrors arm by arm hold nothing
+  // it picks has to carry the statics - `Reflect`'s narrow namespace entry as much as a constructor's.
+  // a single proven value, a reassigned name its writes guard, a static of another family, a namespace
+  // with no entry of its own and a destructure the plan mirrors arm by arm hold nothing
   ...[
     ['selection alias', 'const ns = flag ? Map : Promise; ns.groupBy([], x => x);', 'Map'],
     ['logical alias', 'const ns = maybe || Promise; ns.try(() => 1);', 'Promise'],
     ['inline selection', '(flag ? Iterator : Map).from([1]);', 'Iterator'],
     ['slot over a selection', 'const box = flag ? { A: Promise } : { A: Map }; box.A.allSettled([]);', 'Promise'],
     ['selection in a slot', 'const box = { A: flag ? AsyncIterator : Map }; box.A.from([1]);', 'AsyncIterator'],
+    ['namespace arm', 'const ns = flag ? Reflect : Math; ns.ownKeys({});', 'Reflect'],
     [
       'slot of disagreeing returns',
       'function make() { if (flag) return { A: Promise }; return { A: Map }; } make().A.withResolvers();',
@@ -567,7 +568,7 @@ const NAME_ROWS = [
     ['one proven value', 'const ns = Map; ns.groupBy([], x => x);', 'Map'],
     ['reassigned name its writes guard', 'let ns = Map; if (flag) ns = Promise; ns.groupBy([], x => x);', 'Map'],
     ['static of another family', 'const ns = flag ? Map : Promise; ns.canParse("x");', 'Map'],
-    ['namespace without a constructor entry', 'const ns = flag ? Reflect : Math; ns.ownKeys({});', 'Reflect'],
+    ['namespace without an entry of its own', 'const ns = flag ? Math : JSON; ns.trunc(1);', 'Math'],
     ['destructure that mirrors each arm', 'const { any } = flag ? Promise : Map; any([]);', 'Promise'],
   ].map(([name, code, name2]) => ({
     name: `ambiguous static receiver holds nothing: ${ name }`,

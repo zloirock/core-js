@@ -1,18 +1,14 @@
 require("core-js/modules/es.object.to-string");
-require("core-js/modules/es.array.iterator");
 require("core-js/modules/es.array.from");
-require("core-js/modules/es.array.values");
 require("core-js/modules/es.string.iterator");
-require("core-js/modules/web.dom-collections.values");
 // a program-level `var` binds afresh in the sloppy host too - it is a CommonJS wrapper, whose top
 // level is a function body - so every read of a name the file DECLARES is the user's own binding
 // whatever the position: before the declarator's assignment, after it, in a statement HEAD, inside a
 // function, and with no init at all. one global per position so a resurrected injection shows in the
 // import set, and the last row is the CONTROL - a name the file never declares, which still injects.
 // what a shadow leaves behind is decided by its own VALUE, not by the read: a flat `var Object = 1`
-// is a number and leaves nothing, while the loop-HEAD read is shadowed by a write in the loop BODY
-// that re-runs, so the receiver's value is unknown there and `.values` falls back to the instance
-// family - the only injection any shadowed row here accounts for
+// is a number and leaves nothing, and so does the loop-HEAD read - the `var` the loop BODY declares
+// covers the head, where it is still unassigned
 var beforeAssign = Reflect.ownKeys({
   a: 1
 });

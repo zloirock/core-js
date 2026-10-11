@@ -26,6 +26,16 @@ if (typeof globalThis.gc === 'function') {
   class Derived extends Array {
     static read() { const { from } = this; return from; }
   }`;
+  // The first file through an instance is released as well: an adapter view the instance keeps for later
+  // files (`readKeepingAdapter`) delegates to the adapter and copies nothing a transform installs on it.
+  // This source reaches both views - a reassigned alias, and a container a branch declares
+  const FIRST_CODE = `let C = Array;
+  if (Math.random() > 2) C = Set;
+  export const viaAlias = C.from([1]);
+  export function viaBox(c) {
+    if (c) { var box = { A: Array } }
+    return box.A.from([1]);
+  }`;
   const parserURL = import.meta.resolve('oxc-parser');
   const pluginURL = new URL('../../packages/core-js-unplugin/internals/plugin.js', import.meta.url).href;
   const wrapperURL = new URL('./teardown-parser.js', import.meta.url).href;
@@ -59,6 +69,10 @@ if (typeof globalThis.gc === 'function') {
   const plugins = new Map(['usage-global', 'usage-pure'].map(method => [method, createPlugin({ method, targets: { ie: 11 } })]));
   const results = {};
   for (const [method, plugin] of plugins) {
+    retain = false;
+    ref = null;
+    if (!plugin.transform(FIRST_CODE, 'first.mjs', 'single')?.code.includes('core-js')) throw new Error('transform did not inject');
+    results[`${ method }/first/released`] = await collectable(ref);
     for (const pass of ['single', 'pre', 'post']) {
       for (const control of ['retained', 'released', 'delayed']) {
         retain = control !== 'released';
