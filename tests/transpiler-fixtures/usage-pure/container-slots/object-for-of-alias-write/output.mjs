@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 // A for-of binding receives the container and writes its constructor slot before the nested read.
 const escapedByForOfHead = function () {

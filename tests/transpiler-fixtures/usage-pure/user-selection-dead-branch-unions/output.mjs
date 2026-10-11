@@ -7,16 +7,8 @@ import _Promise from "@core-js/pure/actual/promise";
 // The branches a walk enumerates off a user selection are the ones the build runs: the arm a presence
 // test never takes is no union member, so pure mirrors none of it - a destructure, a default, an
 // assignment and the realm-detection idiom alike. A test that lets its right run keeps it live.
-export const {
-  from
-} = {
-  from: _Array$from
-};
-export const {
-  of: viaFalse
-} = {
-  of: _Array$of
-};
+export const from = _Array$from;
+export const viaFalse = _Array$of;
 export function viaDefault({
   fromAsync: f
 } = {
@@ -25,11 +17,7 @@ export function viaDefault({
   return f;
 }
 let assigned;
-({
-  hasOwn: assigned
-} = {
-  hasOwn: _Object$hasOwn
-});
+assigned = _Object$hasOwn;
 export const realm = _Promise;
 export const {
   groupBy: live

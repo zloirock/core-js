@@ -1,5 +1,4 @@
-import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // a conditionally-swapped alias reads its statics through a RUNTIME ctor guard (the live value
 // decides: the swapped ctor takes the pure static, anything else the raw read). a SEQUENCE prefix on
@@ -8,12 +7,14 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 let M;
 let n = 0;
 let k = 0;
-if (_globalThis) M = _Map;
+if (flag) M = _Map;
 export const plainReceiver = M === _Map ? _Map$groupBy : M.groupBy;
 export const seqReceiver = (n++, M === _Map ? _Map$groupBy : M.groupBy);
 export const seqReceiverCall = (n++, M === _Map ? _Map$groupBy : M.groupBy.bind(M))(new _Map([[1, 1]]), x => x);
 // NEGATIVE: a side-effecting KEY stays raw - the guard's taken branch would skip the effect the
-// source always evaluates
+// source always evaluates. read raw off the swapped binding, it takes the static ON it: the alias
+// imports the whole constructor (`map`), where the narrow one answered only through the guarded
+// reads beside it, whose `map/group-by` sets the static on it
 export const seqKeyEffect = (n++, M)[k++, 'groupBy'];
 // the DESTRUCTURED spelling of the same read renders the same guard as the declarator's value -
 // equivalent down to the throw, since the raw branch dereferences a nullish receiver exactly as the

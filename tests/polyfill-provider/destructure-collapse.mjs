@@ -1663,8 +1663,10 @@ for (const [receiver, expected, flat = false, leaf = 'is'] of [
       scope: loop.scope, path: loop, iterableNode: loop.node.right, mirrorHosts: true,
       adapter: {
         method: 'usage-pure',
-        isStringLiteral: () => false, getStringValue: node => node.value,
-        hasBinding: (scope, name) => !!scope.getBinding(name), getBinding: (scope, name) => scope.getBinding(name),
+        isStringLiteral: () => false,
+        getStringValue: node => node.value,
+        hasBinding: ({ scope, name }) => !!scope.getBinding(name),
+        getBinding: ({ scope, name }) => scope.getBinding(name),
       },
       resolvePure: meta => meta?.object === 'Object' && meta.key === 'is'
         ? { entry: 'actual/object/is', hintName: 'Object$is', kind: 'static' } : null,
@@ -1706,8 +1708,8 @@ for (const [source, relocates] of [
     adapter: {
       isStringLiteral: () => false,
       getStringValue: node => node.value,
-      hasBinding: (scope, name) => !!scope.getBinding(name),
-      getBinding: (scope, name) => scope.getBinding(name),
+      hasBinding: ({ scope, name }) => !!scope.getBinding(name),
+      getBinding: ({ scope, name }) => scope.getBinding(name),
     },
     resolvePure: catchResolvePure,
     walkNode: (root, visit) => walkAstNodes({ root, visit }),

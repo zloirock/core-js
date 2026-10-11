@@ -14,8 +14,8 @@ for (const size of [8, 32, 80]) for (const mixed of [false, true]) {
       const leafPatternPath = parser.pickPath(program, 'ObjectPattern', p => p.node.properties.some(prop => prop.computed));
       const adapter = {
         method: 'usage-pure',
-        hasBinding: (scope, name) => !!scope?.getBinding(name),
-        getBinding: (scope, name) => scope?.getBinding(name),
+        hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+        getBinding: ({ scope, name }) => scope?.getBinding(name),
         isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
         getStringValue: node => node.value,
       };

@@ -71,6 +71,12 @@ const CASES = [
   // makes pass one dispatch too, and the row would measure nothing
   ['super rewritten to its polyfill import',
     'const C = class extends Set {\n  first() { return this.values().next().value; }\n};'],
+  // a constructor the prior pass wrote as our own import (`picked.C = _Map`) is the global its entry names:
+  // a selection of a pattern binding written with it ties the arms as the global did, or the next pass folds
+  // the static read back through the container's path onto the literal's constructor
+  ['constructor written as its own pure import through a selection of a pattern binding',
+    'const holder = { inner: { C: Object } };\nconst spare = { C: Object };\nconst { inner: held } = holder;\n'
+      + 'const picked = flag ? held : spare;\npicked.C = Map;\nexport const grouped = holder.inner.C.groupBy([1], x => x);'],
   // the ALIAS-held claim probe: the render leaves the source read as the non-final element of a
   // sequence whose tail is the ponyfill (`(held.of, _Array$of)`). the span check that recognises a
   // render inside one pass cannot see it after a RE-PARSE, so the claim owes a shape-level check -
@@ -177,6 +183,12 @@ const CASES = [
     'realm-compared identity guard',
     "const P = typeof Promise !== 'undefined' ? Promise : MyPromise;\nexport const r = P.withResolvers();",
     { exclude: ['promise/constructor'] },
+  ],
+  // the iterator key regenerator spells off an alias of the realm selection: the first pass already
+  // drops the fallback the symbol leaves dead, so a second has nothing left to fold
+  [
+    'iterator key off a decided realm alias',
+    "export function f() { var r = 'function' == typeof Symbol ? Symbol : {}, n = r.iterator || '@@iterator'; return e => e[n]; }",
   ],
 ];
 

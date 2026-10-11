@@ -1,12 +1,12 @@
 // Context queries must stop at the boundary that answers them. Count syntax-slot
 // and parent reads after parsing, outside the parser's own traversal and scope setup.
 import {
-  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, walkAstNodes, wrapScopeBindingLookup,
+  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, walkAstNodes, wrapScopeBindingLookup, writeNeverRuns,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, findNode } from './harness.mjs';
 
 const { check, checkTruthy, finish } = createChecker('ast-context-complexity');
 
@@ -22,7 +22,7 @@ for (const parser of adapters) {
       const writes = parser.collectPaths(program, 'AssignmentExpression');
       const reads = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'at');
       const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
-      const bindings = reads.map((read, i) => adapter.getBinding(read.scope, names[i], read));
+      const bindings = reads.map((read, i) => adapter.getBinding({ scope: read.scope, name: names[i], path: read }));
       const descriptor = Object.getOwnPropertyDescriptor(program, 'get');
       const originalGet = program.get;
       let materialized = 0;
@@ -63,7 +63,7 @@ for (const parser of adapters) {
       const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
       const bodies = parser.collectPaths(program, 'FunctionDeclaration', p => p.node.id.name.startsWith('padding'));
       const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
-      const binding = adapter.getBinding(path.scope, 'rows', path);
+      const binding = adapter.getBinding({ scope: path.scope, name: 'rows', path });
       if (cloned) {
         check(`${ parser.name }/${ name }/${ size }/original writer frame`, bindingWrittenBeyondItsFrame(binding), deferred);
         const write = parser.pickPath(program, 'AssignmentExpression');
@@ -105,7 +105,7 @@ for (const parser of adapters) {
     });
     try {
       for (const path of paths) check(`${ parser.name }/outer binding/${ size }/declaration`,
-        lookup(path.scope, 'rows', path)?.path?.node, declaration.node);
+        lookup({ scope: path.scope, name: 'rows', path })?.path?.node, declaration.node);
       checkTruthy(`${ parser.name }/outer binding/${ size }/bounded declaration ancestry`, reads > 0 && reads <= 2 * (size + 1), `${ reads } parent reads`);
     } finally {
       if (descriptor) Object.defineProperty(declaration, 'parentPath', descriptor);
@@ -262,6 +262,58 @@ for (const parser of adapters) {
         });
       }
     }
+  }
+
+  // A value or write asked about from another function's read is held by no owner on the read's chain:
+  // an owner's index leaves its nested scopes out, and placing a node inside one rebuilds no index.
+  // A node attached to the frame after its index is built is still located, positioned or not
+  {
+    const program = parser.parseAndScope(`function a() { return null; }
+if (typeof Symbol == 'undefined') x = 1;
+function b() { x.at(0); }
+const table = { [k]() { return 1; } };
+x.at(0);`);
+    const [inB, top] = parser.collectPaths(program, 'Identifier', p => p.node.name === 'x' && p.parent.type.endsWith('MemberExpression'));
+    const [returned] = findNode(program.node, node => node.type === 'FunctionDeclaration' && node.id.name === 'a').body.body;
+    const write = findNode(program.node, node => node.type === 'AssignmentExpression');
+    const { argument } = returned;
+    // the build decides every selection here, and a consequent never runs
+    const adapter = {
+      decidedSelection() {
+        return null;
+      },
+      settledSelection() {
+        return { fold: 'alternate', skip: 'consequent' };
+      },
+    };
+    // every walk of the program's index reads this property once
+    let walks = 0;
+    Object.defineProperty(program.node, 'indexWalkProbe', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        walks++;
+        return null;
+      },
+    });
+    check(`${ parser.name }/nested value/held by no owner of the read`, writeNeverRuns({ write: argument, usagePath: inB, adapter }), false);
+    check(`${ parser.name }/nested value/the program indexed once`, walks, 1);
+    delete program.node.indexWalkProbe;
+    check(`${ parser.name }/own frame/dead arm`, writeNeverRuns({ write, usagePath: top, adapter }), true);
+    const attached = { type: 'AssignmentExpression', operator: '=', left: { type: 'Identifier', name: 'x' }, right: { type: 'Identifier', name: 'y' } };
+    const copied = { ...attached, start: write.start, end: write.end };
+    for (const expression of [attached, copied]) {
+      const test = { type: 'Identifier', name: 'c' };
+      program.node.body.push({ type: 'IfStatement', test, consequent: { type: 'ExpressionStatement', expression }, alternate: null });
+    }
+    check(`${ parser.name }/attached unpositioned/located`, writeNeverRuns({ write: attached, usagePath: top, adapter }), true);
+    check(`${ parser.name }/attached with a copied span/located`, writeNeverRuns({ write: copied, usagePath: top, adapter }), true);
+    // ... and so is one attached into a computed method key, a slot of the frame babel spells inside the method
+    const keyHost = findNode(program.node, node => node.computed === true && !!node.key);
+    const { key } = keyHost;
+    const inKey = { ...attached, start: key.start, end: key.end };
+    keyHost.key = { type: 'ConditionalExpression', test: { type: 'Identifier', name: 'c' }, consequent: inKey, alternate: key };
+    check(`${ parser.name }/attached into a method key/located`, writeNeverRuns({ write: inKey, usagePath: top, adapter }), true);
   }
 }
 

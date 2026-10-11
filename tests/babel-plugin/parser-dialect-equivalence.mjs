@@ -122,6 +122,18 @@ const CASES = [
     'let c = 0;\nlet v;\nexport const r = (v = (c++, globalThis.window.self)).Array.prototype.at;'],
   ['nested sequences inside a store',
     'let c = 0;\nlet v;\nexport const r = (v = (c++, (c++, globalThis.window.self))).Array.prototype.at;'],
+  // a store a pattern's init keeps swaps the bare global it stores in the slot the sequence peel ended on
+  ['kept store of a bare global behind an effect',
+    'let kv;\nexport const { Array: { prototype: { keys: k } } } = (kv = (e1(), globalThis));'],
+  ['kept store of a bare global behind nested effects',
+    'let kv;\nexport const { Array: { prototype: { keys: k } } } = (kv = (e1(), (e2(), globalThis)));'],
+  [
+    'kept store of a cast bare global behind an effect',
+    'let kv: any;\nexport const { Array: { prototype: { keys: k } } } = (kv = (e1(), globalThis as any));',
+    ['typescript'],
+  ],
+  ['kept store of a parenthesized bare global',
+    'let kv;\nexport const { Array: { prototype: { keys: k } } } = (kv = (globalThis));'],
   ['stored plain nav, ctor under a computed key',
     'let c = 0;\nlet k;\nlet v;\nexport const r = (v = (c++, globalThis.window.self))?.Promise[k].at;'],
   ['stored plain nav, static under a plain tail',
@@ -140,6 +152,8 @@ const CASES = [
   ['member off a sealed probe nav with a tail, under delete', 'export const r = delete (globalThis.window?.self?.window.aaa).zzz;'],
   ['call-rooted sealed chain under delete, unresolvable mid-hop',
     'const dh = () => globalThis;\nexport const r = delete (dh().window?.window?.self.zzz);'],
+  ['call-rooted run under delete, paren between two hops',
+    'const dh = () => globalThis;\nexport const r = delete (dh().window).self.zzz;'],
   // TS rows: the seal may be spelled through a wrapper stack, and a tag the plugin never touches
   // still owes the reprint its parens - the output must stay parseable on top of equivalent
   ['sealed tagged tag under a non-null wrapper', 'export const r = (globalThis.window?.self.someTag!)`x`;', ['typescript']],

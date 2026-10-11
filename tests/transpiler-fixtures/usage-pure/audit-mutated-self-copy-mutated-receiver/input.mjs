@@ -1,5 +1,6 @@
 // the identity self-copy exemption trusts its proxy receiver; a file that also REPLACES
-// that receiver's slot turns the copy into a real install - both textual orders record
+// that receiver's slot turns the copy into a real install - both textual orders record. the
+// receiver read ahead of its own replacement still reads the realm this build serves
 String = self.String;
 self = { Promise: class FakePromise {} };
 Promise = self.Promise;

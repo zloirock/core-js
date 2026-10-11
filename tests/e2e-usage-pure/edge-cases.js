@@ -238,6 +238,36 @@ QUnit.test('scope: for-of variable shadow', assert => {
   assert.same(typeof Map.groupBy, 'function');
 });
 
+// an alias written under a block that rebinds the name its value reads holds what the write saw,
+// wherever the alias is read - here `Object`, whose `groupBy` answers a plain object where
+// `Map.groupBy` would answer a `Map`
+QUnit.test('scope: alias written under a block shadow', assert => {
+  let viaClosure;
+  {
+    const Map = Object;
+    viaClosure = Map;
+  }
+  function inFunction() {
+    let held;
+    {
+      const Map = Object;
+      held = Map;
+    }
+    return held.groupBy([1, 2], it => it % 2);
+  }
+  let box;
+  {
+    const Map = Object;
+    box = { M: Map };
+  }
+  function read() {
+    return viaClosure.groupBy([1, 2], it => it % 2);
+  }
+  assert.false(read() instanceof Map);
+  assert.false(inFunction() instanceof Map);
+  assert.false(box.M.groupBy([1, 2], it => it % 2) instanceof Map);
+});
+
 // typeof guard - polyfill still injected
 QUnit.test('typeof guard: typeof Map !== undefined', assert => {
   assert.same(typeof Map, 'function');
@@ -778,6 +808,59 @@ QUnit.test('inference: prototype installed via setPrototypeOf dispatches inherit
   assert.same(arrayLike.at(-1), 'c', 'the inherited instance method runs on the array-like');
 });
 
+// a selection of installers the build leaves open installs through whichever arm runs, so the object
+// dispatches the installed family on either path
+QUnit.test('inference: prototype installed through an open selection of installers', assert => {
+  for (const flag of [true, false]) {
+    const setters = { length: 2, 0: 'c', 1: 'd' };
+    (flag ? Object.setPrototypeOf : Reflect.setPrototypeOf)(setters, Array.prototype);
+    assert.same(setters.at(-1), 'd', `arm ${ flag }`);
+  }
+});
+
+// one arm of such a selection that is no setter installs nothing, so the install runs only where a setter
+// arm does: the object dispatches the installed family on that path and its own family on the other. a
+// selection of setters, since on targets lacking the setter pure guards a selection of owners, and that
+// guard absorbs the call before a later read is typed
+QUnit.test('inference: prototype installed through an open selection with an arm that is no setter', assert => {
+  const keeper = { setPrototypeOf() { /* installs nothing */ } };
+  for (const flag of [true, false]) {
+    const literal = { length: 2, 0: 'c', 1: 'd' };
+    (flag ? Object.setPrototypeOf : keeper.setPrototypeOf)(literal, Array.prototype);
+    if (flag) assert.same(literal.at(-1), 'd', 'the setter arm installs');
+    else assert.same(literal.at, undefined, 'the other arm leaves a plain object');
+    const wrapped = new String('ef');
+    (flag ? Reflect.setPrototypeOf : keeper.setPrototypeOf)(wrapped, Array.prototype);
+    assert.same(wrapped.at(-1), 'f', `either family of the wrapper, arm ${ flag }`);
+  }
+});
+
+// an object its initializer types, handed another prototype through its binding later, dispatches the
+// installed family rather than the one it was built as
+QUnit.test('inference: prototype installed on a constructed instance', assert => {
+  const constructed = new Map();
+  Object.setPrototypeOf(constructed, Array.prototype);
+  Array.prototype.push.call(constructed, 'e', 'f');
+  // eslint-disable-next-line es/no-nonstandard-map-prototype-properties -- the installed prototype is the shape under test
+  assert.same(constructed.at(-1), 'f');
+});
+
+// an install that may not run before the read - under a condition the build cannot decide, or later in a
+// loop the read re-runs in - leaves the object the family its initializer built as well
+QUnit.test('inference: a prototype install that may not run leaves the initializer family', assert => {
+  const unlikely = Math.random() > 2;
+  const maybe = [1, 2];
+  if (unlikely) Object.setPrototypeOf(maybe, String.prototype);
+  assert.same(maybe.at(-1), 2, 'the install that did not run');
+  const looped = [3, 4];
+  const seen = [];
+  for (const index of [-1]) {
+    seen.push(looped.at(index));
+    Object.setPrototypeOf(looped, String.prototype);
+  }
+  assert.deepEqual(seen, [4], 'the read ahead of the install on the first pass');
+});
+
 // --- argument lists that hold nothing but trivia ---
 
 // a comment or a line break between the parens leaves the argument list textually non-empty while
@@ -830,4 +913,127 @@ QUnit.test('trivia args: the split emit of an inherited static', assert => {
 QUnit.test('trivia args: a real argument beside a comment still rides', assert => {
   assert.deepEqual([1, [[2]]].flat(/* depth */ 2), [1, 2]);
   assert.same([1, 2, 3].at(-1 /* last */), 3);
+});
+
+// a function declaration is created when its scope is entered, so a call ahead of a write reads what the
+// binding held before it - a constructor and a key written between that call and the declaration
+QUnit.test('scope: a function declaration called before a write reads the old value', assert => {
+  let Ctor = Iterator;
+  const early = readCtor();
+  Ctor = Array;
+  function readCtor() {
+    return Ctor.from([1, 2]);
+  }
+  assert.false(Array.isArray(early));
+  assert.true(Array.isArray(readCtor()));
+  let key = 'slice';
+  const earlyKey = readKey([[1], [2]]);
+  if (assert) key = 'at';
+  // eslint-disable-next-line unicorn/no-duplicate-if-branches -- the agreeing arms ARE the case under test
+  else key = 'at';
+  function readKey(list) {
+    return list[key](0);
+  }
+  assert.deepEqual(earlyKey, [[1], [2]]);
+});
+
+// a `||` over an alias of a global core-js does not know may run its right: such a global may hold a
+// falsy value, so a receiver written there keeps both values. the alias stands at module level, and the
+// global is defined and removed through a computed key, which no transform reads as a write of it
+const falsyConfigKey = ['falsyConfig', 'Probe'].join('');
+globalThis[falsyConfigKey] = null;
+// eslint-disable-next-line no-undef, sonarjs/no-reference-error -- the global defined above IS the case under test
+const falsyConfig = falsyConfigProbe;
+delete globalThis[falsyConfigKey];
+
+QUnit.test('alias: a write right of an alias of an unknown global runs', assert => {
+  let value = [1];
+  falsyConfig || (value = 'abc');
+  assert.same(value.padStart(4, '-'), '-abc');
+});
+
+// a polyfill install guarded by a presence test of the slot it patches never runs in this build: the test
+// reads what the build serves, so the slot is never written and the reads after the install take the
+// build's value too - an engine lacking the global gets it
+if (typeof Promise === 'undefined') globalThis.Promise = function PromiseShim() { return this; };
+const installGuardedRead = Promise.resolve(1);
+
+QUnit.test('install: a guarded install never runs and the reads after it take the pure import', assert => {
+  assert.same(typeof installGuardedRead.then, 'function');
+  assert.same(typeof Promise.all, 'function');
+});
+
+// ... and so does one whose test reads a realm alias its function's own body binds: the test is asked in
+// that function's scope, like a top-level one
+function groupAfterLocalInstall(items) {
+  const realm = globalThis;
+  if (!realm.Map) realm.Map = function MapShim() { return this; };
+  return Map.groupBy(items, item => item % 2);
+}
+
+QUnit.test('install: a guard reading a function-body alias of the realm never runs either', assert => {
+  assert.deepEqual(groupAfterLocalInstall([1, 2, 3]).get(1), [1, 3]);
+});
+
+// ... and so does one whose alias a block around it binds - a loader probing the realm first: the test is
+// asked in that block's scope
+if (typeof globalThis != 'undefined') {
+  const realm = globalThis;
+  if (!realm.Iterator) realm.Iterator = function IteratorShim() { return this; };
+}
+
+QUnit.test('install: a guard reading a block-bound alias of the realm never runs either', assert => {
+  assert.deepEqual(Iterator.from([1, 2]).toArray(), [1, 2]);
+});
+
+// a detect computes from its slot even after an explicit write of that slot: core-js wins every detect, so
+// the slot ends holding this build's implementation over the user's own. the slot is read and put back
+// through a computed key, which no transform reads as a write of it
+const detectSlotKey = ['Weak', 'Set'].join('');
+const savedDetectSlot = globalThis[detectSlotKey];
+function UserWeakSet() { /* empty */ }
+globalThis.WeakSet = UserWeakSet;
+// eslint-disable-next-line no-global-assign -- the detect under test
+WeakSet = WeakSet || function ShimWeakSet() { /* empty */ };
+const DetectedWeakSet = globalThis[detectSlotKey];
+if (savedDetectSlot === undefined) delete globalThis[detectSlotKey];
+else globalThis[detectSlotKey] = savedDetectSlot;
+
+QUnit.test('install: a detect after an explicit write of its slot takes the pure import', assert => {
+  assert.notSame(DetectedWeakSet, UserWeakSet);
+  assert.same(typeof new DetectedWeakSet().has, 'function');
+});
+
+// a write of a binding in another function - here a mode switch - may run at any time, so a read of the
+// binding keeps every value it may hold rather than the one its own frames settle
+let switchedImpl;
+function useLegacyGroup() {
+  switchedImpl = { groupBy: () => 'legacy' };
+}
+if (typeof Map != 'undefined') switchedImpl = Map;
+function groupSwitched(items) {
+  return switchedImpl.groupBy(items, item => item % 2);
+}
+
+QUnit.test('scope: a write in another function leaves the read open', assert => {
+  assert.true(groupSwitched([1, 2]) instanceof Map);
+  useLegacyGroup();
+  assert.same(groupSwitched([1, 2]), 'legacy');
+});
+
+// a function declaration called through another one before a write reads the value ahead of the write
+let chainMode;
+chainMode = 'keys';
+const chainInitial = chainBuild([1]);
+chainMode = 'getOwnPropertyNames';
+function chainBuild(value) {
+  return chainCreate(value);
+}
+function chainCreate(value) {
+  return Object[chainMode](value).length;
+}
+
+QUnit.test('scope: a function called through another before a write reads the old value', assert => {
+  assert.same(chainInitial, 1);
+  assert.same(chainBuild([1]), 2);
 });

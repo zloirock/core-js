@@ -11,7 +11,8 @@ import {
   getSuperTypeArgs,
   importBindingIsTypeOnly,
   inferTypeParameterNames,
-  isMutatedStaticMeta,
+  isDeoptedStaticRead,
+  isMutatedStaticPair,
   isTypeAnnotationNodeType,
   isTSTypeOnlyIdentifierPath,
   memberKeyName,
@@ -24,6 +25,7 @@ import {
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
 import {
+  decidedSelectionValue,
   globalProxyMemberName,
   proxyGlobalRootName,
   maximalProxyGlobalPrefix,
@@ -48,7 +50,7 @@ export function typeOnlyImportShadows({ adapter, scope, name, path, hostType }) 
   // `typeof X` names the RUNTIME binding, so the elided import leaves the global exposed there -
   // the type-space answer applies to a plain type reference only
   if (hostType === 'TSTypeQuery') return false;
-  return importBindingIsTypeOnly(adapter.getBinding?.(scope, name, path));
+  return importBindingIsTypeOnly(adapter.getBinding?.({ scope, name, path }));
 }
 
 // does a name read from a type position stand for the real global here? the three shadow
@@ -58,7 +60,7 @@ export function typeOnlyImportShadows({ adapter, scope, name, path, hostType }) 
 // `const self = {...}` cannot make `x: self.Reflect` report the global Reflect the way a
 // name-only proxy test did
 export function annotationNameIsGlobal({ adapter, scope, name, path, hostType }) {
-  return !adapter.hasBinding(scope, name, path)
+  return !adapter.hasBinding({ scope, name, path })
     && !typeOnlyImportShadows({ adapter, scope, name, path, hostType })
     && !typeParameterInScope(path, name);
 }
@@ -266,15 +268,12 @@ export function mutatedStaticLandingVerdict({ path, node = path?.node, scope, ad
         current = parent;
         continue;
       }
-      return isMutatedStaticMeta({ kind: 'property', object: globalName, key, placement: 'static' }, mutatedSet)
-        ? 'yes' : 'no';
+      return isMutatedStaticPair(globalName, key, mutatedSet) ? 'yes' : 'no';
     }
     // the chain ended right after the global (a helper call consumed the static member on a
     // re-visit): a SLOT-mutated constructor poisons every read through it, so the nav must
     // stay raw exactly like the explicit static landing
-    return globalName !== null
-      && isMutatedStaticMeta({ kind: 'property', object: 'globalThis', key: globalName, placement: 'static' }, mutatedSet)
-      ? 'yes' : 'no';
+    return globalName !== null && isMutatedStaticPair('globalThis', globalName, mutatedSet) ? 'yes' : 'no';
   }
   return 'unknown';
 }
@@ -399,7 +398,7 @@ export function isPolyfillableOptional({
       && isShadowedByClassOwnMember?.(path, memberKey)) return false;
     const meta = memberKey ? resolveSuperStatic(path, memberKey) : null;
     // a monkey-patched inherited static keeps its `?.` for the same reason as the bare form below
-    if (meta && isMutatedStaticMeta(meta, mutatedSet)) return false;
+    if (meta && isDeoptedStaticRead({ meta, adapter, path, read: { node: member, path } })) return false;
     const resolvedSuper = meta && resolve(meta);
     return resolvedSuper?.kind === 'static' || resolvedSuper?.kind === 'global';
   }
@@ -465,8 +464,11 @@ export function isPolyfillableOptional({
   // callee the swap makes always-defined, while the other leg folded that receiver away entirely
   const objCoreNamed = navWithoutRootStore(objCore,
     value => !proxyReceiverValueCanBeUndefined(value, resolve, { scope, adapter, path }));
-  const objName = objCore?.type === 'Identifier'
-    ? resolveObjectName({ objectNode: objCore, scope, adapter, path })
+  // ... and a selection the build decides is named by the value it folds to (`decidedSelectionValue`):
+  // the ctor there is the static host the claim substitutes, its `?.` going with that substitution
+  const objValue = adapter ? unwrapRuntimeExpr(decidedSelectionValue(objCore, { scope, adapter, path })) : objCore;
+  const objName = objValue?.type === 'Identifier'
+    ? resolveObjectName({ objectNode: objValue, scope, adapter, path })
     : objCoreNamed && globalProxyMemberName({ node: objCoreNamed, scope, adapter, path });
   // a CTOR read off proxy navigation names the STATIC HOST below: `globalProxyMemberName` answers for
   // a proxy HOP only, so `(v = globalThis.self).Number?.MAX_SAFE_INTEGER.name` found no name at all,
@@ -510,8 +512,14 @@ export function isPolyfillableOptional({
   // a monkey-patched / deleted static (`delete Array.from; Array.from?.()`) is no longer always-
   // defined: usage-pure bailed the substitution and kept the native member, so dropping the `?.`
   // would call a deleted slot unconditionally (throws) where the native chain short-circuits to
-  // undefined. `mutatedSet` is null outside usage-pure, so this never changes global-mode deopts
-  return !isMutatedStaticMeta({ kind: 'property', object: staticHost, key: memberKey }, mutatedSet);
+  // undefined - save a read the substitution serves (`isDeoptedStaticRead`). no adapter outside
+  // usage-pure answers a static mutated, so this never changes global-mode deopts
+  return !isDeoptedStaticRead({
+    meta: { kind: 'property', object: staticHost, key: memberKey },
+    adapter,
+    path,
+    read: path && { node: member, path },
+  });
 }
 
 // open the walk on a class / function node: every annotation slot such a node carries - its own

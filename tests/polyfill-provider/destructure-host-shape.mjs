@@ -6,7 +6,6 @@ import {
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
   isForInitDeclaration,
-  isLoopStatement,
   keyedReadReceiverProven,
   minifierSequenceReducer,
   peelLabeledStatements,
@@ -20,6 +19,7 @@ import {
   renderNestedKeyedPatternCapture,
   renderRetainedObjectCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { isLoopStatement } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
 import { createChecker } from './harness.mjs';
 import {
   collectFileCensus,
@@ -44,7 +44,7 @@ import {
   renderInstanceDefaultGuard,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
-import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { closestVisibleNativeBinding, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { hasConstructorEntry, resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -181,6 +181,24 @@ for (const [source, closed] of [
   check(`${ label }/ordinary references remain available`, Array.isArray(resolver.collectBindingReferences(ref)), true);
   check(`${ label }/closed exported owner`, Array.isArray(resolver.collectBindingReferences(ref, 'log', { closed: true })), closed);
   check(`${ label }/unknown binding is incomplete`, resolver.collectBindingReferences(ref, 'missing'), null);
+});
+
+// the references a binding owns are the ones that resolve to it where they stand. the oxc leg looks up
+// as the unplugin does: estree-toolkit lists a loop body's namesake's reads under the head it gives that
+// body no scope apart from, and those stay the namesake's. a binding asked under another object finds
+// its references by its declaration and its NAME - a pattern declares several at one node, and a
+// sibling with no reads owns none
+function referenceResolver(parser) {
+  return parser.makeResolver(parser.name === 'oxc' ? { getScopeBinding: closestVisibleNativeBinding } : {});
+}
+runBoth('reference census of a loop head leaves its body namesake out', 'for (let a = {}; use(a), c; ) { let a = [1]; a.includes(2); }',
+  (parser, program, label) => {
+    const head = parser.pickPath(program, 'Identifier', path => path.node.name === 'a' && path.parentPath?.node?.type === 'CallExpression');
+    check(label, referenceResolver(parser).collectBindingReferences(head)?.length, 1);
+  });
+runBoth('reference census of a pattern sibling with no reads', 'const { a, b } = obj; use(a);', (parser, program, label) => {
+  const sibling = parser.pickPath(program, 'Identifier', path => path.node.name === 'b');
+  check(label, referenceResolver(parser).collectBindingReferences(sibling)?.length, 0);
 });
 
 for (const [prefix, callee, descriptor, expected] of [
@@ -456,8 +474,8 @@ for (const [source, expected, kind = 'static'] of [
   const bindingAdapter = {
     isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
     getStringValue: node => node.value,
-    hasBinding: (scope, name) => !!scope?.getBinding(name),
-    getBinding: (scope, name) => scope?.getBinding(name),
+    hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+    getBinding: ({ scope, name }) => scope?.getBinding(name),
     method: 'usage-pure',
   };
   const plan = planRetainedObjectCapture({
@@ -474,8 +492,8 @@ runBoth('retained static capture through an array element path',
     const bindingAdapter = {
       isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
       getStringValue: node => node.value,
-      hasBinding: (scope, name) => !!scope?.getBinding(name),
-      getBinding: (scope, name) => scope?.getBinding(name),
+      hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+      getBinding: ({ scope, name }) => scope?.getBinding(name),
       method: 'usage-pure',
     };
     const plan = planRetainedObjectCapture({
@@ -627,8 +645,8 @@ for (const [key, kind] of [['of', 'static'], ['Set', 'global']]) {
         adapter: {
           isStringLiteral: node => node.type === 'StringLiteral' || node.type === 'Literal' && typeof node.value === 'string',
           getStringValue: node => node.value,
-          hasBinding: (scope, name) => !!scope?.getBinding(name),
-          getBinding: (scope, name) => scope?.getBinding(name),
+          hasBinding: ({ scope, name }) => !!scope?.getBinding(name),
+          getBinding: ({ scope, name }) => scope?.getBinding(name),
           method: 'usage-pure',
         },
         resolveNodeType: parser.makeResolver().resolveNodeType,
@@ -2002,6 +2020,46 @@ runBoth('ordered source declaration reuses its leading native coercion',
     check(`${ label }/native pattern already coerces`, first.id.properties[0]?.key.name, 'length');
     check(`${ label }/source read remains first`, first.init.name, 'source');
   });
+
+// a declaration's coercion of a proven receiver rejects nothing and binds nothing the reads take - they re-read
+// the reused name - so what discarding the receiver runs leads the next declarator instead of the coercion; an
+// unproven receiver keeps the coercion that rejects null ahead of the key
+for (const [name, source, kind, owed] of [
+  ['proven prefix', 'const { [(key(), "of")]: method, other } = (before(), Array);', 'static', 'before'],
+  ['proven quiet prefix', 'const { [(key(), "of")]: method, other } = (0, Array);', 'static', ''],
+  ['unproven prefix', 'const source = unknown(); const { [(key(), "at")]: method, other } = (before(), source);', 'instance', null],
+]) runBoth(`ordered source declaration coercion/${ name }`, source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const entry = kind === 'static' ? 'array/of' : 'array/instance/at';
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id,
+    init: host.node.init,
+    prop: host.node.id.properties[0],
+    hostPath: host,
+    adapter,
+    kind,
+    entry,
+    meta: kind === 'static' ? { object: 'Array', key: 'of', placement: 'static' } : null,
+    resolvePure: meta => meta.object === 'Array' && meta.key === 'of' ? { kind: 'static', entry, hintName: 'of' } : null,
+    resolveStaticProp: resolvePolyfillableStaticProp,
+  });
+  check(`${ label }/reuses the source name`, !!plan.reuseReceiver, true);
+  check(`${ label }/proven`, !!plan.provenReceiver, owed !== null);
+  const rendered = renderRetainedObjectCapture(plan, {
+    mintRef: () => 'memo',
+    injectImport: () => 'pony',
+    entry,
+    ctx: { scope: host.scope, adapter, path: host },
+  });
+  const [first] = rendered.declarations;
+  check(`${ label }/coercion`, first.id.type === 'ObjectPattern' && !first.id.properties.length, owed === null);
+  check(`${ label }/the residual re-reads the source name`, rendered.declarations.at(-1).init.name, kind === 'static' ? 'Array' : 'source');
+  if (owed === null) return;
+  const spelled = first.init.type === 'SequenceExpression' ? first.init.expressions : [first.init];
+  check(`${ label }/owed effect, key, then the read`, spelled.map(item => item.callee?.name ?? item.name).join(','),
+    [owed, 'key', 'pony'].filter(Boolean).join(','));
+});
 
 runBoth('ordered static-only assignment evaluates an effectful RHS without storing its discarded result',
   'let of, from; ({ of, [(key(), "from")]: from } = (effect(), Array));', (parser, program, label) => {
