@@ -24,9 +24,9 @@ function pluginAdapter(adapter, method = 'usage-pure') {
     method,
     isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
     getStringValue(node) { return node.value; },
-    hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
-    getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
-    getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+    hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
+    getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
+    getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
     isMutatedStatic() { return false; },
   };
 }

@@ -11,7 +11,7 @@ import {
 } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
-import { createPolyfillContext, entryToGlobalHint, resolve } from './index.js';
+import { createPolyfillContext, entryToGlobalHint, NARROW_ENTRY, resolve } from './index.js';
 import { brand } from './helpers/error-tag.js';
 
 const { hasOwn } = Object;
@@ -366,14 +366,10 @@ export function createPolyfillResolver(options, {
       || isMutatedStatic?.(name, MUTATED_STATIC_PINNED) === true;
   }
 
-  // the entry a NARROW dependency widens to: its family sibling, a module superset of the narrow one
-  // in every layer, so widening never drops what the narrow entry carried. ONE answer for both
-  // flavors - pure imports the family ponyfill, usage-global injects that same entry's modules onto
-  // the global slot. BOTH spellings of narrow: a constructor global names its bare binding
-  // `<x>/constructor`, a namespace global names its bare object `<x>/namespace`, and asking only for
-  // the first shipped the escaped namespace as a stub - every static read off it answered
-  // `undefined` on the floor, which is the one thing this widen exists to prevent
-  const NARROW_ENTRY = /\/(?:constructor|namespace)$/u;
+  // the entry a NARROW dependency (`NARROW_ENTRY`) widens to: its family sibling, a module superset of
+  // the narrow one in every layer, so widening never drops what the narrow entry carried. ONE answer
+  // for both flavors - pure imports the family ponyfill, usage-global injects that same entry's modules
+  // onto the global slot
   function ctorFamilyEntry(entry) {
     return entry.replace(NARROW_ENTRY, '');
   }

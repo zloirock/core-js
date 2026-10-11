@@ -314,3 +314,39 @@ QUnit.test('evaluation order: a name a getter rebinds is held once across reader
   assert.same(at(), 'own');
   assert.same(typeof flat, 'function');
 });
+
+QUnit.test('evaluation order: a bodyless nested read carrying its init runs the init prefix once', assert => {
+  const seen = [];
+  const ready = seen.length === 0;
+  if (ready) var { C: { at } } = (seen.push('at'), { C: [1, 2] });
+  let rounds = 0;
+  while (rounds++ < 1) var { C: { D: { flat } } } = (seen.push('flat'), { C: { D: [[3]] } });
+  assert.deepEqual(seen, ['at', 'flat']);
+  assert.same(at.call([1, 2], -1), 2);
+  assert.deepEqual(flat.call([[3]]), [3]);
+});
+
+QUnit.test('evaluation order: a store behind an effect prefix runs after the prefix', assert => {
+  const seen = [];
+  var one, two;
+  function setup(tag) {
+    seen.push(`${ tag }:${ typeof one }:${ typeof two }`);
+  }
+  const { C: { groupBy } } = (setup('one'), one = { C: Map });
+  const { C: { from }, D: { of } } = (setup('two'), two = { C: Array, D: Array });
+  assert.deepEqual(seen, ['one:undefined:undefined', 'two:object:undefined']);
+  assert.same(typeof groupBy, 'function');
+  assert.deepEqual(from([1]), [1]);
+  assert.deepEqual(of(2), [2]);
+  assert.same(typeof one.C, 'function');
+  assert.same(typeof two.D, 'function');
+});
+
+// ... and a write in the init runs before the pattern's defaults, which read what it stored
+QUnit.test('evaluation order: a write in the init reaches a pattern default', assert => {
+  let C;
+  C = Map;
+  // eslint-disable-next-line no-useless-assignment -- the default reads what the init stored, the case under test
+  const { grouped = C.groupBy([1, 2, 3], x => x % 2) } = (C = Object, {});
+  assert.deepEqual(grouped[1], [1, 3]);
+});

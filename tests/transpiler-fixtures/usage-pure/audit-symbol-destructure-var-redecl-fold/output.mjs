@@ -25,13 +25,13 @@ let assignedLet;
 assignedLet = _Symbol$asyncIterator;
 export const viaAssignLet = [][assignedLet];
 
-// a REPEATED aliasing write keeps the read native on both emitters: the pristine-tree
-// judgment refuses the multi-write set, and a lagged re-registration (babel's scope after
-// the first in-place rewrite hides the sibling write) cannot resurrect the fold source
+// a REPEATED aliasing write is no registered alias - the pristine-tree judgment refuses the
+// multi-write set - while the write reaching the read still names the key, so the read takes
+// the iterator method on both emitters
 let twice;
 twice = _Symbol$iterator;
 twice = _Symbol$iterator;
-export const viaDoubleAssign = [][twice];
+export const viaDoubleAssign = _getIteratorMethod([]);
 
 // an identity self-assign writes the alias's own current value back, so it is not a write of the
 // binding: both destructure forms keep exactly one real write and still fold on both emitters

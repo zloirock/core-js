@@ -1,20 +1,21 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
+import _Symbol from "@core-js/pure/actual/symbol";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 // binding-less destructures of globals split on IDENTITY: a same-key pair from the proxy
 // global (`({ Promise } = globalThis)`, flat `WeakSet = globalThis.WeakSet`, any proxy
 // receiver) copies the slot's own value back - a no-op, NOT a mutation - so the pristine
 // flatten + static narrowing apply, uniform with the lowercase and declaration forms of the
-// same idiom. a FOREIGN value genuinely mutates the slot and DEOPTS the name - its reads stay
-// verbatim on the live binding: a cross-key pair (`{ m: Map }`), a cross-global pair
-// (`{ Iterator: WeakRef }` - only the written VALUE name deopts, the KEY name stays a
-// polyfillable read), and a pattern DEFAULT (`{ AggregateError = shim }` - installs the
+// same idiom, while the constructor copied into the slot takes its whole entry. a FOREIGN
+// value genuinely mutates the slot and DEOPTS the name - its reads stay verbatim on the live
+// binding: a cross-key pair (`{ m: Map }`), a cross-global pair (`{ Iterator: WeakRef }` -
+// only the written VALUE name deopts, the KEY name stays a polyfillable read, its whole entry
+// handed into the slot), and a pattern DEFAULT (`{ AggregateError = shim }` - installs the
 // foreign default on the absent slot)
 Promise = _Promise;
 use(_Promise$resolve(1));

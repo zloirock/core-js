@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$create from "@core-js/pure/actual/object/create";
 // A local catch alias writes the held constructor slot before it is read.
 // The catch itself hands no constructor out; the written slot still contributes its own family.

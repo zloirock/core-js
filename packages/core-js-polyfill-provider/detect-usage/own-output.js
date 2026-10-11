@@ -9,6 +9,7 @@ import { entryToGlobalHint, hasOwnStaticDefinition } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './globals.js';
 import { PATTERN_CHAIN_TYPES } from './destructure.js';
+import { MINTED_STATIC_NAME, pureEntryTarget } from './resolve.js';
 import {
   aliasDeclScope,
   bindingDeclaratorNode,
@@ -30,7 +31,6 @@ import {
   reassignmentDominatesUsage,
   requireCallSource,
   rootProgramOf,
-  staticMemberFromEntrySegment,
   statementListOf,
   tsImportEqualsRequireSource,
   unwrapExportedDeclaration,
@@ -144,7 +144,6 @@ function defaultHoldsPureImport(path, tests) {
 // wrote was re-claimed and nested one level per pass. the name is enough to say WHICH read it stands
 // for, and the definitions confirm it names a real one; the three-way agreement the caller then owes
 // is the same one an import-backed spelling owes, so a user binding wearing the shape decides nothing
-const MINTED_STATIC_NAME = /^_+(?<global>[A-Z]\w*)\$(?<member>\w+)$/u;
 const MINTED_CTOR_NAME = /^_+(?<global>[A-Z]\w*)$/u;
 function mintedNameTarget(name) {
   const statik = MINTED_STATIC_NAME.exec(name ?? '');
@@ -154,17 +153,6 @@ function mintedNameTarget(name) {
   }
   const ctor = MINTED_CTOR_NAME.exec(name ?? '');
   return ctor ? { global: ctor.groups.global, member: null } : null;
-}
-
-// the (global, member) a pure entry names - `array/of` -> Array + `of`, a family entry
-// (`map`, `map/constructor`) naming the global with no member of its own. the segment split
-// is the injector's, so a member whose spelling the kebab head cannot carry reads the same
-function entryGuardTarget(entry) {
-  const family = entryToGlobalHint(entry);
-  if (family !== null) return { global: family, member: null };
-  const segments = typeof entry === 'string' ? entry.split('/') : [];
-  const global = segments.length < 2 ? null : entryToGlobalHint(segments.at(-2));
-  return global === null ? null : { global, member: staticMemberFromEntrySegment(global, segments.at(-1)) };
 }
 
 // the read a guard's alternate keeps, peeled to `<bare receiver>.<member>` through the
@@ -191,11 +179,13 @@ function guardedReadLeaf(node) {
 // that arm `h` is provably NOT the global `_X` was minted for, so a claim there would polyfill a
 // value that global's polyfill has nothing to do with - our own kept read and a foreign member
 // under the same test alike. a test against ANOTHER global settles nothing: `h` may still be this
-// one, and the alternate keeps its claim
+// one, and the alternate keeps its claim. a call the guard absorbed is spelled in every branch
+// (`h === Ctor ? _X(a) : h.of(a)`), so the consequent names the static through its callee
 function ownGuardRenderShape(conditional, path) {
-  const consequent = unwrapRuntimeExpr(conditional.consequent);
+  let consequent = unwrapRuntimeExpr(conditional.consequent);
+  if (consequent?.type === 'CallExpression') consequent = unwrapRuntimeExpr(consequent.callee);
   if (consequent?.type !== 'Identifier') return false;
-  const target = entryGuardTarget(pureImportEntryOf(path, consequent.name))
+  const target = pureEntryTarget(pureImportEntryOf(path, consequent.name))
     ?? mintedNameTarget(consequent.name);
   if (target === null) return false;
   const read = guardedReadLeaf(conditional.alternate);
@@ -224,12 +214,12 @@ function ownGuardRenderShape(conditional, path) {
 function comparedGlobal(against, path) {
   if (against?.type === 'Identifier') {
     const entry = pureImportEntryOf(path, against.name);
-    return entry === null ? mintedNameTarget(against.name)?.global ?? against.name : entryGuardTarget(entry)?.global ?? null;
+    return entry === null ? mintedNameTarget(against.name)?.global ?? against.name : pureEntryTarget(entry)?.global ?? null;
   }
   const realm = against?.type === 'MemberExpression' && !against.computed ? unwrapRuntimeExpr(against.object) : null;
   if (realm?.type !== 'Identifier' || against.property?.type !== 'Identifier') return null;
   const entry = pureImportEntryOf(path, realm.name);
-  return entry !== null && POSSIBLE_GLOBAL_OBJECTS.has(entryGuardTarget(entry)?.global) ? against.property.name : null;
+  return entry !== null && POSSIBLE_GLOBAL_OBJECTS.has(pureEntryTarget(entry)?.global) ? against.property.name : null;
 }
 
 // the raw read OUR shadow-alias guard deliberately keeps (`h === Ctor ? _X : h.of` - the
@@ -315,7 +305,7 @@ function navHoldsRenderedGuard(objectNode, path, tests, adapter = null) {
     // A retained native read may sit behind lowered captures. Follow only the one
     // value already written at each capture; the terminal guard still owns the verdict.
     if (cur.type === 'Identifier' && adapter && followAliases) {
-      const binding = adapter.getBinding(scope, cur.name, path);
+      const binding = adapter.getBinding({ scope, name: cur.name, path, read: cur });
       const declaration = bindingDeclaratorNode(binding);
       if (!declaration || visited.has(declaration)) continue;
       visited.add(declaration);
@@ -367,7 +357,7 @@ function navHoldsRenderedGuard(objectNode, path, tests, adapter = null) {
           leaf = unwrapRuntimeExpr(leaf.object);
         }
         if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests)
-          && (!adapter || adapter.getBinding(scope, leaf.name, path)?.importSource
+          && (!adapter || adapter.getBinding({ scope, name: leaf.name, path })?.importSource
             === defaultImportSourcesOf(rootProgramOf(path)).get(leaf.name))) return true;
       }
       if (fromAlias) continue;

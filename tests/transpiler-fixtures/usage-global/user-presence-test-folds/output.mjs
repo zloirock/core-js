@@ -6,6 +6,7 @@ import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.entries";
@@ -15,6 +16,7 @@ import "core-js/modules/es.array.of";
 import "core-js/modules/es.disposable-stack.constructor";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
+import "core-js/modules/es.iterator.concat";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";
 import "core-js/modules/es.iterator.every";
@@ -86,11 +88,14 @@ import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.queue-microtask";
 // In usage-global a presence test this build always answers (a `typeof` in either operand order,
-// parenthesized or not) stays as written and its dead branch injects nothing - an `if` statement's
-// included; a probe (`window`) and a function global the root resolver does not name (`queueMicrotask`)
-// keep both branches live.
+// parenthesized or not, an `in` test of a static key) stays as written and its dead branch injects nothing -
+// an `if` statement's included; a probe (`window`), a function global the root resolver does not name
+// (`queueMicrotask`) and a prototype method's presence, which only pure decides (`'finally' in
+// Promise.prototype`), keep both branches live.
 export const resolved = typeof Promise != 'undefined' && Promise.resolve(1);
 export const viaStatic = Array.from ? Array.from(list) : legacyFrom(list);
+export const keyed = 'allSettled' in Promise ? Promise.allSettled(list) : Array.fromAsync(list);
+export const prototyped = 'finally' in Promise.prototype ? task.finally(done) : Iterator.concat(list);
 export const fallbackOf = Array.of || legacyOf;
 export const symbolic = typeof Symbol === 'function' ? Symbol('x') : '@@x';
 export const legacy = typeof Map === 'undefined' ? legacyMap() : new Map();

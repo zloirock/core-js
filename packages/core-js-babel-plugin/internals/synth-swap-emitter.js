@@ -49,6 +49,8 @@ import {
   isViableBranchForKey,
   instanceHopDispatch,
   resolvableArgSupersedesDeadDefault,
+  decidedRunningOperandPath,
+  instanceSynthSpellsReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import estreeToBabel from './estree-to-babel.js';
 import {
@@ -83,6 +85,8 @@ import {
   proxyReceiverValueCanBeUndefined,
   resolveSynthKeys,
   peelReceiverSequenceTail,
+  decidedLiveOperandKey,
+  decidedRunningPath,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
@@ -187,14 +191,24 @@ export default function createSynthSwapEmitter({
       // expressions stay in the AST and run at runtime exactly as written. caller's
       // `({from: customFn})` still beats the synth-emitted default (default fires only
       // when caller-arg is undefined), preserving caller-passed values
-      const rightPath = unwrapSequenceTail(wrapper.get('right'));
+      let rightPath = unwrapSequenceTail(wrapper.get('right'));
+      // ... and through a ternary or an `&&` the build decides to the operand it always yields
+      // (`decidedLiveOperandKey`): the synth replaces that operand, and the fold drops the dead arm around
+      // it. a `||` / `??` collapses whole below (`fallbackCollapse`)
+      while (!rightPath.isLogicalExpression() || rightPath.node.operator === '&&') {
+        const key = decidedLiveOperandKey(rightPath.node, { scope: rightPath.scope, adapter, path: rightPath });
+        if (!key) break;
+        rightPath = unwrapSequenceTail(rightPath.get(key));
+      }
       // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order): a classifiable
       // live arg wins regardless of the wrapper-default's shape - gating on the default first
       // bailed `(({ from } = []) => ...)(Array)` to a native-first inline default even though
       // the live receiver was statically known. the default fires only on caller-omitted
       // invocation; (Optional)MemberExpression defaults included (`({of} = globalThis.Iterator)
       // (Array)`) - synthesising onto the dead default would leave the live caller-arg native
-      const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
+      // ... an argument the build decides counts by the operand of it that runs (`decidedRunningOperandPath`)
+      const rawArgPath = detectIifeArgPath(wrapper.parentPath, wrapper);
+      const argPath = rawArgPath && unwrapSequenceTail(decidedRunningOperandPath(rawArgPath, adapter));
       if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
       // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
       // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
@@ -208,7 +222,9 @@ export default function createSynthSwapEmitter({
       // declarator flatten applies. `&&` selects its RIGHT side at runtime and stays out.
       // unresolved keys re-read through the peeled LEFT alone - the right operand is skip-marked
       // at registration and never reaches emission
-      const leftTail = rightPath.isLogicalExpression() ? unwrapSequenceTail(rightPath.get('left')).node : null;
+      // ... a left the build decides counts by the part of it that runs (`decidedRunningPath`)
+      const leftTail = rightPath.isLogicalExpression()
+        ? unwrapSequenceTail(decidedRunningPath(rightPath.get('left'), adapter)).node : null;
       const fallbackCollapse = rightPath.isLogicalExpression() && rightPath.node.operator !== '&&'
         && (isReceiverShapedNode(leftTail) || !!invocationNode(leftTail));
       // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
@@ -224,7 +240,8 @@ export default function createSynthSwapEmitter({
     // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
     // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
     // succeeds, otherwise destructure-emitter falls through to inline-default
-    const argPath = detectIifeArgPath(wrapper, objectPattern);
+    const rawArgPath = detectIifeArgPath(wrapper, objectPattern);
+    const argPath = rawArgPath && unwrapSequenceTail(decidedRunningOperandPath(rawArgPath, adapter));
     return argPath && isExpandedClassifiableReceiver({ node: argPath.node }) ? argPath : null;
   }
 
@@ -260,8 +277,8 @@ export default function createSynthSwapEmitter({
       && !POSSIBLE_GLOBAL_OBJECTS.has(runtimeChainRoot(receiver)?.name)
       && !proxyGlobalMemberCtorPure({ receiver, aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure })
       && !planProxyReceiver(receiver, { aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure }))
-      // ... and an INVOCATION an instance slot dispatches on: the literal spells the call whole
-      || (instance && invocationNode(receiver))) {
+      // ... and an INVOCATION or a literal an instance slot dispatches on: the literal spells it whole
+      || (instance && instanceSynthSpellsReceiver(receiver))) {
       // a receiver over a literal or a name keeps its own inner claims live; one over the realm is
       // rendered through the proxy collapse whole, as the unplugin twin renders it
       skippedNodes.add(receiver);
@@ -652,7 +669,7 @@ export default function createSynthSwapEmitter({
   // registry: re-run over its own output this emitter has no memory of what it rendered, and the fold
   // then ran once more each pass - a user's own import of the same entry reads the same way
   function proxyPureImportRoot(root, aliasCtx) {
-    const binding = adapter.getBinding?.(aliasCtx.scope, root.name, aliasCtx.path);
+    const binding = adapter.getBinding?.({ scope: aliasCtx.scope, name: root.name, path: aliasCtx.path });
     if (!binding?.importSource) return false;
     const hint = bindingPolyfillHint({ binding, scope: aliasCtx.scope, name: root.name, adapter });
     return !!hint && POSSIBLE_GLOBAL_OBJECTS.has(hint);
@@ -666,7 +683,7 @@ export default function createSynthSwapEmitter({
   function collapseRootHoldsItsGlobal(root, aliasCtx) {
     if (root?.type !== 'Identifier' || POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
     if (proxyPureImportRoot(root, aliasCtx)) return false;
-    const binding = adapter.getBinding?.(aliasCtx.scope, root.name, aliasCtx.path);
+    const binding = adapter.getBinding?.({ scope: aliasCtx.scope, name: root.name, path: aliasCtx.path });
     if ((binding?.constantViolations?.length ?? 0) <= 1) return true;
     return !!trustedIdentifierAliasWrite({
       scope: aliasCtx.scope, name: root.name, adapter, path: aliasCtx.path, readNode: root,

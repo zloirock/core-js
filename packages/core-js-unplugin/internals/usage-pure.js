@@ -114,7 +114,7 @@ function noteDeoptedSlotRead(meta, { getDebugOutput, adapter, noted }) {
   const debug = getDebugOutput?.();
   if (!debug || noted.has(meta?.name) || !isDeoptedGlobalSlotRead(meta, adapter)) return;
   noted.add(meta.name);
-  debug.warn?.(mutatedSlotLeftNativeWarning(meta.name, adapter.mutatedStatics));
+  debug.warn?.(mutatedSlotLeftNativeWarning(meta.name));
 }
 
 // does the receiver SPELL its own harvested effects - the prefix of a sequence whose tail
@@ -758,7 +758,9 @@ export default function createAstUsagePureCallback({
           && (!innerDefault || destructureEmit.renderNestedParamSynth({ metaPath, meta }))) return false;
         // a DECLINED mirror leaves the key untouched, and which branch runs then decides whether
         // the polyfill applies at all - the shared diagnostic both other emitters emit
-        if (!destructureEmit.handlePerBranch({ metaPath, meta })) {
+        // ... and where no pair locates the selection, the shared plan mirrors it where its walk reaches it
+        if (!destructureEmit.handlePerBranch({ metaPath, meta })
+          && !destructureEmit.renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) {
           destructureEmit.warnConditionalFallbackUntouched(meta, metaPath);
         }
       }
@@ -1147,7 +1149,9 @@ export default function createAstUsagePureCallback({
       if (droppedBase && (foldEffects ? receiverShareHeld : seFree && !collapsed.effects.length)
         && (planBase || navigatedSpine)) {
         markRewrite();
-        const consumed = planPath === metaPath ? spineNode : planPath.node.object;
+        // the plan's walk peels a SEQUENCE the spine read above does not (`(0, f().self).k`): with
+        // no spine node of its own the drop consumes the whole object it replaces
+        const consumed = planPath === metaPath ? spineNode ?? node.object : planPath.node.object;
         const dropped = planPath !== metaPath ? planPath.get('object')
           : spineNode === node ? metaPath : metaPath.get('object');
         const baseNode = foldEffects?.length

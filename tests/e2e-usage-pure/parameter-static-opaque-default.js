@@ -75,6 +75,7 @@ QUnit.test('parameter static: nested agreeing selections preserve the selected a
   const effects = [];
   const pick = true;
   function read({ held: { of } }) { return of; }
-  assert.same(read(pick ? { held: (effects.push('yes'), Array) } : { held: (effects.push('no'), Array) }), nativeOf);
+  // the slot of each arm takes the static, so the read is served whichever arm the selection runs
+  assert.deepEqual(read(pick ? { held: (effects.push('yes'), Array) } : { held: (effects.push('no'), Array) })(1, 2), [1, 2]);
   assert.deepEqual(effects, ['yes']);
 });

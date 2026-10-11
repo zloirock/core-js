@@ -62,6 +62,7 @@ import {
   staticMemberKeyName,
   unwrapRuntimeExpr,
   walkAstNodes,
+  writesPastCeiling,
 } from '../helpers/ast-patterns.js';
 
 // the class whose CONSTRUCTOR this function is, or null. one climb for both parsers: babel keeps
@@ -290,7 +291,7 @@ export function createPatternBindings({
     const { init } = bindingPath.node;
     // a SHADOWED `undefined` is an ordinary value, so the slot is present and its default stays
     // dead - the same scope gate every other bare-`undefined` read in this file applies
-    const undefinedShadowed = !!getScopeBinding(bindingPath.scope, 'undefined');
+    const undefinedShadowed = !!getScopeBinding({ scope: bindingPath.scope, name: 'undefined' });
     function valuePresence(value) {
       if (!value) return 'absent';
       if (isBareUndefinedIdentifier(value) && !undefinedShadowed) return 'absent';
@@ -691,7 +692,11 @@ export function createPatternBindings({
     // is this the final key of the literal the holder DECLARES? that one is the flow-aware field read's to fold
     function ownFinalField(step, rest) {
       return !rest.length && typeof step === 'string' && !holderKeys.length
-        && unwrapRuntimeExpr(getScopeBinding(holder.scope, holder.node.name, holder)?.path?.node?.init) === objPath.node;
+        && unwrapRuntimeExpr(getScopeBinding({
+          scope: holder.scope,
+          name: holder.node.name,
+          path: holder,
+        })?.path?.node?.init) === objPath.node;
     }
     while (true) {
       if (keyPath.length === 0) return unionHints ? null : resolveNodeType(objPath);
@@ -952,9 +957,10 @@ export function createPatternBindings({
   // canon peels those on both sides of the identity compare
   function invocationPairingAt(refPath, scope, anchor, staticIsMutated = null, getBindingEntry = null) {
     const shadowCheck = {
-      nameIsShadowed: name => Boolean(getScopeBinding(scope, name, anchor)),
+      nameIsShadowed: (name, read) => Boolean(getScopeBinding({ scope, name, path: anchor, read })),
       staticIsMutated,
-      getCalleeEntry: getBindingEntry && (callee => callee?.type === 'Identifier' ? getBindingEntry(scope, callee.name, anchor) : null),
+      getCalleeEntry: getBindingEntry
+        && (callee => callee?.type === 'Identifier' ? getBindingEntry(scope, callee.name, anchor, callee) : null),
     };
     for (let cur = refPath, hops = 0; hops <= 2; hops++) {
       // the same peel answers nothing at the top of the tree, and no host there ends the hop climb
@@ -980,7 +986,7 @@ export function createPatternBindings({
   // shared slot rule (`argumentOverridesSlot`), with the call's own scope answering for `undefined`
   function invocationOverridesSlot(pairing, argIndex, scope) {
     if (pairing.argsUnknown) return true;
-    return argumentOverridesSlot(pairing.args ?? [], argIndex, () => !!getScopeBinding(scope, 'undefined'));
+    return argumentOverridesSlot(pairing.args ?? [], argIndex, () => !!getScopeBinding({ scope, name: 'undefined' }));
   }
 
   // every invocation that can supply this parameter, with its live call path and runtime argument
@@ -1047,7 +1053,7 @@ export function createPatternBindings({
     for (const { name: fnName, scope, anchor, key } of sources) {
       if (seenSources.has(anchor.node)) continue;
       seenSources.add(anchor.node);
-      const binding = getScopeBinding(scope, fnName, anchor);
+      const binding = getScopeBinding({ scope, name: fnName, path: anchor });
       // an identically named binding is not a callable identity. a source anchor is the function,
       // its declarator, or its constructor's class, and only that exact declaration qualifies.
       if (!binding || bindingDeclaratorNode(binding) !== anchor.node || binding.constantViolations?.length) return null;
@@ -1135,7 +1141,7 @@ export function createPatternBindings({
     // on the estree lane
     const { kind } = binding;
     return kind !== 'let' && kind !== 'const' && kind !== 'module'
-      && staleVarRedeclNodes(binding, path, path.node.name).some(node => !ignorableRebind?.(node));
+      && staleVarRedeclNodes({ binding, usagePath: path, name: path.node.name }).some(node => !ignorableRebind?.(node));
   }
 
   // a REST slot's family is RHS-INDEPENDENT (`var [...r] = "abc"` spreads into a fresh
@@ -1210,8 +1216,9 @@ export function createPatternBindings({
   // for any non-Identifier path or unresolvable binding shape
   function resolveBindingType(path, unionHints = false) {
     if (!t.isIdentifier(path.node)) return null;
-    const binding = getScopeBinding(path.scope, path.node.name, path);
-    if (!binding) return null;
+    const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
+    // a binding written past the ceiling is not followed through its writes (`writesPastCeiling`)
+    if (!binding || writesPastCeiling(binding.constantViolations)) return null;
     const { name } = path.node;
     const bindingPath = liveBindingPath(binding, name);
     const { node } = bindingPath;
@@ -1338,7 +1345,7 @@ export function createPatternBindings({
     // resolves redecl flow through its own positional machinery), so an enumeration built off that
     // list alone silently misses a whole value. the canonical scan reads the AST rather than either
     // parser's binding model, so both emitters decline on the same shape
-    if (varInitStaleByRedecl(binding, usagePath, name)) return null;
+    if (varInitStaleByRedecl({ binding, usagePath, name })) return null;
     const initPath = bindingPath.get('init');
     const types = [];
     // a NULLISH arm dispatches nothing - a member access on it throws natively and no polyfill
@@ -1388,7 +1395,7 @@ export function createPatternBindings({
     // estree-toolkit block-scopes a `var`, so `binding.path` can be a stale declarator overwritten
     // by a `var name = X` re-declaration before the use that it never recorded - don't trust its
     // init then (babel records the redecl, so this only fires on the estree var-hoist gap)
-    if (varInitStaleByRedecl(binding, path, name)) return null;
+    if (varInitStaleByRedecl({ binding, usagePath: path, name })) return null;
     // A relocated declaration can leave its original binding identifier recorded as a write.
     const violations = bindingPath === binding.path ? binding.constantViolations
       : binding.constantViolations?.filter(v => !isOwnBindingWrite(v, binding.path));

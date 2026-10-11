@@ -12,10 +12,12 @@ import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-synt
 import {
   ancestorChainDetached,
   jsxTagRootReferencesBinding,
-  bindingInvisibleFromUseRegion,
-  findFunctionScopeVarInPath,
+  closestBindingVisibleAtUse,
+  catchParameterOwnBinding,
+  hoistedDeclarationInScope,
   findTSRuntimeBindingInPath,
   importBindingView,
+  lookupReadPath,
   isSloppyAtPath,
   isAmbientBindingShape,
   bareAssignmentPatternLeafPath,
@@ -28,8 +30,8 @@ import {
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
   getDirectStatementBody,
+  liveBindingWrites,
   memberContextPath,
-  recomputedBindingWrites,
   useAnchorStart,
   walkPatternIdentifiers,
   cleanDestructureAliasWrites,
@@ -37,7 +39,10 @@ import {
   usableAliasInfo,
   CHAIN_HOP_WRAPPER_TYPES,
   unwrapTransparentSeq,
+  stillWrites,
+  synthOwnerStrictlyInsideScope,
   wrapScopeBindingLookup,
+  writesPastCeiling,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -91,6 +96,11 @@ export function collectMutationPrePass(programPath, adapter, census = null, reso
   return { mutated };
 }
 
+// babel's own binding lookup, before any correction the provider applies to it
+function babelScopeBinding(scope, name) {
+  return scope.getBinding(name);
+}
+
 // the babel half of the adapter mirror: `createEstreeAdapter` (unplugin's internals/detect-usage.js)
 // exposes the same surface, and a contract change to either must land in both. one member is
 // asymmetric by construction and stays so: `getTSImportEqualsNode` exists only on the estree
@@ -100,8 +110,8 @@ export function collectMutationPrePass(programPath, adapter, census = null, reso
 // lives in the instance closure - concurrent transforms each build their own; the argless
 // `babelAdapter` below is the stateless view the entry-detection path shares
 export function createBabelAdapter(options = {}) {
-  const { getInjector = () => null } = options;
-  const getScopeBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  const { getInjector = () => null, nestedTSRuntimeDeclarations } = options;
+  const getScopeBinding = wrapScopeBindingLookup(babelScopeBinding, nestedTSRuntimeDeclarations);
   // the injector's declarator registry serves plugin-minted memo refs whose scope model
   // misrepresents the binding: scope-invisible on the memo-dense append path, or param-landed
   // by babel's `scope.push` on a callable scope (binding node = bare Identifier until the
@@ -114,7 +124,7 @@ export function createBabelAdapter(options = {}) {
     return !bindingId || bindingId === memoDecl.id ? memoDecl : null;
   }
   return createDetectionAdapter(options, adapter => ({
-    hasBinding(scope, name, path = null) {
+    hasBinding({ scope, name, path = null, read = null }) {
       // a plugin-minted memo ref appended on the memo-dense fast path is scope-invisible
       // until the programExit re-crawl - the injector's declarator registry is authoritative
       if (getInjector?.()?.getMemoDeclarator?.(name)) return true;
@@ -123,38 +133,41 @@ export function createBabelAdapter(options = {}) {
       // globals just by being seen (`const x = Map` makes `Map` "bound" globally), too coarse.
       // type-only TSImportEquals is elided by tsc - references resolve to the global, so it
       // doesn't shadow for polyfill purposes; fall through to runtime / injector checks
+      // ... and a name a catch parameter declares, read in that parameter, which babel looks past
+      if (catchParameterOwnBinding(babelScopeBinding, scope, name)) return true;
       if (scope.getBindingIdentifier(name)) {
-        const b = scope.getBinding?.(name);
         // shared `isAmbientBindingShape` covers all tsc-elided binding forms (declare,
         // type-only imports in 3 ESM variants, type-only TSImportEquals). without filtering
         // these, the binding would shadow the polyfill even though it doesn't exist at runtime.
-        // `bindingInvisibleFromUseRegion` drops the second class the tracker over-reports:
-        // babel hangs the whole function - parameters and body - off one scope, so a use the
-        // language evaluates OUTSIDE it (a parameter default, a parameter decorator) reads a
-        // shadow that is not there
-        if ((!b || !isAmbientBindingShape(b.path.node, b.path.parent))
-          && !(b && path && bindingInvisibleFromUseRegion(b.path, path))) return true;
+        // `closestBindingVisibleAtUse` drops the second class the tracker over-reports: babel
+        // hangs the whole function - parameters and body - off one scope, so a use the language
+        // evaluates OUTSIDE it (a parameter default, a parameter decorator) reads a shadow that is
+        // not there, and the binding further out it reads instead
+        const own = scope.getBinding?.(name);
+        const b = own && closestBindingVisibleAtUse(own, path, { outer: hidden => hidden.scope.parent?.getBinding(name) });
+        if (!own || (b && !isAmbientBindingShape(b.path.node, b.path.parent))) return true;
       }
       // TS-runtime declarations babel scope doesn't expose via getBindingIdentifier:
       // regular `enum`/`namespace`, `const enum`. walk path's ancestor chain (Program,
       // BlockStatement, TSModuleBlock, StaticBlock) so nested `function f() { enum Map }`
       // and `namespace Outer { namespace Map }` correctly shadow. anchor preference: explicit
       // `path` (reaches inner anchors) > scope's path (anchors at scope owner only). helper
-      // excludes `declare X` (ambient - runtime supplied externally; polyfill should fire)
-      const anchor = path ?? scope.path ?? null;
+      // excludes `declare X` (ambient - runtime supplied externally; polyfill should fire). a name
+      // read apart from the use (`read`) is climbed for from where it is read (`lookupReadPath`)
+      const anchor = lookupReadPath(path, read) ?? scope.path ?? null;
       if (anchor && findTSRuntimeBindingInPath(anchor, name)) return true;
       // sloppy Annex-B block-level function (`{ function Array() {} }` in a script) hoists a
       // var-binding to the enclosing function / script scope which babel's tracker keeps
       // block-scoped - an OUTSIDE use would read the polyfill while the runtime reads the
       // user function (wrong value in pure). the walk also recovers nested-block `var`
       // declarations. mirrors the unplugin adapter and the resolver-side binding adapter
-      if (anchor && findFunctionScopeVarInPath(anchor, name)) return true;
+      if (anchor && hoistedDeclarationInScope(scope, anchor, name)) return true;
       // plugin-managed pure-import alias / user destructure aliases: presence only - trust and
       // disambiguation happen at the `getBinding` lookup; scope-bound so a same-named local
       // alias in ANOTHER function doesn't shadow a direct global use here
       return !!getInjector()?.hasAliasName?.(name, useAnchorStart(path));
     },
-    getBinding(scope, name, path = null) {
+    getBinding({ scope, name, path = null, read = null }) {
       // a plugin-minted memo ref the scope misrepresents (append-path scope-invisible /
       // param-landed) - serve a synthetic binding view off the injector's declarator
       // registry (init-less var declarator, no violations). a call-root memo carries a
@@ -193,16 +206,7 @@ export function createBabelAdapter(options = {}) {
       // otherwise pick up `polyfillHint='Promise'` cross-shadow, and downstream
       // `resolveBindingToGlobal` would dispatch `super.try` on `class extends MyPromise`
       // as the Promise polyfill - silently miswiring user code
-      // scope-lag recovery: babel drops a binding from its registry after the destructure-
-      // assignment alias rewrite while the declaration survives in the AST; rebuild it so the
-      // per-binding registry (identity route) stays reachable. adopted ONLY on an identity hit:
-      // a plugin-minted memo (`_ref`) has no per-binding entry and must keep the hint-only
-      // BLIND fallback below - a rebuilt binding would strand it on the shape/dominance gates
-      let b = getScopeBinding(scope, name, path);
-      if (!b && path) {
-        const rebuilt = rebuildLaggedScopeBinding(path, name);
-        if (rebuilt && getInjector()?.getBindingAliasInfo?.(rebuilt.path.node, name)) b = rebuilt;
-      }
+      const b = getScopeBinding({ scope, name, path, read });
       // binding-first: the per-binding registry is exact (same-name aliases in sibling scopes
       // never collide); the NAME view serves the scope-lag fallback below and the
       // replaced-declarator re-anchor, disambiguated positionally by the use anchor
@@ -220,9 +224,7 @@ export function createBabelAdapter(options = {}) {
         // shadows is attributed to the INNER binding and the outer binding's set misses it (per
         // spec the discriminant evaluates in the OUTER env) - the shared recompute reads the
         // canonical AST scan per binding kind instead
-        const constantViolations = recomputedBindingWrites({
-          kind: b.kind, bindingPath: b.path, usePath: path, name, fallback: b.constantViolations,
-        });
+        const constantViolations = liveBindingWrites({ binding: b, name, usePath: path });
         // a VERIFIED identity hit needs no live shape verification: the registration judged the
         // binding's COMPLETE original write set at pre-pass time, and any violation appearing
         // since is our own mutation (the value swap), not user flow. decl-form entries stay
@@ -312,7 +314,9 @@ export function createBabelAdapter(options = {}) {
     // AssignmentExpression node - or null. computed on demand (only init-less Identifier-pattern
     // bindings reach the resolver branch), so ordinary getBinding calls pay nothing
     findTrustedAliasWrite(scope, name, { requirePlacement = true, readNode = null } = {}) {
-      const b = scope.getBinding(name);
+      // the lookup's view: its record follows a render that replaced a pattern write, which babel's own
+      // record still names
+      const b = getScopeBinding({ scope, name, path: scope.path });
       // the plugin's OWN memo write (`_ref = <expr>`): synthesized on a prior rewrite, never a
       // scope constantViolation - and the ref itself may be scope-invisible on the memo-dense
       // append path or param-landed on a callable scope. the injector registry is the
@@ -322,7 +326,8 @@ export function createBabelAdapter(options = {}) {
         const memoAssign = getInjector?.()?.getMemoWrite?.(name);
         if (memoAssign) return memoAssign;
       }
-      if (!b || b.path.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
+      // a binding written past the ceiling holds no single trusted write (`writesPastCeiling`)
+      if (!b || b.path.node?.type !== 'VariableDeclarator' || b.path.node.init || writesPastCeiling(b.constantViolations)) return null;
       // the writes the alias canon counts: a valueless twin or an identity self-assign is no second
       // value source
       const violations = cleanDestructureAliasWrites(b);
@@ -345,14 +350,14 @@ export function createBabelAdapter(options = {}) {
         : soleAliasWrite({ binding: { ...b, constantViolations: violations }, assignNode }))
         ? assignNode : null;
     },
-    getBindingNodeType(scope, name, path = null) {
+    getBindingNodeType({ scope, name, path = null, read = null }) {
       // `?.path` defense - virtual bindings (plugin-injected pure imports before scope.crawl)
       // may have `.path` undefined; without `?.` the inner `.node` access throws TypeError.
       // unplug-side adapter already had this defense; aligning shape across adapters.
       // registry-backed memo refs (append-path scope-invisible / param-landed) report their
       // registered declarator over the scope's misrepresented shape
       if (scopedMemoDeclarator(scope, name)) return 'VariableDeclarator';
-      return getScopeBinding(scope, name, path)?.path?.node?.type ?? null;
+      return getScopeBinding({ scope, name, path, read })?.path?.node?.type ?? null;
     },
     isStringLiteral,
     getStringValue: stringLiteralValue,
@@ -412,13 +417,15 @@ function lexicalDeclIndex(containerNode) {
   return index;
 }
 
-// babel drops a binding from its scope registry after the destructure-assignment alias rewrite
-// (`({ Map: M } = globalThis)` -> `M = _Map`): the declaration survives in the AST while
-// `scope.getBinding` turns null, so the resolver's reassignment follow silently degrades to
-// generic (the estree side, resolving on the pristine AST, keeps the narrow - a parity gap).
-// rebuild the minimal binding shape the resolver reads ({ path, identifier, scope, kind,
-// constantViolations }) from the AST via the canonical scan
-export function rebuildLaggedScopeBinding(path, name) {
+// a declaration the plugin's own render puts in the tree without registering it - a memo, a declarator
+// a pattern render re-emits (`const [{ w: { values } }] = r` -> `const values = _values(_ref.w)`) - is
+// one babel's `scope.getBinding` answers null for, so the type layer's reassignment follow silently
+// degrades to generic (the estree side, resolving through its own tracker, keeps the narrow - a parity
+// gap). rebuild the minimal binding shape the resolver reads ({ path, identifier, scope, kind,
+// constantViolations }) from the AST via the canonical scan.
+// `scope` is the scope the name is asked in where that stands above the use (an alias read, resolved
+// where the alias is declared): a declaration the climb from the use finds below it is none of its answer
+export function rebuildLaggedScopeBinding(path, name, scope = null) {
   // hoisted `var` (any nesting depth, pattern-aware): the canonical var-scope walker - the
   // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
   // stay in lockstep across substrates
@@ -441,7 +448,7 @@ export function rebuildLaggedScopeBinding(path, name) {
     declaratorNode = varOwner.declarator;
     ownerPath = varOwner.owner;
   }
-  if (!declaratorNode || !ownerPath) return null;
+  if (!declaratorNode || !ownerPath || (scope && synthOwnerStrictlyInsideScope(scope, { ownerScope: ownerPath.scope }))) return null;
   // memoized per (owner PATH, name): the recovery is re-asked for the same lagged binding at
   // every use site. keyed on the traversal-scoped path object, so the cache dies with the
   // traversal; member rewrites do not add or remove the USER writes this collects
@@ -475,7 +482,7 @@ export function rebuildLaggedScopeBinding(path, name) {
       if (node === declaratorNode) continue;
       const violationPath = ownerCache.writeIndex.get(node);
       if (!violationPath || !pathAttachedTo(violationPath, ownerPath)
-        || (violationPath.node !== node && !writesLaggedName(violationPath.node, name))) return null;
+        || (violationPath.node !== node && !stillWrites(violationPath.node, name))) return null;
       violations.push(violationPath);
     }
     return {
@@ -505,27 +512,6 @@ function pathAttachedTo(path, ownerPath) {
     if (p.container && p.container[p.key] !== p.node) return false;
   }
   return false;
-}
-
-// does `node` (a write-shaped node in the owner index) write the binding `name`? re-vouches a
-// container slot whose original write was swapped in place by the plugin's own alias rewrite
-function writesLaggedName(node, name) {
-  let writes = false;
-  function check(patternNode) {
-    walkPatternIdentifiers(patternNode, id => { if (id.name === name) writes = true; });
-  }
-  switch (node.type) {
-    case 'AssignmentExpression': check(node.left); break;
-    case 'UpdateExpression': writes = node.argument?.type === 'Identifier' && node.argument.name === name; break;
-    case 'VariableDeclarator': check(node.id); break;
-    case 'ForOfStatement':
-    case 'ForInStatement': {
-      const forHead = node.left;
-      if (forHead?.type === 'VariableDeclaration') for (const d of forHead.declarations) check(d.id);
-      else if (forHead) check(forHead);
-    }
-  }
-  return writes;
 }
 
 // no-tracking adapter for detect-entry's `require('core-js/...')` literal check
@@ -820,6 +806,7 @@ export function createUsageVisitors({
   suppressKeptNavHop = null,
   suppressKeptNavRoot = null,
   onDeadBranch = null,
+  onDiscardedClaim = null,
   onUsage,
   resolveMeta,
   resolvePure = null,
@@ -831,8 +818,18 @@ export function createUsageVisitors({
   walkAnnotations = true,
 }) {
   const core = createUsageHandlerCore({
-    adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, resolveStaticKey, suppressProxyGlobals,
-    keptProxyHops, onSuppressedProxyHop, suppressKeptNavRoot,
+    adapter,
+    onUsage,
+    method,
+    isEntryAvailable,
+    resolveMeta,
+    resolvePure,
+    resolveStaticKey,
+    suppressProxyGlobals,
+    keptProxyHops,
+    onSuppressedProxyHop,
+    suppressKeptNavRoot,
+    onDiscardedClaim,
   });
   const { skipUpdateTargets } = core;
 

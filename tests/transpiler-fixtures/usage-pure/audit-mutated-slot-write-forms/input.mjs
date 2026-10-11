@@ -5,9 +5,8 @@
 // per form: update (prefix and postfix), array-pattern element (flat and nested), object
 // shorthand / renamed value, rest element, pattern default, for-of / for-in / for-await
 // heads, pattern inside a for-of head, chained-assignment middle. a capitalized NON-built-in
-// write deopts the same way; a read BEFORE the write deopts too - the record is file-wide,
-// not flow-ordered (at runtime the early read sees the still-pristine slot, exactly like the
-// untranspiled source)
+// write deopts the same way, while a read that runs before every write of the slot sees the
+// still-pristine slot, so it takes the pure import
 Promise++;
 use(Promise.resolve(1));
 [Map] = pair;

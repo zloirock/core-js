@@ -19,7 +19,7 @@ import {
   isReReadableSurfaceNav,
   planNestedKeyedPatternCapture,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { keyedReadReceiverProven } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { keyedReadDiscardedReceiver, keyedReadReceiverProven } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { resolveKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { findNamespaceMemberValue } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
@@ -67,6 +67,13 @@ for (const [name, source, reusable] of [
 for (const [name, readsReceiver, captures] of [['dispatch', true, 2], ['static', false, 1]]) {
   runBoth(`proven keyed receiver/${ name }`, 'const { [(effect(), "at")]: method } = rows;', (parser, program, label) => {
     const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const discarded = keyedReadDiscardedReceiver({
+      receiver: path.node.init,
+      proven: true,
+      readsReceiver,
+      ctx: { scope: path.scope, adapter, path },
+    });
     const rendered = renderKeyedDestructureRead({
       receiverName: 'capture',
       receiver: hostSlot(path.node.init),
@@ -74,12 +81,68 @@ for (const [name, readsReceiver, captures] of [['dispatch', true, 2], ['static',
       keys: [],
       read: readsReceiver ? callExpression(identifier('dispatch'), [identifier('capture')]) : identifier('pony'),
       proven: true,
-      readsReceiver,
+      discarded: discarded?.map(hostSlot),
     });
     check(`${ label }/declarators`, rendered.length, captures);
     check(`${ label }/no null rejection`, rendered.at(-1).init.type, readsReceiver ? 'CallExpression' : 'Identifier');
   });
 }
+
+// an owed node as the rows below spell it: a call by its callee, anything else by its type
+function owedSpelling(node) {
+  return node.type === 'CallExpression' ? `${ node.callee.name }()` : node.type;
+}
+
+// what a sole keyed read owes a receiver nothing reads is what discarding it runs - the effect prefix, the
+// running operand of a decided init, an effectful call, a getter read whole - and a receiver a read takes
+// (a dispatch, a null rejection) owes its capture instead
+for (const [name, source, readsReceiver, owed] of [
+  ['effect prefix', 'const { [(key(), "from")]: f } = (init(), Iterator);', false, 'init()'],
+  ['bare constructor', 'const { [(key(), "from")]: f } = Iterator;', false, ''],
+  ['decided operand', 'const { [(key(), "from")]: f } = typeof Symbol != "undefined" ? (init(), Iterator) : Object;', false, 'init()'],
+  ['effectful call', 'function mk() { init(); return Iterator; } const { [(key(), "from")]: f } = mk();', false, 'mk()'],
+  [
+    'getter read',
+    'const o = { get I() { init(); return Iterator; } }; const { [(key(), "from")]: f } = (pre(), o.I);',
+    false,
+    'SequenceExpression',
+  ],
+  ['dispatch', 'const { [(key(), "at")]: m } = (init(), [1]);', true, null],
+  ['unproven', 'const { [(key(), "from")]: f } = (init(), rows);', false, null],
+]) runBoth(`discarded keyed receiver/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  // a build serving every entry, so the presence test decides
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    isEntryGuaranteed: () => true,
+  });
+  const ctx = { scope: prop.scope, adapter, path: prop };
+  const plan = destructureKeyReadPlan(prop, ctx);
+  const discarded = keyedReadDiscardedReceiver({
+    receiver: plan.receiver,
+    proven: keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter }),
+    readsReceiver,
+    ctx,
+  });
+  check(`${ label }/owed`, discarded && discarded.map(owedSpelling).join(','), owed);
+  if (!discarded) return;
+  // ... spelled ahead of the keys in place of a capture
+  const rendered = renderKeyedDestructureRead({
+    receiverName: null,
+    receiver: hostSlot(plan.receiver),
+    binding: identifier('f'),
+    keys: plan.keys.map(hostSlot),
+    read: identifier('pony'),
+    proven: true,
+    discarded: discarded.map(hostSlot),
+  });
+  check(`${ label }/no capture`, rendered.length, 1);
+  const [{ init }] = rendered;
+  const spelled = init.type === 'SequenceExpression' ? init.expressions : [init];
+  check(`${ label }/order`, spelled.map(item => item.type === 'CoreJsHostSlot' ? owedSpelling(item.node) : item.name).join(','),
+    [owed, 'key()', 'pony'].filter(Boolean).join(','));
+});
 
 for (const [name, observable] of [['g', true], ['quiet', false]]) {
   runBoth(`leaf/${ name }`, `

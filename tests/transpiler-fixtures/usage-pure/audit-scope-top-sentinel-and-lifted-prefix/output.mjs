@@ -9,7 +9,7 @@ import _Object$isSealed from "@core-js/pure/actual/object/is-sealed";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref2, _ref3, _unused;
+var _ref, _ref2, _unused;
 // Constructor rest uses the full index where a constructor entry exists.
 // Other sources keep their rest exclusions and independently claimed statics.
 let aP, rP, oP;
@@ -23,29 +23,29 @@ const recvA = getObj();
 const gA = (_ref2 = _getIteratorMethod(recvA)) === void 0 ? null : _ref2;
 let aQ, rQ, oQ;
 for (const isFrozen = ({
-  Promise: _ref3
+  Promise: {
+    allSettled: aQ,
+    ...rQ
+  }
 } = {
   Promise: _Promise
-}, {
-  allSettled: aQ,
-  ...rQ
-} = _Promise, _Object$isFrozen); !oQ;) oQ = isFrozen;
+}, _Object$isFrozen); !oQ;) oQ = isFrozen;
 // the same pair inside a FUNCTION: push order, no family grouping
 export function inFn() {
-  var _ref4, _ref6, _ref5;
+  var _ref3, _ref4;
   const recvB = getObj();
-  const gB = (_ref4 = _getIteratorMethod(recvB)) === void 0 ? null : _ref4;
+  const gB = (_ref3 = _getIteratorMethod(recvB)) === void 0 ? null : _ref3;
   let aR, rR, oR;
   for (const getPrototypeOf = ({
-    Map: _ref5
+    Map: {
+      groupBy: aR,
+      ...rR
+    }
   } = {
     Map: _Map
-  }, {
-    groupBy: aR,
-    ...rR
-  } = _Map, _Object$getPrototypeOf); !oR;) oR = getPrototypeOf;
+  }, _Object$getPrototypeOf); !oR;) oR = getPrototypeOf;
   const recvC = getObj();
-  const gC = (_ref6 = _getIteratorMethod(recvC)) === void 0 ? null : _ref6;
+  const gC = (_ref4 = _getIteratorMethod(recvC)) === void 0 ? null : _ref4;
   return [gB, aR, rR, oR, gC];
 }
 // a buried re-anchored host whose SOURCE prefix the lift finally gives a statement slot

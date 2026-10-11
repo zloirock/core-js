@@ -3,6 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _self from "@core-js/pure/actual/self";
 // When every arm assigns the realm, the alias permits a direct static fold.
@@ -58,24 +59,26 @@ export function noAlternate(flag) {
   });
 }
 export function armShadowsTheRealmName(flag) {
+  var _ref3;
   if (flag) {
     const globalThis = {};
     var S = globalThis;
   } else {
     var S = _self;
   }
-  return _Object$getOwnPropertyNames({
+  return _ref3 = S.Object, _ref3 === Object ? _Object$getOwnPropertyNames({
+    c: 3
+  }) : _ref3.getOwnPropertyNames({
     c: 3
   });
 }
 export function writtenAgainAfterThePair(flag) {
+  var _ref4;
   if (flag) {
     var W = _globalThis;
   } else {
     var W = _self;
   }
   if (flag) W = {};
-  return W.Object.freeze({
-    d: 4
-  });
+  return _ref4 = W.Object, _ref4 === Object ? _Object$fromEntries([['d', 4]]) : _ref4.fromEntries([['d', 4]]);
 }

@@ -5,6 +5,9 @@
 import {
   createPolyfillContext,
   entryToGlobalHint,
+  hasConstructorEntry,
+  hasNarrowEntry,
+  hasNarrowEntryStaticKey,
   resolve,
 } from '../../packages/core-js-polyfill-provider/index.js';
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
@@ -115,6 +118,26 @@ for (const [entry, expected] of [
   ['url-search-params', 'URLSearchParams'],
   ['dom-exception', 'DOMException'],
 ]) check(`entryToGlobalHint/${ entry }`, entryToGlobalHint(entry), expected);
+
+// A narrow entry is either spelling the resolver widens: `Reflect`'s `reflect/namespace` is one, while
+// an object rest still takes a constructor's index alone. A global-only constructor is narrow in that
+// flavor only; a namespace with no entry of its own and a native static owner have none.
+for (const [name, pure, global, constructor] of [
+  ['Map', true, true, true],
+  ['Reflect', true, true, false],
+  ['ArrayBuffer', false, true, false],
+  ['Math', false, false, false],
+  ['Object', false, false, false],
+]) {
+  check(`hasNarrowEntry/${ name }`, hasNarrowEntry(name), pure);
+  check(`hasNarrowEntry/${ name } global`, hasNarrowEntry(name, 'global'), global);
+  check(`hasConstructorEntry/${ name }`, hasConstructorEntry(name), constructor);
+}
+
+// ... and the static keys whose reads can owe such a family: `Reflect`'s own beside a constructor's
+for (const [key, expected] of [['groupBy', true], ['ownKeys', true], ['getPrototypeOf', true], ['trunc', false], ['fromEntries', false]]) {
+  check(`hasNarrowEntryStaticKey/${ key }`, hasNarrowEntryStaticKey(key), expected);
+}
 
 // --- createPolyfillContext: top-level operations ---
 

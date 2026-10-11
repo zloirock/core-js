@@ -2,7 +2,8 @@
 // the configuration excluded it, so nothing may substitute the root itself - but the canon judges a
 // hop by the entry EXISTING, and `web.self` was not excluded, so the run still rides the deepest
 // span pure can back. marking those hops handled would strand the whole run raw, which is the one
-// spelling the pure method exists to prevent
+// spelling the pure method exists to prevent. a run read ahead of the `delete` below - the one write of
+// the `window` slot - reads the realm there, so a constructor through it takes its own import
 let q;
 export const probeRun = globalThis.self.window;
 export const navigated = globalThis.self.Array;

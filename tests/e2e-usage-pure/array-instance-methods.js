@@ -77,3 +77,22 @@ QUnit.test('Array#every / some', assert => {
   assert.true([1, 2, 3].some(x => x > 2));
   assert.false([1, 2, 3].some(x => x > 5));
 });
+
+// a key both arms of an undecided test write, or a ternary whose arms spell it, is that key whichever arm
+// ran - read from a closure too
+QUnit.test('Array#at / findLast through a key every arm agrees on', assert => {
+  function closureRead(flag) {
+    let key;
+    if (flag) key = 'at';
+    // eslint-disable-next-line unicorn/no-duplicate-if-branches -- the agreeing arms ARE the case under test
+    else key = 'at';
+    return list => list[key](-1);
+  }
+  assert.same(closureRead(true)([1, 2]), 2);
+  assert.same(closureRead(false)([3, 4]), 4);
+  function ternaryRead(flag) {
+    const key = flag ? 'findLast' : 'findLast';
+    return [5, 6, 7][key](x => x % 2);
+  }
+  assert.same(ternaryRead(false), 7);
+});

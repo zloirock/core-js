@@ -1,7 +1,8 @@
 // Bare global-slot writes reached through TypeScript expression wrappers.
 // Same quarantine rule: the mutation pre-pass is per-FILE, so mutational tests stay in the
 // dedicated modules and each test restores what it writes (through a join-built key, so only
-// the shape under test marks the slot).
+// the shape under test marks the slot) and captures it the same way where a plain read would run
+// ahead of every write of the slot, which takes the pure import.
 
 // a TS-non-null pattern element (`[Date!] = [shim]`) is the same slot write as the plain
 // element: the write target must stay verbatim (a substituted frozen import would TypeError
@@ -23,7 +24,7 @@ QUnit.test('mutated-slots-ts: non-null pattern element slot write routes later r
 // an as-cast object-pattern value (`({ p: Set as any } = ...)`) fills the pattern slot with
 // the wrapper node - the write-target reject and the slot recording must both see through it
 QUnit.test('mutated-slots-ts: as-cast pattern value slot write routes later reads', assert => {
-  const original = globalThis.Set;
+  const original = globalThis[['S', 'et'].join('')];
   function ShimSet() { /* empty */ }
   ShimSet.prototype.marker = () => 'cast-write';
   /* eslint-disable no-global-assign -- the wrapped pattern-value write IS the case under test */

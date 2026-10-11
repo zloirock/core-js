@@ -2,12 +2,13 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
+import _Set from "@core-js/pure/actual/set";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // a single proxy hop under a DOUBLE `?.` over an undefinable root: the leaf swap used to
 // claim the prefix always-defined and ate the ROOT guard - native short-circuits to
 // undefined where the emit read a live value (or threw). the guard now survives, binds the
 // deepest optional's root, and the hop folds onto the guarded read
-_globalThis.Set = class PatchedSet extends Set {};
+_globalThis.Set = class PatchedSet extends _Set {};
 let v;
 export const mutatedSingle = null == (v = _globalThis.window) ? void 0 : _nameMaybeFunction(v.Set);
 let n;

@@ -110,6 +110,23 @@ QUnit.test('destructuring: nested prototype extraction keeps observable prefixes
   assert.same(count, 1);
 });
 
+QUnit.test('destructuring: a prefix reading a getter runs however the file writes its key', assert => {
+  const events = [];
+  const observed = {
+    get mode() {
+      events.push('get');
+      return 0;
+    },
+    set mode(value) {
+      events.push(`set ${ value }`);
+    },
+  };
+  const { prototype: { at } } = (observed.mode, String);
+  observed.mode = 1;
+  assert.same(at.call('abc', -1), 'c');
+  assert.deepEqual(events, ['get', 'set 1']);
+});
+
 QUnit.test('destructuring: a loop guard follows the native slot it detached from', assert => {
   function read(supplied) {
     const events = [];
@@ -207,6 +224,19 @@ QUnit.test('destructuring: a loop prototype read keeps every nested sequence pre
     assert.same(at.call([4, 5], -1), 5);
   }
   assert.deepEqual(events, ['outer', 'inner']);
+});
+
+QUnit.test('destructuring: a loop head runs the store its sequence init ends in once', assert => {
+  const events = [];
+  const box = {
+    get slot() { return this.value; },
+    set slot(value) { events.push('set'); this.value = value; },
+  };
+  let once = true;
+  for (const { C: { groupBy } } = (events.push('effect'), box.slot = { C: Map }); once; once = false) {
+    assert.same(groupBy([1, 2], x => x % 2).get(1)[0], 1);
+  }
+  assert.deepEqual(events, ['effect', 'set']);
 });
 
 QUnit.test('destructuring: a bodyless declaration keeps every nested sequence prefix', assert => {
