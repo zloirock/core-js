@@ -12,7 +12,7 @@
     "front-matter": "^4.0.2",
     "highlight.js": "^11.12.0",
     "jsdom": "^30.1.2",
-    "marked": "^18.1.0",
+    "marked": "^18.1.1",
     "marked-alert": "^2.1.2",
     "marked-gfm-heading-id": "^4.1.4",
     "sass": "^1.105.1",

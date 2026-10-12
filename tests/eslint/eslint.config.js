@@ -1730,6 +1730,10 @@ const forbidES2026BuiltIns = {
 };
 
 const forbidES2027BuiltIns = {
+  'es/no-iterator-prototype-chunks': ERROR,
+  'es/no-iterator-prototype-includes': ERROR,
+  'es/no-iterator-prototype-join': ERROR,
+  'es/no-iterator-prototype-windows': ERROR,
   'es/no-iterator-zip': ERROR,
   'es/no-iterator-zipkeyed': ERROR,
 };
