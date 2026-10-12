@@ -16,6 +16,7 @@
     - `Iterator.prototype.join`
   - Moved to stable ES, [September 2026 TC39 meeting](https://github.com/tc39/proposals/commit/3c956df47516ecf49b7a50590ee0d2c3e57c8c0c)
   - Added `es.` namespace module, `/es/` and `/stable/` namespace entries
+- Added detection / fix of [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642)
 - Compat data improvements:
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465357675)
   - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in V8 ~ Chrome 154](https://issues.chromium.org/issues/504886973)
@@ -25,6 +26,9 @@
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as shipped in Bun 1.4.0
+  - [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642):
+    - Marked as still not fixed in stable Safari
+    - Marked as [fixed in Bun 1.4.3](https://bun.com/blog/bun-v1.4.3#javascriptcore-upgrade)
   - [Updated Electron 45 and added 46](https://releases.electronjs.org/) compat data mapping
   - Added Samsung Browser 31 compat data mapping
   - Added Opera for Android [101](https://forums.opera.com/topic/89420/opera-for-android-101) and [102](https://forums.opera.com/topic/89629/opera-for-android-102) compat data mapping

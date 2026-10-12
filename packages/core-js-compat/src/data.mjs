@@ -1684,10 +1684,15 @@ export const data = {
     safari: '11.1',
   },
   'es.regexp.escape': {
-    bun: '1.1.22',
+    // WebKit bug: supplementary code points are incorrectly escaped
+    // https://bugs.webkit.org/show_bug.cgi?id=323642
+    // https://bun.com/blog/bun-v1.4.3#javascriptcore-upgrade
+    bun: '1.4.3', // '1.1.22',
     chrome: '136',
     firefox: '134',
-    safari: '18.2',
+    // Fixed in Safari Technology Preview 253, no confirmed stable release yet
+    // https://webkit.org/blog/18357/release-notes-for-safari-technology-preview-253/
+    // safari: '18.2',
   },
   'es.regexp.dot-all': {
     chrome: '62',

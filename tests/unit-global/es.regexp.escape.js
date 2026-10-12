@@ -1,4 +1,6 @@
 /* eslint-disable @stylistic/max-len -- ok*/
+import { WHITESPACES } from '../helpers/constants.js';
+
 QUnit.test('RegExp.escape', assert => {
   const { escape } = RegExp;
   assert.isFunction(escape);
@@ -327,4 +329,35 @@ QUnit.test('RegExp.escape', assert => {
   assert.throws(() => escape([]), TypeError, 'non-string input (array) throws TypeError');
   assert.throws(() => escape(null), TypeError, 'non-string input (null) throws TypeError');
   assert.throws(() => escape(undefined), TypeError, 'non-string input (undefined) throws TypeError');
+});
+
+QUnit.test('RegExp.escape, supplementary code points', assert => {
+  const { escape } = RegExp;
+  const { fromCodePoint } = String;
+  const characters = `^$\\.*+?()[]{}|/,-=<>#&!%:;@~'\`"${ WHITESPACES }\uD800\uD83D\uDBFF\uDC00\uDE00\uDFFF`;
+
+  // The low 16 bits must not determine how a supplementary code point is escaped.
+  for (let plane = 1; plane <= 16; plane++) {
+    for (let index = 0; index < characters.length; index++) {
+      const codePoint = plane * 0x10000 + characters.charCodeAt(index);
+      const string = fromCodePoint(codePoint);
+      const message = `U+${ codePoint.toString(16) }`;
+      assert.same(escape(string), string, message);
+      assert.same(escape(`ab${ string }\t`), `\\x61b${ string }\\t`, `${ message } between BMP characters`);
+      assert.same(escape(`\uD800${ string }\uDC00`), `\\ud800${ string }\\udc00`, `${ message } between unpaired surrogates`);
+    }
+  }
+
+  for (const flags of ['', 'u', 'v']) {
+    try {
+      new RegExp('^$', flags).test('');
+    } catch {
+      continue;
+    }
+    for (const codePoint of [0x2002A, 0x20009, 0x2002C, 0x20020, 0x12000, 0x1D800, 0x1FEFF, 0x1F600]) {
+      const string = fromCodePoint(codePoint);
+      const regexp = new RegExp(`^${ escape(string) }$`, flags);
+      assert.true(regexp.test(string), `U+${ codePoint.toString(16) }, flags '${ flags }'`);
+    }
+  }
 });

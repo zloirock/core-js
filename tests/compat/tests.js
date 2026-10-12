@@ -1320,7 +1320,7 @@ GLOBAL.tests = {
       && RegExp[Symbol.species];
   }],
   'es.regexp.escape': function () {
-    return RegExp.escape('ab') === '\\x61b';
+    return RegExp.escape('ab\uD840\uDC2A') === '\\x61b\uD840\uDC2A';
   },
   'es.regexp.dot-all': function () {
     return RegExp('.', 's').dotAll;
