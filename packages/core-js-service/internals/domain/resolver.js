@@ -41,8 +41,8 @@ const IOS_BROWSER_TOKEN = /\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\/\d/;
 const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
 const FIREFOX_IOS_LITERAL_SINCE = 147;
 const FIREFOX_IOS_FLOOR = '15.0';
-// an app's WKWebView asks for `zstd` later than Safari: none on 26.3.1, where Safari already does, and sent
-// by Firefox on 26.6 - so in Firefox it means a device past 26.3.1
+// Safari asks for `zstd` from iOS 26.3 on (BCD), an app's WKWebView later - none on 26.3.1, sent by
+// Firefox on 26.6 - so on iOS it means a device past 26.2, whatever the string says
 const ZSTD_IOS_SINCE = '26.2';
 
 // Safari's own version, and the WebKit build Apple froze the token at from Safari 11.1 and iOS 11.3 on -
@@ -76,8 +76,8 @@ function higher(one, other) {
 }
 
 // the WebKit of an iOS string: an OS the string states is the answer - the lower one, where it states
-// two - and otherwise the frozen token is a floor that Safari's `Version/` can raise
-function iosVersion(userAgent, parsedVersion) {
+// two - and otherwise the frozen token is a floor that Safari's `Version/` raises, or with none, `zstd`
+function iosVersion(userAgent, parsedVersion, zstd) {
   const system = IOS_SYSTEM_TOKEN.exec(userAgent)?.groups.version.replaceAll('_', '.') ?? parsedVersion;
   const stated = /^\d/.test(system) && !FROZEN_IOS_VERSIONS.has(system) ? system : undefined;
   const { facebook, model } = REPORTED_IOS_TOKEN.exec(userAgent)?.groups ?? {};
@@ -85,7 +85,11 @@ function iosVersion(userAgent, parsedVersion) {
 
   if (stated !== undefined && reported !== undefined) return compareVersions(stated, reported) <= 0 ? stated : reported;
 
-  return stated ?? reported ?? higher(IOS_SAFARI_VERSION_TOKEN.exec(userAgent)?.groups.version, system);
+  if (stated !== undefined || reported !== undefined) return stated ?? reported;
+
+  const safari = IOS_SAFARI_VERSION_TOKEN.exec(userAgent)?.groups.version;
+
+  return higher(safari ?? (zstd && FROZEN_IOS_VERSIONS.has(system) ? ZSTD_IOS_SINCE : undefined), system);
 }
 
 // whether the client asked for `zstd` - parsed, so `zstd;q=0` refuses it
@@ -95,11 +99,13 @@ function asksForZstd(header) {
 
 // a string the parser placed on iOS, where every browser is WKWebView whatever it calls itself
 function onIOS(userAgent, parsedVersion, acceptEncoding) {
+  const zstd = asksForZstd(acceptEncoding);
+
   if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) {
-    return toTarget('ios', asksForZstd(acceptEncoding) ? ZSTD_IOS_SINCE : FIREFOX_IOS_FLOOR);
+    return toTarget('ios', zstd ? ZSTD_IOS_SINCE : FIREFOX_IOS_FLOOR);
   }
 
-  return toTarget('ios', iosVersion(userAgent, parsedVersion));
+  return toTarget('ios', iosVersion(userAgent, parsedVersion, zstd));
 }
 
 // the Safari of a Mac string, never below the WebKit build it carries

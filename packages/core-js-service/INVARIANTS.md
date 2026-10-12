@@ -180,8 +180,9 @@ trap below is named, and the suite names its assertions after them.
   And what the network stack under it asks for: `zstd` in `Accept-Encoding`. Safari sends it from
   iOS 26.3 on (BCD), an app's WKWebView later - checked on devices, none on 26.3.1 in Firefox, Chrome
   and Telegram while Safari there sends it, and sent by Firefox on 26.6 - so in Firefox it means a
-  device past 26.3.1 and lifts the floor to 26.2. It lifts nothing else: an in-app WKWebView on the
-  frozen token keeps its floor.
+  device past 26.3.1 and lifts the floor to 26.2. The same holds for any floor the frozen token
+  left - an in-app WKWebView with no `Version/` reads 18.7 without the header and 26.2 with it - but
+  never for a version the string carries: a stated OS, the OS an app reports, Safari's `Version/`.
   The trap is upstream: a proxy that ADDS `zstd` for a client that never asked for it makes this read high, and nothing
   here can see that; one that strips it costs bytes only
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers

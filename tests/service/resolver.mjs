@@ -90,11 +90,14 @@ strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br, zstd;q=0'), 'ios 15.0',
 strictEqual(resolveWith(IOS_FIREFOX, '*'), 'ios 15.0', 'resolver-4 #8');
 strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br'), 'ios 15.0', 'resolver-4 #9');
 strictEqual(resolveWith(IOS_FIREFOX, `zstd, ${ 'x'.repeat(2000) }`), 'ios 15.0', 'resolver-4 #10');
-// and it lifts nothing but Firefox: a string that carries a version keeps it, and an in-app WebView
-// on the frozen token keeps its floor
+// and it lifts any floor the frozen token left - an in-app WebView's as much as Firefox's - but never
+// a version the string carries: a stated OS, or Safari's own `Version/`
+strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1 ', ''), 'gzip, deflate, br, zstd'), 'ios 26.2', 'resolver-4 #12');
+strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1 ', ''), 'gzip, deflate, br'), 'ios 18.7', 'resolver-4 #13');
 strictEqual(resolveWith(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1'), 'gzip, deflate, br, zstd'),
   'ios 16.7.10', 'resolver-4 #11');
-strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1 ', ''), 'gzip, deflate, br, zstd'), 'ios 18.7', 'resolver-4 #12');
+strictEqual(resolveWith(IOS_IN_APP, 'gzip, deflate, br, zstd'), 'ios 13.3.1', 'resolver-4 #14');
+strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1', 'Version/26.0'), 'gzip, deflate, br, zstd'), 'ios 26.0', 'resolver-4 #15');
 
 // an app that assembles its own string may report the OS it read from the system beside the frozen
 // token - and that is the OS itself, so the lower bound is not the answer there. Both strings are
