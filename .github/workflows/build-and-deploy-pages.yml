@@ -83,6 +83,10 @@ jobs:
         with:
           path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
+      # written after the cache, so a branch restored from a cache older than this step gets it too: the
+      # sauce-labs job waits for the deployed pages to carry the commit it tests
+      - name: Mark the commit of the artifacts
+        run: git rev-parse HEAD > "$SAFE_BRANCH/commit.txt"
       - name: Upload artifacts for branch ${{ matrix.branch }}
         uses: actions/upload-artifact@v7
         with:
@@ -99,6 +103,8 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - name: Download artifacts
@@ -120,3 +126,34 @@ jobs:
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
+
+  # the browsers the CI runners lack, on the pages just deployed - see tests/saucelabs/AGENTS.md
+  sauce-labs:
+    needs: [list-branches, combine-pages-and-deploy]
+    # the credentials exist in this repository only, and pages exist for the branches listed above only
+    if: github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
+    runs-on: ubuntu-latest
+    # reports without failing the workflow while the failures it found on the old engines are open
+    continue-on-error: true
+    permissions:
+      contents: read
+    # a newer push redeploys the pages of the branch under a running job, which then fails anyway
+    concurrency:
+      group: sauce-labs-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm run prepare-monorepo
+      # the deploy reports an `http:` address, and an insecure context hides APIs that real sites have;
+      # the directory is named after the branch, and a branch name may hold `#` or `%`
+      - run: |
+          url=${PAGE_URL/#http:/https:}
+          npm run test-saucelabs -- "${url%/}/$(jq -rn --arg branch "${GITHUB_REF_NAME//\//-}" '$branch | @uri')" "$GITHUB_SHA"
+        env:
+          PAGE_URL: ${{ needs.combine-pages-and-deploy.outputs.page-url }}
+          SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+          SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
