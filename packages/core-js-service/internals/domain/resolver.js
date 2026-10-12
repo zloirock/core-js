@@ -41,8 +41,8 @@ const IOS_BROWSER_TOKEN = /\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\/\d/;
 const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
 const FIREFOX_IOS_LITERAL_SINCE = 147;
 const FIREFOX_IOS_FLOOR = '15.0';
-// the network stack asks for `zstd` from iOS 26.3 on (BCD); 26.2 is an ASSUMPTION nobody has checked on a
-// device. TODO: check 26.2, and raise this to 26.3 if it sends no `zstd`
+// an app's WKWebView asks for `zstd` later than Safari: none on 26.3.1, where Safari already does, and sent
+// by Firefox on 26.6 - so in Firefox it means a device past 26.3.1
 const ZSTD_IOS_SINCE = '26.2';
 
 // Safari's own version, and the WebKit build Apple froze the token at from Safari 11.1 and iOS 11.3 on -

@@ -177,13 +177,11 @@ trap below is named, and the suite names its assertions after them.
   iOS 15, so its OS token is not a lower bound. What bounds it instead is the iOS the app installs
   on - 15.0, the `IPHONEOS_DEPLOYMENT_TARGET` of the `Client` target in 147 - which is not a version
   built up from the string but a fact about every device that can run the app, and it only rises.
-  And what the network stack under it asks for: `zstd` in `Accept-Encoding` is sent from iOS 26.3
-  on (BCD), checked on devices - none on 26.1, sent on 26.5, 26.6 and 27.0, by Safari and by the
-  WKWebView of Firefox alike - so it lifts the floor to 26.2. That number is an ASSUMPTION, not a
-  fact: officially it is 26.3, and 26.2 is the one version between the two device checks nobody has
-  looked at, taken so that a 26.2 which does send it is not read high. Still to be checked on a
-  device - and raised to 26.3 once 26.2 shows no `zstd`. It
-  lifts nothing else: an in-app WKWebView on the frozen token waits for the same check on a device.
+  And what the network stack under it asks for: `zstd` in `Accept-Encoding`. Safari sends it from
+  iOS 26.3 on (BCD), an app's WKWebView later - checked on devices, none on 26.3.1 in Firefox, Chrome
+  and Telegram while Safari there sends it, and sent by Firefox on 26.6 - so in Firefox it means a
+  device past 26.3.1 and lifts the floor to 26.2. It lifts nothing else: an in-app WKWebView on the
+  frozen token keeps its floor.
   The trap is upstream: a proxy that ADDS `zstd` for a client that never asked for it makes this read high, and nothing
   here can see that; one that strips it costs bytes only
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers

@@ -75,10 +75,9 @@ strictEqual(resolveUA(IOS_FIREFOX), 'ios 15.0', 'resolver-4 #3');
 strictEqual(resolveUA(IOS_FIREFOX.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS')), 'ios 15.0', 'resolver-4 #4');
 // before 147 it wrote the device's own version, which is the OS and so the WebKit
 strictEqual(resolveUA(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1')), 'ios 16.7.10', 'resolver-4 #5');
-// the network stack the WebKit runs on says more than the string does: `zstd` in `Accept-Encoding`
-// is sent from iOS 26.3 on (BCD), checked on devices - 26.1 has none, 26.5, 26.6 and 27.0 send it,
-// Firefox's WKWebView too. Officially 26.3; 26.2 is an assumption until a device shows whether it
-// sends one, so the floor is 26.2 and not 26.3
+// the network stack the WebKit runs on says more than the string does: `zstd` in `Accept-Encoding`.
+// An app's WKWebView asks for it later than Safari - none on 26.3.1 in Firefox, Chrome or Telegram,
+// where Safari already does, and sent by Firefox on 26.6 - so it means a device past 26.3.1
 function resolveWith(userAgent, acceptEncoding) {
   const target = resolve({ 'user-agent': userAgent, 'accept-encoding': acceptEncoding });
   return target && `${ target.engine } ${ target.version }`;
@@ -91,8 +90,8 @@ strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br, zstd;q=0'), 'ios 15.0',
 strictEqual(resolveWith(IOS_FIREFOX, '*'), 'ios 15.0', 'resolver-4 #8');
 strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br'), 'ios 15.0', 'resolver-4 #9');
 strictEqual(resolveWith(IOS_FIREFOX, `zstd, ${ 'x'.repeat(2000) }`), 'ios 15.0', 'resolver-4 #10');
-// and it only lifts the floor of Firefox: a string that carries a version keeps it, and an in-app
-// WebView on the frozen token waits for the same check on a device
+// and it lifts nothing but Firefox: a string that carries a version keeps it, and an in-app WebView
+// on the frozen token keeps its floor
 strictEqual(resolveWith(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1'), 'gzip, deflate, br, zstd'),
   'ios 16.7.10', 'resolver-4 #11');
 strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1 ', ''), 'gzip, deflate, br, zstd'), 'ios 18.7', 'resolver-4 #12');
