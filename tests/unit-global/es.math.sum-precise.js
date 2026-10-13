@@ -1,5 +1,9 @@
 /* eslint-disable @stylistic/max-len -- ok */
 import { createIterable } from '../helpers/helpers.js';
+import { PROTO } from '../helpers/constants.js';
+import getIterator from 'core-js-pure/es/get-iterator';
+import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
+import ITERATOR from 'core-js-pure/es/symbol/iterator';
 
 QUnit.test('Math.sumPrecise', assert => {
   const { sumPrecise } = Math;
@@ -74,4 +78,39 @@ QUnit.test('Math.sumPrecise', assert => {
   assert.same(sumPrecise([-1, -ULP, -HALF_ULP]), -1 - 2 * ULP, 'negative tie rounds to even away from zero');
   assert.same(sumPrecise([-1, -HALF_ULP, Number.MIN_VALUE]), -1, 'just above the negative tie');
   assert.same(sumPrecise([-1, -HALF_ULP, -Number.MIN_VALUE]), -1 - ULP, 'just below the negative tie');
+
+  const customIterator = () => getIterator(createIterable([100, 200, 300]));
+
+  // https://issues.chromium.org/issues/500536164
+  if (PROTO) {
+    const array = [10, 20, 30];
+    const iterator = getIterator([10, 20, 30]);
+    const prototype = {
+      [ITERATOR]() { return this; },
+      next() { return { done: true }; },
+    };
+    setPrototypeOf(array, prototype);
+    setPrototypeOf(iterator, prototype);
+    assert.same(sumPrecise(array), -0, 'array prototype supplies an empty iterator');
+    assert.same(sumPrecise(iterator), -0, 'array iterator prototype supplies next');
+    assert.throws(() => sumPrecise(setPrototypeOf([10, 20, 30], {})), TypeError, 'array without an iterator');
+    assert.throws(() => sumPrecise(setPrototypeOf([10, 20, 30], null)), TypeError, 'array with a null prototype');
+    assert.same(sumPrecise(setPrototypeOf([10, 20, 30], {
+      [ITERATOR]: customIterator,
+    })), 600, 'array prototype supplies a custom iterator');
+    assert.same(sumPrecise(setPrototypeOf(getIterator([10, 20, 30]), {
+      [ITERATOR]() { return this; },
+      next: customIterator().next,
+    })), 600, 'array iterator prototype supplies a custom next');
+    assert.throws(() => sumPrecise(setPrototypeOf(getIterator([10, 20, 30]), {
+      [ITERATOR]() { return this; },
+    })), TypeError, 'array iterator without next');
+  }
+
+  const array = [10, 20, 30];
+  array[ITERATOR] = customIterator;
+  assert.same(sumPrecise(array), 600, 'array supplies its own iterator');
+  const iterator = getIterator([10, 20, 30]);
+  iterator.next = customIterator().next;
+  assert.same(sumPrecise(iterator), 600, 'array iterator supplies its own next');
 });

@@ -5,14 +5,20 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var iterate = require('../internals/iterate');
 var fails = require('../internals/fails');
+var getIterator = require('../internals/get-iterator-internal');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var $RangeError = RangeError;
 var $TypeError = TypeError;
 var $Infinity = Infinity;
 var $NaN = NaN;
+// eslint-disable-next-line es/no-math-sumprecise -- required for testing
+var $sumPrecise = Math.sumPrecise;
 var abs = Math.abs;
 var pow = Math.pow;
 var push = uncurryThis([].push);
+var ITERATOR = wellKnownSymbol('iterator');
 
 var POW_2_1023 = pow(2, 1023);
 var MAX_SAFE_INTEGER = pow(2, 53) - 1; // 2 ** 53 - 1 === 9007199254740991
@@ -27,8 +33,21 @@ var FINITE = {};
 
 // https://bugs.webkit.org/show_bug.cgi?id=315450
 var FORCED = fails(function () {
-  // eslint-disable-next-line es/no-math-sumprecise -- required for testing
-  return Math.sumPrecise([-1]) !== -1 || Math.sumPrecise([-MAX_DOUBLE]) !== -MAX_DOUBLE;
+  if ($sumPrecise([-1]) !== -1 || $sumPrecise([-MAX_DOUBLE]) !== -MAX_DOUBLE) return true;
+  if (!setPrototypeOf) return false;
+  // https://issues.chromium.org/issues/500536164
+  try {
+    $sumPrecise(setPrototypeOf([1], {}));
+    return true;
+  } catch (error) { /* empty */ }
+  // https://issues.chromium.org/issues/572987948
+  try {
+    var prototype = {};
+    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3-compatible computed property
+    prototype[ITERATOR] = function () { return this; };
+    $sumPrecise(setPrototypeOf(getIterator([1]), prototype));
+    return true;
+  } catch (error) { /* empty */ }
 });
 
 // prerequisite: abs(x) >= abs(y)

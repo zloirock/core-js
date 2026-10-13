@@ -996,7 +996,28 @@ GLOBAL.tests = {
     return Math.sinh(-2e-17) === -2e-17;
   },
   'es.math.sum-precise': function () {
-    return Math.sumPrecise([-1]) === -1 && Math.sumPrecise([-Number.MAX_VALUE]) === -Number.MAX_VALUE;
+    // https://github.com/WebKit/WebKit/pull/65558#issuecomment-6148380781
+    if (Math.sumPrecise([-1]) !== -1 || Math.sumPrecise([-Number.MAX_VALUE]) !== -Number.MAX_VALUE) return false;
+    if (!PROTOTYPE_SETTING_AVAILABLE) return true;
+    var setPrototypeOf = Object.setPrototypeOf || function (object, prototype) {
+      // eslint-disable-next-line no-proto -- required for testing
+      object.__proto__ = prototype;
+      return object;
+    };
+    // https://issues.chromium.org/issues/500536164
+    try {
+      Math.sumPrecise(setPrototypeOf([1], {}));
+    } catch (error) {
+      if (!(error instanceof TypeError)) return false;
+    }
+    // https://issues.chromium.org/issues/572987948
+    var prototype = {};
+    prototype[Symbol.iterator] = function () { return this; };
+    try {
+      Math.sumPrecise(setPrototypeOf([1][Symbol.iterator](), prototype));
+    } catch (error) {
+      return error instanceof TypeError;
+    }
   },
   'es.math.tanh': function () {
     return Math.tanh;
