@@ -1057,10 +1057,12 @@ export const data = {
     safari: '7.1',
   },
   'es.math.sum-precise': {
-    bun: '1.2.18',
+    // https://bugs.webkit.org/show_bug.cgi?id=315450
+    // bun: '1.2.18',
     chrome: '147',
     firefox: '137',
-    safari: '26.2',
+    // https://bugs.webkit.org/show_bug.cgi?id=315450
+    // safari: '26.2',
   },
   'es.math.tanh': {
     chrome: '38',

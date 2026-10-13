@@ -996,7 +996,7 @@ GLOBAL.tests = {
     return Math.sinh(-2e-17) === -2e-17;
   },
   'es.math.sum-precise': function () {
-    return Math.sumPrecise;
+    return Math.sumPrecise([-1]) === -1 && Math.sumPrecise([-Number.MAX_VALUE]) === -Number.MAX_VALUE;
   },
   'es.math.tanh': function () {
     return Math.tanh;

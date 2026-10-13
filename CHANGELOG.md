@@ -16,6 +16,7 @@
     - `Iterator.prototype.join`
   - Moved to stable ES, [September 2026 TC39 meeting](https://github.com/tc39/proposals/commit/3c956df47516ecf49b7a50590ee0d2c3e57c8c0c)
   - Added `es.` namespace module, `/es/` and `/stable/` namespace entries
+- Added detection / fix of [`Math.sumPrecise` negative numbers handling WebKit bug](https://github.com/WebKit/WebKit/pull/65558#issuecomment-6148380781)
 - Added detection / fix of [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642)
 - Compat data improvements:
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465357675)
@@ -26,6 +27,7 @@
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as shipped in Bun 1.4.0
+  - Because of a [`Math.sumPrecise` negative numbers handling WebKit bug](https://github.com/WebKit/WebKit/pull/65558#issuecomment-6148380781), this method is marked as not supported in Safari and Bun
   - [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642):
     - Marked as still not fixed in stable Safari
     - Marked as [fixed in Bun 1.4.3](https://bun.com/blog/bun-v1.4.3#javascriptcore-upgrade)

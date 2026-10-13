@@ -54,4 +54,22 @@ QUnit.test('Math.sumPrecise', assert => {
   assert.same(sumPrecise([4.49423283715579e+307, 8.944251746776101e+307, -0.0002441406250000001, 1.1752060710043817e+308, 4.940846717201632e+292, -1.6836699406454528e+308]), 8.353845887521184e+307, '[4.49423283715579e+307, 8.944251746776101e+307, -0.0002441406250000001, 1.1752060710043817e+308, 4.940846717201632e+292, -1.6836699406454528e+308]');
   assert.same(sumPrecise([8.988465674311579e+307, 7.999999999999998, 7.029158107234023e-308, -2.2303483759420562e-172, -Number.MAX_VALUE, -8.98846567431158e+307]), -Number.MAX_VALUE, '[8.988465674311579e+307, 7.999999999999998, 7.029158107234023e-308, -2.2303483759420562e-172, -Number.MAX_VALUE, -8.98846567431158e+307]');
   assert.same(sumPrecise([8.98846567431158e+307, 8.98846567431158e+307]), Infinity, '[8.98846567431158e+307, 8.98846567431158e+307]');
+
+  // https://bugs.webkit.org/show_bug.cgi?id=315450
+  // https://github.com/WebKit/WebKit/pull/65558#issuecomment-6148380781
+  for (const value of [1, 0.1, 2.5, Number.MIN_VALUE, 2 ** -1022, 1e308, Number.MAX_VALUE]) {
+    assert.same(sumPrecise([-value]), -value, `[-${ value }]`);
+    assert.same(sumPrecise([value]), value, `[${ value }]`);
+  }
+  assert.same(sumPrecise([1, -1, -1]), -1, '[1, -1, -1]');
+  assert.same(sumPrecise(createIterable([1, -1, -1])), -1, 'custom iterable');
+  assert.same(sumPrecise([Number.MAX_VALUE, -Number.MAX_VALUE, -1]), -1, '[Number.MAX_VALUE, -Number.MAX_VALUE, -1]');
+  assert.same(sumPrecise([-1, Number.MAX_VALUE, -Number.MAX_VALUE]), -1, '[-1, Number.MAX_VALUE, -Number.MAX_VALUE]');
+
+  const HALF_ULP = 2 ** -53;
+  const ULP = HALF_ULP * 2;
+  assert.same(sumPrecise([-1, -HALF_ULP]), -1, 'negative tie rounds to even toward zero');
+  assert.same(sumPrecise([-1, -ULP, -HALF_ULP]), -1 - 2 * ULP, 'negative tie rounds to even away from zero');
+  assert.same(sumPrecise([-1, -HALF_ULP, Number.MIN_VALUE]), -1, 'just above the negative tie');
+  assert.same(sumPrecise([-1, -HALF_ULP, -Number.MIN_VALUE]), -1 - ULP, 'just below the negative tie');
 });
