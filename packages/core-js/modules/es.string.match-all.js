@@ -69,10 +69,9 @@ var $matchAll = function (string) {
   var S = toString(string);
   var C = speciesConstructor(R, RegExp);
   var flags = toString(getRegExpFlags(R));
-  var matcher, $global, fullUnicode;
-  matcher = new C(C === RegExp ? R.source : R, flags);
-  $global = !!~stringIndexOf(flags, 'g');
-  fullUnicode = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
+  var matcher = new C(C === RegExp ? R.source : R, flags);
+  var $global = !!~stringIndexOf(flags, 'g');
+  var fullUnicode = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
   matcher.lastIndex = toLength(R.lastIndex);
   return new $RegExpStringIterator(matcher, S, $global, fullUnicode);
 };
