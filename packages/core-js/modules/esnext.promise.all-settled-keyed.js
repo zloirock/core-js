@@ -27,6 +27,11 @@ $({ target: 'Promise', stat: true }, {
       var values = [];
       var remaining = 1;
       var counter = 0;
+      var resolveResult = function () {
+        var res = create(null);
+        for (var j = 0; j < keys.length; j++) createProperty(res, keys[j], values[j]);
+        resolve(res);
+      };
       for (var i = 0; i < allKeys.length; i++) (function (key) {
         var desc = getOwnPropertyDescriptor.f(promises, key);
         if (desc && desc.enumerable) {
@@ -37,10 +42,7 @@ $({ target: 'Promise', stat: true }, {
               values[index] = rejection
                 ? { status: 'rejected', reason: value }
                 : { status: 'fulfilled', value: value };
-              if (--remaining) return;
-              var res = create(null);
-              for (var j = 0; j < keys.length; j++) createProperty(res, keys[j], values[j]);
-              resolve(res);
+              --remaining || resolveResult();
             };
           };
           var index = counter;
@@ -52,7 +54,7 @@ $({ target: 'Promise', stat: true }, {
           counter++;
         }
       })(allKeys[i]);
-      --remaining || resolve(create(null));
+      --remaining || resolveResult();
     });
     if (result.error) reject(result.value);
     return capability.promise;

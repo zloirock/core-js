@@ -28,6 +28,43 @@ QUnit.test('Promise.allKeyed, resolved', assert => {
   });
 });
 
+QUnit.test('Promise.allKeyed, synchronous callbacks', assert => {
+  function CustomPromise(executor) {
+    return new Promise(executor);
+  }
+  CustomPromise.resolve = value => ({
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
+    then(resolve) {
+      resolve(value);
+      resolve('ignored');
+    },
+  });
+  const symbol = Symbol('key');
+  return Promise.allKeyed.call(CustomPromise, { a: 1, b: 2, [symbol]: 3 }).then(result => {
+    assert.same(result.a, 1, 'first string key');
+    assert.same(result.b, 2, 'second string key');
+    assert.same(result[symbol], 3, 'symbol key');
+    assert.deepEqual(keys(result), ['a', 'b'], 'key order');
+    assert.same(getPrototypeOf(result), null, 'null prototype');
+  });
+});
+
+QUnit.test('Promise.allKeyed, mixed synchronous and asynchronous callbacks', assert => {
+  function CustomPromise(executor) {
+    return new Promise(executor);
+  }
+  CustomPromise.resolve = value => value === 2 ? Promise.resolve(value) : {
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
+    then(resolve) {
+      resolve(value);
+    },
+  };
+  return Promise.allKeyed.call(CustomPromise, { a: 1, b: 2, c: 3 }).then(result => {
+    assert.deepEqual(result, nullProto({ a: 1, b: 2, c: 3 }), 'preserves all entries');
+    assert.deepEqual(keys(result), ['a', 'b', 'c'], 'key order');
+  });
+});
+
 QUnit.test('Promise.allKeyed, resolved with primitives', assert => {
   return Promise.allKeyed({
     a: 1,

@@ -19,6 +19,7 @@
 - Added detection / fix of [`Math.sumPrecise` negative numbers handling WebKit bug](https://github.com/WebKit/WebKit/pull/65558#issuecomment-6148380781)
 - Added detection / fix of `Math.sumPrecise` V8 bugs with modified prototypes of [arrays](https://issues.chromium.org/issues/500536164) and [array iterators](https://issues.chromium.org/issues/572987948)
 - Added detection / fix of [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642)
+- Fixed [`Promise.{ allKeyed, allSettledKeyed }`](https://github.com/tc39/proposal-await-dictionary) algorithm for sync promises
 - Compat data improvements:
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465357675)
   - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in V8 ~ Chrome 154](https://issues.chromium.org/issues/504886973)

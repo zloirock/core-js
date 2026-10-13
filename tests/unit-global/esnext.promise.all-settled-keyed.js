@@ -48,6 +48,52 @@ QUnit.test('Promise.allSettledKeyed, resolved with rejection', assert => {
   });
 });
 
+QUnit.test('Promise.allSettledKeyed, synchronous callbacks', assert => {
+  function CustomPromise(executor) {
+    return new Promise(executor);
+  }
+  CustomPromise.resolve = value => ({
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
+    then(resolve, reject) {
+      if (value < 0) {
+        reject(value);
+        resolve(value);
+      } else {
+        resolve(value);
+        reject(value);
+      }
+    },
+  });
+  const symbol = Symbol('key');
+  return Promise.allSettledKeyed.call(CustomPromise, { a: 1, b: -2, [symbol]: 3 }).then(result => {
+    assert.deepEqual(result.a, { status: 'fulfilled', value: 1 }, 'synchronous fulfillment');
+    assert.deepEqual(result.b, { status: 'rejected', reason: -2 }, 'synchronous rejection');
+    assert.deepEqual(result[symbol], { status: 'fulfilled', value: 3 }, 'symbol key');
+    assert.deepEqual(Object.keys(result), ['a', 'b'], 'key order');
+    assert.same(Object.getPrototypeOf(result), null, 'null prototype');
+  });
+});
+
+QUnit.test('Promise.allSettledKeyed, mixed synchronous and asynchronous callbacks', assert => {
+  function CustomPromise(executor) {
+    return new Promise(executor);
+  }
+  CustomPromise.resolve = value => value === 2 ? Promise.resolve(value) : {
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
+    then(resolve) {
+      resolve(value);
+    },
+  };
+  return Promise.allSettledKeyed.call(CustomPromise, { a: 1, b: 2, c: 3 }).then(result => {
+    assert.deepEqual(result, {
+      a: { status: 'fulfilled', value: 1 },
+      b: { status: 'fulfilled', value: 2 },
+      c: { status: 'fulfilled', value: 3 },
+    }, 'preserves all entries');
+    assert.deepEqual(Object.keys(result), ['a', 'b', 'c'], 'key order');
+  });
+});
+
 QUnit.test('Promise.allSettledKeyed, rejected', assert => {
   return Promise.allSettledKeyed().then(() => {
     assert.avoid();
