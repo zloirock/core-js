@@ -47,6 +47,7 @@ import {
 import {
   GET_ITERATOR_ENTRY,
   IS_ITERABLE_ENTRY,
+  isKnownGlobalName,
   staticReceiverHint,
   SYMBOL_ITERATOR_PURE_RESULT,
   isSourcedSymbolIteratorMeta,
@@ -55,6 +56,7 @@ import {
 import {
   aliasWriteCtorNames,
   attachMemberUnionExtras,
+  buildDestructuringInitMeta,
   decidedRunningOperand,
   decidingFallbackLeft,
   flattenFallbackBranches,
@@ -94,6 +96,7 @@ import {
   isStaticPlacement,
   maximalProxyGlobalPrefix,
   mutationGuardKeepingHop,
+  keptProbeStore,
   navHasUnresolvableProxyHop,
   peelChainRootValue,
   prependChainAssignmentEffect,
@@ -104,6 +107,7 @@ import {
   realmRootIsSpellable,
   requireBoundProxyGlobalName,
   resolveKey,
+  globalProxyMemberName,
   resolveObjectName,
   storedUserAssignmentOf,
   storedValueConsumedAbove,
@@ -293,9 +297,7 @@ export function planProxyReceiver(receiver, {
   // exist. the plain descent (no `throughChainAssign`) stops AT the assignment, so the subject falls out of
   // the canonical walk with no bespoke one. a ponyfilled value (`(q = globalThis.self).X`) roots through as
   // before - there the value provably IS the global
-  const chainAssign = throughChainAssign ? peelChainAssignment(descendToChainRoot(receiver).root) : null;
-  const keptAssignRoot = chainAssign?.outer && navHasUnresolvableProxyHop(chainAssign.value, resolvePure, aliasCtx)
-    ? chainAssign.outer : null;
+  const keptAssignRoot = throughChainAssign ? keptProbeStore(receiver, resolvePure, aliasCtx) : null;
   // a live `?.` in the chain over an undefinable read (the environment probe - `globalThis
   // .window?.[(c++, 'self')]?.X`) may not collapse: the erase runs the key SE and reads the
   // leaf where native short-circuits. a kept-assign root keeps its own canon (the
@@ -1211,6 +1213,18 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
         conditionalSink: conditionalCalls,
         selectionSink: selectionArms,
       });
+    // ... and a `||` / `??` selection of a plain realm read and a right naming no global takes the decision of its
+    // destructure twin (`const { groupBy } = globalThis.Map || Fallback`): a left naming a constructor whose
+    // static the build serves names the read whatever that constructor's own entry. a selection the member
+    // canon reads on its own terms keeps them - a probed left, or a right naming a global (an agreeing
+    // operand, an alias of one, an `Object` arm's identity guard)
+    const selection = !objectName && unwrapRuntimeExpr(classifyTarget);
+    if (selection?.type === 'LogicalExpression' && selection.operator !== '&&' && !spineHasOptionalHop(unwrapRuntimeExpr(selection.left))
+      && globalProxyMemberName({ node: selection.left, scope, adapter, path, resolveStaticKey }) !== null
+      && !isKnownGlobalName(resolveObjectName({ objectNode: selection.right, scope, adapter, path }) ?? '')) {
+      const twin = buildDestructuringInitMeta({ initNode: selection, key, scope, adapter, path, resolveStaticKey });
+      if (twin?.object && twin.placement === 'static' && !twin.fromFallback) objectName = twin.object;
+    }
     // A conditional forwarder names the live result but cannot erase the source receiver:
     // a continuous chain may short-circuit, and a sealed chain may throw before the static read.
     const conditionalReceiver = objectName && conditionalCalls.length && adapter.method === 'usage-pure' ? objectName : null;
@@ -1559,11 +1573,11 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     const pure = resolvePure({ kind: 'global', name: candidate.ctorName }, null);
     const ctorPure = pure && pure.kind !== 'instance' ? pure : null;
     // A native constructor has no imported comparator. Under a local shadow its raw name means
-    // the user's value, and one the configured set does not carry (`available`: an excluded
-    // constructor, one below the mode) may be missing, where the raw read throws - so compare through
-    // the realm entry instead; without that entry no safe comparator can be emitted at this site. the
-    // realm root itself needs none: with no entry every target carries `globalThis` natively, and the
-    // raw name IS the realm
+    // the user's value, and one the build cannot spell (`available`: an excluded constructor, one
+    // below the mode) would be a raw read the source does not make here, throwing where the engine
+    // lacks it - so compare through the realm entry instead; without that entry no safe comparator
+    // can be emitted at this site. the realm root itself needs none: with no entry every target
+    // carries `globalThis` natively, and the raw name IS the realm
     const realmRead = !ctorPure && (adapter?.hasBinding?.({ scope: path?.scope, name: candidate.ctorName, path })
       || adapter?.available?.({ kind: 'global', name: candidate.ctorName }) === false);
     const ctorRealmPure = realmRead ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
@@ -1633,20 +1647,20 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
 // as the receiver (`keepRoot`); the redundant hop above it drops all the same, a proxy hop being a
 // realm-local self-reference. this is the rule the shared receiver plan applies, so the two cannot drift
 function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName, scope, adapter, path, resolvePure }) {
-  const keptAssign = resolvePure ? peelChainAssignment(descendToChainRoot(receiverChain).root) : null;
+  const keptAssign = resolvePure ? keptProbeStore(receiverChain, resolvePure, { scope, adapter, path }) : null;
   const isOptionalAccess = ownChainOptionalCount(node) > 0;
-  if (keptAssign?.outer && navHasUnresolvableProxyHop(keptAssign.value, resolvePure, { scope, adapter, path })) {
+  if (keptAssign) {
     // the kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but
     // only IT is exempt: sequence effects around it and dropped-hop KEY effects still have to
     // ride ahead in source order (the symbol strand has no surviving key slot to carry them) -
     // the same kept-root harvest rule the shared receiver plan applies
     return {
-      keepRoot: keptAssign.outer,
+      keepRoot: keptAssign,
       droppedSe: collectFoldedReceiverSideEffects(node.object, {
         rescue: seedChainRootCallRescue({ node: node.object, scope, adapter, path }),
         ctx: { scope, adapter, path },
       })
-        .filter(effect => effect !== keptAssign.outer),
+        .filter(effect => effect !== keptAssign),
       isOptionalAccess,
     };
   }

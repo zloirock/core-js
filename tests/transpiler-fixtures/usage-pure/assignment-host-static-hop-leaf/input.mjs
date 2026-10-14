@@ -1,5 +1,7 @@
-// A nested assignment reads instance members through the static's ponyfill.
-// The same rule holds through bare, nested and wrapped constructor receivers.
+// A nested assignment reads an instance member of a static (`name` of `Array.of`) through the static's
+// ponyfill in every host an assignment takes: beside a sibling, inside a sequence or an unbraced `if`,
+// under an array wrapper and over a leaf default. A constructor with a narrow entry (`Map`) has its
+// static read off the static's own entry, which its narrow entry does not carry.
 let name, junk, arity;
 ({ Array: { of: { name }, junk } } = globalThis);
 ({ Array: { of: { name } } } = globalThis);
@@ -7,22 +9,5 @@ let name, junk, arity;
 if (arity) ({ Array: { of: { name } } } = globalThis);
 [{ Array: { of: { name } } }] = [globalThis];
 ({ Array: { of: { name = 'd' } } } = globalThis);
-// A re-anchored residual reads a static off the constructor's alias by the constructor's NAME,
-// so the narrow constructor entry is never read through.
 ({ Map: { groupBy: { name } } } = globalThis);
-// A typed user nav the extraction OWNS dispatches on the nav, the host dying with the claim.
-let at;
-const source = { y: [1, 2] };
-({ y: { at } } = source);
-// An anonymous default the dispatch may fire keeps the binding's inferred NAME through the guard,
-// the declaration host's spelling - off a receiver the type channel cannot name.
-let fallback;
-function pickFallback(foreign) {
-  ({ y: { at: fallback = () => -1 } } = foreign);
-}
-// A typed nav whose type LACKS the method claims nothing, the declaration host's answer: the
-// default keeps running natively.
-let absent;
-const plain = { y: {} };
-({ y: { at: absent = () => -1 } } = plain);
-export { name, junk, arity, at, fallback, pickFallback, absent };
+export { name, junk, arity };

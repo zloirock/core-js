@@ -2,6 +2,7 @@ import { entryToGlobalHint } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
 import {
   bindingDeclarationPath,
+  bindingDeclaratorNode,
   blocksUidSlot,
   chainValueSlot,
   cleanDestructureAliasWrites,
@@ -9,6 +10,7 @@ import {
   definedBranchOfGuardConditional,
   findNearestVarScopeOwner,
   foldedPropertyKeyName,
+  installedWriteValue,
   isBindingDeclarationPath,
   isGeneratedMemoDeclarator,
   isAssignOrForXWriteTargetPath,
@@ -38,6 +40,7 @@ import {
   statementListOf,
   unwrapRuntimeExpr,
   varlessMemoSlot,
+  violationNode,
   walkAstNodes,
   writesPastCeiling,
 } from './helpers/ast-patterns.js';
@@ -168,13 +171,43 @@ function chooseStart(cached, prefix, isTaken) {
   return { startSuffix: cached ?? null };
 }
 
-// declaration source position of a binding's defining identifier. stable across the
-// pre/post snapshot round-trip (same source text, same offsets) and across babel pure
-// AST mutation (parser-emitted nodes carry `start`). returns null for synthetic bindings
-// without source positions - the lookup table treats null as "any scope" so post-mutation
-// babel bindings still find their reassignment flag through the bare-name match
-function reassignedStart(binding) {
-  return binding?.identifier?.start ?? binding?.path?.node?.start ?? null;
+// the scope node hosting `binding` (babel scopes carry it on `.block`, estree-toolkit ones on
+// `.path.node`), or null. a `var` hoists past the block scope some trackers report (estree-toolkit
+// block-scopes a labeled-block / for-init `var`): its home is the var-scope owner. the node is the
+// binding's identity across the emitter's own rewrites, which replace declarations but keep their
+// scope - a declaration's position does not survive them (a rendered declarator has none) and
+// means nothing in another phase's tree
+function bindingHomeNode(binding) {
+  let home = binding?.scope?.block ?? binding?.scope?.path?.node ?? null;
+  if (binding?.kind === 'var' && home && !isVarScopeBoundary(home.type)) {
+    for (let p = binding.scope?.path ?? null; p; p = p.parentPath) {
+      if (!p.node || !isVarScopeBoundary(p.node.type)) continue;
+      home = p.node;
+      break;
+    }
+  }
+  return home;
+}
+
+// the values the writes of `binding` install, its initializer included: babel records a write as
+// the assignment, estree-toolkit as the target identifier under it
+function installedBindingValues(binding) {
+  const init = bindingDeclaratorNode(binding)?.init;
+  const values = init ? [installedWriteValue(init)] : [];
+  for (const write of binding?.constantViolations ?? []) {
+    const node = violationNode(write);
+    const assignment = node?.type === 'AssignmentExpression' ? node : write.parentPath?.node;
+    if (assignment?.type === 'AssignmentExpression' && assignment.operator === '=') {
+      values.push(installedWriteValue(assignment.right));
+    }
+  }
+  return values;
+}
+
+// a body-extract alias whose value is not guaranteed to be the extracted static: written beyond its
+// aliasing write (`isCleanDestructureAliasBinding`), or aliased on one path only (`isGuardedAliasingWrite`)
+function aliasBindingPoisoned(binding) {
+  return (binding.kind !== 'const' && !isCleanDestructureAliasBinding(binding)) || isGuardedAliasingWrite(binding);
 }
 
 // import-emitter state; each plugin subclasses and implements `flush()`.
@@ -233,7 +266,7 @@ export default class ImportInjectorState {
   #importInfoByName = new Map();
   // Per-primary-record index for user-named aliases. Same-name destructuring aliases are common
   // in generated bundles; scanning every preceding scope on both registration and lookup makes
-  // that shape quadratic. The WeakMap is rebuilt lazily after a pre/post snapshot handoff.
+  // that shape quadratic. The WeakMap is built lazily per primary record.
   #importSpanIndexes = new WeakMap();
 
   constructor({ absoluteImports, mode, pkg, importStyle, packages = null, emitsGlobalModules = true }) {
@@ -308,14 +341,17 @@ export default class ImportInjectorState {
   // hosting the binding - a same-named unbound read elsewhere is a runtime ReferenceError the
   // fold would mask. same-named USER aliases in DIFFERENT scopes are separate bindings: each
   // registers its own sibling record so the positional lookup serves every scope its own fold
-  // (plain first-write-wins dropped the later ones and lost their folds on the target engine)
-  #recordImportInfo(name, entry, { userNamed = false, scopeSpan = null } = {}) {
+  // (plain first-write-wins dropped the later ones and lost their folds on the target engine).
+  // `home` is the scope node of the user binding (`bindingHomeNode`), the identity a consumer that
+  // resolved the use's binding is served by
+  #recordImportInfo(name, entry, { userNamed = false, scopeSpan = null, home = null } = {}) {
     const record = {
       source: `${ this.mode }/${ entry }`,
       hint: entryToGlobalHint(entry) ?? name,
       entry,
       userNamed,
       scopeSpan,
+      home,
     };
     const existing = this.#importInfoByName.get(name);
     if (!existing) {
@@ -338,10 +374,17 @@ export default class ImportInjectorState {
   // INNERMOST containing span winning (a nested same-name alias shadows the outer one).
   // a pathless lookup (`useStart === null`) never serves a USER record: without a position the
   // span discipline cannot run, and a single record answered FILE-wide for every same-named
-  // binding in the file - the wrong-Maybe over-resolve a positional consumer exists to prevent
-  #servableImportRecord(primary, useStart) {
+  // binding in the file - the wrong-Maybe over-resolve a positional consumer exists to prevent.
+  // a span holds every binding declared inside it as well: `useBinding`, a thunk the caller hands
+  // where it can resolve the binding the use reads, narrows the answer to the record of THAT binding
+  // (a nested parameter or catch clause of the same name is another value), asked only where a USER
+  // record is in play; a use it cannot resolve (an emitter's scope lagging its own rewrite) keeps
+  // the span discipline
+  #servableImportRecord(primary, useStart, useBinding = null) {
     if (!primary.userNamed) return primary;
     if (useStart === null) return null;
+    const home = useBinding ? bindingHomeNode(useBinding()) : null;
+    if (home) return primary.home === home ? primary : primary.siblings?.find(record => record.home === home) ?? null;
     // AST scope spans are nested or disjoint. If the rightmost registered span contains this
     // forward traversal's use, no earlier span can be a narrower containing scope.
     const { latest } = this.#importSpanIndex(primary);
@@ -394,61 +437,72 @@ export default class ImportInjectorState {
   // resolver's `staticPairFromDestructure` applies, so babel and unplugin poison identically for identical
   // source (a per-emitter node-shape marker could not: babel's violation node is the whole assignment,
   // estree's is the bound identifier). a real later reassignment makes it unclean and still poisons
+  // a conditionally-executed aliasing write assigns on one path only: the registered fold source
+  // would substitute the polyfill where the runtime value is undefined - the same poison as a
+  // reassignment (`aliasBindingPoisoned`)
   registerBodyExtractAlias(name, entry, sourceBinding = null) {
-    if (sourceBinding && sourceBinding.kind !== 'const' && !isCleanDestructureAliasBinding(sourceBinding)) {
-      this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
-      return;
-    }
-    // a conditionally-executed aliasing write assigns on one path only: the registered fold
-    // source would substitute the polyfill where the runtime value is undefined. same poison
-    // semantics as a reassignment - the value is not guaranteed at every use
-    if (sourceBinding && isGuardedAliasingWrite(sourceBinding)) {
-      this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
+    if (sourceBinding && aliasBindingPoisoned(sourceBinding)) {
+      this.#trackReassignedBinding(name, entry, sourceBinding);
       return;
     }
     // a prior registration of this binding was poisoned (unclean / guarded write set): a
     // re-registration over the tree a first in-place rewrite left must not resurrect the fold
-    // source the pristine-tree judgment refused. positional lookup keeps a SIBLING-scope
-    // same-name binding registerable
+    // source the pristine-tree judgment refused. a SIBLING-scope same-name binding stays registerable
     if (this.isReassignedBinding(name, sourceBinding)) return;
-    // the span of the scope hosting the binding (babel scopes carry the AST node on `.block`,
-    // estree-toolkit ones on `.path.node`); binding-less registrations stay file-wide
-    let scopeBlock = sourceBinding?.scope?.block ?? sourceBinding?.scope?.path?.node ?? null;
-    // a `var` hoists past the block scope some trackers report (estree-toolkit block-scopes a
-    // labeled-block / for-init `var`): widen to the var-scope owner, or a hoisted use after the
-    // block would sit outside the span and lose its fold while babel's native hoist keeps it
-    if (sourceBinding?.kind === 'var' && scopeBlock && !isVarScopeBoundary(scopeBlock.type)) {
-      for (let p = sourceBinding.scope?.path ?? null; p; p = p.parentPath) {
-        if (!p.node || !isVarScopeBoundary(p.node.type)) continue;
-        scopeBlock = p.node;
-        break;
-      }
-    }
+    // the span of the scope hosting the binding (`bindingHomeNode` - a hoisted `var` spans its
+    // var-scope owner, or a use after its block would lose the fold babel's native hoist keeps);
+    // binding-less registrations stay file-wide
+    const home = bindingHomeNode(sourceBinding);
     this.#recordImportInfo(name, entry, {
       userNamed: true,
-      scopeSpan: scopeBlock ? { start: scopeBlock.start, end: scopeBlock.end } : null,
+      scopeSpan: home ? { start: home.start, end: home.end } : null,
+      home,
     });
   }
 
-  // name -> Set<start> indexes reassignment by declaration position so two `from` bindings
-  // in distinct scopes don't poison each other. lookup with a known start (unplugin, babel
-  // pre-mutation) matches exact-scope; lookup with null start (legacy callers, babel
-  // post-mutation synthetic identifier) treats the name's mere presence in the Map as a
-  // match - cannot prove the unknown-scope query isn't one of the registered ones
-  #reassignedBindings = new Map();
-  #trackReassignedBinding(name, start) {
-    let starts = this.#reassignedBindings.get(name);
-    if (!starts) {
-      starts = new Set();
-      this.#reassignedBindings.set(name, starts);
+  // the poisoned aliases, by the scope node hosting each (`bindingHomeNode`): two `from` bindings
+  // in distinct scopes do not poison each other. a binding no scope places poisons its name for
+  // every binding, and a binding-less ask cannot prove it is not one of them. every poisoned name
+  // keeps the entries its aliases extracted - the record a later phase is handed, positions of this
+  // tree meaning nothing in the one it reparses (`captureReassignedBindings`)
+  #poisonedHomes = new WeakMap();
+  #poisonedEntries = new Map();
+  #poisonedAnywhere = new Set();
+  // what a previous phase poisoned (name -> entries), and this phase's verdicts on its bindings
+  #inheritedPoisons = new Map();
+  #inheritedVerdicts = new WeakMap();
+  #trackReassignedBinding(name, entry, binding) {
+    let entries = this.#poisonedEntries.get(name);
+    if (!entries) this.#poisonedEntries.set(name, entries = new Set());
+    entries.add(entry);
+    const home = bindingHomeNode(binding);
+    if (!home) {
+      this.#poisonedAnywhere.add(name);
+      return;
     }
-    starts.add(start);
+    let names = this.#poisonedHomes.get(home);
+    if (!names) this.#poisonedHomes.set(home, names = new Set());
+    names.add(name);
   }
   isReassignedBinding(name, binding = null) {
-    const starts = this.#reassignedBindings.get(name);
-    if (!starts) return false;
-    const start = binding ? reassignedStart(binding) : null;
-    return start === null || starts.has(start);
+    const inherited = this.#inheritedPoisons.get(name);
+    if (!inherited && !this.#poisonedEntries.has(name)) return false;
+    const home = bindingHomeNode(binding);
+    if (!home || this.#poisonedAnywhere.has(name) || this.#poisonedHomes.get(home)?.has(name)) return true;
+    return !!inherited && this.#isInheritedPoisonImage(binding, inherited);
+  }
+  // a poison handed over from a previous phase names no binding of this tree. a binding is the one
+  // that phase poisoned where it holds the polyfill its alias extracted, written where the extraction
+  // put it (`from = _Array$from`), and the registration's rule still poisons it here: a same-named
+  // binding holding something else, or a sibling alias the rule never poisoned, keeps its own flow
+  #isInheritedPoisonImage(binding, entries) {
+    let verdict = this.#inheritedVerdicts.get(binding);
+    if (verdict === undefined) {
+      verdict = installedBindingValues(binding).some(value => value?.type === 'Identifier'
+        && entries.has(this.getPureImport(value.name)?.entry)) && aliasBindingPoisoned(binding);
+      this.#inheritedVerdicts.set(binding, verdict);
+    }
+    return verdict;
   }
 
   // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
@@ -568,14 +622,15 @@ export default class ImportInjectorState {
   // replaced-declarator fallback). an ambiguous name disambiguates POSITIONALLY when the caller
   // passes a use anchor: a use belongs to the entry whose hosting scope span contains it -
   // exactly one containing entry resolves, anything else declines and the use stays native
-  getBindingInfo(name, useStart = null) {
+  getBindingInfo(name, useStart = null, useBinding = null) {
     const pure = this.#importInfoByName.get(name);
     // a USER-named record (body-extract alias) serves only INSIDE its hosting scope span -
     // the same positional discipline the per-binding alias entries get below. out of span the
     // record is invisible: the name there is either unbound (a runtime ReferenceError a fold
-    // would mask) or a DIFFERENT binding - including the real global the alias name shadows
+    // would mask) or a DIFFERENT binding - including the real global the alias name shadows.
+    // `useBinding` serves it to its own binding alone (`#servableImportRecord`)
     if (pure) {
-      const rec = this.#servableImportRecord(pure, useStart);
+      const rec = this.#servableImportRecord(pure, useStart, useBinding);
       if (rec) {
         return { hint: rec.hint, source: rec.source, entry: rec.entry, userNamed: !!rec.userNamed, scopeSpan: rec.scopeSpan ?? null };
       }
@@ -716,16 +771,13 @@ export default class ImportInjectorState {
   // handoff for phase: 'pre+post' so post's `getPureImport(name)` resolves to the same
   // {source, hint} pre saw. without it super-mapping (`class C extends MyPromise { super.try() }`)
   // regresses in post because `addPureImport` early-returns on existing entry before writing
-  // into `#importInfoByName`
+  // into `#importInfoByName`. a USER-named record stays behind: it is bound to a scope of this
+  // tree, which post reparses after other plugins rewrote it - its span would sit over unrelated
+  // code there, and post resolves the alias through the declaration itself (`from = _Array$from`)
   captureImportInfoByName() {
-    // the RECORDS are mutable, not only the sibling lists (`#recordImportInfo` pushes into an
-    // existing record) - clone each record and its siblings so post-phase writes never reach
-    // back into pre's capture
-    return new Map([...this.#importInfoByName].map(([name, info]) => {
-      const record = { ...info };
-      if (record.siblings) record.siblings = record.siblings.map(sibling => ({ ...sibling }));
-      return [name, record];
-    }));
+    // cloned, so post-phase writes never reach back into pre's capture
+    return new Map(this.#importInfoByName.entries().filter(([, info]) => !info.userNamed)
+      .map(([name, info]) => [name, { ...info }]));
   }
   rehydrateImportInfoByName(captured) {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
@@ -755,20 +807,16 @@ export default class ImportInjectorState {
     if (captured) for (const [name, alias] of captured) this.#globalAliases.set(name, alias);
   }
 
-  // symmetric handoff for `#reassignedBindings`: pre populates the Map via
-  // `registerBodyExtractAlias` (it sees pre-mutation `constantViolations`), post needs the
-  // same flags so `isReassignedBinding` short-circuits the resolver's alias walk.
-  // without the snapshot post's Map is fresh-empty - body-extract alias detection regresses
+  // handoff of the poisoned aliases: pre judges them on the pristine tree
+  // (`registerBodyExtractAlias`), post asks `isReassignedBinding` of the tree it reparses. what
+  // crosses is each poisoned name with the entries its aliases extracted - post finds the bindings
+  // among its own (`#isInheritedPoisonImage`), since no node or position of pre's tree survives the
+  // plugins running between the phases
   captureReassignedBindings() {
-    const out = new Map();
-    for (const [name, starts] of this.#reassignedBindings) out.set(name, new Set(starts));
-    return out;
+    return new Map(this.#poisonedEntries.entries().map(([name, entries]) => [name, new Set(entries)]));
   }
   rehydrateReassignedBindings(captured) {
-    if (!captured) return;
-    for (const [name, starts] of captured) {
-      for (const start of starts) this.#trackReassignedBinding(name, start);
-    }
+    if (captured) for (const [name, entries] of captured) this.#inheritedPoisons.set(name, new Set(entries));
   }
 
   isNameTaken(name) { return this.usedNames.has(name); }

@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Array$of from "@core-js/pure/actual/array/of";
@@ -13,15 +14,15 @@ var _ref, _ref2, _ref3;
 // the render keeps the source's throw semantics. distinct methods per line
 let c = 0;
 export const bareNonNullHop = null == _globalThis.window ? void 0 : (c++, _self).Number;
-export const bareNonNullMidChain = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
+export const bareNonNullMidChain = null == _globalThis.window ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
 export const castSealValueUse = (null == _globalThis.window ? void 0 : _self).Math;
 export const parenSealPlainRead = (null == _globalThis.window ? void 0 : _self).JSON;
-export const castSealDelete = delete ((null == _globalThis.window ? void 0 : _self)?.customProp as any);
+export const castSealDelete = null == _globalThis.window ? true : delete (_self.customProp as any);
 
 // the cast-seal probes ride the CLAIM, DESTRUCTURE and SYNTH channels too (erasure keeps
 // the paren seal; the throw probe re-emits the sealed read, the key SE runs on it once)
 let c2 = 0;
-export const castSealClaim = _atMaybeArray(_ref2 = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of)(6)).call(_ref2, 0);
+export const castSealClaim = _atMaybeArray(_ref2 = ((null == _globalThis.window ? void 0 : _self).Array, _Array$from)([6])).call(_ref2, 0);
 export const castSealDestructure = ((null == _globalThis.window ? void 0 : _self).Object, _Object$keys);
 export function castSealSynth({
   values: sv

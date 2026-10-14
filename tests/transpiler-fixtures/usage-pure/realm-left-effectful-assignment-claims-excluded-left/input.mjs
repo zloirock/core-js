@@ -1,7 +1,7 @@
-// A destructuring ASSIGNMENT whose init runs code claims the static off a `||` / `??` left read off the
-// realm even where that left decides nothing (`Map`, its constructor entry excluded, while `groupBy` keeps its
-// own): both operands, each polyfilled, stay ahead of the claim as written - in a bodyless slot, which becomes
-// a block, and in a sequence element too.
+// A destructuring ASSIGNMENT whose init runs code only in its right claims the static off a `||` / `??` left read
+// off the realm whose constructor entry is excluded (`Map`, while `groupBy` keeps its own): the left still decides
+// - the data subset carries `Map` - so the right never runs and leaves with its imports, the claim alone written in
+// place - in a bodyless slot, which stays a statement, and in a sequence element too.
 let groupBy, grouped, byKey;
 ({ groupBy } = globalThis.Map || (log(), WeakSet));
 if (ok) ({ groupBy: grouped } = globalThis.Map || (log(), Iterator));

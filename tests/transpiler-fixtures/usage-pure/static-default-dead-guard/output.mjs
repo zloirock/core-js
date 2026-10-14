@@ -92,7 +92,7 @@ const {
     of: {
       name: viaHopPatternDefault
     } = {}
-  } = {}
+  }
 } = {
   Array: {
     of: {

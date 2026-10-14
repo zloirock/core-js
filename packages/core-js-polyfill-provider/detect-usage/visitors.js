@@ -15,6 +15,7 @@ import {
   classifyDestructureLeafHost,
   collectDestructureUnionCandidates,
   decidedSelection,
+  defaultDroppedAsDead,
   destructurePatternHostPath,
   prepareDestructureUnion,
 } from './destructure.js';
@@ -27,6 +28,7 @@ import {
   hasObjectRestAncestor,
   ownRelocatedHeadElement,
   hasRestSiblingExcept,
+  isExportSpecifierLocal,
   isTypeAnnotationNodeType,
   pathValueSlot,
   patternSlotTarget,
@@ -93,6 +95,7 @@ export function createUsageHandlerCore({
     // CommonJS wrapper, so a top-level `var` binds afresh like every other one and a self-reference
     // (`var X = X`) reads the hoisted undefined rather than the realm
     if (adapter.hasBinding({ scope: path.scope, name: node.name, path })) return;
+    if (isExportSpecifierLocal(path)) return;
     // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
     onUsage({ kind: 'global', name: node.name }, path);
@@ -170,12 +173,19 @@ export function createUsageHandlerCore({
   }
 
   // the part of a user selection this build never evaluates, asked by each emitter's visitor of a
-  // `||` / `??` / `&&`, a conditional and an `if`: `{ skip, fold, slot }` - `skip` the key of the
-  // operand that never runs (null where only the test is dead text, or the `if` has no such branch),
+  // `||` / `??` / `&&`, a conditional, an `if` and a pattern default: `{ skip, fold, slot }` - `skip` the key
+  // of the operand that never runs (null where only the test is dead text, or the `if` has no such branch),
   // `fold` what usage-pure replaces the selection with once the claims rendered (an operand key, or
   // `true` / `false` for the value a decided test yields), null where the selection keeps its text,
   // and `slot` the slot it folds in (`pathValueSlot`, read by `foldedOperandNeedsValue`) - or null
   function deadBranchOf(path) {
+    // a default the build drops as dead (`defaultDroppedAsDead`), in usage-global alone: usage-pure's render answers
+    // for the slot instead - it drops such a default with the pattern it rewrites, the level's mirror included, and
+    // a default it keeps over a raw slot keeps its raw globals' imports
+    if (path.node.type === 'AssignmentPattern') {
+      return method === 'usage-global' && withCanonQuestion(() => defaultDroppedAsDead(path, { adapter, resolvePure }))
+        ? { skip: 'right', fold: null, slot: null } : null;
+    }
     const scope = method === 'usage-pure' ? levelQuestionScope(path.node) : null;
     // an `if` only where nothing is rewritten: usage-pure has no fold for a statement yet, and a dead
     // branch it skipped would keep the source's raw globals in its output

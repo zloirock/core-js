@@ -149,7 +149,7 @@ for (const parser of adapters) for (const depth of [8, 16]) for (const [shape, l
     ${ levels }\na${ depth }.resolve;\na1.resolve;`);
   const [last, first] = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'resolve');
   // a build guaranteeing every entry, so the tests decide
-  const adapter = detectionAdapter(parser, 'usage-pure', { isEntryGuaranteed: () => true });
+  const adapter = detectionAdapter(parser, 'usage-pure', { isEntryAvailable: () => true });
   const counter = countLookups(adapter);
   const label = `${ parser.name }/decided ${ shape }/${ depth }`;
   check(`${ label }/the first level decides`,
@@ -347,7 +347,7 @@ for (const parser of adapters) for (const depth of [16, 32]) {
     const selections = parser.collectPaths(program, 'LogicalExpression');
     const [root] = selections;
     const counter = countReads(selections.map(path => path.node), 'left');
-    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryGuaranteed: () => true });
+    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryAvailable: () => true });
     const branches = flattenFallbackBranches({ node: root.node, key: 'groupBy', scope: root.scope, adapter, path: root });
     const label = `${ parser.name }/served selection/branches/${ depth }`;
     checkDeep(`${ label }/the leftmost read alone`, branches.map(branch => branch.object), ['Map']);
@@ -362,7 +362,7 @@ for (const parser of adapters) for (const depth of [16, 32]) {
     const program = parser.parseAndScope(`const { groupBy, deep: { a } } = ${ chain } || (log(), F);`);
     const leafPatternPath = parser.pickPath(program, 'ObjectPattern', path => path.parentPath.node.type === 'VariableDeclarator');
     const counter = countReads(parser.collectPaths(program, 'LogicalExpression').map(path => path.node), 'left');
-    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryGuaranteed: () => true });
+    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryAvailable: () => true });
     const plan = buildNestedParamSynthPlan({
       leafPatternPath,
       adapter,

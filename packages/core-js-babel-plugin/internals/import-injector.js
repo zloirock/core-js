@@ -25,6 +25,7 @@ import ImportInjectorState, {
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator } from '@core-js/polyfill-provider/plugin-options/inject';
+import { ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 
 // babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
@@ -43,23 +44,10 @@ function makeScopeBag(probeScope, setKey, mapKey) {
   };
 }
 
-// the comments a statement OWNS as its own annotation: the run directly above it, unbroken by a
-// blank line. a block the author separated reads as a file or section header - a license banner
-// stays at the head where it was written, while an adjacent pragma travels with the line it marks.
-// canon carries no near-match: `destructure-emitter`'s comment move transplants a node's WHOLE
-// leading list onto its replacement, and `anchorLeadingStatement` answers the esrap position question
+// the comments a statement OWNS as its own annotation (`ownedLeadingComments`): a license banner
+// stays at the head where it was written, while an adjacent pragma travels with the line it marks
 function attachedLeadingComments(node) {
-  const comments = node.leadingComments;
-  if (!comments?.length) return [];
-  const attached = [];
-  let expected = node.loc?.start?.line;
-  for (let index = comments.length - 1; index >= 0; index--) {
-    const comment = comments[index];
-    if (comment.loc?.end?.line + 1 < expected) break;
-    attached.push(comment);
-    expected = comment.loc?.start?.line;
-  }
-  return attached;
+  return ownedLeadingComments({ comments: node.leadingComments ?? [], statementLine: node.loc?.start?.line });
 }
 
 export default class ImportInjector extends ImportInjectorState {
@@ -74,7 +62,7 @@ export default class ImportInjector extends ImportInjectorState {
   // `[_Symbol$iterator]`) is in here; a user binding the user typed - including the user's own
   // deduped `@core-js/pure` import reused under the same UID - is NOT. consumed by the
   // computed-key synth gate to bail exactly the rewritten-member keys unplugin also bails on
-  // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted.
+  // flush runs multiple times (pre, programExit) - skip already-emitted.
   // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
   // to compute newGlobals)
   #emittedGlobals = new Set();

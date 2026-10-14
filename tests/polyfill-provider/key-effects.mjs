@@ -115,7 +115,7 @@ for (const [name, source, readsReceiver, owed] of [
   // a build serving every entry, so the presence test decides
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
     method: 'usage-pure',
-    isEntryGuaranteed: () => true,
+    isEntryAvailable: () => true,
   });
   const ctx = { scope: prop.scope, adapter, path: prop };
   const plan = destructureKeyReadPlan(prop, ctx);
