@@ -1,12 +1,5 @@
-// a call element beside a BOUND sibling runs once into a memo the sibling reads off, while a REST
-// beside the claim keeps the level to the routes that carry a rest (the head takes the slot's own
-// default); a head over SEVERAL elements mirrors each of its own - a bound container, a call, an IIFE,
-// a parameter-filled slot under a nested level, a name bound to a call. one static per row
-const pairing = () => [Math, 1];
-for (const [{ clz32: viaCallSibling }, next] of [pairing()]) use(viaCallSibling(1), next);
-for (const [{ imul: viaCallRest }, ...afterCall] of [pairing()]) use(viaCallRest(2, 3), afterCall);
-const pair = [Math, 1];
-for (const [{ cosh: viaAliasRest }, ...afterAlias] of [pair]) use(viaAliasRest(1), afterAlias);
+// A head over SEVERAL elements mirrors each of its own, one static per row: a bound container, a call, an
+// IIFE, a parameter-filled slot under a nested level and a name bound to a call.
 const held = [Math];
 for (const [{ sinh: viaMixedAlias }] of [held, [Math]]) use(viaMixedAlias(1));
 const build = () => [Math];

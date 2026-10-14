@@ -24,7 +24,7 @@ const {
 const {
   Iterator: {
     concat
-  } = Array
+  }
 } = {
   Iterator: {
     concat: _Iterator$concat

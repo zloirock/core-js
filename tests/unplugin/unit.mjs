@@ -9,8 +9,12 @@ import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import {
   memberFromKeyName,
+  assignmentExpression as mintAssignment,
   expressionStatement as mintStatement,
+  identifier as mintIdentifier,
   literal as mintLiteral,
+  variableDeclaration as mintDeclaration,
+  variableDeclarator as mintDeclarator,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import {
   collectPrePassSites,
@@ -32,6 +36,7 @@ import createPlugin, {
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
 import { drainSequenceAssignments, liveTailOf, probeCarriesWrite } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
+import createDestructureDrains from '../../packages/core-js-unplugin/internals/destructure-drain.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
@@ -46,7 +51,14 @@ import {
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
 import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
-import { unwrapRuntimeExpr as unwrapNode, isTopLevelImportLike, walkAstNodes, isReusableReceiver } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  ancestorChainDetached,
+  unwrapRuntimeExpr as unwrapNode,
+  isTopLevelImportLike,
+  walkAstNodes,
+  isReusableReceiver,
+  wrapScopeBindingLookup,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
@@ -863,6 +875,32 @@ function checkPrePostAliasMemberHandoff() {
     && !/_Map\$groupBy\$/.test(purePostCode), true);
 }
 checkPrePostAliasMemberHandoff();
+
+// --- pre+post: a poisoned body-extract alias stays poisoned in post ---
+// pre judges the reassigned alias on its own tree; a sibling between the passes reprints the file
+// (a leading statement moves every position) and exposes reads pre never saw. post finds the alias
+// again and dispatches its call result generically, as a single pass does, while the readonly
+// alias of the same name keeps its narrow and a same-named parameter keeps its own flow
+function checkPrePostPoisonedAliasHandoff() {
+  const id = '/src/prepost-poison.mjs';
+  const source = [
+    'let from, rest;',
+    '({ from, ...rest } = Array);',
+    'from = function () { return "hello"; };',
+    'export const own = expose0(from);',
+    'export function sibling() { const { from, ...rest } = Array; return expose1(from); }',
+    'export function param(from) { from = () => "xy"; return expose2(from); }',
+  ].join('\n');
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const pre = plugin.transform(source, id, 'pre')?.code ?? source;
+  const exposed = `const shift = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];\n${ pre.replace('expose0(from)', 'from([]).at(0)')
+    .replace('expose1(from)', 'from([7]).at(-1)').replace('expose2(from)', 'from("xy").at(0)') }`;
+  const out = plugin.transform(exposed, id, 'post')?.code ?? '';
+  check('prePost/poisoned alias keeps the generic dispatch', /own = _at\(_ref = from\(\[\]\)\)/.test(out), true);
+  check('prePost/readonly same-named alias keeps its narrow', /_atMaybeArray\(_ref\d* = from\(\[7\]\)\)/.test(out), true);
+  check('prePost/same-named parameter keeps its own flow', /_atMaybeString\(_ref\d* = from\("xy"\)\)/.test(out), true);
+}
+checkPrePostPoisonedAliasHandoff();
 
 // --- collapseWhitespace: the cross-plugin comparator's lexer ---
 // the comparator must DISCRIMINATE real divergences inside/after regex and template literals
@@ -2065,6 +2103,18 @@ async function checkAstPrintContracts() {
     reprint('use((a).b);\n').includes('use(a.b);'), true);
   check('print keeps the paren a chain boundary needs',
     reprint('use((a?.b).c);\n').includes('(a?.b).c'), true);
+  // a pattern default the emitters BUILD over a cast target carries no paren node of its own
+  for (const cast of ['o.f as any', 'o.f satisfies any', '<any>o.f']) {
+    const castSource = `({ a: (${ cast }) = d } = x);\n`;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const castParse = parseSync('/p.ts', castSource, { sourceType: 'module' });
+    const castPattern = castParse.program.body[0].expression.expression?.left ?? castParse.program.body[0].expression.left;
+    const castDefault = castPattern.properties[0].value;
+    if (castDefault.left.type === 'ParenthesizedExpression') castDefault.left = castDefault.left.expression;
+    check(`print parenthesizes a cast target of a built pattern default: ${ cast }`, printProgram({
+      program: castParse.program, comments: castParse.comments, source: castSource, id: '/p.ts',
+    }).code.includes(`(${ cast }) = d`), true);
+  }
   check('print keeps a leading directive line association',
     reprint('// core-js-disable-next-line\nuse(arr.flat);\n').startsWith('// core-js-disable-next-line\nuse('), true);
   const anchoredSrc = 'const { flat } = arr;\nuse(flat);\n';
@@ -2096,6 +2146,29 @@ async function checkAstPrintContracts() {
   check('print anchoredComments channel leads a statement', anchoredMembers.startsWith('// core-js-disable-next-line\nuse(a);'), true);
   check('print anchoredComments channel leads an object property', /\/\/ core-js-disable-next-line\n\s*j: 2/.test(anchoredMembers), true);
   check('print anchoredComments channel leads a class member', /\/\/ core-js-disable-next-line\n\s*m\(\) \{/.test(anchoredMembers), true);
+  // ... and carries a source COMMENT in its own spelling: a block keeps its lines, each on a line of its
+  // own, and the node opens on the line after it
+  const carriedSrc = 'use(a);\nuse(b);\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const carriedParse = parseSync('/p.mjs', carriedSrc, { sourceType: 'module' });
+  const carried = printProgram({
+    program: carriedParse.program,
+    comments: carriedParse.comments,
+    source: carriedSrc,
+    id: '/p.mjs',
+    anchoredComments: new Map([[carriedParse.program.body[1], [{ type: 'Line', value: ' line' }, { type: 'Block', value: '*\n * @type {T}\n ' }]]]),
+  }).code;
+  check('print anchoredComments channel spells a carried comment', /use\(a\);\n+\/\/ line\n\/\*\*\n \* @type \{T\}\n \*\/\nuse\(b\);/.test(carried), true);
+  // a statement the emitter mints spans nothing, yet one spelling a source node opens where that node
+  // does: a comment ahead of the node prints ahead of the statement rather than inside it
+  const mintedSrc = '// note\nsrc.y;\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const mintedParse = parseSync('/p.mjs', mintedSrc, { sourceType: 'module' });
+  const [{ expression: mintedRead }] = mintedParse.program.body;
+  mintedParse.program.body = [mintDeclaration('const', [mintDeclarator(mintIdentifier('_ref'), mintedRead)])];
+  check('print opens a minted statement ahead of a comment its source node follows', printProgram({
+    program: mintedParse.program, comments: mintedParse.comments, source: mintedSrc, id: '/p.mjs',
+  }).code.startsWith('// note\nconst _ref = src.y;'), true);
   // a comment between `throw` / `yield` and the operand keeps the parens the peel drops elsewhere,
   // and the operand opens on its own line: `throw // note` is a bare `throw;` by the grammar
   const thrown = reprint('function f() {\n  throw (\n    // note\n    a.at(0)\n  );\n}\n');
@@ -2227,6 +2300,16 @@ function checkAstEngineBehaviors() {
     .transform('const v = getA().flat?.();\nuse(v);\n', '/sp.mjs', 'post');
   check('ast standalone post map keeps sourcesContent',
     Array.isArray(standalonePost?.map?.sourcesContent), true);
+  // the comments a destructuring host owns lead its rewrite below the effects lifted out of its
+  // initializer, while a section header set apart by a blank line stays above them - an order the
+  // structural comparison sees only through a comment inside the effect
+  const pure = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const lifted = pure.transform('use(0);\n// header\n\n// note\nconst { of } = (log(), Array);\nuse(of);\n', '/c.mjs')?.code ?? '';
+  check('ast lifted effect prints between a section header and the comment its host owns',
+    /\/\/ header\n+log\(\);\n+\/\/ note\nconst of = _Array\$of;/.test(lifted), true);
+  // ... and a rewrite whose first statement the render mints opens at its host
+  const minted = pure.transform('use(0);\n// note\nconst [{ findLast, at }] = [src.y];\nuse(findLast, at);\n', '/m.mjs')?.code ?? '';
+  check('ast minted rewrite opens under the comment its host owns', /\/\/ note\nconst _ref = src\.y;/.test(minted), true);
 }
 checkAstEngineBehaviors();
 
@@ -4166,6 +4249,62 @@ function checkRestParameterDecorators() {
 }
 checkRestParameterDecorators();
 
+// A function in a parameter decorator's argument destructures as anywhere else: each leaf is extracted
+// once. The shared fixture compares only the import set under the decorator syntax plugin
+function checkParameterDecoratorDestructures() {
+  const source = [
+    'const list = [1, 2];',
+    'export class C {',
+    '  constructor(',
+    '    @Inject(() => { const { includes } = list; return includes; }) a: unknown,',
+    '    @Inject(() => { let from; ({ from } = Array); return from; }) b: unknown,',
+    '  ) {}',
+    '}',
+  ].join('\n');
+  for (const phase of ['pre', 'post', 'pre+post']) {
+    let code = source;
+    for (const plugin of unplugin.raw({ method: 'usage-pure', phase, version: '4.0', targets: { ie: 11 } }, { framework: 'vite' })) {
+      const result = plugin.transform.call({ warn(message) { throw new Error(message); } }, code, '/decorated.ts');
+      if (result) code = result.code;
+    }
+    checkDeep(`parameter decorator destructures/${ phase }/each leaf extracted once`,
+      [code.match(/const includes = _includesMaybeArray\(list\)/g)?.length, code.match(/from = _Array\$from/g)?.length], [1, 1]);
+  }
+}
+checkParameterDecoratorDestructures();
+
+// ... and hosts whatever its sibling scopes host: the traverse reaches it under its parameter with real paths and
+// scopes. One fixture per transform route that once threw there, in both usage methods
+async function checkParameterDecoratorHostsAnyCode() {
+  for (const name of [
+    'alias-proxy-destructuring-member',
+    'array-conditional-static-neighbour',
+    'array-pattern-captures-an-element-no-pairing-reaches',
+    'array-retained-rest-assignment',
+    'at-block-var-multiple',
+    'at-call-circular-const-function-binding',
+    'at-call-ts-class-this-member-access',
+    'audit-anon-escape-destructure-and-slots',
+    'audit-nested-static-container-trailing-spread-bail',
+    'inner-default-returned-static-source',
+    'keyed-capture-over-selection',
+    'nested-getter-exposes-this',
+  ]) {
+    const body = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ name }/input.mjs`, import.meta.url), 'utf8');
+    const source = `export class C {\n  m(@Inject(async () => {\n${ body }\n}) b: unknown) {}\n}\n`;
+    for (const method of ['usage-pure', 'usage-global']) {
+      let thrown = null;
+      try {
+        createPlugin({ method, version: '4.0', targets: { ie: 11 } }).transform(source, '/decorated.ts');
+      } catch (error) {
+        thrown = error.message;
+      }
+      check(`parameter decorator hosts any code/${ name }/${ method }`, thrown, null);
+    }
+  }
+}
+await checkParameterDecoratorHostsAnyCode();
+
 // --- ast-builders: the minted literal's spelling ---
 
 // what the PRINTER makes of a literal this engine minted. `raw` is its preferred spelling and
@@ -4979,6 +5118,37 @@ for (const receiver of ['arr', '(arr)', '(arr as number[][][])']) {
   check('sequence drain keeps its initialized declaration after that effect', program.body[1].declarations[0].init.callee.name, 'capture');
   check('sequence drain retains the later effect', program.body[2].expression.expressions.at(-1).callee.name, 'after');
   check('sequence drain records its rewrite', rewrites, 1);
+}
+
+// A slot a claim consumes leaves its assignment host - pruned, or renamed to a sentinel beside a rest - and the
+// write estree-toolkit's record names there, the written identifier, leaves with it. the lookup's view then
+// reads the live overwrite in its place, never the identifier the drain took out of the tree
+for (const [label, source, sentinel, survives] of [
+  ['host survives', 'let m;\n({ map: m, other } = rows);\nuse(m);', false, true],
+  ['host dropped', 'let m;\n({ map: m } = rows);\nuse(m);', false, false],
+  ['sentinel beside a rest', 'let m;\n({ map: m, ...rest } = rows);\nuse(m);', true, true],
+]) {
+  const ast = programOf(source);
+  let host;
+  let use;
+  traverse(ast, {
+    $: { scope: true },
+    AssignmentExpression(path) { host ??= path; },
+    CallExpression(path) { [use] = path.get('arguments'); },
+  });
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  function writes() {
+    return lookup({ scope: use.scope, name: 'm', path: use })?.constantViolations ?? [];
+  }
+  check(`consumed assignment slot/${ label }: the record starts on the written identifier`, writes().map(write => write.node.type).join(','), 'Identifier');
+  const [prop] = host.node.left.properties;
+  createDestructureDrains({ skippedNodes: new WeakSet(), mintUnusedName: () => '_unused' })
+    .removeConsumedProps([{ prop, pattern: host.node.left, assignment: host.node, metaPath: host, sentinel }]);
+  const overwrite = mintStatement(mintAssignment('=', mintIdentifier('m'), mintIdentifier('_map')));
+  ast.body.splice(survives ? 2 : 1, survives ? 0 : 1, overwrite);
+  const live = writes();
+  check(`consumed assignment slot/${ label }: no detached write`, live.every(write => !ancestorChainDetached(write)), true);
+  check(`consumed assignment slot/${ label }: the overwrite stands for it`, live.some(write => write.node === overwrite.expression), true);
 }
 
 // Call-result stamps are unnecessary at discarded-value positions. A retained call

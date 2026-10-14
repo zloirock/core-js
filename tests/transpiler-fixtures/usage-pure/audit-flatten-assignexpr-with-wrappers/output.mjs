@@ -7,7 +7,7 @@ let of;
 ({
   Array: {
     from
-  } = {}
+  }
 } = {
   Array: {
     from: _Array$from
@@ -16,7 +16,7 @@ let of;
 ({
   Array: {
     of
-  } = {}
+  }
 } = {
   Array: {
     of: _Array$of

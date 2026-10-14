@@ -5,6 +5,7 @@ import {
   callYieldCanBeUndefined,
   deleteHostAboveCarriedChain,
   descendToChainRoot,
+  guardTailPullCount,
   inlineCallProxyGlobalRoot,
   planProvenNavGuardCollapse,
   proxyGlobalRootName,
@@ -19,6 +20,7 @@ import {
   CHAIN_HOP_WRAPPER_TYPES,
   claimDeleteOperand,
   deleteHostAboveChain,
+  deleteOverOpenContinuation,
   invocationCalleeOf,
   isPristineProxyGlobal,
   memberKeyName,
@@ -27,6 +29,7 @@ import {
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
   singleSequenceTail,
+  stepOverChainWrappers,
   subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
@@ -41,6 +44,7 @@ import {
   memberExpression,
   sequenceExpression,
   nullFirstGuardTest,
+  renderDeleteShortCircuitGuard,
   renderShortCircuitGuard,
   renderAliasHeldProbeRead,
   memberFromKeyName,
@@ -105,12 +109,77 @@ function parenSealedCalleeTail(hopPath) {
   return null;
 }
 
+// what reads a realm hop the climb stands on, through the chain wrappers between - and whether that
+// read takes the hop's value on: a member, a call, a stored value. a paren between them is a seal the
+// climb keeps, so the walk crosses the TS and chain wrappers only, never `stepOverChainWrappers`' set
+function realmHopReader(hopPath) {
+  let slot = hopPath;
+  let readerPath = hopPath.parentPath;
+  while (readerPath?.node && CHAIN_HOP_WRAPPER_TYPES.has(readerPath.node.type) && readerPath.node.expression === slot.node) {
+    slot = readerPath;
+    readerPath = readerPath.parentPath;
+  }
+  const reader = readerPath?.node;
+  const readsMember = reader?.type === 'MemberExpression' && reader.object === slot.node;
+  return {
+    reader,
+    readsMember,
+    readsThrough: readsMember || (reader?.type === 'CallExpression' && reader.callee === slot.node)
+      || (reader?.type === 'AssignmentExpression' && reader.right === slot.node),
+  };
+}
+
+// one step of a NAV COLLAPSE's tail: the run of realm hops standing right over the always-defined leaf
+// folds onto it where the climb's fold verdict says so, and a hop that stays spelled leaves the value
+// no longer provably defined. every step past the run takes the shared pull rule (`guardTailPullCount`)
+// in turn - the count babel's nav render takes - and the first one the rule leaves outside ends the
+// alternate. a realm-named key past that run is a plain read, never a fold (`_self.box.window`)
+function navCollapseTailStepper(alwaysDefined, { unbackedHopKey, realmHopFolds }) {
+  const pulled = [];
+  let inRealmRun = alwaysDefined;
+  let definedAtLeaf = alwaysDefined;
+  return function navTailStep(up, { memberCont, callCont }) {
+    const upNode = up.node;
+    inRealmRun &&= memberCont && !!unbackedHopKey?.(upNode);
+    if (inRealmRun) {
+      const folds = realmHopFolds(up, !!upNode.optional);
+      // a realm hop right over the leaf reads that leaf, so its own `?.` is dead text either way
+      upNode.optional = false;
+      if (folds) return 'fold';
+      inRealmRun = false;
+      definedAtLeaf = false;
+      return 'take';
+    }
+    pulled.push({ optional: !!upNode.optional, isCall: callCont });
+    if (guardTailPullCount(pulled, definedAtLeaf) < pulled.length) return 'stop';
+    // the first step reads the always-defined leaf, so its `?.` is the vestigial one
+    if (upNode.optional && memberCont && definedAtLeaf && pulled.length === 1) upNode.optional = false;
+    return 'take';
+  };
+}
+
 // the guard climb: how far above the replaced hop the alternate reaches, and which TS wrappers
 // it swallowed on the way. extracted from `replaceGuardedHop` for its size. `preserveOptionalHops`
 // (a probe the source reads on past the replaced hop) keeps a `?.` the climb would otherwise fold
 // with its always-defined value, so the read above still short-circuits where the source did
-function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey = null, preserveOptionalHops }) {
+function climbAbsorbedTail(hopPath, {
+  alwaysDefined, navAlternate, navCollapse, unbackedHopKey = null, preserveOptionalHops,
+}) {
   const absorbedWrappers = [];
+  // does the climb fold this unbacked realm hop onto the always-defined value below it? a folded hop
+  // leaves the alternate on the ponyfill it started from, so what reads next still reads an
+  // always-defined value - and its own `?.` folds with it, since the only realm where that
+  // short-circuit fires is the one the collapse already answers for. the read whose `?.` was just
+  // erased stays where the source reads on past it, and a COMPUTED key stays: folding it would fold
+  // its key effect away with it
+  function realmHopFolds(up, sourceOptional) {
+    const { reader, readsMember, readsThrough } = realmHopReader(up);
+    const sourceReadContinues = preserveOptionalHops && !sourceOptional && readsThrough
+      && (!readsMember || reader.optional || !POSSIBLE_GLOBAL_OBJECTS.has(memberKeyName(reader)));
+    return !sourceReadContinues && (!sourceOptional || !preserveOptionalHops)
+      && !up.node.computed && (alwaysDefined || navAlternate);
+  }
+  const navStep = navCollapse ? navCollapseTailStepper(alwaysDefined, { unbackedHopKey, realmHopFolds }) : null;
   // the realm hops the alternate reads THROUGH: over an always-defined ponyfill each of them names
   // that same ponyfill (the plan folds them for the same reason), so the alternate drops them
   // instead of spelling a slot the ponyfill carries only in a browser
@@ -159,7 +228,9 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
     // an already-absorbed callee cannot split from it - it rides the alternate with its
     // `?.` kept (`.reduce?.(...)` inside the branch)
     const sourceOptional = !!upNode.optional;
-    if (upNode.optional) {
+    const navVerdict = navStep?.(up, { memberCont, callCont });
+    if (navVerdict === 'stop') break;
+    if (!navStep && upNode.optional) {
       // an optional MEMBER continuation rides the alternate whatever its base: only its
       // `?.` depends on the base, and the always-defined leaf erases it (the vestigial
       // rule - `...?.self?.['window']` reads `_self['window']`); a live base keeps it
@@ -186,29 +257,10 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
         }
       } else if (!absorbedHop) break;
     }
-    let folded = false;
-    if (memberCont && unbackedHopKey?.(upNode)) {
-      let consumerSlot = up;
-      let consumerPath = up.parentPath;
-      while (consumerPath?.node && CHAIN_HOP_WRAPPER_TYPES.has(consumerPath.node.type)
-        && consumerPath.node.expression === consumerSlot.node) {
-        consumerSlot = consumerPath;
-        consumerPath = consumerPath.parentPath;
-      }
-      const consumer = consumerPath?.node;
-      const consumerMember = consumer?.type === 'MemberExpression' && consumer.object === consumerSlot.node;
-      const consumerKey = consumerMember ? memberKeyName(consumer) : null;
-      const sourceReadContinues = preserveOptionalHops && !sourceOptional
-        && ((consumerMember && (consumer.optional || !POSSIBLE_GLOBAL_OBJECTS.has(consumerKey)))
-          || (consumer?.type === 'CallExpression' && consumer.callee === consumerSlot.node)
-          || (consumer?.type === 'AssignmentExpression' && consumer.right === consumerSlot.node));
-      // Keep the property read whose original optional operator was just erased above.
-      // A folded hop leaves the alternate on the ponyfill it started from, so what reads next still
-      // reads an always-defined value - and its own `?.` folds with it, since the only realm where
-      // that short-circuit fires is the one the collapse already answers for. a COMPUTED key stays:
-      // folding it would fold its key effect away with it
-      if (!sourceReadContinues && (!sourceOptional || !preserveOptionalHops)
-        && !upNode.computed && (alwaysDefined || navAlternate)) {
+    let folded = navVerdict === 'fold';
+    if (folded) foldedHops.push(upNode);
+    else if (!navStep && memberCont && unbackedHopKey?.(upNode)) {
+      if (realmHopFolds(up, sourceOptional)) {
         foldedHops.push(upNode);
         folded = true;
         // the `?.` goes with the hop, so the erase it just spent is RETURNED: the step above is
@@ -243,21 +295,31 @@ function liveOptionalAboveSeal(chainPath) {
   return false;
 }
 
-// the guard now yields `void 0` on the short-circuit branch, so the member left standing over it
-// reads through a `?.` - the source spelling of the very short-circuit the ternary reproduces
+// the guard now yields `void 0` on the short-circuit branch, so the member left standing over it - a
+// read the `delete` above it never reaches, ended by a carrier first (`delete ('x', w?.self.box).n`) -
+// reads through a `?.`, the source spelling of the very short-circuit the ternary reproduces. that
+// member is the READER past the wrappers over the guard: a `!` continues the chain, and the heir rule
+// refuses the seal a paren makes
 function rehangGuardedTailOptional(target, inserted, up = target.parentPath) {
-  const above = optionalHeirAbove(up?.node, inserted);
+  const [, reader] = stepOverChainWrappers(inserted, up);
+  const above = optionalHeirAbove(reader?.node, inserted);
   if (!above) return;
   above.optional = true;
   // the chain wrapper belongs at the TOP of the continuation, not on the hop that carries the
   // `?.`: sealed one step up it TERMINATES the chain and the tail above reads plainly
-  // (`delete (guard?.chrome).missing` throws where `delete guard?.chrome.missing` short-circuits)
-  let top = up;
-  for (let cur = up.parentPath; cur?.node; cur = cur.parentPath) {
-    const { node } = cur;
-    if (!((node.type === 'MemberExpression' && node.object === top.node)
-      || (node.type === 'CallExpression' && node.callee === top.node))) break;
-    top = cur;
+  // (`delete (guard?.chrome).missing` throws where `delete guard?.chrome.missing` short-circuits).
+  // a `!` between two links of the continuation is part of it too
+  let top = reader;
+  for (let cur = reader, step = reader.parentPath; step?.node; step = cur.parentPath) {
+    const { node } = step;
+    if (TS_EXPR_WRAPPERS.has(node.type)) {
+      cur = step;
+      continue;
+    }
+    if (!((node.type === 'MemberExpression' && node.object === cur.node)
+      || (node.type === 'CallExpression' && node.callee === cur.node))) break;
+    cur = step;
+    top = step;
   }
   if (top.parentPath?.node?.type !== 'ChainExpression') top.replaceWith(chainExpression(top.node));
 }
@@ -279,6 +341,7 @@ export function replaceGuardedHop({
   resolvedType = null,
   alwaysDefined = false,
   navAlternate = false,
+  navCollapse = false,
   preserveOptionalHops = false,
   leafKeySe = null,
   prefixSe = null,
@@ -301,18 +364,17 @@ export function replaceGuardedHop({
   // throw on the short-circuit (`(g?.window?.self.window).Array` -> `(<guard>).Array`)
   if (sealedTail && alwaysDefined && !sealedTail.computed && hopIsUnbacked?.(sealedTail)) sealedTail = null;
   // a `delete` consumer needs the MEMBER itself: pulled into the alternate the ternary
-  // deletes nothing, so the tail stays outside and re-hangs the short-circuit the guard
-  // now owes it (`delete dl()?.window?.self.missing` ->
-  // `delete (null == dl().window ? void 0 : _self)?.missing`). ONE home for that question -
-  // asked of the hop the render replaces, carriers included, instead of each NAV channel that
-  // renders here remembering to hand it in: the ones that forgot absorbed the member and the
-  // delete then deleted nothing. a DISPATCH alternate asks it too: the value below the member is
-  // this render's to mint, but the member itself is one the source names to delete
+  // deletes nothing, so the tail stays outside the climb and the operator takes the guard whole
+  // (`delete dl()?.window?.self.missing` -> `null == dl().window ? true : delete _self.missing`).
+  // ONE home for that question - asked of the hop the render replaces, carriers included, instead
+  // of each NAV channel that renders here remembering to hand it in: the ones that forgot absorbed
+  // the member and the delete then deleted nothing. a DISPATCH alternate asks it too: the value
+  // below the member is this render's to mint, but the member itself is one the source names to delete
   const deleteHostTail = deleteHostAboveChain(hopPath, hopPath.node, unwrapRuntimeExpr)
     || deleteHostAboveCarriedChain(hopPath);
   const climbed = test && !sealedTail && !deleteHostTail
           ? climbAbsorbedTail(hopPath, {
-            alwaysDefined, navAlternate, unbackedHopKey: hopIsUnbacked, preserveOptionalHops,
+            alwaysDefined, navAlternate, navCollapse, unbackedHopKey: hopIsUnbacked, preserveOptionalHops,
           }) : null;
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
   const foldedHops = climbed?.foldedHops ?? [];
@@ -374,29 +436,33 @@ export function replaceGuardedHop({
   const keepLive = new Set([...leafKeySe ?? [], ...prefixSe ?? [], ...skippedNodes.keepLive ?? []]
     .filter(expr => subtreeContainsNode(consumed, expr)));
   if (target === hopPath) {
-    const replacement = test
-      ? renderShortCircuitGuard(test, withLeafKeySe(built)) : built;
-    if (test && returnType) resolvedType?.set(replacement, returnType);
-    const inserted = withPrefixSe(replacement);
-    target.replaceWith(inserted);
-    if (deleteHostTail && test) {
-      // the realm hops between the guard and the deleted member read the always-defined alternate
-      // and fold like any read through a ponyfill - the tail climb's own fold, which a delete
-      // consumer skipped to keep its member outside, and with it the fold: spliced out, each parent
-      // reads what stood below (`delete (dh()?.self?.window).k` -> `delete (<guard>).k`). the
-      // deleted member itself stays outside and re-hangs the short-circuit off the guard
-      let up = target.parentPath;
-      if (alwaysDefined || navAlternate) {
-        while (up?.node?.type === 'MemberExpression' && up.node.object === inserted && !up.node.computed
-          && hopIsUnbacked?.(up.node) && !claimDeleteOperand(up)) {
-          const above = up.parentPath;
-          if (!above?.node) break;
-          replaceNodeInTree(above.node, up.node, inserted);
-          up = above;
-        }
+    const deleteTail = deleteHostTail && test;
+    // under a `delete` the realm hops between the render and the deleted member read the always-defined
+    // alternate and fold like any read through a ponyfill - the tail climb's own fold, which a delete
+    // consumer skipped to keep its member outside: spliced out, each parent reads what stood below
+    // (`delete (dh()?.self?.window).k` -> `delete (<guard>).k`)
+    const folds = [];
+    let up = target.parentPath;
+    if (deleteTail && (alwaysDefined || navAlternate)) {
+      let below = target.node;
+      while (up?.node?.type === 'MemberExpression' && up.node.object === below && !up.node.computed
+        && hopIsUnbacked?.(up.node) && !claimDeleteOperand(up) && up.parentPath?.node) {
+        folds.push(up);
+        below = up.node;
+        up = up.parentPath;
       }
-      rehangGuardedTailOptional(target, inserted, up);
     }
+    // ... and the operator the chain runs on into takes its WHOLE act into the guard, the value landing
+    // bare in the operand
+    const deleteHost = deleteTail ? deleteOverOpenContinuation(folds.at(-1)?.node ?? target.node, up) : null;
+    const value = test ? withLeafKeySe(built) : built;
+    const replacement = test && !deleteHost ? renderShortCircuitGuard(test, value) : value;
+    if (test && !deleteHost && returnType) resolvedType?.set(replacement, returnType);
+    const inserted = deleteHost ? value : withPrefixSe(replacement);
+    target.replaceWith(inserted);
+    for (const fold of folds) replaceNodeInTree(fold.parentPath.node, fold.node, inserted);
+    if (deleteHost) deleteHost.replaceWith(withPrefixSe(renderDeleteShortCircuitGuard(test, deleteHost.node.argument)));
+    else if (deleteTail) rehangGuardedTailOptional(target, inserted, up);
   } else if (test) {
     // a tail (or the chain wrapper) was absorbed: swap the hop for its emission in place,
     // then wrap what the climb collected as the alternate

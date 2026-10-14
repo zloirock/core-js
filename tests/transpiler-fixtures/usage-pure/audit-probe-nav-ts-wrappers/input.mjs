@@ -12,7 +12,7 @@ export const castSealDelete = delete (globalThis.window?.self.customProp as any)
 // the cast-seal probes ride the CLAIM, DESTRUCTURE and SYNTH channels too (erasure keeps
 // the paren seal; the throw probe re-emits the sealed read, the key SE runs on it once)
 let c2 = 0;
-export const castSealClaim = (globalThis.window?.self as any).Array.of(6).at(0);
+export const castSealClaim = (globalThis.window?.self as any).Array.from([6]).at(0);
 export const { keys: castSealDestructure } = (globalThis.window?.self as any).Object;
 export function castSealSynth({ values: sv } = (globalThis.window?.[(c2++, 'self')] as any).Object) { return sv; }
 export { c2 };

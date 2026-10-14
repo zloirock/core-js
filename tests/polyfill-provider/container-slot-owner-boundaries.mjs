@@ -126,9 +126,9 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     const declaration = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'box').node;
     const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
     // the replacement is read where its write stands, which the read's own owner does not hold
-    const acceptValue = named ? (value, writePath) => value?.type === 'Identifier' && writePath?.node?.right === value : null;
+    const nameValue = named ? (value, writePath) => value?.type === 'Identifier' && writePath?.node?.right === value ? value.name : null : null;
     check(`${ label }: ${ name }`,
-      reader.containerSlotWriteDominatesUsage(['C'], declaration, read, read.node, acceptValue), expected);
+      reader.containerSlotWriteDominatesUsage(['C'], declaration, read, read.node, nameValue), expected && (named ? 'Map' : true));
   }
   // Synthesized declarations have no source span: only that exact node owns their records.
   const synthetic = parser.parseAndScope('const box = []; box.push(Map);');

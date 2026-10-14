@@ -1,6 +1,7 @@
 // the sealed-probe nav forms the pure renders diverged on, seen from the method that only injects:
 // nothing here is rewritten, so the observable is the import set - one distinct method per line, or
-// the lines mask each other. what this locks is that a seal never hides a usage from detection
+// the lines mask each other. what this locks is that a seal never hides a usage from detection,
+// nor turns the member a `delete` names into one
 export const viaAbsorbedHopDelete = delete (globalThis.window?.self).self.box.at;
 
 export const viaSealedCtorLeaf = (globalThis.window?.self).Map.name;

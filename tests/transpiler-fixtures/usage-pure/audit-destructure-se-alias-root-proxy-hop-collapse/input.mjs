@@ -1,22 +1,22 @@
+// A destructure off a realm navigation rooted at an alias of the realm, with an effect buried in a
+// sequence at the root or inside the hops, runs the effect once ahead of the extraction and reads no
+// raw hop off the alias (`self` is undefined where the engine has none): each static extracts from
+// its own entry, whether its constructor has a ponyfill or core-js extends it in place.
 let c = 0;
 const g = globalThis;
 
-// alias proxy root buried under a root side-effect sequence, pure-CTOR leaf: the whole nav whole-swaps
-// to the pure ctor and harvests the effect (`(c++, g).self.Map` -> `c++, _Map`), not re-emitting the
-// raw `.self` hop off the alias (undefined off-engine)
+// effect at the root, a constructor with a ponyfill
 const { groupBy: viaRootSeCtor } = (c++, g).self.Map;
 export const a = viaRootSeCtor;
 
-// alias root, root side-effect, NON-ctor leaf: the alias identifier stays and only the redundant hop drops
+// effect at the root, a constructor core-js extends in place
 const { from: viaRootSeStatic } = (c++, g).self.Array;
 export const b = viaRootSeStatic;
 
-// alias root with the side-effect buried in the hop TAIL, pure-ctor leaf: the ctor whole-swap sees
-// through the tail sequence and collapses the same way
+// effect inside the hops, a constructor with a ponyfill
 const { allSettled: viaTailSeCtor } = (c++, g.self).Promise;
 export const d = viaTailSeCtor;
 
-// alias root with the effect buried in the hop TAIL, NON-ctor leaf: the discarded residual is ownerless
-// (no competing instance-dispatch rewrite), so the redundant hop still drops off the kept alias name
+// effect inside the hops, a constructor core-js extends in place
 const { of: viaTailSeStatic } = (c++, g.self).Array;
 export const e = viaTailSeStatic;

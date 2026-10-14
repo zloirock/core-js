@@ -1,6 +1,6 @@
-// a receiver carrying its OWN live `?.` short-circuits the whole chain natively, so the
-// combined dispatch tests it before the maybe-helper reads its member; folding it into the
-// helper argument threw on a nullish receiver where native yields undefined
+// a receiver carrying its OWN live `?.` short-circuits the whole chain at that link, so the
+// combined dispatch tests the link's object before the maybe-helper reads the receiver past it;
+// a receiver that comes out nullish below the link still throws at that read, as native does
 export function twoLive(a) {
   return a?.b?.c.flat?.().map(x => x).length;
 }
@@ -21,8 +21,8 @@ export function parenSealed(a) {
 export function plainReceiver(arr) {
   return arr.flat?.().map(x => x).length;
 }
-// the same receiver rule on the NON-polyfilled inner path: the method read off the receiver
-// memo short-circuits too, so a nullish receiver yields undefined instead of throwing
+// the same link rule on the NON-polyfilled inner path: the link is tested and the method is
+// read plainly off the receiver memo, so a nullish receiver throws there as the source does
 export function nonPolyInner(o) {
   return o?.b.c.notPolyfilled?.().map(x => x).length;
 }

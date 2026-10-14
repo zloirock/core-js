@@ -164,6 +164,18 @@ const CASES = [
   ['assignment destructure, SE keys on two hops, pattern-valued static',
     'const log = [];\nlet from, l;\n({ Array: { [(log.push("f"), "from")]: from }, Object: { keys: { [(log.push("k"), "length")]: l } } } = globalThis);\n'
     + 'export const r = [from, l];'],
+  // a member target the source parenthesizes is the same slot: the node dialect hands the write a
+  // `ParenthesizedExpression`, which is no assignment target of its own
+  ['parenthesized member target of a static claim', 'const sink = {};\n({ from: (sink.f) } = Array);\n({ of: (sink.g) = fallback } = Array);'],
+  ['parenthesized defaulted binding target of a static claim', 'let f;\n({ fromAsync: (f) = fallback } = Array);'],
+  ['parenthesized binding leaves of a captured hop',
+    'let t, u, r1, r2;\n({ Array: { from: (t), ...r1 } } = globalThis);\n({ Array: { of: ((u)) = fallback, ...r2 } } = globalThis);'],
+  ['parenthesized targets under a nested rest keep the inline default',
+    'const o = {};\nlet r1, r2, g, f;\n({ Array: { from: (o.f), ...r1 } } = globalThis);\n({ Array: { [k]: g, of: (f), ...r2 } } = globalThis);'],
+  ['parenthesized binding targets of static, instance, rest and effect-keyed claims',
+    'let f, a, g, r, h;\n({ from: (f) } = Array);\n({ at: (a) } = arr);\n({ of: (g), ...r } = Array);\n({ [(e(), "from")]: (h) } = Array);'],
+  ['parenthesized cast member target of a static claim', 'const sink: any = {};\n({ from: ((sink.f as any)) } = Array);', ['typescript']],
+  ['parenthesized member target of an instance claim', 'const sink = {};\n({ at: (sink.m) } = arr);\n({ y: { flat: (sink.n) } } = { y: arr });'],
   ['mixed inner default under a parenthesized slot',
     'const held = { Set: class {}, Array: { of: x => [x] } };\nexport const r = (([{ Set: S, Array: { of } } = globalThis]) => [S, of(7)])([(held)]);'],
 ];

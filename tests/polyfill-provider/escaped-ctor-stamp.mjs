@@ -349,12 +349,12 @@ const NAME_ROWS = [
     ['effect before local read', 'export const value = (() => { hand(Array); if (flag) return Array; return custom; })().of(3);'],
   ].map(([name, code]) => ({ name: `multiple returns escape through ${ name }`, code,
     realm: ['Array'], mintedToo: ['Array'], withContainerCensus: true })),
-  // a return, a class member's value, a write in a static block and a slot of a literal whose functions
-  // read `this` are routes the census does not follow, whatever reaches the value later - a call no
-  // callee answers, a read through `this` or an instance, a construction: it holds nothing for them, so
-  // a static read through one finds the narrow entry without its statics, as on every unsupported route
+  // a return, a class member's value - save a static of a class that never reaches itself unnamed -, a write
+  // in a static block and a slot of a literal whose functions read `this` are routes the census does not
+  // follow, whatever reaches the value later - a call no callee answers, a read through `this` or an
+  // instance, a construction: it holds nothing for them, so a static read through one finds the narrow
+  // entry without its statics, as on every unsupported route
   ...[
-    ['static method', 'class K { static make() { return Map; } } K.make().groupBy([], x => x);'],
     ['prototype method', 'class K { make() { return Map; } } new K().make().groupBy([], x => x);'],
     ['private method', 'class K { static #make() { return Map; } static run() { return K.#make().groupBy([], x => x); } } K.run();'],
     ['method through this', 'class K { static make() { return Map; } static run() { return this.make().groupBy([], x => x); } } K.run();'],
@@ -363,7 +363,6 @@ const NAME_ROWS = [
     ['instance getter', 'class K { get M() { return Map; } } new K().M.groupBy([], x => x);'],
     ['instance field', 'class K { M = Map; } new K().M.groupBy([], x => x);'],
     ['instance arrow field', 'class K { make = () => Map; } new K().make().groupBy([], x => x);'],
-    ['static arrow field', 'class K { static make = () => Map; } K.make().groupBy([], x => x);'],
     ['static field through this', 'class K { static M = Map; static run() { return this.M.groupBy([], x => x); } } K.run();'],
     ['static field through a static block', 'class K { static M = Map; static { this.M.groupBy([], x => x); } }'],
     ['static field through a field initializer', 'class K { static M = Map; static N = this.M; } K.N.groupBy([], x => x);'],
@@ -372,7 +371,6 @@ const NAME_ROWS = [
       + ' class B extends A { static run() { return super.M.groupBy([], x => x); } } B.run();'],
     ['literal method reading this', 'const o = { tag: 1, make() { this.tag; return Map; } }; o.make().groupBy([], x => x);'],
     ['literal slot through this', 'const o = { M: Map, run() { return this.M.groupBy([], x => x); } }; o.run();'],
-    ['literal method through an alias', 'const o = { make() { return Map; } }; const p = o; p.make().groupBy([], x => x);'],
     ['nested literal method', 'const o = { p: { make() { return Map; } } }; o.p.make().groupBy([], x => x);'],
     ['destructured literal method', 'const o = { make() { return Map; } }; const { make } = o; make().groupBy([], x => x);'],
     ['array slot', 'const a = [() => Map]; a[0]().groupBy([], x => x);'],
@@ -383,8 +381,7 @@ const NAME_ROWS = [
     ['constructor inherited through super', 'class A { constructor() { return Map; } }'
       + ' class B extends A { constructor() { super(); } } new B().groupBy([], x => x);'],
     ['returned function', 'function outer() { return () => Map; } outer()().groupBy([], x => x);'],
-    ['alias of the result', 'class K { static make() { return Map; } } const ns = K.make(); ns.groupBy([], x => x);'],
-    ['result handed on', 'class K { static make() { return Map; } } hand(K.make());'],
+    ['class static method reading this, result handed on', 'class K { static make() { this.tag; return Map; } } hand(K.make());'],
     ['result of a name holding the function handed on', 'let h = () => Map; if (flag) h = () => Set; hand(h());'],
     // a construction pure never inlines hands what the constructor returns to every reader of it
     ...[
@@ -394,7 +391,6 @@ const NAME_ROWS = [
       'for (const { groupBy } of [new K()]) groupBy([], x => x);',
     ].map((read, index) => [`constructor return ${ index }`,
       `class K { constructor() { return Map; } } ${ read }`]),
-    ['static method read into a name', 'class K { static make() { return Map; } } const mk = K.make; mk().groupBy([], x => x);'],
     ['awaited async call', 'async function f() { return Map; } export async function run() { return (await f()).groupBy([], x => x); }'],
     ['awaited value that is no call', 'export async function run() { return (await Map).groupBy([], x => x); }'],
     ['alias of an awaited async call', 'async function f() { return Map; } export async function run() { const M = await f(); return M.groupBy; }'],
@@ -456,6 +452,12 @@ const NAME_ROWS = [
     ['receiver of Reflect.apply', 'function g() { return this.groupBy; } Reflect.apply(g, Map, []);'],
     ['receiver an unknown callee takes', 'u.call(Map);'],
   ].map(([name, code]) => ({ name: `handed on: ${ name }`, code, realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true })),
+  // a class's own static is a callee the census answers as a literal's method: what its call returns is the
+  // call's value, so handing that value out hands the constructor out
+  ...[
+    ['result of a class static method', 'class K { static make() { return Map; } } hand(K.make());'],
+    ['result of a class static method through an alias', 'class K { static make() { return Map; } } const A = K; hand(A.make());'],
+  ].map(([name, code]) => ({ name: `handed on: ${ name }`, code, realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true })),
   ...[
     ['discarded await of an async call', 'async function f() { return Map; } export async function run() { await f(); }'],
     ['receiver of a function reading no this', 'function g() { return 1; } g.call(Map);'],
@@ -480,6 +482,11 @@ const NAME_ROWS = [
     ['pure static getter', 'class K { static get M() { return Map; } } K.M.groupBy([], x => x);'],
     ['static field in a slot', 'class K { static M = Map; } const list = [K.M]; list[0].groupBy([], x => x);'],
     ['member alias in a slot', 'class K { static M = Map; } const kept = K.M; const list = [kept]; list[0].groupBy([], x => x);'],
+    ['class static method', 'class K { static make() { return Map; } } K.make().groupBy([], x => x);'],
+    ['class static arrow field', 'class K { static make = () => Map; } K.make().groupBy([], x => x);'],
+    ['literal method through an alias', 'const o = { make() { return Map; } }; const p = o; p.make().groupBy([], x => x);'],
+    ['alias of a class static result', 'class K { static make() { return Map; } } const ns = K.make(); ns.groupBy([], x => x);'],
+    ['class static method read into a name', 'class K { static make() { return Map; } } const mk = K.make; mk().groupBy([], x => x);'],
   ].map(([name, code]) => ({ name: `named read owes nothing: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
   // a local call whose returns sit in control flow this census still lists: pure guards a static read
   // on the CALL with those candidates and owes nothing, while a read it cannot guard - through an

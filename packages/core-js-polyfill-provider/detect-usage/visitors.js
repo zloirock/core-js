@@ -15,6 +15,7 @@ import {
   classifyDestructureLeafHost,
   collectDestructureUnionCandidates,
   decidedSelection,
+  defaultDroppedAsDead,
   destructurePatternHostPath,
   prepareDestructureUnion,
 } from './destructure.js';
@@ -27,9 +28,12 @@ import {
   hasObjectRestAncestor,
   ownRelocatedHeadElement,
   hasRestSiblingExcept,
+  isExportSpecifierLocal,
   isTypeAnnotationNodeType,
+  isUndefinedNode,
   pathValueSlot,
   patternSlotTarget,
+  PRIMITIVE_LITERAL_TYPES,
   SKIPPABLE_WRAPPER_TYPES,
   typeDeclarationUnreferencedInFile,
   unwrapParens,
@@ -93,6 +97,7 @@ export function createUsageHandlerCore({
     // CommonJS wrapper, so a top-level `var` binds afresh like every other one and a self-reference
     // (`var X = X`) reads the hoisted undefined rather than the realm
     if (adapter.hasBinding({ scope: path.scope, name: node.name, path })) return;
+    if (isExportSpecifierLocal(path)) return;
     // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
     onUsage({ kind: 'global', name: node.name }, path);
@@ -146,6 +151,15 @@ export function createUsageHandlerCore({
     return holds;
   }
 
+  // does no visitor read anything in `node`: a plain literal, or a bare name no polyfillable global goes by - what
+  // usage-global leaves unchanged whether it skips the node or visits it
+  function visitorsReadNothing(node) {
+    const value = unwrapParens(node);
+    if (value?.type === 'Identifier') return !isKnownGlobalName(value.name);
+    return isUndefinedNode(value) || (PRIMITIVE_LITERAL_TYPES.has(value?.type) && value.type !== 'RegExpLiteral'
+      && value.type !== 'BigIntLiteral' && !value.regex && value.bigint === undefined);
+  }
+
   // the slots outer folds hand down, by the selection each puts there (`deadBranchOf`)
   const inheritedSlots = new WeakMap();
 
@@ -170,12 +184,22 @@ export function createUsageHandlerCore({
   }
 
   // the part of a user selection this build never evaluates, asked by each emitter's visitor of a
-  // `||` / `??` / `&&`, a conditional and an `if`: `{ skip, fold, slot }` - `skip` the key of the
-  // operand that never runs (null where only the test is dead text, or the `if` has no such branch),
+  // `||` / `??` / `&&`, a conditional, an `if` and a pattern default: `{ skip, fold, slot }` - `skip` the key
+  // of the operand that never runs (null where only the test is dead text, or the `if` has no such branch),
   // `fold` what usage-pure replaces the selection with once the claims rendered (an operand key, or
   // `true` / `false` for the value a decided test yields), null where the selection keeps its text,
   // and `slot` the slot it folds in (`pathValueSlot`, read by `foldedOperandNeedsValue`) - or null
   function deadBranchOf(path) {
+    // a default the build drops as dead (`defaultDroppedAsDead`), in usage-global alone: usage-pure's render answers
+    // for the slot instead - it drops such a default with the pattern it rewrites, the level's mirror included, and
+    // a default it keeps over a raw slot keeps its raw globals' imports
+    if (path.node.type === 'AssignmentPattern') {
+      return method === 'usage-global' && withCanonQuestion(() => defaultDroppedAsDead(path, { adapter, resolvePure }))
+        ? { skip: 'right', fold: null, slot: null } : null;
+    }
+    // ... and of a `||` / `??` / `&&` a decision skips nothing but the right, which usage-global folds nothing over: a
+    // right no visitor reads anything in leaves the decision nothing to act on
+    if (method === 'usage-global' && path.node.type === 'LogicalExpression' && visitorsReadNothing(path.node.right)) return null;
     const scope = method === 'usage-pure' ? levelQuestionScope(path.node) : null;
     // an `if` only where nothing is rewritten: usage-pure has no fold for a statement yet, and a dead
     // branch it skipped would keep the source's raw globals in its output

@@ -34,6 +34,7 @@ import {
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
   writeSitsInEarlySlot,
+  writeNeverRuns,
   declaratorBindsName,
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
@@ -93,6 +94,7 @@ export function createClassFields({
   isNullableOrNever,
   commonType,
   foldUnionTypes,
+  getDecisionAdapter,
 }) {
   // member-kind predicates - see `./class-member-shapes.js` for the shared definitions.
   // field-flow scan needs both shapes - methods own `this.<X>` writes, properties are the
@@ -230,6 +232,8 @@ export function createClassFields({
         && !hasDeferredContextAncestor(writePath)
         && !writeSitsInEarlySlot(writePath)
         && !isWriteInsideLoopSpanningBound(writePath, bound)) continue;
+      // ... and a write in an arm the build never takes writes nothing (`writeNeverRuns`)
+      if (writeNeverRuns({ write: writePath.node, usagePath: writePath, adapter: getDecisionAdapter() })) continue;
       pushIfWriteMatches(writePath, predicate, out);
     }
   }

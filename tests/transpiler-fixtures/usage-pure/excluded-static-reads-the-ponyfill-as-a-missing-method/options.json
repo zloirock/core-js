@@ -1,0 +1,26 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "exclude": [
+          "iterator/concat",
+          "map/group-by",
+          "promise/all",
+          "promise/all-keyed",
+          "promise/all-settled",
+          "promise/any",
+          "promise/race",
+          "promise/reject",
+          "promise/try",
+          "promise/with-resolvers"
+        ],
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

@@ -7,7 +7,7 @@ export const sealedDispatchCall = (host.box?.missing).at?.(0);
 export const sealedPlainCall = (host.box?.missing).flat().at(0);
 export const doubledWrapper = ((host.box?.missing)).flat?.();
 
-// NEGATIVE: unsealed, the same `?.` guards the whole chain and the dispatch rides inside it.
-// the doubled wrapper's inner parens are grouping only and reprint away - the same value
-// either way
+// NEGATIVE: unsealed, the same `?.` short-circuits the whole chain at its link: the link is
+// tested and the dispatch rides inside the guard, reading the receiver plainly past it. the doubled
+// wrapper's inner parens are grouping only and reprint away - the same value either way
 export const unsealed = host.box?.missing.flat?.().at(0);

@@ -4,15 +4,12 @@
 // and render spellings both the visit half and the drain half of the emitter speak
 import {
   buildPatternRenderPlan,
-  destructureValueBranchesAllProxy,
   conditionalDestructureLeftUntouchedWarning,
   descendReceiverPathByKeys,
-  destructureKeyReadPlan,
   fallbackDestructureHasPolyfillableBranch,
   isConstantLiteralReceiver,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
-  leafTakesSlotDefault,
   namedDefaultReceiver,
   nestedSlotMemoPlan,
   paramDefaultInstanceSynthAllowed,
@@ -52,9 +49,7 @@ import {
   allProxySelectingInit,
   computedKeyHasSideEffects,
   dropDeadSequenceElements,
-  findObjectKeyBeforeSpread,
   hasRestSiblingExcept,
-  isMemberAccessNode,
   isDestructurePattern,
   isForXStatement,
   isMutatedGlobalSlot,
@@ -63,13 +58,11 @@ import {
   isValidIdentifierName,
   mayHaveSideEffects,
   memberKeyName,
-  objectLiteralHoldsObservable,
-  objectPropertyReadValue,
   observableSequenceElements,
   patternBindingCount,
   patternHasSeveralSeKeys,
-  pathOfNode,
   patternLevelKeepsEffectfulHop,
+  spelledWriteSlot,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelTransparentExpr,
@@ -78,7 +71,7 @@ import {
   proxySurfaceIdentifier,
   receiverCarriesLiveOptional,
   SINGLE_STATEMENT_SLOTS,
-  spelledSlotName,
+  soleChainToProp,
   statementListOf,
   unwrapRuntimeExpr,
   walkAstNodes,
@@ -104,7 +97,6 @@ import {
   nullFirstGuardTest,
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
-  renderKeyedDestructureRead,
   renderShortCircuitGuard,
   renderStaticDefaultGuard,
   memberFromKeyName,
@@ -128,11 +120,12 @@ export function overwriteRebindEmitted({ metaPath, injectorState }) {
 // a STATIC nested DEFAULTED sole leaf over a discardable receiver extracts as the overwrite
 // (`({ Array: { from = fb } } = _globalThis)` -> `from = _Array$from;`): the extraction always
 // defines, so the user default is dead text and drops with the receiver read - a pure nav or a
-// statically-selected left
-export function emitAssignStaticDefaultOverwrite({ hostParent, prop, pattern, chain, kind, entry, hintName, metaPath }, ctx) {
+// statically-selected left. the overwrite replaces the whole assignment, so the host must hold the
+// leaf alone: a sibling at any level would lose its write
+export function emitAssignStaticDefaultOverwrite({ hostParent, prop, chain, kind, entry, hintName, metaPath }, ctx) {
   if (kind === 'instance' || !chain.length
     || prop.value?.type !== 'AssignmentPattern' || prop.value.left?.type !== 'Identifier'
-    || patternBindingCount(pattern) !== 1) return false;
+    || !soleChainToProp(hostParent.node.left, prop)) return false;
   const discardable = isPureNavReceiver(hostParent.node.right)
     || allProxySelectingInit(hostParent.node.right, { adapter: ctx.adapter, injectorState: ctx.injectorState })
     || staticallySelectedLeft({
@@ -492,7 +485,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       const pieces = [
         ...paired.map(entry => ({
           stmt: entry.statement,
-          at: sourceProps?.indexOf(entry.job.chain?.length ? entry.job.chain.at(-1).hopProp : entry.job.prop) ?? -1,
+          at: sourceProps?.indexOf(jobOuterProp(entry.job)) ?? -1,
         })),
         ...anchored.split.map(({ hop, view }) => ({
           stmt: expressionStatement(assignmentExpression('=', view.id, view.init)),
@@ -578,25 +571,30 @@ function statementListSlot(program, stmtNode) {
   return slot;
 }
 
-// the slot a JOB writes into: a member target names that slot in the source itself, so the job has
-// no local of its own to declare - every other job binds the name it RECORDED. that fallback is what
-// separates this from `memoJobBindingTarget`, which falls back to `propBindingTarget` and so hands a
-// pattern value its own pattern; the two are not interchangeable
+// the slot a prop value SPELLS (`spelledWriteSlot`: a member, an asserted binding), cloned as the source
+// spells it - a default dropped, a paren or a TS assertion kept around it - or null: the slot an extraction
+// writes in place of a declared name
+function spelledSlotClone(value) {
+  const slot = spelledWriteSlot(value);
+  return slot ? cloneNode(slot) : null;
+}
+
+// the slot a JOB writes into: a spelled slot (a member, an asserted binding) names it in the source
+// itself, so the job has no local of its own to declare - every other job binds the name it RECORDED.
+// that fallback is what separates this from `memoJobBindingTarget`, which falls back to
+// `propBindingTarget` and so hands a pattern value its own pattern; the two are not interchangeable
 export function jobBindingTarget(record) {
-  const value = record?.prop?.value;
-  const slot = value?.type === 'AssignmentPattern' ? value.left : value;
-  if (isMemberAccessNode(slot)) return cloneNode(slot);
-  return identifier(record.local);
+  return spelledSlotClone(record?.prop?.value) ?? identifier(record.local);
 }
 
 // the extracted declarator's binding slot: a pattern-valued symbol prop moves its whole
 // pattern; everything else binds the local name
 export function propBindingTarget(prop) {
   if (isDestructurePattern(prop.value)) return prop.value;
-  // a MEMBER SLOT is the target the source itself named - the extraction writes there, and its own
+  // a SPELLED slot is the target the source itself named - the extraction writes there, and its own
   // DEFAULT goes with the rest of them: the import it takes is never undefined
-  const slot = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-  if (isMemberAccessNode(slot)) return cloneNode(slot);
+  const spelled = spelledSlotClone(prop.value);
+  if (spelled) return spelled;
   // a DEFAULTED pattern value binds through its OWN pattern: the default rides the extraction's
   // guard ternary, so only the left survives as the target
   if (prop.value.type === 'AssignmentPattern'
@@ -705,29 +703,6 @@ export function planLiftedRhsPrefix(right, { anchorsInSequence, guardCtx = null,
   // leaves its tail behind (the drain swaps the residual's right the same way for both shapes)
   if (anchorsInSequence || !chainAssignOverPureNav(peeled, guardCtx)) return null;
   return { prefix: [right], receiver: peelChainRootValue(peeled) };
-}
-
-// ... and a literal SLOT carrying the prefix (`({ w: { Map: m } } = { w: (f(), globalThis) })`): the
-// level consumes and the literal stays as a statement of its own, running the prefix where the
-// source ran it (`({ w: (f(), _globalThis) }); m = _Map;` - the other leg's shape) - when nothing
-// else in the literal observes (a sibling effect, a spread, an accessor keep the pattern whole -
-// `objectLiteralHoldsObservable`). the walk follows the hop keys through nested literals; the keys
-// past the last literal are navs off the quiet tail, which a receiver-less claim never reads. null
-// where no prefix is owed or the tail (a realm default peeled) proves no nav
-export function hopSlotPrefixRidesLiteral(right, chainKeys, guardCtx = null) {
-  const prefix = [];
-  let node = peelTransparentExpr(right);
-  for (const key of chainKeys) {
-    if (node?.type !== 'ObjectExpression') break;
-    const match = findObjectKeyBeforeSpread(node.properties, prop => spelledSlotName(prop) === key);
-    const read = objectPropertyReadValue(match);
-    if (!read || objectLiteralHoldsObservable(node, match, guardCtx?.aliasCtx)) return null;
-    const { prefix: levelPrefix, tail } = peelNestedSequenceExpressions(read);
-    prefix.push(...levelPrefix);
-    node = peelTransparentExpr(tail);
-  }
-  if (!prefix.length || node?.type === 'ObjectExpression') return false;
-  return isPureNavReceiver(peelRealmLogicalDefault(node), guardCtx);
 }
 
 // a chain ASSIGNMENT storing a provable global nav (`(q = globalThis)`): the write is an
@@ -858,9 +833,12 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
       }) ?? null;
       // a SENTINEL leaves a residual that reads the fragment a second time, so only a
       // value-SELECTING one qualifies for the relaxation: its memo is what makes the branch
-      // select once for both readers
+      // select once for both readers. where the residual dies with the extraction, the slot must
+      // also perform every effect the init would - a spread or getter beside it runs nowhere else
       if (relaxed && (!sentinel
-        || relaxed.type === 'ConditionalExpression' || relaxed.type === 'LogicalExpression')) {
+        || relaxed.type === 'ConditionalExpression' || relaxed.type === 'LogicalExpression')
+        && (!declaratorConsumedWhole || receiverPerformsEveryInitEffect(declarator.init, relaxed,
+          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null))) {
         literalReceiver = relaxed;
         relaxedReceiver = true;
       }
@@ -935,8 +913,10 @@ export function registerSeKeyDefaultOverwrite({ prop, chain, entry, hintName, ho
   recordJob({ hostPath: overwriteStmtPath,
     job: { host: 'assign-overwrite', local: overwriteId.name,
       bodyless: !statementListOf(overwriteStmtPath.parentPath?.node),
+      // the receiver is read again at drain time: the walk has replaced a realm root by then, and the
+      // node captured above still spells it raw
       value: () => overwriteDefaultGuard({
-        call: callExpression(identifier(id), [duplicateReceiver(receiver, injector)]),
+        call: callExpression(identifier(id), [duplicateReceiver(peelTransparentExpr(hostParent.node.right), injector)]),
         localName: overwriteId.name,
         ref: overwriteRef,
       }) } });
@@ -1287,12 +1267,18 @@ export function liftAssignInitPrefix(host, metaPath, program) {
 
 // the first statement replacing a host inherits its OPENING position: esrap attaches comments
 // by offset, so a synthesized leading statement with no span lets the host's leading comment
-// flush before the first spanned node inside it (`const _ref = // note\n[4, 5];`)
-export function anchorLeadingStatement(statements, hostNode) {
+// flush before the first spanned node inside it (`const _ref = // note\n[4, 5];`). `lifted` leading
+// statements are effects taken out of the host's initializers: the comments the host's statement
+// (`statementNode`, an export wrapping it included) owns lead the statement after them instead
+// (`ownedLeadingComments`), and the printer anchors them there
+export function anchorLeadingStatement({ statements, hostNode, statementNode = hostNode, lifted = 0 }) {
   const [first] = statements;
   if (first && Number.isInteger(hostNode?.start) && !Number.isInteger(first.start)) {
     first.start = hostNode.start;
     first.end = hostNode.start;
+  }
+  if (lifted > 0 && lifted < statements.length && Number.isInteger(statementNode?.start)) {
+    statements[lifted].ownedCommentsAt = statementNode.start;
   }
   return statements;
 }
@@ -1555,10 +1541,35 @@ export function memoJobBindingTarget(job) {
   return propBindingTarget(job.prop);
 }
 
+// the prop a job's claim occupies on its declarator's own level: a chained claim sits under its
+// outermost hop, the prop that level's source order ranks
+export function jobOuterProp(job) {
+  return job.chain?.length ? job.chain.at(-1).hopProp : job.prop;
+}
+
+// the memo route's extractions (`{ job, list }`, in source order) as the other leg's emission groups
+// them: each claim binds in a declaration of its own, save a CHAINED claim right after a flat one,
+// which joins that claim's declaration (`const keys = _keys(_ref), at = _at(_ref.data);`). an exported
+// host and a claim led by a guard ref keep their own statements
+export function groupMemoExtractions(extracted, exported) {
+  const statements = [];
+  let joinable = null;
+  for (const { job, list } of extracted) {
+    if (joinable && list.length === 1 && job.chain?.length) {
+      joinable.declarations.push(...list[0].declarations);
+      joinable = null;
+      continue;
+    }
+    statements.push(...list);
+    joinable = !exported && list.length === 1 && !job.chain?.length ? list[0] : null;
+  }
+  return statements;
+}
+
 // does the residual still bind something beside the claims' own props - a plain prop, a rest? asked
 // by JOB, not by name: the sentinel rename may not have reached the prop yet
 export function residualKeepsSibling(declarator, declJobs) {
-  const claimed = new Set(declJobs.map(job => job.chain?.length ? job.chain.at(-1).hopProp : job.prop));
+  const claimed = new Set(declJobs.map(jobOuterProp));
   return declarator.id?.type === 'ObjectPattern'
     && declarator.id.properties.some(item => item.type === 'RestElement' || !claimed.has(item));
 }
@@ -1677,72 +1688,6 @@ export function hasRestSibling(pattern, ctx = null) {
   return hasRestSiblingExcept(pattern.properties, null) || patternLevelKeepsEffectfulHop(pattern, ctx);
 }
 
-// a DECLINED mirror's leaf defaults still take the sound polyfill (the slot fires only where
-// the destructured value reads undefined, whatever the receiver held) - except beside a REST, where
-// the level keeps every read native (the object-rest boundary, provider AGENTS.md), and except where
-// `branchNode` names a selection one of whose values is a USER object, whose own `undefined` the
-// swap would bind over; the gate below states that licence and where it is asked from
-export function swapInlineDefaults({ leafPattern, ctorName, metaPath, branchNode },
-  { resolvePure, markSubtreeSkipped, skippedNodes, injectPureImport, markRewrite, adapter = null }) {
-  if (hasRestSiblingExcept(leafPattern.properties, null)) return;
-  // the licence EVERY swap here needs, asked of the shared branch walk the other leg's mirror plan
-  // bails on: every value the declined selection can yield is a REALM surface. ONE user-object
-  // branch - a `??` / `||` operand, a ternary arm, a call - forbids the ponyfill outright, a
-  // DEFAULTED leaf included: there the slot's `undefined` is that object's own answer, and the swap
-  // would bind core-js's implementation over a value the user's object decides, which is the very
-  // reason the mirror declined that branch. the `&&` shape passes it by yielding its RIGHT operand
-  // alone. asking it of the defaulted leaf too is what makes the two legs answer alike: the shared
-  // plan bails the whole mirror on the same walk, so the swap it leaves behind may not outlive it
-  if (!destructureValueBranchesAllProxy(branchNode)) return;
-  for (const leafProp of leafPattern.properties) {
-    if (leafProp.type !== 'Property') continue;
-    // a MEMBER target keeps the raw canon - its default is the user's, and the ponyfill never
-    // lands in the user's object (the flat route's own answer, and the babel leg's)
-    if (!propBindingIdentifier(leafProp.value)) continue;
-    // ... and the host the leaf reads through has to admit a slot default at all (the shared rule)
-    const leafPath = pathOfNode(metaPath, leafProp);
-    if (!leafPath || !leafTakesSlotDefault(leafPath, adapter)) continue;
-    const defaulted = leafProp.value?.type === 'AssignmentPattern';
-    // an UNDEFAULTED identifier leaf takes the sound default too: the licence above leaves no user
-    // branch whose legitimate `undefined` an inserted default could fire on
-    if (!defaulted && leafProp.value?.type !== 'Identifier') continue;
-    // a computed key folds through the shared key canon, as the other leg's fallback reads it
-    const keyName = resolveSynthKeys({ node: leafProp, scope: leafPath.scope, adapter, path: leafPath }).lookupKey;
-    if (typeof keyName !== 'string') continue;
-    const pure = resolvePure({ kind: 'property', object: ctorName, key: keyName, placement: 'static' }, metaPath);
-    if (!pure || pure.kind === 'instance') continue;
-    if (defaulted) {
-      markSubtreeSkipped(skippedNodes, leafProp.value.right);
-      leafProp.value.right = identifier(injectPureImport(pure.entry, pure.hintName));
-    } else {
-      leafProp.value = {
-        type: 'AssignmentPattern', left: leafProp.value,
-        right: identifier(injectPureImport(pure.entry, pure.hintName)),
-      };
-      leafProp.shorthand = false;
-    }
-    markRewrite();
-  }
-}
-
-// the sound fallback wherever the RECEIVER must survive the rewrite: the polyfill lands
-// exactly where the destructured slot is undefined, whatever the receiver held. it
-// REPLACES a user-written default (polyfill always wins)
-export function applyInlineDefault({ prop, entry, hintName, injectPureImport, markRewrite, skippedNodes, markSubtreeSkipped }) {
-  const id = injectPureImport(entry, hintName);
-  markRewrite();
-  if (prop.value.type === 'AssignmentPattern') {
-    markSubtreeSkipped(skippedNodes, prop.value.right);
-    prop.value.right = identifier(id);
-  } else if (prop.value.type === 'Identifier' || isMemberAccessNode(prop.value)) {
-    const left = prop.value;
-    prop.value = { type: 'AssignmentPattern', left, right: identifier(id) };
-    prop.shorthand = false;
-  }
-  skippedNodes.add(prop);
-  if (prop.value) skippedNodes.add(prop.value);
-}
-
 // the discarded siblings of a LITERAL CONTAINER the extraction consumed whole: they run ahead
 // of the slot the extraction read, so they belong in the value, not in a statement after it.
 // every other init shape keeps the statement lift (`rescueEmptiedDeclaratorInit`)
@@ -1759,8 +1704,8 @@ export function literalContainerRescue(declarator, declJobsHere, adapter) {
 // declaration drain does (`({ Iterator: { customI } } = _globalThis)` -> `({ customI } =
 // _Iterator)`); the assignment holds the same shape under different field names. a SENTINEL
 // residual has its own anchor upstream and never asks twice
-// ... and SEVERAL surviving ctor hops split into one anchored assignment EACH, the way the
-// declaration host splits them into one declarator each - the same shared split, whose pieces come
+// ... and SEVERAL surviving ctor hops split into one anchored assignment EACH, the way a bodyless
+// `var` splits them into one declarator each - the same shared split, whose pieces come
 // back for the drain to land in the order the source wrote their hops. null from the split (a hop
 // that declines) falls through to the sole-hop anchor, which leaves such a residual raw
 export function anchorAssignmentResidual(assignment, jobs, reanchor, surfaceInitInfo = null) {
@@ -1784,7 +1729,7 @@ export function residualPrecedesExtractions(declarator, declJobs, sourceProps, {
   const props = declarator.id?.type === 'ObjectPattern' ? declarator.id.properties : null;
   if (!props?.length || !sourceProps || !declJobs.length) return false;
   const consumedAt = Math.min(...declJobs.map(job => {
-    const outer = job.chain?.length ? job.chain.at(-1).hopProp : job.prop;
+    const outer = jobOuterProp(job);
     const index = sourceProps.indexOf(outer);
     return index === -1 ? sourceProps.length : index;
   }));
@@ -1809,14 +1754,10 @@ export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemo
   }
   // the collapse has already reshaped the receiver, so the surviving effects are read off the
   // CURRENT spelling: a folded hop key still hangs on its member (`(b++, _globalThis).Array`
-  // -> `b++`), while a whole-swapped root left a bare sequence whose TAIL is the erased value
+  // -> `b++`), and a whole-swapped root replays the discarded effects as its sequence prefix
   if (sinkDrop && metaPath) {
     const rescued = discardRescueNodesWithReads({ node: init, scope: metaPath.scope, adapter, path: metaPath });
     if (rescued.length) return sequenceExpression(rescued);
-    if (init?.type === 'SequenceExpression') {
-      const kept = init.expressions.slice(0, -1);
-      return sequenceExpression(kept);
-    }
   }
   // the plan is the PRISTINE one the registration made: by drain time the walk has already
   // substituted the hop's own pure in place (`_self.Array`), where the navigation canon spells
@@ -1873,8 +1814,7 @@ export function registerInstanceSynthSlot({
   if (!dedupKey) return false;
   let pending = synthLedger.get(pattern);
   if (!pending) {
-    const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter,
-      resolveGlobalPolyfill: ctx.resolveGlobalPolyfill });
+    const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter });
     if (!plan) return false;
     pending = { plan, receiver, slots: new Map(), metaPath, instanceReceiver: receiver };
     synthLedger.set(pattern, pending);
@@ -2115,12 +2055,26 @@ export function drainBodylessWrapKinds({ kind, kindJobs, hostNode }, { program, 
 // memoized outright, and there both legs plant a statement ahead of the split
 export function emitDeclaratorMemo({ refName, declarator, statements, declJobs, kind }) {
   if (!refName) return null;
+  const memoisedInit = splitDeclaratorMemo({ refName, declarator, declJobs });
+  statements.push(variableDeclaration(kind, [variableDeclarator(identifier(refName), memoisedInit)]));
+  return memoisedInit;
+}
+
+// ... the split itself: what the memo holds, and the residual's init reading the ref in its place
+export function splitDeclaratorMemo({ refName, declarator, declJobs }) {
   const nestedMemoNode = declJobs.find(job => job.nestedMemoNode)?.nestedMemoNode ?? null;
   const memoisedInit = nestedMemoNode ?? declarator.init;
-  statements.push(variableDeclaration(kind, [variableDeclarator(identifier(refName), memoisedInit)]));
   if (nestedMemoNode) replaceNodeInTree(declarator.init, nestedMemoNode, identifier(refName));
   else declarator.init = identifier(refName);
   return memoisedInit;
+}
+
+// the memo declarators a render minted into a declaration, so the declarators ahead of them run first: the
+// split giving each declarator its own statement declares these `const`, as a memo standing apart is declared -
+// it binds nothing the source named
+const memoDeclarators = new WeakSet();
+export function markMemoDeclarators(declarators) {
+  for (const item of declarators) memoDeclarators.add(item);
 }
 
 // a re-anchored declarator standing beside siblings takes its own statement: the flatten
@@ -2145,19 +2099,10 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
   for (const statement of statements) {
     if (statement.declarations.length <= 1) continue;
     const at = target.body.indexOf(statement);
-    target.body.splice(at, 1, ...statement.declarations.map(item => variableDeclaration(statement.kind, [item])));
+    target.body.splice(at, 1, ...statement.declarations
+      .map(item => variableDeclaration(memoDeclarators.has(item) ? 'const' : statement.kind, [item])));
     markRewrite();
   }
-}
-
-// A declined wrapper retains its nested mirror or the existing inline default.
-export function declinedWrapperTakesDefault(args, ctx) {
-  if (args.chain.length && ctx.nestedSynth?.()) return true;
-  const { metaPath, kind, entry, hintName, prop, chain, hostPatternPath, adapter } = args;
-  if (!chain.length || kind === 'instance' || !arrayWrapperInDeclarator(hostPatternPath)
-    || !leafTakesSlotDefault(metaPath, adapter)) return false;
-  applyInlineDefault({ prop, entry, hintName, ...ctx });
-  return true;
 }
 
 // do the jobs of one declarator all keep an SE-KEY sentinel - the claims the sibling join serves?
@@ -2181,8 +2126,7 @@ function joinBodylessSentinelMemo({ declaration, byDeclarator, adapter }, { mint
     for (const job of declJobs) job.bindingTarget = jobBindingTarget(job);
     const memoRef = declJobs.some(job => job.needsMemo) ? mintRefName() : null;
     if (memoRef) {
-      declarators.push(variableDeclarator(identifier(memoRef), declarator.init));
-      declarator.init = identifier(memoRef);
+      declarators.push(variableDeclarator(identifier(memoRef), splitDeclaratorMemo({ refName: memoRef, declarator, declJobs })));
     }
     const values = declJobs.map(job => job.value(memoRef));
     removeConsumedProps(declJobs);
@@ -2198,7 +2142,7 @@ function joinBodylessSentinelMemo({ declaration, byDeclarator, adapter }, { mint
 // jobbed declarator keeping its (renamed) residual beside its extractions. the ORDER is what the
 // residual OWES, the statement host's rule: an SE key runs before the dispatch that reads its
 // receiver, so that residual leads (`var first = init, { [SE]: _unused } = rows, fm = _flatMap(rows);`);
-// a claim reading nothing off it (a static, a ctor, a flatten leaf) binds ahead, where the split prints it
+// a claim reading nothing off it (a static, a ctor) binds ahead, where the split prints it
 export function joinBodylessSiblingExtractions({ declaration, jobs, adapter = null }, { removeConsumedProps, markRewrite }) {
   const byDeclarator = Map.groupBy(jobs, job => job.declarator);
   const declarators = [];
@@ -2255,10 +2199,7 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
       declarator.init = initTail;
     }
     const values = declJobs.map(job => job.value(memoRef));
-    if (memoRef) {
-      statements.push(variableDeclaration('const', [variableDeclarator(identifier(memoRef), declarator.init)]));
-      declarator.init = identifier(memoRef);
-    }
+    emitDeclaratorMemo({ refName: memoRef, declarator, statements, declJobs, kind: 'const' });
     removeConsumedProps(declJobs);
     const residualLives = declarator.id.type !== 'ObjectPattern' || declarator.id.properties.length !== 0;
     // a REST-kept residual follows its extraction, each a statement of its own - the split shape
@@ -2302,8 +2243,6 @@ export function synthPlanFullyCovered(plan, receiver, metaPath, { adapter, resol
   }, metaPath)?.kind === 'static');
 }
 
-// does this array-wrapped pattern hang off a DECLARATOR? a param slot has its own synth route
-// (its caller supplies the value), and the inline default would preempt it
 // does `root` hold `target` anywhere in its subtree? node identity, so a foreign binding's
 // declaration never answers yes for a host's own init
 export function nodeHoldsSubtree(root, target) {
@@ -2334,10 +2273,6 @@ export function arrayWrapperDeclarator(patternPath) {
     break;
   }
   return top.parentPath?.node?.type === 'VariableDeclarator' ? top.parentPath.node : null;
-}
-
-function arrayWrapperInDeclarator(patternPath) {
-  return !!arrayWrapperDeclarator(patternPath);
 }
 
 // the statement a job's host lives in NOW: the one it was recorded against, or - once another drain
@@ -2415,46 +2350,6 @@ export function buildMemoArg(pending) {
   return ahead.length ? sequenceExpression([...ahead, memoArgPlan.target]) : memoArgPlan.target;
 }
 
-// per-group sentinel residuals: walk the pattern's props (sentinels already renamed),
-// each job prop opens a group holding its sentinel and the trailing non-job props; the
-// group's residual re-reads the identifier init, and the extraction's side is decided by
-// the job's defaultedness
-export function emitSentinelGroups({ hostNode, declarator, declJobs, statements }) {
-  const jobByProp = new Map(declJobs.map(job => [job.prop, job]));
-  // non-job props flow FORWARD into the next job's group (`{ [se1]: ks = d, message,
-  // [se2]: fi }` puts `message` with fi's residual); a trailing run joins the last group
-  const groups = [];
-  let buffered = [];
-  for (const prop of declarator.id.properties) {
-    const job = jobByProp.get(prop);
-    if (job) {
-      groups.push({ job, props: [...buffered, prop] });
-      buffered = [];
-    } else buffered.push(prop);
-  }
-  if (buffered.length && groups.length) groups.at(-1).props.push(...buffered);
-  for (const group of groups) {
-    const residual = variableDeclaration(hostNode.kind, [variableDeclarator(
-      { type: 'ObjectPattern', properties: group.props }, cloneNode(declarator.init))]);
-    if (!group.job) {
-      statements.push(residual);
-      continue;
-    }
-    const declarators = [variableDeclarator(group.job.bindingTarget, group.job.value())];
-    if (group.job.value.leadRef) declarators.unshift(variableDeclarator(identifier(group.job.value.leadRef)));
-    const extraction = variableDeclaration(hostNode.kind, declarators);
-    if (group.job.defaulted) statements.push(residual, extraction);
-    else statements.push(extraction, residual);
-  }
-}
-
-// an all-SE-key sentinel declarator in an ORIGINALLY-multi declaration joins as ONE
-// declaration, residual first (`const { [(eff(), 'at')]: _unused } = arr, a = _at(arr);`
-// - babel's sibling shape); the single-declarator twin keeps the extraction-first split,
-// and a receiverless STATIC splits too (`of = _Array$of` reads nothing off the residual)
-// SEVERAL SE keys on one pattern INTERLEAVE with their extractions: native evaluates key,
-// read, default, next key - so each key's residual segment sits immediately before the
-// extraction that reads its slot, instead of every key running ahead of every read
 // the sentinel memo's name, taken during the WALK so it lands ahead of the DEFAULT guard ref the
 // claim is about to mint - babel allocates the receiver memo first and the guards read it after.
 // only a claim owing a guard of its own qualifies: elsewhere the mint order has nothing to beat
@@ -2484,64 +2379,32 @@ export function sentinelMemoInitShape(init, allProxyInit) {
     || isConstantLiteralReceiver(init);
 }
 
-// the residual + extractions of ONE declarator: segmented when the source reads props past the
-// last job's own slot (or when several jobs interleave), else the plain residual-then-extractions
+// the residual + extractions of ONE declarator: segmented where several jobs or several SE keys
+// interleave, else the plain residual-then-extractions
 export function seKeySegmentedDeclarators(declarator, jobs, refName, adapter = null) {
   // ... never around a REST: it gathers by exclusion of its own pattern's keys, and a segment of its
   // own would gather the claimed keys too (babel keeps the batch there, a documented boundary)
+  // ... and only over the declarator's OWN props: a NESTED claim's key runs inside its level, which
+  // the residual keeps whole, and a segmentation of the outer props never meets its extraction
   const rest = declarator.id.type === 'ObjectPattern' && declarator.id.properties.some(item => item.type === 'RestElement');
-  if (!rest && (jobs.some(job => job.consumeKey) || jobs.length > 1
-    || patternHasSeveralSeKeys(declarator.id, 2, { ...nodeSite(declarator.id, jobs[0]?.metaPath), adapter })
-    || (jobs.length === 1 && trailingSeKeyProps(declarator, jobs[0])))) {
-    return interleavedSeKeySegments(declarator, jobs, refName, adapter);
+  if (!rest && jobs.every(job => !job.chain?.length) && (jobs.length > 1
+    || patternHasSeveralSeKeys(declarator.id, 2, { ...nodeSite(declarator.id, jobs[0]?.metaPath), adapter }))) {
+    return interleavedSeKeySegments(declarator, jobs, refName);
   }
   return [declarator, ...jobs.map(job => variableDeclarator(job.bindingTarget, job.value(refName)))];
 }
 
-// the segments of a residual whose SE-key claims bind by NAME (a bodyless host, no export to route
-// them through): the consume runs here, ahead of the split that reads the props it leaves
-export function seKeySegmentedResidual(declarator, jobs, refName, removeConsumedProps, adapter = null) {
-  for (const job of jobs) job.bindingTarget = jobBindingTarget(job);
-  removeConsumedProps(jobs);
-  return seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(jobs), refName, adapter);
-}
-
-// props the source reads PAST the job's own slot - and only ORDINARY ones: a REST read takes the
-// whole remainder and stays in the residual beside the sentinel, which is what babel spells
-export function trailingSeKeyProps(declarator, job) {
-  // ... and only under a DEFAULT: there the guard reads past the key effect, so the source reads
-  // the trailing props after the extraction. a plain job leaves them in the residual
-  if (!job.defaulted || declarator.id.type !== 'ObjectPattern') return false;
-  const after = declarator.id.properties.slice(declarator.id.properties.indexOf(job.prop) + 1);
-  return after.length > 0 && after.every(prop => prop.type === 'Property');
-}
-
-export function interleavedSeKeySegments(declarator, jobs, refName, adapter = null) {
+// SEVERAL SE keys on one pattern INTERLEAVE with their extractions: native evaluates key,
+// read, default, next key - so each key's residual segment sits immediately before the
+// extraction that reads its slot, instead of every key running ahead of every read
+export function interleavedSeKeySegments(declarator, jobs, refName) {
   const jobByProp = new Map(jobs.map(job => [job.prop, job]));
   const declarators = [];
   let buffered = [];
   for (const prop of declarator.id.properties) {
     const job = jobByProp.get(prop);
-    if (!job?.consumeKey) buffered.push(prop);
+    buffered.push(prop);
     if (!job) continue;
-    if (job.consumeKey) {
-      if (buffered.length) declarators.push(variableDeclarator(
-        { type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init),
-      ));
-      const receiverName = refName ?? declarator.init.name;
-      const keys = destructureKeyReadPlan({ node: prop, parentPath: { node: declarator.id } },
-        { ...nodeSite(prop, job.metaPath), adapter })?.keys ?? [];
-      declarators.push(renderKeyedDestructureRead({
-        receiverName,
-        receiver: identifier(receiverName),
-        binding: job.bindingTarget,
-        keys,
-        read: job.value(receiverName),
-        proven: !!job.receiverProven,
-      }).at(-1));
-      buffered = [];
-      continue;
-    }
     declarators.push(
       variableDeclarator({ type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init)),
       variableDeclarator(job.bindingTarget, job.value(refName)),
@@ -2623,7 +2486,7 @@ export function orderResidualDeclarators({ declarator, jobs, values }, { removeC
   }
   removeConsumedProps(jobs);
   const pieces = jobs.map((job, index) => ({
-    at: at(job.chain?.length ? job.chain.at(-1).hopProp : job.prop),
+    at: at(jobOuterProp(job)),
     item: variableDeclarator(jobBindingTarget(job), values[index]),
   }));
   let residualTaken = false;

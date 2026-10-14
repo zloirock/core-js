@@ -3,7 +3,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref4, _ref5, _ref6, _ref7;
+var _ref4, _ref5, _ref6, _ref7, _ref8;
 // user names that LOOK like generated refs but are not bindings - object keys, a class field and
 // its reads, a label with its break, a private name - sit where the final renumber could touch
 // them: a bodyless body wrap copies the user statement into emitted text, and the swap-inducing
@@ -46,4 +46,4 @@ export function field(c) {
   }
 }
 let w;
-export const r = null == (_ref4 = null == (w = _globalThis.window) ? void 0 : _flatMaybeArray(_ref5 = _Array$of(6))?.call(_ref5)) || null == (_ref6 = _mapMaybeArray(_ref4)) ? void 0 : _atMaybeArray(_ref7 = _ref6.call(_ref4, x => x))?.call(_ref7, 0);
+export const r = null == (w = _globalThis.window) || null == (_ref4 = _flatMaybeArray(_ref5 = _Array$of(6))) || null == (_ref6 = _mapMaybeArray(_ref7 = _ref4.call(_ref5))) ? void 0 : _atMaybeArray(_ref8 = _ref6.call(_ref7, x => x))?.call(_ref8, 0);

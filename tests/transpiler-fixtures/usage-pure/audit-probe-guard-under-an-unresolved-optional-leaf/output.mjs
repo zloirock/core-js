@@ -13,9 +13,9 @@ function ut() {
   return _globalThis;
 }
 // KEPT: the `?.` leaf names nothing the pure package spells, so it renders nothing
-export const unresolvedLeafKeepsTheGuard = delete (null == ut().window ? void 0 : _self)?.chrome;
+export const unresolvedLeafKeepsTheGuard = null == ut().window ? true : delete _self?.chrome;
 export const unresolvedLeafReadKeepsIt = null == ut().window ? void 0 : _self.chrome;
 // ... and a PLAIN leaf over the same probe keeps it too - the claim owned the guard already
-export const plainLeafKeepsTheGuard = delete (null == ut().window ? void 0 : _self)?.chrome;
+export const plainLeafKeepsTheGuard = null == ut().window ? true : delete _self.chrome;
 // FOLDED: the `?.` leaf RESOLVES, so the consumer above renders and owns the whole navigation
 export const resolvedLeafRidesTheConsumer = null == ut().window ? void 0 : _Promise$resolve;

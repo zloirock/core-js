@@ -57,3 +57,35 @@ QUnit.test('custom static names remain custom beside a native caller', assert =>
   }), [2, 3, 4, 5]);
   assert.deepEqual(events, ['of', 'resolve', 'allSettled', 'groupBy']);
 });
+
+QUnit.test('a class static method takes its parameter source from the calls through the class', assert => {
+  class Factory {
+    static make(C, list) { return C.from(list); }
+    static single = (C, value) => C.of(value);
+    kind() { return 'factory'; }
+  }
+  const Alias = Factory;
+  const Tags = class {
+    static raw(S, strings) { return S.raw(strings, 1); }
+    kind() { return 'tags'; }
+  };
+  assert.deepEqual(Factory.make(Array, 'ab'), ['a', 'b']);
+  // eslint-disable-next-line dot-notation -- the string key is the spelling under test
+  assert.deepEqual(Factory['make'](Array, 'cd'), ['c', 'd']);
+  assert.deepEqual(Alias.single(Array, 3), [3]);
+  assert.same(Tags.raw(String, { raw: ['x', 'y'] }), 'x1y');
+});
+
+QUnit.test('a class the file also constructs or extends pairs its statics with their callers', assert => {
+  class Lists {
+    static fromText(C, text) { return new Lists(C.from(text)); }
+    constructor(items) { this.items = items; }
+  }
+  class Base {
+    static single(C, value) { return C.of(value); }
+    kind() { return 'base'; }
+  }
+  class Derived extends Base {}
+  assert.deepEqual(Lists.fromText(Array, 'ab').items, ['a', 'b']);
+  assert.deepEqual(Derived.single(Array, 3), [3]);
+});

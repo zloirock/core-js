@@ -1,5 +1,6 @@
-// An assignment under an array wrapper reads the paired element once. A flat method claim
-// needs no object hop, while an optional hop still short-circuits as the source wrote it.
+// An assignment under an array wrapper reads each claimed element once: the wrapper captures it and
+// the method dispatches on the capture, whatever leads the element - a realm navigation, a dead `?.`
+// over the realm, a kept write. A leaf off a constructor the hops merely reach is a name match only.
 const log = [];
 let flat, at, deep, kept, kw, named, keyed, other, stat, zn;
 // A sole wrapper assigns its captured method after the native array step.
@@ -12,15 +13,12 @@ let flat, at, deep, kept, kw, named, keyed, other, stat, zn;
 [{ Array: { prototype: { copyWithin: kept } } }] = [(kw = globalThis)];
 // NEGATIVE: a leaf off the object the hops merely REACH is a name match, not a surface claim
 [{ Array: { keys: named } }] = [globalThis];
-// ... and the `?.` buys it no route around that rule: the hop short-circuits the whole chain, so the
-// question the marked nav answers is the plain one's
+// ... and a dead `?.` over the realm changes nothing about that
 let markedName;
 [{ Array: { keys: markedName } }] = [globalThis?.globalThis];
 // A computed key runs before its method read; the captured receiver also serves the sibling.
 [{ [(log.push("k"), "flatMap")]: keyed, other }] = [Array.prototype];
-// ... and a FLAT static under a multi wrapper is claimed like the instance one above it: the
-// OVERWRITE channel owns the shape, so the destructure stays whole for the sibling that still binds
-// and the ponyfill is written after it. Left to the cascade rebuild - which never descends a
-// multi-element wrapper - the slot read its static off the raw element instead
+// a static under a wrapper with a neighbour is served by a literal in its slot: the pattern stays
+// whole for the neighbour that still binds
 [{ of: stat }, zn] = [Array, 7];
 export { flat, at, deep, kept, kw, named, markedName, keyed, other, stat, zn, log };

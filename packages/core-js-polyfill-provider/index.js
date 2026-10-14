@@ -274,8 +274,10 @@ export function createPolyfillContext({
 
   const isEntryNeededCache = new Map();
 
-  // Syntax-lowering helpers have no polyfill modules. They need an entry in the selected
-  // package version even when every native polyfill is filtered by targets or exclusions.
+  // does the data subset this build is configured for, the version and the mode, carry the entry: what a
+  // syntax-lowering helper needs, which has no polyfill modules for the targets or a filter to drop, and the
+  // presence a user's own fallback or feature test asks in either method - the targets and the filter decide
+  // what the build loads, never whether what core-js defines is there
   function isEntryAvailable(entry) {
     return entriesSetForTargetVersion.has(`${ mode }/${ entry || 'index' }`);
   }
@@ -312,45 +314,11 @@ export function createPolyfillContext({
     return result;
   }
 
-  const isEntryGuaranteedCache = new Map();
-
-  // is what this entry installs present in the global environment wherever the output runs: each
-  // module of it carried natively by every target or, in usage-global, injected by this build - false
-  // where a target needs one a filter drops, or where the entry is not in this version / mode. pure
-  // installs nothing global: a read it substitutes is the resolver's answer, any other reads what the
-  // targets carry. the presence question a user's own fallback or feature test asks: `isEntryNeeded`
-  // answers no alike for a module every target carries and for one the user excluded
-  function isEntryGuaranteed(entry) {
-    if (isEntryGuaranteedCache.has(entry)) return isEntryGuaranteedCache.get(entry);
-    const modeEntry = `${ mode }/${ entry }`;
-    const result = entriesSetForTargetVersion.has(modeEntry) && entries[modeEntry].every(mod => {
-      const resolved = resolveModule(mod);
-      return resolved !== null && (!targetsNeedPolyfill(resolved) || (method !== 'usage-pure' && shouldInjectPolyfill(resolved)));
-    });
-    isEntryGuaranteedCache.set(entry, result);
-    return result;
-  }
-
-  const isEntryCarriedCache = new Map();
-
-  // does the configured set carry what the entry names: the entry exists at the mode and the user's filter
-  // keeps it - in usage-pure an excluded entry path drops it, elsewhere an excluded module DEFINING it
-  // (the one the entry is named after, `es.map.constructor` for `map/constructor`) that a target needs.
-  // a deficient native such a target has counts as missing too: the build installs nothing for it, and the
-  // data cannot tell a deficient native from an absent one
+  // can this build spell what the entry names: the entry exists at the mode and, in usage-pure, the user's
+  // filter keeps its path - pure substitutes nothing it excludes. a spelling question only: presence counts
+  // the data subset alone (`isEntryAvailable`)
   function isEntryCarried(entry) {
-    if (isEntryCarriedCache.has(entry)) return isEntryCarriedCache.get(entry);
-    const modeEntry = `${ mode }/${ entry }`;
-    let result = entriesSetForTargetVersion.has(modeEntry);
-    if (result && method === 'usage-pure') result = !excludeEntries.has(normalizeEntryPath(entry));
-    else if (result) {
-      const own = entry.replaceAll('/', '.');
-      const defining = entries[modeEntry].find(mod => mod.slice(mod.indexOf('.') + 1) === own);
-      const resolved = defining && resolveModule(defining);
-      result = !resolved || !targetsNeedPolyfill(resolved) || shouldInjectPolyfill(resolved);
-    }
-    isEntryCarriedCache.set(entry, result);
-    return result;
+    return isEntryAvailable(entry) && !(method === 'usage-pure' && excludeEntries.has(normalizeEntryPath(entry)));
   }
 
   return {
@@ -361,7 +329,6 @@ export function createPolyfillContext({
     getCoreJSEntry,
     isEntryAvailable,
     isEntryCarried,
-    isEntryGuaranteed,
     isEntryNeeded,
   };
 }
@@ -400,10 +367,11 @@ export function hasStaticDefinitionKey(key) {
 
 const CONSTRUCTOR_TAIL = '/constructor';
 
-// Whether an object rest over this global takes its whole index, and an explicit import of that index
-// keeps its own static reads: a constructor's only. A namespace - `Reflect` included - keeps a rest's
-// source and exclusions and serves an imported index's statics by name. Pure is the default; the global
-// flavor can additionally supply unsupported pure constructors.
+// Whether an object rest over this global may take its whole index - whether it does is the build's
+// answer, `constructorRestIndex` - and an explicit import of that index keeps its own static reads: a
+// constructor's only. A namespace - `Reflect` included - keeps a rest's source and exclusions and serves
+// an imported index's statics by name. Pure is the default; the global flavor can additionally supply
+// unsupported pure constructors.
 export function hasConstructorEntry(name, flavor = 'pure') {
   return globals[name]?.[flavor]?.dependencies?.some(entry => entry.endsWith(CONSTRUCTOR_TAIL)) ?? false;
 }

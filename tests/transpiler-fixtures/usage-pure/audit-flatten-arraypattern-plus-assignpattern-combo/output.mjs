@@ -8,7 +8,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 const [{
   Array: {
     from
-  } = {}
+  }
 }] = [{
   Array: {
     from: _Array$from
@@ -17,7 +17,7 @@ const [{
 const [{
   Array: {
     of
-  } = {}
+  }
 }] = [{
   Array: {
     of: _Array$of

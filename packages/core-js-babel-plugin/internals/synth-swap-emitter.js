@@ -77,6 +77,7 @@ import {
   globalProxyMemberName,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
+  keptProbeStore,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
   ownChainOptionalObjects,
@@ -202,8 +203,8 @@ export default function createSynthSwapEmitter({
       }
       // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order): a classifiable
       // live arg wins regardless of the wrapper-default's shape - gating on the default first
-      // bailed `(({ from } = []) => ...)(Array)` to a native-first inline default even though
-      // the live receiver was statically known. the default fires only on caller-omitted
+      // would leave `(({ from } = []) => ...)(Array)` native even though the live receiver is
+      // statically known. the default fires only on caller-omitted
       // invocation; (Optional)MemberExpression defaults included (`({of} = globalThis.Iterator)
       // (Array)`) - synthesising onto the dead default would leave the live caller-arg native
       // ... an argument the build decides counts by the operand of it that runs (`decidedRunningOperandPath`)
@@ -491,6 +492,21 @@ export default function createSynthSwapEmitter({
     return true;
   }
 
+  // a kept STORE a run is written through, swapped in place for a fresh copy: the claim standing over
+  // the run subsumed the store's own claims (its root, a call's inner global), and they fire on the copy
+  // - the copy the swap's own effect slots take
+  function refreshKeptStore(runPath, store) {
+    let storePath = runPath.get('object');
+    while (storePath.node !== store) {
+      const { node } = storePath;
+      if (node?.type === 'SequenceExpression') storePath = storePath.get(`expressions.${ node.expressions.length - 1 }`);
+      else if (node && unwrapRuntimeExpr(node) !== node) storePath = storePath.get('expression');
+      else if (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') storePath = storePath.get('object');
+      else return;
+    }
+    storePath.replaceWith(t.cloneWithoutRetiring(store));
+  }
+
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
   // of a member chain carrying redundant proxy hops (`globalThis.self.Array`, where the leaf is NOT a
   // pure-substituted global). rewriting only the identifier leaves `_globalThis.self.Array`, which
@@ -498,6 +514,7 @@ export default function createSynthSwapEmitter({
   // member that consumes the maximal proxy-hop prefix and collapse it through the shared receiver
   // collapse - `_globalThis.Array`. returns true when it rewrote (the caller skips the bare swap);
   // false for a bare root (`globalThis.Array`, no hop) so the natural identifier swap handles it
+  // eslint-disable-next-line max-statements -- one verdict per consumer the drive may stand under
   function collapseProxyHopRoot(idPath, aliasCtx, { keptSeqHopFold = false } = {}) {
     // fire for a proxy-global NAME root (`globalThis` / `self` / ...) OR an alias of one (`const g =
     // globalThis; g.self.X` -> `g.X`): the alias-aware `findProxyGlobal` follows the binding so an
@@ -636,10 +653,18 @@ export default function createSynthSwapEmitter({
       }
       return false;
     }
-    const deleteHost = deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
-      && !navCarriesChainAssign(recPath.node);
+    const deleted = deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr);
+    const deleteHost = deleted && !navCarriesChainAssign(recPath.node);
+    // ... and a write through a kept store of the environment probe takes that store as its base,
+    // the read's own landing: the natural rewrite performs it on the realm where the source throws.
+    // a `delete` names its slot off the run's root whatever the store holds
+    const keptStore = isWriteTarget && !deleted ? keptProbeStore(recPath.node.object, resolvePure, aliasCtx) : null;
     if (isWriteTarget && !deleteHost
-      && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure, aliasCtx)) return false;
+      && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure, aliasCtx) && !keptStore) return false;
+    // a WRITTEN run lands on its kept store, whose own claims the claim driving this subsumed where
+    // the source wraps the store (`(eff(), w = globalThis.window).self.k = v`): the store travels as a
+    // fresh copy, the swap's own effect-slot copy, and its claims fire on that
+    if (keptStore) refreshKeptStore(recPath, keptStore);
     // this drive REPLACES the receiver subtree, so the render carries the kept user nodes by
     // identity - a cloned kept write stranded the scope tracker's violation records on the
     // detached original, and every later placement-gated trust ask about its alias failed
@@ -774,27 +799,20 @@ export default function createSynthSwapEmitter({
     // the read happens inside the literal, so it only evaluates when the default fires
     const properties = [];
     for (const entry of entries) {
-      const { polyfill, wks } = entry;
+      // a key on an opted-out line reads as the source does, and no later pass may polyfill that read
+      const polyfill = entry.optedOut ? null : entry.polyfill;
+      const { wks } = entry;
       const spelled = synthEntryKey(entry);
       // a CARRIED source key is already a node of this dialect - clone it; a respelled one is
       // canonical and converts at the boundary like every other render the canon hands over
-      let key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
-      let { computed } = spelled;
-      // a bare GLOBAL key the pass substitutes spells the binding it is rewritten to, like the raw
-      // symbol spelling one case over: the pattern's own key is rewritten, so a cloned bare name would
-      // read a different property - and the passthrough below reads through this same key
-      if (entry.substitutedKey) {
-        const keyPure = resolvePure({ kind: 'global', name: entry.substitutedKey });
-        if (!keyPure) return null;
-        key = injectPureImport(keyPure.entry, keyPure.hintName);
-        computed = true;
-      }
+      const key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
+      const { computed } = spelled;
       // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
       // spelling both emitters print for that read anywhere else; a raw
       // `receiver[_Symbol$iterator]` answers undefined off-engine
       // ... and an uncovered slot the constructor's pure binding answers through an INSTANCE dispatch
       // reads through it (`instanceHopDispatch`): this literal is emitted where no visitor reaches it again
-      const dispatch = !polyfill && wks !== 'iterator' && !computed && !entry.substitutedKey && receiverCtorName
+      const dispatch = !polyfill && !entry.optedOut && wks !== 'iterator' && !computed && receiverCtorName
         ? instanceHopDispatch({ ctorName: receiverCtorName, key: entry.lookupKey, resolvePure }) : null;
       const value = dispatch
         ? t.callExpression(injectPureImport(dispatch.entry, dispatch.hintName), [t.cloneNode(getReceiverRef())])
@@ -802,15 +820,16 @@ export default function createSynthSwapEmitter({
         ? polyfill.instance
           ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(instanceReceiverRef())])
           : injectPureImport(polyfill.entry, polyfill.hintName)
-        : wks === 'iterator'
+        : wks === 'iterator' && !entry.optedOut
           ? t.callExpression(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName),
             [t.cloneNode(getReceiverRef())])
           : estreeToBabel(renderSynthSlotRead({
             base: hostSlot(t.cloneNode(getReceiverRef())),
-            key: entry.substitutedKey ? hostSlot(t.cloneNode(key)) : spelled.fromSource ? hostSlot(key) : spelled.key,
+            key: spelled.fromSource ? hostSlot(key) : spelled.key,
             computed,
             lookupKey: entry.lookupKey,
           }));
+      if (entry.optedOut) t.traverseFast(value, node => { skippedNodes.add(node); });
       let synthKey = key;
       let synthComputed = computed;
       // the canon's `__proto__` rule: re-spell as a computed STRING key (a bare
@@ -858,8 +877,7 @@ export default function createSynthSwapEmitter({
         // the shared render PLAN of the pattern, joined with what each slot resolved to: one entry
         // per distinct slot, keyed the way both emitters register, so the two renders read one
         // classification instead of each deriving its own
-        const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter,
-          resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }) }) ?? [])
+        const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter }) ?? [])
           .map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
         const aliasCtx = { scope: path.scope, adapter, path };
         const synthGuard = planSynthReceiverGuard({ receiver: path.node, ...aliasCtx, resolvePure });
@@ -989,7 +1007,7 @@ export default function createSynthSwapEmitter({
   }
 
   return {
-    apply, collapseProxyGlobalReceiver, collapseProxyHopRoot,
+    apply, collapseProxyGlobalReceiver, collapseProxyHopRoot, refreshKeptStore,
     findTargetPath, detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
     // a suppressed-hop drive must not detach a receiver this ledger will replace at apply().
     ownsReceiver: node => !!synthSwapByReceiver.get(node) && !synthSwapByReceiver.get(node).applied,

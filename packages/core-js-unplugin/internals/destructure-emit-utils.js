@@ -77,8 +77,8 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     }
     // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order, babel-twin
     // contract): a classifiable live arg wins regardless of the wrapper-default's shape -
-    // gating on the default first bailed `(({ from } = []) => ...)(Array)` to a native-first
-    // inline default even though the live receiver was statically known
+    // gating on the default first would leave `(({ from } = []) => ...)(Array)` native even
+    // though the live receiver is statically known
     const rawArgReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
     // the arg is classified and resolved WHERE IT EVALUATES - the detector stamped that frame on it -
     // and, where the build decides it, by the operand of it that runs (`decidedRunningOperand`)

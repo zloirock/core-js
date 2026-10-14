@@ -4,7 +4,7 @@
 // blocks / synchronous IIFEs). consumers use the captured value to type-narrow `let`
 // mutated in a deterministic prefix.
 //
-// O(V) cache build per binding (sorted by source position), O(log V) per query.
+// O(V) cache build per binding (sorted by completion position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
 import { nodeAlwaysHardExits, subtreeLeavesThroughExit } from './exit-analysis.js';
 import {
@@ -14,32 +14,24 @@ import {
   peelTransparentExpr,
   readRunsDeferredWithin,
   runsAtImmediateInvocation,
-  TS_EXPR_WRAPPERS,
+  isAlwaysEvaluatedSlot,
   anyWriteOutrunsUse,
   writeIsInOppositeBranch,
   writeNeverRuns,
+  writeRunsPastRanked,
+  declaratorInitRunsWithin,
+  sortedPrefixLength,
 } from '../helpers/ast-patterns.js';
 
-// always-evaluated wrappers between assignment and its enclosing statement. spelled out from
-// THAT question rather than borrowed from the IIFE call-path table: the two sets look alike but
-// answer different things, and `ChainExpression` - a member of that table - short-circuits, so it
-// does not belong here. conditional-evaluation forms (Logical / Conditional / OptionalCall /
-// short-circuit AssignmentExpression) excluded by omission - their non-default branches do not
-// unconditionally run the inner assignment
-const STRAIGHT_LINE_WRAPPER_TYPES = new Set([
-  'UnaryExpression',
-  'SequenceExpression',
-  'ParenthesizedExpression',
-  ...TS_EXPR_WRAPPERS,
-]);
-
 // statement wrappers `reachesStraightLine` treats as forward-transparent.
-// LabeledStatement included - targeted break / continue caught by sibling scan
+// LabeledStatement included - targeted break / continue caught by sibling scan;
+// an export runs the declaration it wraps in place
 const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
   'BlockStatement',
   'Program',
   'StaticBlock',
   'LabeledStatement',
+  'ExportNamedDeclaration',
 ]);
 
 // per-BODY position + first-exit index, built once per statement list: the per-query scan
@@ -73,14 +65,13 @@ function precedingSiblingsExitFree(startStmt, endNode) {
   return true;
 }
 
-// `||=` / `&&=` / `??=` conditionally evaluate RHS. `=` + arithmetic compounds are
-// unconditional. inverse-list since the safe set has 10+ entries, the unsafe set 3
-const SHORT_CIRCUITING_ASSIGN_OPS = new Set(['||=', '&&=', '??=']);
+// the statements a straight-line write stands in: an assignment in an expression statement or, through
+// a declarator's initializer, in a declaration; a `var` re-declaration in its own declaration
+const ASSIGNMENT_WRITE_HOSTS = new Set(['ExpressionStatement', 'VariableDeclaration']);
+const DECLARATOR_WRITE_HOSTS = new Set(['VariableDeclaration']);
 
-function isAlwaysEvaluatingWrapper(node) {
-  if (STRAIGHT_LINE_WRAPPER_TYPES.has(node.type)) return true;
-  if (node.type === 'AssignmentExpression') return !SHORT_CIRCUITING_ASSIGN_OPS.has(node.operator);
-  return false;
+function writeHostTypes(ap) {
+  return ap.node.type === 'VariableDeclarator' ? DECLARATOR_WRITE_HOSTS : ASSIGNMENT_WRITE_HOSTS;
 }
 
 // AssignmentExpression vs VariableDeclarator slot adapters; reused on the returned node
@@ -103,12 +94,12 @@ export function bindingCrossesLoopBackEdge(usagePath, binding) {
   return usageCrossesLoopBackEdgeReassign(usagePath, binding.constantViolations.map(v => v.node), bindingLoopAnchor(binding));
 }
 
-// nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks. a DETACHED node
+// nearest ancestor (inclusive) of one of `hostTypes`; shared by inner/outer checks. a DETACHED node
 // (`.node` null - a stale constantViolation path into an in-place-rewritten subtree) ends the
 // climb with no match, so the caller conservatively degrades instead of dereferencing null
-function findEnclosingStatement(path, stmtType) {
+function findEnclosingStatement(path, hostTypes) {
   let p = path;
-  while (p && p.node && p.node.type !== stmtType) p = p.parentPath;
+  while (p && p.node && !hostTypes.has(p.node.type)) p = p.parentPath;
   return p?.node ? p : null;
 }
 
@@ -224,12 +215,12 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     return false;
   }
 
-  // every wrapper from `path` up to `stmt` (exclusive) is always-evaluating, or a selection whose arm
-  // the climb leaves is the one this build always takes, as `reachesStraightLine` reads an `if`.
-  // catches `false && (x = 'hi')`, `cond ? (x = 'hi') : 0`, `flag ||= (x = 'hi', flag)`
+  // every step from `path` up to `stmt` (exclusive) enters an always-evaluated slot, or a selection's
+  // arm this build always takes, as `reachesStraightLine` reads an `if`. catches
+  // `false && (x = 'hi')`, `cond ? (x = 'hi') : 0`, `flag ||= (x = 'hi', flag)`, `const [a = (x = 'hi')] = o`
   function isStraightLineExpressionChain(path, stmt) {
     for (let child = path, cur = path.parentPath; cur && cur.node !== stmt.node; child = cur, cur = cur.parentPath) {
-      if (!isAlwaysEvaluatingWrapper(cur.node) && !armAlwaysTaken(cur, child)) return false;
+      if (!isAlwaysEvaluatedSlot(cur.node, child.node) && !armAlwaysTaken(cur, child)) return false;
     }
     return true;
   }
@@ -238,8 +229,8 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
   // chain always-evaluating, and no preceding sibling at any block level exits before
   // the enclosing statement. sibling layer catches labeled break / continue at outer
   // var-scope and return / throw / break / continue inside IIFE body
-  function passesStraightLineCheck(effectiveAp, endNode, wrapStmtType) {
-    const stmt = findEnclosingStatement(effectiveAp, wrapStmtType);
+  function passesStraightLineCheck(effectiveAp, endNode, hostTypes) {
+    const stmt = findEnclosingStatement(effectiveAp, hostTypes);
     if (!stmt || !reachesStraightLine(stmt, endNode, armAlwaysTaken)) return false;
     if (!precedingSiblingsExitFree(stmt, endNode)) return false;
     return isStraightLineExpressionChain(effectiveAp, stmt);
@@ -247,19 +238,19 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
 
   // lift `ap` through nested synchronous IIFE wrappers until it lands in binding's
   // var-scope. arrow-with-expression-body short-circuits when the assignment IS the body
-  function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
+  function liftThroughIIFEs(ap, hostTypes, bindingScope) {
     let effectiveAp = ap;
     while (effectiveAp && !isInBindingVarScope(effectiveAp, bindingScope)) {
       const { call, fnBody } = findEnclosingIIFE(effectiveAp, bindingScope) ?? {};
       if (!call) return null;
       if (effectiveAp.node !== fnBody
-        && !passesStraightLineCheck(effectiveAp, fnBody, wrapStmtType)) return null;
+        && !passesStraightLineCheck(effectiveAp, fnBody, hostTypes)) return null;
       effectiveAp = call;
     }
     return effectiveAp;
   }
 
-  // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched
+  // lazy per-binding cache: valid assignments pre-filtered, sorted by completion; binary-searched
   let sortedAssignmentCache = new WeakMap();
   let deferredViolationAnswers = new WeakMap();
 
@@ -279,18 +270,20 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
       if (isVarDecl && !ap.node.init) continue;
       if (!ASSIGN_LEFT_TYPES.has(assignLeft(ap.node)?.type)) continue;
 
-      const wrapStmtType = isVarDecl ? 'VariableDeclaration' : 'ExpressionStatement';
-      const effectiveAp = liftThroughIIFEs(ap, wrapStmtType, bindingScope);
+      const hostTypes = writeHostTypes(ap);
+      const effectiveAp = liftThroughIIFEs(ap, hostTypes, bindingScope);
       if (!effectiveAp) continue;
-      const pos = effectiveAp.node.start;
-      if (pos === undefined || pos === null) continue;
+      const { end } = effectiveAp.node;
+      if (end === undefined || end === null) continue;
 
-      // lifted effectiveAp is the IIFE call - sits inside an ExpressionStatement
-      const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
-      if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerWrapType)) continue;
-      out.push({ ap, pos, end: effectiveAp.node.end, from: dominanceStart(effectiveAp, varScopeBody, effectiveAp.node.end) });
+      // lifted effectiveAp is the IIFE call - an expression, standing where an assignment does
+      const outerHostTypes = effectiveAp === ap ? hostTypes : ASSIGNMENT_WRITE_HOSTS;
+      if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerHostTypes)) continue;
+      out.push({ ap, node: effectiveAp.node, end, from: dominanceStart(effectiveAp, varScopeBody, end) });
     }
-    out.sort((a, b) => a.pos - b.pos);
+    // ranked by COMPLETION: a write takes effect when its assignment completes, so one enclosing another
+    // of the same binding (`var x = (x = 'a', [1])`, `x = (x = 'a', [1]), 0`) ranks after the inner one
+    out.sort((a, b) => a.end - b.end);
     return out;
   }
 
@@ -322,8 +315,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     if (!deferred) return false;
     const ap = violationToAssignment(v);
     if (!ap) return false;
-    const wrapStmtType = ap.node.type === 'VariableDeclarator' ? 'VariableDeclaration' : 'ExpressionStatement';
-    return !liftThroughIIFEs(ap, wrapStmtType, bindingScope);
+    return !liftThroughIIFEs(ap, writeHostTypes(ap), bindingScope);
   }
 
   // the READ-side mirror: a use captured in a closure BELOW the binding's scope re-runs on every
@@ -371,36 +363,31 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
       sortedAssigns = buildSortedAssignments(binding);
       sortedAssignmentCache.set(binding, sortedAssigns);
     }
-    // the extras are per-query, so they build fresh and merge into the cached base by position
+    // the extras are per-query, so they build fresh and merge into the cached base by completion
     if (extraViolations?.length) {
       sortedAssigns = [...sortedAssigns, ...buildSortedAssignments({ ...binding, constantViolations: extraViolations })]
-        .sort((a, b) => a.pos - b.pos);
+        .sort((a, b) => a.end - b.end);
     }
     if (!sortedAssigns.length) return null;
 
-    // largest entry with pos < beforePos
-    let lo = 0;
-    let hi = sortedAssigns.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (sortedAssigns[mid].pos < beforePos) lo = mid + 1;
-      else hi = mid;
-    }
-    // skip any assignment whose own RHS textually ENCLOSES the use (`x = ("" + x.at(-1))`): its start
-    // precedes the use but it has not executed yet, so the receiver must come from the prior value
-    let idx = lo - 1;
-    while (idx >= 0 && (sortedAssigns[idx].end > beforePos || sortedAssigns[idx].from > beforePos)) idx--;
+    // largest entry completed by beforePos - an assignment whose own RHS textually ENCLOSES the use
+    // (`x = ("" + x.at(-1))`) has not executed yet, so the receiver comes from the prior value
+    let idx = sortedPrefixLength(sortedAssigns, entry => entry.end <= beforePos) - 1;
+    while (idx >= 0 && sortedAssigns[idx].from > beforePos) idx--;
     if (idx < 0) return null;
     const chosen = sortedAssigns[idx];
+    // ... and the binding's own initializer installed between the two replaces what the ranked write left
+    if (declaratorInitRunsWithin(binding, chosen.end, beforePos)) return null;
     // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
-    // the chosen assignment and the use can overwrite it at runtime, except in the opposite arm
-    // of the same conditional or in an arm the build never takes - otherwise degrade to the generic
-    // / union path
+    // the chosen assignment and the use - or placed above it in a slot running after it all the same, a
+    // pattern its host fills past the chosen right-hand side - can overwrite it at runtime, except in
+    // the opposite arm of the same conditional or in an arm the build never takes - otherwise degrade
+    // to the generic / union path
     const adapter = getDecisionAdapter();
     for (const v of violations) {
       const vStart = v.node?.start;
-      if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos
-        && !writeIsInOppositeBranch(v.node, usagePath) && !writeNeverRuns({ write: v.node, usagePath, adapter })) return null;
+      if (((vStart !== undefined && vStart >= chosen.end && vStart < beforePos) || writeRunsPastRanked(v, chosen.node, usagePath))
+        && !writeIsInOppositeBranch(v.node, usagePath) && !writeNeverRuns({ write: v, usagePath, adapter })) return null;
     }
     return chosen.ap;
   }
