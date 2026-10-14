@@ -974,7 +974,7 @@ export function createUsageVisitors({
     },
     BinaryExpression: core.emitBinaryInUsage,
     // the part of a selection the build never evaluates is no usage: the host skips and folds it
-    'LogicalExpression|ConditionalExpression|IfStatement'(path) {
+    'LogicalExpression|ConditionalExpression|IfStatement|AssignmentPattern'(path) {
       const dead = core.deadBranchOf(path);
       if (!dead) return;
       if (onDeadBranch) onDeadBranch(path, dead);

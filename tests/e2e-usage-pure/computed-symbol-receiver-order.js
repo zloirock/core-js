@@ -57,6 +57,18 @@ QUnit.test('computed optional symbol key keeps its receiver and skips nullish ke
   assert.same(keys, 0);
 });
 
+QUnit.test('computed symbol key behind a deeper optional hop short-circuits with it', assert => {
+  const lists = { held: ['held'] };
+  let keys = 0;
+  function first(box) {
+    return box?.held[(keys++, Symbol.iterator)]().next().value;
+  }
+  assert.same(first(null), undefined);
+  assert.same(keys, 0, 'the key is skipped with the call');
+  assert.same(first(lists), 'held');
+  assert.same(keys, 1);
+});
+
 QUnit.test('sealed computed optional symbol key keeps its original receiver', assert => {
   let arr = ['held'];
   // eslint-disable-next-line no-unsafe-optional-chaining -- the captured receiver is non-null

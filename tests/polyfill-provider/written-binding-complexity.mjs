@@ -61,6 +61,46 @@ const SHAPES = {
     'let w = [0];',
     ...Array.from({ length: k }, (unused, i) => `w = [${ i }];\nnew w(${ i }).at(0);`),
   ],
+  // ... and a member write lands on every container the name may hold, which the census files once past a ceiling
+  'member writes through a name written with fresh containers': k => [
+    'var w;',
+    ...Array.from({ length: k }, (unused, i) => `w = {};\nw.a${ i } = [${ i }];\nw.a${ i }.at(0);`),
+  ],
+  // ... and the mutation census asks what each member write's receiver may hold, of every value its writes install
+  'member writes through a nested container of a written name': k => [
+    'var w;',
+    ...Array.from({ length: k }, (unused, i) => `w = { n: {} };\nw.n.a${ i } = [${ i }];\nw.n.a${ i }.at(0);`),
+  ],
+  'member writes through a name a pattern writes': k => [
+    'let w = [0];',
+    ...Array.from({ length: k }, (unused, i) => `({ a: w } = { a: [${ i }] });\nw.x${ i } = ${ i };\nw.at(${ i });`),
+  ],
+  // ... and every read of a constructor asks after each patch through an alias of it
+  'member writes through a written static alias': k => [
+    'let w = [0];',
+    ...Array.from({ length: k }, (unused, i) => `w = c ? Map : Set;\nw.x${ i } = ${ i };\nw.groupBy([${ i }], g);`),
+  ],
+  // ... each from a scope of its own, which the census answers alike
+  'member writes through a written static alias from blocks of their own': k => [
+    'let w = [0];',
+    ...Array.from({ length: k }, (unused, i) => `{\nw = c ? Map : Set;\nw.x${ i } = ${ i };\nw.groupBy([${ i }], g);\n}`),
+  ],
+  // ... and a read through a name only patterns write asks for the member paths it aliases
+  'static reads through a realm alias only patterns write': k => [
+    'let w;',
+    ...Array.from({ length: k }, (unused, i) => `({ self: w } = globalThis);\nw.Array.from([${ i }]);`),
+  ],
+  // ... and through names bound to the statics, each written value a name the census follows in turn
+  'member writes through a written alias of static aliases': k => [
+    'const M = Map, S = Set;',
+    'let w = [0];',
+    ...Array.from({ length: k }, (unused, i) => `w = c ? M : S;\nw.x${ i } = ${ i };\nw.groupBy([${ i }], g);`),
+  ],
+  // ... and each written value a chain of static keys off a global, dotted or computed, spelled alike at every write
+  'member writes through an alias written with member chains': k => [
+    'let w = [0];',
+    ...Array.from({ length: k }, (unused, i) => `w = c ? globalThis.Map : self['Set'];\nw.x${ i } = ${ i };\nw.groupBy([${ i }], g);`),
+  ],
 };
 const SIZES = [128, 256, 512];
 

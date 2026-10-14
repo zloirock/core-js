@@ -23,14 +23,12 @@ import {
   IMPORT_SPECIFIER_TYPES,
   importBindingView,
   isAmbientBindingShape,
-  isASTNode,
   isDestructurePattern,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   jsxTagRootReferencesBinding,
-  LET_SCOPE_HOST_TYPES,
   memberContextPath,
   memoizeBindingLookup,
   namespaceScopedBindingBlock,
@@ -42,7 +40,6 @@ import {
   unwrapExportedDeclaration,
   usableAliasInfo,
   useAnchorStart,
-  walkPatternIdentifiers,
   unwrapTransparentSeq,
   wrapScopeBindingLookup,
   writesPastCeiling,
@@ -56,7 +53,6 @@ import {
   registerAliasPrePassSite,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { traverse } from 'estree-toolkit';
-import { traverseWalksDecorators } from './estree-compat.js';
 
 // --- isReferenced ---
 
@@ -201,6 +197,8 @@ function isOverHoistedNamespaceBinding(native, path) {
   const block = namespaceScopedBindingBlock(native);
   return !!block && !pathContainedBy(path, block);
 }
+
+const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
 
 // the switch a binding's case belongs to, or null: a fact of the binding, climbed once per binding object
 const caseBlockSwitchCache = new WeakMap();
@@ -391,10 +389,6 @@ function tsOrVarHoistFallback(scope, name, path, read = null) {
 }
 
 function hasRuntimeBinding(scope, name, path = null, read = null) {
-  // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
-  // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
-  // it for position-aware block-scope shadow checks - the inner `let`/`const`/`catch.param`
-  // binding only matches when the lookup site sits inside its containing block
   if (!(scope?.hasBinding?.(name, path) ?? false)) return tsOrVarHoistFallback(scope, name, path, read);
   // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
@@ -439,23 +433,9 @@ export function collectPrePassSites({
   const siteVisitors = wantsAliases
     ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
     : mutationSiteVisitors(handleSite);
-  // a site hidden inside a `@decorator(...)` the traverse does not enter escapes the pre-pass
-  // (babel's Program traverse reaches it natively and the emitters would diverge): the monkey-patch
-  // stays wrongly substitutable and the alias write goes unregistered. the restored visitor keys
-  // carry the traverse into an OWNER's decorators, so what is left to sweep by hand is the
-  // param-level ones; `walkDecorators` stands down wherever the traverse already goes, so no node
-  // is double-visited
-  function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
   traverse(ast, {
     $: { scope: true },
     ...siteVisitors,
-    ClassDeclaration: visitDecoratorSites,
-    ClassExpression: visitDecoratorSites,
-    MethodDefinition: visitDecoratorSites,
-    PropertyDefinition: visitDecoratorSites,
-    AccessorProperty: visitDecoratorSites,
-    TSAbstractPropertyDefinition: visitDecoratorSites,
-    TSAbstractAccessorProperty: visitDecoratorSites,
   });
   finalize?.();
   return { mutated, aliasSites };
@@ -557,8 +537,8 @@ export function closestVisibleNativeBinding(scope, name, path) {
 }
 
 // closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
-// shares the same primitives and branch order): forward `path` so a makeFrameScope lookup
-// stays position-aware; walk past a native binding invisible at the use (over-hoisted namespace /
+// shares the same primitives and branch order): forward `path` so the lookup stays position-aware;
+// walk past a native binding invisible at the use (over-hoisted namespace /
 // case-block let outside the cases); prefer the synthesized var-hoist binding when the visible
 // native declaration lies OUTSIDE the var's hoist owner - the nested-block `var` is the NEARER
 // binding there (estree-toolkit neither hoists it nor lets it shadow the outer name), while a
@@ -852,318 +832,6 @@ function isLiteralString(node) {
   return node?.type === 'Literal' && typeof node.value === 'string';
 }
 
-// --- Decorator sub-traversal ---
-
-// estree-toolkit's visitor keys skip `decorators` - walk them manually with
-// synthetic Babel-shaped paths so resolve-node-type can read typeAnnotations
-
-const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
-
-// `isASTNode` drops parent back-pointers, location objects, and primitives without listing
-// them by name; tolerates parsers adding new metadata fields (e.g. `typeArguments`).
-// `visit(child, key, listKey, container)` matches babel NodePath shape: for array children
-// `key` = index, `listKey` = property name; for non-array `key` = property name, `listKey` = null
-function forEachChildNode(node, visit) {
-  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in node) {
-    const value = node[key];
-    if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) if (isASTNode(value[i])) visit(value[i], i, key, value);
-    } else if (isASTNode(value)) visit(value, key, null, node);
-  }
-}
-
-// babel NodePath parity: for array-indexed children `key` = numeric index, `listKey` =
-// property name, `container` = the array; for non-array children `key` = property name,
-// `listKey` = null, `container` = parent node. consumers like `getStatementSiblings` rely
-// on numeric key + listKey to recognise statement-in-block position
-function makeSynthPath({ node, parent, parentKey, parentPath, scope, listKey = null, container = null }) {
-  // cache `.get(key)` results per synth-path so repeated `path.get('object')` calls within
-  // one traversal return the same wrapper. downstream consumers that identity-check
-  // descendants (scope lookups, handled-object Sets) see stable paths. array branches cached
-  // as-a-whole; same key always returns the same array of child paths
-  const childCache = new Map();
-  const self = {
-    node,
-    parent,
-    parentPath,
-    key: parentKey,
-    listKey,
-    container: container ?? parent,
-    scope,
-    // the AST engine mutates through paths; a synthetic path swaps its container slot
-    // (array child: container = the array, key = index; else container = parent node)
-    replaceWith(next) {
-      self.container[self.key] = next;
-      self.node = next;
-    },
-    get(key) {
-      if (childCache.has(key)) return childCache.get(key);
-      const value = node?.[key];
-      const result = Array.isArray(value)
-        ? value.map((el, i) => makeSynthPath({
-          node: el,
-          parent: node,
-          parentKey: i,
-          parentPath: self,
-          scope,
-          listKey: key,
-          container: value,
-        }))
-        : makeSynthPath({
-          node: value ?? null, parent: node, parentKey: key, parentPath: self, scope, container: node,
-        });
-      childCache.set(key, result);
-      return result;
-    },
-  };
-  return self;
-}
-
-// frame scope for an inline function inside a decorator - locals shadow parentScope.
-// position-aware: `localDecls` carries Map<name, Array<{constant, node, blockStart,
-// blockEnd}>> so block-scoped bindings (`let`/`const`/`catch.param`/block-level
-// FunctionDeclaration / ClassDeclaration) only shadow the parent when the lookup site
-// sits inside their containing block. fn-scoped bindings (`var`, params, fn.id, hoisted
-// FunctionDeclaration at fn body top level) use the whole fn body range and shadow uniformly
-function findLocalAt(localDecls, name, path) {
-  const entries = localDecls.get(name);
-  if (!entries) return null;
-  const pos = path?.node?.start;
-  // no position context (e.g. caller used the legacy `hasBinding(name)` signature) -
-  // return the most-recently-added entry which corresponds to the innermost binding
-  // walked. matches the pre-position "last write wins" overwrite semantics
-  if (typeof pos !== 'number') return entries[0];
-  // pick the most-specific (smallest containing block) shadow whose range covers `pos`.
-  // ties broken by insertion order (most recent first - same as no-position fallback)
-  let best = null;
-  let bestSpan = Infinity;
-  for (const entry of entries) {
-    if (entry.blockStart <= pos && pos <= entry.blockEnd) {
-      const span = entry.blockEnd - entry.blockStart;
-      if (span < bestSpan) {
-        best = entry;
-        bestSpan = span;
-      }
-    }
-  }
-  return best;
-}
-
-function makeFrameScope(parentScope, localDecls) {
-  const bindingCache = new Map();
-  const frame = {
-    hasBinding(name, path) {
-      return findLocalAt(localDecls, name, path) !== null
-        || (parentScope?.hasBinding(name, path) ?? false);
-    },
-    getBinding(name, path) {
-      const local = findLocalAt(localDecls, name, path);
-      if (!local) return parentScope?.getBinding?.(name, path) ?? null;
-      // cache keyed on the entry identity, not the name - distinct shadows of the same
-      // name (`let X = 1; { let X = 2; }`) must produce distinct synthetic bindings
-      let binding = bindingCache.get(local);
-      if (!binding) {
-        binding = {
-          constant: local.constant,
-          // a synthetic VariableDeclaration parent surfaces the declaration KIND (`var`/`let`/
-          // `const`) - the self-ref-var guard reads `path.parent.kind`, and a null parent left it
-          // undefined, so `var Map = Map` in a decorator's inline function lost its global read
-          path: makeSynthPath({
-            node: local.node,
-            parent: local.kind ? { type: 'VariableDeclaration', kind: local.kind } : null,
-            parentKey: null,
-            parentPath: null,
-            scope: frame,
-          }),
-        };
-        bindingCache.set(local, binding);
-      }
-      return binding;
-    },
-  };
-  return frame;
-}
-
-// module-level cache: keyed on fn AST node identity. plugin instances each parse their own
-// AST, so node-identity is per-instance and cache entries never leak across instances.
-// only risks staleness if an external caller hands the same node to two configurations,
-// which the unplugin / babel-plugin pipeline doesn't do
-const LOCALS_CACHE = new WeakMap();
-
-// LIFO insertion: most-recently-added entry sits at index 0 so the no-position fallback
-// returns the innermost shadow (last-write-wins). entries carry their own block range so
-// position-aware lookup can pick the right shadow among same-name bindings in distinct scopes
-function addLocal(locals, name, entry) {
-  const list = locals.get(name);
-  if (list) list.unshift(entry);
-  else locals.set(name, [entry]);
-}
-
-function addPatternLocals(locals, pattern, entry) {
-  walkPatternIdentifiers(pattern, id => addLocal(locals, id.name, entry));
-}
-
-function collectFunctionLocals(fnNode) {
-  const cached = LOCALS_CACHE.get(fnNode);
-  if (cached) return cached;
-  const locals = new Map();
-  // fn-scope range covers the WHOLE function node (signature + body) so param identifiers
-  // themselves resolve to their own bindings - `fnNode.body.start` would leave params
-  // outside the range and `findLocalAt` would miss them, letting the identifier visitor
-  // rewrite `(Map) -> (_Map)` for a function-param shadow
-  const fnStart = fnNode.start;
-  const fnEnd = fnNode.end;
-  for (const param of fnNode.params ?? []) {
-    addPatternLocals(locals, param, { constant: true, node: param, blockStart: fnStart, blockEnd: fnEnd });
-  }
-  if (fnNode.id?.name) {
-    addLocal(locals, fnNode.id.name, { constant: true, node: fnNode, blockStart: fnStart, blockEnd: fnEnd });
-  }
-  function walk(node, blockStart, blockEnd) {
-    if (!node || typeof node !== 'object') return;
-    // FunctionDeclaration is block-scoped per ES6+ strict mode; at fn body top level the
-    // currentBlock IS the fn body so it naturally widens to fn-scope semantics. body opens
-    // its own scope - stop descent regardless
-    if (node.type === 'FunctionDeclaration') {
-      if (node.id?.name) {
-        addLocal(locals, node.id.name, { constant: true, node, blockStart, blockEnd });
-      }
-      return;
-    }
-    if (node.type === 'SwitchStatement') {
-      // the CaseBlock (the braces around the cases) is the switch's lexical scope; the
-      // DISCRIMINANT precedes it and resolves in the enclosing block, so a case-body `let`
-      // must not cover it (the main traversal fixes the same class via the case-block
-      // visibility filter on native bindings)
-      walk(node.discriminant, blockStart, blockEnd);
-      const casesStart = node.cases?.[0]?.start ?? node.end;
-      for (const c of node.cases ?? []) walk(c, casesStart, node.end);
-      return;
-    }
-    if (FUNCTION_NODE_TYPES.has(node.type)) return;
-    if (node.type === 'VariableDeclaration') {
-      // `var` hoists out of any enclosing block (fn-scoped); `let`/`const`/`using` /
-      // `await using` are block-scoped. catch-bindings walk separately below
-      const isVar = node.kind === 'var';
-      const scopeStart = isVar ? fnStart : blockStart;
-      const scopeEnd = isVar ? fnEnd : blockEnd;
-      const constant = node.kind === 'const';
-      for (const d of node.declarations) {
-        addPatternLocals(locals, d.id, { constant, kind: node.kind, node: d, blockStart: scopeStart, blockEnd: scopeEnd });
-      }
-    } else if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-      // ClassDeclaration is block-scoped (strict mode); ClassExpression doesn't bind
-      // in the enclosing scope. body opens its own scope - stop descent either way
-      if (node.type === 'ClassDeclaration' && node.id?.name) {
-        addLocal(locals, node.id.name, { constant: true, node, blockStart, blockEnd });
-      }
-      return;
-    } else if (node.type === 'CatchClause' && node.param) {
-      // catch-binding lives only inside the handler body. descend with the catch-body
-      // context so `let`/`const` inside also get correct ranges
-      const catchStart = node.body?.start ?? node.start;
-      const catchEnd = node.body?.end ?? node.end;
-      addPatternLocals(locals, node.param, {
-        constant: false,
-        node: node.param,
-        blockStart: catchStart,
-        blockEnd: catchEnd,
-      });
-      if (node.body) walk(node.body, catchStart, catchEnd);
-      return;
-    }
-    // block-shape nodes push a new block context for their descendants: each entry inside one
-    // scopes its `let` / `const` / class declarations to the block's source range, so shadow
-    // detection at a use-site uses position-aware containment (`var` and a hoisted
-    // FunctionDeclaration keep the fn body's range). the provider's `let`-host lattice is the set:
-    // a case-level `let` scopes to the switch, not to whatever block holds the switch
-    const inBlock = LET_SCOPE_HOST_TYPES.has(node.type);
-    const childStart = inBlock ? node.start : blockStart;
-    const childEnd = inBlock ? node.end : blockEnd;
-    forEachChildNode(node, child => walk(child, childStart, childEnd));
-  }
-  if (fnNode.body) walk(fnNode.body, fnStart, fnEnd);
-  LOCALS_CACHE.set(fnNode, locals);
-  return locals;
-}
-
-// a named ClassExpression binds its own name for the class extent (a self-reference inside
-// the body resolves to the class, not an outer / global same-name binding). the locals walk
-// stops at class nodes, so the decorator traversal opens a dedicated one-name frame for it
-const CLASS_NAME_LOCALS_CACHE = new WeakMap();
-function classExpressionNameLocals(node) {
-  let locals = CLASS_NAME_LOCALS_CACHE.get(node);
-  if (!locals) {
-    locals = new Map();
-    addLocal(locals, node.id.name, { constant: true, node, blockStart: node.start, blockEnd: node.end });
-    CLASS_NAME_LOCALS_CACHE.set(node, locals);
-  }
-  return locals;
-}
-
-function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, listKey = null, container = null }) {
-  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
-  const childScope = FUNCTION_NODE_TYPES.has(node.type)
-    ? makeFrameScope(scope, collectFunctionLocals(node))
-    : node.type === 'ClassExpression' && node.id?.name
-      ? makeFrameScope(scope, classExpressionNameLocals(node))
-      : scope;
-  const synthPath = makeSynthPath({ node, parent, parentKey, parentPath, scope: childScope, listKey, container });
-  // the same two spellings the engine takes: a bare handler, or the `{ enter }` object every
-  // merged visitor set is normalized into - a manual walk that took only the first silently
-  // dropped every site under a merged map
-  const visit = visitors[node.type];
-  (typeof visit === 'function' ? visit : visit?.enter)?.(synthPath);
-  forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
-    walkSubtree({
-      node: child,
-      parent: node,
-      parentKey: childKey,
-      parentPath: synthPath,
-      scope: childScope,
-      visitors,
-      listKey: childListKey,
-      container: childContainer,
-    });
-  });
-}
-
-function walkDecoratorList(decorators, parentPath, decoratorVisitors, revisit = false) {
-  if (!decorators?.length) return;
-  for (let i = 0; i < decorators.length; i++) {
-    // a MANUAL walk queues nothing: an AST emission inside a decorator replaces its span and
-    // the replacement's own claims (an argument's nested read) would never be visited. the
-    // revisit pass reaches exactly those - consumed spans carry their skip marks and stay
-    // inert. the TEXT leg must NOT revisit: its transforms are position-keyed, so a second
-    // walk queues a colliding edit for a span the first one already owns
-    const passes = revisit ? 2 : 1;
-    for (let pass = 0; pass < passes; pass++) {
-      walkSubtree({
-        node: decorators[i], parent: parentPath.node, parentKey: i, parentPath, scope: parentPath.scope,
-        visitors: decoratorVisitors, listKey: 'decorators', container: decorators,
-      });
-    }
-  }
-}
-
-// walks the param-level decorators the traverse leaves behind (TS legacy `@dec arg` on class
-// method / constructor params); `MethodDefinition.params` lives on `.value`. the owner's OWN
-// decorators are not owed here - the restored visitor keys take the traverse into every one of
-// them, and visiting one a second time would queue two colliding rewrites for its span (crash).
-// `traverseWalksDecorators` - which reads the very keys the traverse follows - is the one arbiter
-// of what is still owed, and it stands this walk down per param type
-function walkDecorators(parentPath, decoratorVisitors, revisit = false) {
-  const { node } = parentPath;
-  const params = node?.params ?? node?.value?.params;
-  if (!params) return;
-  for (const param of params) {
-    if (!traverseWalksDecorators(param.type)) {
-      walkDecoratorList(param?.decorators, parentPath, decoratorVisitors, revisit);
-    }
-  }
-}
-
 // --- Usage visitors ---
 
 export function createUsageVisitors({
@@ -1179,7 +847,6 @@ export function createUsageVisitors({
   resolveStaticKey = null,
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
-  revisitDecorators = false,
   keepLive = null,
   onDeadBranch = null,
   onDiscardedClaim = null,
@@ -1200,7 +867,7 @@ export function createUsageVisitors({
   const { skipUpdateTargets } = core;
 
   // estree-toolkit descends into the old children after replacing their parent. Reject
-  // detached paths before detection builds their metadata, including in decorator walks.
+  // detached paths before detection builds their metadata.
   // Do not prune the walk: a nested effect re-emitted by identity can still be keepLive.
   function liveVisitors(visitors) {
     if (method !== 'usage-pure') return visitors;
@@ -1255,10 +922,7 @@ export function createUsageVisitors({
     core.emitMemberUsage(path);
   }
 
-  // Property visitor is shared: top-level destructure bindings and decorator-arg patterns
-  // both need `buildDestructuringMeta` to route polyfillable receivers through synth-swap.
-  // decorator walk must include it explicitly - `walkSubtree`'s visitor lookup is keyed by
-  // node type, and without the entry the decorator subtree never reaches destructure handling
+  // destructure bindings route polyfillable receivers through synth-swap (`buildDestructuringMeta`)
   function propertyVisitor(path) {
     if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
     // the container walk collects the slot's OTHER reaching values (written / repositioned)
@@ -1271,10 +935,7 @@ export function createUsageVisitors({
     core.emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects: containerUnion });
   }
 
-  // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
-  // the top-level visitor and `decoratorVisitors` so `@(<Map/>) class C {}` decorators
-  // detect the global runtime reference (without it the decorator walk has no
-  // JSXIdentifier entry, so the embedded JSX element never triggers polyfill emission).
+  // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`).
   // `adapter.hasBinding` gets the path so `hasRuntimeBinding`'s var-hoisting fallback
   // detects a `var Tag` declaration inside a nested non-function block (estree-toolkit
   // registers var in the block's own scope rather than hoisting to enclosing function)
@@ -1295,18 +956,6 @@ export function createUsageVisitors({
     else if (dead.skip) path.get(dead.skip).skip();
   }
 
-  const decoratorVisitors = liveVisitors({
-    Identifier: identifierVisitor,
-    MemberExpression: memberExpressionVisitor,
-    BinaryExpression: core.emitBinaryInUsage,
-    Property: propertyVisitor,
-    JSXIdentifier: jsxIdentifierVisitor,
-  });
-
-  function visitDecorators(path) {
-    walkDecorators(path, decoratorVisitors, revisitDecorators);
-  }
-
   // explicit type arguments at a call / new site (`bar<Map<...>>()`, `new Foo<Map<...>>()`)
   // are a type-only instantiation hanging off the call node, not a runtime ref the call's own
   // visitor reads. there's no FunctionExpression body to drive the param / return walk, so sweep
@@ -1315,18 +964,6 @@ export function createUsageVisitors({
   function checkCallTypeArguments(path) {
     const typeArgs = getTypeArgs(path.node);
     if (typeArgs) walkTypeAnnotationGlobals(typeArgs, core.annotationGlobal(path), core.annotationCtx(path));
-  }
-
-  // a class node and its field shapes carry type-only globals the FunctionExpression walk
-  // (method param / return types) never reaches: the class's own `typeParameters` constraints /
-  // defaults and `extends Base<...>` super-type-args, plus a field's `x: Map<T>` annotation.
-  // `checkTypeAnnotations` already reads `typeParameters.params` + super-type-args, so one routine
-  // covers both the class node and its members. pair it with the decorator walk so those globals
-  // polyfill when annotation walking is on (usage-global). abstract field variants are the same -
-  // their type-only declarations are still signal
-  function visitDecoratorsAndAnnotation(path) {
-    visitDecorators(path);
-    if (walkAnnotations) core.checkTypeAnnotation(path);
   }
 
   return liveVisitors({
@@ -1356,13 +993,24 @@ export function createUsageVisitors({
       NewExpression: checkCallTypeArguments,
       OptionalCallExpression: checkCallTypeArguments,
       TaggedTemplateExpression: checkCallTypeArguments,
+      // a class node and its field shapes carry type-only globals the FunctionExpression walk
+      // (method param / return types) never reaches: the class's own `typeParameters` constraints /
+      // defaults and `extends Base<...>` super-type-args, plus a field's `x: Map<T>` annotation.
+      // `checkTypeAnnotations` already reads `typeParameters.params` + super-type-args, so one routine
+      // covers both the class node and its members. abstract field variants are the same - their
+      // type-only declarations are still signal
+      ClassDeclaration: core.checkTypeAnnotation,
+      ClassExpression: core.checkTypeAnnotation,
+      PropertyDefinition: core.checkTypeAnnotation,
+      AccessorProperty: core.checkTypeAnnotation,
+      TSAbstractPropertyDefinition: core.checkTypeAnnotation,
+      TSAbstractAccessorProperty: core.checkTypeAnnotation,
     } : null,
     Identifier: identifierVisitor,
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
     // names and closing-tag dupes. also accept root of `<Map.Provider.X/>` (N-deep
     // JSXMemberExpression chain) - walk the `.object` chain from path so deeper-than-2
-    // namespace tags still polyfill the outer global. shared with `decoratorVisitors`
-    // so JSX inside decorator expressions (`@(<Map/>) class C {}`) also triggers
+    // namespace tags still polyfill the outer global
     JSXIdentifier: jsxIdentifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: core.emitBinaryInUsage,
@@ -1370,15 +1018,8 @@ export function createUsageVisitors({
     LogicalExpression: deadBranchVisitor,
     ConditionalExpression: deadBranchVisitor,
     IfStatement: deadBranchVisitor,
+    AssignmentPattern: deadBranchVisitor,
     Property: propertyVisitor,
-    // class node sweeps its own type params + `extends Base<...>` super-type-args
-    ClassDeclaration: visitDecoratorsAndAnnotation,
-    ClassExpression: visitDecoratorsAndAnnotation,
-    MethodDefinition: visitDecorators,
-    PropertyDefinition: visitDecoratorsAndAnnotation,
-    AccessorProperty: visitDecoratorsAndAnnotation,
-    TSAbstractPropertyDefinition: visitDecoratorsAndAnnotation,
-    TSAbstractAccessorProperty: visitDecoratorsAndAnnotation,
   });
 }
 

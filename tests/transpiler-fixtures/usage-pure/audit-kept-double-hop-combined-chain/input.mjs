@@ -11,12 +11,12 @@ export const combinedTail = (n = globalThis.window)?.self?.self.Array.of(1).flat
 export const combinedNoTail = (t = globalThis.window)?.self?.self.Array.of(2).flat?.();
 export const optionalAccess = (c = globalThis.window)?.self?.self.Array.of(3)?.flat?.();
 export const rawMethodTail = (u = globalThis.window)?.self?.self.Array.of(4).userMethod?.();
-// NESTED combined chains: the inner chain's own OR-guard is a guarded producer too - it hoists
-// into the enclosing test the same way a claim guard does, at any nesting depth
+// NESTED combined chains: the inner chain's own lookup test joins the enclosing test the same way
+// a claim guard does, at any nesting depth
 let w;
 export const nestedCombined = (w = globalThis.window)?.self?.self.Array.of(5).flat?.().map?.(x => x).at?.(0);
-// the SINGLE-hop spelling converges on the same emission: the mid-chain helper grafts INTO
-// the guard alternate and the root guard memo prunes once the claim stops reading it
+// the SINGLE-hop spelling converges on the same emission: the root guard is a test of its own
+// ahead of the mid-chain lookup, and the root guard memo prunes once the claim stops reading it
 let w2;
 export const nestedCombinedSingle = (w2 = globalThis.window)?.self.Array.of(6).flat?.().map?.(x => x).at?.(0);
 // inside a FUNCTION scope the dead root memo prunes too: the scoped `var` list drops the

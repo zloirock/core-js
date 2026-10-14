@@ -7,7 +7,7 @@ const {
     of: {
       name: viaHop
     } = {}
-  } = {}
+  }
 } = {
   Array: {
     of: {
@@ -65,7 +65,7 @@ let viaAssign;
     of: {
       name: viaAssign
     } = {}
-  } = {}
+  }
 } = {
   Array: {
     of: {

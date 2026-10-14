@@ -4,8 +4,11 @@ import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-l
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// an array-wrapped claim one level down binds through a captured element: the residual re-emits the
+// named siblings beside the claim - a numeric key included - in the place the source's nesting reads
+// them, what stands before the hop before it and what stands after it after the inner level. a rest
+// keeps its level native, a computed claim key keeps its own destructure, and an assignment host has
+// no declaration for the residual to stand in.
 const rows = _Object$assign([1, [2]], {
   extra: 7
 });
@@ -21,9 +24,6 @@ const [{
   }
 }] = pair;
 const [_ref] = pair;
-// ... and a sibling one level OUT reads the value ITS level reads, in the place the source's own
-// nesting puts it: what stands before the hop is read before it, what stands after it after the
-// inner level
 const _ref2 = _ref.y;
 const flat = _flatMaybeArray(_ref2);
 const {
@@ -35,14 +35,11 @@ const {
   keep
 } = _ref3;
 const [_ref4] = pair;
-// two named siblings beside the claim, one of them a NUMERIC key - the residual re-emits both
 const {
   keep: leadKeep
 } = _ref4;
 const findLastIndex = _findLastIndexMaybeArray(_ref4.y);
 const [_ref5] = pair;
-// NEGATIVE: a COMPUTED claim key is spelled by its own channel, so the residual cannot re-emit it -
-// the shape keeps its own destructure
 const _ref6 = _ref5.y;
 const findLast = _findLastMaybeArray(_ref6);
 const {
@@ -55,11 +52,10 @@ const [{
     extra: extra3
   }
 }] = pair;
-// NEGATIVE: an ASSIGNMENT host binds no declaration, so the residual has nowhere to stand
 let viaAssign, keptAssign;
 [{
   y: {
-    at: viaAssign,
+    includes: viaAssign,
     keep: keptAssign
   }
 }] = pair;

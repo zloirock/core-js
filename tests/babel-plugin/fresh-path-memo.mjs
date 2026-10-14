@@ -9,9 +9,9 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { createBabelAdapter, freshPathOfNode, rebuildLaggedScopeBinding } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
-import { removePatternSlot } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
+import { rangePreservingTypes, removePatternSlot } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
-import { liveBindingWrites, wrapScopeBindingLookup } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { ancestorChainDetached, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
@@ -472,6 +472,48 @@ for (const [label, source, expectedType, expectedInit] of [
   check(`explicit lookup scope/${ label }: initializer`, binding?.node?.init?.name, expectedInit);
   checkTruthy(`explicit lookup scope/${ label }: actual outer scope`, binding?.scope === programPath.scope);
   check(`explicit lookup scope/${ label }: node-type query agrees`, adapter.getBindingNodeType({ scope: programPath.scope, name: 'value', path: usePath }), expectedType);
+}
+
+// A render that COPIES a source write to where it renders it leaves the source write out of the tree: the
+// lookup's view takes the live copy in its place, so the reaching lanes read no detached write. A copy the
+// source never had in that place - taken without retiring - keeps the source write answering for it, as the
+// other leg reads it
+for (const [label, copyMethod, retires] of [['retiring copy', 'cloneNode', true], ['copy without retiring', 'cloneWithoutRetiring', false]]) {
+  const programPath = await parseProgram('let x = [1];\nf((x = [2], 0));\nuse(x.at(0));');
+  const [, callStatement, useStatement] = programPath.get('body');
+  const usePath = useStatement.get('expression.arguments.0.callee.object');
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  lookup({ scope: usePath.scope, name: 'x', path: usePath });
+  const argument = callStatement.get('expression.arguments.0');
+  const copy = rangePreservingTypes(t)[copyMethod](argument.node);
+  argument.replaceWith(t.sequenceExpression([t.identifier('render'), copy]));
+  const writes = lookup({ scope: usePath.scope, name: 'x', path: usePath })?.constantViolations ?? [];
+  check(`render copy/${ label }: the view reads the copy`, writes.some(write => write.node === copy.expressions[0]), retires);
+  check(`render copy/${ label }: every write it reads is attached`, writes.every(write => !!write.node && !ancestorChainDetached(write)), retires);
+}
+
+// babel's visitor keys omit a parameter property's decorators, so its tracker never records a write one
+// hosts: the lookup recovers it from the scan as an entry with no path to climb. the write index still
+// finds it, and once the render replaces it, the lookup's view takes the live write in its place
+{
+  const programPath = await parseProgram('let M;\nclass C { constructor(@dec(({ Map: M } = g)) private x) {} }\nuse(M.groupBy);', ['typescript', 'decorators-legacy']);
+  const [, classStatement, useStatement] = programPath.get('body');
+  const usePath = useStatement.get('expression.arguments.0.object');
+  const [property] = classStatement.get('body.body.0.params');
+  const [decoratorPath] = property.get('decorators');
+  const writePath = decoratorPath.get('expression.arguments.0');
+  const original = writePath.node;
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  function view() {
+    return lookup({ scope: usePath.scope, name: 'M', path: usePath })?.constantViolations ?? [];
+  }
+  checkTruthy('parameter decorator write: the view starts on the source write', view().some(write => (write.node ?? write) === original));
+  checkTruthy('parameter decorator write: the write index finds it', ownerWritePathIndex(programPath).get(original)?.node === original);
+  const rendered = t.assignmentExpression('=', t.identifier('M'), t.identifier('_Map'));
+  writePath.replaceWith(t.sequenceExpression([rendered, t.identifier('g')]));
+  const writes = view();
+  checkTruthy('parameter decorator write: the view drops the replaced write', writes.every(write => (write.node ?? write) !== original));
+  checkTruthy('parameter decorator write: the view takes the rendered one', writes.some(write => write.node === rendered && !ancestorChainDetached(write)));
 }
 
 finish();

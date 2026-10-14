@@ -98,7 +98,7 @@ const [{
 const {
   Math: {
     sumPrecise
-  } = {}
+  }
 } = {
   Math: {
     sumPrecise: _Math$sumPrecise
