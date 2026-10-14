@@ -19,7 +19,8 @@ import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normal
 // `unambiguous`: that decides by ESM DECLARATIONS alone, so a module whose only module-only syntax
 // is a top-level `await` comes back as a script - and worse, silently reparsed, with
 // `await (import(x))` becoming a CALL of something named `await`. `script` is reached instead by
-// the retry the parse makes when the module goal is PROVEN wrong by a fatal error
+// the retry the parse makes when the module goal is PROVEN wrong by a fatal error. a CommonJS
+// id whose Script goal rejects ESM can retry Module too; a successful initial parse always stays
 export function sourceDialectOf(cleanId) {
   const language = moduleIdLanguage(cleanId);
   const jsx = language?.jsx ?? false;

@@ -875,8 +875,8 @@ const base = {
   'unicorn/prefer-classlist-toggle': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': ERROR,
-  // prefer default parameters over reassignment
-  'unicorn/prefer-default-parameters': ERROR,
+  // prefer default parameters over reassignment; fallback reads also handle null or falsy values
+  'unicorn/prefer-default-parameters': [ERROR, { checkFallbackExpressions: false }],
   // prefer direct iteration over default iterator method calls
   'unicorn/prefer-direct-iteration': ERROR,
   // prefer `else if` over adjacent `if` statements with related conditions

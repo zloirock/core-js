@@ -594,18 +594,18 @@ export default function createPlugin(options) {
     // they go before the parse. `createClassHelpers` is per-transform-fresh below; only the
     // persistent resolver needs clearing here
     typeResolvers.reset();
-    // parse with oxc-parser (sync is the only available API)
-    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    // parse synchronously with oxc-parser
+    // eslint-disable-next-line node/no-sync -- the transform uses oxc's synchronous parser
     let parsed = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: sourceDialect.parseGoal });
     let [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
-    // a fatal error under the MODULE goal is proof the file is not one - the syntax a Script
-    // alone admits (an Annex-B HTML comment, a legacy octal) is exactly what it rejects. this is
-    // the one place a second parse is evidence rather than a guess: the first goal did not merely
-    // read the file differently, it refused it. the goal is never guessed the other way round -
-    // a Script parse ACCEPTS module text and silently reads `await x` as a call
-    if (fatal && sourceDialect.parseGoal === 'module' && !sourceDialect.esm) {
-      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-      const retried = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: 'script' });
+    // a refused goal may retry the other on an unpinned id: Script-only syntax (an Annex-B HTML
+    // comment, a legacy octal) refuses Module, while ESM in a CommonJS id refuses Script. only a
+    // successful retry replaces the first result. a successful Script is never re-read as Module:
+    // `await(import(x))` can call a function named `await` there. `.mjs` / `.mts` remain pinned.
+    if (fatal && !sourceDialect.esm) {
+      const retryGoal = sourceDialect.parseGoal === 'module' ? 'script' : 'module';
+      // eslint-disable-next-line node/no-sync -- the transform uses oxc's synchronous parser
+      const retried = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: retryGoal });
       const [stillFatal] = retried.errors?.filter(e => e.severity === 'Error') ?? [];
       if (!stillFatal) [parsed, fatal] = [retried, undefined];
     }
@@ -640,10 +640,9 @@ export default function createPlugin(options) {
     neutralizeUnwalkedParamPatterns(ast, patternRestorations);
 
     // the format owner answers both halves at once, from the id, the body and the goal the parse
-    // actually used. the write-back is load-bearing in BOTH directions - a `.cjs` carrying top-level
-    // ESM parses as a script yet is a module by its own syntax, and every other id parses tolerantly
-    // yet may be a script by its body - and it is the LANGUAGE half that lands here, never the
-    // emission option. `ast.sourceType` still carries the goal at this point: a `script` there is
+    // actually used. the write-back is load-bearing in BOTH directions - a CommonJS id can carry
+    // ESM, and a Module parse can still yield a script by its body. the LANGUAGE half lands here,
+    // never the emission option. `ast.sourceType` still carries the goal at this point: a `script` there is
     // the PARSER's own statement, either from a CommonJS extension or from a module goal it refused
     const formatOptions = {
       id: cleanId,
