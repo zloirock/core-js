@@ -16,8 +16,8 @@ class DataView {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/data-view-get-set-uint8-clamped
-core-js/full/dataview/get-uint8-clamped
-core-js/full/dataview/set-uint8-clamped
+core-js/full/data-view/get-uint8-clamped
+core-js/full/data-view/set-uint8-clamped
 ```
 
 ## Examples
