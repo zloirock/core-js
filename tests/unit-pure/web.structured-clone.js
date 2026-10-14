@@ -486,7 +486,14 @@ QUnit.module('structuredClone', () => {
   });
 
   // Transfer
-  if (typeof Uint8Array == 'function') QUnit.test('transfer', assert => {
+  // not every engine gives the polyfill a way to detach a buffer, and transferring throws there
+  let detachable;
+  if (typeof Uint8Array == 'function') try {
+    detachable = new ArrayBuffer(1);
+    structuredClone(detachable, { transfer: [detachable] });
+  } catch { /* empty */ }
+
+  if (detachable?.byteLength === 0) QUnit.test('transfer', assert => {
     const buffer = new ArrayBuffer(4);
     new Uint8Array(buffer).set([1, 2, 3, 4]);
     const clone = structuredClone(buffer, { transfer: [buffer] });

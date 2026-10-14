@@ -474,7 +474,8 @@ QUnit.module('structuredClone', () => {
   });
 
   // Transfer
-  if (typeof Uint8Array == 'function') QUnit.test('transfer', assert => {
+  // `ArrayBuffer#transfer` is installed only where the polyfill has a way to detach a buffer, the same one `structuredClone` uses
+  if (typeof Uint8Array == 'function' && ArrayBuffer.prototype.transfer) QUnit.test('transfer', assert => {
     const buffer = new ArrayBuffer(4);
     new Uint8Array(buffer).set([1, 2, 3, 4]);
     const clone = structuredClone(buffer, { transfer: [buffer] });
