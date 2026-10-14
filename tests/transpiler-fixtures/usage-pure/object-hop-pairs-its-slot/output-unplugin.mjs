@@ -536,8 +536,8 @@ const [_ref36, _ref37] = [tick(2), tick([3, 4])],
 
 export { eb, exportFlatInSlot, exportQ2 };
 
-export const // ... and a hoisted memo behind a LEADING sibling's own init stays behind it under the wrapper as well
-exportLead = tick(3);
+// ... and a hoisted memo behind a LEADING sibling's own init stays behind it under the wrapper as well
+export const exportLead = tick(3);
 
 const _ref38 = tick([5, 6]);
 

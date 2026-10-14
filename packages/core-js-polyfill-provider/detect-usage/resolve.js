@@ -89,6 +89,7 @@ import {
   patternBoundAliasSlotInit,
   patternSlotValueAmbiguous,
   patternSlotTarget,
+  spelledWriteSlot,
   patternSlotValues,
   patternSlotWritten,
   peelChainAssignment,
@@ -121,6 +122,7 @@ import {
   singleReturnBodyExpression,
   SELECTION_TEST_FIELDS,
   SKIPPABLE_WRAPPER_TYPES,
+  soleChainToProp,
   spelledSlotName,
   staticMemberFromEntrySegment,
   staticMemberKeyName,
@@ -551,6 +553,9 @@ export function deleteGuardKeepingHop(node, resolvePure, aliasCtx) {
     // environment probe (`() => globalThis.window`): the `?.` over such a call decides between the
     // delete and a throw the same way one over a probe read does - the call canon's yield question
     if (isCallShape(below)) return !!aliasCtx && callYieldCanBeUndefined(below, aliasCtx, resolvePure);
+    // ... and an alias reads what it holds without throwing, so one holding the probe's value
+    // (`const w = globalThis.window; delete w?.self.k`) is absent exactly where that probe is
+    if (below?.type === 'Identifier') return proxyReceiverValueCanBeUndefined(below, resolvePure, aliasCtx);
     if (below?.type !== 'MemberExpression' && below?.type !== 'OptionalMemberExpression') return false;
     const leaf = memberProxyHopName(below);
     if (!leaf || resolvePure({ kind: 'global', name: leaf })) return false;
@@ -900,9 +905,11 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     if (value?.type === 'ConditionalExpression'
       && (isUndefinedNode(value.consequent) || isUndefinedNode(value.alternate))) return true;
     if (!aliasCtx || value?.type !== 'Identifier') return false;
+    // a realm root the build does not serve can be absent; one it serves is the realm it names, whether pure
+    // substitutes it or leaves it raw - excluded, or carried natively by every target with no pure entry
     const aliasName = proxyGlobalRootName({ node: value, ...aliasCtx });
-    if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName)
-      && !resolvePure({ kind: 'global', name: aliasName })) return true;
+    if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName) && !resolvePure({ kind: 'global', name: aliasName })
+      && !aliasCtx.adapter?.served?.({ kind: 'global', name: aliasName }, aliasCtx.path)) return true;
     // an alias HOLDING an undefinable nav (`let n; n = globalThis.window?.self.window;
     // n?.X...`) is as undefinable as the nav itself: follow the init or the single write and
     // keep walking. the prefix walks see through the binding to the always-defined global, but
@@ -1087,27 +1094,32 @@ export function isStaticPlacement(name) {
 // ... and a KEY read off the realm names a built-in only where the realm is known to carry one:
 // the convention says nothing about a slot the realm may leave empty, so a user global
 // (`{ Deno: { env } = {} } = globalThis`) stays an unknown slot whose default is live - and so does
-// a built-in the configured subset does not carry (the adapter's `available`: `AsyncIterator` below
-// `full`)
+// a built-in the configured mode does not define (the adapter's `defined`: `AsyncIterator` below
+// `full`). neither the targets nor the user's `exclude` are part of it: excluding a constructor only
+// stops injecting it
 export function isKnownStaticGlobal(name, adapter = null) {
-  return isKnownGlobalName(name) && !!isStaticPlacement(name) && adapter?.available?.({ kind: 'global', name }) !== false;
+  return isKnownGlobalName(name) && !!isStaticPlacement(name) && adapter?.defined?.({ kind: 'global', name }) !== false;
 }
 
-// ... and a realm-key LEVEL (`{ <name>: <inner> }` read off the realm) names that constructor - a DEFAULT on
-// the level (`= D`) dead text only where the realm SLOT is FILLED wherever this build runs: a global core-js
-// implements (its pure flavor), installed where a target lacks it (a module of its entry a filter drops leaves
-// the global itself standing), or one it extends in place on every engine's own (`NATIVE_STATIC_OWNERS`), and
-// replaced by no write the census sees. a known name core-js implements nothing of (`WeakRef`, `BigInt`,
-// `Float16Array`, whose definition lists methods alone) may be missing on a target, its default live, and an
-// excluded constructor counts as missing even over a deficient native (`Map` on IE 11). pure still leaves two
-// such defaults native, usage-global loading their modules: beside a sibling the build claims (`{ Float16Array:
-// { from } = Array, Map: M } = globalThis` - the leaf is classified after the render spelled the realm read into a
-// literal, and a second pass mirrors it), and in a selection default whose realm-read left has a same-named static
-// without a pure entry (`({ from } = globalThis.Float16Array ?? Array)`)
+// ... and a realm-key LEVEL (`{ <name>: <inner> }` read off the realm) names that constructor. a static read off it is
+// decided by its own entry, never by the constructor's: one the build serves takes its polyfill whatever the
+// constructor's entry says and whatever fallback stands beside it (`||`, `??`, a level default), an excluded one reads
+// off the constructor's ponyfill as a method it lacks, an unimplemented one stays native with the user's fallback as
+// written, and excluding a constructor only stops injecting the constructor itself. a DEFAULT on the level (`= D`) is
+// dead text only where the realm SLOT is FILLED wherever this build runs: a global with a pure flavor the data subset
+// carries at the mode (`defined`, whatever the targets and the user's filter say - a slot a filter empties is the
+// user's to answer for), or one core-js extends in place on every engine's own (`NATIVE_STATIC_OWNERS`), and replaced
+// by no write the census sees. a known name core-js implements nothing of (`WeakRef`, `BigInt`, `Float16Array`, whose
+// definition lists methods alone) may be missing on a target: the default stays live there for the statics the
+// build does not serve (`liveSlotStaticMeta` decides the ones it does). pure still leaves two such defaults native,
+// usage-global loading their modules: beside a sibling the build claims (`{ Float16Array: { from } = Array, Map: M }
+// = globalThis` - the leaf is classified after the render spelled the realm read into a literal, and a second pass
+// mirrors it), and in a selection default whose realm-read left has a same-named static without a pure entry
+// (`({ from } = globalThis.Float16Array ?? Array)`)
 export function realmLevelNamesCtor(name, levelValue, adapter) {
   return isKnownStaticGlobal(name, adapter) && (levelValue?.type !== 'AssignmentPattern'
-    || !adapter?.isMutatedStaticSlot?.('globalThis', name)
-      && (NATIVE_STATIC_OWNERS.has(name) || !!resolveBuiltInMeta({ kind: 'global', name })?.desc?.pure));
+    || !adapter?.isMutatedStaticSlot?.('globalThis', name) && (NATIVE_STATIC_OWNERS.has(name)
+      || !!resolveBuiltInMeta({ kind: 'global', name })?.desc?.pure && adapter?.defined?.({ kind: 'global', name }) !== false));
 }
 
 // capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
@@ -2297,7 +2309,7 @@ export function servedRead(node, ctx) {
 // what backs the static `key` of the global `object` a `read` (a node) reads, the read before every write of
 // either slot excepted - `{ substituted }` or null. `imported`: the read is this build's own pure import of
 // it, which no write reaches
-function servedStaticBacking({ object, key, read, ctx, imported = false }) {
+export function servedStaticBacking({ object, key, read, ctx, imported = false }) {
   const staticRead = ctx.path && { node: read, path: ctx.path };
   if (!imported && (ctx.adapter?.isMutatedStaticSlot?.('globalThis', object, staticRead)
     || ctx.adapter?.isMutatedStaticSlot?.(object, key, staticRead))) return null;
@@ -2770,7 +2782,8 @@ export function peelRealmLogicalDefault(node, { discarding = false } = {}) {
 // bounded set of hop names; computed keys and value wrappers stay with the ordinary resolver.
 // The usage handler owns this per-traversal weak index. Like other source-shape indexes, it
 // assumes sibling plugins do not mutate an already indexed subtree during the same traversal.
-// Pure detection rewrites these trees and must not use the index.
+// Pure detection rewrites these trees and must not use the index: it walks the run below every member
+// again, which costs only at a run depth no source spells.
 function plainProxySegment(node, cache) {
   const pending = [];
   let segment;
@@ -2867,43 +2880,37 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
 
 // may an extraction WRITE into this destructure target? a target the source spells as a MEMBER is the
 // author's own slot, and the ponyfill belongs in it exactly as it belongs in a binding the author
-// declares - unless the slot hangs off a GLOBAL, where the write would install the ponyfill in the
-// realm, which is the one thing pure never does. so the question is what the target's ROOT stands
-// for, never that the target IS a member: an unbound root reads the global object, and a bound one
-// may still HOLD the realm (`const box = globalThis`), which only the value canon can say. an
-// EFFECTFUL spelling is refused for a different reason - the extraction moves, and the effect with it
-export function memberTargetTakesExtraction(valueNode, { scope = null, adapter = null, path = null } = {}) {
+// declares, whatever its root stands for - a served read takes the polyfill wherever its value goes,
+// the realm included. an optional link is refused, and so is a root that is neither a plain name nor
+// `this` (a call, a sequence) - a paren or a TS assertion, around the target or an object of its chain,
+// spells the same slot, and a binding a TS assertion wraps is written as spelled too (`spelledWriteSlot`).
+// a COMPUTED link is refused where the extraction would move the write and the key's evaluation with it,
+// which a host holding the prop as its sole chain (`hostPattern`, past the props
+// an earlier claim took out - `gone`) rules out: the extraction then replaces the whole statement in the
+// order the source evaluates it
+export function memberTargetTakesExtraction(valueNode, { hostPattern = null, prop = null, gone = null } = {}) {
   // a leaf DEFAULT over a static is dead text either way - the extraction writes the import, which is
   // never undefined - so the slot answers the same peeled as a binding leaf's does
-  const target = patternSlotTarget(valueNode);
-  if (!isMemberAccessNode(target) || !adapter || !scope) return null;
-  let root = target;
+  const target = spelledWriteSlot(valueNode);
+  if (!target) return null;
+  let root = unwrapRuntimeExpr(target);
+  if (root.type === 'Identifier') return target;
+  let computed = false;
   while (isMemberAccessNode(root)) {
-    if (root.computed || root.optional) return null;
-    root = root.object;
+    if (root.optional) return null;
+    computed ||= root.computed;
+    root = unwrapRuntimeExpr(root.object);
   }
-  if (root?.type !== 'Identifier' || !adapter.hasBinding({ scope, name: root.name, path, read: root })) return null;
-  return resolveObjectName({ objectNode: root, scope, adapter, path }) === null ? target : null;
+  if (computed && !(hostPattern && soleChainToProp(hostPattern, prop, gone))) return null;
+  return root?.type === 'Identifier' || root?.type === 'ThisExpression' ? target : null;
 }
 
-// would putting the ponyfill into this leaf's slot WRITE it into the realm? a binding the pattern declares, or the
-// re-anchor onto the ctor's PURE binding, is what a realm WITHOUT the constructor has instead of it, so declining it
-// is a lost polyfill - WHICH value the binding answers for a given member is the runtime's own business (a
-// `*/constructor` entry exposes the ctor's prototype members as statics and installs none of its own until another
-// entry decorates it). The one thing it may not do is land the ponyfill in the realm: a MEMBER target is the
-// author's own slot and takes the ponyfill like a declared binding, unless its ROOT stands for a global, which is
-// the question the extraction canon asks of the same target (`memberTargetTakesExtraction`)
-export function residualLeafWritesIntoRealm(prop, memberRoot = null) {
-  const target = patternSlotTarget(prop?.value);
-  return isMemberAccessNode(target) && !memberTargetTakesExtraction(prop.value, memberRoot ?? {});
-}
-
-// the slot a static claim's own DEFAULT may fill where no mirror or extraction spells it: a binding,
+// the slot a static claim's ponyfill may be written into where a literal replays the pattern: a binding,
 // or a member target the extraction canon admits. an effectful key keeps its slot in place, and a
-// default beside it would split the key from the write it leads
-export function staticSlotTakesDefault(propNode, ctx) {
+// write beside it would split the key from the write it leads
+export function staticSlotTakesPonyfill(propNode, ctx) {
   return isIdentifierPropValue(propNode?.value)
-    || (!computedKeyHasSideEffects(propNode, ctx) && !!memberTargetTakesExtraction(propNode?.value, ctx));
+    || (!computedKeyHasSideEffects(propNode, ctx) && !!memberTargetTakesExtraction(propNode?.value));
 }
 
 // A ternary's arms naming one receiver can share its extraction. A consumer keeping the
@@ -3728,9 +3735,11 @@ function patternMethodSlot(declarator, name, ctx) {
 
 // the shared callee-shape validation every proof arm funnels through; on success the hop advanced
 // onto the callee, at `scope`, carrying the ARGUMENTS the invocation pairs with its parameters
+// babel spells a class's STATIC method as the member itself, where ESTree hands the function under it
 function finishInlineCallee({ hop, callee, args, scope, seen, allowIdentityParam, allowAsync }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
-    && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod')
+    && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod'
+    && !(callee.type === 'ClassMethod' && callee.static && callee.kind === 'method'))
     || (callee.params?.length && !allowIdentityParam)
     || (callee.async && !allowAsync) || callee.generator) return null;
   // A named function expression binds its own name, outside the declaration scope carried here.
@@ -4270,7 +4279,8 @@ export function planKeptSequenceTail(node, ctx) {
     // (`function f(self)`) holds the user's object, and the hop peel above is name-blind - an
     // unproven root leaves the tail exactly as written. THE canon (`proxyGlobalRootName`) answers
     // name and alias alike with the shadow bail built in; a DIRECT realm name needs no entry of
-    // its own (the mint is of the HOP's ponyfill, `window` roots included)
+    // its own (the mint is of the HOP's ponyfill, `window` roots included). a realm read out of a
+    // container slot (`arr[0]` over `[globalThis]`) is no such root, so its `window?.` folds - an accepted price
     function realmRootKind(base) {
       const name = base?.type === 'Identifier' && ctx.aliasCtx
         ? proxyGlobalRootName({ node: base, ...ctx.aliasCtx }) : null;
@@ -4306,8 +4316,16 @@ export function planKeptSequenceTail(node, ctx) {
 // refusing left the second test standing, and a second test over the first is the whole defect.
 // what still refuses is an effect in the TEST's own region: it has to run before the test the
 // caller composes with, and the composition has no slot ahead of that test to put it in
-export function composableNavGuardPlan(navNode, { scope, adapter, path, resolvePure }) {
+// `readThrough` is the caller's own position fact: a member reads the memoized value on (see the plan),
+// `readerKey` that member's key
+export function composableNavGuardPlan(navNode, {
+  scope, adapter, path, resolvePure, readThrough = false, readerKey = null,
+}) {
   if (!adapter || !scope || !resolvePure) return null;
+  // never under a reader naming a slot the source writes AND a ponyfill serves: the read must reach
+  // the user's patch through the memoized surface, where a composed base reads the pristine ponyfill.
+  // a slot no ponyfill serves reads the realm either way, and composes like any other
+  if (readerKey && isMutatedGlobalSlot(adapter, readerKey) && resolvePure({ kind: 'global', name: readerKey })) return null;
   // an undefinable ROOT is the probe itself: the memo composes a test on it exactly as on a probe
   // hop (`A?.self.X` off `A = globalThis.window` tests `A`), where memoizing the collapsed leaf
   // spelled a second test over the root guard the hop render builds
@@ -4316,7 +4334,14 @@ export function composableNavGuardPlan(navNode, { scope, adapter, path, resolveP
   // is a re-emitted root SPAN, which is the whole-nav render's shape, not this one - here the nav
   // stays where it stands and only its test is spelled
   const plan = planProvenNavGuardCollapse({
-    rootNode: navNode, scope, adapter, path, resolvePure, allowUndefinableRoot: true, allowSequenceRoot: true,
+    rootNode: navNode,
+    scope,
+    adapter,
+    path,
+    resolvePure,
+    allowUndefinableRoot: true,
+    allowSequenceRoot: true,
+    readThrough,
   });
   if (!plan || plan.topAssign || !plan.leafPure) return null;
   if (plan.kind !== 'nested' && !plan.rootUndefinable) return null;
@@ -4351,13 +4376,17 @@ function navFoldsInFallbackSlot(hops, path) {
 // test for a value the same canon calls defined, and split the emitters on their own boundary
 // ... and in a caller-correct FALLBACK SLOT no hop earns one at all: the slot keeps the
 // always-defined literal, so the whole nav folds onto its leaf. only for a PLAIN nav - that is the
-// doctrine's own wording, and a live `?.` in the navigation is a branch the SOURCE wrote
-function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure }) {
-  if (navFoldsInFallbackSlot(hops, path)) return -1;
-  let optionalAbove = false;
-  for (let i = collapseIdx; i >= 0; i--) {
-    if (optionalAbove && !resolvePure({ kind: 'global', name: hops[i].name })) return i;
-    optionalAbove ||= hops[i].optional;
+// doctrine's own wording, and a live `?.` in the navigation is a branch the SOURCE wrote.
+// over a root that IS the environment read (an alias holding the probe's value, a bare probe name)
+// every unbacked hop is such a deeper one, and the root's own test covers what it reads.
+// the probe earns it only where the source's own `?.` reads its value - the hop right above it - and
+// the two reads the value canon keeps observable earn it the same way: the hop a MUTATING consumer
+// holds (`mutationGuardKeepingHop`) and the value a kept write stores
+function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure, rootIsProbe, keptProbe, storedValue }) {
+  if (rootIsProbe || navFoldsInFallbackSlot(hops, path)) return -1;
+  for (let i = collapseIdx - 1; i >= 0; i--) {
+    const probe = i === 0 || hops[i].node === keptProbe || hops[i].node === storedValue;
+    if (hops[i + 1].optional && probe && !resolvePure({ kind: 'global', name: hops[i].name })) return i;
   }
   return -1;
 }
@@ -4399,12 +4428,15 @@ function foldReadThroughRealmHops(hops, { adapter, resolvePure, keptProbe = null
 //   - SE computed-key expressions of collapsed hops (replayed before the leaf, native order).
 // kinds: 'nested' (a prefix test survives), 'sequence' (no prefix, but the root or its arg
 // carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
-// shape; the callers keep their own canons there
+// shape; the callers keep their own canons there.
+// `readThrough`: a member reads the run's value on, so its terminal realm hop is a self-reference
+// that folds like the others, and a run with no hop pure can back lands on its root's own ponyfill -
+// past the probe every hop names the realm the probe read
 // eslint-disable-next-line max-statements -- the descent, the root proof and the per-hop verdicts of one plan
 export function planProvenNavGuardCollapse({
   rootNode, scope, adapter, path, resolvePure, allowSequenceRoot = false,
   throughKeptAssign = false, descendSequenceTail = false, storedValueSequenceTail = false,
-  allowUndefinableRoot = false,
+  allowUndefinableRoot = false, readThrough = false,
 }) {
   let core = unwrapTransparentSeq(rootNode);
   const dug = digChainAssignSteps(core);
@@ -4469,9 +4501,9 @@ export function planProvenNavGuardCollapse({
     const { outer, value } = peelChainAssignment(host);
     const below = outer ? unwrapTransparentSeq(value) : n;
     if (!throughKeptAssign || !outer || !hops[0]?.optional) return { outer, below };
-    return { outer, below: descendHops(below) };
+    return { outer, below: descendHops(below), stored: below };
   }
-  const { outer: chainAssign, below: call } = keptWriteRoot();
+  const { outer: chainAssign, below: call, stored: storedValue = null } = keptWriteRoot();
   if (call === null) return null;
   const aliasCtx = { scope, adapter, path };
   // an ALIAS root (`const g = globalThis; g.window?.self...`) resolves to the global it names -
@@ -4510,13 +4542,8 @@ export function planProvenNavGuardCollapse({
     && (storedValueConsumedAbove(path)
       || (isMemberAccessNode(path?.node) && nodeRangeContains(path.node, topAssign)));
   hops.splice(0, hops.length, ...foldReadThroughRealmHops(hops,
-    { adapter, resolvePure, keptProbe, keepTerminal: !consumedStore, path }));
+    { adapter, resolvePure, keptProbe, keepTerminal: !consumedStore && !readThrough, path }));
   let collapseIdx = -1;
-  // proving WHICH global a call root yields is not proving it yields a DEFINED one: a body reaching
-  // the environment probe (`() => globalThis.window`) is undefined off-window. every render this plan
-  // offers reads THROUGH that value - test-free onto the ponyfill, or a test that dereferences it -
-  // so neither is safe. decline: the `?.` above the call keeps its own guard, which the claim
-  // verdict now sources from the call itself
   // proving WHICH global a call root yields is not proving it yields a DEFINED one: a body reaching
   // the environment probe (`() => globalThis.window`) is undefined off-window, and every render this
   // plan offers reads THROUGH that value. only where the `?.` it would ERASE guards the call value
@@ -4544,11 +4571,16 @@ export function planProvenNavGuardCollapse({
       break;
     }
   }
+  if (collapseIdx === -1 && readThrough) {
+    leafPure = resolvePure({ kind: 'global', name: rootName });
+    if (leafPure) collapseIdx = hops.length - 1;
+  }
   if (collapseIdx === -1) return null;
   // a TAIL hop's key effects ride WITH the hop: the render re-hangs every hop above the collapse in
   // the source's own spelling, key node included, so the effect stays where the source runs it -
   // after the collapsed value, before the read it keys
-  const lastUnresolvableIdx = lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure });
+  const lastUnresolvableIdx = lastGuardEarningHopIdx(hops,
+    { collapseIdx, path, resolvePure, rootIsProbe: rootUndefinable, keptProbe, storedValue });
   // per-hop `?.` verdict for the TAIL, the spelling both emitters read off the plan: an optional
   // is load-bearing only over a value that can short-circuit, and above the collapse that value
   // starts as the always-defined ponyfill leaf (`_self.window?.global`). the KEPT prefix's own
@@ -5532,12 +5564,14 @@ export function navShortCircuitSource(navNode, resolvePure, aliasCtx = null,
     // `throughChainAssign`: a write under the `?.` STORES the nav and hands the same value on
     // (`(q = globalThis.window)?.self`). only a caller asking about the VALUE reads through it -
     // the default verdict keeps the write opaque, because the emit channels key their routing on
-    // it and flipping that globally strands a raw root in a guard memo
+    // it and flipping that globally strands a raw root in a guard memo. what the write stores is
+    // OBSERVED, so the stored nav is judged as an observable read (`(v = globalThis.self.window)?.X`
+    // tests the stored `_self.window` - folded, the store held the realm where native holds undefined)
     // ... or an alias HOLDING a value that can be absent (`const w = globalThis.window;
     // w?.Array` short-circuits like the value it hides)
       : proxyReceiverValueCanBeUndefined(throughChainAssign
         ? peelChainAssignment(object).value ?? object : object, resolvePure, aliasCtx,
-      { throughChainAssign, observableRead })
+      { throughChainAssign, observableRead: observableRead || (throughChainAssign && !!peelChainAssignment(object).outer) })
         || (object?.type === 'Identifier'
           && aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)))) source = object;
     // a PARENTHESIZED layer (source parens or a paren'd cast - `(nav).X`, `(nav as any).X`) stops
@@ -6032,6 +6066,29 @@ export function navHasUnresolvableProxyHop(navNode, resolvePure, aliasCtx = null
     cur = peelReceiverSequenceTail(cur.object);
   }
   return false;
+}
+
+// the chain-assign a navigation stands on when the value it stores navigates a hop pure cannot
+// back (`(n = globalThis.window).self.X`): that store holds the environment probe, not the realm,
+// so the run keeps the write as its base and only the hops above it drop - for a member the source
+// reads and for one it writes alike. landing a write on the ponyfill instead performs it on the
+// realm exactly where the source throws. null for any other base: a store of the realm itself
+// (`(a = globalThis).self.Set = v`) rides the run's own landing
+export function keptProbeStore(navNode, resolvePure, aliasCtx = null) {
+  const { outer, value } = peelChainAssignment(descendToChainRoot(navNode).root);
+  return outer && navHasUnresolvableProxyHop(value, resolvePure, aliasCtx) ? outer : null;
+}
+
+// the kept store of the environment probe a hop claim's member chain WRITES through (`(w =
+// f().window).self.k = v`), else null: the write reaches what the store holds, so a claim the
+// run-landing channels leave to the plain swap lands on that store, the hops above it dropping - the
+// swap's ponyfill base performs the write on the realm exactly where the source throws. a `delete`
+// names its slot by its own rule, and a read keeps the swap - the accepted price of a collapsed
+// `window` read
+export function writtenRunKeptProbeStore(path, { resolvePure, aliasCtx = null, unwrap = node => node }) {
+  const end = memberChainEndPath({ path, unwrap });
+  return isMemberWriteHost(end) && !deleteHostAboveChain(end, end.node, unwrap)
+    ? keptProbeStore(path.node, resolvePure, aliasCtx) : null;
 }
 
 // the maximal proxy-global prefix WHEN it spans at least one intermediate proxy hop

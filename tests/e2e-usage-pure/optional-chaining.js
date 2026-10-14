@@ -405,8 +405,8 @@ QUnit.test('optional chain: short-circuit skips trailing members after a poly ca
 });
 
 // a receiver carrying its OWN live `?.` short-circuits the whole chain natively: the combined
-// dispatch must test it before the maybe-helper reads its member, or a nullish anywhere in the
-// receiver throws where native yields undefined
+// dispatch must test that link before the maybe-helper reads its member, or a nullish at the link
+// throws where native yields undefined
 QUnit.test('optional chain: receiver-level short-circuit reaches the combined dispatch', assert => {
   function twoLive(a) { return a?.b?.c.flat?.().map(x => x).length; }
   assert.same(twoLive(undefined), undefined);
@@ -445,6 +445,64 @@ QUnit.test('optional chain: receiver-level short-circuit reaches the combined di
     },
   };
   assert.same(twoLive(counted), 2);
+  assert.same(reads, 1);
+});
+
+// ... and ONLY at its link: a receiver that comes out nullish below the link is read plainly by
+// the method above it, so native throws there. a guard testing the receiver's own value instead
+// answers undefined on that branch, under every outer spelling of the dispatch
+QUnit.test('optional chain: a nullish below the receiver live link throws at the method read', assert => {
+  // a throw is reported by name: a failing report cannot serialize the error constructor
+  function outcome(run) {
+    try {
+      return run();
+    } catch (error) {
+      return error instanceof TypeError ? 'TypeError' : 'other';
+    }
+  }
+  function optionalOuter(box) { return box?.list.flatMap?.(x => [x]).toSorted?.(); }
+  assert.same(optionalOuter(undefined), undefined, 'the link short-circuits');
+  assert.same(outcome(() => optionalOuter({})), 'TypeError', 'a nullish receiver below the link throws');
+  assert.same(optionalOuter({ list: {} }), undefined, 'a missing method short-circuits');
+  assert.deepEqual(optionalOuter({ list: [2, 1] }), [1, 2]);
+  function plainOuter(box) { return box?.list.flat?.().at(0); }
+  assert.same(outcome(() => plainOuter({})), 'TypeError', 'under a plain outer call');
+  assert.same(plainOuter({ list: [[3]] }), 3);
+  function optionalResult(box) { return box?.list.findLast?.(Boolean)?.toFixed(1); }
+  assert.same(outcome(() => optionalResult({})), 'TypeError', 'under an optional result');
+  assert.same(optionalResult({ list: [0] }), undefined, 'a nullish result short-circuits there');
+  assert.same(optionalResult({ list: [1, 2] }), '2.0');
+  function getTail(box) { return box?.list.toReversed?.().with; }
+  assert.same(outcome(() => getTail({})), 'TypeError', 'under a member read');
+  function deeperLink(box) { return box?.inner?.list.flat?.().includes(1); }
+  assert.same(deeperLink({}), undefined, 'the deeper link short-circuits');
+  assert.same(outcome(() => deeperLink({ inner: {} })), 'TypeError', 'and the receiver past it is read plainly');
+  // the link can be an optional CALL: its result is read plainly by the method above
+  function servedCallLink(box) { return box.list.flat?.().flatMap?.(x => [x]).at(0); }
+  assert.same(servedCallLink({ list: {} }), undefined, 'a missing linked method short-circuits');
+  assert.same(outcome(() => servedCallLink({ list: { flat() { /* empty */ } } })), 'TypeError', 'a nullish call result throws');
+  assert.same(servedCallLink({ list: [[4]] }), 4);
+  function rawCallLink(box) { return box?.list.pick?.().toSorted?.().includes(1); }
+  assert.same(rawCallLink({ list: {} }), undefined);
+  assert.same(outcome(() => rawCallLink({ list: { pick() { /* empty */ } } })), 'TypeError');
+  assert.true(rawCallLink({ list: { pick: () => [2, 1] } }));
+  // a method the build does not serve takes the same split under a claim, an optional one included
+  function rawUnderClaim(box) { return box?.list.pick?.().at(0); }
+  assert.same(outcome(() => rawUnderClaim({})), 'TypeError', 'a raw method read off a nullish receiver throws');
+  assert.same(rawUnderClaim({ list: {} }), undefined);
+  assert.same(rawUnderClaim({ list: { pick: () => [5] } }), 5);
+  function rawUnderOptionalClaim(box) { return box?.list.pick?.()?.at(0); }
+  assert.same(outcome(() => rawUnderOptionalClaim({})), 'TypeError', 'under an optional claim too');
+  assert.same(rawUnderOptionalClaim({ list: { pick() { /* empty */ } } }), undefined);
+  // the receiver past the link still evaluates exactly once
+  let reads = 0;
+  const counted = {
+    get list() {
+      reads += 1;
+      return [[6]];
+    },
+  };
+  assert.same(plainOuter(counted), 6);
   assert.same(reads, 1);
 });
 
@@ -643,6 +701,63 @@ QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('optional cha
   assert.same(globalThis.e2eGuardNest.key, WINDOW_PRESENT ? undefined : 'present', 'and so does a deeper tail');
   delete globalThis.e2eGuardNest;
   delete globalThis.e2eGuardProbe;
+});
+
+// a claim behind the receiver's `?.` may yield `undefined` of its own (an empty array's `at(-1)`):
+// the deleted chain past it is read plainly then and throws, as the source reads it - only a nullish
+// receiver, or a `?.` the source wrote past the claim, answers `true` without reading on
+QUnit.test('optional chaining: delete past a claim yielding undefined reads on plainly', assert => {
+  // a throw is reported by name: a failing report cannot serialize the error constructor
+  function outcome(run) {
+    try {
+      return run();
+    } catch (error) {
+      return error instanceof TypeError ? 'TypeError' : 'other';
+    }
+  }
+  function remove(boxes) {
+    return outcome(() => delete boxes?.at(-1).j.k);
+  }
+  function removeBeforeOptional(boxes) {
+    return outcome(() => delete boxes?.findLast(Boolean).j?.k);
+  }
+  function removeOffOptionalCall(boxes) {
+    return outcome(() => delete boxes?.toReversed?.()[0].k);
+  }
+  const box = { j: { k: 1 }, k: 2 };
+  assert.same(remove([box]), true);
+  assert.same(removeOffOptionalCall([box]), true);
+  assert.deepEqual(box, { j: {} }, 'both members are deleted');
+  assert.same(remove(null), true, 'a nullish receiver deletes nothing');
+  assert.same(remove([]), 'TypeError', 'an undefined claim is read plainly');
+  assert.same(removeBeforeOptional([]), 'TypeError', 'and so is the link before a later `?.`');
+  assert.same(removeBeforeOptional([{}]), true, 'which short-circuits what follows it');
+  assert.same(removeOffOptionalCall([]), 'TypeError', 'an empty result has no element to read');
+});
+
+// ... and past a COMBINED dispatch the same: the guard takes the whole operator, so the member is
+// deleted for real, and a short-circuit at the receiver or at a missing method answers `true`
+QUnit.test('optional chaining: delete past a combined dispatch deletes the member', assert => {
+  function removePlain(list) {
+    return delete list.flat?.().at(0).k;
+  }
+  function removeLinked(box) {
+    return delete box?.list.toSorted?.().findLast(Boolean).k;
+  }
+  function removeOptionalTail(list) {
+    return delete list.toReversed?.().at(-1)?.k;
+  }
+  const first = { k: 1 };
+  assert.true(removePlain([[first]]));
+  assert.same(first.k, undefined, 'the member is deleted');
+  const second = { k: 2 };
+  assert.true(removeLinked({ list: [second] }));
+  assert.same(second.k, undefined, 'past a live link too');
+  assert.true(removeLinked(undefined), 'the short-circuit answers true');
+  assert.true(removeLinked({ list: {} }), 'and so does a missing method');
+  const third = { k: 3 };
+  assert.true(removeOptionalTail([third]));
+  assert.same(third.k, undefined, 'past an optional tail link too');
 });
 
 // a folded tail ENDS in the guard ternary, so an operator continuing the expression must not

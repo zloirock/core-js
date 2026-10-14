@@ -8,9 +8,10 @@ import _Object$getPrototypeOf from "@core-js/pure/actual/object/get-prototype-of
 import _Object$isFrozen from "@core-js/pure/actual/object/is-frozen";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$seal from "@core-js/pure/actual/object/seal";
-// A spread preserves array iteration and the positions it can affect.
-// Known static slots receive pure values while uncertain slots retain their native reads.
-// Known instance slots read their original receiver after the spread evaluates.
+// A spread keeps its array wrapper, and the iteration with it. A slot ahead of the spread is known:
+// a static there is served by a literal in the slot, an instance leaf dispatches on the element the
+// wrapper captured. A slot behind the spread may hold any element, so its hops read natively and its
+// instance leaf takes the generic dispatch.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];
@@ -62,9 +63,9 @@ const viaMember = _atMaybeArray(_ref3);
 const [, _ref4] = [...xs, _globalThis];
 const behindSpread = _at(_ref4.Array.prototype);
 const [, _ref5] = [...xs, [6, 7]];
-// a leaf off a ctor the targets may lack re-anchors on the ponyfilled ctor as a declarator of its own,
-// and the wrapper's husk keeps only the sentinel of a hop the realm always carries
 const slotBehindSpread = _at(_ref5);
+// a hop to a constructor the targets may lack takes its ponyfill in the slot's literal, so a leaf
+// that is no static of it reads undefined there instead of throwing
 const [{
   AggregateError: {
     customZ

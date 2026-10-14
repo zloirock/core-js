@@ -42,6 +42,7 @@ import {
   effectiveArgsLength,
   patternSlotTarget,
   patternHasAnyDefault,
+  patternSlotHasDefault,
   positionalElementPath,
   resolveCallArgument,
   resolveCallArgumentCoords,
@@ -56,11 +57,17 @@ import {
   walkPatternIdentifiers,
   isBareUndefinedIdentifier,
   callPairing,
+  CLASS_NODE_TYPES,
+  classReachesItselfUnnamed,
+  classStaticCallSlot,
+  classStaticSlotMember,
   foldedPropertyKeyName,
   isMemberAccessNode,
   isMemberMutationContext,
   staticMemberKeyName,
   unwrapRuntimeExpr,
+  readsConstructorKey,
+  rootProgramOf,
   walkAstNodes,
   writesPastCeiling,
 } from '../helpers/ast-patterns.js';
@@ -105,10 +112,12 @@ function constructorCallerNames(fnPath) {
 
 // A method's external name is a slot of its local literal owner. Unlike a class constructor,
 // every reference to that owner must account for the selected slot, and a `this` read anywhere
-// in the literal could expose it without spelling that owner's binding.
+// in the literal could expose it without spelling that owner's binding. A class's own static is
+// such a slot of the class, under the same refusals the census asks (`classStaticCallSlot`).
 function methodCallerNames(fnPath) {
-  const member = fnPath.node.type === 'ObjectMethod' ? fnPath : fnPath.parentPath;
+  const member = fnPath.node.type === 'ObjectMethod' || fnPath.node.type === 'ClassMethod' ? fnPath : fnPath.parentPath;
   const object = member?.parentPath;
+  if (object?.node.type === 'ClassBody') return classStaticCallerName(member, object.parentPath);
   const anchor = object?.parentPath;
   if (object?.node.type !== 'ObjectExpression' || anchor?.node.type !== 'VariableDeclarator'
     || anchor.node.id.type !== 'Identifier' || member.node.kind === 'get' || member.node.kind === 'set') return null;
@@ -121,6 +130,33 @@ function methodCallerNames(fnPath) {
     return !readsThis;
   } });
   return readsThis ? null : { name: anchor.node.id.name, scope: anchor.scope, anchor, key };
+}
+
+// ... and the class's outer name it is called by (`classOuterName`)
+function classStaticCallerName(member, classPath) {
+  const classNode = classPath?.node;
+  const key = member.node.static ? foldedPropertyKeyName(member.node) : null;
+  if (key === null || classStaticCallSlot(classNode, key) !== member.node || classReachesItselfUnnamed(classNode)) return null;
+  const outer = classOuterName(classPath);
+  return outer && { ...outer, key };
+}
+
+// the outer name a class is called by: a declaration's own, or a declarator's
+function classOuterName(classPath) {
+  const classNode = classPath.node;
+  if (classNode.type === 'ClassDeclaration') {
+    return classNode.id ? { name: classNode.id.name, scope: classPath.scope, anchor: classPath } : null;
+  }
+  const host = classPath.parentPath;
+  return host?.node.type === 'VariableDeclarator' && host.node.id.type === 'Identifier'
+    ? { name: host.node.id.name, scope: host.scope, anchor: host } : null;
+}
+
+// the declarator binding a name to exactly this reference (`const g = f`), or null
+function aliasDeclaratorOf(ref) {
+  const alias = peelTransparentExprAncestorPath(ref)?.parentPath;
+  return alias?.node.type === 'VariableDeclarator' && alias.node.id.type === 'Identifier'
+    && unwrapRuntimeExpr(alias.node.init) === ref.node ? alias : null;
 }
 
 export function createPatternBindings({
@@ -1068,6 +1104,26 @@ export function createPatternBindings({
       if (refs === null) return null;
       for (let ref of refs) {
         if (key !== undefined) {
+          // ... and an OWNER another binding takes whole (`const A = K`) is called through that name too
+          const ownerAlias = aliasDeclaratorOf(ref);
+          if (ownerAlias) {
+            sources.push({ name: ownerAlias.node.id.name, scope: ownerAlias.scope, anchor: ownerAlias, key });
+            continue;
+          }
+          // ... while a construction hands a class's statics on only to an instance a `constructor` read reaches,
+          // and a subclass calls them as its own unless it defines the key or reaches past its name
+          const host = peelTransparentExprAncestorPath(ref)?.parentPath;
+          if (host?.node.type === 'NewExpression' && unwrapRuntimeExpr(host.node.callee) === ref.node) {
+            const program = rootProgramOf(host);
+            if (!program || readsConstructorKey(program)) return null;
+            continue;
+          }
+          if (CLASS_NODE_TYPES.has(host?.node.type) && unwrapRuntimeExpr(host.node.superClass) === ref.node) {
+            const subclass = classReachesItselfUnnamed(host.node) ? null : classOuterName(host);
+            if (!subclass) return null;
+            if (!classStaticSlotMember(host.node, key)) sources.push({ ...subclass, key });
+            continue;
+          }
           const member = peelTransparentExprAncestorPath(ref)?.parentPath;
           if (!isMemberAccessNode(member?.node) || unwrapRuntimeExpr(member.node.object) !== ref.node
             || staticMemberKeyName(member.node) === null
@@ -1077,9 +1133,8 @@ export function createPatternBindings({
         }
         const site = invocationPairingAt(ref, ref.scope, ref, staticIsMutated, getBindingEntry);
         if (!site) {
-          const alias = peelTransparentExprAncestorPath(ref)?.parentPath;
-          if (alias?.node.type === 'VariableDeclarator' && alias.node.id.type === 'Identifier'
-            && unwrapRuntimeExpr(alias.node.init) === ref.node) {
+          const alias = aliasDeclaratorOf(ref);
+          if (alias) {
             sources.push({ name: alias.node.id.name, scope: alias.scope, anchor: alias });
             continue;
           }
@@ -1322,6 +1377,8 @@ export function createPatternBindings({
     // (keeps ArrayPattern and ObjectPattern reassign-narrowing symmetric)
     const keyPath = findPatternKeyPath(left, name, assignPath.scope);
     if (keyPath) {
+      // a default on the slot's way makes the paired value one of two (`patternSlotHasDefault`)
+      if (patternSlotHasDefault(left, name)) return null;
       if (!unionHints) return resolveDestructuredMember(assignPath.get(rightKey), keyPath);
       if (patternHasAnyDefault(left)) return null;
       const right = assignPath.get(rightKey);

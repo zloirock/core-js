@@ -1,6 +1,6 @@
 // Exported subclasses resolve their bases through aliases, members, effects and reassignment.
-// Each exported class requires its base's full static family: Map, Object, Array and Promise.
-// This global import set checks those families; it cannot isolate the individual super calls.
+// Each exported class hands its base out: Map and Promise load their whole families, while Object
+// and Array, constructors core-js does not polyfill, load the statics their super calls name alone.
 const mapNs = { Base: Map };
 const viaAlias = mapNs;
 class OverAlias extends viaAlias.Base {

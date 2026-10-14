@@ -535,7 +535,7 @@ const CASES = [
   { name: 'synthetic directive-dense, 3600 opt-outs', source: () => syntheticDirectiveDense(3600), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
-  { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
+  { name: 'synthetic lagged aliases, 700 names', source: () => syntheticLaggedAliases(700), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {

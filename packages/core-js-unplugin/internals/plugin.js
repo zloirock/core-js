@@ -17,6 +17,7 @@ import {
   leavingAnswerStatements,
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
+  patternOrderReducer,
   methodReadsUsageCensus,
   withTraversalCaches,
   withVarScopeOwners,
@@ -387,8 +388,8 @@ export default function createPlugin(options) {
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`);
     // the resolver's half is destructured below, so it is read lazily like `getPackages`
     resolvePure,
-    isEntryGuaranteed: entry => isEntryGuaranteed(entry),
     isEntryCarried: entry => isEntryCarried(entry),
+    isEntryAvailable: entry => isEntryAvailable(entry),
     getMutatedStatics: () => currentMutatedStatics,
     getWrittenContainerSlots: () => currentWrittenContainerSlots,
     getContainerSlotIndex: () => currentContainerSlotIndex,
@@ -400,12 +401,12 @@ export default function createPlugin(options) {
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin
-    // `useStart` anchors the injector's name-keyed view positionally - see the babel twin
-    getPolyfillBindingEntry(scope, name, useStart = null) {
-      return usableAliasInfo(currentInjector?.getBindingInfo?.(name, useStart))?.entry ?? null;
+    // `useStart` and `useBinding` anchor the injector's name-keyed view - see the babel twin
+    getPolyfillBindingEntry(scope, name, useStart = null, useBinding = null) {
+      return usableAliasInfo(currentInjector?.getBindingInfo?.(name, useStart, useBinding))?.entry ?? null;
     },
-    getPolyfillBindingHint(scope, name, useStart = null) {
-      return usableAliasInfo(currentInjector?.getBindingInfo?.(name, useStart))?.hint ?? null;
+    getPolyfillBindingHint(scope, name, useStart = null, useBinding = null) {
+      return usableAliasInfo(currentInjector?.getBindingInfo?.(name, useStart, useBinding))?.hint ?? null;
     },
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
@@ -457,6 +458,7 @@ export default function createPlugin(options) {
     isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
     // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
     isEscapedCtor: (name, heldInSlot) => currentEscapedCtorNames?.has(name, heldInSlot) === true,
+    readsUnnamedStatic: name => currentEscapedCtorNames?.readsUnnamedStatic(name) === true,
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
       // `isCallee` peels parens / TS wrappers / ChainExpression from `parent.callee` before the
@@ -476,7 +478,6 @@ export default function createPlugin(options) {
     getCoreJSEntry,
     isEntryAvailable,
     isEntryCarried,
-    isEntryGuaranteed,
     isEntryNeeded,
     resolveUsage,
     resolvePure: resolvePureUnfiltered,
@@ -692,6 +693,7 @@ export default function createPlugin(options) {
         ctorAliasShapesReducer(),
         proxyWriteOriginsReducer(),
         nestedTSRuntimeDeclarationsReducer(),
+        patternOrderReducer(),
       ] : [],
     ]);
     // Apply only the indexed positions, before any scoped walk. The census keeps the original
@@ -1340,7 +1342,6 @@ export default function createPlugin(options) {
           isEntryAvailable: isEntryNeeded,
           resolveMeta: resolvePure,
           resolvePure,
-          revisitDecorators: true,
         };
         // a pure walk rewrites as it goes, so only what holds through a rewrite is kept for it
         withVarScopeOwners(() => traverse(ast, mergeVisitors({
