@@ -181,7 +181,33 @@ jobs:
         with:
           bun-version: latest
       - run: npm run prepare-monorepo
-      - run: npm run test-transpiling
+      - run: npx run-s test-polyfill-provider test-babel-plugin test-babel-plugin-unit test-babel-plugin-v7 test-babel-plugin-unit-v7 test-unplugin test-unplugin-unit test-unplugin-roundtrip test-e2e-usage-pure test-transpiler-differential-cache test-transpiler-integration
+
+  transpiler-differential:
+    if: *not-duplicate
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            node: ^22.22.2
+          - os: ubuntu-latest
+            node: latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm run prepare-monorepo
+      # a new snapshot advances the audit counter and retains newly evaluated cells
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/core-js-differential
+          key: transpiler-differential-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.node.outputs.node-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: transpiler-differential-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.node.outputs.node-version }}-
+      - run: npm run test-transpiler-differential
 
   transpiler-perf:
     if: *not-duplicate
