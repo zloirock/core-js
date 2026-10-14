@@ -3,7 +3,7 @@ import { nativeSubclass } from '../helpers/helpers.js';
 
 QUnit.test('DataView', assert => {
   assert.isFunction(DataView); // in Safari 5 typeof DataView is 'object'
-  assert.arity(DataView, 1);
+  // assert.arity(DataView, 1); // 3 in Chrome 67, Firefox 54 and iOS 14
   assert.name(DataView, 'DataView'); // Safari 5 bug
   assert.looksNative(DataView); // Safari 5 bug
   let dataview = new DataView(new ArrayBuffer(8));
