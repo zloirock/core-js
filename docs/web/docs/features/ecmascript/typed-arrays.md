@@ -120,8 +120,8 @@ core-js/es|stable|actual|full/array-buffer/slice
 core-js/es|stable|actual|full/array-buffer/transfer
 core-js/es|stable|actual|full/array-buffer/transfer-to-fixed-length
 core-js/es|stable|actual|full/data-view
-core-js/es|stable|actual|full/dataview/get-float16
-core-js/es|stable|actual|full/dataview/set-float16
+core-js/es|stable|actual|full/data-view/get-float16
+core-js/es|stable|actual|full/data-view/set-float16
 core-js/es|stable|actual|full/typed-array
 core-js/es|stable|actual|full/typed-array/int8-array
 core-js/es|stable|actual|full/typed-array/uint8-array
