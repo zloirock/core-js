@@ -29,7 +29,6 @@ QUnit.test('destructuring: a nested instance beside rest preserves collection an
       events.push('before');
       return 1;
     },
-    // eslint-disable-next-line unicorn/no-unused-properties -- Read through the computed pattern key below.
     get data() {
       events.push('data');
       return values;
