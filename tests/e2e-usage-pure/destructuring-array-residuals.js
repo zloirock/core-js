@@ -69,3 +69,22 @@ QUnit.test('destructuring: array assignments retain static rest sources and stor
   assert.deepEqual(of(tail), [7]);
   assert.false(Object.hasOwn(remaining, 'of'));
 });
+
+QUnit.test('destructuring: a bound wrapper element serves the statics under its constructor hop in every host', assert => {
+  const wrap = [globalThis];
+  const holed = [0, globalThis];
+  const [{ Reflect: { ownKeys } }] = wrap;
+  let odd;
+  // eslint-disable-next-line no-unreachable-loop -- the loop head is the host under test
+  for (const [{ Map: { groupBy } }] = wrap; ;) {
+    odd = groupBy([1, 2, 3], x => x % 2).get(1);
+    break;
+  }
+  // eslint-disable-next-line no-var -- an unbraced `var` is the host under test
+  if (holed.length) var [, { Promise: { resolve, reject } }] = holed;
+  const [{ Reflect: { apply, extra } }] = wrap;
+  assert.deepEqual(ownKeys({ a: 1 }), ['a']);
+  assert.deepEqual(odd, [1, 3]);
+  assert.deepEqual([typeof resolve, typeof reject, extra], ['function', 'function', undefined]);
+  assert.same(apply(Math.max, null, [1, 2]), 2);
+});

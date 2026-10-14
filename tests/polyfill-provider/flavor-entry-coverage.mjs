@@ -219,17 +219,21 @@ const NARROW = {
   'inline arrow pattern parameter': name => `export const v = (({ name: got }) => got)(globalThis.${ name });`,
 };
 
-// Native constructors without a binding entry still expose their namespace when handed out.
-// A static read of a locally returned constructor exposes only that static's result.
+// A native constructor core-js defines no module for owes nothing when handed out: its statics and
+// prototype methods load where a read names them. A static read of a locally returned constructor
+// exposes only that static's result, while a static read the claim side does not name - by a key
+// nothing names, or through a subclass inheriting it - may land on any static, so it takes the namespace.
 for (const [label, source, used, wide] of [
   ['local IIFE', 'export const value = (() => { if (flag) return Array; return custom; })().of(3);', true, false],
   ['named local call', 'function pick() { if (flag) return Array; return custom; } export const value = pick().of(3);', true, false],
   ['unused function', 'function pick() { if (flag) return Array; return custom; }', false, false],
-  ['escaped value', 'hand(Array);', true, true],
-  ['escaped call', 'hand((() => { if (flag) return Array; return custom; })());', true, true],
-  ['escaped container call', 'hand({ value: (() => { if (flag) return Array; return custom; })() });', true, true],
-  ['exported function', 'export function pick() { if (flag) return Array; return custom; }', true, true],
-  ['exported subclass', 'export class Derived extends (() => { if (flag) return Array; return custom; })() {}', true, true],
+  ['escaped value', 'hand(Array);', false, false],
+  ['escaped call', 'hand((() => { if (flag) return Array; return custom; })());', false, false],
+  ['escaped container call', 'hand({ value: (() => { if (flag) return Array; return custom; })() });', false, false],
+  ['exported function', 'export function pick() { if (flag) return Array; return custom; }', false, false],
+  ['exported subclass', 'export class Derived extends (() => { if (flag) return Array; return custom; })() {}', false, false],
+  ['unnamed key', 'export const value = Array[key](3);', true, true],
+  ['inherited static', 'class Sub extends Array {} export const value = Sub.of(3);', true, true],
 ]) {
   for (const [emitter, imports] of [
     ['babel', await babelImports(source, GLOBAL)],
@@ -361,14 +365,17 @@ for (const [label, source, wide = true, globalWide = wide] of OPAQUE_PARAMETER_R
 
 // A default or known caller supplies the pattern's exact static claim. Only that SAME supplied
 // leaf is covered; known callers contribute their own statics independently of defaults. Spread ambiguity and bare
-// captures still owe their independent family. Compare import sets so one import cannot mask another.
+// captures still owe their independent family, which `Array`, a constructor core-js does not polyfill, has none of:
+// each row runs again over `Promise`, which does. An argument a spread leaves unpaired is a read of this file the
+// claims do not attribute (`read`), so it takes `Array`'s namespace even so. Compare import sets so one import
+// cannot mask another.
 const DEFAULT_COVERAGE = [
   ['array wrapper', 'function f([{ of } = Array]) { return of(1); } f([Array]);', false],
   ['parameter default', 'function f({ of } = Array) { return of(1); } f(Array);', false],
   ['object wrapper', 'function f({ x: { of } = Array }) { return of(1); } f({ x: Array });', false],
   ['nested wrappers', 'function f([[{ of } = Array]]) { return of(1); } f([[Array]]);', false],
   ['inline spread', 'function f([{ of } = Array]) { return of(1); } f([...[], Array]);', false],
-  ['unknown spread', 'function f([{ of } = Array]) { return of(1); } f([...values, Array]);', true],
+  ['unknown spread', 'function f([{ of } = Array]) { return of(1); } f([...values, Array]);', true, true],
   ['no default', 'function f([{ of }]) { return of(1); } f([Array]);', false],
   ['custom callers', 'function f({ of }) { return of; } f(Array); f({ of: x => x }); f({});', false],
   ['custom first', 'const custom = { of: x => x }; function f([{ of }]) { return of; } f([custom]); f([Array]);', false],
@@ -390,16 +397,22 @@ const DEFAULT_COVERAGE = [
   ['stored array leaf', 'let held; function f([{ of } = custom]) { return of(1); } f([held = Array]);', false],
   ['stored object leaf', 'let held; function f({ x: { of } = custom }) { return of(1); } f({ x: held = (effect(), Array) });', false],
   ['stored argument handed out', 'let held; function f({ of } = custom) { return of(1); } f(held = Array); hand(held);', true],
-  ['aliased unknown spread', 'const values = [...unknown, Array]; function f([{ of } = custom]) { return of(1); } f(values);', true],
-  ['stored unknown spread', 'let held; function f([{ of } = custom]) { return of(1); } f(held = [...values, Array]);', true],
+  ['aliased unknown spread', 'const values = [...unknown, Array]; function f([{ of } = custom]) { return of(1); } f(values);', true, true],
+  ['stored unknown spread', 'let held; function f([{ of } = custom]) { return of(1); } f(held = [...values, Array]);', true, true],
 ];
-for (const [label, source, wide] of DEFAULT_COVERAGE) {
-  for (const [emitter, imports] of [
-    ['babel', await babelImports(source, GLOBAL)],
-    ['unplugin', unpluginImports(source, GLOBAL)],
+for (const [label, source, wide, read = false] of DEFAULT_COVERAGE) {
+  const named = /\bof\b/u.test(source);
+  const polyfilled = source.replaceAll('Array', 'Promise').replaceAll(/\bof\b/gu, 'allSettled');
+  for (const [emitter, imports, polyfilledImports] of [
+    ['babel', await babelImports(source, GLOBAL), await babelImports(polyfilled, GLOBAL)],
+    ['unplugin', unpluginImports(source, GLOBAL), unpluginImports(polyfilled, GLOBAL)],
   ]) {
-    check(`default coverage/${ label } [${ emitter }]: own static`, imports.has('core-js/modules/es.array.of'), true);
-    check(`default coverage/${ label } [${ emitter }]: unrelated family`, imports.has('core-js/modules/es.array.find'), wide);
+    check(`default coverage/${ label } [${ emitter }]: own static`, imports.has('core-js/modules/es.array.of'), named);
+    check(`default coverage/${ label } [${ emitter }]: namespace`, imports.has('core-js/modules/es.array.find'), read);
+    check(`default coverage/${ label } over Promise [${ emitter }]: own static`,
+      polyfilledImports.has('core-js/modules/es.promise.all-settled'), named || wide);
+    check(`default coverage/${ label } over Promise [${ emitter }]: unrelated family`,
+      polyfilledImports.has('core-js/modules/es.promise.any'), wide);
   }
 }
 for (const [shape, pattern, wrap] of [

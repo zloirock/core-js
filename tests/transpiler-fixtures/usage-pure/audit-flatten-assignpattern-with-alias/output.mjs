@@ -5,7 +5,7 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 const {
   Array: {
     from: myFrom
-  } = {}
+  }
 } = {
   Array: {
     from: _Array$from
@@ -14,7 +14,7 @@ const {
 const {
   Object: {
     entries: myEntries
-  } = {}
+  }
 } = {
   Object: {
     entries: _Object$entries

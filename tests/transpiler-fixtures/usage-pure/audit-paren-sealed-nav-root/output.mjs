@@ -28,10 +28,10 @@ var _ref, _ref2, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref1
 // `?.` guards the sealed VALUE - which CAN be undefined (the live inner `?.` tests an
 // unresolvable window read). the claim renders GUARDED with the canonical nested test; eating
 // the guard ran the branch where native short-circuits (a wrong value off-browser)
-export const viaSealedOptTail = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _atMaybeArray(_ref = _Array$of(3)).call(_ref, 0);
+export const viaSealedOptTail = null == _globalThis.window ? void 0 : _atMaybeArray(_ref = _Array$of(3)).call(_ref, 0);
 
 // the same shape as a parameter default renders identically
-export function viaParamDefault(x = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _toFixedMaybeNumber(_Number$MAX_SAFE_INTEGER).call(_Number$MAX_SAFE_INTEGER, 2)) {
+export function viaParamDefault(x = null == _globalThis.window ? void 0 : _toFixedMaybeNumber(_Number$MAX_SAFE_INTEGER).call(_Number$MAX_SAFE_INTEGER, 2)) {
   return x;
 }
 

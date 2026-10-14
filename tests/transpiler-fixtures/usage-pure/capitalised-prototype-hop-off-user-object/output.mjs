@@ -1,4 +1,5 @@
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
 // A capitalised hop down to `prototype` off the user's own object names no built-in instance surface:
 // the routes that move or re-spell a surface read keep `registry.Model.prototype` where the source
@@ -52,11 +53,9 @@ let filled, count;
 } = registry);
 let stored, found;
 for (const {
-  Model: {
-    prototype: {
-      includes
+    Model: {
+      prototype: _ref
     }
-  }
-} = stored = registry; !found;) found = includes;
+  } = stored = registry, includes = _includesMaybeArray(_ref); !found;) found = includes;
 export const copyWithin = _copyWithinMaybeArray(_globalThis.Array.prototype);
 export { last, size, flat, filled, count, stored, found };

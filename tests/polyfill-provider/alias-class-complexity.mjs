@@ -6,8 +6,11 @@
 // walk re-reads, not timed: asking each once doubles the reads with the chain, walking the chain per link grows
 // them with its length
 import { createChecker } from './harness.mjs';
-import { collectFileCensus, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { collectFileCensus, walkAstNodes, withTraversalCaches } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('alias-class-complexity');
 
@@ -81,6 +84,92 @@ for (const series of new Set(counts.keys().map(key => key.slice(0, key.lastIndex
   for (const [small, large] of [[64, 128], [128, 256]]) {
     const ratio = counts.get(`${ series }/${ large }`) / counts.get(`${ series }/${ small }`);
     checkTruthy(`${ series }: ${ small } -> ${ large } links grows the reads ${ ratio.toFixed(2) }x, at most 2.5x`, ratio <= 2.5);
+  }
+}
+
+// ... and a binding many aliases hold (`const hK = box`) is asked at every call through one of them whether something
+// opens it: the walk answering that steps through the aliases once per binding, and asked anew per call it stepped
+// through all of them again. no read of the tree shows those steps - each files the alias it enters in a set - so
+// count the entries the sets take during the census
+const entries = new Map();
+for (const size of [64, 128, 256]) {
+  const code = [
+    'const box = { a: Math };',
+    ...Array.from({ length: size }, (unused, k) => `const h${ k } = box; h${ k }.a = Array;`),
+    ...Array.from({ length: size }, (unused, k) => `box.a.of(${ k });`),
+  ];
+  runBoth(`aliased owner/${ size }`, code.join('\n'), (parser, program, label) => {
+    const { add } = Set.prototype;
+    let count = 0;
+    // eslint-disable-next-line no-extend-native -- counts the census's set entries, restored below
+    Set.prototype.add = function (value) {
+      count++;
+      return add.call(this, value);
+    };
+    try {
+      collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+    } finally {
+      // eslint-disable-next-line no-extend-native -- the native method back
+      Set.prototype.add = add;
+    }
+    checkTruthy(`${ label }: set entry counter control`, count > 0, `${ count } entries`);
+    entries.set(`${ parser.name }/${ size }`, count);
+  });
+}
+for (const series of new Set(entries.keys().map(key => key.slice(0, key.lastIndexOf('/'))))) {
+  for (const [small, large] of [[64, 128], [128, 256]]) {
+    const ratio = entries.get(`${ series }/${ large }`) / entries.get(`${ series }/${ small }`);
+    checkTruthy(`${ series }/aliased owner: ${ small } -> ${ large } aliases grows the set entries ${ ratio.toFixed(2) }x, at most 2.5x`, ratio <= 2.5);
+  }
+}
+
+// ... and every read of the slot those aliases write (`box.a.of(k)`) asks whether a write replaced what the literal
+// held: the constructor every write names is the writes' own fact, named once per owner of the reads
+// (`agreedSlotWriteName`), and the dominance stops at the first write that proves it - asked per read over every
+// write, each read walked all of them again. count the reads of the written values
+const slotReads = new Map();
+for (const size of [64, 128, 256]) {
+  const code = [
+    'const box = { a: Math };',
+    ...Array.from({ length: size }, (unused, k) => `const h${ k } = box; h${ k }.a = Array;`),
+    ...Array.from({ length: size }, (unused, k) => `box.a.of(${ k });`),
+  ];
+  runBoth(`aliased slot reads/${ size }`, code.join('\n'), (parser, program, label) => {
+    const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-global',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    });
+    let reads = 0;
+    for (const { node: write } of parser.collectPaths(program, 'AssignmentExpression')) {
+      const { right } = write;
+      Object.defineProperty(write, 'right', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          reads++;
+          return right;
+        },
+      });
+    }
+    let named = 0;
+    const core = createUsageHandlerCore({ adapter, method: 'usage-global', onUsage(meta) {
+      if (meta.object === 'Array' && meta.key === 'of') named++;
+    } });
+    const slotReadPaths = parser.collectPaths(program, 'MemberExpression', path => path.node.property.name === 'of');
+    withTraversalCaches(true, () => {
+      for (const path of slotReadPaths) core.emitMemberUsage(path);
+    });
+    // the writes replaced the literal's constructor: each read names the one they install
+    check(`${ label }: every read names the written constructor`, named, size);
+    slotReads.set(`${ parser.name }/${ size }`, reads);
+  });
+}
+for (const series of new Set(slotReads.keys().map(key => key.slice(0, key.lastIndexOf('/'))))) {
+  for (const [small, large] of [[64, 128], [128, 256]]) {
+    const ratio = slotReads.get(`${ series }/${ large }`) / slotReads.get(`${ series }/${ small }`);
+    checkTruthy(`${ series }/aliased slot reads: ${ small } -> ${ large } aliases grows the written-value reads ${ ratio.toFixed(2) }x, at most 2.5x`, ratio <= 2.5);
   }
 }
 finish();

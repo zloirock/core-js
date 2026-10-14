@@ -662,6 +662,15 @@ QUnit.test('params: an IIFE is its own whole caller set', assert => {
   assert.same(((x = [1, 2]) => x.at(0))(), 1);
 });
 
+// a nested sibling beside a static in an IIFE parameter's pattern reads the argument's own slot, and
+// the static still arrives polyfilled - an expression body included, with no statement to extract into
+QUnit.test('params: an IIFE parameter serves a static beside a nested sibling', assert => {
+  assert.deepEqual((function ({ from, prototype: { constructor } }) {
+    return [from('ab'), constructor];
+  })(Array), [['a', 'b'], Array]);
+  assert.deepEqual((({ of, prototype: { constructor } }) => [of(1, 2), constructor])(Array), [[1, 2], Array]);
+});
+
 // a `new` reads the same slots a call does, and the construction here is DROPPED - the object it
 // makes goes nowhere, so nothing can reach the constructor back through `inst.constructor`
 QUnit.test('params: a dropped construction accounts for its own arguments', assert => {

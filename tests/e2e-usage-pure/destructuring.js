@@ -3596,6 +3596,45 @@ QUnit.test('symbol-keyed pattern: catch param destructures the helper result', a
   }
 });
 
+// the key spelled through an alias or a bracket read off `Symbol` names the same well-known symbol, so the
+// level destructures the real iterator method on every host - where an engine lacks native symbols the
+// slot under the polyfilled key is empty, and only the helper reaches the method
+QUnit.test('symbol-keyed pattern: an aliased or bracket-spelled key destructures the real iterator method', assert => {
+  const it = Symbol.iterator;
+  const { [it]: { length: aliasArity, call: aliasCall } } = [7];
+  assert.same(aliasArity, 0);
+  assert.same(typeof aliasCall, 'function');
+  // eslint-disable-next-line dot-notation -- the bracket spelling is the case under test
+  const { [Symbol['iterator']]: { length: bracketArity } } = 'ab';
+  assert.same(bracketArity, 0);
+  const arities = [];
+  for (const { [it]: { length } } of [[1], 'cd']) arities.push(length);
+  assert.deepEqual(arities, [0, 0]);
+  try {
+    throw [5];
+  } catch ({ [it]: { length: thrownArity } }) {
+    assert.same(thrownArity, 0);
+  }
+  const { [it]: { call: besideCall }, at } = [8, 9];
+  assert.same(typeof besideCall, 'function');
+  assert.same(at.call([8, 9], -1), 9);
+});
+
+// a key that runs an effect runs it before the slot is read, and the slot is read once
+QUnit.test('symbol-keyed pattern: an effect-bearing key runs ahead of the one slot read', assert => {
+  const log = [];
+  const list = [1];
+  Object.defineProperty(list, Symbol.iterator, {
+    get() {
+      log.push('read');
+      return function values() { /* empty */ };
+    },
+  });
+  const { [(log.push('key'), Symbol.iterator)]: { length } } = list;
+  assert.same(length, 0);
+  assert.deepEqual(log, ['key', 'read']);
+});
+
 // a for-x head REBINDS a destructured alias: the loop assigns each iteration, so a later
 // read holds the loop's value (a string key), not the extracted static - the alias must
 // not feed value folds or type trust past the loop
@@ -8617,11 +8656,7 @@ QUnit.test('destructuring: an inner default on a non-function host mirrors its r
 // binding it would read `undefined` (the `*/constructor` entry carries no statics), and inside a
 // mirrored literal it stays a raw read through the proxy. on a stripped realm the global is absent
 // and the raw read throws like the source does - the live-global legs carry the value oracle
-QUnit.test('destructuring: a member target takes the static ponyfill unless its root is a global', assert => {
-  // the realm's own ctor and statics, read through calls a member spelling would be resolved
-  // through the ponyfill (`Reflect.get` hands the live value back untouched); absent on a
-  // stripped realm
-  const live = Reflect.get(globalThis, 'Promise');
+QUnit.test('destructuring: a member target takes the static ponyfill whatever its root', assert => {
   const box = {};
   function viaResidual() {
     ({ Promise: { race: box.race } } = globalThis);
@@ -8693,8 +8728,8 @@ QUnit.test('destructuring: a member target takes the static ponyfill unless its 
     ({ Promise: { [(n++, 'race')]: box.effect } } = globalThis);
     return [box.effect, n];
   }
-  // ... and a target whose ROOT stands for a global keeps the native read whatever the realm holds:
-  // the write would install the ponyfill in the realm, which pure never does
+  // ... and so does a target whose ROOT stands for a global: a served read takes the polyfill wherever
+  // its value goes, the realm included
   function viaGlobalRoot() {
     globalThis.e2eMemberRootBox = {};
     ({ Promise: { race: globalThis.e2eMemberRootBox.race } } = globalThis);
@@ -8703,16 +8738,7 @@ QUnit.test('destructuring: a member target takes the static ponyfill unless its 
   const [effect, effectReads] = viaEffectKey();
   assert.same(effectReads, 1);
   assert.same(typeof effect, 'function');
-  if (POST_LOWERED) {
-    // a leg whose emission lands on the LOWERED text sees a plain member read where the pattern
-    // stood, and a member read takes the ponyfill by the usual rule in every realm - the global-root
-    // refusal is a destructuring shape, which the pre-lowering legs hold
-    assert.same(typeof viaGlobalRoot(), 'function');
-  } else if (live) {
-    assert.same(viaGlobalRoot(), Reflect.get(live, 'race'));
-  } else {
-    assert.throws(viaGlobalRoot, TypeError);
-  }
+  assert.same(typeof viaGlobalRoot(), 'function');
 });
 
 // ... and inside a FUNCTION body the same hosts have no caller analysis to prove the slot absent:

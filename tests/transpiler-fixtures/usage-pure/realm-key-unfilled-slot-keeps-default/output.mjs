@@ -30,7 +30,7 @@ const {
 const {
   Map: {
     groupBy
-  } = Object
+  }
 } = {
   Map: {
     groupBy: _Map$groupBy

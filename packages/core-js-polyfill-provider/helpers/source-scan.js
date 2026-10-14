@@ -1,4 +1,4 @@
-import { SINGLE_STATEMENT_SLOTS, isASTNode, statementListOf, walkAstChildren } from './ast-patterns.js';
+import { SINGLE_STATEMENT_SLOTS, isASTNode, sortedPrefixLength, statementListOf, walkAstChildren, walkAstNodes } from './ast-patterns.js';
 
 // ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
 function collectLineStarts(code) {
@@ -12,14 +12,7 @@ function collectLineStarts(code) {
 }
 
 function lineIndexFor(lineStarts, offset) {
-  let lo = 0;
-  let hi = lineStarts.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (lineStarts[mid] <= offset) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
+  return Math.max(sortedPrefixLength(lineStarts, start => start <= offset) - 1, 0);
 }
 
 // the line table is built on the FIRST query, not on construction: the directive scan asks for a
@@ -267,6 +260,35 @@ function nodeLineSpan(node, offsetToLine) {
     return { start: offsetToLine(node.start), end: offsetToLine(node.end - 1) };
   }
   return null;
+}
+
+// The comments a statement owns as its own annotation: the run directly above it, unbroken by a
+// blank line, below the line the code ahead of them ends on (`codeLine`). A block the author separated
+// reads as a file or section header and stays where it was written; a comment sharing a line with that
+// code trails it. `comments` stand between that code and the statement, in source order. A rewrite
+// that lifts effects out of a host's initializers prints them above what the host owns: the comments
+// keep leading the first statement that binds, so a JSDoc type keeps typing the declaration
+export function ownedLeadingComments({ comments, statementLine, codeLine = 0, offsetToLine = null }) {
+  let at = comments.length;
+  let expected = statementLine;
+  for (; at > 0; at--) {
+    // a synthesized comment carries no position and joins the run it stands in
+    const span = nodeLineSpan(comments[at - 1], offsetToLine);
+    if (span && (span.end + 1 < expected || span.start <= codeLine)) break;
+    expected = span?.start;
+  }
+  return comments.slice(at);
+}
+
+// the source offset the first node under `root`, itself included, that carries a span opens at, or
+// null. a zero-width span counts: it is the place a rewrite stamped where its host stood
+export function firstSpelledOffset(root) {
+  let at = null;
+  walkAstNodes({ root, visit(node) {
+    if (typeof node.start === 'number' && typeof node.end === 'number') at = node.start;
+    return at === null;
+  } });
+  return at;
 }
 
 // the member lists both printers lay out one per line besides the statement lists

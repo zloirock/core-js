@@ -51,6 +51,14 @@ QUnit.test('callback: Promise.resolve in map + Promise.all', assert => {
   });
 });
 
+// a constructor handed to a library method off a builtin call's result reaches the library alone:
+// the narrow entry it resolves to still constructs every element
+QUnit.test('callback: a constructor mapped over a builtin call result', assert => {
+  const symbols = Array.from(['a', 'b']).map(Symbol);
+  assert.deepEqual(symbols.map(symbol => symbol.description), ['a', 'b']);
+  assert.notSame(symbols[0], symbols[1]);
+});
+
 // stored references (non-destructuring member access)
 QUnit.test('stored: Array.from in variable', assert => {
   const from = Array.from;

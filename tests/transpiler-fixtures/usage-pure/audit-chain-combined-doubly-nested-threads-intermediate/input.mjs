@@ -6,8 +6,7 @@
 // ternary result would throw on the void 0 path where native yields undefined
 const arr = [1, 2];
 arr.flat?.().map(x => x * 2).filter?.().some(x => x > 3);
-// an optional link BEHIND a call link: each optional gets its own memo and its own test, so the
-// nullish root is tested before the maybe-helper reads it and again after the call link returns.
-// the receiver is never folded into a single hoisted guard - a call link is its own dispatch and
-// the value it produces can be nullish independently of the root
+// an optional link BEHIND a call link: the root's live `?.` is the link the guard tests before the
+// maybe-helper reads the receiver, and the call link past it is read plainly - the value it
+// produces is no test of its own, so a nullish one throws at the helper's read, as native does
 arr?.slice().flat?.().at(0);

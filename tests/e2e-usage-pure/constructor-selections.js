@@ -307,3 +307,15 @@ QUnit.test('constructor selections: a pattern over a decided test answer or a ri
   }
   assert.true(read());
 });
+
+QUnit.test('constructor selections: a default over a selection runs where an arm lacks the static', assert => {
+  // the build serves one arm's static, but another arm may lack it: the default runs there, and its write
+  // reaches the reads below
+  function read(flag) {
+    let list = [3, 4];
+    const { from = list = 'ab' } = flag ? Array : Set;
+    return [typeof from, list.at(-1)];
+  }
+  assert.deepEqual(read(true), ['function', 4]);
+  assert.deepEqual(read(false), ['string', 'b']);
+});

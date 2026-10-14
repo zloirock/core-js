@@ -1,8 +1,8 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _self from "@core-js/pure/actual/self";
+// A realm navigation with two hops between the root and the constructor (`globalThis.self.window`)
+// folds them all: the residual reads the constructor off the backed hop's ponyfill (`_self.Array`).
 const of = _Array$of;
-// proxy-global chain with TWO intermediate hops (`globalThis.self.window.Array`). every proxy
-// hop between the root and the constructor leaf must COLLAPSE, leaving `_globalThis.Array`
 const {
   other
 } = _self.Array;

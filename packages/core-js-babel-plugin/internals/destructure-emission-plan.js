@@ -27,10 +27,10 @@ export const STRATEGIES = Object.freeze({
   // for-init single-decl, no SE - replace whole declaration with extracted
   FOR_INIT_REPLACE: 'for-init-replace',
   // block-level multi-decl + static value - SE lifts INLINE as a statement between the
-  // split halves (programExit deferral mis-ordered it before pre-siblings), splice extracted in
-  DEFER_SE_AND_SPLICE: 'defer-se-and-splice',
-  // block-level single-decl + static value - defer SE to programExit, replace declaration
-  DEFER_SE_AND_REPLACE: 'defer-se-and-replace',
+  // split halves, splice extracted in
+  LIFT_SE_AND_SPLICE: 'lift-se-and-splice',
+  // block-level single-decl + static value - SE lifts ahead of the host, replace declaration
+  LIFT_SE_AND_REPLACE: 'lift-se-and-replace',
   // block-level multi-decl, instance value - replace the consumed declarator in place
   // (the post-traverse drain renders the statement-per-declarator split)
   SPLICE_AND_SPLIT: 'splice-and-split',
@@ -44,8 +44,8 @@ export const STRATEGIES = Object.freeze({
   INSERT_BEFORE_DECLARATION: 'insert-before-declaration',
   // empty AssignmentExpression - replace expression-statement with new assignment
   REPLACE_ASSIGNMENT: 'replace-assignment',
-  // empty AssignmentExpression with static value - defer SE, replace
-  DEFER_SE_AND_REPLACE_ASSIGN: 'defer-se-and-replace-assign',
+  // empty AssignmentExpression with static value - SE lifts ahead of the host, replace
+  LIFT_SE_AND_REPLACE_ASSIGN: 'lift-se-and-replace-assign',
   // bodyless host + empty AssignmentExpression with SE-bearing static value - block-wrap
   // so the SE stays conditional on the host. AE counterpart of `WRAP_BODYLESS_SE`
   WRAP_BODYLESS_SE_ASSIGN: 'wrap-bodyless-se-assign',
@@ -88,16 +88,16 @@ function planVariableDeclarator({
   }
   // block-level or bodyless-without-SE empty (babel auto-block-wraps the bodyless slot) -
   // the SE handling applies only to static values (instance call consumes init)
-  if (isStaticValue) return isMultiDecl ? STRATEGIES.DEFER_SE_AND_SPLICE : STRATEGIES.DEFER_SE_AND_REPLACE;
+  if (isStaticValue) return isMultiDecl ? STRATEGIES.LIFT_SE_AND_SPLICE : STRATEGIES.LIFT_SE_AND_REPLACE;
   return isMultiDecl ? STRATEGIES.SPLICE_AND_SPLIT : STRATEGIES.REPLACE_DECL;
 }
 
 // AssignmentExpression branch dispatcher. mirrors `planVariableDeclarator`'s shape:
 // non-empty short-circuits to insertBefore; empty falls through host-shape decisions.
-// bodyless host gate sits ABOVE the SE-deferral branch because `deferSideEffect` would
+// bodyless host gate sits ABOVE the SE-lift branch because `plantSideEffect` would
 // hoist the SE past the unbraced slot to the enclosing array-bodied parent
 function planAssignmentExpression({ isEmpty, isBodyless, isStaticValue, hasSideEffects }) {
   if (!isEmpty) return STRATEGIES.INSERT_BEFORE_ASSIGNMENT;
   if (isBodyless && isStaticValue && hasSideEffects) return STRATEGIES.WRAP_BODYLESS_SE_ASSIGN;
-  return isStaticValue ? STRATEGIES.DEFER_SE_AND_REPLACE_ASSIGN : STRATEGIES.REPLACE_ASSIGNMENT;
+  return isStaticValue ? STRATEGIES.LIFT_SE_AND_REPLACE_ASSIGN : STRATEGIES.REPLACE_ASSIGNMENT;
 }
