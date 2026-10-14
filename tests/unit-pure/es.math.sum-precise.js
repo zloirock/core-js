@@ -78,7 +78,9 @@ QUnit.test('Math.sumPrecise', assert => {
   assert.same(sumPrecise([-1, -HALF_ULP, Number.MIN_VALUE]), -1, 'just above the negative tie');
   assert.same(sumPrecise([-1, -HALF_ULP, -Number.MIN_VALUE]), -1 - ULP, 'just below the negative tie');
 
-  const customIterator = () => getIterator(createIterable([100, 200, 300]));
+  function customIterator() {
+    return getIterator(createIterable([100, 200, 300]));
+  }
 
   // https://issues.chromium.org/issues/500536164
   if (PROTO) {

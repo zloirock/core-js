@@ -941,7 +941,20 @@ function createResolveNodeType(babelNodeType, t, {
   // `applyAliasSubstDeep` / `substituteTypeParams` go through thunks because they're `let`
   // bindings (assigned by the `type-subst` / `type-resolve-dispatch` cluster destructures
   // further down), not hoisted function declarations
-  const typeExpansionCluster = createTypeExpansion({
+  const {
+    mappedTypeKeyName,
+    mappedTypeConstraint,
+    unwrapMappedTypePassthrough,
+    expandMappedTypeMembers,
+    evaluateConditionalType,
+    pickConditionalBranchVia,
+    isUnconstrainedTypeShape,
+    collectInferredNames,
+    matchTemplatePattern,
+    typeRefSegmentsEqual,
+    dropMapKeys,
+    trueBranchSubst,
+  } = createTypeExpansion({
     literalKeyValue,
     applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
     unwrapTypeAnnotation,
@@ -968,20 +981,6 @@ function createResolveNodeType(babelNodeType, t, {
     structuralKey,
     compareMemberShapes,
   });
-  const {
-    mappedTypeKeyName,
-    mappedTypeConstraint,
-    unwrapMappedTypePassthrough,
-    expandMappedTypeMembers,
-    evaluateConditionalType,
-    pickConditionalBranchVia,
-    isUnconstrainedTypeShape,
-    collectInferredNames,
-    matchTemplatePattern,
-    typeRefSegmentsEqual,
-    dropMapKeys,
-    trueBranchSubst,
-  } = typeExpansionCluster;
 
   // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
   // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
@@ -1719,7 +1718,15 @@ function createResolveNodeType(babelNodeType, t, {
   // live in `resolve-node-type/class-context.js`. service captures `isReflectConstructCallee`
   // from `binding-analysis` (destructured just above) and the `type-subst` `applyAliasSubstDeep`
   // directly - it is a const bound before this factory runs, no thunk needed
-  const classContextCluster = createClassContext({
+  const {
+    resolveThisAnchor,
+    resolveThisObject,
+    resolveExpressionToClassPath,
+    resolveSuperClassPath,
+    resolveClassContext,
+    buildParentClassSubstFromNodes,
+    buildParentClassSubst,
+  } = createClassContext({
     t,
     resolveRuntimeExpression,
     isReflectConstructCallee,
@@ -1729,15 +1736,6 @@ function createResolveNodeType(babelNodeType, t, {
     isClassLikeDeclaration,
     applyAliasSubstDeep,
   });
-  const {
-    resolveThisAnchor,
-    resolveThisObject,
-    resolveExpressionToClassPath,
-    resolveSuperClassPath,
-    resolveClassContext,
-    buildParentClassSubstFromNodes,
-    buildParentClassSubst,
-  } = classContextCluster;
 
   // oxc-wrapped paths don't implement `findParent`; walk the chain directly so unplugin
   // and babel share this helper

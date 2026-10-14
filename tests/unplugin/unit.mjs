@@ -3373,8 +3373,8 @@ checkStripLeadingBOMs();
 // --- file strictness: which id / body combination makes the Program a script ---
 // Annex-B block-function hoisting exists only in a script, so the strictness answer decides whether
 // a block-nested `function Promise(){}` shadows the global. the answer has to be the SAME one that
-// picks the import style, in BOTH directions: a `.cjs` parses as script yet is a module when it
-// carries top-level ESM, and every other id parses as module yet may be a script by body or option
+// picks the import style, in BOTH directions: a CommonJS id can carry ESM, and every other id
+// parses as module yet may be a script by body or option
 function checkFileStrictness() {
   const CJS_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\nmodule.exports = out;\n';
   const ESM_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\nexport default out;\n';
@@ -3398,8 +3398,11 @@ function checkFileStrictness() {
     ['/p.js', ESM_BODY, 'module'],
     // source wins over extension in BOTH directions - the regression this pins
     ['/p.cjs', ESM_BODY, 'module'],
-    // no marker either way: the plugin has nothing to go on and stays a module
+    ['/p.cts', ESM_BODY, 'module'],
+    // without body markers, a generic id stays Module and CommonJS extensions stay Script
     ['/p.js', BARE_BODY, 'module'],
+    ['/p.cjs', BARE_BODY, 'script'],
+    ['/p.cts', BARE_BODY, 'script'],
   ]) {
     check(`strictness/${ id } ${ body === CJS_BODY ? 'cjs-body' : body === ESM_BODY ? 'esm-body' : 'bare' }`,
       strictness(id, body), want);
@@ -3448,12 +3451,11 @@ function checkParserDialectFromId() {
 }
 checkParserDialectFromId();
 
-// the goal a parse ACTUALLY used is evidence, and it has to reach the strictness model. A module
-// goal the parser REFUSED is the strongest statement there is that the file is a script - Annex-B
-// block-function hoisting is live in it, so a ponyfill must not go over the shadow. The `.mjs`
-// negative is the boundary: there the extension pins a module, so a refusal means a broken file
-// rather than a script, and the transform reports it instead of re-reading it
-function checkRefusedModuleGoalIsScriptEvidence() {
+// a refused parse goal can retry the other, and the accepted tree reaches the strictness model.
+// Annex-B block-function hoisting is live in a Script, so a ponyfill must not go over its shadow;
+// ESM syntax in a CommonJS id proves Module instead. `.mjs` / `.mts` pin Module, so a refusal
+// there means a broken file rather than a Script. malformed source must fail in both goals
+function checkRefusedParseGoalIsEvidence() {
   const SHADOW = '{ function Map() {} }\nuse(new Map());\n';
   // an Annex-B HTML comment parses in the Script goal alone
   const SCRIPT_ONLY = `<!-- legacy\n${ SHADOW }`;
@@ -3461,7 +3463,7 @@ function checkRefusedModuleGoalIsScriptEvidence() {
     const warns = [];
     const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
       .transform.call({ warn: message => warns.push(String(message)) }, source, id);
-    return { substituted: /_Map/.test(out?.code ?? ''), warned: warns.length > 0 };
+    return { out, substituted: /_Map/.test(out?.code ?? ''), warned: warns.length > 0 };
   }
   check('refused-goal/script-only source keeps the shadow', run(SCRIPT_ONLY, '/a.js').substituted, false);
   check('refused-goal/script-only source is not reported', run(SCRIPT_ONLY, '/a.js').warned, false);
@@ -3469,12 +3471,56 @@ function checkRefusedModuleGoalIsScriptEvidence() {
   // is what the source reads and the ponyfill is owed
   check('refused-goal/a module substitutes over the same shadow',
     run(`export const m = 1;\n${ SHADOW }`, '/a.js').substituted, true);
-  // `.mjs` is a module by extension: a refusal there is a broken file, reported and skipped
-  const mjs = run(SCRIPT_ONLY, '/a.mjs');
-  check('refused-goal/.mjs is not re-read as a script', mjs.substituted, false);
-  check('refused-goal/.mjs is reported', mjs.warned, true);
+  for (const id of ['/a.cjs', '/a.cts']) {
+    const script = run(SCRIPT_ONLY, id);
+    check(`refused-goal/${ id } keeps a valid script's shadow`, script.substituted, false);
+    check(`refused-goal/${ id } keeps a valid script without warning`, script.warned, false);
+    for (const marker of ["import 'example';", 'export const m = 1;', 'await Promise.resolve(1);']) {
+      const module = run(`${ marker }\n${ SHADOW }`, id);
+      check(`refused-goal/${ id } ${ marker } proves Module`, module.substituted, true);
+      check(`refused-goal/${ id } ${ marker } parses without warning`, module.warned, false);
+    }
+    // `await` is an ordinary callee in a successful Script parse, even beside dynamic import.
+    const call = run('module.exports = await([4, 5].at(-1));', id);
+    const module = { exports: null };
+    // Execute the emitted CommonJS body with an ordinary await binding.
+    Function('await', 'require', 'module', call.out.code)(value => value + 1, require, module);
+    check(`refused-goal/${ id } keeps await as a call`, module.exports, 6);
+    const dynamicCall = run('module.exports = await(import("example"), [4, 5].at(-1));', id);
+    check(`refused-goal/${ id } keeps a dynamic-import call as Script`, dynamicCall.warned, false);
+    // eslint-disable-next-line node/no-sync -- inspect the emitted Script synchronously without executing the dynamic import
+    const parsedCall = parseSync(id, dynamicCall.out.code, { sourceType: 'script' });
+    check(`refused-goal/${ id } dynamic-import output parses as Script`, parsedCall.errors.length, 0);
+    const exportedCall = parsedCall.program.body.find(node => node.type === 'ExpressionStatement'
+      && node.expression.type === 'AssignmentExpression' && node.expression.left.object?.name === 'module').expression.right;
+    check(`refused-goal/${ id } dynamic-import output keeps the call`, exportedCall.type, 'CallExpression');
+    check(`refused-goal/${ id } dynamic-import output keeps the callee`, exportedCall.callee?.name, 'await');
+    check(`refused-goal/${ id } dynamic import remains the first argument`, exportedCall.arguments?.[0]?.type, 'ImportExpression');
+    // Both goals reject these forms: retrying must never turn broken source into output.
+    for (const source of ['export const m = ;', 'import {']) {
+      const broken = run(source, id);
+      check(`refused-goal/${ id } ${ source } emits nothing`, broken.out, null);
+      check(`refused-goal/${ id } ${ source } is reported`, broken.warned, true);
+    }
+  }
+  // A nested JS export is a parse error. TypeScript checks modifier placement semantically instead.
+  const nested = run('function f() { export const m = 1; }', '/a.cjs');
+  check('refused-goal/a nested JS export emits nothing', nested.out, null);
+  check('refused-goal/a nested JS export is reported', nested.warned, true);
+  // Erased TypeScript declarations need the Module parser without imposing runtime strictness.
+  for (const marker of ["import type { T } from 'example';", 'export interface T { x: number; }']) {
+    const typed = run(`${ marker }\n${ SHADOW }`, '/a.cts');
+    check(`refused-goal/type-only ${ marker } keeps the script's shadow`, typed.substituted, false);
+    check(`refused-goal/type-only ${ marker } parses without warning`, typed.warned, false);
+  }
+  // A module extension pins the goal: broken module text is reported and skipped.
+  for (const id of ['/a.mjs', '/a.mts']) {
+    const pinned = run(SCRIPT_ONLY, id);
+    check(`refused-goal/${ id } is not re-read as a script`, pinned.substituted, false);
+    check(`refused-goal/${ id } is reported`, pinned.warned, true);
+  }
 }
-checkRefusedModuleGoalIsScriptEvidence();
+checkRefusedParseGoalIsEvidence();
 
 // ... and the script a refused module goal leaves may run bare, its top level the realm: a top-level `var` there is
 // the global object's own slot and a `let` / `class` its shared lexical scope, another script reading either by

@@ -350,7 +350,7 @@ export default function createAstDestructureEmitter({
 
   // the drain half rides the same per-transform state; `resolveProxyNavReceiver` is hoisted,
   // so handing it across at creation time is safe
-  const drains = createDestructureDrains({
+  const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg, recordJob } = createDestructureDrains({
     adapter,
     capturedSiblingHosts,
     hopHosts,
@@ -379,7 +379,6 @@ export default function createAstDestructureEmitter({
     skippedNodes,
     synthLedger,
   });
-  const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg, recordJob } = drains;
 
   // Render the shared receiver-mirror plan, or its caller-argument variant, into live source slots.
   // Keep preserved receiver/probe nodes live and retire only completed claims. With `argumentSites`,
