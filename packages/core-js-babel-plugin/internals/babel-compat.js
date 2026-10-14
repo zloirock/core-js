@@ -1630,7 +1630,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       allowSequenceRoot: true, storedValueSequenceTail: true, descendSequenceTail: true,
     });
     if (!plan?.topAssign) return;
-    const { leafPure: pure } = plan;
     // a stored nav that cannot SHORT-CIRCUIT is the proxy global it navigates, so the value slot takes
     // the plan's VALUE, not its guarded render: spelled as a guard the store read `window` off the
     // ponyfill and handed the user's variable `void 0` off-window, where the same nav read bare answers
@@ -1640,7 +1639,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // question is asked with that flag: the proxy spine below the probe hop is one surface here,
     // where a plain read of the same nav folds it whole
     // the verdict is the PLAN's - see `storedValueFormSpells`. this channel only renders it
-    const { storedValueSpells } = plan;
+    const { leafPure: pure, storedValueSpells } = plan;
     // a channel that OWNS the assignment's emission (the unguarded static claim re-emits it as a
     // side effect, possibly on a REBUILT receiver whose nodes the deferred flush can never match
     // by identity) collapses in place: the caller replaceWith-inserts the host right after, so
@@ -2666,8 +2665,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       return [memoCheck, memoRef];
     }
     if (!path.isOptionalMemberExpression()) return [null, node.object];
-    const descended = descendToOptionalChainStart(path, skipOptional);
-    const { chainStart, aboveChainStart } = descended;
+    const { chainStart, aboveChainStart } = descendToOptionalChainStart(path, skipOptional);
     if (!chainStart) return [null, node.object];
     const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
     // skip null-check when the optional is on a polyfillable expression (replacement consumes `?.`).
