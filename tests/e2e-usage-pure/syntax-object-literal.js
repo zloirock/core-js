@@ -233,7 +233,6 @@ QUnit.test('object: polyfill result stored then read back through the literal', 
   assert.same(wrap.data.at(-1), 3);
 });
 
-/* eslint-disable unicorn/no-unused-properties -- computed slot regression shapes */
 QUnit.test('destructure: an unknown later key preserves the selected receiver', assert => {
   function read(key, replacement) {
     const ns = { Q: Array, [key]: replacement };
@@ -364,7 +363,6 @@ QUnit.test('destructure: an inline assignment source keeps its own polyfill read
   assert.same(overridden[0], undefined);
   assert.same(overridden[1].Q, Map);
 });
-/* eslint-enable unicorn/no-unused-properties -- end of the source forms above */
 
 QUnit.test('getter member read supplies the pure constructor after running the getter once', assert => {
   const order = [];
@@ -386,7 +384,7 @@ QUnit.test('getter member read keeps an overriding object and the native null er
   function read(key, replacement) {
     const source = {
       get w() { order.push('getter'); return globalThis; },
-      [key]: replacement, // eslint-disable-line unicorn/no-unused-properties -- the dynamic override is the source behavior under test
+      [key]: replacement,
     };
     return source.w.WeakSet;
   }

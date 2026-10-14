@@ -3553,7 +3553,6 @@ QUnit.test('destructuring: computed string-literal ctor alias resolves member re
 // instance call in the pattern's VALUE position (a binding default) is rewritten inside the
 // extracted pattern, not left raw
 QUnit.test('symbol-keyed pattern: instance call in a binding default still polyfills', assert => {
-  // eslint-disable-next-line unicorn/no-unused-properties -- read via the computed symbol key in the pattern
   const holder = { Array: {}, [Symbol.iterator]: {} };
   const { Array: { from }, [Symbol.iterator]: { next = [1].at(0) } } = holder;
   assert.same(from, undefined);
@@ -6317,7 +6316,6 @@ QUnit.test('destructuring: a bound computed hop key claims like its literal spel
   assert.same(new BoundCtor([[1, 2]]).get(1), 2, 'a ctor leaf under the bound key');
   const { [k]: { at: boundAt } } = { w: [7, 8] };
   assert.same(boundAt.call([7, 8], -1), 8, 'an instance leaf under the bound key');
-  // eslint-disable-next-line unicorn/no-unused-properties -- the pattern reads it through the bound key
   const alias = { w: [5, 6] };
   const { [k]: { at: aliasAt } } = alias;
   assert.same(aliasAt.call([5, 6], -1), 6, '... through a followed alias');
