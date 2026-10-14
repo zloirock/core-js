@@ -92,6 +92,10 @@ jobs:
   combine-pages-and-deploy:
     needs: build-compat-pages
     runs-on: ubuntu-latest
+    # a push to any branch deploys the whole site, and Pages refuses a deployment while another one is in progress
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -101,12 +105,18 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: pages
+      # artifacts are shared by all attempts of a run, so a re-run downloads the Pages artifact of the previous attempt
+      - name: Drop Pages artifacts of previous attempts
+        run: rm -rf pages/github-pages*
       - name: Setup Pages
         uses: actions/configure-pages@v6
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
           path: pages
+          name: github-pages-${{ github.run_attempt }}
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
