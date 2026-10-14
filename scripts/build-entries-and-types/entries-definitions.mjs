@@ -1567,7 +1567,7 @@ export const features = {
     namespace: 'Iterator',
     name: 'chunks',
   },
-  'iterator/virtual/chunks': {
+  'iterator/prototype/chunks': {
     modules: ['es.iterator.chunks'],
     template: $prototype,
     namespace: 'Iterator',
@@ -1653,7 +1653,7 @@ export const features = {
     namespace: 'Iterator',
     name: 'includes',
   },
-  'iterator/virtual/includes': {
+  'iterator/prototype/includes': {
     modules: ['es.iterator.includes'],
     template: $prototype,
     namespace: 'Iterator',
@@ -1665,7 +1665,7 @@ export const features = {
     namespace: 'Iterator',
     name: 'join',
   },
-  'iterator/virtual/join': {
+  'iterator/prototype/join': {
     modules: ['es.iterator.join'],
     template: $prototype,
     namespace: 'Iterator',
@@ -1753,7 +1753,7 @@ export const features = {
     namespace: 'Iterator',
     name: 'windows',
   },
-  'iterator/virtual/windows': {
+  'iterator/prototype/windows': {
     modules: ['es.iterator.windows'],
     template: $prototype,
     namespace: 'Iterator',

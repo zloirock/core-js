@@ -179,6 +179,7 @@ QUnit.test('private method + for-of with Map polyfill', assert => {
   class Merger {
     #combine(a, b) {
       const out = new Map();
+      // eslint-disable-next-line unicorn/prefer-iterable-in-constructor -- the private method's loop and Map#set calls are under test
       for (const [k, v] of a) out.set(k, v);
       for (const [k, v] of b) out.set(k, (out.get(k) ?? 0) + v);
       return out;
