@@ -936,11 +936,13 @@ export const data = {
     safari: '7.1',
   },
   'es.math.asinh': {
-    chrome: '38',
+    // imprecise before fdlibm `asinh` in V8 5.4
+    chrome: '54', // '38',
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    rhino: '1.7.13',
+    // its own `log(x + sqrt(x * x + 1))` is imprecise for small and big values on any platform, up to 1.9.1 at least
+    // rhino: '1.7.13',
     safari: '7.1',
   },
   'es.math.atanh': {
@@ -954,7 +956,9 @@ export const data = {
   'es.math.cbrt': {
     chrome: '38',
     edge: '12',
-    firefox: '25',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+    firefox: '48', // '25',
+    // imprecise only in builds with glibc `cbrt`, like the Linux CLI, not with bionic or Apple libm
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
