@@ -945,14 +945,14 @@ GLOBAL.tests = {
   },
   'es.math.asinh': function () {
     // eslint-disable-next-line math/no-static-infinity-calculations -- testing
-    return 1 / Math.asinh(0) > 0;
+    return 1 / Math.asinh(0) > 0 && Math.abs(Math.asinh(1e-8) - 1e-8) < 1e-16;
   },
   'es.math.atanh': function () {
     // eslint-disable-next-line math/no-static-infinity-calculations -- testing
     return 1 / Math.atanh(-0) < 0;
   },
   'es.math.cbrt': function () {
-    return Math.cbrt;
+    return Math.cbrt(27) === 3 && Math.cbrt(64) === 4;
   },
   'es.math.clz32': function () {
     return Math.clz32;

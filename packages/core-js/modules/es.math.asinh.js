@@ -4,6 +4,7 @@ var log1p = require('../internals/math-log1p');
 
 // eslint-disable-next-line es/no-math-asinh -- required for testing
 var $asinh = Math.asinh;
+var abs = Math.abs;
 var log = Math.log;
 var sqrt = Math.sqrt;
 var LN2 = Math.LN2;
@@ -16,11 +17,12 @@ function asinh(x) {
     : n < 1e-8 ? n : log1p(n + n * n / (1 + sqrt(n * n + 1)));
 }
 
-var FORCED = !($asinh && 1 / $asinh(0) > 0);
+// Tor Browser bug: Math.asinh(0) -> -0
+// imprecise in V8 < 5.4 and Rhino
+var FORCED = !($asinh && 1 / $asinh(0) > 0 && abs($asinh(1e-8) - 1e-8) < 1e-16);
 
 // `Math.asinh` method
 // https://tc39.es/ecma262/#sec-math.asinh
-// Tor Browser bug: Math.asinh(0) -> -0
 $({ target: 'Math', stat: true, forced: FORCED }, {
   asinh: asinh
 });

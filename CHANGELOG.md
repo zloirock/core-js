@@ -19,6 +19,8 @@
 - Added detection / fix of [`Math.sumPrecise` negative numbers handling WebKit bug](https://github.com/WebKit/WebKit/pull/65558#issuecomment-6148380781)
 - Added detection / fix of `Math.sumPrecise` V8 bugs with modified prototypes of [arrays](https://issues.chromium.org/issues/500536164) and [array iterators](https://issues.chromium.org/issues/572987948)
 - Added detection / fix of [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642)
+- Added missed detection of imprecise native `Math.asinh` in V8 < 5.4 and Rhino
+- Added missed detection of imprecise native `Math.cbrt` in [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257) and engines that use glibc `cbrt`
 - Fixed [`Promise.{ allKeyed, allSettledKeyed }`](https://github.com/tc39/proposal-await-dictionary) algorithm for sync promises
 - Compat data improvements:
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465357675)
@@ -34,6 +36,7 @@
   - [`RegExp.escape` code points handling WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=323642):
     - Marked as still not fixed in stable Safari
     - Marked as [fixed in Bun 1.4.3](https://bun.com/blog/bun-v1.4.3#javascriptcore-upgrade)
+  - Because of imprecision (see above), `Math.asinh` is marked as supported from V8 ~ Chrome 54 and as not supported in Rhino, `Math.cbrt` - from FF48
   - [Updated Electron 45 and added 46](https://releases.electronjs.org/) compat data mapping
   - Added Samsung Browser 31 compat data mapping
   - Added Opera for Android [101](https://forums.opera.com/topic/89420/opera-for-android-101) and [102](https://forums.opera.com/topic/89629/opera-for-android-102) compat data mapping
