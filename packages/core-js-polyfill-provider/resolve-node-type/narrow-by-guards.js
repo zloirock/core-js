@@ -192,8 +192,7 @@ export function createNarrowByGuards({
     // report"; only the final fall-through can carry a boundary. share one read-only sentinel
     const MUTATED = { mutated: true, staleBoundaryHost: null };
     const { constantViolations } = binding;
-    const probes = createViolationProbes(constantViolations, usagePath);
-    const { violatesBefore, violatesInsideNode, violatesBetweenHosts } = probes;
+    const { violatesBefore, violatesInsideNode, violatesBetweenHosts } = createViolationProbes(constantViolations, usagePath);
     // (a) test slot of conditional/logical guard host. for IfStatement/Conditional the host's
     // `test` is the guard expression; for LogicalExpression where guards came from LHS, RHS
     // mutations live in `current` (the right operand) and `violatesBefore(current)` covers them
