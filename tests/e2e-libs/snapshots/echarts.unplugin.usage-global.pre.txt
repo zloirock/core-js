@@ -1,0 +1,4 @@
+-core-js/modules/es.date.to-primitive
+-core-js/modules/es.object.get-own-property-descriptors
+-core-js/modules/es.reflect.construct
+-core-js/modules/es.symbol.to-primitive
