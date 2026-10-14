@@ -158,7 +158,7 @@ function pureImportName(kind, name, importEntry) {
 // high-level polyfill resolver factory.
 // validates options, resolves targets, creates resolver + debug output.
 export function createPolyfillResolver(options, {
-  typeResolvers, astPredicates, getBabelTargets, isMutatedStatic = null, isEscapedCtor = null,
+  typeResolvers, astPredicates, getBabelTargets, isMutatedStatic = null, isEscapedCtor = null, readsUnnamedStatic = null,
 } = {}) {
   const { resolvePropertyObjectType, resolveGuardHints, resolvePropertyUnionHints, toHint, isString, isObject } = typeResolvers;
   const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
@@ -293,22 +293,22 @@ export function createPolyfillResolver(options, {
     return entry;
   }
 
-  // a constructor this build never polyfills as a BINDING - `Array`, `Object`, `String` - carries no
-  // definition of its own, so a bare read of it rightly injects nothing. its ESCAPE is the other
-  // question: whoever the reference was handed to reads the statics this build DOES polyfill, and
-  // with no definition to widen there was nothing to answer with. the NAMESPACE entry is that
-  // answer, the same one every other escaping constructor widens to
+  // a global the data defines no module for - `Array`, `String`, `Math` - stays the engine's own: its
+  // methods load where a read names them, so a reference escaping the file pulls none of them. a read of
+  // its statics the claim side does not name - by an unknown key, through a subclass inheriting them, in a
+  // function of this file it is handed to - may land on any static the build DOES polyfill, and the
+  // NAMESPACE entry is that answer
   const NAME_TO_ENTRY = /[0-9a-z](?=[A-Z])/gu;
-  function escapedNamespaceEntry(meta) {
+  function unnamedReadNamespaceEntry(meta) {
     // the same reference in its member spelling (`globalThis.Array`, `self.Array`): the proxy root
     // names no value of its own, so the KEY is the constructor and the question is the same one
     const name = meta?.kind === 'global' ? meta.name
       : meta?.kind === 'property' && POSSIBLE_GLOBAL_OBJECTS.has(meta.object) ? meta.key : null;
-    if (typeof name !== 'string' || !ctorNameIsOpaque(name)) return null;
+    if (typeof name !== 'string' || readsUnnamedStatic?.(name) !== true) return null;
     const entry = name.replaceAll(NAME_TO_ENTRY, '$&-').toLowerCase();
     // ... and the entry has to name THIS constructor back. the mapping folds case, so an ordinary
     // free identifier that merely rhymes with a global - `array`, `set`, `promise`, and `ARRAY` with
-    // it - derived a real entry and escaped into that global's whole family. only the spelling the
+    // it - derived a real entry and widened into that global's whole family. only the spelling the
     // entry itself stands for may widen to it
     return entryToGlobalHint(entry) === name && ctx.isEntryNeeded(entry) ? [entry] : null;
   }
@@ -321,7 +321,7 @@ export function createPolyfillResolver(options, {
       if (hint && hint !== 'function' && hint !== 'object') return null;
     }
     const resolved = resolve(meta);
-    if (!resolved || !hasOwn(resolved.desc, 'global')) return escapedNamespaceEntry(meta);
+    if (!resolved || !hasOwn(resolved.desc, 'global')) return unnamedReadNamespaceEntry(meta);
     let { kind, desc: { global: desc } } = resolved;
     // a synthetic inherited-static meta (`super.at()` / `this.at()` in a static method) whose key
     // resolves to an INSTANCE desc means no such static exists on the super class - bail rather than

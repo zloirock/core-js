@@ -77,10 +77,10 @@ import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-collections.iterator";
 // a pattern leaf whose target is a MEMBER stores its value there as `target = value` does, and hands it on the same
-// way. a target rooted where the realm may stand - an undeclared name, `this` - keeps the slot native, and the
-// constructor leaves the file with its statics owed; a target a binding of this file roots takes the extraction and
-// owes them where that binding leaves or a static is read back off the slot, a computed key read as the flat store
-// reads it. a slot nothing reads back owes none
+// way: every plain root takes the extraction, an undeclared name and `this` included, and where the root is no binding
+// of this file the constructor leaves the file with its statics owed; a binding of this file owes them where it leaves
+// or a static is read back off the slot, a computed key read as the flat store reads it. a computed link in the target
+// takes it too where the prop is its pattern's sole chain, and a slot nothing reads back owes none
 ({
   Map: sink.y
 } = globalThis);

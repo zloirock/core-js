@@ -20,7 +20,7 @@ const {
 const {
   Array: {
     of: [viaOuterDefault = ")"] = []
-  } = {}
+  }
 } = {
   Array: {
     of: _Array$of

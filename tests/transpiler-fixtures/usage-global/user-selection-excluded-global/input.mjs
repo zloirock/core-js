@@ -1,7 +1,7 @@
-// In usage-global a presence test over a global the targets need and a filter drops (`Promise`, excluded
-// here) decides nothing, nor does a `||` reading it off the realm: every operand - read through an alias,
-// a receiver, a destructure or a `||` the alias holds - injects its own family. Its bare name decides, an
-// engine lacking it throwing first, as a served global (`Map`) does; a dead arm injects nothing.
+// In usage-global a global the targets need and a filter drops (`Promise`, excluded here) is still present:
+// the data subset carries it, so a presence test over it decides - read through an alias, a receiver, a
+// destructure or a `||` the alias holds - and so does a `||` reading it off the realm, as its bare name and
+// a served global (`Map`) do: a dead arm injects nothing.
 const P = typeof Promise !== 'undefined' ? Promise : MyPromise;
 export const viaAlias = P.withResolvers();
 export const viaReceiver = (typeof Promise !== 'undefined' ? Promise : MyPromise).try(task);

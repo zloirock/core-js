@@ -330,22 +330,100 @@ function makeInjector() {
   check('registry/same-name aliases select a later disjoint span', injector.getBindingInfo('method', 650)?.entry, 'map/group-by');
   check('registry/duplicate span registration keeps its first entry', injector.getBindingInfo('method', 650)?.entry, 'map/group-by');
   check('registry/same-name aliases decline outside every span', injector.getBindingInfo('method', 800), null);
+  injector.registerBodyExtractAlias('method', 'weak-map/upsert', binding(600, 675));
+  check('registry/registration after a lookup selects a narrower equal-start span',
+    injector.getBindingInfo('method', 650)?.entry, 'weak-map/upsert');
+  check('registry/registration after a lookup preserves the enclosing span',
+    injector.getBindingInfo('method', 690)?.entry, 'map/group-by');
+  injector.registerBodyExtractAlias('method', 'array/of', binding(210, 250));
+  check('registry/earlier registration does not replace the latest cached span',
+    injector.getBindingInfo('method', 650)?.entry, 'weak-map/upsert');
+  check('registry/earlier registration remains available through its own span',
+    injector.getBindingInfo('method', 225)?.entry, 'array/of');
 
+  // a user record is bound to a scope of the tree it was registered on: the next phase reparses
+  // another one, so the capture hands over the file-wide records alone
+  const uid = injector.addPureImport('array/from', 'Array.from');
   const restored = makeInjector();
   restored.rehydrateImportInfoByName(injector.captureImportInfoByName());
-  check('registry/rehydrated same-name aliases rebuild their span index', restored.getBindingInfo('method', 250)?.entry, 'set/from');
-  check('registry/rehydrated same-name aliases keep the fast disjoint lookup', restored.getBindingInfo('method', 650)?.entry, 'map/group-by');
-  restored.registerBodyExtractAlias('method', 'weak-map/upsert', binding(600, 675));
-  check('registry/registration after rehydration selects a narrower equal-start span',
-    restored.getBindingInfo('method', 650)?.entry, 'weak-map/upsert');
-  check('registry/registration after rehydration preserves the enclosing span',
-    restored.getBindingInfo('method', 690)?.entry, 'map/group-by');
-  restored.registerBodyExtractAlias('method', 'array/of', binding(210, 250));
-  check('registry/earlier registration does not replace the latest cached span',
-    restored.getBindingInfo('method', 650)?.entry, 'weak-map/upsert');
-  check('registry/earlier registration remains available through its own span',
-    restored.getBindingInfo('method', 225)?.entry, 'array/of');
+  check('registry/a captured user record does not reach the next phase', restored.getBindingInfo('method', 250), null);
+  check('registry/a captured minted record reaches the next phase', restored.getBindingInfo(uid, null)?.entry, 'array/from');
 }
+
+// the binding a body-extract registration names, on both parsers: the alias of `a` reassigned,
+// the alias of `b` readonly, `c` a parameter of the alias's own name nested in its scope
+function aliasBindings(adapter, programPath) {
+  function inFunction(path, fn) {
+    for (let p = path.parentPath; p; p = p.parentPath) if (p.node.type === 'FunctionDeclaration') return p.node.id.name === fn;
+    return false;
+  }
+  function bindingIn(fn) {
+    return adapter.pickPath(programPath, 'CallExpression', path => path.node.callee?.name === 'use' && inFunction(path, fn))
+      .scope.getBinding('from');
+  }
+  return { a: bindingIn('a'), b: bindingIn('b'), c: bindingIn('c'), program: programPath.scope.getBinding('from') };
+}
+
+runBoth('registry/poison is kept per binding', `
+  const from = Array.from;
+  function a() { let from, rest; ({ from, ...rest } = Array); from = other; use(from); }
+  function b() { const { from, ...rest } = Array; use(from); }
+  function c(from) { use(from); }
+`, (adapter, programPath, label) => {
+  const { a, b, c } = aliasBindings(adapter, programPath);
+  const injector = makeInjector();
+  injector.registerBodyExtractAlias('from', 'array/from', a);
+  injector.registerBodyExtractAlias('from', 'array/from', b);
+  check(`${ label } :: the reassigned alias is poisoned`, injector.isReassignedBinding('from', a), true);
+  check(`${ label } :: the readonly sibling is not`, injector.isReassignedBinding('from', b), false);
+  // the emitter replaces the readonly declaration with a rendered one, which carries no position
+  const rendered = { ...b, identifier: undefined, path: { ...b.path, node: { ...b.path.node, start: undefined, end: undefined } } };
+  check(`${ label } :: the readonly sibling's rendered declaration is not`, injector.isReassignedBinding('from', rendered), false);
+  check(`${ label } :: a same-named parameter is not`, injector.isReassignedBinding('from', c), false);
+  check(`${ label } :: a binding-less ask cannot prove it is not the poisoned one`, injector.isReassignedBinding('from'), true);
+  check(`${ label } :: the readonly alias registers its fold`, injector.getBindingInfo('from', b.path.node.start)?.entry, 'array/from');
+});
+
+runBoth('registry/a user record serves its own binding', `
+  function a() { const { from, ...rest } = Array; use(from); function c(from) { use(from); } }
+`, (adapter, programPath, label) => {
+  const injector = makeInjector();
+  const alias = adapter.pickPath(programPath, 'CallExpression', path => path.node.callee?.name === 'use'
+    && path.node.arguments[0]?.name === 'from').scope.getBinding('from');
+  const param = adapter.collectPaths(programPath, 'CallExpression', path => path.node.callee?.name === 'use'
+    && path.node.arguments[0]?.name === 'from').at(-1).scope.getBinding('from');
+  injector.registerBodyExtractAlias('from', 'array/from', alias);
+  const inside = param.path.node.start;
+  check(`${ label } :: the alias reads its record`, injector.getBindingInfo('from', inside, () => alias)?.entry, 'array/from');
+  check(`${ label } :: a nested parameter of its name reads its own value`, injector.getBindingInfo('from', inside, () => param), null);
+  check(`${ label } :: an unresolved use keeps the span discipline`, injector.getBindingInfo('from', inside, () => null)?.entry, 'array/from');
+});
+
+// pre poisons on its own tree; post asks of the tree it reparses after other plugins rewrote it,
+// where every position moved - what crosses is the name and the entry, the binding is found again
+runBoth('registry/poison handoff survives a reprint', `
+  import _Array$from from '@core-js/pure/actual/array/from';
+  const shift = [0, 1, 2, 3];
+  let from, rest;
+  from = _Array$from, ({ from: _unused, ...rest } = Array);
+  from = other;
+  function b() { const from = _Array$from, { from: _unused2, ...rest } = Array; use(from); }
+  function c(from) { from = other; use(from); }
+  function a() { use(from); }
+`, (adapter, programPath, label) => {
+  const pre = makeInjector();
+  const uid = pre.addPureImport('array/from', 'Array.from');
+  const preTree = adapter.parseAndScope('let from, rest; ({ from, ...rest } = Array); from = other;');
+  pre.registerBodyExtractAlias('from', 'array/from', preTree.scope.getBinding('from'));
+  const post = makeInjector();
+  post.rehydrateImportInfoByName(pre.captureImportInfoByName());
+  post.rehydrateReassignedBindings(pre.captureReassignedBindings());
+  check(`${ label } :: the extraction minted the import post reads`, uid, '_Array$from');
+  const { b, c, program } = aliasBindings(adapter, programPath);
+  check(`${ label } :: the reprinted alias is still poisoned`, post.isReassignedBinding('from', program), true);
+  check(`${ label } :: its readonly sibling is not`, post.isReassignedBinding('from', b), false);
+  check(`${ label } :: a reassigned same-named binding holding no extraction is not`, post.isReassignedBinding('from', c), false);
+});
 
 {
   const injector = makeInjector();

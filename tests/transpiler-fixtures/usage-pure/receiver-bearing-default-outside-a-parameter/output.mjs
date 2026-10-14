@@ -74,7 +74,7 @@ export const {
 const {
   Array: {
     of
-  } = {}
+  }
 } = {
   Array: {
     of: _Array$of

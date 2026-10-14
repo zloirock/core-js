@@ -11,7 +11,7 @@
 //   resolveGlobalName(path)                  - extracts the canonical global name from any
 //                                              of the shapes above; null otherwise
 //   knownConstructorAt(path)                 - resolve through runtime-binding chain then
-//                                              probe via resolveKnownConstructor
+//                                              probe via resolvePrototypeInstance
 //   resolvePrototypeAsInstance(path)         - MemberExpression `Cls.prototype` + destructure
 //                                              `const { prototype: P } = Cls` paths
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
@@ -46,6 +46,7 @@ export function createGlobalResolve({
   keyMatchesName,
   resolveMemberPropertyName,
   resolveKnownConstructor,
+  resolvePrototypeInstance,
   resolveGlobalSurfaceKeyPath,
   resolveRuntimeExpression,
   resolveSuperClassPath,
@@ -253,9 +254,10 @@ export function createGlobalResolve({
     return staticMemberKeyName(path.node);
   }
 
-  // known constructor at the runtime-resolved target of `path`, or null
+  // the instance the `.prototype` of the known constructor at the runtime-resolved target of `path` reads
+  // as, or null
   function knownConstructorAt(path) {
-    return resolveKnownConstructor(resolveGlobalName(resolveRuntimeExpression(path)))
+    return resolvePrototypeInstance(resolveGlobalName(resolveRuntimeExpression(path)))
       ?? resolveGlobalSurfaceKeyPath(path, ['prototype']);
   }
 
