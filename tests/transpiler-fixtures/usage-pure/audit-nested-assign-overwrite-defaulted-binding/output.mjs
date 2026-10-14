@@ -12,8 +12,8 @@ let m, n, o, other;
 [,] = [a];
 m = (_ref = _flatMaybeArray(a)) === void 0 ? [] : _ref;
 [,] = [b];
-// A sibling element keeps its own assignment after the method read.
 n = (_ref2 = _atMaybeArray(b)) === void 0 ? 0 : _ref2;
+// A sibling element keeps its own assignment after the method read.
 [, _ref3] = [c, 1];
 o = (_ref4 = _findLastMaybeArray(c)) === void 0 ? null : _ref4;
 other = _ref3;

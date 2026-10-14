@@ -16,7 +16,7 @@ const { parse: babelParse } = requireBabel('@babel/parser');
 const { transformSync } = requireBabel('@babel/core');
 const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
-import createASTHelpers, { rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
+import createASTHelpers, { cloneWriteTarget, rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { isValidIdentifierName, peelNestedSequenceExpressions } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
@@ -44,7 +44,8 @@ function freshStubInjector() {
 
 function makeHelpers({ injector = freshStubInjector(), resolveNodeType = null, resolvedType = null } = {}) {
   const adapter = createBabelAdapter();
-  return createASTHelpers(t, { getInjector: () => injector, getAdapter: () => adapter, typeResolvers: { resolveNodeType, resolvedType } });
+  // the plugin hands the helpers its range-preserving types, whose clone entry points the renders use
+  return createASTHelpers(rangePreservingTypes(t), { getInjector: () => injector, getAdapter: () => adapter, typeResolvers: { resolveNodeType, resolvedType } });
 }
 
 function parseCode(code, plugins = ['typescript'], parserOpts = {}) {
@@ -151,6 +152,7 @@ function runChainCombined(helpers, program, ast, {
   const innerCall = firstExprStmt(ast.program.body).expression.callee.object;
   helpers.replaceInstanceChainCombined(outerMember, t.identifier(outerId), {
     innerCallee: innerCall.callee,
+    innerCalleePath: outerMember.get('object.callee'),
     innerArgs: innerCall.arguments,
     innerId: t.identifier(innerId),
     sideEffects,
@@ -661,6 +663,34 @@ function countOr(n) {
     { outerName: 'includes', optional: true, outerId: '_includes', innerId: '_at' });
   check('replaceInstanceChainCombined/optional inner adds receiver test',
     countOr(exprStmt.expression.test), 3);
+}
+
+// a plain inner member over a receiver carrying a live `?.`: that link's object is the first test
+// and the receiver past it folds into the method-get (`_at(_ref = box.list)`) - the receiver's own
+// value is no test, so a nullish `box.list` throws at the lookup like native
+{
+  const { helpers, program, ast } = setup('const box = {}; box?.list.at?.(0).includes(1);');
+  const exprStmt = runChainCombined(helpers, program, ast,
+    { outerName: 'includes', optional: true, outerId: '_includes', innerId: '_at' });
+  const { test } = exprStmt.expression;
+  check('replaceInstanceChainCombined/live link adds its own test', countOr(test), 2);
+  check('replaceInstanceChainCombined/live link tests the link object', test.left.right.name, 'box');
+  const methodGet = test.right.right.right;
+  checkTruthy('replaceInstanceChainCombined/receiver past the link folds into the method-get',
+    methodGet.type === 'CallExpression' && methodGet.arguments[0].type === 'AssignmentExpression'
+    && methodGet.arguments[0].right.type === 'MemberExpression');
+}
+
+// the same split under a claim over a method the build does not serve: the link's object is the
+// first test and the method memo reads plainly off the receiver past it, never optionally
+{
+  const { helpers, program } = setup('const box = {}; box?.list.pick?.().at(0);');
+  const exprStmt = runOptional(helpers, program, '_at', { predicate: p => p.node.property?.name === 'at' });
+  const { test } = exprStmt.expression;
+  check('rewriteOptionalMethodCall/live link adds its own test', countOr(test), 2);
+  check('rewriteOptionalMethodCall/live link tests the link object', test.left.right.name, 'box');
+  const methodRead = test.right.right.expressions.at(-1).right;
+  check('rewriteOptionalMethodCall/method reads plainly off the receiver memo', methodRead.type, 'MemberExpression');
 }
 
 // sideEffects fold into the conditional's ALTERNATE (not around the whole conditional) so they
@@ -1853,6 +1883,42 @@ for (const [label, source, copies] of [
       && node.right.type === 'AssignmentExpression' && node.right.left.name === 'saved') captures++;
   });
   check(`source receiver store/${ label }: additional copies`, captures, copies);
+}
+
+// @babel/generator prints a `<T>x` left of an assignment bare, which no parser reads back
+const angleTarget = babelParse('(<any>sink.a);', { plugins: ['typescript'], createParenthesizedExpressions: true })
+  .program.body[0].expression;
+const angleClone = cloneWriteTarget(t, angleTarget);
+check('cloneWriteTarget/takes the slot inside a paren node and spells its angle assertion as `as`',
+  `${ angleClone.type } ${ angleClone.expression.type }`, 'TSAsExpression MemberExpression');
+const plainTarget = babelParse('sink.a;').program.body[0].expression;
+const plainClone = cloneWriteTarget(t, plainTarget);
+checkTruthy('cloneWriteTarget/clones any other target as spelled', plainClone !== plainTarget && plainClone.type === 'MemberExpression');
+
+// one row per site that writes into a source slot
+for (const [label, source] of [
+  ['flat slot', '({ from: <any>sink.a } = Array);'],
+  ['defaulted flat slot', '({ of: (<any>sink.b) = fallback } = Array);'],
+  ['slot under a nested rest', '({ Array: { fromAsync: <any>sink.c, ...rest } } = globalThis);'],
+  ['slot beside a rest', '({ values: <any>sink.d, ...rest } = Object);'],
+  ['slot beside its own bound constructor', '({ Object, Object: { entries: <any>sink.e } } = globalThis);'],
+  ['instance slot of a mirrored literal', '({ y: { flat: <any>sink.f } } = { y: arr });'],
+]) {
+  // eslint-disable-next-line node/no-sync -- the checker is synchronous
+  const { code } = transformSync(`const sink: any = {};\nlet rest;\n${ source }`, {
+    configFile: false,
+    babelrc: false,
+    filename: 'angle-write-target.ts',
+    parserOpts: { plugins: ['typescript'] },
+    plugins: [[babelPlugin, { method: 'usage-pure', targets: { ie: 11 } }]],
+  });
+  let parses = true;
+  try {
+    babelParse(code, { sourceType: 'module', plugins: ['typescript'] });
+  } catch {
+    parses = false;
+  }
+  check(`angle-asserted write target/${ label }: the output parses back`, parses, true);
 }
 
 finish();

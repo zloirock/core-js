@@ -1150,6 +1150,23 @@ QUnit.test('global-proxy: kept-assign root nested dispatch and claims', assert =
   assert.same(j, globalThis.window);
 });
 
+// a probe below a hop the build serves still short-circuits the whole chain: the doubled `self` hop's
+// `?.` is dead once substituted, so the kept write's own probe takes the guard - where `window` is
+// absent a user read past it answers undefined instead of reading off the void store
+QUnit.test('global-proxy: a probe below a served hop keeps the guard', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  withRealmSlot('e2eHopBox', { list: [[5]], pick: () => [[6]] }, () => {
+    let k;
+    const instanceClaim = (k = globalThis.window)?.self?.self.e2eHopBox.pick().at(0);
+    assert.deepEqual(instanceClaim, hasWindow ? [6] : undefined);
+    assert.same(k, globalThis.window);
+    let m;
+    const combinedClaim = (m = globalThis.window)?.self?.self.e2eHopBox.list.flat?.().findLast(Boolean);
+    assert.same(combinedClaim, hasWindow ? 5 : undefined);
+    assert.same(m, globalThis.window);
+  });
+});
+
 // value-RESOLVABLE captured roots (a kept assignment storing the global itself, an IIFE returning
 // it): the guard passes and the tail claims through the ponyfill. transpile-lowering desugars the
 // `?.` into a ternary alias, and the trusted-write follow resolves the alias through the ternary
@@ -1323,6 +1340,139 @@ testUnlessDetectLowered('global-proxy: unguarded chain-assign over an unpolyfill
   if (hasWindow) assert.same(symbolOffWindowValued(), globalThis.window[Symbol.iterator]);
   else assert.throws(symbolOffWindowValued, TypeError);
   assert.same(it, globalThis.window);
+});
+
+// the WRITE twin of the faithful reads above: every write host through the stored probe acts on
+// the stored value, so off-window it throws where the source throws and reaches no realm slot
+testUnlessDetectLowered('global-proxy: a write through a stored window probe lands on the store', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let w;
+    function lands(name, write) {
+      let thrown = null;
+      try {
+        write();
+      } catch (error) {
+        thrown = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      try {
+        assert.same(thrown, live ? null : 'TypeError', `${ name } throws only off-window`);
+        assert.same(Object.hasOwn(globalThis, name), live, `${ name } reaches the realm only through a window`);
+        assert.same(w, globalThis.window, `${ name } keeps the store`);
+      } finally {
+        delete globalThis[name];
+      }
+    }
+    const key = 'e2eStoredProbeKeyed';
+    lands('e2eStoredProbeAssigned', () => { (w = globalThis.window).self.e2eStoredProbeAssigned = 1; });
+    lands(key, () => { (w = globalThis.window).self[key] = 1; });
+    lands('e2eStoredProbeUpdated', () => { (w = globalThis.window).self.e2eStoredProbeUpdated++; });
+    lands('e2eStoredProbeDefaulted', () => { (w = globalThis.window).self.e2eStoredProbeDefaulted ||= 1; });
+    // eslint-disable-next-line unicorn/no-unreadable-array-destructuring -- a member pattern target is the form under test
+    lands('e2eStoredProbeElement', () => { [(w = globalThis.window).self.e2eStoredProbeElement] = [1]; });
+    lands('e2eStoredProbeProperty', () => { ({ v: (w = globalThis.window).self.e2eStoredProbeProperty } = { v: 1 }); });
+    lands('e2eStoredProbeHead', () => { for ((w = globalThis.window).self.e2eStoredProbeHead of [1]); });
+    lands('e2eStoredProbeDeep', () => { (w = globalThis.window).self.self.e2eStoredProbeDeep = 1; });
+    // eslint-disable-next-line dot-notation -- the computed literal hop key is the form under test
+    lands('e2eStoredProbeComputed', () => { (w = globalThis['window']).self.e2eStoredProbeComputed = 1; });
+  });
+});
+
+// ... and through a store whose probe a CALL reads off the realm, or which the source wraps with a
+// prefix of its own: the write still acts on the stored value, and the prefix runs once
+testUnlessDetectLowered('global-proxy: a write through a call-rooted or prefixed window store lands on the store', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let w;
+    let runs = 0;
+    function prefix() {
+      runs++;
+    }
+    function lands(name, write) {
+      let thrown = null;
+      try {
+        write();
+      } catch (error) {
+        thrown = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      try {
+        assert.same(thrown, live ? null : 'TypeError', `${ name } throws only off-window`);
+        assert.same(Object.hasOwn(globalThis, name), live, `${ name } reaches the realm only through a window`);
+        assert.same(w, globalThis.window, `${ name } keeps the store`);
+      } finally {
+        delete globalThis[name];
+      }
+    }
+    const owner = { realm() { return globalThis; } };
+    lands('e2eCallStoreArrow', () => { (w = (() => globalThis)().window).self.e2eCallStoreArrow = 1; });
+    lands('e2eCallStoreUpdated', () => { (w = (() => globalThis)().window).self.e2eCallStoreUpdated++; });
+    lands('e2eCallStoreProperty', () => { ({ v: (w = (() => globalThis)().window).self.e2eCallStoreProperty } = { v: 1 }); });
+    lands('e2eCallStoreDeep', () => { (w = (() => globalThis)().window).self.self.e2eCallStoreDeep = 1; });
+    lands('e2eCallStoreMember', () => { (w = owner.realm().window).self.e2eCallStoreMember = 1; });
+    lands('e2eCallStorePrefixed', () => { (prefix(), w = globalThis.window).self.e2eCallStorePrefixed = 1; });
+    assert.same(runs, 1, 'the prefix runs once');
+  });
+});
+
+// ... and the READ twin spelled with a computed hop key: the store still holds the environment probe,
+// so the read through it keeps the throw the source has off-window, whatever spells the key
+testUnlessDetectLowered('global-proxy: a read through a stored window probe keeps its throw whatever spells the key', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let w;
+    const key = 'window';
+    function reads(name, read) {
+      let thrown = null;
+      try {
+        read();
+      } catch (error) {
+        thrown = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      assert.same(thrown, live ? null : 'TypeError', `${ name } throws only off-window`);
+      assert.same(w, globalThis.window, `${ name } keeps the store`);
+    }
+    // eslint-disable-next-line dot-notation -- the computed literal hop key is the form under test
+    reads('a literal key', () => (w = globalThis['window']).self.e2eStoredProbeRead);
+    reads('a bound key', () => (w = globalThis[key]).self.e2eStoredProbeRead);
+    // eslint-disable-next-line dot-notation -- the computed literal hop key is the form under test
+    reads('a deeper run', () => (w = globalThis['window']).self.self.e2eStoredProbeRead);
+  });
+});
+
+// a guarded receiver reading a probe run on answers off the realm the probe read: the realm hops past
+// the probe re-test nothing, and a slot read off the run is the realm's own
+QUnit.test('global-proxy: a probe run read on through realm hops answers off the realm', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    assert.deepEqual(globalThis.window?.window?.Array.of(2).flat(), live ? [2] : undefined, 'no backed hop');
+    assert.same(globalThis.window?.self.window?.Array.of(3).at(-1), live ? 3 : undefined, 'an unbacked hop over a backed one');
+    assert.same(globalThis.window?.window?.window?.Array.of(4).includes(4), live ? true : undefined, 'a deeper run');
+    withRealmSlot('e2eProbeRunBox', [5], () => {
+      assert.same(globalThis.window?.window?.e2eProbeRunBox.at(0), live ? 5 : undefined, 'a slot read off the run');
+    });
+  });
+});
+
+// a `delete` through a SEALED probe run read on by a `?.` realm hop acts only behind a present window,
+// and reaches the realm slot there
+testUnlessDetectLowered('global-proxy: a delete through a sealed probe run read on optionally', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    withRealmSlot('e2eSealedRunSlot', 1, () => {
+      // eslint-disable-next-line @stylistic/no-extra-parens -- the seal under the optional continuation is the form under test
+      assert.true(delete (globalThis.window?.self)?.window.e2eSealedRunSlot, 'an unbacked hop past the seal');
+      assert.same(Object.hasOwn(globalThis, 'e2eSealedRunSlot'), !live, 'deletes only behind a present window');
+    });
+    withRealmSlot('e2eSealedCallSlot', 1, () => {
+      // eslint-disable-next-line @stylistic/no-extra-parens -- the seal under the optional continuation is the form under test
+      assert.true(delete ((() => globalThis)().window?.self)?.window.e2eSealedCallSlot, 'a call root');
+      assert.same(Object.hasOwn(globalThis, 'e2eSealedCallSlot'), !live, 'the call root deletes only behind a window');
+    });
+    // a PLAIN read past the seal is the source's own throw off-window, a `?.` further on included
+    let thrown = null;
+    try {
+      // eslint-disable-next-line no-unsafe-optional-chaining -- the throw of a read past the sealed short-circuit is under test
+      delete (globalThis.window?.self).window?.Array.of(1).e2eSealedPlainSlot;
+    } catch (error) {
+      thrown = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.same(thrown, live ? null : 'TypeError', 'a plain read past the seal throws only off-window');
+  });
 });
 
 // an SE-bearing init no longer blocks the proxy-hop fold: the effect replays exactly once

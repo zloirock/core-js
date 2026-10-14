@@ -1096,7 +1096,7 @@ export function createMemberResolve({
     // a write in an arm the build never takes is no write (`writeNeverRuns`), and one in an arm it
     // always takes is unconditional (the dominance ask's adapter)
     const adapter = getDecisionAdapter();
-    const liveWrites = elementWrites?.filter(write => !writeNeverRuns({ write: write.node, usagePath: path, adapter }));
+    const liveWrites = elementWrites?.filter(write => !writeNeverRuns({ write, usagePath: path, adapter }));
     if (liveWrites?.length) {
       // A single observed write must precede and dominate this read. Multiple writes,
       // deferred execution and conditional replacement keep the element type unknown.

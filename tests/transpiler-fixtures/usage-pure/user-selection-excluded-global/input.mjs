@@ -1,7 +1,7 @@
-// A presence test over a global the targets need and a filter drops (`Promise`, excluded here) is answered
-// by nothing this build does, nor is a `||` reading it off the realm: every canon reading the selection - an
-// alias, a receiver, a destructure, a `||` the alias holds - keeps both operands live, the user's fallback
-// reachable. Its bare name decides, an engine lacking it throwing first, as a served global (`Map`) does.
+// pure counts a global the targets need and a filter drops (`Promise`, excluded here) present as usage-global does:
+// the data subset carries it, so a presence test over it decides - read through an alias, a receiver, a destructure
+// or a `||` the alias holds - and so does a `||` reading it off the realm, as its bare name and a served global
+// (`Map`) do. The live arm stays raw, pure substituting nothing the user excludes; a static it serves takes its entry.
 const P = typeof Promise !== 'undefined' ? Promise : MyPromise;
 export const viaAlias = P.withResolvers();
 export const viaReceiver = (typeof Promise !== 'undefined' ? Promise : MyPromise).try(task);

@@ -12,8 +12,8 @@ const overWrite = _fillMaybeArray((kept = _globalThis, _globalThis.Array.prototy
 const overWriteSe = _keysMaybeArray((keptSe = (effect(), _globalThis), _globalThis.Array.prototype)); // An assignment host also keeps the receiver store before the target method binding.
 let overWriteAssign;
 keptAssign = _globalThis;
-// A for-init header stores the receiver before binding its method; initialization runs once.
 overWriteAssign = _copyWithinMaybeArray(_globalThis.Array.prototype);
+// A for-init header stores the receiver before binding its method; initialization runs once.
 for (const fromLoop = _findLastIndexMaybeArray((kwLoop = _globalThis, _globalThis.Array.prototype)); !loopOut;) loopOut = typeof fromLoop;
 // A bodyless control slot keeps the store and instance read conditional.
 if (1) var fromSlot = _flatMapMaybeArray((kwSlot = _globalThis, _globalThis.Array.prototype));

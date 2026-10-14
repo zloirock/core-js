@@ -10,7 +10,7 @@ export const rootOptionalLongRun = globalThis?.window.window.window?.self?.origi
 export const plainTwin = globalThis.window.window?.self?.name;
 export const plainTwinLongRun = globalThis.window.window.window?.self?.origin;
 
-// NEGATIVE: a SINGLE unbacked hop under the guard IS the environment probe, whichever way the root
-// above it is spelled, so the test the source wrote stands
+// NEGATIVE: the first unbacked hop under a `?.` IS the environment probe, whichever way the root
+// above it is spelled, so the test the source wrote stands - a second `window` past it folds into the run
 export const probeHop = globalThis?.window?.self?.length;
 export const probeHopPlainRoot = globalThis.window?.window?.self?.status;

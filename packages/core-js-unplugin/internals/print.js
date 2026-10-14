@@ -2,8 +2,14 @@ import { print } from 'esrap';
 import ts from 'esrap/languages/ts';
 import tsx from 'esrap/languages/tsx';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { buildOffsetToLoc, isLineBoundDisableDirective } from '@core-js/polyfill-provider/helpers/source-scan';
-import { TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  buildOffsetToLine,
+  buildOffsetToLoc,
+  firstSpelledOffset,
+  isLineBoundDisableDirective,
+  ownedLeadingComments,
+} from '@core-js/polyfill-provider/helpers/source-scan';
+import { sortedPrefixLength, TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // the esrap printer adapter: oxc-parser hands out offsets, esrap attaches comments and
 // emits sourcemap segments by `loc` - this module synthesizes the locs and owns the
@@ -98,6 +104,16 @@ function withCorpusGapOverrides(language) {
     if (!node.decorators?.length || node.parameter.decorators?.length) return baseParameterProperty(node, context);
     baseParameterProperty({ ...node, parameter: { ...node.parameter, decorators: undefined } }, context);
   };
+  // a TS cast as a pattern default's target needs parens: esrap prints `{ a: o.f as any = d }`, which a
+  // TS parser reads as a cast of an assignment and rejects
+  const baseAssignmentPattern = language.AssignmentPattern;
+  language.AssignmentPattern = (node, context) => {
+    const { type } = node.left ?? {};
+    if (type !== 'TSAsExpression' && type !== 'TSSatisfiesExpression' && type !== 'TSTypeAssertion') {
+      return baseAssignmentPattern(node, context);
+    }
+    baseAssignmentPattern({ ...node, left: parenthesize(node.left) }, context);
+  };
   // esrap shares the rest visitor with spread syntax and omits parameter decorators.
   const baseRest = language.RestElement;
   language.RestElement = (node, context) => {
@@ -159,14 +175,7 @@ function synthesizeLocs(program, comments, source) {
   }
   // the first comment opening at or after `offset`, or null: the list is source-ordered
   function firstCommentFrom(offset) {
-    let lo = 0;
-    let hi = comments.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (comments[mid].start < offset) lo = mid + 1;
-      else hi = mid;
-    }
-    return comments[lo] ?? null;
+    return comments[sortedPrefixLength(comments, comment => comment.start < offset)] ?? null;
   }
   // ... and a binding host's VALUE that a line-bound directive opens its own line ahead of
   // (`const x =\n  // core-js-disable-next-line\n  v`): esrap flushes the comment after the `=`, which
@@ -182,6 +191,8 @@ function synthesizeLocs(program, comments, source) {
   }
   const locate = buildOffsetToLoc(source);
   let hasChainExpression = false;
+  // the statements a rewrite marked to lead the comments its host owns (`anchorLeadingStatement`)
+  const heirs = [];
   (function walk(node, anchor) {
     if (Array.isArray(node)) {
       for (const item of node) walk(item, anchor);
@@ -191,6 +202,7 @@ function synthesizeLocs(program, comments, source) {
     // the flag feeds the dead-chain gate, and a SYNTHESIZED chain (no source positions,
     // so the loc branch below never sees it) must arm it too
     if (node.type === 'ChainExpression') hasChainExpression = true;
+    if (typeof node.ownedCommentsAt === 'number') heirs.push(node);
     if (typeof node.type === 'string') {
       if (typeof node.start === 'number' && typeof node.end === 'number') {
         node.loc = { start: locate(node.start), end: locate(node.end) };
@@ -205,8 +217,12 @@ function synthesizeLocs(program, comments, source) {
         // without a location resets it to EOF and loses comments after the loop.
         node.loc = { start: anchor.start, end: anchor.end };
       } else if (/(?:Declaration|Statement)$/.test(node.type)) {
-        // an INJECTED statement is fully synthetic - nothing under it derives from a user
-        // region, and its own loc would drive esrap's blank-line margins besides
+        // an INJECTED statement maps no user region of its own, and a span would drive esrap's
+        // blank-line margins besides. one spelling a source node opens where that node does, as a
+        // point: a comment ahead of the node flushes ahead of the statement, not inside it
+        // (`const _ref = // note\nsrc.y;`)
+        const spelled = firstSpelledOffset(node);
+        if (spelled !== null) node.loc = { start: locate(spelled), end: locate(spelled) };
         anchor = null;
       } else if (anchor) {
         // a SYNTHESIZED expression stands where the node it replaced stood: map it to the
@@ -257,7 +273,48 @@ function synthesizeLocs(program, comments, source) {
   return {
     comments: comments.map(comment => ({ ...comment, loc: printLoc(comment), value: printValue(comment) })),
     hasChainExpression,
+    heirs,
   };
+}
+
+// the comments each heir leads, by the index of the comment: the run its host's statement owns
+// (`ownedLeadingComments`) among those standing between the code ahead of that statement and it
+function ownedCommentIndexes({ heirs, comments, source }) {
+  const owned = new Map();
+  if (!heirs.length) return owned;
+  const lineOf = buildOffsetToLine(source);
+  for (const heir of heirs) {
+    let end = heir.ownedCommentsAt;
+    // the last comment closing at or before the statement: the list is source-ordered
+    const closed = sortedPrefixLength(comments, comment => comment.end <= end);
+    let first = closed;
+    while (first > 0 && !source.slice(comments[first - 1].end, end).trim()) end = comments[--first].start;
+    let code = end - 1;
+    while (code >= 0 && !source[code].trim()) code--;
+    const run = ownedLeadingComments({
+      comments: comments.slice(first, closed),
+      statementLine: lineOf(heir.ownedCommentsAt),
+      codeLine: code < 0 ? 0 : lineOf(code),
+      offsetToLine: lineOf,
+    });
+    if (run.length) owned.set(heir, run.map(comment => comments.indexOf(comment, first)));
+  }
+  return owned;
+}
+
+// a comment the anchored channel leads a node with, laid out like esrap's own: a block one source
+// line per printed line, each on its own line ahead of the node
+function writeAnchoredComment(comment, context) {
+  if (typeof comment === 'string') context.write(comment);
+  else if (comment.type === 'Line') context.write(`//${ comment.value }`);
+  else {
+    const lines = comment.value.split('\n');
+    for (let index = 0; index < lines.length; index++) {
+      if (index > 0) context.newline();
+      context.write(`${ index === 0 ? '/*' : '' }${ lines[index] }${ index === lines.length - 1 ? '*/' : '' }`);
+    }
+  }
+  context.newline();
 }
 
 // horizontal whitespace - what an indent is made of and what a same-line scan steps over
@@ -319,7 +376,15 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
     return false;
   }
-  const { comments: printComments, hasChainExpression } = synthesizeLocs(program, ownComments, source);
+  const { comments: locatedComments, hasChainExpression, heirs } = synthesizeLocs(program, ownComments, source);
+  // the comments a heir leads leave the offset flush, which would print them above the lifted effects
+  const heirComments = ownedCommentIndexes({ heirs, comments: ownComments, source });
+  const taken = new Set(heirComments.values().toArray().flat());
+  const printComments = taken.size ? locatedComments.filter((comment, index) => !taken.has(index)) : locatedComments;
+  const anchors = new Map(anchoredComments);
+  for (const [heir, indexes] of heirComments) {
+    anchors.set(heir, [...indexes.map(index => locatedComments[index]), ...anchors.get(heir) ?? []]);
+  }
   // the dead-chain unwrap pays a full-tree walk - a file with no ChainExpression at all
   // (the loc walk already looked at every node) has nothing to unwrap
   if (hasChainExpression) (function unwrapDeadChains(node) {
@@ -342,24 +407,18 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   })(program);
 
   const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments }));
-  // explicitly ANCHORED leading comments (node -> texts): emitted verbatim ahead of the
+  // explicitly ANCHORED leading comments (node -> texts and comments): emitted ahead of the
   // node's own print, bypassing the loc heuristics entirely - the deterministic channel
   // for a directive that must reach the NEXT pass on its own line whatever a sibling's
-  // reprint does to loc-attached comments. wrapped per node TYPE present in the map: esrap
-  // dispatches every printed node through its type's handler, and a type without one (a
-  // switch case, a template quasi) is printed inline by its parent and takes no anchor
-  if (anchoredComments) {
-    for (const type of new Set(anchoredComments.keys().map(node => node.type))) {
+  // reprint does to loc-attached comments, and for what a heir leads. wrapped per node TYPE present
+  // in the map: esrap dispatches every printed node through its type's handler, and a type without
+  // one (a switch case, a template quasi) is printed inline by its parent and takes no anchor
+  if (anchors.size) {
+    for (const type of new Set(anchors.keys().map(node => node.type))) {
       const base = language[type];
       if (typeof base !== 'function') continue;
       language[type] = (node, context) => {
-        const lead = anchoredComments.get(node);
-        if (lead) {
-          for (const text of lead) {
-            context.write(text);
-            context.newline();
-          }
-        }
+        for (const comment of anchors.get(node) ?? []) writeAnchoredComment(comment, context);
         base(node, context);
       };
     }

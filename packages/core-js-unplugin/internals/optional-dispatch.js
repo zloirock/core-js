@@ -32,6 +32,7 @@ import {
   mayHaveSideEffects,
   nestedSequenceValueSpelling,
   observableSequenceElements,
+  optionalCallReceiverGuard,
   peelNestedSequenceExpressions,
   receiverCarriesLiveOptional,
   singleSequenceTail,
@@ -157,6 +158,7 @@ export default function createOptionalDispatchChannel(ctx) {
   function guardObject(objectNode, metaPath, {
     bareMemo = false,
     mutatedLeaf = false,
+    readerKey = null,
     interveningEffects = false,
   } = {}) {
     const receiverPure = !mutatedLeaf && instanceSynthReceiverPure(objectNode, {
@@ -275,10 +277,14 @@ export default function createOptionalDispatchChannel(ctx) {
     // where a written call yield proves definedness the composed test may not assume - it IS that
     // read, so the `?.` the source wrote stays. the babel binding asks the same plan at its own
     // memo site
-    // ... never under a MUTATED leaf: the read above must reach the user's patch through the
-    // memoized surface, and a composed ponyfill base would read the pristine slot instead
-    const composed = !mutatedLeaf && composableNavGuardPlan(objectNode, {
-      scope: metaPath.scope, adapter, path: metaPath, resolvePure: meta => resolvePure(meta, metaPath),
+    // the member reading the memo names its key for the plan's mutated-slot rule
+    const composed = composableNavGuardPlan(objectNode, {
+      scope: metaPath.scope,
+      adapter,
+      path: metaPath,
+      resolvePure: meta => resolvePure(meta, metaPath),
+      readThrough: true,
+      readerKey,
     });
     if (composed) {
       return {
@@ -688,7 +694,15 @@ export default function createOptionalDispatchChannel(ctx) {
       return splitDoublyOptionalCall({ node, metaPath, callee, split });
     }
     if (!isReusableReceiver(reusabilityView, { interveningEffects, ctx: receiverCtx }) && !superReceiver) {
+      // a live `?.` in the receiver under a plain method member is the shared verdict's link: the
+      // split tests that link's object, and the memo below reads the receiver plainly past it
+      const receiverSplit = optionalCallReceiverGuard(callee) === 'link'
+        ? splitOptionalReceiver(callee.object, metaPath) ?? STAGED_SPLIT : null;
+      if (receiverSplit === STAGED_SPLIT) return STAGED_SPLIT;
       const refRecv = injector.generateDeclaredRef(metaPath);
+      const receiverMemo = assignmentExpression('=', identifier(refRecv),
+        receiverSplit ? receiverSplit.receiver : cloneReceiverValue());
+      const receiverDisjuncts = receiverSplit ? receiverSplit.disjuncts : [];
       const recvIdForRead = identifier(refRecv);
       // the memo ref carries the RECEIVER's resolved type: the re-visited method read
       // resolves its typed instance entry off it (`[].at?.(1)...` -> `_atMaybeArray`)
@@ -713,52 +727,24 @@ export default function createOptionalDispatchChannel(ctx) {
           ? callExpression(identifier(injectPureImport(calleeProbe.entry, calleeProbe.hintName)), [recvIdForRead])
           : memberExpression(recvIdForRead, cloneNode(callee.property), { computed: callee.computed }), callee);
       if (resultOptional && calleeProbe?.kind === 'instance') {
-        const testsReceiver = receiverCarriesLiveOptional(callee.object);
-        const firstRead = testsReceiver ? methodRead : callExpression(cloneNode(methodRead.callee),
-          [assignmentExpression('=', identifier(refRecv), cloneReceiverValue())]);
+        const firstRead = callExpression(cloneNode(methodRead.callee), [receiverMemo]);
         return {
           hopKind: 'call',
-          disjuncts: testsReceiver
-            ? [assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue()))] : [],
+          disjuncts: receiverDisjuncts,
           receiver: stampSourceCallType(chainExpression(callExpression(
             memberExpression(firstRead, identifier('call'), { optional: true }),
             [identifier(refRecv), ...node.arguments.map(argument => cloneNode(argument))])), node, metaPath, typeStampCtx),
         };
       }
       const refMethod = injector.generateDeclaredRef(metaPath);
-      const methodAssign = assignmentExpression('=', identifier(refMethod), methodRead);
-      let disjuncts;
-      if (receiverCarriesLiveOptional(callee.object)) {
-        // X's own short-circuit must run before the method read. a RESOLVING method
-        // guards as its own disjunct (the descent swaps the read for the lookup); an
-        // unresolvable one keeps the comma memo with an OPTIONALIZED read - the memo can
-        // be nullish and the plain read would throw where native short-circuits
-        if (!calleeProbe) {
-          const optRecvId = identifier(refRecv);
-          if (recvType) resolvedType.set(optRecvId, recvType);
-          const optRead = stampReplacementSpan(memberExpression(optRecvId, cloneNode(callee.property),
-            { computed: callee.computed, optional: true }), callee);
-          disjuncts = [
-            sequenceExpression([
-              assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue())),
-              assignmentExpression('=', identifier(refMethod), chainExpression(optRead)),
-            ]),
-          ];
-        } else {
-          disjuncts = [assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue())), methodAssign];
-        }
-      } else {
-        // A proved lookup absorbs the receiver memo now; a raw read fuses on descent.
-        const memo = calleeProbe?.kind === 'instance'
-          ? assignmentExpression('=', identifier(refMethod), callExpression(cloneNode(methodRead.callee),
-            [assignmentExpression('=', identifier(refRecv), cloneReceiverValue())]))
-          : sequenceExpression([assignmentExpression('=', identifier(refRecv), cloneReceiverValue()), methodAssign]);
-        if (memo.type === 'SequenceExpression') guardCommaMemos.add(memo);
-        disjuncts = [memo];
-      }
+      // A proved lookup absorbs the receiver memo now; a raw read fuses on descent.
+      const memo = calleeProbe?.kind === 'instance'
+        ? assignmentExpression('=', identifier(refMethod), callExpression(cloneNode(methodRead.callee), [receiverMemo]))
+        : sequenceExpression([receiverMemo, assignmentExpression('=', identifier(refMethod), methodRead)]);
+      if (memo.type === 'SequenceExpression') guardCommaMemos.add(memo);
       return {
         hopKind: 'call',
-        disjuncts,
+        disjuncts: [...receiverDisjuncts, memo],
         receiver: stampSourceCallType(
           callExpression(memberExpression(identifier(refMethod), identifier('call')),
             [identifier(refRecv), ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
@@ -855,7 +841,11 @@ export default function createOptionalDispatchChannel(ctx) {
     // other leg's chain-base memo: the read above it then takes the identity guard that name's read takes
     const decided = decidedReusableReceiver(node.object, { ...navAliasCtx, injectorState });
     const { disjuncts, makeBase } = decided ? { disjuncts: [cloneNode(node.object)], makeBase: () => cloneNode(decided) }
-      : guardObject(node.object, metaPath, { bareMemo: !!surfaceHop, mutatedLeaf: !!leafKey && isMutatedGlobalSlot(adapter, leafKey) });
+      : guardObject(node.object, metaPath, {
+        bareMemo: !!surfaceHop,
+        mutatedLeaf: !!leafKey && isMutatedGlobalSlot(adapter, leafKey),
+        readerKey: leafKey,
+      });
     // a pristine hop read off a guarded PROXY-surface value drops - `(q = gw)?.self
     // .Array` reads `_ref.Array` (window.self is the same surface, babel's kept canon);
     // an SE-bearing key's effects MIGRATE into the next surviving key (native order:
@@ -1340,12 +1330,12 @@ export default function createOptionalDispatchChannel(ctx) {
       // a SEQUENCE stored BY the write hands its tail on the same way a bare one does - the
       // value the write keeps is that tail (`(s = (e++, globalThis.self))?.self`)
       if (throughWrite) cur = singleSequenceTail(cur, { nested: true }) ?? cur;
-      const rootBeforeHops = cur;
       while (cur?.type === 'MemberExpression') {
         if (!proxyHopKey(cur, { allowOptional: true, metaPath })) return false;
         // a kept write UNDER the hops is as transparent as one above them
-        // (`((r = globalThis).self)?.Array` - the erased `?.` reads the pure root)
-        cur = peelChainAssignmentDeep(unwrapRuntimeExpr(cur.object));
+        // (`((r = globalThis).self)?.Array` - the erased `?.` reads the pure root), and so is a
+        // sequence handing its tail on (`(e++, globalThis.self).window?.Array`)
+        cur = peelChainAssignmentDeep(unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object)));
       }
       if (cur?.type === 'Identifier') {
         // binding-aware like the ctor arm below: a SHADOWED realm name holds the user's object
@@ -1356,10 +1346,10 @@ export default function createOptionalDispatchChannel(ctx) {
             path: metaPath,
           });
         }
-        // an ALIAS binding answers the same as the direct spelling - but only as the BARE
-        // root: neither a kept write nor a hop above it may sit in between, which is where
-        // babel's own erase stops (`(e++, gw)?.` erases, `(a = gw)?.` and `(e++, g.self)?.` keep)
-        if (!throughWrite && cur === rootBeforeHops) {
+        // an ALIAS binding answers the same as the direct spelling, the realm hops above it
+        // included - but never through a kept write, which is where babel's own erase stops
+        // (`(e++, g.self)?.` erases, `(a = gw)?.` keeps)
+        if (!throughWrite) {
           const aliased = resolveObjectName({ objectNode: cur, scope: metaPath.scope, adapter, path: metaPath });
           if (aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) && isPristineProxyGlobal(adapter, aliased)) return true;
         }
@@ -1392,10 +1382,17 @@ export default function createOptionalDispatchChannel(ctx) {
       return false;
     }
     // the walk stops at a call; the `?.` under its CALLEE is the same navigation
-    // (`(w = globalThis)?.Array.of(5)` - the hop sits below `.of`), so descend there
+    // (`(w = globalThis)?.Array.of(5)` - the hop sits below `.of`), so descend there - and on
+    // through a plain member reading such a call's result, which continues that same chain
+    // (`globalThis.self?.window?.Array.from(x).map(f)` - the hops sit below `.from`)
     let navNode = object;
     for (let peeled = unwrapRuntimeExpr(navNode); peeled?.type === 'CallExpression' && !peeled.optional;
-      peeled = unwrapRuntimeExpr(navNode)) navNode = peeled.callee;
+      peeled = unwrapRuntimeExpr(navNode)) {
+      navNode = peeled.callee;
+      const callee = unwrapRuntimeExpr(navNode);
+      if (callee?.type === 'MemberExpression' && !callee.optional
+        && unwrapRuntimeExpr(callee.object)?.type === 'CallExpression') navNode = callee.object;
+    }
     const deadHops = vestigialNavOptionals(navNode, m => resolvePure(m, metaPath),
       { scope: metaPath.scope, adapter, path: metaPath });
     // a dead hop erases only when PROVABLE (its object collapses to a defined surface or
@@ -1586,14 +1583,12 @@ export default function createOptionalDispatchChannel(ctx) {
               && resolvePure({ kind: 'property', key: splitHopKey, placement: 'prototype' },
                 metaPath)?.kind === 'instance';
       const deeperSegment = splitHopClaim && optionalCallSegmentBelow(splitHop.object);
-      // a `?.()` that IS the receiver's root segment - nothing optional below its
-      // callee spine and the callee is no claim of its own - memoizes as WRITTEN
-      // (babel: `null == (_ref = box.get?.())`); every other call shape threads its
-      // disjuncts as before (an inner optional segment, a rewritten dispatch callee)
+      // a `?.()` whose callee is no claim of its own memoizes as WRITTEN, any `?.` below it
+      // riding inside the memo (babel: `null == (_ref = box?.get?.())`); a rewritten dispatch
+      // callee threads its disjuncts
       const splitCallCallee = splitCall?.type === 'CallExpression' && splitCall.optional === true
               ? unwrapRuntimeExpr(splitCall.callee) : null;
-      const soleRootOptCall = !!splitCallCallee && !splitHopClaim
-              && !receiverCarriesOptional(splitCallCallee) && !optionalCallSegmentBelow(splitCallCallee);
+      const soleRootOptCall = !!splitCallCallee && !splitHopClaim;
       // ... and a PAREN-SEALED lookup keeps its whole segment in ONE memo: the `.call` rides
       // outside the ternary and reads `this` off that memo, so the split's second disjunct has
       // no reader (`(getArr().flat?.()?.flatMap)(f)` -> `_ref = _flat(_ref2 = getArr())?.call(_ref2)`)

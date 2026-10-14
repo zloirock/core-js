@@ -6,7 +6,8 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.string.iterator";
 // A retained getter runs once before the outer rest copy.
-// Its proven static receives a fallback without replacing the source object.
+// Its proven static extracts off the hop the host pattern captures in place, rest beside it, and the
+// assignment still yields the source object.
 let count = 0;
 const source = {
   get w() {

@@ -1,28 +1,25 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
-// a `delete` reads nothing over its navigation, so the nav folds WHOLE - the hops the source wrote
-// optionally with the rest - and the named slot is reached off the ctor the file's own reads land
-// on, whatever spells the root; the `?.` left over the substituted binding is vestigial. the
-// unreadable key leaves no member polyfill of its own, so every surface here is that one ctor. a
-// READ pins the boundary: its probe is live and the guard around it stays - and so does the `?.`
-// standing ABOVE a carrier that holds the probe, which decides whether the delete happens at all
+// A `delete` through a realm navigation reaches its slot off the constructor's ponyfill whatever
+// spells the root, and an unreadable key adds no polyfill of its own. Hops that are always there fold;
+// a `?.` over the `window` probe decides whether the delete happens at all, so its guard stays and
+// takes the whole operator. A read of the same navigation keeps the same guard around its value.
 const alias = _globalThis;
 let kept,
   key,
   held,
   ticks = 0;
 function eff() {}
-export const viaBareRoot = delete (null == _globalThis.window ? void 0 : _Promise)?.[key];
-export const viaAliasRoot = delete (null == alias.window ? void 0 : _Promise)?.[key];
-export const viaSequencePrefix = delete (eff(), null == _globalThis.window ? void 0 : _Promise)?.[key];
-export const viaKeptWrite = delete (null == (kept = _globalThis).window ? void 0 : _Promise)?.[key];
+export const viaBareRoot = null == _globalThis.window ? true : delete _Promise[key];
+export const viaAliasRoot = null == alias.window ? true : delete _Promise[key];
+export const viaSequencePrefix = (eff(), null == _globalThis.window ? true : delete _Promise[key]);
+export const viaKeptWrite = null == (kept = _globalThis).window ? true : delete _Promise[key];
 export const viaPlainHopsUnderAlias = delete _Promise[key];
 export const viaPlainHopTail = delete alias[key];
-// ... whatever the carrier is and however many effects it runs ahead of the probe: the effects
-// re-emit ahead of the guard, which is where the source ran them, and the deleted member's own key
-// effect stays with the member - counted together they read as one erasure the swap has to carry
-export const viaTwoEffectPrefix = delete (ticks++, ticks++, null == _globalThis.window ? void 0 : _Promise)?.[ticks++, 'noSuchStatic'];
-export const viaStoreCarryingTheProbe = delete (null == (held = null == _globalThis.window ? void 0 : _self) ? void 0 : _Promise)?.x;
+// effects ahead of the probe run ahead of the guard, where the source runs them, the deleted
+// member's key effect stays with the member, and a store holding the probe keeps its own guard
+export const viaTwoEffectPrefix = (ticks++, ticks++, null == _globalThis.window ? true : delete _Promise[ticks++, 'noSuchStatic']);
+export const viaStoreCarryingTheProbe = null == (held = null == _globalThis.window ? void 0 : _self) ? true : delete _Promise.x;
 export const viaReadKeepsTheProbe = null == _globalThis.window ? void 0 : _Promise[key];
 export { ticks };

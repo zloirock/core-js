@@ -47,7 +47,7 @@ export function skipDirectivePrologue(statements, fallback) {
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare
 // `_ref = X` assignment as plugin leftover vs user sloppy-mode code.
 // plugin can also emit array/object literal shapes (destructure-init extraction for proxy-
-// global destructure) and SequenceExpression tails (deferSideEffect trims into `(se(), X)`
+// global destructure) and SequenceExpression tails (a side-effect lift trims into `(se(), X)`
 // form), so those are plugin-valid too
 const PLUGIN_EMIT_RHS_TYPES = new Set([
   'CallExpression',

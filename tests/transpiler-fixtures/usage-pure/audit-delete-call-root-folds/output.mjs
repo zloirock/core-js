@@ -9,8 +9,8 @@ export const deletedDefinedCallRootDeadOpt = delete _globalThis.customQ;
 const dwRoot = () => _globalThis.window;
 export const deletedProbeCallRoot = delete _self.customQ;
 // a LIVE `?.` (its test reads the probe value) short-circuits everything above it, the
-// deleted member included: the guard stays, the member outside behind a `?.` of its own
-export const deletedLiveGuardCallRoot = delete (null == dhRoot().window ? void 0 : _self)?.customQ;
+// deleted member included: the guard stays and takes the whole operator
+export const deletedLiveGuardCallRoot = null == dhRoot().window ? true : delete _self.customQ;
 // a paren seal over the run hides no short-circuit - the fold reads through it on both
 // paren dialects (the flag spelling and the node spelling answer the same)
 export const deletedSealedProbeRun = delete _self.customQ;

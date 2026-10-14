@@ -95,7 +95,7 @@ for (const [name, source, constructor, families] of [
   ],
 ]) runBoth(`decided ${ name }`, read(source), (adapter, program, label) => {
   const member = adapter.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
-  const decision = (adapter.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', isEntryGuaranteed: () => true });
+  const decision = (adapter.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', isEntryAvailable: () => true });
   const resolver = adapter.makeResolver({ getDecisionAdapter: () => decision });
   const type = resolver.resolvePropertyObjectType(member);
   check(`${ label } type`, type ? type.constructor ?? type.type : null, constructor);

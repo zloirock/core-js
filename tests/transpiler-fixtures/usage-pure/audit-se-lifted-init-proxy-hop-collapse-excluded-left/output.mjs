@@ -1,11 +1,9 @@
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
-// a lone-prop destructure whose init is lifted only for its side effect - no surviving sibling or rest
-// reads the value - must not read an undefined `.self` hop off-browser (Node): where the `||` left
-// decides nothing (`Map`, its constructor entry excluded, while `groupBy` keeps its own) the lifted statement
-// keeps the fallback and spells the hop through its pure binding (`(fourthReads++, _self.Map) || _Set`)
+// a lone-prop destructure whose init is lifted only for its side effect - no surviving sibling or rest reads the
+// value - must not read an undefined `.self` hop off-browser (Node): a `||` left whose constructor entry is
+// excluded (`Map`, while `groupBy` keeps its own) still decides - the data subset carries `Map` - so the lifted
+// statement keeps the effect alone (`fourthReads++`), the realm read and the dead right leaving with their imports
 let fourthReads = 0;
-(fourthReads++, _self.Map) || _Set;
+fourthReads++;
 const mapGroupBy = _Map$groupBy;
 export { mapGroupBy };

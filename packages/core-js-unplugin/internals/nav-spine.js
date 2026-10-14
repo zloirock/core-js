@@ -295,21 +295,6 @@ export function climbToCallerPath(metaPath) {
   return peelParenAndTSParentPath(metaPath, SKIPPABLE_WRAPPER_TYPES);
 }
 
-// does every `?.` in this receiver live under a SEAL? the chain walk stops at a paren / TS
-// wrapper, so an optional below one is invisible to the read the member performs - that read is
-// plain, and the dispatch may take the receiver whole with the seal's own guard inside it
-export function optionalsAreSealed(receiver) {
-  for (let cur = receiver; ;) {
-    if (cur?.type === 'ChainExpression') {
-      cur = cur.expression;
-      continue;
-    }
-    if (cur?.type !== 'MemberExpression' && cur?.type !== 'CallExpression') return true;
-    if (cur.optional) return false;
-    cur = cur.type === 'CallExpression' ? cur.callee : cur.object;
-  }
-}
-
 // is this member a WRITE TARGET - an assignment / update / for-x LHS, or a slot inside a
 // destructuring pattern? a write addresses the slot on the surface the source named, so the
 // proxy collapse below it keeps the nav's own VALUE (`globalThis.self.x = 1` -> `_self.x`);

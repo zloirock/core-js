@@ -3,7 +3,6 @@
 import { orderBoundPatternProps } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   claimWriteOrderBound,
-  leafTakesSlotDefault,
   mirrorAcceptedKey,
   orderedClaimCapture,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -11,7 +10,7 @@ import {
   buildNestedDestructurePlan,
   forgetDestructurePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { staticSlotTakesDefault } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { staticSlotTakesPonyfill } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -145,31 +144,19 @@ for (const [field, sibling, expected] of [
     check(label, claimWriteOrderBound({ prop: prop.node, objectPattern: prop.parentPath, adapter, resolvePure: claim }), expected);
   });
 
-// Target admissibility alone does not authorize a polyfill fallback after a declined mirror.
+// The slot spellings a static's ponyfill may be written into: a binding or an admitted member target.
 for (const [source, key, expected] of [
   ['({ from: a } = Array);', 'from', true],
   ['({ from: a = 1 } = Array);', 'from', true],
   ['const o = {}; ({ from: o.x } = Array);', 'from', true],
-  ['({ from: globalThis.x } = Array);', 'from', false],
+  // a realm-rooted member is the author's slot like any other: the realm takes the ponyfill too
+  ['({ from: globalThis.x } = Array);', 'from', true],
   ['const o = {}; ({ [(effect(), \'from\')]: o.x } = Array);', null, false],
   ['({ from: { length } } = Array);', 'from', false],
-]) runBoth(`static slot default: ${ source }`, `let a, length; ${ source }`, (parser, program, label) => {
+]) runBoth(`static slot ponyfill: ${ source }`, `let a, length; ${ source }`, (parser, program, label) => {
   const prop = parser.pickPath(program, propType(parser), item => (key === null ? item.node.computed : keyName(item.node) === key)
     && item.parentPath.parentPath?.node?.type === 'AssignmentExpression');
-  check(label, staticSlotTakesDefault(prop.node, { scope: prop.scope, adapter: adapterFor(parser), path: prop }), expected);
-});
-
-// A level default supplies its receiver, not proof that the receiver's own properties are absent.
-for (const source of [
-  "let S, d, of; [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = [];",
-  'let S, of, rest; [{ Set: S, Array: { of }, ...rest } = globalThis] = [];',
-  "let d, of, race; [{ Array: { of }, 'with-dash': d, Promise: { race } } = globalThis] = [];",
-  "const [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = [];",
-  "const { w: { of, 'with-dash': d } = Array } = {};",
-  "function read({ w: { of, 'with-dash': d } = Array }) {}",
-]) runBoth(`declined inner default keeps native leaves: ${ source }`, source, (parser, program, label) => {
-  const prop = parser.pickPath(program, propType(parser), item => keyName(item.node) === 'of');
-  check(label, leafTakesSlotDefault(prop, adapterFor(parser)), false);
+  check(label, staticSlotTakesPonyfill(prop.node, { scope: prop.scope, adapter: adapterFor(parser), path: prop }), expected);
 });
 
 // A resolved string is an object key even when it needs quotes; rest and unknown keys are different.

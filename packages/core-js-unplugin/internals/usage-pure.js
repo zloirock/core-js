@@ -32,7 +32,6 @@ import {
   peelParenAndTSParentPath,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
   staticFallbackSwapRedundant,
   subtreeContainsNode,
   logicalSlotPatchHost,
@@ -60,6 +59,7 @@ import {
   optionalMemberStaysGuarded,
   replaceGuardedHop,
   sealedClaimThrowProbe,
+  sealedLayerAbove,
   sealedThrowRidesTheClaim,
 } from './claim-guards.js';
 import {
@@ -68,7 +68,6 @@ import {
   insideMemoClone,
   markSubtreeSkipped,
   noteProxyHopClaimHost,
-  optionalsAreSealed,
   sourceSpanKey,
 } from './nav-spine.js';
 import { collapseSymbolProxyRoot, emitSealedKeySeConsume, isSealedDirectSymbolCall } from './se-dispatch.js';
@@ -476,6 +475,28 @@ export default function createAstUsagePureCallback({
       state.effects = pendingEffects.filter(effect => !state.receiverSe.has(effect));
       return true;
     }
+    // a live `?.` deeper in the receiver short-circuits the key with everything else, so the receiver
+    // splits there: the guard tests the probe and the alternate reads the receiver past it, memoized
+    // ahead of the key effects (`box?.list[(k(), S)]()` -> `box == null ? void 0 : (_ref = box.list,
+    // k(), _getIterator(_ref))`). the split spells every receiver effect - in the test or in the read
+    if (state.liveOptionalReceiver && !proxyPlanFired && receiverCarriesLiveOptional(state.object)) {
+      const split = splitOptionalReceiver(state.object, metaPath);
+      if (!split || split === STAGED_SPLIT || split.hopKind !== 'member') return false;
+      const keyEffects = pendingEffects.filter(effect => !state.receiverSe.has(effect));
+      if (isReusableReceiver(split.receiver, {
+        interveningEffects: keyEffects.length > 0,
+        ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+      })) {
+        state.effects = keyEffects;
+        state.object = split.receiver;
+      } else {
+        const splitRef = injector.generateDeclaredRef(metaPath);
+        state.effects = [assignmentExpression('=', identifier(splitRef), split.receiver), ...keyEffects];
+        state.object = identifier(splitRef);
+      }
+      state.splitDisjuncts = split.disjuncts;
+      return true;
+    }
     let receiver = proxyPlanFired ? state.object : peelReceiverSequenceTail(state.object);
     const interveningEffects = pendingEffects.some(effect => !state.receiverSe.has(effect));
     const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
@@ -548,6 +569,8 @@ export default function createAstUsagePureCallback({
       liveOptionalReceiver: proxyRootFired ? !!proxyRootOptional : receiverCarriesLiveOptional(node.object),
       receiverSe: new Set((meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)),
       effects: null,
+      // the guard checks of a receiver the effect route split at its live `?.`
+      splitDisjuncts: null,
     };
     if (!proxyRootFired) collapseSymbolReceiver(meta, metaPath, state);
     const receiverCore = unwrapRuntimeExpr(state.object);
@@ -579,9 +602,12 @@ export default function createAstUsagePureCallback({
     const sealedDirectCall = isSealedDirectSymbolCall(metaPath);
     // inner optional hops: the receiver splits at its last-evaluated `?.` MEMBER hop and
     // the whole consumed shape rides the guard (`foo?.bar[S]()` -> `foo == null ? void 0 :
-    // _getIterator(foo.bar)`); call-hop receivers and doubly-optional forms stay staged
-    let splitDisjuncts = null;
-    if (receiverCarriesOptional(object) && !sealedDirectCall && !optionalsAreSealed(object)) {
+    // _getIterator(foo.bar)`); call-hop receivers and doubly-optional forms stay staged.
+    // only a LIVE `?.` splits: a seal below the member ends its chain, a `!` does not
+    // (`foo?.bar![S]()` short-circuits exactly like its assertion-free twin). the effect route
+    // above may have split it already
+    let splitDisjuncts = state.splitDisjuncts ?? null;
+    if (!sealedDirectCall && receiverCarriesLiveOptional(object)) {
       if (callOptional || effects) return;
       // the member's own `?.` guards on the MEMO of the carrier receiver instead of a
       // split (`x?.y?.[S]().next()` -> `null == (_ref = x?.y) ? void 0 : _getIterator(_ref)
@@ -615,12 +641,9 @@ export default function createAstUsagePureCallback({
     // read plainly, so the `?.` produces no guard - a nullish receiver throws through the
     // helper exactly like the native `(undefined)()`
     const callerPath = climbToCallerPath(metaPath);
-    // a SEAL is a real paren / TS wrapper - the member's own ChainExpression wrapper is the
-    // chain itself, not a seal (`x?.[S]` alone must keep its guard)
-    let wrapWalk = metaPath.parentPath;
-    if (wrapWalk?.node?.type === 'ChainExpression' && wrapWalk.node.expression === node) wrapWalk = wrapWalk.parentPath;
-    const sealed = !!wrapWalk?.node
-      && TRANSPARENT_EXPR_WRAPPER_TYPES.has(wrapWalk.node.type);
+    // a SEAL is a real paren - the member's own ChainExpression wrapper is the chain itself
+    // (`x?.[S]` alone must keep its guard), and a `!` before the call continues it (`x?.[S]!()`)
+    const sealed = sealedLayerAbove(metaPath, node);
     // the METHOD form consumed by a plain call keeps `this`: `x[S](42)` dispatches
     // `_getIteratorMethod(x).call(x, 42)`; a non-reusable receiver memoizes into the
     // helper argument (`_getIteratorMethod(_ref = getObj()).call(_ref, arg)`)
@@ -1086,7 +1109,12 @@ export default function createAstUsagePureCallback({
       const spineObject = unwrapRuntimeExpr(node.object);
       const spineNode = proxyHopKey(node, { metaPath, allowOptional: optionalFolds }) ? node
         : spineObject?.type === 'MemberExpression' ? spineObject : null;
-      const collapsed = spineNode && collapseProxyHopSpine(spineNode, metaPath,
+      // ... and a spine standing as the leaf's OBJECT is read through the leaf's own link: a `?.`
+      // there the verdict above calls live is the environment probe the source observes
+      // (`ga.window?.Array` is undefined off-window), and folding the spine respells the leaf off
+      // the realm itself
+      const leafProbeLive = spineNode !== node && node.optional && !optionalFolds;
+      const collapsed = spineNode && !leafProbeLive && collapseProxyHopSpine(spineNode, metaPath,
         { allowOptional: optionalFolds, provenCallRoot: deleteFolds || !deleteHostForClaim(metaPath, node) });
       // ... and only where something READS through the hop: in VALUE position the drop would
       // change what the expression yields (`t = g.window` stores the window object, not `g`).

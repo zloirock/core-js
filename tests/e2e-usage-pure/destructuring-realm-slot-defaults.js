@@ -121,6 +121,16 @@ QUnit.test('realm slot defaults: an installed lowercase global keeps its members
   });
 });
 
+// a parameter's own default reaches the realm the way a declaration's init does: a constructor the build serves
+// fills the slot, so the default nested in the pattern never runs and the constructor's static answers
+QUnit.test('realm slot defaults: a served slot under a parameter default reads its constructor', assert => {
+  const fallback = {};
+  function group({ Map: { groupBy } = fallback } = globalThis) {
+    return groupBy;
+  }
+  assert.deepEqual(group()([1, 2, 3], x => x % 2).get(1), [1, 3]);
+});
+
 // a KNOWN name core-js implements nothing of is a slot an engine may leave empty too (`WeakRef` on
 // IE11): its level's default stays live and answers through its own polyfill. the slot is emptied
 // for the run, as such an engine has it, and restored after

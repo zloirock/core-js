@@ -1,5 +1,6 @@
-// an untouched leading statement anchors the comments below: every row here is consumed,
-// and a removed first statement would carry its leading comment down to the next one
+// An array wrapper all of whose elements are claimed leaves whole, each extraction repeating its own
+// element's coercion; an element no claim reads, a surviving binding or a rest keeps the wrapper and
+// reads each element once. The untouched first statement keeps this comment at the top of the output.
 const anchor = [1, 2];
 export { anchor };
 
@@ -23,7 +24,7 @@ export { other, at3 };
 const [{ at: at4 }, ...rest] = [c ? a : x, 1];
 export { at4, rest };
 
-// NEGATIVE: a receiver-less STATIC reads nothing, so the residual is the only reader of its
-// element's key and keeps its sentinel
+// NEGATIVE: a static reads its slot's constructor, not the element's value, so it replaces no
+// coercion: the wrapper stays and each slot hands over a literal
 const [{ from }, { of }] = [Array, Array];
 export { from, of };

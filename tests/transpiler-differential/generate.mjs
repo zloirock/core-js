@@ -14931,7 +14931,7 @@ const DM_INSTANCE_RECEIVERS = new Set(['proto', 'literal', 'navProto', 'navRealm
 const DM_PLAIN_KEYS = new Set(['plain', 'defaulted', 'boundKey']);
 const DM_ARRAY_NESTINGS = new Set(['arrInObj', 'objInArr', 'arr2']);
 // whether a cell skips the stripped realm, where both emitters leave it native; it keeps the full-realm,
-// import and print-through checks. the first two clauses are canon boundaries; every other one is an open
+// import and print-through checks. the first three clauses are canon boundaries; every other one is an open
 // loss under its TASKS row and leaves with the fix - one leg serving a cell alone is a divergence, not a fix
 function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId, wrapperId }) {
   const instance = DM_INSTANCE_RECEIVERS.has(receiverId);
@@ -14941,6 +14941,12 @@ function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestin
   // B3 G2 / G3: a parameter default navigated to a prototype (`({ prototype: { at } } = Array) => {}`)
   // has no route, and a new one is not worth it for a shape no code spells
   if (hostId === 'paramDefault' || hostId === 'arrowDefault') return receiverId === 'navProto' || receiverId === 'navRealmProto';
+  // a static under an effectful key ahead of a passthrough, below an array level of a for-of head
+  // (`{ w: [{ of, [(e(), 'from')]: b, length }] }`): the mirror would read the passthrough ahead of the
+  // effect, and the relocated pattern has no route for a static off the iterated element - a shape no
+  // code spells
+  if (spellingId === 'seMiddle' && nestingId === 'arrInObj' && !instance
+    && (hostId === 'forOfAssign' || (hostId === 'forOfConst' && receiverId === 'navRealm'))) return true;
   const plainKeys = DM_PLAIN_KEYS.has(spellingId);
   // FC-590: the plain route of unplugin keeps `globalThis!` under an object hop, which throws in a realm without it
   if (wrapperId === 'nonNull' && receiverId === 'navRealmProto' && nestingId === 'obj1' && plainKeys
@@ -16336,8 +16342,8 @@ function * generateCoercingParameterCallers() {
 
 // --- Decided fallback reads ---
 // A `||` / `??` whose left is a known constructor never runs its right, so a static read off it is that
-// constructor's own static and the right leaves with its effects unrun. A left that may be falsy or
-// stores what it reads keeps the selection, and pure may stay native there: those rows run full only.
+// constructor's own static and the right leaves with its effects unrun. A left that may be falsy keeps the
+// selection, and pure may stay native there: that row runs full only.
 const DECIDED_FALLBACK_SELECTIONS = [
   ['ctor-or', 'Array || Set', true],
   ['ctor-nullish', 'Array ?? Set', true],
@@ -16356,9 +16362,8 @@ const DECIDED_FALLBACK_SELECTIONS = [
   ['effect-right', 'Array ?? (log.push("r"), Set)', true],
   ['prefixed-init', '(log.push("p"), Array || Set)', true],
   ['maybe-left', 'maybe || Array', false],
-  // a STORED left keeps the selection on every route; beside sibling declarators the unplugin leg
-  // leaves that destructure native where babel splits the declaration - a gap of the host, named here
-  ['stored-left', '(held = Array) || Set', false, ['split']],
+  // a STORED left yields what it stores, so it decides as well: the store runs, the right does not
+  ['stored-left', '(held = Array) || Set', true],
 ];
 const DECIDED_FALLBACK_HOSTS = [
   ['call', selection => `return (${ selection }).from([1, 2]);`],
@@ -17109,8 +17114,9 @@ const HOLDER_WRITERS = [
 // each read runs in the frame of the write, past it, so the write dominates it. A container handed to a
 // function this file declares is read there through a parameter, which no census follows, so the handout
 // goes to code the build cannot see. `flag` off reads the slot's own value back, and pure leaves a static
-// read through a written slot native: a by-path or handed-out read of the native owner the slot keeps
-// rides the usage-global leg alone
+// read through a written slot native: a by-path read of the native owner the slot keeps rides the
+// usage-global leg alone, and a handed-out one rides neither stripped realm - `Object` has no module of its
+// own, so its escape to code the build cannot see loads none of its statics
 const HOLDER_READS = [
   ['by-path', ({ path }, key, args) => `return show(${ path }.C.${ key }(${ args }));`, flag => flag],
   ['by-holder', ({ holder }, key, args) => `return show(${ holder }.C.${ key }(${ args }));`, () => true],
@@ -17132,6 +17138,7 @@ function * generateHolderWrittenConstructors() {
           yield {
             ...snippet(`holder-written-constructors/${ holder.name }/${ writer }/${ shape }/${ flag }`, `(flag => { ${ body } })(${ flag })`),
             strip: served && readServed(flag),
+            ...shape === 'handed-out' && !flag ? { fullEnv: true } : {},
           };
         }
       }
@@ -18145,6 +18152,158 @@ function * generateRawStaticReadsOverHeldConstructors() {
   }
 }
 
+// --- Non-null links in optional chains ---
+// a `!` inside an optional chain ends nothing: every link past it belongs to the chain the receiver's `?.`
+// short-circuits, so a nullish receiver yields `undefined` past all of them, whichever channel rewrites the
+// claim below - an instance method, a call the claim opens, a `Symbol.iterator` read, a `delete`. parens and
+// `as` do end the chain, and past them a nullish receiver throws, as native does; so does a link past the `!`
+// over a value the claim leaves `undefined` (an empty list), which no `?.` guards
+const NON_NULL_CHAIN_RECEIVERS = [
+  ['nullish', 'null'],
+  ['empty', '[]'],
+  ['value', '[[1.25, 2.5], [3.75]]'],
+];
+const NON_NULL_CHAIN_SHAPES = [
+  ['tail-member', 'xs?.at(-1)!.at(0).toFixed(1).length'],
+  ['tail-call', 'xs?.at(-1)!.at(0).toFixed(1).toString()'],
+  ['tail-computed', 'xs?.at(-1)!.at(0).toFixed(1)[0]'],
+  ['tail-two-calls', 'xs?.at(-1)!.at(0).toFixed(1).trim().toUpperCase()'],
+  ['double-assertion', 'xs?.at(-1)!!.at(0).toFixed(1).length'],
+  ['between-links', 'xs?.at(-1).at(0).toFixed(1)!.length'],
+  ['optional-call-claim', 'xs?.[0].flat?.()!.length'],
+  ['iterator-read', 'xs?.[0]![Symbol.iterator]().next().value'],
+  ['delete-tail', '(() => { const boxes = xs && (xs.length ? [{ j: { k: 1 } }] : []); return delete boxes?.at(-1)!.j!.k; })()'],
+  ['delete-tail-plain', '(() => { const boxes = xs && (xs.length ? [{ j: { k: 1 } }] : []); return delete boxes?.at(-1).j.k; })()'],
+  ['paren-seal', '(xs?.at(-1))!.at(0)'],
+  ['as-seal', '(xs?.at(-1) as number[]).at(0)'],
+];
+function * generateNonNullOptionalChainLinks() {
+  for (const [receiver, value] of NON_NULL_CHAIN_RECEIVERS) for (const [shape, chain] of NON_NULL_CHAIN_SHAPES) {
+    const body = `const xs: number[][] | null = ${ value }; try { return String(${ chain }); } catch (error) { return error.constructor.name; }`;
+    yield { ...snippet(`non-null-optional-chain-links/${ shape }/${ receiver }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
+// --- Realm alias probes ---
+// an optional hop off an alias of the realm is the environment probe the source spells: off-window `window`
+// is absent and the link short-circuits, so what follows reads nothing and deletes nothing - a read, a
+// construction, a `typeof`, a `delete`, through an alias of `globalThis` or of `self`, against a direct
+// spelling; with a `window` slot the rig installs, the same chains read the realm's own members
+const REALM_ALIAS_PROBE_ROOTS = [
+  ['global-this-alias', 'const a = globalThis;'],
+  ['self-alias', 'const a = self;'],
+  ['direct', 'const a = globalThis; void a;'],
+];
+const REALM_ALIAS_PROBE_READS = [
+  ['read', root => `typeof ${ root }.window?.Array`],
+  ['construct', root => `new (${ root }.window?.Array)(2).length`],
+  ['navigate', root => `typeof ${ root }.window?.Array.from`],
+  ['delete', root => `[delete ${ root }.window?.realmAliasProbe, typeof globalThis.realmAliasProbe]`],
+];
+function * generateRealmAliasProbes() {
+  for (const [rootId, setup] of REALM_ALIAS_PROBE_ROOTS) for (const [readId, read] of REALM_ALIAS_PROBE_READS) {
+    const root = rootId === 'direct' ? 'globalThis' : 'a';
+    const body = `${ setup } globalThis.realmAliasProbe = 1; try { return String(${ read(root) }); } catch (error) { return error.constructor.name; } finally { delete globalThis.realmAliasProbe; }`;
+    for (const realm of ['off-window', 'window']) {
+      yield { ...snippet(`realm-alias-probes/${ rootId }/${ readId }/${ realm }`, `(() => { ${ body } })()`, { rig: realm === 'window' }), strip: false };
+    }
+  }
+}
+
+// --- An IIFE parameter serves a static beside a nested sibling ---
+// a bare IIFE parameter whose pattern holds a nested sibling beside a flat static takes the route a defaulted
+// parameter takes: the shared plan mirrors the call's argument, the sibling's slot passing through, and a body
+// extraction is the fallback - which an expression-bodied arrow has no statement for, so a route that skips the
+// plan leaves the static native there. the stripped realm lacks the static, so a missed one reads `undefined`;
+// the mirrored `name` slot of the array level claims `Function#name`, so a body extraction where the plan
+// mirrors shows in the import sets too. a decided selection mirrors the operand that runs; a defaulted parameter
+// and an instance method beside the sibling (`fill`, which the realm keeps) are the controls
+const IIFE_SIBLING_CALLEES = [
+  ['function', (pattern, value) => `function (${ pattern }) { return ${ value }; }`],
+  ['arrow-block', (pattern, value) => `(${ pattern }) => { return ${ value }; }`],
+  ['arrow-expression', (pattern, value) => `(${ pattern }) => ${ value }`],
+];
+const IIFE_SIBLING_PATTERNS = [
+  ['object-level', 'Array', '{ from, prototype: { constructor } }', '[typeof from, constructor === Array]'],
+  ['array-level', 'Array', '{ of, name: [initial] }', '[typeof of, initial]'],
+  ['sibling-default', 'Object', '{ fromEntries, prototype: { missing } = {} }', '[typeof fromEntries, typeof missing]'],
+];
+const IIFE_SIBLING_ARGUMENTS = [
+  ['plain', receiver => receiver],
+  ['decided-selection', receiver => `globalThis.${ receiver } || nul`],
+];
+
+function * generateIifeParameterSiblingStatics() {
+  for (const [calleeId, callee] of IIFE_SIBLING_CALLEES) {
+    const id = `iife-parameter-sibling-statics/${ calleeId }`;
+    for (const [patternId, receiver, pattern, value] of IIFE_SIBLING_PATTERNS) {
+      for (const [argumentId, argument] of IIFE_SIBLING_ARGUMENTS) {
+        yield { ...snippet(`${ id }/${ patternId }/${ argumentId }`, `(${ callee(pattern, value) })(${ argument(receiver) })`), strip: true };
+      }
+    }
+    const defaulted = callee('{ from, prototype: { constructor } } = Array', '[typeof from, constructor === Array]');
+    yield { ...snippet(`${ id }/control-defaulted-parameter`, `(${ defaulted })()`), strip: true };
+    yield { ...snippet(`${ id }/control-instance-method`, `(${ callee('{ fill, constructor: { name } }', '[typeof fill, name]') })(arr)`), strip: true };
+  }
+}
+
+// --- Non-null links in static chains ---
+// the same `!` past the environment probe: a static the claim channels rewrite - a call on it with a
+// member read off its result, a member read off a missing static, a `delete` past one - belongs to the
+// chain the probe's `?.` short-circuits, through the realm, an alias of it, `self` or an alias of that;
+// off-window every link after the probe is skipped, while a paren still ends the chain and the read
+// past it throws
+const NON_NULL_STATIC_CHAIN_ROOTS = [
+  ['direct', '', 'globalThis.window'],
+  ['global-this-alias', 'const a = globalThis;', 'a.window'],
+  ['self', '', 'self.window'],
+  ['self-alias', 'const a = self;', 'a.window'],
+];
+const NON_NULL_STATIC_CHAIN_SHAPES = [
+  ['call-result-member', root => `${ root }?.Map!.groupBy(list, parity)!.size`],
+  ['call-result-entries', root => `${ root }?.Object.fromEntries([['a', 1]])!.a`],
+  ['missing-static-member', root => `${ root }?.Promise.noSuchStatic!.toString()`],
+  ['paren-seal', root => `(${ root }?.WeakMap.noSuchStatic).toString()`],
+  ['deleted-past-missing-static', root => `delete ${ root }?.Set.noSuchStatic!.slot`],
+];
+function * generateNonNullStaticChainLinks() {
+  for (const [rootId, setup, root] of NON_NULL_STATIC_CHAIN_ROOTS) for (const [shape, chain] of NON_NULL_STATIC_CHAIN_SHAPES) {
+    const body = `${ setup } const list = [1, 2, 3]; const parity = (x: number) => x % 2; try { return String(${ chain(root) }); } catch (error) { return error.constructor.name; }`;
+    for (const realm of ['off-window', 'window']) {
+      yield { ...snippet(`non-null-static-chain-links/${ rootId }/${ shape }/${ realm }`, `(() => { ${ body } })()`, { rig: realm === 'window' }), ts: true, strip: false };
+    }
+  }
+}
+
+// --- Deleted tails over guarded claims ---
+// a `delete` past a claim behind the receiver's `?.` acts on the chain that `?.` ends: a nullish receiver
+// deletes nothing and answers `true`, while a claim yielding `undefined` on a present one (an empty list)
+// hands the next link a plain read that throws - whether that link is the operand, a call, or one more
+// member before a `?.` of the source's own. a claim with its own `?.(` short-circuits only itself, and
+// still deletes past it; a paren ends the chain, and past it a nullish receiver throws too
+const DELETED_CLAIM_TAIL_RECEIVERS = [
+  ['nullish', 'null'],
+  ['empty', '[]'],
+  ['value', '[{ j: { k: 1 }, k: 2, fn() { return 1; } }]'],
+];
+const DELETED_CLAIM_TAILS = [
+  ['plain', 'boxes?.at(-1).j.k'],
+  ['before-optional', 'boxes?.findLast(Boolean).j?.k'],
+  ['optional-call-claim', 'boxes?.toReversed?.()[0].k'],
+  ['call-operand', 'boxes?.at(-1).fn()'],
+  ['effect-receiver', '(log.push("boxes"), boxes)?.at(-1).j.k'],
+  ['call-receiver', '(() => boxes)()?.at(-1).j.k'],
+  ['computed-claim', 'boxes?.["findLast"](Boolean).j.k'],
+  ['sealed', '(boxes?.at(-1)).j.k'],
+];
+function * generateDeletedGuardedClaimTails() {
+  for (const [receiver, value] of DELETED_CLAIM_TAIL_RECEIVERS) for (const [shape, operand] of DELETED_CLAIM_TAILS) {
+    // the declared union keeps the claim live for every receiver: a bare `null` literal would fold it away
+    const body = `const boxes: { j?: { k?: number }; k?: number; fn?(): number }[] | null = ${ value }; try { const removed = delete ${ operand }; return String([removed, JSON.stringify(boxes)]); } catch (error) { return error.constructor.name; }`;
+    yield { ...snippet(`deleted-guarded-claim-tails/${ shape }/${ receiver }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -18470,4 +18629,536 @@ export function * generate() {
   yield * generateFoldedKeyEscapes();
   yield * generatePatternMemberEscapes();
   yield * generateRawStaticReadsOverHeldConstructors();
+  yield * generateNonNullOptionalChainLinks();
+  yield * generateRealmAliasProbes();
+  yield * generateIifeParameterSiblingStatics();
+  yield * generateNonNullStaticChainLinks();
+  yield * generateDeletedGuardedClaimTails();
+  yield * generateWindowValuedAliasProbes();
+  yield * generateWindowValuedAliasNavigations();
+  yield * generatePatternPartsEvaluationOrder();
+  yield * generateDeadDefaultWrites();
+  yield * generateProbeNavRootsAndTails();
+  yield * generateNestedLeafSourceOrder();
+  yield * generateLiteralContainerEffectKeys();
+  yield * generateClaimsBesideANestedClaim();
+  yield * generateSoleChainComputedTargets();
+  yield * generateWrappedMemberTargets();
+  yield * generateNestedRestLevelCaptures();
+  yield * generateGuardedRealmSelectionCaptures();
+  yield * generateReadAssignmentHopCaptures();
+  yield * generateForOfPassthroughTargets();
+}
+
+// --- Window-valued alias probes ---
+// an alias holding the environment probe's VALUE (`globalThis.window`, read through `self`, stored by a
+// later write or behind a sequence) is absent wherever that probe is: the optional link over it is the
+// source's own test, so off-window a delete through the realm hops above it deletes nothing and answers
+// `true`, and a read, a call or a `typeof` short-circuits; with a `window` slot the rig installs, the same
+// chains reach the realm's own members
+const WINDOW_VALUED_ALIASES = [
+  ['window', 'const a = globalThis.window;'],
+  ['self-window', 'const a = self.window;'],
+  ['deep-window', 'const a = globalThis.self.window;'],
+  ['later-write', 'let a; a = globalThis.window;'],
+  ['sequence-init', 'const a = (0, globalThis.window);'],
+];
+const WINDOW_VALUED_ALIAS_READS = [
+  ['delete-past-hop', '[delete a?.self.windowAliasHeld, typeof globalThis.windowAliasHeld]'],
+  ['delete-deeper', '[delete a?.globalThis.windowAliasHeldBox.k, JSON.stringify(globalThis.windowAliasHeldBox)]'],
+  ['call', 'a?.self.Array.from([1, 2]).length'],
+  ['typeof', 'typeof a?.self.Array'],
+];
+function * generateWindowValuedAliasProbes() {
+  for (const [aliasId, setup] of WINDOW_VALUED_ALIASES) for (const [readId, read] of WINDOW_VALUED_ALIAS_READS) {
+    const body = `${ setup } globalThis.windowAliasHeld = 1; globalThis.windowAliasHeldBox = { k: 1 }; try { return String(${ read }); } catch (error) { return error.constructor.name; } finally { delete globalThis.windowAliasHeld; delete globalThis.windowAliasHeldBox; }`;
+    for (const realm of ['off-window', 'window']) {
+      yield { ...snippet(`window-valued-alias-probes/${ aliasId }/${ readId }/${ realm }`, `(() => { ${ body } })()`, { rig: realm === 'window' }), strip: false };
+    }
+  }
+}
+
+// --- Window-valued alias navigations ---
+// the realm hops read off an alias holding the environment probe's value are self-references of that
+// value, so a navigation up them with optional links of its own short-circuits exactly where the alias
+// is absent: a read, a `typeof`, a `delete`, a sealed read, a construction, an instance claim and an
+// optional tail, off-window and through the `window` slot the rig installs
+const WINDOW_VALUED_ALIAS_NAVIGATIONS = [
+  ['read', 'a?.window?.self.aliasNavBox.k'],
+  ['typeof', 'typeof a?.window?.window?.self.aliasNavBox'],
+  ['delete', '[delete a?.window?.self?.aliasNavBox.k, JSON.stringify(globalThis.aliasNavBox)]'],
+  ['sealed', '(a?.window?.self).aliasNavBox.k'],
+  ['construct', 'new (a?.window?.self.Set)([1]).size'],
+  ['instance', 'a?.window?.self.aliasNavBox.list.at(-1)'],
+  ['optional-tail', 'a?.window?.self?.aliasNavBox?.k'],
+];
+function * generateWindowValuedAliasNavigations() {
+  for (const [aliasId, setup] of WINDOW_VALUED_ALIASES) for (const [readId, read] of WINDOW_VALUED_ALIAS_NAVIGATIONS) {
+    const body = `${ setup } globalThis.aliasNavBox = { k: 1, list: [1, 2] }; try { return String(${ read }); } catch (error) { return error.constructor.name; } finally { delete globalThis.aliasNavBox; }`;
+    for (const realm of ['off-window', 'window']) {
+      yield { ...snippet(`window-valued-alias-navigations/${ aliasId }/${ readId }/${ realm }`, `(() => { ${ body } })()`, { rig: realm === 'window' }), strip: false };
+    }
+  }
+}
+
+// --- Pattern parts evaluation order ---
+// A destructure host fills its pattern - computed keys, defaults, nested levels - after its value, and a
+// member target takes its key before the default it falls back to. Serving a static off the pattern moves
+// the parts: the value's prefix lands ahead of what is left of the host, a key moves into the extraction's
+// value, a parameter or a loop head re-hosts the pattern. A read or a write in a moved part keeps its place
+// in that order: stripped, a read typed off the write the source places last takes the other family's
+// helper, which the realm lacks
+const PATTERN_PART_SLOTS = [
+  ['key-read', '[(head = text.at(0), "of")]: first', 'read'],
+  ['unknown-key-read', '[head = text.at(0)]: first', 'read'],
+  ['default-read', 'first = (head = text.at(0))', 'read'],
+  ['nested-read', 'prototype: { [head = text.at(0)]: first }', 'read'],
+  ['key-write', '[(text = "k", "of")]: first', 'write'],
+  ['default-write', 'first = (text = "k")', 'write'],
+  ['nested-write', 'prototype: { [(text = "k", "at")]: first }', 'write'],
+];
+const PATTERN_PART_HOSTS = [
+  ['declaration', (pattern, value) => `const { from, ${ pattern } } = (${ value });`],
+  ['assignment', (pattern, value) => `let from, first; ({ from, ${ pattern } } = (${ value }));`],
+  ['parameter', (pattern, value) => `(function ({ from, ${ pattern } } = (${ value })) {})();`],
+  ['for-of', (pattern, value) => `for (const { from, ${ pattern } } of [(${ value })]);`],
+  ['for-of-assignment', (pattern, value) => `let from, first; for ({ from, ${ pattern } } of [(${ value })]);`],
+];
+const MEMBER_TARGET_DEFAULTS = [
+  ['default-read', 'let text = [1]; ({ a: slots[(text = "ab", "k")] = text.at(0) } = {}); return String(slots.k);'],
+  ['target-read', 'let text = "cd"; [slots[text.includes("c") ? "x" : "y"] = (text = [1])] = []; return Object.keys(slots).join();'],
+];
+// a read takes the write in the value's prefix, a write lands after it
+const PATTERN_PART_KINDS = {
+  read: { setup: 'let text = [1, 2], head;', prefix: 'text = "ab"', result: 'head' },
+  write: { setup: 'let text, head;', prefix: 'text = [3]', result: 'text.at(-1)' },
+};
+function * generatePatternPartsEvaluationOrder() {
+  for (const [slot, pattern, kind] of PATTERN_PART_SLOTS) for (const [host, build] of PATTERN_PART_HOSTS) {
+    const { setup, prefix, result } = PATTERN_PART_KINDS[kind];
+    const body = `try { ${ setup } ${ build(pattern, `${ prefix }, Array`) } return String(${ result }); } catch (error) { return error.constructor.name; }`;
+    yield { ...snippet(`pattern-parts-evaluation-order/${ slot }/${ host }`, `(() => { ${ body } })()`), strip: true };
+  }
+  for (const [shape, statements] of MEMBER_TARGET_DEFAULTS) {
+    const body = `const slots = {}; try { ${ statements } } catch (error) { return error.constructor.name; }`;
+    yield { ...snippet(`pattern-parts-evaluation-order/member-target/${ shape }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// --- Dead default writes ---
+// A default on a leaf pure serves as its ponyfill never runs - the import is never undefined, and the
+// rewrite drops the default - so a write in it reaches no read: a binding's, a member slot's or a
+// constructor alias's, whatever the leaf's spelling, and whether the read runs after the default or in a
+// function declared above it. Import parity sees a leg still counting the write apart from one that does not
+const DEAD_DEFAULT_WRITES = [
+  ['binding', 'let x = [1, 2];', "x = 'ab'", 'x.at(-1)'],
+  ['member', 'const o = { x: [1, 2] };', "o.x = 'ab'", 'o.x.at(-1)'],
+  ['constructor', 'let x = Array;', 'x = Map', 'typeof x.from + typeof x.groupBy'],
+];
+const DEAD_DEFAULT_LEAVES = [
+  ['declaration', write => `const { from = (${ write }, 0) } = Array; log.push(typeof from);`],
+  ['assignment', write => `let from; ({ from = (${ write }, 0) } = Array); log.push(typeof from);`],
+  ['member-target', write => `const box = {}; ({ from: box.f = (${ write }, 0) } = Array); log.push(typeof box.f);`],
+  ['global', write => `const { Map: M = (${ write }, 0) } = globalThis; log.push(typeof M);`],
+  ['rest', write => `const { from = (${ write }, 0), ...rest } = Array; log.push(typeof from, typeof rest);`],
+  ['function', write => `(() => { const { from = (${ write }, 0) } = Array; log.push(typeof from); })();`],
+];
+function * generateDeadDefaultWrites() {
+  for (const [write, setup, assign, read] of DEAD_DEFAULT_WRITES) for (const [leaf, build] of DEAD_DEFAULT_LEAVES) {
+    for (const order of ['after', 'closure']) {
+      const peek = order === 'closure' ? `const peek = () => ${ read };` : '';
+      const body = `try { ${ setup } ${ peek } ${ build(assign) } return String(${ order === 'closure' ? 'peek()' : read }); } catch (error) { return error.constructor.name; }`;
+      yield { ...snippet(`dead-default-writes/${ write }/${ leaf }/${ order }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
+// --- Probe navigation roots and tails ---
+// a probe navigation answers the same whatever roots it and whatever reads past its guard: a sequence
+// root runs its prefix once and first, a kept write keeps the realm hop it stores, a long tail keeps
+// every short-circuit it wrote, and the realm hops repeated past the probe test nothing of their own
+const PROBE_NAV_ROOTS_AND_TAILS = [
+  ['sequence-delete', '[delete (e++, globalThis.window)?.self.probeNavBox.k, e, JSON.stringify(globalThis.probeNavBox)]'],
+  ['sequence-sealed', '[((e++, globalThis.window)?.self).probeNavBox.k, e]'],
+  ['sequence-alias', '[(e++, a)?.self.probeNavBox.k, e]'],
+  ['sequence-alias-delete', '[delete (e++, a)?.self.probeNavBox, e, typeof globalThis.probeNavBox]'],
+  ['kept-write-deep', '[(v = globalThis.self.window)?.window?.self.Array.from([1, 2]).length, typeof v]'],
+  ['long-tail', 'globalThis.window?.self.probeNavBox?.inner?.k'],
+  ['repeated-window', 'globalThis.window?.window?.self.probeNavBox.k'],
+  ['repeated-window-sequence', '[(e++, globalThis.window)?.window?.self.probeNavBox.k, e]'],
+  ['repeated-window-call', 'f().window?.window?.self.probeNavBox.k'],
+];
+function * generateProbeNavRootsAndTails() {
+  const setup = 'let e = 0; let v; const a = globalThis.window; const f = () => globalThis;';
+  const box = '{ k: 1, inner: { k: 2 } }';
+  for (const [readId, read] of PROBE_NAV_ROOTS_AND_TAILS) {
+    const body = `${ setup } globalThis.probeNavBox = ${ box }; try { return String(${ read }); } catch (error) { return error.constructor.name; } finally { delete globalThis.probeNavBox; }`;
+    for (const realm of ['off-window', 'window']) {
+      yield { ...snippet(`probe-nav-roots-and-tails/${ readId }/${ realm }`, `(() => { ${ body } })()`, { rig: realm === 'window' }), strip: false };
+    }
+  }
+}
+
+// --- Nested leaf source order ---
+// A nested level whose leaf holds a claim beside other bindings reads that level in the order the source wrote
+// it, in every host the pattern stands in: the hop once, a binding written ahead of the claim before the claim,
+// a key effect before the read it keys, a default where the source evaluates it, a host claim ahead of the hop
+// once, and a hop keyed by an effect with that effect. The receiver arrives through a
+// parameter, so the claim stays alive over a value no transform types, and every read it serves is logged
+const NESTED_LEAF_ORDER_HOSTS = [
+  ['const', (pattern, use) => `const ${ pattern } = box; out = ${ use };`],
+  ['let', (pattern, use) => `let ${ pattern } = box; out = ${ use };`],
+  ['var', (pattern, use) => `var ${ pattern } = box; out = ${ use };`],
+  ['sibling-declarator', (pattern, use) => `const lead = log.push('lead'), ${ pattern } = box; out = ${ use };`],
+  ['unbraced-var', (pattern, use) => `if (log) var ${ pattern } = box; out = ${ use };`],
+  ['loop-head', (pattern, use) => `for (const ${ pattern } = box; ;) { out = ${ use }; break; }`],
+  ['catch', (pattern, use) => `try { throw box; } catch (${ pattern }) { out = ${ use }; }`],
+  ['assignment', (pattern, use) => `let q, at, k, inc; (${ pattern } = box); out = ${ use };`],
+  ['parenthesized-assignment', (pattern, use) => `let q, at, k, inc; ((${ pattern } = box)); out = ${ use };`],
+];
+const NESTED_LEAF_ORDER_PATTERNS = [
+  ['leading-sibling', '{ y: { other: { q }, at } }', '[q, at]'],
+  ['plain-sibling', '{ y: { k, at } }', '[k, at]'],
+  ['key-effect', '{ y: { other: { q }, [(log.push("key"), "at")]: at } }', '[q, at]'],
+  ['claim-default', '{ y: { other: { q }, at = "dflt" } }', '[q, at]'],
+  ['slot-default', '{ y: { other: { q }, at } = {} }', '[q, at]'],
+  ['split-trailing', '{ k, y: { other: { q }, at } }', '[k, q, at]'],
+  ['split-leading', '{ y: { other: { q }, at }, k }', '[k, q, at]'],
+  // in an unbraced `var` or a loop head no route of the other leg serves the nested claim beside an extracted
+  // host claim, so those hosts keep it native there
+  ['host-claim-ahead', '{ includes: inc, y: { other: { q }, at } }', '[typeof inc, q, at]', ['unbraced-var', 'loop-head']],
+  ['effect-key-hop', '{ [(log.push("key"), "y")]: { other: { q }, at } }', '[q, at]'],
+  ['two-leaf-claims', '{ y: { at, includes: inc } }', '[at, typeof inc]'],
+];
+function * generateNestedLeafSourceOrder() {
+  const receiver = 'function nloBox() { return { get k() { log.push("k"); return 0; },'
+    + ' get includes() { log.push("includes"); return Array.prototype.includes; }, get y() { log.push("y"); return {'
+    + ' get k() { log.push("leaf-k"); return 2; }, get other() { log.push("other"); return { q: 1 }; },'
+    + ' get at() { log.push("at"); return "own"; } }; } }; }';
+  for (const [hostId, host] of NESTED_LEAF_ORDER_HOSTS) {
+    for (const [patternId, pattern, use, skipHosts = []] of NESTED_LEAF_ORDER_PATTERNS) {
+      if (skipHosts.includes(hostId)) continue;
+      const bind = host(pattern, use);
+      yield { ...snippet(`nested-leaf-source-order/${ hostId }/${ patternId }`,
+        `(() => { ${ receiver } function read(box) { let out; ${ bind } return out; } return read(nloBox()); })()`), strip: false };
+    }
+  }
+}
+
+// --- Literal container effect keys ---
+// An object literal written as the destructure source pairs a nested leaf with the value its slot holds: beside
+// other declarators a claim keyed by an effect reads that value after the effect, and every claim of the leaf
+// binds, also in an unbraced `var`. A sole declarator reads it ahead of the effect in both emitters, an accepted
+// boundary. The slot's value is a parameter, its key effect rewrites the slot
+const LITERAL_CONTAINER_HOSTS = [
+  ['sibling-leading', (pattern, use) => `const lead = 1, ${ pattern } = { y: src }; out = ${ use };`],
+  ['sibling-trailing', (pattern, use) => `let ${ pattern } = { y: src }, tail = 2; out = ${ use };`],
+  ['var-sibling', (pattern, use) => `var lead = 1, ${ pattern } = { y: src }; out = ${ use };`],
+  ['unbraced-var-sibling', (pattern, use) => `if (log) var lead = 1, ${ pattern } = { y: src }; out = ${ use };`],
+];
+const LITERAL_CONTAINER_PATTERNS = [
+  ['plain-key', '{ y: { other: { q }, at: a } }', '[q, a]'],
+  ['one-key', '{ y: { other: { q }, [(touch(), "at")]: a } }', '[q, a]'],
+  ['two-keys', '{ y: { other: { q }, [(touch(), "at")]: a, [(touch(), "includes")]: b } }', '[q, a, b]'],
+  ['ctor-hop-sibling', '{ y: { length: { constructor: C }, [(touch(), "at")]: a } }', '[C === Number, a]'],
+];
+function * generateLiteralContainerEffectKeys() {
+  for (const [hostId, host] of LITERAL_CONTAINER_HOSTS) {
+    for (const [patternId, pattern, use] of LITERAL_CONTAINER_PATTERNS) {
+      const bind = host(pattern, use);
+      yield { ...snippet(`literal-container-effect-keys/${ hostId }/${ patternId }`,
+        '(() => { function read(src) { let out; function touch() { log.push("touch"); src.at = "after"; src.includes = "after"; }'
+        + ` ${ bind } return out; } return read({ other: { q: 1 }, length: 3, at: "before", includes: "before" }); })()`), strip: false };
+    }
+  }
+}
+
+// --- Claims beside a nested claim ---
+// A claim beside a nested level that claims too reads the one memo of a member or call receiver: the receiver is
+// read once and every claim dispatches off that read, in the order the source wrote them. An identifier receiver
+// reads twice for free and takes no memo. The receiver's reads are logged, and each extracted method runs on an
+// array of its own, so a claim left raw fails in the stripped realm
+const CLAIMS_BESIDE_NESTED_RECEIVERS = [
+  ['member', 'holder.page'],
+  ['this-member', 'this.page'],
+  ['call', 'load()'],
+  ['identifier', 'page'],
+];
+const CLAIMS_BESIDE_NESTED_PATTERNS = [
+  ['flat-then-nested', '{ at, data: { includes } }', '[at.call([1, 2], -1), includes.call([3], 3)]'],
+  [
+    'two-flats-then-nested',
+    '{ at, findLast, list: { flat } }',
+    '[at.call([1, 2], -1), findLast.call([4, 5], x => x < 5), flat.call([[6], [7]])]',
+  ],
+  ['nested-then-flat', '{ data: { includes }, at }', '[includes.call([3], 3), at.call([1, 2], -1)]'],
+  [
+    'flat-nested-flat',
+    '{ at, data: { includes }, findLast }',
+    '[at.call([1, 2], -1), includes.call([3], 3), findLast.call([4, 5], x => x < 5)]',
+  ],
+  [
+    'flat-two-nested',
+    '{ at, data: { includes }, list: { flat } }',
+    '[at.call([1, 2], -1), includes.call([3], 3), flat.call([[6], [7]])]',
+  ],
+  ['flat-then-defaulted-nested', '{ at, data: { includes = null } }', '[at.call([1, 2], -1), includes.call([3], 3)]'],
+  ['flat-then-nested-default-fires', '{ at, gone: { includes = "dflt" } }', '[at.call([1, 2], -1), includes]'],
+];
+function * generateClaimsBesideANestedClaim() {
+  const setup = 'const page = Object.assign([1, 2, 3], { data: [4, 5], list: [[6], [7]], gone: {} });'
+    + ' const holder = { get page() { log.push("page"); return page; } };'
+    + ' function load() { log.push("load"); return page; }';
+  for (const [receiverId, receiver] of CLAIMS_BESIDE_NESTED_RECEIVERS) {
+    for (const [patternId, pattern, use] of CLAIMS_BESIDE_NESTED_PATTERNS) {
+      yield { ...snippet(`claims-beside-a-nested-claim/${ receiverId }/${ patternId }`,
+        `(() => { ${ setup } function read() { const ${ pattern } = ${ receiver }; return ${ use }; } return read.call(holder); })()`),
+      strip: true };
+    }
+  }
+}
+
+// --- Computed member targets as the sole chain ---
+// A computed member target its pattern holds as the sole chain takes the ponyfill where its route keeps the
+// source order - an effect-keyed static, a realm hop off a constructor with or without a ponyfill of its own -
+// and the source, the key and the target's own key run in that order. Under a nested instance claim, whose
+// overwrite would read a getter hop after the target's key, and beside a sibling it keeps the native read, so
+// those rows run in the full environment only
+const SOLE_CHAIN_COMPUTED_TARGETS = [
+  [
+    'effect-keyed-static',
+    '({ [(log.push("key"), "from")]: box[(log.push("target"), "v")] } = (log.push("source"), Array));',
+    'box.v([1, 2]).length',
+    true,
+  ],
+  [
+    'realm-hop',
+    '({ Array: { [(log.push("key"), "of")]: box[(log.push("target"), "v")] } } = (log.push("source"), globalThis));',
+    'box.v(1, 2).length',
+    true,
+  ],
+  [
+    'realm-hop-ponyfilled-ctor',
+    '({ Map: { [(log.push("key"), "groupBy")]: box[(log.push("target"), "v")] } } = (log.push("source"), globalThis));',
+    'box.v([1, 2], x => x % 2).size',
+    true,
+  ],
+  [
+    'instance-under-a-getter-hop',
+    'const src = { get y() { log.push("y"); return [1, 2]; } }; ({ y: { at: box[(log.push("target"), "v")] } } = src);',
+    'box.v.call([1, 2], -1)',
+    false,
+  ],
+  ['beside-a-sibling', 'let o; ({ from: box[(log.push("target"), "v")], of: o } = Array);', '[typeof box.v, o(1).length]', false],
+  // ... and siblings an earlier claim extracted no longer count: what the statement still holds is the sole chain
+  [
+    'after-an-extracted-sibling',
+    'const o = {}; ({ values: o.v, entries: box[(log.push("target"), "v")] } = (log.push("source"), Object));',
+    '[typeof o.v, box.v({ a: 1 }).length]',
+    true,
+  ],
+];
+function * generateSoleChainComputedTargets() {
+  for (const [id, write, use, strip] of SOLE_CHAIN_COMPUTED_TARGETS) {
+    yield { ...snippet(`sole-chain-computed-targets/${ id }`, `(() => { const box = {}; ${ write } return ${ use }; })()`), strip };
+  }
+}
+
+// --- Member targets a TS assertion wraps whole ---
+// A member target a TS assertion wraps whole spells the slot inside it: a static, an instance claim and a nested
+// instance claim write the ponyfill there, the assertion kept around the write. the angle spelling takes every
+// path that writes into the slot, one row each
+const WRAPPED_MEMBER_TARGETS = [
+  ['cast-static', '({ from: (box.v as any) } = Array);', 'box.v([1, 2]).length'],
+  ['non-null-instance', '({ at: box.v! } = [1, 2]);', 'box.v.call([1, 2], -1)'],
+  ['cast-nested-instance', '({ y: { flat: (box.v as any) } } = { y: [[1], [2]] });', 'box.v.call([[1], [2]]).length'],
+  // an angle assertion under a pattern default is no row: babel's generator prints it unparenthesized
+  // wherever the plugin leaves the pattern as written (the usage-global leg), which no longer parses
+  ['angle-static', '({ from: <any>box.v } = Array);', 'box.v([1, 2]).length'],
+  ['angle-static-beside-rest', 'let r; ({ fromEntries: <any>box.v, ...r } = Object);', "box.v([['a', 1]]).a"],
+  ['angle-nested-rest', 'let r; ({ Array: { from: <any>box.v, ...r } } = globalThis);', 'box.v([1, 2, 3]).length'],
+  ['angle-beside-bound-constructor', 'let A; ({ Array: A, Array: { of: <any>box.v } } = globalThis);', 'box.v(1).length'],
+  ['angle-nested-instance', '({ y: { flat: <any>box.v } } = { y: [[1], [3]] });', 'box.v.call([[1], [3]]).length'],
+];
+function * generateWrappedMemberTargets() {
+  for (const [id, write, use] of WRAPPED_MEMBER_TARGETS) {
+    yield { ...snippet(`wrapped-member-targets/${ id }`, `(() => { const box: any = {}; ${ write } return ${ use }; })()`), strip: true, ts: true };
+  }
+}
+
+// --- Rest levels one level down an assignment ---
+// A rest level one level down extracts its claims through the hop capture: a member written into the copied
+// object is gathered by the rest as the source gathers it, a sibling with no static of its own is read once,
+// in the residual, a nullish level throws before any write, and a for-of head relocates into the body. the
+// sibling's getter is not enumerable: V8 12.4 (every Node 22) re-reads an enumerable EXCLUDED accessor
+// defined on `Object` on every execution, while a rest never copies a non-enumerable one
+const NESTED_REST_LEVEL_CAPTURES = [
+  [
+    'binding-beside-a-plain-sibling',
+    'let v, c, r; ({ Object: { values: v, zz1: c, ...r } } = globalThis);',
+    '[v({ a: 1 }).length, c, Object.keys(r).length]',
+  ],
+  [
+    'member-written-into-the-copied-object',
+    'let r; ({ Object: { entries: Object.zz2, ...r } } = globalThis); const seen = "zz2" in r; delete Object.zz2;',
+    'seen',
+  ],
+  [
+    'getter-sibling-read-once',
+    'let v, c, r; const log = []; '
+      + 'Object.defineProperty(Object, "zz3", { get() { log.push(1); return 2; }, configurable: true, enumerable: false }); '
+      + 'try { ({ Object: { fromEntries: v, zz3: c, ...r } } = globalThis); } finally { delete Object.zz3; }',
+    '[log.length, c, "zz3" in r, v([["k", 1]]).k]',
+  ],
+  [
+    'nullish-level-throws-before-the-write',
+    'let v = 0, r; const pick = () => 0; try { ({ Object: { groupBy: v, ...r } } = pick() && globalThis); } catch { v = -1; }',
+    'v',
+  ],
+  [
+    'member-beside-a-pattern-sibling',
+    'let a, r; ({ Object: { zz4: { a } = {}, hasOwn: box.h, ...r } } = globalThis);',
+    'box.h({ k: 1 }, "k")',
+  ],
+  [
+    'for-of-head-relocates',
+    'let r; for ({ Array: { of: box.o, ...r } } of [globalThis]);',
+    'box.o(1, 2).length',
+  ],
+];
+function * generateNestedRestLevelCaptures() {
+  for (const [id, write, use] of NESTED_REST_LEVEL_CAPTURES) {
+    yield { ...snippet(`nested-rest-level-captures/${ id }`, `(() => { const box = {}; ${ write } return ${ use }; })()`), strip: true };
+  }
+}
+
+// --- Nested statics under a guarded realm selection ---
+// A nested static read through a realm behind an `&&` guard keeps the init's one read: a falsy guard
+// throws at the hop before any binding, a stored selection keeps the realm itself, a hop default under the
+// guard reads the default's own slot, and an assignment whose value is read captures its hop beside a sibling
+const GUARDED_REALM_SELECTION_CAPTURES = [
+  [
+    'chain-guard-declaration',
+    'let w; const m = 1; const { Object: { hasOwn } } = w = m && globalThis;',
+    '[hasOwn({ k: 1 }, "k"), w === globalThis]',
+  ],
+  [
+    'chain-guard-falsy-throws-before-binding',
+    'let w, out = 0; const m = 0; try { const { Number: { isInteger } } = w = m && globalThis; out = isInteger; } catch { out = -1; }',
+    '[out, w]',
+  ],
+  [
+    'stored-selection',
+    'let stored; const flag = 1; const { Number: { isSafeInteger } } = (stored = flag && globalThis);',
+    '[isSafeInteger(2), stored === globalThis]',
+  ],
+  [
+    'rest-under-the-guard',
+    'const guard = 1; const { Array: { from, ...arrays } } = guard && globalThis;',
+    '[from([1, 2]).length, Object.keys(arrays).length]',
+  ],
+  [
+    'rest-under-a-falsy-guard-throws',
+    'let out = 0; const guard = ""; try { const { Array: { of, ...arrays } } = guard && globalThis; out = of; } catch { out = -1; }',
+    'out',
+  ],
+  [
+    'sibling-at-the-host-level',
+    'let w; const m = 1; const { Math: { trunc }, zz7: x } = w = m && globalThis;',
+    '[trunc(1.5), x, w === globalThis]',
+  ],
+  [
+    'member-target-in-a-discarded-assignment',
+    'let w; const m = 1; ({ String: { fromCodePoint: box.chars } } = w = m && globalThis);',
+    'box.chars(65)',
+  ],
+  [
+    'read-assignment-beside-a-sibling',
+    'let settle, y, r; const m = 1; r = ({ Promise: { allSettled: settle }, zz8: y } = m && globalThis);',
+    '[typeof settle, y, r === globalThis]',
+  ],
+  [
+    'hop-default-under-a-falsy-guard',
+    'let w; const m = 0; const { Array: { from } = { from: 7 } } = w = m && globalThis;',
+    '[from, w]',
+  ],
+  [
+    'instance-read-assignment-beside-a-sibling-hop',
+    'let at, label, r; const pair = { items: [1, 2], label: "x" }; r = ({ items: { at }, label } = pair);',
+    '[at.call([1, 2], -1), label, r === pair]',
+  ],
+];
+function * generateGuardedRealmSelectionCaptures() {
+  for (const [id, write, use] of GUARDED_REALM_SELECTION_CAPTURES) {
+    yield { ...snippet(`guarded-realm-selection-captures/${ id }`, `(() => { const box = {}; ${ write } return ${ use }; })()`), strip: true };
+  }
+}
+
+// --- Hop captures of an assignment whose value is read ---
+// The capture keeps the receiver's one read and yields it: a decided selection's live operand serves the
+// static, a hop a getter answers runs once beside a rest, key effects keep their source order on a user
+// root and behind a getter, and a falsy guard throws before the claim binds
+const READ_ASSIGNMENT_HOP_CAPTURES = [
+  [
+    'decided-selection-serves-the-static',
+    'let resolvers; const r = ({ C: { withResolvers: resolvers } } = typeof Symbol != "undefined" ? { C: Promise } : { C: Object });',
+    '[typeof resolvers, r.C === Promise]',
+  ],
+  [
+    'getter-hop-read-once-beside-a-rest',
+    'let count = 0, from, rest; const source = { get w() { count++; return Array; }, extra: 7 }; '
+      + 'const held = ({ w: { from }, ...rest } = source);',
+    '[count, typeof from, Object.keys(rest).join(), held === source]',
+  ],
+  [
+    'key-effects-in-order-on-a-user-root',
+    'const hits = []; const src = { Object, Array }; let bind, of; '
+      + '({ Object: { keys: { [(hits.push(1), "bind")]: bind } }, Array: { [(hits.push(2), "of")]: of } } = src);',
+    '[typeof bind, of(3).length, hits.join()]',
+  ],
+  [
+    'key-effects-in-order-behind-a-getter',
+    'const hits = []; const root = { Object, get Array() { hits.push("g"); return Array; } }; let bind, from; '
+      + '({ Object: { keys: { [(hits.push(1), "bind")]: bind } }, Array: { [(hits.push(2), "from")]: from } } = root);',
+    '[typeof bind, hits.join()]',
+  ],
+  [
+    'falsy-guard-throws-before-the-claim',
+    'let g = 0; try { ({ C: { groupBy: g } } = 0 && { C: Map }); } catch { g = -1; }',
+    'g',
+  ],
+];
+function * generateReadAssignmentHopCaptures() {
+  for (const [id, write, use] of READ_ASSIGNMENT_HOP_CAPTURES) {
+    yield { ...snippet(`read-assignment-hop-captures/${ id }`, `(() => { ${ write } return ${ use }; })()`), strip: true };
+  }
+}
+
+// --- For-of passthrough targets ---
+// a for-of head's static under an effectful key ahead of a key the mirror's literal reads natively - an
+// unclaimed one, or an instance claim, which a static literal passes through: the literal would read it
+// before the key's effect, so the head relocates whatever that slot's target - a member the extraction
+// canon admits, a computed one, one rooted in a call
+const FOR_OF_PASSTHROUGH_NESTINGS = {
+  flat: [pattern => pattern, init => init],
+  obj1: [pattern => `{ w: ${ pattern } }`, init => `{ w: ${ init } }`],
+  obj2: [pattern => `{ w: { v: ${ pattern } } }`, init => `{ w: { v: ${ init } } }`],
+  objInArr: [pattern => `[{ w: ${ pattern } }]`, init => `[{ w: ${ init } }]`],
+};
+const FOR_OF_PASSTHROUGH_TARGETS = { member: 'o.p', computed: 'o[k]', callRooted: 'g().p' };
+function * generateForOfPassthroughTargets() {
+  for (const [nestingId, [wrapPattern, wrapInit]] of Object.entries(FOR_OF_PASSTHROUGH_NESTINGS)) {
+    for (const [targetId, target] of Object.entries(FOR_OF_PASSTHROUGH_TARGETS)) {
+      for (const passthrough of ['length', 'name']) {
+        const head = wrapPattern(`{ [(hits.push("k"), "from")]: f, ${ passthrough }: ${ target } }`);
+        yield {
+          ...snippet(`for-of-passthrough-targets/${ nestingId }/${ targetId }/${ passthrough }`,
+            '(() => { const o = {}; const k = "p"; const hits = []; '
+            + `function g() { hits.push("g"); return o; } let f; for (${ head } of [${ wrapInit('Array') }]) break; `
+            + 'return [typeof f, o.p, hits.join()]; })()'),
+          strip: true,
+        };
+      }
+    }
+  }
 }

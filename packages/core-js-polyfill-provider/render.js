@@ -1,4 +1,10 @@
-import { isValidIdentifierName, markGeneratedMemoDeclarator, markRenderedStoredValue, unwrapRuntimeExpr } from './helpers/ast-patterns.js';
+import {
+  isValidIdentifierName,
+  markGeneratedMemoDeclarator,
+  markRenderedStoredValue,
+  noteRenderRetiredWrites,
+  unwrapRuntimeExpr,
+} from './helpers/ast-patterns.js';
 // the render canon's node factory - the one place emitted nodes take shape, in the
 // canonical ESTree dialect. unplugin inserts these nodes as is; the babel binding converts
 // them at the insertion boundary (its `internals/estree-to-babel.js`, total over exactly
@@ -150,13 +156,19 @@ export function varRequire(name, path) {
 
 // a deep clone for node REUSE (a receiver spliced into two slots must not share identity -
 // the walkers and the printer's loc pass mutate in place); loc/start/end survive the copy
-// so a cloned user node keeps its mapping
+// so a cloned user node keeps its mapping. a copy stands in for its original, so the writes the
+// original holds may leave the tree with it - noted for the lookups to check
 export function cloneNode(node) {
-  if (Array.isArray(node)) return node.map(item => cloneNode(item));
+  for (const item of Array.isArray(node) ? node : [node]) noteRenderRetiredWrites(item);
+  return copyNode(node);
+}
+
+function copyNode(node) {
+  if (Array.isArray(node)) return node.map(item => copyNode(item));
   if (!node || typeof node !== 'object') return node;
   const out = {};
   // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in node) out[key] = cloneNode(node[key]);
+  for (const key in node) out[key] = copyNode(node[key]);
   return out;
 }
 
@@ -348,6 +360,14 @@ export function composeNullGuardTest(checks, { embed = node => node } = {}) {
 // consults the mark), where an unmarked user conditional of the same spelling must decline
 export function renderShortCircuitGuard(test, alternate) {
   return markRenderedStoredValue(conditionalExpression(test, voidZero(), alternate));
+}
+
+// ... and its twin for a `delete` the chain continues into: a delete of a short-circuited chain is
+// `true` without evaluating any of it, anything else evaluates and deletes exactly as written. so the
+// whole operator rides the alternate - a `?.` re-hung off the guard's value instead takes a claim
+// that yields `undefined` for the short-circuit, and answers `true` where the source throws past it
+export function renderDeleteShortCircuitGuard(test, operand) {
+  return conditionalExpression(test, literal(true), unaryExpression('delete', operand));
 }
 
 // the synth value keeps its probe, each side of that probe's effects, and the source fallback.
