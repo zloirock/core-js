@@ -1,9 +1,8 @@
-// A user object the receiver walk resolves through its own keys is a mirror root exactly as a
-// pristine proxy global is: the effect-keyed pattern renders ONCE, off both ponyfills, on both legs.
-// Each negative declines that literal and leaves every leaf to whatever route serves it alone - a
-// slot behind a getter, a parameter root, a root rewritten before the read (where the literal would
-// hand back the initializer's statics over the user's own), a key naming no constructor, and a
-// CAPTURED assignment, whose value is the receiver a literal would replace.
+// a user object the receiver walk resolves through its own keys is a mirror root exactly as a pristine
+// proxy global is, under keys naming no constructor too: the effect-keyed pattern renders ONCE, off the
+// ponyfills. each negative declines that literal and leaves every leaf to the route serving it alone - a
+// slot behind a getter, a parameter root, a root rewritten before the read (the literal would hand back
+// the initializer's statics over the user's own), and a CAPTURED assignment, whose value is the receiver.
 let hits = 0;
 const src = { Object, Array };
 let bind, from;

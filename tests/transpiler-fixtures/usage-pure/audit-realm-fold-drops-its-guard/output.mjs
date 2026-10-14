@@ -13,8 +13,7 @@ export const guardedDeep = _self.name;
 export const guardedOverStore = (q = globalThis, _self).window?.name;
 export const guardedOverParenStore = (q = globalThis, _self).window?.name;
 
-// NEGATIVE: an opaque CALL root is undefinable by its own canon, so the guard the source wrote over
-// it stands - and the run under it is TERMINAL in the value that read consumes, so its probe hop
-// keeps its own slot over the landed ponyfill rather than folding into it
-export const guardedCallRoot = _self.window?.name;
+// a CALL root yielding the excluded root still yields the realm - the data subset carries `globalThis` - and
+// its run lands whole on the ponyfill, so its `window` hop below `self` is the realm itself and the guard folds
+export const guardedCallRoot = _self.name;
 export { q };

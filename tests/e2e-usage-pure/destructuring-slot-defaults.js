@@ -139,3 +139,14 @@ QUnit.test('slot defaults: a middle static off a reassignable name is served', a
   assert.deepEqual(from([1, 2]).toArray(), [1, 2]);
   assert.same(typeof name, 'string');
 });
+
+QUnit.test('slot defaults: a pattern write takes its default where the slot pairs undefined', assert => {
+  function read(flag) {
+    // eslint-disable-next-line no-useless-assignment -- the overwritten init is the value the write's default replaces
+    let list = [3, 4];
+    ({ a: list = 'ab' } = { a: flag ? [1] : undefined });
+    return list.at(-1);
+  }
+  assert.same(read(true), 1);
+  assert.same(read(false), 'b');
+});

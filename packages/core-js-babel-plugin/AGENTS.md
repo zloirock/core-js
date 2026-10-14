@@ -22,6 +22,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 - Clone through `rangePreservingTypes`. Babel cloning drops `start` / `end`; the wrapper restores them from `loc` for the provider's positional proofs.
 - Use the injector's scope bags for Babel 7 object maps and Babel 8 `referencesSet` / `uidsSet`.
 - Remove a pattern slot through `removePatternSlot`. Babel's `remove()` would also drop the binding an assignment-pattern slot only writes.
+- Clone a source slot a built write targets through `cloneWriteTarget`, which spells it as the render canon's writes are spelled at the `estree-to-babel` boundary.
 - Ask `resolveModuleFormat` with the filename and explicit parse goal. A declared script is evidence; Babel's default `module` goal is not.
 
 ## Validation

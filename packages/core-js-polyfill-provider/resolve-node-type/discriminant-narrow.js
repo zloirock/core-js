@@ -31,6 +31,12 @@ import {
   anyWriteOutrunsUse,
   bindingLoopAnchor,
   loopReExecRegionHasViolation,
+  violationNode,
+  writeRunsPastRanked,
+  alwaysEvaluatedSlotKey,
+  stillWrites,
+  declaratorInitRunsWithin,
+  sortedPrefixLength,
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isLoopStatement, nodeAlwaysHardExits } from './exit-analysis.js';
@@ -577,24 +583,78 @@ export function createDiscriminantNarrow({
     ]);
   }
 
-  // unwrap an ExpressionStatement sibling to its assignment path when it binds `targetName`.
-  // ObjectPattern destructure-assignment is only parseable as `({...} = R)` - the parens become an
-  // AST node in oxc-parser (ESTree preserves ParenthesizedExpression), unwrap so the
-  // AssignmentExpression is reachable; babel strips parens at parse, so the unwrap is a no-op there.
+  // the last write of `targetName` a statement runs every time it runs - one reached through the
+  // always-evaluated slots alone (`alwaysEvaluatedSlotKey`: `x = 1, y = 2;`, `const { a } = (x = 1, o);`,
+  // `({ a } = (x = 1, o));` alike), in evaluation order: an assignment after its value, a declarator
+  // after its initializer - any write of the name the scan records (`stillWrites`). a statement holding
+  // the use counts only the writes completed by `bound`, the use's start. the slot keys leading down to
+  // the write come back with it - `-1` for a single slot
+  function lastStatementLevelWrite(stmtNode, targetName, bound) {
+    let last = null;
+    const steps = [];
+    function visit(node) {
+      const key = alwaysEvaluatedSlotKey(node);
+      const slot = key ? node[key] : null;
+      if (Array.isArray(slot)) {
+        for (const [index, child] of slot.entries()) {
+          if (!child) continue;
+          steps.push(key, index);
+          visit(child);
+          steps.length -= 2;
+        }
+      } else if (slot) {
+        steps.push(key, -1);
+        visit(slot);
+        steps.length -= 2;
+      }
+      if ((bound === null || node.end <= bound) && stillWrites(node, targetName)) last = { node, steps: [...steps] };
+    }
+    visit(stmtNode);
+    return last;
+  }
+
+  // the sorted source starts of a binding's writes: they tell a statement holding none of them, which needs no
+  // walk, from one that does. null where a write has no position - a render's copy may stand anywhere. keyed
+  // on the write list, which a repair replaces whole
+  const writeStartsCache = new WeakMap();
+  function writeStartsOf(binding) {
+    const writes = binding.constantViolations;
+    if (!writes) return null;
+    if (!writeStartsCache.has(writes)) {
+      const starts = writes.map(write => violationNode(write)?.start);
+      writeStartsCache.set(writes, starts.every(start => typeof start === 'number') ? starts.sort((a, b) => a - b) : null);
+    }
+    return writeStartsCache.get(writes);
+  }
+
+  // does the statement `node` hold none of the binding's writes? read off its range, or off its expression's
+  // where a render planted the statement around a source expression
+  function holdsNoWrite(binding, node) {
+    const starts = writeStartsOf(binding);
+    const span = hasRange(node) ? node : node.type === 'ExpressionStatement' && hasRange(node.expression) ? node.expression : null;
+    if (!starts || !span) return false;
+    const lo = sortedPrefixLength(starts, start => start < span.start);
+    return lo === starts.length || starts[lo] > span.end;
+  }
+
+  // a statement's last statement-level write (above) when it re-binds `targetName` - a plain `=`, so a
+  // later compound, update or re-declaration leaves no value to follow. ObjectPattern
+  // destructure-assignment is only parseable as `({...} = R)` - the parens are an AST node in
+  // oxc-parser, one more always-evaluated slot on the way down.
   // the name alone is not the binding: the fall-through descent below enters a nested block, where a
   // same-named declaration shadows the one asked about (`if (ok) { let d = 'x'; d = f(d); } else throw 0;`)
   // - the assignment must resolve to THAT binding where it stands, the identity compare every guard lane
   // applies
-  function statementAssignmentPath(sibPath, targetName, binding) {
-    if (sibPath?.node?.type !== 'ExpressionStatement') return null;
-    let expr = sibPath.node.expression;
-    let exprPath = sibPath.get('expression');
-    while (expr?.type === 'ParenthesizedExpression') {
-      expr = expr.expression;
-      exprPath = exprPath.get('expression');
+  function statementAssignmentPath(sibPath, targetName, binding, bound = null) {
+    if (!sibPath?.node || (binding && holdsNoWrite(binding, sibPath.node))) return null;
+    const last = lastStatementLevelWrite(sibPath.node, targetName, bound);
+    if (!last || !assignmentBindsTarget(last.node, targetName, sibPath.scope)) return null;
+    let path = sibPath;
+    for (let i = 0; i < last.steps.length; i += 2) {
+      path = path.get(last.steps[i]);
+      if (last.steps[i + 1] >= 0) path = path[last.steps[i + 1]];
     }
-    if (!assignmentBindsTarget(expr, targetName, sibPath.scope)) return null;
-    return !binding || getScopeBinding({ scope: sibPath.scope, name: targetName, path: sibPath }) === binding ? exprPath : null;
+    return !binding || getScopeBinding({ scope: sibPath.scope, name: targetName, path: sibPath }) === binding ? path : null;
   }
 
   // a preceding IF whose one branch unconditionally HARD-exits (return / throw) is
@@ -613,10 +673,45 @@ export function createDiscriminantNarrow({
     return null;
   }
 
-  function scanStatementsForAssignment(stmtPaths, targetName, binding, depth) {
+  // does every statement of a list carry its source span, in source order? a statement the emitter built has
+  // none, so a write it holds cannot be placed by position (`statementsHoldingWrites`). one answer per list:
+  // a list the emitter changed comes back from the container cache as a new one
+  const positionedStatementLists = new WeakMap();
+  function statementsPositioned(stmtPaths) {
+    let positioned = positionedStatementLists.get(stmtPaths);
+    if (positioned === undefined) {
+      positioned = stmtPaths.every((each, at) => hasRange(each.node)
+        && (at === 0 || stmtPaths[at - 1].node.end <= each.node.start));
+      positionedStatementLists.set(stmtPaths, positioned);
+    }
+    return positioned;
+  }
+
+  // the indices below `end` of the statements spanning a write of `binding`, ascending: no other statement can
+  // hold the assignment the backward scan looks for, and reading every statement back from each use would cost a
+  // long list its length per use. null - read them all - where a write carries no position, or a statement list
+  // does not place it: one the emitter built, or a write in no statement's span
+  function statementsHoldingWrites(stmtPaths, end, binding) {
+    const starts = binding ? writeStartsOf(binding) : null;
+    if (!starts || !end || !statementsPositioned(stmtPaths)) return null;
+    const from = stmtPaths[0].node.start;
+    const to = stmtPaths[end - 1].node.end;
+    const holders = [];
+    for (const start of starts) {
+      if (start < from || start >= to) continue;
+      const low = sortedPrefixLength(stmtPaths, each => each.node.start <= start, 0, end) - 1;
+      if (start >= stmtPaths[low].node.end) return null;
+      // the starts ascend, so the statements holding them do too
+      if (holders.at(-1) !== low) holders.push(low);
+    }
+    return holders;
+  }
+
+  function scanStatementsForAssignment(stmtPaths, targetName, binding, depth, end = stmtPaths.length) {
     if (depth > MAX_DEPTH) return null;
-    for (let i = stmtPaths.length - 1; i >= 0; i--) {
-      const sib = stmtPaths[i];
+    const holders = statementsHoldingWrites(stmtPaths, end, binding);
+    for (let at = (holders?.length ?? end) - 1; at >= 0; at--) {
+      const sib = stmtPaths[holders ? holders[at] : at];
       const direct = statementAssignmentPath(sib, targetName, binding);
       if (direct) return direct;
       // a plain nested block runs whenever its enclosing statement list does. follow it through
@@ -639,10 +734,25 @@ export function createDiscriminantNarrow({
   // falls back to the declared type. without this, narrowing unsoundly picks the FIRST preceding
   // match and ignores conditional shadowing
   function findPrecedingSiblingAssignment({ parent, currentKey, targetName, binding, varPath }) {
-    const hit = scanStatementsForAssignment(cachedContainerPaths(parent, 'body').slice(0, currentKey), targetName, binding, 0);
-    if (!hit) return null;
-    if (hasReassignmentBetween(binding, hit.parentPath.node.end ?? hit.node.end, varPath.node?.start)) return null;
-    return hit;
+    const hit = scanStatementsForAssignment(cachedContainerPaths(parent, 'body'), targetName, binding, 0, currentKey);
+    return hit && !assignmentOverwrittenBefore(binding, hit, varPath) ? hit : null;
+  }
+
+  // the statement holding the use runs its statement-level writes completed ahead of the use first
+  // (`const { a } = (x = 1, o), b = x.at(0)`) - the same as a preceding sibling holding them would
+  function findOwnStatementAssignment({ current, targetName, binding, varPath }) {
+    if (!hasRange(varPath.node)) return null;
+    const hit = statementAssignmentPath(current, targetName, binding, varPath.node.start);
+    return hit && !assignmentOverwrittenBefore(binding, hit, varPath) ? hit : null;
+  }
+
+  // a write positioned between the assignment and the use - the binding's own initializer included
+  // (`declaratorInitRunsWithin`) - or one placed above the assignment that runs after it all the same
+  // (`writeRunsPastRanked`), replaces the value it installed
+  function assignmentOverwrittenBefore(binding, hit, varPath) {
+    return hasReassignmentBetween(binding, hit.node.end, varPath.node?.start)
+      || declaratorInitRunsWithin(binding, hit.node.end, varPath.node?.start)
+      || !!binding.constantViolations?.some(write => writeRunsPastRanked(write, hit.node, varPath));
   }
 
   // `for (x = R; ...) { use x; }` - the init slot's AssignmentExpression runs before ANY
@@ -689,7 +799,8 @@ export function createDiscriminantNarrow({
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
       if (isBlockChildPath(parent, current)) {
-        const hit = findPrecedingSiblingAssignment({ parent, currentKey: current.key, targetName, binding, varPath });
+        const hit = findOwnStatementAssignment({ current, targetName, binding, varPath })
+          ?? findPrecedingSiblingAssignment({ parent, currentKey: current.key, targetName, binding, varPath });
         if (hit) return hit;
       }
       const forInit = findForInitAssignment(parent, current.key, targetName, binding);

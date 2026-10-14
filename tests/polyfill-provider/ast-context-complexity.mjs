@@ -1,14 +1,15 @@
 // Context queries must stop at the boundary that answers them. Count syntax-slot
 // and parent reads after parsing, outside the parser's own traversal and scope setup.
 import {
-  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, walkAstNodes, wrapScopeBindingLookup, writeNeverRuns,
+  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, receiverSlotRead, walkAstNodes,
+  wrapScopeBindingLookup, writeNeverRuns,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { adapters, createChecker, findNode } from './harness.mjs';
 
-const { check, checkTruthy, finish } = createChecker('ast-context-complexity');
+const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
   // Re-emitting each write in a wide scope must not rebuild every sibling path per binding.
@@ -314,6 +315,22 @@ x.at(0);`);
     const inKey = { ...attached, start: key.start, end: key.end };
     keyHost.key = { type: 'ConditionalExpression', test: { type: 'Identifier', name: 'c' }, consequent: inKey, alternate: key };
     check(`${ parser.name }/attached into a method key/located`, writeNeverRuns({ write: inKey, usagePath: top, adapter }), true);
+    // ... while a read the analysis synthesizes off a receiver (`receiverSlotRead`) stands in no tree: it borrows the
+    // receiver's span, so it is located nowhere, and no ask walks the program again to miss it
+    walks = 0;
+    Object.defineProperty(program.node, 'indexWalkProbe', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        walks++;
+        return null;
+      },
+    });
+    const synthesized = [write.left, write.right, argument].map(receiver => receiverSlotRead(receiver, 'k'));
+    checkDeep(`${ parser.name }/synthesized reads/held by no owner`, synthesized.map(read => writeNeverRuns({ write: read, usagePath: top, adapter })),
+      [false, false, false]);
+    check(`${ parser.name }/synthesized reads/no walk of the program`, walks, 0);
+    delete program.node.indexWalkProbe;
   }
 }
 

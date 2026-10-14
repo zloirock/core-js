@@ -1,4 +1,5 @@
-// Exported source and held expose Array through the getter, requiring its global namespace.
+// Exported source and held expose Array through the getter, a constructor core-js does not polyfill:
+// its escape loads nothing beyond the `from` the pattern names.
 // Pure preserves the getter and leaves the nested static read native.
 let count = 0;
 const source = { get w() { count++; return Array; }, extra: 7 };

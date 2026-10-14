@@ -1,8 +1,8 @@
-// A residual-keeping destructure rebuilds a realm-read LEFT as a literal even where that left decides nothing
-// on its own (`Map`, its constructor entry excluded, while `groupBy` keeps its own): the literal, always
-// defined, then decides the selection - kept as written AHEAD of it where a right runs code, in a declaration
-// and in a for-of head element alike, given way to otherwise (the left's effects in place); a caller default
-// keeps the plain literal. A left the rebuild leaves possibly undefined, and a rebuilt RIGHT, keep the selection.
+// A residual-keeping destructure rebuilds a realm-read LEFT as a literal: a left whose constructor entry is
+// excluded (`Map`, while `groupBy` keeps its own) still decides its selection alone - the data subset carries
+// `Map` - its right dead and its own effects in place, in a declaration and in a for-of head element alike; a
+// caller default keeps the plain literal. A left the rebuild leaves possibly undefined, and a rebuilt RIGHT, keep
+// the selection.
 const { groupBy, deep: { a } } = globalThis.Map || (log(), Fallback);
 const { groupBy: grouped, deep: { b } } = (globalThis.Map ?? X) || Y;
 let byKey, c;

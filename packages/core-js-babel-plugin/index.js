@@ -10,6 +10,7 @@ import {
   claimDeleteOperand as isDeleteOperand,
   isDeleteTarget,
   isESMMarkerStatement,
+  isExportSpecifierLocal,
   isForXWriteTarget,
   isInUpdateOperand,
   isMemberWriteHost,
@@ -27,6 +28,7 @@ import {
   memberKeyName,
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
+  patternOrderReducer,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   nestedSequenceValueSpelling,
@@ -47,16 +49,20 @@ import {
   moduleFormatReducer,
   keptNavChainEndPath,
   memberChainEndPath,
+  deleteOverOpenContinuation,
   peelParenAndTSSlotPath,
   peelSkippableWrapperPath,
   peelTransparentExpr,
   subtreeContainsNode,
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
   usableAliasInfo,
   isMemberAccessNode,
+  spelledWriteSlot,
   POSSIBLE_GLOBAL_OBJECTS,
   nodePositionKey,
+  propBindingIdentifier,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   ownEmittedLogicalPatch,
@@ -72,7 +78,7 @@ import {
   mutationShapesReducer,
   settleCensusWrites,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { isSymbolIteratorPatternClaim } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   minifierSequenceReducer,
   planMinifierSequenceSplit,
@@ -94,6 +100,7 @@ import {
   renderCapturedReceiver,
   renderCtorIdentityNarrow,
   renderGuardedChainTail,
+  renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
@@ -150,6 +157,7 @@ import {
   resolveKey as sharedResolveKey,
   globalProxyMemberName,
   realmSelectionCollapseOperand,
+  writtenRunKeptProbeStore,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
@@ -244,12 +252,13 @@ export default function plugin(api, options) {
     // a GUARDED alias registration (refused flow-trust) must not feed the type channel: its
     // hint would narrow member types over a flow the registration explicitly refused to trust
     // `useStart` (the use-site node's start) anchors the injector's name-keyed view
-    // positionally: a USER-named body-extract record serves only inside its hosting scope span
-    getPolyfillBindingEntry(scope, name, useStart = null) {
-      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart))?.entry ?? null;
+    // positionally: a USER-named body-extract record serves only inside its hosting scope span,
+    // and `useBinding` (the binding the use reads) to that binding alone
+    getPolyfillBindingEntry(scope, name, useStart = null, useBinding = null) {
+      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart, useBinding))?.entry ?? null;
     },
-    getPolyfillBindingHint(scope, name, useStart = null) {
-      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart))?.hint ?? null;
+    getPolyfillBindingHint(scope, name, useStart = null, useBinding = null) {
+      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart, useBinding))?.hint ?? null;
     },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
     // a declaration the plugin's own render inserted is in the AST but not in babel's scope; without
@@ -285,6 +294,7 @@ export default function plugin(api, options) {
     isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
     // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
     isEscapedCtor: (name, heldInSlot) => escapedCtorNames?.has(name, heldInSlot) === true,
+    readsUnnamedStatic: name => escapedCtorNames?.readsUnnamedStatic(name) === true,
     astPredicates: {
       isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
       // babel's own `t.is*({ callee: node })` matchers are strict-identity, which the shared answer
@@ -302,7 +312,6 @@ export default function plugin(api, options) {
     isEntryNeeded,
     isEntryAvailable,
     isEntryCarried,
-    isEntryGuaranteed,
     mode,
     packages,
     pkg,
@@ -429,8 +438,8 @@ export default function plugin(api, options) {
     isOptedOut: node => !!currentIsDisabled?.(node),
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`)
     resolvePure,
-    isEntryGuaranteed,
     isEntryCarried,
+    isEntryAvailable,
     getMutatedStatics: () => mutatedStatics,
     getWrittenContainerSlots: () => writtenContainerSlots,
     getContainerSlotIndex: () => containerSlotIndex,
@@ -775,6 +784,7 @@ export default function plugin(api, options) {
         if (result?.kind !== 'instance') return null;
         return {
           innerCallee: calleeNode,
+          innerCalleePath: callee,
           innerArgs: current.node.arguments,
           innerEntry: result.entry,
           innerHintName: result.hintName,
@@ -1206,9 +1216,12 @@ export default function plugin(api, options) {
             // hosts no statement for the shared plan's extraction, so its static is served by the
             // mirror of the iterated element or by nothing at all. the emitter's narrow entry asks
             // exactly that and returns - the routes below own a binding value, never a pattern
-            if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
-              && !isMemberAccessNode(unwrapRuntimeExpr(path.node.value))
-              && !(isSymbolIteratorPatternProp(path.node) && isSourcedSymbolIteratorMeta(meta))) {
+            // a binding the source parenthesizes is a binding too: the node dialect keeps its paren as a node;
+            // a slot the source spells (a member, an asserted binding) is written as spelled
+            if (!propBindingIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
+              && !spelledWriteSlot(path.node.value)
+              && !isSymbolIteratorPatternClaim(path.node,
+                isSourcedSymbolIteratorMeta(meta) ? SYMBOL_ITERATOR_PURE_RESULT.entry : null)) {
               return;
             }
             // ConditionalExpression / LogicalExpression init - resolver may pick a branch
@@ -1364,30 +1377,38 @@ export default function plugin(api, options) {
             receiverPath.replaceWith(t.cloneNode(fallbackId()));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
+            // the guard takes the chain the source `?.` short-circuits: a `!` between two links ends
+            // nothing and is stepped over, as the chain normalizer steps it, while a paren seals - the
+            // read past it is the source's own throw on the short-circuit
             let tip = path;
-            for (;;) {
-              const par = tip.parentPath;
-              if ((par?.isMemberExpression() || par?.isOptionalMemberExpression()) && par.node.object === tip.node) {
+            while (!isWrappedInParens(tip)) {
+              const slot = peelParenAndTSSlotPath(tip, TS_EXPR_WRAPPERS);
+              const par = slot.parentPath;
+              if ((par?.isMemberExpression() || par?.isOptionalMemberExpression()) && par.node.object === slot.node) {
                 tip = par;
                 continue;
               }
-              if ((par?.isCallExpression() || par?.isOptionalCallExpression()) && par.node.callee === tip.node) {
+              if ((par?.isCallExpression() || par?.isOptionalCallExpression()) && par.node.callee === slot.node) {
                 tip = par;
                 continue;
               }
               break;
             }
-            const guarded = estreeToBabel(renderShortCircuitGuard(
-              nullFirstGuardTest(navGuardTestNode(guardTest, path, null, null, { detached }),
-                { embed: hostSlot }),
-              hostSlot(tip.node)));
+            const test = nullFirstGuardTest(navGuardTestNode(guardTest, path, null, null, { detached }),
+              { embed: hostSlot });
+            // ... and a `delete` that chain runs on into takes its whole act into the guard: absorbed
+            // into the alternate the member it names is deleted from nothing
+            const deleteHost = deleteOverOpenContinuation(tip.node, tip.parentPath);
+            const guarded = estreeToBabel(deleteHost
+              ? renderDeleteShortCircuitGuard(test, hostSlot(deleteHost.node.argument))
+              : renderShortCircuitGuard(test, hostSlot(tip.node)));
             // effects the swap would have carried ride AHEAD of the guard: the source runs them
             // before the probe read, and the guard render has no slot for them inside its test.
             // an effect standing INSIDE the guard object is not one of those - the test evaluates
             // that object, so re-emitting it here ran it twice
             const guardSe = allEffects.filter(effect => !guardAssigns.includes(effect)
               && !subtreeContainsNode(guardTest, effect));
-            tip.replaceWith(guardSe.length ? withSideEffects(guarded, guardSe) : guarded);
+            (deleteHost ?? tip).replaceWith(guardSe.length ? withSideEffects(guarded, guardSe) : guarded);
           }
           if (guardAssigns.length === 1 && allEffects.length === 1
             && !staticMayEraseReceiver(path.node, resolveBuiltIn,
@@ -1704,6 +1725,27 @@ export default function plugin(api, options) {
           if (kind !== 'instance' && !inheritedStatic && path.node.object && !path.node.optional && path.scope
             && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })
             && !aliasHeldClaimProbe(path.node, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
+          // a hop of a run WRITTEN through a kept store of the environment probe lands on that store
+          // instead of the ponyfill, the hops above it dropping: the swap would perform the write on
+          // the realm where the source throws. copies, as the swap's own effect slots take - this claim
+          // subsumed the receiver's own claims, which fire on the fresh nodes.
+          const writtenStore = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName) && isMemberAccessNode(path.node)
+            && path.scope ? writtenRunKeptProbeStore(path, {
+              resolvePure: m => resolvePure(m, path),
+              aliasCtx: { scope: path.scope, adapter, path },
+              unwrap: unwrapRuntimeExpr,
+            }) : null;
+          // ... and where an effect runs PAST the store (a hop key's), the hops stay as the source spells
+          // them - only the store's own claims are left to fire
+          if (writtenStore) {
+            const effects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
+              meta.chainAssignInsertAt ?? meta.receiverEffectCount) ?? [];
+            if (effects.at(-1) === writtenStore) {
+              const landed = effects.map(effect => t.cloneWithoutRetiring(effect));
+              proxyHopSwapSlotPath(path).replaceWith(landed.length > 1 ? t.sequenceExpression(landed) : landed[0]);
+            } else synthSwap.refreshKeptStore(path, writtenStore);
+            return;
+          }
           const id = injectPureImport(entry, hintName);
           // A static replacement consumes the member spine, including comments between
           // its hops. The injected leaf carries those attachments into the guarded form.
@@ -1761,7 +1803,7 @@ export default function plugin(api, options) {
               // dropped when the inner-chain rewrite replaced the parent expression with a
               // conditional. SequenceExpression wrap preserves the SE in source order
               replaceInstanceChainCombined(path, id, { ...innerChain, innerId, sideEffects: meta.sideEffects,
-                outerReturnType: captureInstanceCallType(path)?.type });
+                outerReturnType: captureInstanceCallType(path)?.type, skipOptional: skipPolyfillableOptional });
               return;
             }
             // capture pre-mutation Type object for the parent CallExpression and re-attach
@@ -2109,6 +2151,7 @@ export default function plugin(api, options) {
             restSentinelNamesReducer(),
             proxyWriteOriginsReducer(),
             nestedTSRuntimeDeclarationsReducer(),
+            patternOrderReducer(),
           ] : [],
         ]);
         nestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
@@ -2325,27 +2368,22 @@ export default function plugin(api, options) {
         }
       }
 
-      // --- deferred side effects: splice into body, re-traverse for polyfills ---
-
-      // descending `index` so later splices don't shift earlier ones in the same body;
-      // descending `seq` breaks ties deterministically (later-generated first)
-      function batchOrder(a, b) {
-        return b.index - a.index || b.seq - a.seq;
-      }
-
       // augment a visitor set with the unconditional proxy-hop trigger: an anchored plan must
       // fire even when NO leaf resolves (`{ Map: { customY } } = globalThis` - the point is
       // the re-anchored residual), so leaf-driven dispatch alone cannot cover it. lives in
       // the MAIN traversal - the dedicated normalize pre-pass traverse is retired - AND in the
-      // Program:exit drains (deferred-SE / helper bodies), whose cloned subtrees the main pass
-      // never saw; without it a deferred host keeps its raw hop while the plain form re-anchors.
+      // Program:exit re-walks (helper bodies, retained loop headers), whose cloned subtrees the main
+      // pass never saw; without it such a host keeps its raw hop while the plain form re-anchors.
       // the flatten is a usage-pure receiver rewrite, so gate HERE like `withCatchExtractor` -
       // every caller routes through this single point and usage-global stays untouched
       function withProxyHopTrigger(visitors) {
         if (!isPure) return visitors;
         return mergeVisitors(visitors, {
           'VariableDeclarator|AssignmentExpression': {
-            enter(path) { destructureEmit.tryFlattenProxyHopHost(path, true); },
+            enter(path) {
+              destructureEmit.noteOwnedComments(path);
+              destructureEmit.tryFlattenProxyHopHost(path, true);
+            },
             // probed-anchor guard retypes land at the HOST's exit: every per-prop channel of
             // the pattern has dispatched by then (the traversal-time resolvable spelling never
             // leaks), and a sibling plugin's later lowering (preset-env destructuring in a
@@ -2364,11 +2402,11 @@ export default function plugin(api, options) {
 
       // augment a visitor set with the CatchClause extractor so a catch binding still gets its
       // destructure-derived instance polyfill in the contexts the main traversal doesn't reach:
-      // a deferred SE-prefix (`(g(()=>{try{}catch({at}){at()}}),Array)`) and sibling-injected
-      // helper bodies. `destructureEmit` is read lazily so the per-file emitter is always current.
+      // sibling-injected helper bodies and retained loop headers. `destructureEmit` is read lazily
+      // so the per-file emitter is always current.
       // catch extraction is a usage-pure-only body-extract rewrite; usage-global only adds
       // side-effect imports and must NOT restructure a catch param, so gate HERE - this is the
-      // single point every caller (deferred-SE drain, helper-body re-traversal) routes through,
+      // single point every caller (helper-body re-traversal, retained-header re-walk) routes through,
       // so none can attach it in usage-global. without the gate, a sibling-injected helper catch
       // (`catch ({ at, ...rest })`) reachable from reTraverseHelperBodies gets needlessly rewritten
       function withCatchExtractor(visitors) {
@@ -2381,57 +2419,13 @@ export default function plugin(api, options) {
         };
       }
 
-      // every pass that walks source-shaped nodes - the main pre-traverse, the deferred-SE drain
-      // and the retained-header re-walk - needs the SAME augmented set. compose it once instead of
-      // rebuilding the merged visitor object per drain batch
+      // every pass that walks source-shaped nodes - the main pre-traverse, which also visits the
+      // side effects a destructure lift plants ahead of its host, and the retained-header re-walk -
+      // needs the SAME augmented set. compose it once instead of rebuilding the merged visitor object
       const usageWalkVisitors = usageVisitors ? withProxyHopTrigger(withCatchExtractor(usageVisitors)) : null;
 
-      // re-traversing an inserted SE can itself trigger `deferSideEffect` (nested destructuring
-      // inside the lifted SE, e.g. `const { of } = (innerCall(), Array)` in an arrow body).
-      // loop until the queue stays empty so nothing is silently dropped; termination is
-      // guaranteed by bounded AST depth - each iteration processes a deeper level
-      function processDeferredSideEffects(path) {
-        // postHook nulls `destructureEmit`; subsequent unexpected callers (sibling plugin
-        // re-entering programExit, multi-file batch where preTraverse early-returned
-        // before initFile re-allocated the emitter) would otherwise destructure-crash on null
-        if (!destructureEmit) return;
-        const { deferredSideEffects } = destructureEmit;
-        while (deferredSideEffects.length) {
-          const batch = deferredSideEffects.slice().sort(batchOrder);
-          deferredSideEffects.length = 0;
-          const inserted = new Set();
-          for (const { body, index, anchor, anchorPrev, node } of batch) {
-            // re-resolve the slot through the anchored statements: a mid-traversal body
-            // unshift (`var _ref;` / sentinel hoists) leaves the recorded index stale.
-            // the PRECEDING statement leads (the slot's own host may have been replaced
-            // by its rebuild), the slot statement covers slot-0 records, the recorded
-            // index stays as the last resort
-            const prevAt = anchorPrev ? body.indexOf(anchorPrev) : -1;
-            const anchorAt = prevAt < 0 && anchor ? body.indexOf(anchor) : -1;
-            const at = prevAt >= 0 ? prevAt + 1
-              : anchorAt >= 0 ? anchorAt
-                : Math.min(index, body.length);
-            body.splice(at, 0, node);
-            inserted.add(node);
-          }
-          // deferred SE is `cloneDeep` of user-written init prefix - the cloned nodes
-          // weren't visited by main traversal, so walking with full `usageVisitors` (incl.
-          // walkAnnotations) is correct. `helperVisitors` (walkAnnotations=false) targets
-          // sibling-plugin-injected helper bodies (already TS-stripped), wrong contract
-          // here. usage-pure case: usageVisitors === helperVisitors so behaviour identical
-          if (!usageWalkVisitors) continue;
-          path.traverse({
-            ExpressionStatement(p) {
-              if (!inserted.delete(p.node)) return;
-              p.traverse(usageWalkVisitors);
-              if (!inserted.size) p.stop();
-            },
-          });
-        }
-      }
-
       // a `for` header is the one destructure host with no statement slot: its init is RETAINED
-      // in the loop header instead of being lifted, so the drain above never sees it. every
+      // in the loop header instead of being lifted ahead of the host and visited there. every
       // emitter that collapses a receiver plants RAW clones of the harvested side effects -
       // copies taken before the main traversal reached their source - and relies on the
       // substrate re-visiting them, which only happens where the host lifts. walk the recorded
@@ -2482,10 +2476,7 @@ export default function plugin(api, options) {
           return path.traverse(visitors);
         }
         withTraversalCaches(!isPure, isPure && pathsKeepParent ? () => withVarScopeOwners(walk) : walk);
-        processDeferredSideEffects(path);
         destructureEmit.pruneEmptiedHostDeclarators();
-        // multi-decl split canon AFTER the SE drain - deferred indices were captured
-        // against the pre-split body
         destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();
         destructureEmit.flushForInitCarries();
@@ -2496,6 +2487,7 @@ export default function plugin(api, options) {
         // header) has planted its SE clones by now, and BEFORE the flush so the walk's own
         // imports still make this batch
         rewalkRetainedForInits();
+        destructureEmit.rehomeOwnedComments();
         // emit visitor-collected imports BEFORE synth-swap apply: each flush unshift's
         // at program top, so imports added between flushes land ABOVE the previous batch.
         // keeps synth-swap imports on top - the two-phase emission ordering existing
@@ -2512,7 +2504,7 @@ export default function plugin(api, options) {
         foldDeadSelections(path);
         injector?.flush();
         injector?.localizeVarlessRefs();
-        // snapshot AFTER flush + deferred SE so programExit's reTraverseHelperBodies skips
+        // snapshot AFTER flush so programExit's reTraverseHelperBodies skips
         // already-traversed nodes (our flushed imports, lifted SE statements) and only
         // visits sibling-plugin-injected helper bodies (class transforms, destructuring,
         // etc.) that were spliced after our pre-pass. snapshotting before flush would
@@ -2673,6 +2665,7 @@ export default function plugin(api, options) {
             // `function f() { enum Map; ... }` shadowing); without it the walk anchors at the
             // Program scope and misses nested TS-runtime bindings
             if (adapter.hasBinding({ scope: idPath.scope, name: idPath.node.name, path: idPath })) return;
+            if (isExportSpecifierLocal(idPath)) return;
             // skip a global at a write position - UpdateExpression operand (`Map++`), for-of /
             // for-in head bare-Identifier LHS (`for (Map of arr)`), or assignment LHS (`Map = x`,
             // `Map ||= x`). for usage-pure a frozen import binding cannot occupy that slot, so this is
@@ -2722,10 +2715,6 @@ export default function plugin(api, options) {
         // user explicitly suppressed. exit clean so no polyfill leaks into a disabled file
         if (skipFile) return;
         reTraverseHelperBodies(path);
-        // helper-visitor re-traversal may itself queue SEs (nested destructuring inside a
-        // helper body). drain before synth-swap so the lifted SE statements participate in
-        // the same body-index ordering as the primary pass
-        processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.pruneEmptiedHostDeclarators();
         destructureEmit.prepareSplitLiftedPrefixes();
@@ -2736,6 +2725,7 @@ export default function plugin(api, options) {
         destructureEmit.unexportSentinelDeclarations(path);
         destructureEmit.joinBodylessVarBlocks(path);
         rewalkRetainedForInits();
+        destructureEmit.rehomeOwnedComments();
         postSweepIntroduced(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via
         // node-identity WeakMap regardless of where sibling plugins (transform-parameters

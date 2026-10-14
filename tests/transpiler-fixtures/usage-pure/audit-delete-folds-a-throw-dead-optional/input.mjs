@@ -1,10 +1,8 @@
-// a `delete` over a navigation whose only `?.` reads off a base that THROWS when absent - a plain
-// realm hop over a call yielding the environment probe - has no short-circuit to reproduce, so the
-// run folds whole onto the ponyfill. a guard rendered there would test a value the source never
-// tested and hand `delete` a conditional, which deletes nothing. two negatives pin the boundary: a
-// call root with a proven-defined yield leaves the hop below the `?.` nullish rather than throwing,
-// and a `?.` standing on the call value itself guards the probe directly - both keep their guard
-// (one global per row: a row deleting a realm SLOT deopts that name for the whole file)
+// A `delete` whose only `?.` reads off a hop that throws when the probe is absent (a realm hop over a
+// call yielding `window`) has no short-circuit to keep, so the run folds whole onto the ponyfill. Two
+// negatives keep their guard: a call yielding the realm, whose `window` hop may be nullish, and a `?.`
+// on the call value, which tests the probe directly. One global per row: deleting a realm slot holds
+// that name native for the whole file.
 const dw = () => globalThis.window;
 const dh = () => globalThis;
 let key;

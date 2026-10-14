@@ -49,6 +49,31 @@ for (const parser of adapters) for (const depth of [8, 64, 128, 256]) {
   checkTruthy(`${ label }/handler shares the index`, counter.reads > 0 && counter.reads <= 32 * paths.length, `${ counter.reads } edge reads`);
 }
 
+// the build serving every global and static it is asked for
+function servedEverywhere(meta) {
+  return meta.kind === 'global' ? { kind: 'global', entry: 'x', hintName: meta.name }
+    : { kind: 'static', entry: 'x/y', hintName: `${ meta.object }$${ meta.key }` };
+}
+
+// A static read off the end of such a run, every hop backed: a member over an unresolved receiver peels the hops
+// below it to the binding a guard tests (`realmHopRunBase`), and a member whose receiver resolves asks nothing -
+// asked of every member, the peel walked every hop below each of them
+for (const parser of adapters) for (const depth of [64, 128, 256]) {
+  const program = parser.parseAndScope(`globalThis${ '.self'.repeat(depth) }.Array.from([1]);`);
+  const paths = parser.collectPaths(program, 'MemberExpression');
+  const counter = countReads(paths.map(path => path.node), 'object');
+  let claims = 0;
+  const core = createUsageHandlerCore({
+    adapter: detectionAdapter(parser), method: 'usage-global', resolvePure: servedEverywhere, onUsage() { claims++; },
+  });
+  withTraversalCaches(true, () => {
+    for (const path of paths) core.emitMemberUsage(path);
+  });
+  const label = `${ parser.name }/served run/${ depth }`;
+  check(`${ label }/all live members claim`, claims, paths.length);
+  checkTruthy(`${ label }/linear hop peels`, counter.reads > 0 && counter.reads <= 32 * paths.length, `${ counter.reads } edge reads`);
+}
+
 for (const parser of adapters) {
   const adapter = detectionAdapter(parser);
   const program = parser.parseAndScope('globalThis.self.window.Array; function shadow(globalThis) {}');
@@ -149,7 +174,7 @@ for (const parser of adapters) for (const depth of [8, 16]) for (const [shape, l
     ${ levels }\na${ depth }.resolve;\na1.resolve;`);
   const [last, first] = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'resolve');
   // a build guaranteeing every entry, so the tests decide
-  const adapter = detectionAdapter(parser, 'usage-pure', { isEntryGuaranteed: () => true });
+  const adapter = detectionAdapter(parser, 'usage-pure', { isEntryAvailable: () => true });
   const counter = countLookups(adapter);
   const label = `${ parser.name }/decided ${ shape }/${ depth }`;
   check(`${ label }/the first level decides`,
@@ -347,7 +372,7 @@ for (const parser of adapters) for (const depth of [16, 32]) {
     const selections = parser.collectPaths(program, 'LogicalExpression');
     const [root] = selections;
     const counter = countReads(selections.map(path => path.node), 'left');
-    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryGuaranteed: () => true });
+    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryAvailable: () => true });
     const branches = flattenFallbackBranches({ node: root.node, key: 'groupBy', scope: root.scope, adapter, path: root });
     const label = `${ parser.name }/served selection/branches/${ depth }`;
     checkDeep(`${ label }/the leftmost read alone`, branches.map(branch => branch.object), ['Map']);
@@ -362,7 +387,7 @@ for (const parser of adapters) for (const depth of [16, 32]) {
     const program = parser.parseAndScope(`const { groupBy, deep: { a } } = ${ chain } || (log(), F);`);
     const leafPatternPath = parser.pickPath(program, 'ObjectPattern', path => path.parentPath.node.type === 'VariableDeclarator');
     const counter = countReads(parser.collectPaths(program, 'LogicalExpression').map(path => path.node), 'left');
-    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryGuaranteed: () => true });
+    const adapter = detectionAdapter(parser, 'usage-pure', { isEntryAvailable: () => true });
     const plan = buildNestedParamSynthPlan({
       leafPatternPath,
       adapter,
@@ -377,6 +402,23 @@ for (const parser of adapters) for (const depth of [16, 32]) {
     check(`${ label }/every right gives way`, plan?.targets?.[0]?.deadFallbacks?.length, depth);
     checkTruthy(`${ label }/linear left reads`, counter.reads <= 6 * depth, `${ counter.reads } reads`);
   }
+}
+
+// ... and a chain whose every right a visit reads nothing in - a name no polyfillable global goes by, a plain
+// literal: a decision there could only skip what usage-global visits to no effect, so no level is asked
+for (const parser of adapters) for (const depth of [16, 32]) {
+  const locals = Array.from({ length: depth }, (unused, k) => `var p${ k } = [${ k }];`).join('\n');
+  const chain = Array.from({ length: depth }, (unused, k) => `p${ k }`).join(' || ');
+  const program = parser.parseAndScope(`${ locals }\nuse(${ chain } || 0);`);
+  const selections = parser.collectPaths(program, 'LogicalExpression');
+  const counter = countReads(selections.map(path => path.node), 'left');
+  const core = createUsageHandlerCore({
+    adapter: detectionAdapter(parser), method: 'usage-global', onUsage() { /* claims are not counted */ },
+  });
+  const dead = withTraversalCaches(true, () => selections.map(path => core.deadBranchOf(path)));
+  const label = `${ parser.name }/selection of plain rights/${ depth }`;
+  check(`${ label }/nothing skipped`, dead.filter(Boolean).length, 0);
+  check(`${ label }/no level asked`, counter.reads, 0);
 }
 
 // a binding lookup from every level of a nested selection climbs to its scope owner, and the operands

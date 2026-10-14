@@ -21,7 +21,7 @@ import {
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
-import { replaceGuardedHop } from './claim-guards.js';
+import { replaceGuardedHop, sealedLayerAbove } from './claim-guards.js';
 import { climbToCallerPath, collectSourceSpans, markSubtreeSkipped, sourceSpanKey } from './nav-spine.js';
 
 // the harvested effects a THROW PROBE does not already run: the ones it consumed, and the ones its
@@ -333,10 +333,10 @@ export function emitSeReadFormOverLiveOptional({ node, metaPath, entry, hintName
     built: callExpression(identifier(id), [receiver]), skippedNodes: ctx.skippedNodes });
 }
 
-// the sealed plainly-called lookup shape (`(arr?.[S])()`): zero args, no `?.` on the call
+// the sealed plainly-called lookup shape (`(arr?.[S])()`): zero args, no `?.` on the call.
+// a paren seals; a `!` before the call continues the chain (`arr?.[S]!()`)
 export function isSealedDirectSymbolCall(metaPath) {
-  const sealedCallerPath = climbToCallerPath(metaPath);
-  const sealedCaller = sealedCallerPath !== metaPath.parentPath ? sealedCallerPath?.node : null;
+  const sealedCaller = sealedLayerAbove(metaPath, metaPath.node) ? climbToCallerPath(metaPath)?.node : null;
   return !!sealedCaller && sealedCaller.type === 'CallExpression' && !sealedCaller.optional
     && unwrapRuntimeExpr(sealedCaller.callee) === metaPath.node && sealedCaller.arguments.length === 0;
 }

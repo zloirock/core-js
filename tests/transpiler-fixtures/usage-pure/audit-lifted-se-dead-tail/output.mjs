@@ -4,14 +4,14 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise$all from "@core-js/pure/actual/promise/all";
 eff2();
-// a dead effect-free tail (proxy-member chain or bare constructor) drops from the
-// lifted SE prefix: the collection pre-pass marks it, the emission keys on that same mark
+// a destructure whose init is a sequence ending in an effect-free receiver (a proxy-member chain or a
+// bare constructor) that the claims consume whole: the effect lifts into a statement of its own and
+// the dead tail drops. an export host and a multi-declarator list lift per declarator.
 const o3 = _Array$of;
 export const r3 = o3(2);
 eff4();
 const all = _Promise$all;
 export const r4 = all;
-// export hosts and multi-declarator lists lift per declarator
 effA();
 export const keys = _Object$keys;
 e1();

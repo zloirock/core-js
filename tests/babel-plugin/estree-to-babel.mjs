@@ -94,6 +94,9 @@ check('logicalExpression', print(logicalExpression('||', identifier('a'), identi
 check('conditionalExpression', print(conditionalExpression(identifier('t'), voidZero(), identifier('x'))), 't ? void 0 : x');
 check('unaryExpression keeps prefix', print(unaryExpression('!', identifier('x'))), '!x');
 check('assignmentExpression', print(assignmentExpression('=', identifier('a'), identifier('b'))), 'a = b');
+const angleHost = { type: 'TSTypeAssertion', typeAnnotation: { type: 'TSAnyKeyword' }, expression: { type: 'Identifier', name: 'x' } };
+check('assignmentExpression/a host angle assertion as the left is written as a parenthesized `as`',
+  print(assignmentExpression('=', hostSlot(angleHost), identifier('v'))), '(x as any) = v');
 check('objectExpression + objectProperty',
   print(objectExpression([objectProperty(identifier('k'), identifier('v'))])), '{\n  k: v\n}');
 const restPattern = objectPattern([objectProperty(literal('from'), identifier('unused')),

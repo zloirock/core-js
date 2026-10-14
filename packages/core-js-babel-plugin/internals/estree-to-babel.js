@@ -22,6 +22,7 @@ import { isRenderedStoredValue, markRenderedStoredValue } from '@core-js/polyfil
 //   a misminted node fails loud at the boundary instead of printing a wrong spelling
 // - `loc`/`start`/`end`/`range` are copied verbatim when present (relocation accuracy);
 //   comment arrays convert `Line`/`Block` to `CommentLine`/`CommentBlock`
+// - an assignment's left goes through `printableWriteTarget`
 //
 // embedded HOST subtrees ride `CoreJsHostSlot` wrappers (the render canon's `hostSlot`):
 // the converter unwraps the slot and passes the babel subtree through UNCONVERTED - the
@@ -132,6 +133,14 @@ function convertChainLink(node) {
   return { node: convert(node), hasOptional: false };
 }
 
+// @babel/generator prints a `<T>x` left of an assignment bare (`<T>x = v`, which no parser reads back) but
+// parenthesizes `x as T`, so a written assertion is spelled that way
+export function printableWriteTarget(node) {
+  return node?.type === 'TSTypeAssertion'
+    ? { type: 'TSAsExpression', expression: node.expression, typeAnnotation: node.typeAnnotation }
+    : node;
+}
+
 function build(node) {
   switch (node?.type) {
     // an embedded HOST subtree: already babel dialect - unwrap the slot, convert nothing
@@ -200,7 +209,12 @@ function build(node) {
     case 'UnaryExpression':
       return { type: 'UnaryExpression', operator: node.operator, argument: convert(node.argument), prefix: true };
     case 'AssignmentExpression':
-      return { type: 'AssignmentExpression', operator: node.operator, left: convert(node.left), right: convert(node.right) };
+      return {
+        type: 'AssignmentExpression',
+        operator: node.operator,
+        left: printableWriteTarget(convert(node.left)),
+        right: convert(node.right),
+      };
     case 'ObjectExpression':
     case 'ObjectPattern':
       return { type: node.type, properties: node.properties.map(property => convert(property)) };
