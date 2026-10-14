@@ -268,6 +268,25 @@ QUnit.test('static rest: extracted calls retain their result type', assert => {
   assert.false(Object.hasOwn(rest, 'from'));
 });
 
+QUnit.test('static rest: a nested namesake of an extracted static calls its own value', assert => {
+  const { from, ...rest } = Array;
+  function param(from) {
+    return from('xy').at(0);
+  }
+  function caught(error) {
+    try {
+      throw error;
+    // eslint-disable-next-line unicorn/catch-error-name -- a catch clause of the static's name is the shadow under test
+    } catch (from) {
+      return from('xy').includes('x');
+    }
+  }
+  assert.same(from([1, 2]).at(-1), 2);
+  assert.same(param(value => value), 'x');
+  assert.true(caught(value => value));
+  assert.false(Object.hasOwn(rest, 'from'));
+});
+
 QUnit.test('destructure mirror: instance defaults survive beside static leaves', assert => {
   let flat;
   let of;

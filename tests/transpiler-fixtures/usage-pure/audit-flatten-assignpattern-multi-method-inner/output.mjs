@@ -6,7 +6,7 @@ const {
   Array: {
     from,
     of
-  } = {}
+  }
 } = {
   Array: {
     from: _Array$from,

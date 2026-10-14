@@ -1,6 +1,6 @@
-// a TS cast over a navigation is consumed with the span the swap substitutes - but only ONE dialect
-// puts a chain marker between the claim and that cast, and stopping the climb on the marker left the
-// cast standing over the substituted binding with the `?.` the folding `delete` had already answered
+// a TS cast over a sealed probe nav under `delete` is consumed with the span the render substitutes,
+// in both dialects: no cast is left standing over the substituted binding beside a `?.` the guard
+// already answered.
 let out, statics, instance, hop;
 statics = delete ((() => globalThis)().window?.self as any)?.Number.MAX_SAFE_INTEGER;
 instance = delete ((() => globalThis)().window?.self as any)?.Array.prototype.at;

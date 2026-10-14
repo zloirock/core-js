@@ -2,10 +2,10 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
-const _ref = [1];
 // A sole instance leaf dispatches on its captured literal while its surrounding wrapper
 // keeps spread evaluation, native iteration and outer computed keys. The consumed leaf
 // must not perform another native method read beside the dispatch.
+const _ref = [1];
 const {
   0: {}
 } = [...[_ref]];

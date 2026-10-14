@@ -1,9 +1,8 @@
-// A global every target carries natively is as present as one the build substitutes: the right of a
-// `||` / `??` over it and the branch its presence test never takes are dead, and pure folds the selection
-// where the dead part holds a known global or the deciding read is respelled, keeping it as written
-// otherwise (`kept`). A global the targets need but a filter drops (`SuppressedError`,
-// excluded here) may be missing: its presence test and a `||` reading it off the realm keep both operands
-// live; its bare name, throwing first, decides.
+// pure counts a global present as usage-global does, wherever the data subset carries it: one every target carries
+// natively, and one the targets need but a filter drops (`SuppressedError`, excluded here), read by its bare name,
+// off the realm or in a `typeof` test alike - the right of a `||` / `??` over it and the branch its presence test
+// never takes are dead. pure folds the selection where the dead part holds a known global or the deciding read is
+// respelled, keeping it as written otherwise (`kept`).
 export const native = Promise || Iterator;
 export const kept = Promise || legacyPromise;
 export const ordered = Promise || use(DisposableStack, local);

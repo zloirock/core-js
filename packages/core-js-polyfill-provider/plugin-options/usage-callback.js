@@ -7,6 +7,7 @@
 //   - `cond ? Array : Iterator` destructure (per-branch fallback)
 // also handles `class extends Array { foo() { this.at(0) } }` shadow check
 import {
+  claimDeleteOperand,
   isForXWriteTarget,
   isMemberWriteHost,
   isThisReceiver,
@@ -23,15 +24,17 @@ import { hasOwnStaticDefinition } from '../index.js';
 
 // bail when the usage is syntactically present but carries no runtime read - polyfilling
 // would be pure over-injection. covers: plugin's disable marker, TS type-only contexts, a read
-// written inside a declaration that never reaches the emit, and for-x LHS where the
-// MemberExpression targets a local write, not a prototype lookup. the pure lane asks the same
-// emit question through `claimIsInert`, which this mode's dispatch does not pass through
+// written inside a declaration that never reaches the emit, for-x LHS where the
+// MemberExpression targets a local write, not a prototype lookup, and the member a `delete`
+// names, which the operator removes without reading - the members below it are read on the way
+// and keep their own dispatch. the pure lane asks the same emit question through `claimIsInert`,
+// which this mode's dispatch does not pass through
 function shouldSkipUsageDispatch(meta, path, isDisabled, adapter) {
   if (isDisabled(path.node)) return true;
   if (path?.parentPath?.node?.type === 'TSTypeQuery') return true;
   if (isTSTypeOnlyIdentifierPath(path)) return true;
   if (nonEmittedExpressionAncestor(path)) return true;
-  return meta.kind === 'property' && path?.node && isForXWriteTarget(path, adapter);
+  return meta.kind === 'property' && !!path?.node && (isForXWriteTarget(path, adapter) || claimDeleteOperand(path));
 }
 
 // `super.X(...)` / `this.X(...)` in a static method of `extends KnownGlobal { ... }`:

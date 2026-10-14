@@ -1,0 +1,17 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "exclude": [
+          "map/constructor"
+        ],
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

@@ -1,8 +1,7 @@
-// three guarded producers nested in one chain: the inner claim's guard (the root's own polyfill)
-// sits UNDER the test of a combined chain that is itself a guarded producer under another one. the
-// owner's inners compose into it before its guard prefix hoists, so the claim lands in the test it
-// belongs to rather than being carried off raw with the prefix - the build used to abort with the
-// prefix stranded. the dead root memo that composition leaves unwraps bare, as the AST leg prints it
+// stacked combined dispatches over a probed root: each dispatch reads its receiver plainly past the
+// link below it, so the root's probe, the static claim's ponyfill read and every lookup compose into
+// ONE test in evaluation order - the build used to abort with a guard prefix stranded between nested
+// guards. the dead root memo that composition leaves unwraps bare, as the AST leg prints it
 let w;
 export const plain = globalThis.window?.Array.of(6).flat?.().map?.(x => x).at?.(0).flat?.();
 export const hops = globalThis.window?.self?.self.Array.of(6).flat?.().map?.(x => x).at?.(0).flat?.();

@@ -821,7 +821,11 @@ export const CHAIN_HOP_WRAPPER_TYPES = new Set([
 // centralizes the two-type check that every member-receiver / member-write walk repeats so the
 // pair stays in lockstep across the cluster
 export function isMemberAccessNode(node) {
-  return node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression';
+  return isMemberAccessType(node?.type);
+}
+// ... by the node type alone, for a walk holding it read
+export function isMemberAccessType(type) {
+  return type === 'MemberExpression' || type === 'OptionalMemberExpression';
 }
 
 // climb transparent wrappers (TS `as`/`!`/`satisfies`, parens, chain) UP from `path` while the
@@ -1311,14 +1315,8 @@ export function suspensionPointBefore(fnNode, beforePos) {
     suspensionPositions.set(fnNode, positions);
   }
   // binary search: the list is sorted, and a linear scan per read made this O(reads x suspensions)
-  let lo = 0;
-  let hi = positions.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (positions[mid] < beforePos) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo > 0 ? positions[lo - 1] : null;
+  const at = sortedPrefixLength(positions, position => position < beforePos);
+  return at > 0 ? positions[at - 1] : null;
 }
 
 // does the invocation's ARGUMENT region hold a write? the region evaluates before the callee's body,
@@ -1546,13 +1544,75 @@ function isClassHeritageChild(parentNode, childNode) {
 // the pattern itself, so a use anywhere below it is preceded by that whole expression. an
 // `AssignmentPattern` is a host too, and the one that hides: `[b = USE] = RHS` reads its own default
 // only after the RHS decided the slot was absent, and a `for-x` head evaluates its right side before
-// binding anything on the left
+// binding anything on the left. a default is no host of a member TARGET, though: the reference is
+// evaluated before the default is (`({ a: o[x = 'k'] = x } = v)` reads the new `x`), as the source spells it
 function patternHostRhs(parentNode, childKey) {
   if (parentNode.type === 'VariableDeclarator' && childKey === 'id' && isDestructurePattern(parentNode.id)) return parentNode.init;
   if (parentNode.type === 'AssignmentExpression' && childKey === 'left' && isDestructurePattern(parentNode.left)) return parentNode.right;
-  if (parentNode.type === 'AssignmentPattern' && childKey === 'left') return parentNode.right;
+  if (parentNode.type === 'AssignmentPattern' && childKey === 'left'
+    && (isDestructurePattern(parentNode.left) || parentNode.left.type === 'Identifier')) return parentNode.right;
   if ((parentNode.type === 'ForOfStatement' || parentNode.type === 'ForInStatement') && childKey === 'left') return parentNode.right;
   return null;
+}
+
+// --- Source pattern order ---
+
+// the destructuring hosts the file's PRISTINE tree spells (`patternOrderReducer`), per file root. a
+// destructure render keeps the order a pattern runs in only on the source ranges of the nodes it moves:
+// it lifts the prefix of a right-hand side ahead of the host, moves a computed key into the value of an
+// extraction, re-hosts the rest of a pattern on a temp. so the order climbs below take the hosts holding
+// a node by POSITION as well as off the live tree
+const sourcePatternHosts = new WeakMap();
+
+// spans of one tree - nested or disjoint - sorted by start, the outer of two starting together first,
+// each with the index of the nearest span holding it: the spans holding a range are a search and a climb
+function buildNestingIndex(entries) {
+  entries.sort((a, b) => a.span.start - b.span.start || b.span.end - a.span.end);
+  const holders = [];
+  const open = [];
+  for (const [i, { span }] of entries.entries()) {
+    while (open.length && entries[open.at(-1)].span.end < span.end) open.pop();
+    holders.push(open.at(-1) ?? -1);
+    open.push(i);
+  }
+  return { entries, starts: entries.map(entry => entry.span.start), holders };
+}
+
+// the partners of the entries whose span holds `node`. a span starting at or before the node either
+// holds it or ended before it, and every span holding it holds the last one starting before it
+function nestingPartnersHolding(index, node) {
+  const partners = [];
+  if (!index?.entries.length || !hasRange(node)) return partners;
+  let at = spanIndexFloor(index, node);
+  while (at >= 0 && index.entries[at].span.end < node.end) at = index.holders[at];
+  for (; at >= 0; at = index.holders[at]) partners.push(index.entries[at].partner);
+  return partners;
+}
+
+// the node types `patternHostRhs` can answer for: every other node the census visits hosts no pattern
+const PATTERN_HOST_TYPES = new Set(['VariableDeclarator', 'AssignmentExpression', 'AssignmentPattern', 'ForOfStatement', 'ForInStatement']);
+
+// the hosts a destructuring pattern or a default runs after, read off the pristine tree for the order
+// climbs, which find them by the file root an attached path climbs to - the census's first node
+export function patternOrderReducer() {
+  let root = null;
+  const patterns = [];
+  const values = [];
+  return {
+    visit(node) {
+      root ??= node;
+      if (!PATTERN_HOST_TYPES.has(node.type)) return;
+      const key = node.type === 'VariableDeclarator' ? 'id' : 'left';
+      const value = patternHostRhs(node, key);
+      if (!hasRange(value) || !hasRange(node[key])) return;
+      patterns.push({ span: node[key], partner: value });
+      values.push({ span: value, partner: node[key] });
+    },
+    prepare() {
+      if (root) sourcePatternHosts.set(root, { patterns: buildNestingIndex(patterns), values: buildNestingIndex(values) });
+    },
+    result() { return {}; },
+  };
 }
 
 // does a WRITE sit in a slot its container evaluates early? the climb-from-the-write form, for a lane
@@ -1609,9 +1669,11 @@ function outrunningSpansFor(usagePath) {
   const spans = [];
   let evalSlotChild = false;
   let caseNode = null;
+  let root = usagePath.node;
   for (let cur = usagePath, parent; parent = cur.parentPath; cur = parent) {
     const pnode = parent.node;
     if (!pnode) break;
+    root = pnode;
     if ((CLASS_MEMBER_TYPES.has(pnode.type) || CLASS_NODE_TYPES.has(pnode.type))
       && isClassEvalSlotChild(pnode, cur.node)) evalSlotChild = true;
     if (CLASS_NODE_TYPES.has(pnode.type)) {
@@ -1636,6 +1698,8 @@ function outrunningSpansFor(usagePath) {
     const rhs = patternHostRhs(pnode, cur.key);
     if (rhs) spans.push(rhs);
   }
+  // ... and the values the source fills a pattern holding the use from, wherever a render left either
+  spans.push(...nestingPartnersHolding(sourcePatternHosts.get(root)?.patterns, usagePath.node));
   const index = buildSpanIndex(spans);
   outrunningSpans.set(usagePath.node, { parent: parentNode, index });
   return index;
@@ -1684,9 +1748,11 @@ function lateSpansFor(usagePath) {
   const memo = lateSpans.get(usagePath.node);
   if (memo && memo.parent === parentNode) return memo.index;
   const spans = [];
+  let root = usagePath.node;
   for (let cur = usagePath, parent; parent = cur.parentPath; cur = parent) {
     const pnode = parent.node;
     if (!pnode) break;
+    root = pnode;
     if ((CLASS_MEMBER_TYPES.has(pnode.type) || CLASS_NODE_TYPES.has(pnode.type))
       && isClassEvalSlotChild(pnode, cur.node)) {
       const cls = CLASS_NODE_TYPES.has(pnode.type) ? parent : parent.parentPath.parentPath;
@@ -1700,6 +1766,7 @@ function lateSpansFor(usagePath) {
     const pattern = patternHostRhs(pnode, pnode.type === 'VariableDeclarator' ? 'id' : 'left');
     if (pattern === cur.node) spans.push(pnode.type === 'VariableDeclarator' ? pnode.id : pnode.left);
   }
+  spans.push(...nestingPartnersHolding(sourcePatternHosts.get(root)?.values, usagePath.node));
   const index = buildSpanIndex(spans);
   lateSpans.set(usagePath.node, { parent: parentNode, index });
   return index;
@@ -1726,18 +1793,26 @@ export function anyWriteOutrunsUse(violationNodes, usagePath) {
   return violationNodes.some(node => writeOutrunsUse(node, usagePath));
 }
 
+// how many entries of a sorted `list`, from `from` up to `to`, come before a bound: `before` holds for a prefix of
+// that range and fails for the rest, and the answer is where it first fails. the one binary search over sorted
+// positions - spans, statements, writes, comments, line starts
+export function sortedPrefixLength(list, before, from = 0, to = list.length) {
+  let lo = from;
+  let hi = to;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (before(list[mid])) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 // position of the last span starting at or before the node, -1 when every span starts after it. the
 // ONE search over a span index - both questions asked of one below read it
 function spanIndexFloor(index, node) {
-  const { starts } = index;
-  let lo = 0;
-  let hi = starts.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (starts[mid] <= node.start) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo - 1;
+  // read once: inside the predicate the node is read again at every probe of the search
+  const { start } = node;
+  return sortedPrefixLength(index.starts, entry => entry <= start) - 1;
 }
 
 // containment against a span index: the floor span, then the running maximum of `end` over that
@@ -1818,6 +1893,30 @@ export function siblingHostingIndex(siblings, target) {
 export function writeOutrunsUse(write, usagePath) {
   if (!hasRange(write)) return false;
   return spanIndexContains(outrunningSpansFor(usagePath), write);
+}
+
+// the position `path` is evaluated at: its own start, or - in a slot that runs after an early one the
+// source places past it (`writeOutrunsUse`'s spans: a pattern after its host's right-hand side) - the
+// end of the latest such early slot. read by POSITION, not containment, so it survives a render that
+// lifts an early write out of its host: planted ahead of the host, it still precedes that end
+function evaluationPosition(path) {
+  const index = outrunningSpansFor(path);
+  const { start } = path.node;
+  return index?.maxEnd.length ? Math.max(start, index.maxEnd.at(-1)) : start;
+}
+
+// does a write the source places ABOVE `ranked` - a write a positional lane ranked as the last one
+// - run after it all the same, and before the use? a write in a pattern whose host's right-hand side
+// holds `ranked` does (`({ [x = [1]]: o.k } = (x = 'ab', o))`), as does one in the pattern a
+// destructure render left behind after lifting `ranked` out of that right-hand side. a use evaluated
+// at the same position - a later slot of the same pattern - ranks against it by source order
+export function writeRunsPastRanked(write, ranked, usagePath) {
+  const node = write?.node;
+  if (!hasRange(node) || !hasRange(ranked) || node.start >= ranked.start || !usagePath?.node) return false;
+  const at = evaluationPosition(write);
+  if (at < ranked.end) return false;
+  const useAt = evaluationPosition(usagePath);
+  return at < useAt || (at === useAt && node.start < usagePath.node.start);
 }
 
 // the identifiers a construct DECLARES - the leaves of its binding patterns, its own name, an
@@ -2697,6 +2796,17 @@ const OWNER_WRITE_PATH_TYPES = new Set([
   'ForInStatement',
   'FunctionDeclaration',
 ]);
+// the walk handing every write-shaped path below the one it runs from to `add`. babel's visitor keys omit a
+// parameter property's decorators, so the walk enters them itself: a write one hosts has a path on both sides
+function writePathVisitors(add) {
+  const visitors = {
+    ...Object.fromEntries([...OWNER_WRITE_PATH_TYPES].map(type => [type, add])),
+    TSParameterProperty(p) {
+      if (p.node.decorators?.length) for (const decorator of p.get('decorators')) decorator.traverse(visitors);
+    },
+  };
+  return visitors;
+}
 // uncached builder: babel's binding recoveries must read the LIVE AST (the plugin's own render
 // replaces write nodes, so a cached index may hold replaced originals)
 export function buildOwnerWritePathIndex(ownerPath) {
@@ -2704,14 +2814,23 @@ export function buildOwnerWritePathIndex(ownerPath) {
   function add(p) {
     if (!index.has(p.node)) index.set(p.node, p);
   }
-  ownerPath.traverse(Object.fromEntries([...OWNER_WRITE_PATH_TYPES].map(type => [type, add])));
+  ownerPath.traverse(writePathVisitors(add));
   return index;
 }
 export function ownerWritePathIndex(ownerPath) {
   let index = ownerWritePathIndexCache.get(ownerPath);
-  if (!index) ownerWritePathIndexCache.set(ownerPath, index = buildOwnerWritePathIndex(ownerPath));
+  if (!index) {
+    ownerWritePathIndexCache.set(ownerPath, index = buildOwnerWritePathIndex(ownerPath));
+    writeIndexSerials.set(index, writeLookupSerial);
+  }
   return index;
 }
+
+// the lookups asking whether a write left the tree (`liveRecordWrites`, `liveBindingWrites`) write nothing to it,
+// so an index built during one is current until it returns: each lookup takes the next serial, each index keeps
+// the one it was built under, and a write an index of the current serial misses is not in the tree (`retiredWrite`)
+let writeLookupSerial = 0;
+const writeIndexSerials = new WeakMap();
 
 const ownerSourceWritePaths = new WeakMap();
 
@@ -3137,13 +3256,20 @@ function writtenNames(node) {
   return names;
 }
 
+// the function below its owner a write scan found a write in (`reassignmentScanner`), for a question
+// asked of the bare write node from outside that function (`writeNeverRuns`)
+const nestedWriteOwners = new WeakMap();
+
 // the walk behind the index: `visit` records an owner's writes from its root down, `scanUnder` the
 // writes of a few nodes standing deep in it (`refreshWritesAtSlot`)
 function reassignmentScanner() {
   const index = new Map();
   const shadowDepth = new Map();
+  // the innermost function below the scanned owner the walk stands in
+  let nested = null;
   function record(name, node) {
     if (shadowDepth.get(name)) return;
+    if (nested) nestedWriteOwners.set(node, nested);
     let list = index.get(name);
     if (!list) index.set(name, list = []);
     // a pattern binding the same name twice yields consecutive duplicates - keep one
@@ -3200,13 +3326,15 @@ function reassignmentScanner() {
     return names;
   }
   // what a node opens for the walk below it: strictness is inherited downward and only ever
-  // tightens (a class body is strict, and so is a function opening with the directive), and the
-  // names it shadows - none at the owner root
+  // tightens (a class body is strict, and so is a function opening with the directive), the
+  // names it shadows - none at the owner root - and whether it is a function below the owner
+  // (`nests`), the one the writes under it stand in
   function frameOf(node, atOwnerRoot, sloppyHere) {
+    const boundary = isVarScopeBoundary(node.type);
     const sloppyInside = sloppyHere && node.type !== 'ClassDeclaration' && node.type !== 'ClassExpression'
-      && !(isVarScopeBoundary(node.type) && nodeHasUseStrict(node));
+      && !(boundary && nodeHasUseStrict(node));
     const shadowNames = atOwnerRoot ? EMPTY_REASSIGNMENTS
-      : isVarScopeBoundary(node.type) ? boundaryShadowNames(node, sloppyInside)
+      : boundary ? boundaryShadowNames(node, sloppyInside)
       : blockShadowNames(node);
     return {
       node,
@@ -3214,8 +3342,9 @@ function reassignmentScanner() {
       sloppyHere,
       sloppyInside,
       shadowNames,
+      nests: boundary && !atOwnerRoot,
       switchSplit: node.type === 'SwitchStatement' && (atOwnerRoot || shadowNames.length > 0),
-      slotted: isVarScopeBoundary(node.type) && (node.computed || node.decorators?.length),
+      slotted: boundary && (node.computed || node.decorators?.length),
     };
   }
   // how the walk enters `child` of a frame - its owner-root flag, its strictness, whether the frame's
@@ -3259,6 +3388,8 @@ function reassignmentScanner() {
     }
     const { slotted } = frame;
     if (slotted) walkAstChildren(node, child => definitionTimeSlotOf(node, child) && visitPlanned(child, childPlan(frame, child)));
+    const outer = nested;
+    if (frame.nests) nested = node;
     push(shadowNames);
     for (const name of writtenNames(node)) record(name, node);
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
@@ -3274,6 +3405,7 @@ function reassignmentScanner() {
     // declaration there shadows the head inside it
     walkAstChildren(node, child => (slotted && definitionTimeSlotOf(node, child)) || visitPlanned(child, childPlan(frame, child)));
     pop(shadowNames);
+    nested = outer;
   }
   // the writes of `nodes`, standing in one slot of the last of `frames` - the nodes from the owner root
   // down to the slot's holder - as the walk from the root records them: each frame on the way shadows
@@ -3289,7 +3421,10 @@ function reassignmentScanner() {
         pushed.push(frame.shadowNames);
       }
     }
+    const outer = nested;
+    nested = frames.slice(1).findLast(frame => isVarScopeBoundary(frame.type)) ?? null;
     if (plan) for (const node of nodes) visit(node, plan.atOwnerRoot, plan.sloppy);
+    nested = outer;
     for (const names of pushed) pop(names);
   }
   return { index, visit, scanUnder };
@@ -3574,6 +3709,7 @@ function parameterPropertyTwin(synthCache, path, name, native = null, lookupScop
 // one runs. `read` is the node the name is read at where the caller resolves it for a deeper `path`
 // (an alias's initializer, read where the alias is declared): that climb starts there
 export function wrapScopeBindingLookup(lookup, nestedTSRuntimeDeclarations = () => true) {
+  // native binding -> its view (`wrapped`) and the render-note epoch its record was last judged at
   const cache = new WeakMap();
   const synthCache = new WeakMap();
   return ({ scope, name, path = null, read = null }) => {
@@ -3594,14 +3730,16 @@ export function wrapScopeBindingLookup(lookup, nestedTSRuntimeDeclarations = () 
     const scopeNode = path && binding.path && nestedTSRuntimeDeclarations()
       ? namespaceScopedBindingBlock(binding) ?? binding.scope?.block ?? binding.scope?.path?.node : null;
     if (scopeNode && findTSRuntimeBindingInPath(lookupAnchorPath(scope, path, read), name, scopeNode)) return undefined;
-    let wrapped = cache.get(binding);
-    if (!wrapped) {
-      wrapped = withCanonicalViolations(withoutPhantomWrites(binding), name);
-      // a record a render may retire gets a view of the lookup's own up front: the repair below writes
-      // the view, never the tracker's binding, which the host and its sibling plugins go on reading
-      if (wrapped === binding && binding.constantViolations?.some(retirableWrite)) wrapped = { ...binding };
-      cache.set(binding, wrapped);
+    let entry = cache.get(binding);
+    if (!entry) cache.set(binding, entry = { wrapped: withCanonicalViolations(withoutPhantomWrites(binding), name), judged: -1 });
+    // a record a render may retire gets a view of the lookup's own: the repair below writes the view, never
+    // the tracker's binding, which the host and its sibling plugins go on reading. a render's note can make a
+    // record retirable after a lookup judged it, so a record still without a view is judged again after a note
+    if (entry.wrapped === binding && entry.judged !== renderRetiredWritesEpoch) {
+      entry.judged = renderRetiredWritesEpoch;
+      if (binding.constantViolations?.some(retirableWrite)) entry.wrapped = { ...binding };
     }
+    const { wrapped } = entry;
     // ... and a record still naming a write a render retired takes the live writes in place: a caller
     // pairing a guard with a use compares the binding they resolve to by identity
     const live = path && wrapped !== binding ? liveRecordWrites({ binding: wrapped, name, usePath: path }) : null;
@@ -3877,24 +4015,24 @@ function ownerParentIndex(ownerNode, includeExcluded = false) {
 // found there by descending through the children whose spans hold it? the index leaves such a scope's body out, so
 // a target there is outside the frame - while a clone carrying a nested node's span may stand anywhere
 function targetInsideExcludedScope(ownerNode, target) {
-  const scopes = ownerExcludedScopesCache.get(ownerNode);
-  let lo = 0;
-  let hi = scopes?.length ?? 0;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (scopes[mid].start <= target.start) lo = mid + 1;
-    else hi = mid;
-  }
-  if (!lo || target.end > scopes[lo - 1].end) return false;
-  for (let node = scopes[lo - 1]; node !== target;) {
-    let next = null;
+  const scopes = ownerExcludedScopesCache.get(ownerNode) ?? [];
+  const lo = sortedPrefixLength(scopes, scope => scope.start <= target.start);
+  return !!lo && target.end <= scopes[lo - 1].end && descendsBySpanTo(scopes[lo - 1], target);
+}
+
+// ... the descent: through every child whose span holds the target's, and through every child a render built
+// with no span at all, which may hold a copy carrying one (`_push(s).call(s, x = [])` around a clone of
+// `x = []`) - a search below the scope, never above it; `descendToNode` takes the same rule toward a path
+function descendsBySpanTo(scope, target) {
+  const pending = [scope];
+  while (pending.length) {
+    const node = pending.pop();
+    if (node === target) return true;
     walkAstChildren(node, child => {
-      if (!next && hasRange(child) && child.start <= target.start && target.end <= child.end) next = child;
+      if (!hasRange(child) || child.start <= target.start && target.end <= child.end) pending.push(child);
     });
-    if (!next) return false;
-    node = next;
   }
-  return true;
+  return false;
 }
 
 // the cached index goes stale when an emitter swaps a subtree AFTER the first query built it: a
@@ -3916,6 +4054,8 @@ function ownerParentIndexLocating(ownerNode, target, targetPath = null) {
   // whole owner to give a null parent - every reader stops on a missing parent and a null one alike
   if (hasRange(target) && hasRange(ownerNode)
     && (!nodeRangeContains(ownerNode, target) || targetInsideExcludedScope(ownerNode, target))) return parents;
+  // ... and a read the analysis synthesizes off a receiver stands in no tree at all (`borrowsReceiverSpan`)
+  if (borrowsReceiverSpan(target)) return parents;
   // ... and a declarator an allocator appended path-less to a declaration the index maps stands under it
   // (`appendMemoDeclarator`): every memo ref a render mints lands there, and a rebuild per ref is quadratic
   const slot = memoDeclaratorSlots.get(target);
@@ -4173,6 +4313,38 @@ export function conditionalEvaluationEdge(parent, child) {
 // VALUE_FLOW_ASSIGN_OPS below (the value-flow set is these plus plain `=`)
 const LOGICAL_ASSIGN_OPS = new Set(['||=', '&&=', '??=']);
 
+// the slot through which a node runs its operand every time it runs, ahead of its own completion: a
+// sequence's elements, a unary or transparent wrapper's operand, the value of an assignment other than
+// a logical one, a declarator's initializer and the statements holding them. a selection (logical,
+// conditional, `?.`, a logical assignment) runs an operand on some paths only and offers none, and a
+// destructuring host fills its pattern after its value, out of the order its source keeps. a write
+// reached from its statement through these slots alone is a STATEMENT-LEVEL write: it runs whenever
+// the statement does, as if it stood before what follows the statement - where a destructure render
+// plants a declarator's sequence prefix. the one rule both reaching lanes read: the straight-line lane
+// climbs it from a write, the preceding-block lane walks it down from a statement. a pattern's computed key is
+// none of these slots, so a write in it narrows no later read - save in babel, whose render moves a static's key
+// into the initializer before the read is resolved; and babel's record of an initializer's writes follows it
+// into the helper call its render hands it to, whose argument is none of these slots either
+export function alwaysEvaluatedSlotKey(node) {
+  switch (node.type) {
+    case 'ExpressionStatement': return 'expression';
+    case 'ExportNamedDeclaration': return node.declaration?.type === 'VariableDeclaration' ? 'declaration' : null;
+    case 'VariableDeclaration': return 'declarations';
+    case 'VariableDeclarator': return 'init';
+    case 'SequenceExpression': return 'expressions';
+    case 'UnaryExpression': return 'argument';
+    case 'AssignmentExpression': return LOGICAL_ASSIGN_OPS.has(node.operator) ? null : 'right';
+    default: return TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? 'expression' : null;
+  }
+}
+
+// does the step from `childNode` up to `parentNode` leave through that slot
+export function isAlwaysEvaluatedSlot(parentNode, childNode) {
+  const key = alwaysEvaluatedSlotKey(parentNode);
+  const slot = key ? parentNode[key] : null;
+  return Array.isArray(slot) || (!!slot && slot === childNode);
+}
+
 // is `node` (a reassignment site) a logical-assignment of its binding? babel records the
 // AssignmentExpression directly; estree-toolkit records the target Identifier, so resolve the
 // enclosing `name <op>= ...` to read its operator
@@ -4290,6 +4462,11 @@ function settledVarGuards(owner, target, adapter) {
   const ctx = { scope: owner.scope, adapter, path: owner };
   const arms = guards.map(guard => {
     const host = parents.get(guard);
+    // a default runs only where its slot reads `undefined`, which a slot the build serves never does
+    if (host?.type === 'AssignmentPattern') {
+      const hostPath = pathOfNode(owner, host);
+      return hostPath && adapter.droppedDefault?.(hostPath) ? 'dead' : null;
+    }
     const test = guardTest(parents, guard);
     if (!test) return null;
     // the test is asked where it stands: in the owner's scope - a function owner's own body block is that
@@ -4377,11 +4554,23 @@ function guardedWriteOwner(write, usagePath) {
   return owner && collectVarGuardsToDeclarator(owner.node, write).length ? owner : null;
 }
 
-// does `write` stand in a dead arm of its owner, so never run
+// does `write` (a node, or a path a scope's record names it by) stand in a dead arm of its owner, so never
+// run. a write in a function below the use's own owners is asked in its own: an arm the build never takes
+// is dead on every call
 export function writeNeverRuns({ write, usagePath, adapter }) {
   if (!adapter?.decidedSelection) return false;
-  const owner = guardedWriteOwner(write, usagePath);
-  return !!owner && decidedGuards(owner, write, adapter).dead;
+  const node = violationNode(write);
+  const owner = varScopeOwnerHolding(node, usagePath) ?? ownWriteOwner(write, node, usagePath);
+  return !!owner && !!collectVarGuardsToDeclarator(owner.node, node)?.length && decidedGuards(owner, node, adapter).dead;
+}
+
+// ... the owner of a write in a function below the use's own owners: off the path a record names it by, or
+// off the function the write scan found the bare node in (`nestedWriteOwners`)
+function ownWriteOwner(write, node, usagePath) {
+  if (write !== node) return varScopeOwnerHolding(node, write);
+  const fn = nestedWriteOwners.get(node);
+  const fnPath = fn && pathOfNode(usagePath, fn);
+  return fnPath ? varScopeOwnerHolding(node, fnPath) : null;
 }
 
 // ... and does a read that runs ahead of a `write` the build may run decide whether it runs: the read stands in
@@ -4850,9 +5039,10 @@ export function initializerReachesRead({ adapter, binding, declaratorNode, usage
 // usage-global keep resolving a still-live init (inject-if-maybe-needed). usage-pure bails on any reassignment.
 // a caller that names the reaching value itself, so drops nothing, passes `climb`: a write completing
 // before the reading closure is created then dominates as well (`nodeDominatesUsage`, as a replacing write).
-// an `adapter` deciding selections opens their live arms (`undecidedVarGuards`)
+// an `adapter` deciding selections opens their live arms (`undecidedVarGuards`). `beforeNode` keeps the writes the
+// source provably places ahead of it, asked of each in turn: a long list stops at the first write that dominates
 export function reassignmentDominatesUsage({
-  reassignmentNodes, usagePath, usageNode = null, afterNode = null, adapter = null, climb = false,
+  reassignmentNodes, usagePath, usageNode = null, afterNode = null, beforeNode = null, adapter = null, climb = false,
 }) {
   if (!usagePath || !reassignmentNodes?.length) return false;
   const owner = findNearestVarScopeOwner(usagePath);
@@ -4873,7 +5063,8 @@ export function reassignmentDominatesUsage({
   // over-injecting direction; the reaching-value sibling carries the same gate for the same reason
   // A registered alias may describe a later write, not the initializer. Only a write after
   // that registration can kill its candidate; missing source positions prove nothing.
-  return reassignmentNodes.some(node => (!afterNode || provablyPrecedes(afterNode, node)) && !useOutrunsWrite(node, usagePath)
+  return reassignmentNodes.some(node => (!afterNode || provablyPrecedes(afterNode, node))
+    && (!beforeNode || provablyPrecedes(node, beforeNode)) && !useOutrunsWrite(node, usagePath)
     && nodeDominatesUsage({ node, usagePath, owner, climb, usageNode, adapter, replaces: true }));
 }
 
@@ -5188,15 +5379,27 @@ export function patternSlotTarget(target) {
   return target?.type === 'AssignmentPattern' ? target.left : target;
 }
 
+// the slot an extraction writes as the source SPELLS it, not through the name a binding declares: a member
+// access, or a binding a TS assertion wraps (`(v as any)`, `v!`) - a paren alone keeps a plain binding
+export function spelledWriteSlot(value) {
+  const target = patternSlotTarget(value);
+  const root = unwrapRuntimeExpr(target);
+  return isMemberAccessNode(root) || (root?.type === 'Identifier' && unwrapParens(target) !== root) ? target : null;
+}
+
 // does the HOST pattern hold this prop ALONE, every level down to it spelling one key? asked by both
 // legs before LIFTING a prop's pattern out of its statement: a sibling the host keeps runs its own
 // key effects where the statement stands while the lifted pair runs after ALL of them - the source
 // ordered the two around each other - and a prop in the MIDDLE of its level has no placement that
-// orders both sides at all. a host nothing survives in is the only one the lift leaves in order
-export function soleChainToProp(hostPattern, target) {
+// orders both sides at all. a host nothing survives in is the only one the lift leaves in order.
+// `gone` names the props an earlier claim already took out of the statement: a binding that queues its
+// rewrites still holds them where the other has removed them
+export function soleChainToProp(hostPattern, target, gone = null) {
   let level = patternSlotTarget(hostPattern);
-  while (level?.type === 'ObjectPattern' && level.properties.length === 1) {
-    const [only] = level.properties;
+  while (level?.type === 'ObjectPattern') {
+    const live = gone ? level.properties.filter(item => item === target || !gone(item)) : level.properties;
+    if (live.length !== 1) return false;
+    const [only] = live;
     if (only === target) return true;
     level = patternSlotTarget(only.value);
   }
@@ -5394,6 +5597,14 @@ export function patternBindsName(pattern, name) {
 // one shape is blind exactly where the other sees
 export function bindingDeclaratorNode(binding) {
   return binding?.node?.type === 'VariableDeclarator' ? binding.node : binding?.path?.node;
+}
+
+// does the binding's own declarator install its initializer inside a span - a `var` the source declares past an earlier
+// write of its name (`x = 'ab'; var x = [3, 4]; x.at(-1)`)? a write the record never lists, which a positional
+// ranking of the recorded writes has to see as the later one
+export function declaratorInitRunsWithin(binding, from, to) {
+  const declarator = bindingDeclaratorNode(binding);
+  return declarator?.type === 'VariableDeclarator' && !!declarator.init && declarator.start >= from && declarator.end <= to;
 }
 
 // the PATH a binding is declared at, the synthetic hoisted shape's included (`synthHoistedBinding`
@@ -5710,20 +5921,25 @@ function handOnCallSite(callSite, callSites) {
 // value is a CALL, paired by no helper here: a detect consumer pairs each through the call canon.
 // a write in an arm the build never takes installs nothing (`writeNeverRuns`), and neither does one a
 // later write overwrites before the read (`supersededWrites`); the mutation census still counts both
-// (`countDeadWrites`): the decisions read the census, so it cannot read them
-export function reassignmentValueEnumeration({ binding, usagePath, name = null, ctx = null, usageNode = null, countDeadWrites = false }) {
+// (`countDeadWrites`): the decisions read the census, so it cannot read them. `everyWrite` counts each write
+// wherever it stands against the read too - the census answering once for every read of a binding
+export function reassignmentValueEnumeration({
+  binding, usagePath, name = null, ctx = null, usageNode = null, countDeadWrites = false, everyWrite = false,
+}) {
   if (!binding?.constantViolations?.length) return { nodes: [], complete: true, callSites: [] };
   if (!usagePath || (!countDeadWrites && writesPastCeiling(binding.constantViolations))) {
     return { nodes: [], complete: false, callSites: [] };
   }
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return { nodes: [], complete: false, callSites: [] };
-  return reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites });
+  return reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites, everyWrite });
 }
 
 // ... the value nodes alone, for a consumer that needs no completeness verdict
-export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = null, usageNode = null, countDeadWrites = false }) {
-  return reassignmentValueEnumeration({ binding, usagePath, name, ctx, usageNode, countDeadWrites }).nodes;
+export function reassignmentValueNodes({
+  binding, usagePath, name = null, ctx = null, usageNode = null, countDeadWrites = false, everyWrite = false,
+}) {
+  return reassignmentValueEnumeration({ binding, usagePath, name, ctx, usageNode, countDeadWrites, everyWrite }).nodes;
 }
 
 // a BRANCHING value (`c ? A : B`, `A || B`, a written or a paired one) installs one of its ARM
@@ -5838,14 +6054,14 @@ function supersededWrites({ writes, usagePath, owner, usageNode, adapter, bindin
   return superseded;
 }
 
-function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites }) {
+function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites, everyWrite }) {
   // `name` is a pure OVERRIDE for callers that already know the alias; the accessor covers both
   // binding shapes on its own, so pattern-LHS pairing no longer depends on the caller passing it
   const bindingName = name ?? bindingDeclaratorName(binding);
   // `usageNode` is a multi-hop alias hop's read site: a transitive source's write AFTER that read
   // (`const a = src; src = X`) cannot reach the captured value, so it is not a reachable union value
   const readNode = usageNode ?? usagePath.node;
-  const useInLoop = nodeSitsInLoopRerunWithin(owner.node, readNode, usagePath);
+  const useInLoop = !everyWrite && nodeSitsInLoopRerunWithin(owner.node, readNode, usagePath);
   // an Identifier-shaped violation (adapters that record the LHS Identifier) resolves its
   // enclosing assignment by subtree search - anchor that search at the BINDING's own scope
   // block, not the usage's var-scope owner: a use inside an inner function (a param default,
@@ -5860,7 +6076,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // is the safe direction everywhere - the union candidates it feeds are global-only by their own
   // early return, the mutation census over-records (more bails), and a type built from it is LESS
   // narrow, which is exactly what a bail-safe consumer wants
-  const closureReenters = readRunsDeferredWithin(usagePath, binding.scope?.block ?? binding.scope?.path?.node);
+  const closureReenters = !everyWrite && readRunsDeferredWithin(usagePath, binding.scope?.block ?? binding.scope?.path?.node);
   // what a write installs reads a selection the build decides as its live operand, unless the census asks
   const liveCtx = ctx && !countDeadWrites ? { ...ctx, liveArmsOnly: true } : ctx;
   const out = [];
@@ -5886,15 +6102,19 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
     if (superseded?.has(node)) continue;
     // Exclude ordinary later writes before walking the read's branch ancestry for each
     // candidate. Loops, deferred reads and early-evaluated slots still need the full proof.
-    if (!useInLoop && !closureReenters && !writeOutrunsUse(node, usagePath)
+    if (!everyWrite && !useInLoop && !closureReenters && !writeOutrunsUse(node, usagePath)
       && provablyPrecedes(readNode, node)) continue;
-    if (!countDeadWrites && writeNeverRuns({ write: node, usagePath, adapter: ctx?.adapter })) continue;
+    if (!countDeadWrites && writeNeverRuns({ write: recordedWrite(binding, node), usagePath, adapter: ctx?.adapter })) continue;
     // A late container slot or an opposite arm cannot reach this execution's read.
     // The proof retains writes carried by a loop back-edge or another invocation.
-    if ((useOutrunsWrite(node, usagePath) || writeIsInOppositeBranch(node, usagePath, readNode)) && noReassignmentReachesUsage({
-      reassignmentNodes: [node], usagePath, usageNode, bindingScopeNode: violationSearchRoot,
-      bindingAnchor: bindingLoopAnchor(binding),
-    })) continue;
+    if (!everyWrite && (useOutrunsWrite(node, usagePath) || writeIsInOppositeBranch(node, usagePath, readNode))
+      && noReassignmentReachesUsage({
+        reassignmentNodes: [node],
+        usagePath,
+        usageNode,
+        bindingScopeNode: violationSearchRoot,
+        bindingAnchor: bindingLoopAnchor(binding),
+      })) continue;
     // a write's arms are asked of the var-scope owner that holds it, not of a closure the read sits in,
     // and a pattern pairs in the scope it stands in - the key and the source a block there rebinds. a
     // plain write's value is read where it stands by the caller, so only a pattern pays for the path
@@ -6253,6 +6473,13 @@ export function receiverSlotRead(receiver, key, keyNode = null) {
     start: receiver.start,
     end: receiver.end,
   };
+}
+
+// does `node` borrow its receiver's span - a read synthesized off it (`receiverSlotRead`), never a node of the
+// tree? a member the source spells always spans past its object
+export function borrowsReceiverSpan(node) {
+  const key = nodePositionKey(node);
+  return key !== null && key === nodePositionKey(node.object);
 }
 
 // the values a REST copies off its source, where the source spells them: an object rest every own
@@ -6628,6 +6855,64 @@ function slotParamIndex(callee, params) {
 export function classStaticSlotMember(classNode, key) {
   const members = (classNode?.body?.body ?? []).filter(member => member.static && foldedPropertyKeyName(member) === key);
   return members.findLast(member => CLASS_DATA_FIELD_TYPES.has(member.type)) ?? members.at(-1) ?? null;
+}
+
+// ... and the one a CALL through that key reaches, where a caller census keyed on the class's binding
+// can count every call of it, or null: a decorator may replace the class or the member, a static whose
+// key no canon names may be this one, and an accessor runs a getter instead
+export function classStaticCallSlot(classNode, key) {
+  if (key === null || !classStaticsCallable(classNode)) return null;
+  const slot = classStaticSlotMember(classNode, key);
+  return slot && !slot.decorators?.length && (slot.kind === 'method' || CLASS_DATA_FIELD_TYPES.has(slot.type)) ? slot : null;
+}
+
+// ... the refusals that hold for every key of the class
+export function classStaticsCallable(classNode) {
+  return !classNode?.decorators?.length && (classNode?.body?.body ?? []).every(member => !member.static
+    || privateNameSpelling(member.key) !== null || foldedPropertyKeyName(member) !== null);
+}
+
+// does the class reach itself past its binding? `this` in a static member or block is the class or a
+// subclass, `super` there its heritage, and a class expression's own name is a binding only its body
+// sees: a call spelled any of these ways is one no census of a binding counts
+export function classReachesItselfUnnamed(classNode) {
+  const ownName = classNode?.type === 'ClassExpression' ? classNode.id?.name : null;
+  let reaches = false;
+  for (const member of classNode?.body?.body ?? []) {
+    const staticContext = !!member.static || member.type === 'StaticBlock';
+    if (!staticContext && !ownName) continue;
+    walkAstNodes({ root: member, visit(node) {
+      if (staticContext && (node.type === 'ThisExpression' || node.type === 'Super')
+        || node.type === 'Identifier' && node.name === ownName) reaches = true;
+      return !reaches;
+    } });
+    if (reaches) return true;
+  }
+  return false;
+}
+
+// does the file read a `constructor` key, off anything: the one way an instance reaches its class's statics
+// (`inst.constructor.make()`), so a construction hands those on only here - answered by the file census as it
+// walks (`collectFileCensus`), by a walk of its own for a program no census walked
+const CONSTRUCTOR_KEY_READS = new WeakMap();
+export function readsConstructorKey(program) {
+  if (!CONSTRUCTOR_KEY_READS.has(program)) {
+    let reads = false;
+    walkAstNodes({ root: program, visit(node) {
+      reads = readsConstructorKeyAt(node, node.type);
+      return !reads;
+    } });
+    CONSTRUCTOR_KEY_READS.set(program, reads);
+  }
+  return CONSTRUCTOR_KEY_READS.get(program);
+}
+
+// ... at this node, its `type` read by the caller: a member access naming the key, or a pattern property
+// folding to it
+function readsConstructorKeyAt(node, type) {
+  if (isMemberAccessType(type)) return staticMemberKeyName(node) === 'constructor';
+  return type === 'ObjectPattern'
+    && node.properties.some(prop => prop.type !== 'RestElement' && foldedPropertyKeyName(prop) === 'constructor');
 }
 
 // The pattern pairer reads the value of the same own static slot that member consumers resolve.
@@ -7379,14 +7664,16 @@ function isPatternWriteNode(node) {
     : node?.type === 'VariableDeclarator' && isDestructurePattern(node.id);
 }
 
-// is `write` (a node, or a path off a scope's own record) no longer in the tree under `rootPath`? a node is
-// found through the root's write index, which keeps a replaced node's path pointing at the replacement
-// and a removed one's at a detached chain. a node the index misses is written since it was built or
-// removed before: the index is built again to tell the two apart
+// is `write` (a node, or an entry of a scope's own record) no longer in the tree under `rootPath`? an entry
+// with no parent chain to climb - a node, a write the scan recovered past the tracker - is found through the
+// root's write index, which keeps a replaced node's path pointing at the replacement and a removed one's at
+// a detached chain. a node the index misses is written since it was built or removed before: the index is
+// built again to tell the two apart, unless the lookup asking built it (`writeLookupSerial`)
 function retiredWrite(write, rootPath) {
   const node = violationNode(write);
-  let live = write === node ? ownerWritePathIndex(rootPath).get(node) : write;
-  if (!live) {
+  const index = write.parentPath ? null : ownerWritePathIndex(rootPath);
+  let live = index ? index.get(node) : write;
+  if (!live && writeIndexSerials.get(index) !== writeLookupSerial) {
     ownerWritePathIndexCache.delete(rootPath);
     live = ownerWritePathIndex(rootPath).get(node);
   }
@@ -7403,23 +7690,62 @@ function replacedInPlace(write) {
   return write !== violationNode(write) && !WRITE_RECORD_TYPES.has(write.node?.type);
 }
 
-// can a render retire `write`: is it a pattern write or a loop head, which a render replaces or rewrites in
-// place, or one already replaced in place?
-function retirableWrite(write) {
-  const node = violationNode(write);
-  return isPatternWriteNode(node) || isForXStatement(node) || replacedInPlace(write);
+// the writes a render re-emitted as copies in another slot of the tree, retiring the nodes it copied (an
+// initializer's sequence prefix lifted ahead of the declaration the render replaced): a pattern write is known
+// to be retired by its kind, a write of any other kind only by this note, made where the render retires it -
+// the climb proving a write left the tree costs a walk to the root, so a lookup makes it for noted writes
+// alone. the epoch counts the notes: a record a lookup judged before a note is judged again
+const renderRetiredWrites = new WeakSet();
+let renderRetiredWritesEpoch = 0;
+
+// note the writes in `node`, a subtree a render retired whole or copied to stand in for it: every node, whatever
+// record names its writes (babel the assignment, estree-toolkit the written identifier - a pattern leaf
+// too, copied without the assignment it fills - the scan the write itself). a subtree holding no write is
+// no record's, so a lookup's judgment stands
+export function noteRenderRetiredWrites(node) {
+  const nodes = [];
+  let writes = false;
+  walkAstNodes({ root: node, visit: child => {
+    nodes.push(child);
+    writes ||= OWNER_WRITE_PATH_TYPES.has(child.type) || isDestructurePattern(child);
+  } });
+  if (!writes) return;
+  for (const child of nodes) renderRetiredWrites.add(child);
+  renderRetiredWritesEpoch++;
 }
 
-// does `writes` - a scope's own record - hold a write a render retired: a pattern write no longer in the tree,
-// a record path a render replaced in place, or an assignment or a loop head a render rewrote in place so it
-// writes `name` no more (`stillWrites`)?
+// ... and `targets`, the binding targets a render took out of a pattern it keeps or drops (a slot a claim
+// consumes, one a sentinel took the place of): each is itself the write estree-toolkit's record names, with no
+// write-shaped node over it for the walk above to find. a default the render spells again elsewhere is no
+// target, and stays live
+export function noteRenderRetiredTargets(targets) {
+  if (!targets.length) return;
+  for (const target of targets) walkAstNodes({ root: target, visit: child => renderRetiredWrites.add(child) });
+  renderRetiredWritesEpoch++;
+}
+
+// can a lookup find `write` retired: a pattern write, a loop head or a noted write, which a render replaces or
+// rewrites in place, or one already replaced in place?
+function retirableWrite(write) {
+  const node = violationNode(write);
+  return isPatternWriteNode(node) || isForXStatement(node) || renderRetiredWrites.has(node) || replacedInPlace(write);
+}
+
+// is `write` one a render replaces whenever it renders it: a pattern write, or a write the render noted
+function knownRetiring(node) {
+  return isPatternWriteNode(node) || renderRetiredWrites.has(node);
+}
+
+// does `writes` - a scope's own record - hold a write a render retired: a pattern or noted write no longer in
+// the tree, a record path a render replaced in place, or an assignment or a loop head a render rewrote in
+// place so it writes `name` no more (`stillWrites`)?
 function holdsRetiredWrite(writes, rootPath, name) {
   return writes.some(write => {
     // a path a removal emptied names no node
     const node = write.node === null ? null : violationNode(write);
     return replacedInPlace(write)
       || ((node?.type === 'AssignmentExpression' || isForXStatement(node)) && !stillWrites(node, name))
-      || (isPatternWriteNode(node) && retiredWrite(write, rootPath));
+      || (!!node && knownRetiring(node) && retiredWrite(write, rootPath));
   });
 }
 
@@ -7440,10 +7766,9 @@ function staleScanWrite(write, name, rootPath) {
 }
 
 // does the scan list `writes` of `name` give a lookup cause to read it again: a write a render rewrote in place,
-// or a pattern write a render retired. the climb telling a write left the tree costs a walk to the root, so it
-// is made for a pattern write alone, whose render always replaces it
+// or a pattern or noted write a render retired (`knownRetiring`, the only writes the climb is made for)
 function scanHoldsStaleWrite(writes, name, rootPath) {
-  return writes.some(write => !stillWrites(write, name) || (isPatternWriteNode(write) && retiredWrite(write, rootPath)));
+  return writes.some(write => !stillWrites(write, name) || (knownRetiring(write) && retiredWrite(write, rootPath)));
 }
 
 // the writes of `name` the scan of `ownerPath` holds, each stale one read again where it stood
@@ -7487,6 +7812,13 @@ function refreshWritesAtSlot({ ownerPath, slotPath, retired, name }) {
   // ... and the statements a render minted around the statement holding a slot deeper in it
   const statement = statementListOf(holder.node) === slot.container ? null : statementPathAbove(slot, ownerPath);
   if (statement) regions.push({ frames: framesDownTo(ownerPath, statement.parentPath), paths: mintedAround(statement) });
+  // ... and those it minted at the head of the body of the function whose parameter it rewrote: the parameter's
+  // pattern is re-hosted there, its default's writes with it
+  const body = slot.listKey === 'params' && holder.node.body?.type === 'BlockStatement' ? holder.get('body') : null;
+  const leading = body ? body.get('body') : [];
+  if (leading.length && standsFor(leading[0].node, old)) {
+    regions.push({ frames: framesDownTo(ownerPath, body), paths: runAround(leading[0], 0, node => standsFor(node, old)) });
+  }
   const scanner = reassignmentScanner();
   const sloppy = isSloppyAtPath(ownerPath);
   for (const { frames: regionFrames, paths } of regions) {
@@ -7548,8 +7880,10 @@ function joinSideIndexes({ holder, ownerPath, paths }) {
     if (!writePaths.has(path.node)) writePaths.set(path.node, path);
   }
   for (const path of paths) {
-    if (OWNER_WRITE_PATH_TYPES.has(path.node.type)) add(path);
-    path.traverse(Object.fromEntries([...OWNER_WRITE_PATH_TYPES].map(type => [type, add])));
+    const visitors = writePathVisitors(add);
+    // the path itself first: the walk below enters its children alone
+    visitors[path.node.type]?.(path);
+    path.traverse(visitors);
   }
   for (const owner of [rootPathOf(holder), ownerPath]) {
     const known = ownerWritePathIndexCache.get(owner);
@@ -7668,11 +8002,14 @@ function invalidateWriteScans(declarationPath) {
 
 // a scope's own record (`binding.constantViolations`, the tracker's write paths) holding a write a render
 // retired, read again: the live writes of its scan (`refreshedScanWrites`) as paths - those a refresh
-// found, the record's own, the root's write index - or null for a record holding none or one no read follows
+// found, the record's own, the root's write index - or null for a record holding none or one no read follows.
+// a render that MOVES a write keeps its node and leaves the record's path climbing the chain it left, so a
+// record path is taken only while its chain is the live tree's, the index's (which a refresh re-points) else
 // (`writesPastCeiling`)
 function liveRecordWrites({ binding, name, usePath }) {
   const record = binding.constantViolations;
   if (!binding.path?.node || !record?.length || writesPastCeiling(record)) return null;
+  writeLookupSerial++;
   const rootPath = rootPathOf(usePath);
   if (!holdsRetiredWrite(record, rootPath, name)) return null;
   const ownerPath = writeScanOwner({ kind: binding.kind, bindingPath: binding.path, anchorPath: usePath, name })?.owner
@@ -7682,7 +8019,11 @@ function liveRecordWrites({ binding, name, usePath }) {
   const recorded = new Map(record.map(write => [violationNode(write), write]));
   const indexed = ownerWritePathIndex(rootPath);
   const declaration = binding.path.node;
-  return writes.filter(node => node !== declaration).map(node => paths.get(node) ?? recorded.get(node) ?? indexed.get(node) ?? node);
+  function attached(path) {
+    return path && !ancestorChainDetached(path) ? path : null;
+  }
+  return writes.filter(node => node !== declaration)
+    .map(node => paths.get(node) ?? attached(recorded.get(node)) ?? indexed.get(node) ?? recorded.get(node) ?? node);
 }
 
 // the canonical writes of a binding (`recomputedBindingWrites`) as the LIVE tree holds them: both
@@ -7701,6 +8042,7 @@ export function liveBindingWrites({ binding, name, usePath }) {
     ? writeScanOwner({ kind: binding.kind, bindingPath: binding.path, anchorPath: usePath, name })?.owner : null;
   if (!ownerPath) return writes;
   const rootPath = rootPathOf(usePath);
+  writeLookupSerial++;
   if (!scanHoldsStaleWrite(writes, name, rootPath)) return writes;
   refreshedScanWrites({ ownerPath, name, rootPath, declarationPath: binding.path });
   return recompute();
@@ -7839,17 +8181,32 @@ function isIdentitySelfAssignViolation(v, name) {
 // recomputed writes of a name with none are one shared array, which no file outlives
 const reassignmentNodesCache = new WeakMap();
 function reassignmentNodesBeyondDeclarator(binding) {
+  return reassignmentNodesMemo(binding)?.nodes ?? [];
+}
+function reassignmentNodesMemo(binding) {
   const violations = binding.constantViolations;
-  if (!violations?.length) return [];
+  if (!violations?.length) return null;
   const own = bindingDeclaratorNode(binding);
   const name = bindingBoundName(binding);
   let byOwner = reassignmentNodesCache.get(violations);
   if (!byOwner) reassignmentNodesCache.set(violations, byOwner = new Map());
   const memo = byOwner.get(own);
-  if (memo && memo.name === name) return memo.nodes;
+  if (memo && memo.name === name) return memo;
   const nodes = violations.filter(v => isRealReassignment(v, own, name)).map(violationNode);
-  byOwner.set(own, { name, nodes });
-  return nodes;
+  const fresh = { name, nodes, writes: null };
+  byOwner.set(own, fresh);
+  return fresh;
+}
+
+// ... and the path the record names one of those nodes by, which places a write the node alone cannot
+// (`writeNeverRuns`): the node itself where the record names it by none
+const recordPathsCache = new WeakMap();
+function recordedWrite(binding, node) {
+  const violations = binding.constantViolations;
+  if (!violations?.length) return node;
+  let paths = recordPathsCache.get(violations);
+  if (!paths) recordPathsCache.set(violations, paths = new Map(violations.map(v => [violationNode(v), v])));
+  return paths.get(node) ?? node;
 }
 
 // the node types whose value never stands for a global - a primitive (beside `PRIMITIVE_LITERAL_TYPES`), a
@@ -7868,9 +8225,15 @@ const NO_GLOBAL_VALUE_TYPES = new Set([
   'UpdateExpression',
 ]);
 
-// does no value the declared `binding` holds stand for a global? its init and every plain write hold arms of
-// those types, or reads off the binding itself, which name a global only through another of its values
-// (`let node = null; ... node = new Node(node); ... node = node.parent`) - so which write reaches a read decides
+// does the value arm `node`, unwrapped, never stand for a global: none at all, `undefined`, a primitive literal,
+// or a value of the types above?
+export function standsForNoGlobal(node) {
+  return !node || isUndefinedNode(node) || PRIMITIVE_LITERAL_TYPES.has(node.type) || NO_GLOBAL_VALUE_TYPES.has(node.type);
+}
+
+// does no value the declared `binding` holds stand for a global? its init and every plain write hold arms that
+// stand for none (`standsForNoGlobal`), or reads off the binding itself, which name a global only through another
+// of its values (`let node = null; ... node = new Node(node); ... node = node.parent`) - so which write reaches a read decides
 // nothing, and a resolver answers before settling it. a declarator with no init may take its value from
 // elsewhere - a for-x head binds what the loop iterates - and a write read other than plainly - through a
 // pattern, a for-x head, a re-declaration - may hold anything
@@ -7881,8 +8244,7 @@ export function bindingHoldsNoGlobal(binding) {
   function holdsNone(value) {
     return flattenBranchingValueNodes([value], { andRightOnly: true }).every(arm => {
       const node = unwrapRuntimeExpr(arm);
-      if (!node || isUndefinedNode(node) || PRIMITIVE_LITERAL_TYPES.has(node.type) || NO_GLOBAL_VALUE_TYPES.has(node.type)) return true;
-      return readsOffBindingItself(node, name);
+      return standsForNoGlobal(node) || readsOffBindingItself(node, name);
     });
   }
   if (!holdsNone(declarator.init)) return false;
@@ -7933,7 +8295,11 @@ export function reassignBailApplies({ binding, adapter, path, usageNode = null, 
 // the writes of `binding` beyond its declarator that may run: a write in an arm the build never takes
 // (`writeNeverRuns`) is none
 function liveReassignmentNodes(binding, path, adapter) {
-  return reassignmentNodesBeyondDeclarator(binding).filter(write => !path || !writeNeverRuns({ write, usagePath: path, adapter }));
+  const memo = reassignmentNodesMemo(binding);
+  if (!memo || !path) return memo ? [...memo.nodes] : [];
+  // the entry the record names each by (`recordedWrite`), taken once per list
+  memo.writes ??= memo.nodes.map(node => recordedWrite(binding, node));
+  return memo.nodes.filter((node, at) => !writeNeverRuns({ write: memo.writes[at], usagePath: path, adapter }));
 }
 
 // may a write of `binding` beyond its declarator reach the read at `path` (`usageNode` the read position)
@@ -9147,9 +9513,10 @@ export function walkAstChildren(node, visit) {
 // transparent wrappers down to the root. a ParenthesizedExpression TERMINATES the walk: parens
 // end an optional chain, so a `?.` sealed inside them does not short-circuit what follows
 // (`(a?.b).c` throws natively on a nullish `a`) and must not lift a guard out here.
-// used by the chain combines: a receiver with a live `?.` short-circuits the WHOLE chain
-// natively, so it has to be tested before the (nullish-intolerant) maybe-helper reads it,
-// while a receiver without one must keep throwing on the helper's own member read
+// used by the chain combines: a receiver's live `?.` short-circuits the WHOLE chain natively,
+// so that link has to be tested before the (nullish-intolerant) maybe-helper reads the receiver
+// (`optionalCallReceiverGuard`), while a receiver without one must keep throwing on the helper's
+// own member read
 export function receiverCarriesLiveOptional(node) {
   for (let cur = node; cur && typeof cur === 'object';) {
     // oxc keeps a paren NODE, babel only marks `extra.parenthesized` on the wrapped node -
@@ -9166,6 +9533,17 @@ export function receiverCarriesLiveOptional(node) {
     else return false;
   }
   return false;
+}
+
+// what the guard of an optional method call (`R.m?.()`, the callee member passed peeled) owes its
+// receiver R. a `?.` on the member itself tests R's VALUE ('value': `R?.m?.()`). a plain member over
+// a receiver carrying a live `?.` tests that LINK - the object of R's last live `?.` - and reads R
+// plainly past it ('link': `a?.b.m?.()` tests `a`, then reads `.m` off `a.b`): R's own value is no
+// test there, since it comes out nullish where `a.b` does, and the member read throws on that like
+// native. any other receiver owes no test (null): the member read throws on a nullish R by itself
+export function optionalCallReceiverGuard(callee) {
+  if (callee?.optional === true) return 'value';
+  return receiverCarriesLiveOptional(callee?.object) ? 'link' : null;
 }
 
 // node types whose value is always a freshly-made object - the only left operands of `&&` that
@@ -9902,6 +10280,9 @@ export function collectFileCensus(programNode, reducers) {
     scopes: [],
     throwHandler: null,
   }];
+  // the file's `constructor` key question (`readsConstructorKey`) rides this walk, once per program
+  const asksConstructorKey = !CONSTRUCTOR_KEY_READS.has(programNode);
+  let constructorKeyRead = false;
   while (nodeStack.length) {
     const node = nodeStack.pop();
     const frame = frameStack.pop();
@@ -9914,15 +10295,17 @@ export function collectFileCensus(programNode, reducers) {
       continue;
     }
     if (!isASTNode(node)) continue;
+    const { type } = node;
     for (const reducer of reducers) reducer.visit(node, frame);
+    if (asksConstructorKey) constructorKeyRead ||= readsConstructorKeyAt(node, type);
     const atTopLevel = frame.atTopLevel && !isScopeRebinding(node);
     // sticky, same shape as `atTopLevel`: once inside an annotation the whole subtree is inside it.
     // the boundary is the WRAPPER node a `:` slot introduces - deliberately NARROWER than
     // `isTypeAnnotationNodeType` ("is this type-space at all"), which also covers union arms and
     // type ARGUMENTS. a type-alias RHS, an interface body and type arguments carry no wrapper
     const underTypeAnnotation = frame.underTypeAnnotation || isTypeAnnotationWrapper(node);
-    const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? frame.parentType : node.type;
-    const rebindsThis = THIS_REBINDING_TYPES.has(node.type);
+    const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(type) ? frame.parentType : type;
+    const rebindsThis = THIS_REBINDING_TYPES.has(type);
     let childFrame = null;
     let receiverFrame = null;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
@@ -9943,13 +10326,13 @@ export function collectFileCensus(programNode, reducers) {
         const thisOwner = key === 'decorators' && frame.parameterThisOwner !== undefined
           ? frame.parameterThisOwner
           : rebindsThis && isThisRebinding(node, Array.isArray(value) ? value[0] : value)
-            ? node.type === 'FunctionExpression' && frame.parentNode?.type === 'MethodDefinition' ? frame.parentNode : node
+            ? type === 'FunctionExpression' && frame.parentNode?.type === 'MethodDefinition' ? frame.parentNode : node
             : frame.thisOwner;
         // A parameter's decorator runs outside its function, unlike its default value.
-        const parameterThisOwner = key === 'params' && FUNCTION_LIKE_NODE_TYPES.has(node.type)
+        const parameterThisOwner = key === 'params' && FUNCTION_LIKE_NODE_TYPES.has(type)
           ? frame.thisOwner : undefined;
         nodeStack.push(value);
-        const handlerStep = node.type === 'TryStatement' || frame.throwHandler
+        const handlerStep = type === 'TryStatement' || frame.throwHandler
           ? throwHandlerAtStep(node, { node: value, key }) : undefined;
         const throwHandler = handlerStep === undefined ? frame.throwHandler : handlerStep;
         if (throwHandler !== childFrame.throwHandler) {
@@ -9964,6 +10347,7 @@ export function collectFileCensus(programNode, reducers) {
       }
     }
   }
+  if (asksConstructorKey) CONSTRUCTOR_KEY_READS.set(programNode, constructorKeyRead);
   // Finalize shared facts before a result consumes another reducer's observations.
   for (const reducer of reducers) reducer.prepare?.();
   const census = {};
@@ -10744,6 +11128,13 @@ function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
   return parent.type === 'TSImportEqualsDeclaration' && parent.importKind === 'type';
 }
 
+// does the name stand as an export specifier's local? it names a declaration of this file - only those
+// export - so it never reads the realm: a usage lane that found no value binding behind it is looking at
+// a type, which exports nothing
+export function isExportSpecifierLocal(path) {
+  return path?.parent?.type === 'ExportSpecifier' && path.parent.local === path.node;
+}
+
 // the STRUCTURAL half: an identifier standing in type space is a NAME the type declares - a type
 // parameter's name (`interface Box<Set>`), a signature's parameter (`(Set: number) => void`, a
 // body-less overload's, an index signature's), a member key, a mapped key, a member segment of a
@@ -11080,7 +11471,8 @@ export function rootProgramOf(path) {
 // starts at the anchor's nearest ancestor holding the node's span - spans nest, so the node lies below
 // it if anywhere, and a neighbour's path costs no descent from the root - and retries from the root
 // where that one misses (a node above an ancestor of the very same span). null where no descent
-// reaches it (a node a rewrite detached, or one with no span). a descent ahead of the traversal is not
+// reaches it (a node a rewrite detached, or one with no span); a node a render moved under nodes it built
+// without spans is reached through them (`descendToNode`). a descent ahead of the traversal is not
 // free: on the estree side the paths it materializes inside a function not yet visited move a later
 // verdict that reads them (a receiver's caller-escape snapshot did), so ask only where the frame counts
 const PATHS_OF_NODES = new WeakMap();
@@ -11101,7 +11493,9 @@ export function pathOfNode(anchorPath, node) {
   return found;
 }
 
-// ... one level at a time: a list's item through its span index, a single child through its own span
+// ... one level at a time: a list's item through its span index, a single child through its own span - and where no
+// child's span holds the node, through the children a render built with no span at all, which may hold it moved
+// there (the rule `descendsBySpanTo` searches by)
 function descendToNode(from, node) {
   let cur = from;
   while (cur?.node && cur.node !== node) {
@@ -11123,9 +11517,29 @@ function descendToNode(from, node) {
       } else continue;
       break;
     }
+    if (!next) return descendThroughSpanless(cur, node);
     cur = next;
   }
   return cur?.node === node ? cur : null;
+}
+
+// ... the children of `path` a render built with no span, each searched below in turn
+function descendThroughSpanless(path, node) {
+  for (const [key, value] of Object.entries(path.node)) {
+    if (NON_CHILD_KEYS.has(key)) continue;
+    if (Array.isArray(value)) {
+      for (const [at, item] of value.entries()) {
+        if (!isASTNode(item) || hasRange(item)) continue;
+        const child = cachedContainerPaths(path, key)[at];
+        const found = child?.node === item ? descendToNode(child, node) : null;
+        if (found) return found;
+      }
+    } else if (isASTNode(value) && !hasRange(value)) {
+      const found = descendToNode(path.get(key), node);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 // the statements a climb's anchor descends through toward a read: each nests further statements - the
@@ -11260,8 +11674,9 @@ export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && pa
 
 // is this member path the OPERAND of a `delete`? transparent wrappers (parens as a NODE, TS
 // casts, the chain wrapper) sit between them in one spelling and not the other, so the climb
-// peels them - and a guard the emit already rendered sits between too (`delete (null == t ?
-// void 0 : X.name)`): on the defined branch the member still IS the delete operand, so the
+// peels them - several stacked ones too (`delete (a?.b)` is a paren over a chain), compared by the
+// core both sides wrap - and a guard the emit already rendered sits between too (`delete (null ==
+// t ? void 0 : X.name)`): on the defined branch the member still IS the delete operand, so the
 // climb steps through the branch it fills. single source for both emitters' claim-side gate
 export function claimDeleteOperand(path) {
   let step = path;
@@ -11270,11 +11685,38 @@ export function claimDeleteOperand(path) {
     if (!up?.node) return false;
     const throughBranch = up.node.type === 'ConditionalExpression'
       && (up.node.alternate === step.node || up.node.consequent === step.node);
-    if (!throughBranch && unwrapRuntimeExpr(up.node) !== step.node) return isDeleteTarget(up.node);
+    if (!throughBranch && unwrapRuntimeExpr(up.node) !== unwrapRuntimeExpr(step.node)) return isDeleteTarget(up.node);
     step = up;
   }
 }
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
+
+// the `delete` a guard standing for `child` owes its whole act to: the operator over the CONTINUATION
+// of the guarded value - members through their objects, calls through their callees, and the TS
+// layers between them, whose `!` ends nothing. a `?.` of a link's own continues it too: it re-tests a
+// value the guard has already passed, and keeps doing so inside the operand. only a paren between two
+// links ends it, sealing the value away from the operator - the read past the seal throws where the
+// source throws, and one around the WHOLE operand seals nothing. `up` is the path above `child`, which
+// may be a fresh render with no path of its own; `sealed` answers the paren question for a node, for
+// a dialect that records it off the node
+export function deleteOverOpenContinuation(child, up, sealed = node => !!node.extra?.parenthesized) {
+  let node = child;
+  let path = up;
+  while (!sealed(node)) {
+    const link = path?.node;
+    const continues = TS_EXPR_WRAPPERS.has(link?.type) ? link.expression === node
+      : (isMemberAccessNode(link) && link.object === node)
+        || ((link?.type === 'CallExpression' || link?.type === 'OptionalCallExpression') && link.callee === node);
+    if (!continues) break;
+    node = link;
+    path = path.parentPath;
+  }
+  while (path?.node && SKIPPABLE_WRAPPER_TYPES.has(path.node.type) && path.node.expression === node) {
+    node = path.node;
+    path = path.parentPath;
+  }
+  return isDeleteTarget(path?.node) ? path : null;
+}
 
 // ObjectPattern property shapes that require a named receiver (`_ref`) to rewrite against:
 // - RestElement: desugars to `_ref` copy minus polyfilled keys
@@ -12712,15 +13154,6 @@ function wrapperElementClaimed(element, emptied) {
   // a wrapper CHAIN coerces once per level, and the extraction repeats every level it descended,
   // so an inner wrapper leaves exactly when its own elements may
   return emptied.has(node) || arrayWrapperResidualDroppable(node, emptied);
-}
-
-// the GLOBAL a computed key names and the pass substitutes, or null. Its own spelling is rewritten
-// like any other read of that global, so a literal carrying the SOURCE node would read a different
-// property than the pattern does - and on a binding whose inserted clones the walk never revisits it
-// would print the bare name raw
-export function substitutedGlobalKeyName(keyNode, scope, resolveGlobalPolyfill) {
-  return keyNode?.type === 'Identifier' && !scope?.getBinding?.(keyNode.name)
-    && resolveGlobalPolyfill?.(keyNode.name) ? keyNode.name : null;
 }
 
 // prototype-method polyfills bind `this` to their first arg, but a tagged-template call

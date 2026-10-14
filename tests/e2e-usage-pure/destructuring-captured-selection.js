@@ -104,3 +104,60 @@ QUnit.test('destructuring: a keyed capture keeps the value its selection or slot
   }
   assert.deepEqual(slot(), [1, 2, ['k']]);
 });
+
+// a selection the source keeps whole - stored, or the value of an assignment the code reads - may yield the
+// user's object, so no mirror takes its realm arm: the static nested under it reads the captured hop through
+// the identity guard, the realm's own static where the realm is selected and the user's slot where it is
+// not, the selector running once
+QUnit.test('destructuring: a kept realm selection guards the static it nests', assert => {
+  let selections = 0;
+  let prefixes = 0;
+  function pick(cnd) {
+    selections++;
+    return cnd;
+  }
+  function stored(cnd, shim) {
+    let held, from;
+    // eslint-disable-next-line prefer-const -- the assignment host is the case under test
+    ({ Array: { from } } = held = pick(cnd) ? globalThis : shim);
+    return [held, from];
+  }
+  function declared(cnd, shim) {
+    let held;
+    const { Array: { from } } = held = pick(cnd) ? globalThis : shim;
+    return [held, from];
+  }
+  function prefixed(cnd, shim) {
+    let held, from;
+    // eslint-disable-next-line prefer-const -- the assignment host is the case under test
+    ({ Array: { from } } = (prefixes++, held = pick(cnd) ? globalThis : shim));
+    return [held, from];
+  }
+  function fallback(cnd, shim) {
+    let held, from;
+    // eslint-disable-next-line prefer-const -- the assignment host is the case under test
+    ({ Array: { from } } = held = (pick(cnd) ? null : shim) || globalThis);
+    return [held, from];
+  }
+  function nullish(cnd, shim) {
+    let held, from;
+    // eslint-disable-next-line prefer-const -- the assignment host is the case under test
+    ({ Array: { from } } = held = (pick(cnd) ? undefined : shim) ?? globalThis);
+    return [held, from];
+  }
+  function yielded(cnd, shim) {
+    let from;
+    const held = { Array: { from } } = pick(cnd) ? globalThis : shim;
+    return [held, from];
+  }
+  for (const read of [stored, declared, prefixed, fallback, nullish, yielded]) {
+    selections = 0;
+    const shim = { Array: { from: 42 } };
+    assert.deepEqual(read(false, shim), [shim, 42]);
+    const realm = read(true, shim);
+    assert.same(realm[0], globalThis);
+    assert.same(realm[1], Array.from);
+    assert.same(selections, 2);
+  }
+  assert.same(prefixes, 2);
+});

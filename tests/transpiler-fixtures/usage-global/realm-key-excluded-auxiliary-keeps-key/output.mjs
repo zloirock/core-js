@@ -1,7 +1,4 @@
 import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.promise.constructor";
-import "core-js/modules/es.promise.catch";
-import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
@@ -21,9 +18,9 @@ import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
-// Excluding a module that only rides along with a global's entry (`es.iterator.drop` beside the defining
-// `es.iterator.constructor`) leaves the global carried: the realm key still names the built-in and its
-// default is dead text - no `Promise.try` module for it.
+// Excluding a module of a global's entry (`es.iterator.drop`) leaves the global carried: the realm key
+// still names the built-in, so its default is dead text and no usage - neither `Promise.try` nor the
+// `Promise` the default names loads.
 const {
   Iterator: {
     try: viaKey

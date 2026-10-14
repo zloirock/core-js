@@ -69,7 +69,7 @@ import {
   typeRefName,
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
-import { staticReceiverHint } from './detect-usage/globals.js';
+import { isKnownGlobalName, staticReceiverHint } from './detect-usage/globals.js';
 import { decidedLiveOperandKey, pureEntryTarget } from './detect-usage/resolve.js';
 import { createAwaited } from './resolve-node-type/awaited.js';
 import { createBindingAnalysis } from './resolve-node-type/binding-analysis.js';
@@ -911,6 +911,7 @@ function createResolveNodeType(babelNodeType, t, {
     keyMatchesName,
     resolveMemberPropertyName,
     resolveKnownConstructor,
+    resolvePrototypeInstance,
     resolveGlobalSurfaceKeyPath,
     resolveRuntimeExpression,
     resolveSuperClassPath: (...args) => resolveSuperClassPath(...args),
@@ -1066,6 +1067,16 @@ function createResolveNodeType(babelNodeType, t, {
   // decoder marks for that reading; the two type-argument lanes stamp their own answer over this box
   function resolveKnownConstructor(name) {
     return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new)?.unmark('innerElided') ?? null : null;
+  }
+
+  // the instance `<name>.prototype` reads as. A known constructor whose family is a dispatch hint is that
+  // family, the receiver its member read `<name>.prototype.<key>` dispatches on: `new` names none for the
+  // abstract `Iterator` and any object for `Object`. Every other name reads as what `new` yields
+  function resolvePrototypeInstance(name) {
+    const known = resolveKnownConstructor(name);
+    if (!isKnownGlobalName(name)) return known;
+    const family = new $Object(name);
+    return TYPE_HINTS.has(toHint(family)) && toHint(known) !== toHint(family) ? family : known;
   }
 
   // user-type-resolve cluster: walks `type` / `interface` / `class` / `enum` declarations
@@ -1311,9 +1322,10 @@ function createResolveNodeType(babelNodeType, t, {
     // follow the key-path to the destructured element, the same way resolvePath's assignment-destructure
     // branch does. without this the whole array `['s']` narrows `x`, dispatching the array-only `at`
     // variant onto a string receiver (wrong on ie:11)
+    // ... and a slot a default may fill holds one of two values (`patternSlotHasDefault`)
     const { id } = reaching.node;
     if (isDestructurePattern(id)) {
-      const keyPath = findPatternKeyPath(id, name, reaching.scope);
+      const keyPath = !patternSlotHasDefault(id, name) && findPatternKeyPath(id, name, reaching.scope);
       if (!keyPath) return null;
       // a rest-bound slot is always an Array - but the RHS being spread is not necessarily
       // one: `var [...r] = "abc"` spreads a STRING into a fresh Array, so returning the RHS
@@ -1416,7 +1428,7 @@ function createResolveNodeType(babelNodeType, t, {
       // a write in an arm the build never takes does not run (`writeNeverRuns`)
       const violations = binding.constantViolations?.length
         ? binding.constantViolations.filter(v => !isOwnBindingWrite(v, bindingPath)
-          && !writeNeverRuns({ write: v.node, usagePath: path, adapter: getDecisionAdapter() }))
+          && !writeNeverRuns({ write: v, usagePath: path, adapter: getDecisionAdapter() }))
         : null;
       if (violations?.length) {
         const lastAssign = findPrecedingBlockAssignment(binding, path) ?? findLastStraightLineAssignment(binding, path);
@@ -1431,7 +1443,8 @@ function createResolveNodeType(babelNodeType, t, {
           // these via key-path walks, but resolvePath is invoked from `resolveRuntimeExpression`
           // (member-chain resolution) which never reaches that fallback. extract the matching
           // RHS slot here so `f.data.at(0)` after `[f] = [{data: ['x']}]` narrows correctly
-          const keyPath = findPatternKeyPath(left, path.node.name, lastAssign.scope);
+          // ... a slot a default may fill holds one of two values, which the RHS slot alone does not name
+          const keyPath = !patternSlotHasDefault(left, path.node.name) && findPatternKeyPath(left, path.node.name, lastAssign.scope);
           if (keyPath) {
             const elem = followKeyPathInRhs(lastAssign.get('right'), keyPath);
             if (elem?.node) {
@@ -1857,6 +1870,7 @@ function createResolveNodeType(babelNodeType, t, {
     computeObjectAliasClosure,
     isNullableOrNever,
     commonType,
+    getDecisionAdapter,
   });
   const {
     resolveClassFieldType,
@@ -1991,12 +2005,19 @@ function createResolveNodeType(babelNodeType, t, {
   // camelCase keys; an instance or a family entry names no static).
   // `useStart` positions the injector's name-keyed lookup: a USER-named body-extract record serves
   // only inside its hosting scope span, so a position-blind ask cannot be served (a same-named
-  // binding elsewhere in the file would read the wrong entry - wrong-Maybe throw). kept in factory
-  // (not in call-return cluster) because the binding-analysis and guard clusters instantiated
-  // upstream consume it as a service dep
-  function staticPairFromPolyfillBinding(scope, name, useStart) {
-    const target = pureEntryTarget(getPolyfillBindingEntry(scope, name, useStart));
+  // binding elsewhere in the file would read the wrong entry - wrong-Maybe throw). the span also
+  // holds every same-named binding declared inside it - a parameter, a catch clause - so the record
+  // goes to the binding the name reads (`useBinding`, `read` its spelling when a hop carries one,
+  // looked up only where a USER record is in play). kept in factory (not in call-return cluster)
+  // because the binding-analysis and guard clusters instantiated upstream consume it as a service dep
+  function staticPairFromPolyfillBinding(scope, name, useStart, path = null, read = null) {
+    const target = pureEntryTarget(getPolyfillBindingEntry(scope, name, useStart, useBindingThunk({ scope, name, path, read })));
     return target?.member ? { constructor: target.global, method: target.member } : null;
+  }
+
+  // the binding a name read resolves to, deferred: the injector asks it only of a USER record
+  function useBindingThunk(lookup) {
+    return () => getScopeBinding(lookup);
   }
 
   // the hop-shaped ask: `hop` stands on the identifier spelling `name`, its anchor
@@ -2005,7 +2026,7 @@ function createResolveNodeType(babelNodeType, t, {
   // unknown constructors (`reflect/xxx` shimmed but not tracked structurally) and downstream
   // call-return inference reads garbage
   function staticPairFromPolyfillEntry(name, hop) {
-    const pair = staticPairFromPolyfillBinding(hop.ctx.scope, name, hopAnchorStart(hop));
+    const pair = staticPairFromPolyfillBinding(hop.ctx.scope, name, hopAnchorStart(hop), hop.ctx.path, hop.node);
     return pair && hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor) ? pair : null;
   }
 
@@ -2014,7 +2035,8 @@ function createResolveNodeType(babelNodeType, t, {
   // carries, so member reads off the swapped value (`_Math.max(...)`) keep resolving in the
   // known-static analyses exactly like the original (`Math.max(...)`)
   function namespaceFromPolyfillBinding(name, hop) {
-    const entry = getPolyfillBindingEntry(hop.ctx.scope, name, hopAnchorStart(hop));
+    const entry = getPolyfillBindingEntry(hop.ctx.scope, name, hopAnchorStart(hop),
+      useBindingThunk({ scope: hop.ctx.scope, name, path: hop.ctx.path, read: hop.node }));
     if (!entry) return null;
     const segments = entry.split('/');
     // ... and the family a narrow entry widens to (`_Reflect` from 'reflect') carries that same value
@@ -2848,7 +2870,7 @@ function createResolveNodeType(babelNodeType, t, {
     // where the ctor comes from the KEY PATH, everything ahead of it walks the global object
     if (hops.length && (!POSSIBLE_GLOBAL_OBJECTS.has(root) || !hops.slice(0, -1).every(proxyStep))) return null;
     if (typeof ctorName !== 'string' || babelBindingAdapter.isMutatedStatic('globalThis', ctorName)) return null;
-    return resolveKnownConstructor(ctorName);
+    return resolvePrototypeInstance(ctorName);
   }
 
   // resolve the type of the object from which a property is accessed:
