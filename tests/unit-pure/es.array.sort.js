@@ -118,7 +118,7 @@ QUnit.test('Array#sort', assert => {
   assert.same(sort([obj1, obj2])[0], obj1, 'stable sort for equal string representations');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => sort([Symbol(1), Symbol(2)]), 'w/o cmp throws on symbols');
   }
 

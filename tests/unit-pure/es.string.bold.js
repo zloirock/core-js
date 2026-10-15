@@ -5,7 +5,7 @@ QUnit.test('String#bold', assert => {
   assert.same(bold('a'), '<b>a</b>', 'lower case');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => bold(Symbol('bold test')), 'throws on symbol context');
   }
 });
