@@ -1,6 +1,6 @@
 // arms of an undecided test that write one key, or a ternary whose arms spell it, hold that key whichever
 // ran - read from a closure too. a closure a later write may reach once called again, and arms naming
-// different keys, keep the native read
+// different keys, keep the native read. A substituted inline key still evaluates its test.
 let closureKey;
 if (flag) closureKey = 'at';
 else closureKey = 'at';

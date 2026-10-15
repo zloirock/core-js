@@ -1034,25 +1034,24 @@ function siblingKeepsResidual(hit) {
     z: sibZ
   } = _ref45;
   const {
-    w: {
-      Array: {
-        prototype: {
-          at: deepAlone
+      w: {
+        Array: {
+          prototype: _ref46
         }
       }
-    }
-  } = {
-    w: _globalThis,
-    z: (hit(), 2)
-  };
-  const _ref46 = {
+    } = {
+      w: _globalThis,
+      z: (hit(), 2)
+    },
+    deepAlone = _atMaybeArray(_ref46);
+  const _ref47 = {
     w: _globalThis,
     y: (hit(), 3)
   };
   const symBeside = _getIteratorMethod(_globalThis);
   const {
     y: sibY
-  } = _ref46;
+  } = _ref47;
   return [deepBeside, sibZ, deepAlone, symBeside, sibY];
 }
 
@@ -1060,38 +1059,38 @@ function siblingKeepsResidual(hit) {
 // Initializer effects retain their source order, two leaves share the surface, and
 // assignment preserves sibling bindings and initializer effects.
 function navBelowMemoSlot(hit) {
-  const _ref47 = {
+  const _ref48 = {
     z: (hit(), 1),
     w: (hit(), _globalThis)
   };
-  const navInSlot = _atMaybeArray(_ref47.w.Array.prototype);
+  const navInSlot = _atMaybeArray(_ref48.w.Array.prototype);
   const {
     z: nz
-  } = _ref47;
-  const _ref48 = {
+  } = _ref48;
+  const _ref49 = {
     w: (hit(), _globalThis),
     y: 2
   };
-  const navHoist = _atMaybeArray(_ref48.w.Array.prototype);
+  const navHoist = _atMaybeArray(_ref49.w.Array.prototype);
   const {
     y: ny
-  } = _ref48;
-  const _ref50 = {
+  } = _ref49;
+  const _ref51 = {
       x: (hit(), 3),
       w: (hit(), _globalThis)
     },
     {
       w: {
         Array: {
-          prototype: _ref49
+          prototype: _ref50
         }
       }
-    } = _ref50,
-    navTwinAt = _atMaybeArray(_ref49),
-    navTwinFlat = _flatMaybeArray(_ref49),
+    } = _ref51,
+    navTwinAt = _atMaybeArray(_ref50),
+    navTwinFlat = _flatMaybeArray(_ref50),
     {
       x: nx
-    } = _ref50;
+    } = _ref51;
   let navAssign, na, navAssignAlone, navAssignEffect, ne;
   ({
     a: na

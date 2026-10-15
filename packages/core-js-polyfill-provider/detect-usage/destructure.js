@@ -55,6 +55,7 @@ import {
   isEscapedCtorNode,
   forOfIterableElements,
   isForXStatement,
+  isForInitDeclaration,
   isFunctionParamDestructureParent,
   isDeoptedStaticRead,
   isMutatedGlobalSlot,
@@ -94,6 +95,7 @@ import {
   patternKeepsEffectfulKey,
   orderBoundPatternProps,
   patternLiteralKeyPath,
+  patternPropReadsBindings,
   patternSlotTarget,
   patternSlotValues,
   writtenContainerSlotValuesAt,
@@ -9357,7 +9359,10 @@ export function planNestedKeyedPatternCapture({
 // live - the guard reads it instead of the constructor - so a chain with one takes no capture.
 // A declaration's static claim takes it off a constructor the build may inject: one the build is told
 // not to inject is read like a constructor-less global, its statics extracted beside the rest.
-// An instance capture over sole hops also takes a host whose value is read, an init storing a value no
+// A flat instance key/default takes the ordered read without moving its forward references;
+// every leaf binds a plain name, with no rest. Other flat targets keep their bound route.
+// An instance capture over sole hops also takes a host whose value is read, a literal init whose
+// effects no carried receiver performs, an init storing a value no
 // global names whose slot no overwrite re-spells (`= kw = box`), and - unless it runs without its own
 // var slot - a leaf level of several properties in a declaration or where the host holds no statement
 // for the flat twin (a discarded sequence element, a bodyless slot).
@@ -9374,7 +9379,13 @@ export function orderedClaimCapture({
   adapter = null,
   injectorState = null,
 }) {
-  if (!prop || !pattern?.properties || pattern.properties.includes(prop)) return null;
+  if (!prop || !pattern?.properties) return null;
+  if (pattern.properties.includes(prop)) return kind === 'instance' && entry && entry !== 'get-iterator-method'
+    && (assignment || hostPath?.node?.type === 'VariableDeclarator')
+    && pattern.properties.every(item => propBindingIdentifier(item.value))
+    && patternPropReadsBindings({ prop, assignmentTarget: assignment,
+      names: pattern.properties.slice(pattern.properties.indexOf(prop) + 1).map(item => propBindingIdentifier(item.value).name) })
+    ? { flat: true } : null;
   const guardedRealm = kind === 'static' && guardedRealmSelection(init, { scope: hostPath?.scope, adapter, path: hostPath });
   if (kind === 'static' ? !(assignment || guardedRealm || hasConstructorEntry(meta?.object)
     && adapter?.available?.({ kind: 'global', name: meta.object }) !== false) || !meta?.object || meta.guardedAliasHint
@@ -9406,11 +9417,23 @@ export function orderedClaimCapture({
   // re-spells a paired slot it can read twice behind the statement.
   const store = peelChainAssignment(peelNestedSequenceExpressions(init).tail).outer;
   const storeLeafPath = store && assignment && adapter && hostPath ? pathOfNode(hostPath, prop) : null;
+  // A sole leaf cannot leave an effectful initializer behind its receiver read. Split patterns
+  // already keep their ordered slots; a receiver carrying every init effect needs no capture.
+  const effectInit = hostPath && soleChainToProp(pattern, prop) && mayHaveSideEffects(init, ctx)
+    ? unwrapRuntimeExpr(peelNestedSequenceExpressions(init).tail) : null;
+  const effectLeaf = effectInit?.type === 'ObjectExpression' ? pathOfNode(hostPath, prop) : null;
+  const effectReceiver = effectLeaf && resolveNestedReceiverNode(effectLeaf,
+    { allowSeFreeSingleRead: true, allowInitCarriedEffects: true, adapter });
+  // Ordinary declarations can already share a literal memo or repeat a source name. A for
+  // initializer needs its receiver in the same declarator; an effectful read always stays there.
+  const retainsInit = !!effectLeaf && (!isReReferenceableReceiver(effectReceiver)
+    || isForInitDeclaration(hostPath.parentPath?.parentPath?.node, hostPath.parentPath?.node))
+    && !receiverPerformsEveryInitEffect(init, effectReceiver, ctx);
   let capture = planNestedKeyedPatternCapture({
     pattern,
     init,
     prop,
-    holdsReceiver: retainsResult,
+    holdsReceiver: retainsResult || retainsInit,
     sharedLeaf,
     storedValue: !!store && !!hostPath && !resolveObjectName({ objectNode: installedWriteValue(store), ...ctx })
       && !(storeLeafPath && isReReferenceableAcrossReads(resolveNestedReceiverNode(storeLeafPath,

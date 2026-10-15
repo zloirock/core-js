@@ -45,6 +45,7 @@ import {
   walkAstChildren,
   OBJECT_PROTOTYPE_FUNCTION_KEYS,
   propertyInstallsPrototype,
+  prototypeChainMayLend,
   isDeleteTarget,
 } from '../helpers/ast-patterns.js';
 import { isPrivateMemberNode, moduleStatements } from './ast-shapes.js';
@@ -116,8 +117,8 @@ export function createClassFields({
     cache.set(propNode, null);
     let result;
     try {
-      const inheritedType = inheritedTypeFn?.() ?? null;
       const candidates = candidatesFn();
+      const inheritedType = inheritedTypeFn?.(candidates) ?? null;
       const type = inheritedType
         ? candidates?.length === 0 ? inheritedType : null
         : candidates ? resolveValue ? foldUnionTypes(candidates, resolveValue) : foldNonNullableCommon(candidates) : null;
@@ -599,16 +600,18 @@ export function createClassFields({
   // keys the cache by (objectExpression, fieldName) so distinct missing fields on the same
   // literal don't share a slot
   // A guaranteed inherited toString returns a string; other inherited calls stay unknown.
+  // `missingValue` proves absence for a runtime path projection; ordinary reads retain annotation fallbacks.
   // Internal `this` reads and calls share valueRead mode, so call mode is a separate cache axis.
   // The writer census belongs to the slot, but argument-dependent returns belong to each call.
   let objectFieldCaches = {
     slots: [new WeakMap(), new WeakMap(), new WeakMap(), new WeakMap()],
+    missing: new WeakMap(),
     calls: [new WeakMap(), new WeakMap()],
     callables: new WeakMap(),
   };
   let objectFnPropWriteCache = new WeakMap();
   let objectFieldMissingSentinels = new WeakMap();
-  function resolveObjectFieldFlow(objectPath, fieldName, callPath, unionHints = false, valueRead = false) {
+  function resolveObjectFieldFlow(objectPath, fieldName, callPath, unionHints = false, valueRead = false, missingValue = false) {
     const prop = findObjectMember(objectPath, fieldName);
     if (prop && t.isObjectMethod?.(prop.node) && (prop.node.kind === 'get' || prop.node.kind === 'set')) {
       if (unionHints) return null;
@@ -619,19 +622,25 @@ export function createClassFields({
     const cacheKey = prop ? prop.node : missingFieldSentinel(objectPath.node, fieldName);
     const flow = resolveFieldFlow(
       cacheKey,
-      objectFieldCaches.slots[+valueRead + (callPath ? 2 : 0)],
+      missingValue ? objectFieldCaches.missing : objectFieldCaches.slots[+valueRead + (callPath ? 2 : 0)],
       () => collectObjectFieldCandidates(objectPath, prop, fieldName, valueRead),
       // Own unknown keys/spreads and prototype installs invalidate inherited presence; the
       // candidate census owns handouts and writes. Keep this scan inside the field cache:
       // repeated reads of a large literal must not re-enumerate its properties.
-      () => !prop && OBJECT_PROTOTYPE_FUNCTION_KEYS.has(fieldName)
-        && !isMutatedStatic('Object.prototype', fieldName) && !isMutatedStatic('Object', 'prototype')
-        && objectPath.node.properties.every(item => {
+      candidates => {
+        if (prop || (!missingValue && !OBJECT_PROTOTYPE_FUNCTION_KEYS.has(fieldName)) || !objectPath.node.properties.every(item => {
           const key = item.computed ? resolveComputedKeyName(item.key, objectPath.scope, undefined, false) : getKeyName(item.key);
           // A setter-only slot has no callable declaration but still shadows the inherited value.
-          return !propertyInstallsPrototype(item, false, true) && key !== null && key !== fieldName;
-        })
-        && !objectDispatchesForeignPrototype(objectPath) ? new $Object('Function').mark('inheritedPresent') : null,
+          return !propertyInstallsPrototype(item, false, true) && key !== null && key !== undefined && key !== fieldName;
+        }) || objectDispatchesForeignPrototype(objectPath)) return null;
+        if (OBJECT_PROTOTYPE_FUNCTION_KEYS.has(fieldName)
+          && !isMutatedStatic('Object.prototype', fieldName) && !isMutatedStatic('Object', 'prototype')) {
+          return new $Object('Function').mark('inheritedPresent');
+        }
+        // A closed literal with no own, inherited or written slot reads undefined.
+        return missingValue && candidates?.length === 0 && !prototypeChainMayLend(fieldName,
+          { adapter: { isMutatedStaticSlot: isMutatedStatic } }, ['Object']) ? new $Primitive('undefined') : null;
+      },
       null,
       !!callPath,
     );
@@ -1142,6 +1151,7 @@ export function createClassFields({
     classFnFieldWriteCache = [new WeakMap(), new WeakMap()];
     objectFieldCaches = {
       slots: [new WeakMap(), new WeakMap(), new WeakMap(), new WeakMap()],
+      missing: new WeakMap(),
       calls: [new WeakMap(), new WeakMap()],
       callables: new WeakMap(),
     };

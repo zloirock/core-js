@@ -1856,9 +1856,10 @@ export function patternHasPolyfillableDefault(node) {
 // prefix lifts as its own statement ahead of the extraction (source order, exactly once). a
 // chain-assignment in the prefix is not liftable - it replays whole through its own channel
 // `tailRoot`: the proxy global a CALL tail provably yields (the caller's inline-canon answer) - the
-// nav question is asked of it instead of the call, which the lift then drops for that global
-export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null, tailRoot = null }) {
-  const init = peelTransparentExpr(declarator.init);
+// nav question is asked of it instead of the call, which the lift then drops for that global.
+// `initNode` is the running operand where the caller has already decided the initializer.
+export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null, tailRoot = null, initNode = declarator.init }) {
+  const init = peelTransparentExpr(initNode);
   // ... and a kept WRITE is a prefix of its own: the statement it lifts to STORES the same value the
   // nav then reads (`(kw = globalThis)` -> `kw = _globalThis;` + the dispatch off `_globalThis`), so
   // the write survives where re-spelling it inside the dispatch would run it twice.
@@ -1901,7 +1902,8 @@ export function liftableInitPrefix(initNode) {
 // prefix, asked only where a claim carries it. The binding supplies its effect-trimming context.
 export function carriedInitPrefix(declarator, declJobs, ctx) {
   if (declJobs.every(job => !job.seCarried)) return [];
-  return observablePrefixElements(liftableInitPrefix(declarator.init)?.prefix ?? [], ctx);
+  // The live operand of a decided selection owes the same prefix as a bare sequence.
+  return observablePrefixElements(liftableInitPrefix(decidedRunningOperand(declarator.init, ctx))?.prefix ?? [], ctx);
 }
 
 // the prefix travels WITH the extraction's value: inside the dispatch ARGUMENT where the claim has
