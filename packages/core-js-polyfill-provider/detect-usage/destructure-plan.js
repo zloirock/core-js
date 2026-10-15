@@ -2552,6 +2552,8 @@ export function buildNestedDestructurePlan({
     // no `&&` guard - a guard can select its falsy LEFT and that path's native short-circuit /
     // TypeError must survive). this holds for the cascade too - keeping the RHS tail verbatim
     // does not make a conditionally-evaluated receiver safe to bind unconditionally
+    // A guarded realm element with sibling constructor branches is an accepted pure boundary:
+    // existing mirrors or extractions may serve it; dropping its guard to recover statics may not.
     const fallback = collapseFallbackInit({ init, scope: initScope, adapter, path, resolveGlobalPolyfill });
     init = fallback.init;
     const { fallbackDropped } = fallback;
