@@ -516,7 +516,10 @@ export function renderCapturedReceiver(recv, value, built) {
 // every branch is spelled by EITHER a pure entry or a name, and that is the plan's own invariant:
 // `planGuardedStaticNarrow` builds candidates only from truthy names, so neither slot is ever
 // empty here. a branch carrying neither would mint a nameless identifier and print `undefined`
-export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellRecv, captureReceiver = null, invoke = node => node }) {
+// A scalar destructure default tests the raw read once; its source stays claim-live through `embed`.
+export function renderCtorIdentityNarrow(plan, rawBranch, {
+  injectImport, spellRecv, captureReceiver = null, invoke = node => node, mintRef, embed = node => node,
+}) {
   let rawThis = null;
   if (plan.instanceFallback?.kind === 'instance') {
     const pure = plan.instanceFallback;
@@ -529,13 +532,21 @@ export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellR
       rawThis = spellRecv();
     } else if (plan.isCallee) rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
   }
+  let fallback = invoke(rawBranch, true, rawThis);
+  if (plan.destructureDefault) {
+    const ref = mintRef();
+    fallback = renderInstanceDefaultGuard({
+      assignedRef: identifier(ref), call: fallback, reread: identifier(ref),
+      defaultValue: embed(plan.destructureDefault.value), defaultName: plan.destructureDefault.name,
+    });
+  }
   const guard = plan.branches.reduceRight((alternate, branch) => conditionalExpression(
     binaryExpression('===', spellRecv(), branch.ctorRealmPure
       ? memberExpression(identifier(injectImport(branch.ctorRealmPure.entry, branch.ctorRealmPure.hintName)), identifier(branch.ctorName))
       : identifier(branch.ctorPure ? injectImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
     invoke(identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName)), false),
     alternate,
-  ), invoke(rawBranch, true, rawThis));
+  ), fallback);
   return captureReceiver ? renderCapturedReceiver(spellRecv(), captureReceiver, guard) : guard;
 }
 
@@ -617,6 +628,16 @@ export function renderPositionalDestructurePlan(plan, { kind, refName, mintRef, 
   } else if (hopName) leading.push(variableDeclaration(kind, [variableDeclarator(identifier(hopName), receiver)]));
   if (hopName) receiver = identifier(hopName);
   return { leading, body: renderLeaf(receiver), trailing };
+}
+
+// Ordered destructure writes share one assignment sequence in both bindings. A detached
+// guard keeps its native residual on the planned side; a value host yields the captured RHS.
+// Values and residuals are already embedded by the host, while binding names are scalar targets.
+export function renderDestructureAssignments(reads, { residual = null, detach = null, receiver = null } = {}) {
+  const writes = reads.map(({ name, value }) => assignmentExpression('=', identifier(name), value));
+  if (residual) writes.splice(detach === 'after' ? 0 : writes.length, 0, residual);
+  if (receiver) writes.push(receiver);
+  return sequenceExpression(writes);
 }
 
 // the static twin: the read needs no memo (an import binding or a plain ref re-reads for

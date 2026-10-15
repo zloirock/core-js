@@ -156,11 +156,23 @@ function mintedNameTarget(name) {
 }
 
 // the read a guard's alternate keeps, peeled to `<bare receiver>.<member>` through the
-// composition our render leaves above it (`h.from.bind(h)`, `h?.groupBy`, a TS wrapper)
+// composition our render leaves above it (a call, a TS wrapper or a memoized scalar default)
 function guardedReadLeaf(node) {
   for (let cur = unwrapRuntimeExpr(node); cur;) {
     if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') {
       cur = unwrapRuntimeExpr(cur.callee);
+      continue;
+    }
+    if (cur.type === 'ConditionalExpression') {
+      const test = unwrapRuntimeExpr(cur.test);
+      const read = unwrapRuntimeExpr(test?.left);
+      const absent = unwrapRuntimeExpr(test?.right);
+      const kept = unwrapRuntimeExpr(cur.alternate);
+      if (test?.type !== 'BinaryExpression' || test.operator !== '==='
+        || absent?.type !== 'UnaryExpression' || absent.operator !== 'void' || absent.argument?.value !== 0
+        || read?.type !== 'AssignmentExpression' || read.operator !== '=' || read.left?.type !== 'Identifier'
+        || kept?.type !== 'Identifier' || kept.name !== read.left.name) return null;
+      cur = unwrapRuntimeExpr(read.right);
       continue;
     }
     if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression') return null;
@@ -232,8 +244,13 @@ function guardedAliasAlternateRead(path) {
   for (let up = cur.parentPath; up?.node; cur = up, up = up.parentPath) {
     const parent = up.node;
     if (parent.type === 'ConditionalExpression') {
+      // A default's test reads the raw slot beneath the outer identity guard. Its user
+      // fallback stays live; only the memoized read climbs through to that outer guard.
+      if (parent.test === cur.node && guardedReadLeaf(parent)) continue;
       return parent.alternate === cur.node && ownGuardRenderShape(parent, path);
     }
+    if (parent.type === 'AssignmentExpression' && parent.operator === '=' && parent.right === cur.node
+      || parent.type === 'BinaryExpression' && parent.operator === '===' && parent.left === cur.node) continue;
     if (parent.type !== 'MemberExpression' && parent.type !== 'OptionalMemberExpression'
       && parent.type !== 'CallExpression' && !SKIPPABLE_WRAPPER_TYPES.has(parent.type)) return false;
   }

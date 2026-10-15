@@ -2,6 +2,7 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol from "@core-js/pure/actual/symbol";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
+var _ref, _ref2;
 // a well-known-symbol read off a SIMPLE user alias of the constructor folds to the iterator-method
 // helper: the mutation-free estree resolver follows the const-alias to Symbol just as babel does
 const AliasedSymbol = _Symbol;
@@ -194,9 +195,7 @@ export const y = _getIteratorMethod([39, 40]);
 // NEGATIVE: the consumer READS the alias before the aliasing write runs - the capture holds
 // undefined and throws natively; a fold would silently rescue it
 let LateSymbol;
-const {
-  iterator: viaLate = fb
-} = LateSymbol;
+const viaLate = LateSymbol === _Symbol ? _Symbol$iterator : (_ref = LateSymbol.iterator) === void 0 ? fb : _ref;
 LateSymbol = _Symbol;
 export const z = [41, 42][viaLate];
 
@@ -213,9 +212,7 @@ export const aa = [43, 44][viaHop];
 // NEGATIVE: a guarded aliasing write is flow-refused at registration - no fold
 let GuardedSymbol;
 if (cond) GuardedSymbol = _Symbol;
-const {
-  iterator: viaGuarded = fb
-} = GuardedSymbol;
+const viaGuarded = GuardedSymbol === _Symbol ? _Symbol$iterator : (_ref2 = GuardedSymbol.iterator) === void 0 ? fb : _ref2;
 export const ab = [45, 46][viaGuarded];
 
 // NEGATIVE: a write inside a HOISTED closure called before the capture may run before the

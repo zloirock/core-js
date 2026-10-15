@@ -1,6 +1,11 @@
 // Cross-parser tests for the destructure write-order decision, the slot a declined mirror leaves to a
 // static's own default, and the plan cache a binding retires when it rewrites a host in place.
-import { orderBoundPatternProps } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  noteRenderRetiredWrites,
+  orderBoundPatternProps,
+  ownerWritePathIndex,
+  unwrapRuntimeExpr,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   claimWriteOrderBound,
   mirrorAcceptedKey,
@@ -13,6 +18,7 @@ import {
 import { staticSlotTakesPonyfill } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { cloneNode, identifier, variableDeclaration, variableDeclarator } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-write-order');
@@ -197,5 +203,43 @@ runBoth('rewritten host retires its plan', 'const { w: { from, of } } = { w: Arr
   check(`${ label } planned afresh`, flat !== nested, true);
   checkDeep(`${ label } plans the host as it stands`, flat?.outerProps?.map(row => row.keyName), ['from', 'of']);
 });
+
+// A retired default can leave an old child path holding a replaced properties array. Refreshing
+// its writes reads the current array, including an empty one, rather than a retired sibling slot.
+for (const retain of [false, true]) runBoth(`replaced pattern list/${ retain }`,
+  'let M; let value, tail; ({ of: value = (M = {}, 9), from: tail } = M); use(M);', (parser, program, label) => {
+    const [use] = parser.pickPath(program, 'CallExpression').get('arguments');
+    const adapter = adapterFor(parser);
+    const before = adapter.getBinding({ scope: use.scope, name: 'M', path: use });
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const [old] = unwrapRuntimeExpr(pattern.node.properties[0].value.right).expressions;
+    check(`${ label } source write`, before.constantViolations.some(write => (write.node ?? write) === old), true);
+    check(`${ label } source path is indexed`, ownerWritePathIndex(program).get(old)?.node, old);
+    noteRenderRetiredWrites(old);
+    pattern.node.properties = retain ? pattern.node.properties.slice(1) : [];
+    const after = adapter.getBinding({ scope: use.scope, name: 'M', path: use });
+    check(`${ label } retired write leaves`, after.constantViolations.some(write => (write.node ?? write) === old), false);
+    check(`${ label } repeat is stable`, adapter.getBinding({ scope: use.scope, name: 'M', path: use }).constantViolations.length,
+      after.constantViolations.length);
+  });
+
+// Rehosting a parameter pattern moves its default writes to the start of the body. The old
+// parameter path must discover the leading writes while retaining the function's live owner.
+runBoth('a rehosted parameter default keeps its writes',
+  'let M; function read({ of: value = (M = {}, 9) } = {}) { use(M); }', (parser, program, label) => {
+    const [use] = parser.pickPath(program, 'CallExpression').get('arguments');
+    const adapter = adapterFor(parser);
+    const before = adapter.getBinding({ scope: use.scope, name: 'M', path: use }).constantViolations.map(write => write.node ?? write);
+    const fn = parser.pickPath(program, 'FunctionDeclaration');
+    const [param] = fn.get('params');
+    check(`${ label } source path is indexed`, ownerWritePathIndex(program).get(before[0])?.node, before[0]);
+    const moved = variableDeclaration('const', [variableDeclarator(cloneNode(param.node.left), identifier('source'))]);
+    param.replaceWith(identifier('source'));
+    const [first] = fn.get('body').get('body');
+    first.insertBefore([moved]);
+    const after = adapter.getBinding({ scope: use.scope, name: 'M', path: use }).constantViolations.map(write => write.node ?? write);
+    check(`${ label } one live write`, after.length, 1);
+    check(`${ label } write moved with its default`, after.some(write => before.includes(write)), false);
+  });
 
 finish();

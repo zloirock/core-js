@@ -1,4 +1,3 @@
-import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.number.constructor";
 import "core-js/modules/es.number.epsilon";
@@ -10,8 +9,6 @@ import "core-js/modules/es.number.max-safe-integer";
 import "core-js/modules/es.number.min-safe-integer";
 import "core-js/modules/es.number.parse-float";
 import "core-js/modules/es.number.parse-int";
-import "core-js/modules/es.number.to-exponential";
-import "core-js/modules/es.number.to-fixed";
 // the boundaries of that union: a hop naming ONE constructor stays with that constructor's statics,
 // arms owning no such static add nothing, a base no walk can name stays silent, and a user class
 // among the arms is no global. an instance-only key is dead in a STATIC method on every reachable

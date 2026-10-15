@@ -1,6 +1,4 @@
 import "core-js/modules/es.object.assign";
-import "core-js/modules/es.object.define-getter";
-import "core-js/modules/es.object.define-setter";
 import "core-js/modules/es.object.entries";
 import "core-js/modules/es.object.freeze";
 import "core-js/modules/es.object.from-entries";
@@ -16,8 +14,6 @@ import "core-js/modules/es.object.is-extensible";
 import "core-js/modules/es.object.is-frozen";
 import "core-js/modules/es.object.is-sealed";
 import "core-js/modules/es.object.keys";
-import "core-js/modules/es.object.lookup-getter";
-import "core-js/modules/es.object.lookup-setter";
 import "core-js/modules/es.object.prevent-extensions";
 import "core-js/modules/es.object.seal";
 import "core-js/modules/es.object.to-string";
