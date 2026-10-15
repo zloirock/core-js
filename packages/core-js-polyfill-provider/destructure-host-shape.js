@@ -57,6 +57,7 @@ import {
   peelTransparentExpr,
   peelToExpressionStatement,
   isBodylessStatementSlot,
+  isForInitDeclaration,
   runsWithoutOwnVarSlot,
   runsAtImmediateInvocation,
   unwrapParens,
@@ -166,11 +167,7 @@ export function peelLabeledStatements(node) {
   return cur;
 }
 
-// is `declaration` the init slot of a `for` head? single-sourced so the emitters cannot grow a
-// weaker spelling: testing only the parent TYPE would take a for-BODY declaration for a for-init one
-export function isForInitDeclaration(declarationParent, declaration) {
-  return declarationParent?.type === 'ForStatement' && declarationParent.init === declaration;
-}
+export { isForInitDeclaration } from './helpers/ast-patterns.js';
 
 // classify a VariableDeclaration host's enclosing context. returns the parser-agnostic
 // booleans the plugin's strategy planner consumes:
@@ -244,9 +241,10 @@ export function assignmentTwinLeafAdmitted(leafPattern, ctx = null) {
 // A loop-head extraction cannot re-read an element after its neighbours have evaluated: they may
 // replace its binding. A later pattern also reads in source order, after the earlier extraction.
 // Capture the positions once, then let each element's own declarations consume its captured value.
-// This query declines array rest and opaque spreads. A forced capture can retain
+// This query declines captured array rest and opaque spreads. Native rest bindings stay native. A forced capture can retain
 // a literal spread whose expanded positions are statically known, or one after
-// every captured position when its caller proves that prefix is fixed.
+// every captured position when its caller proves that prefix is fixed. A sole live
+// object-element default stays on its native position before its own method reads.
 export function planArrayWrapperCapture({
   pattern,
   init,
@@ -283,8 +281,12 @@ export function planArrayWrapperCapture({
       const position = [...path, index];
       const source = literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, index) : null;
       if (slot.type === 'ArrayPattern') return collectCaptureElements(slot, source, position);
-      // a default re-reads a missing slot; one the paired value rules out is the flat twin's element
-      const element = slot.type === 'AssignmentPattern' ? deadDefaultElementPattern(slot, source, ctx) : slot;
+      // A sole live default stays on its captured position. A later element's default could
+      // observe an earlier method binding, whose extraction runs after this capture.
+      const deadDefault = slot.type === 'AssignmentPattern' && deadDefaultElementPattern(slot, source, ctx);
+      const element = slot.type === 'AssignmentPattern'
+        ? deadDefault || (force && !path.length && level.elements.length === 1
+          && slot.left.type === 'ObjectPattern' ? slot.left : null) : slot;
       if (!element) return false;
       // Realm rest patterns already have a receiver mirror that keeps their static siblings.
       if (element === restPattern && source && adapter && allProxySelectingInit(source, { adapter, injectorState })) return false;
@@ -300,7 +302,9 @@ export function planArrayWrapperCapture({
         nativeBinding = !!frame && !!refs && refs.every(ref => isTSTypeOnlyIdentifierPath(ref)
           || !readRunsDeferredWithin(ref, frame) && provablyPrecedes(ctx.path.node, ref.node));
       }
-      elements.push({ pattern: element, index: position[0], path: position, ...nativeBinding && { nativeBinding } });
+      elements.push({ pattern: element, index: position[0], path: position,
+        ...slot.type === 'AssignmentPattern' && !deadDefault ? { defaultValue: slot } : {},
+        ...nativeBinding && { nativeBinding } });
       return true;
     });
   }
@@ -366,6 +370,7 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node,
   const refs = new Map();
   const nativeBindings = new Set();
   const reusedReceivers = new Set();
+  const defaulted = new Set();
   const elements = plan.elements.map(element => {
     const ref = element.nativeBinding
       ? (element.pattern.type === 'RestElement' ? element.pattern.argument : element.pattern).name
@@ -373,6 +378,7 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node,
     refs.set(element.pattern, ref);
     if (element.nativeBinding) nativeBindings.add(element.pattern);
     if (element.receiver) reusedReceivers.add(element.pattern);
+    if (element.defaultValue) defaulted.add(element.pattern);
     return {
       ...element,
       ref,
@@ -384,13 +390,14 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node,
   });
   function capturePattern(pattern) {
     if (!pattern) return null;
-    // an element captured as its default's left had that default proven dead: the ref replaces both
+    // A dead default leaves with its pattern; a live one still runs in the captured position.
     const source = refs.has(pattern) ? pattern : pattern.type === 'AssignmentPattern' && refs.has(pattern.left) ? pattern.left : null;
     if (nativeBindings.has(source)) return pattern;
     if (reusedReceivers.has(source)) return null;
     if (source && refs.get(source) === null) return objectPattern([]);
     const ref = source ? refs.get(source) : undefined;
-    if (ref) return pattern.type === 'RestElement' ? { ...pattern, argument: identifier(ref) } : identifier(ref);
+    if (ref) return pattern.type === 'RestElement' ? { ...pattern, argument: identifier(ref) }
+      : defaulted.has(source) ? { ...pattern, left: identifier(ref) } : identifier(ref);
     if (pattern.type === 'ArrayPattern') return { ...pattern, elements: pattern.elements.map(capturePattern) };
     // a keyed level above the positions: only its last property leads down, the rest stay as written
     if (!plan.keyed?.has(pattern)) return pattern;
@@ -435,18 +442,6 @@ export function renderArrayDestructurePlan(plan, {
   mintUnused,
   decorate = node => node,
 }) {
-  if (plan.array.objectCapture) {
-    const outer = renderNestedKeyedPatternCapture(plan.array.objectCapture, { mintRef, embed });
-    const leaf = outer.elements.find(element => element.pattern === plan.array.objectCapture.leafPattern);
-    const inner = renderArrayDestructurePlan({
-      ...plan,
-      array: { ...plan.array, objectCapture: null, capture: { ...plan.array.capture, init: identifier(leaf.ref) } },
-    }, { kind, init, embed, retain, read, injectImport, mintRef, mintDeclaredRef, mintUnused, decorate });
-    return [{ declarator: outer.capture }, ...outer.elements].flatMap(element => element === leaf ? inner
-      : [plan.array.assignment
-        ? expressionStatement(assignmentExpression('=', element.declarator.id, element.declarator.init))
-        : variableDeclaration(kind, [element.declarator])]);
-  }
   function extract(extraction, receiver) {
     let value = read(extraction, receiver);
     if (extraction.defaultNode) {
@@ -791,9 +786,14 @@ export function renderNestedKeyedPatternCapture(plan, {
       ]),
     };
   }
+  const reusedCapture = splitCapture && receiverRef ? elements.shift().declarator : null;
+  if (reusedCapture) {
+    // Reusing the tail's stable name must still evaluate its initializer prefix before any key.
+    const { prefix } = peelNestedSequenceExpressions(plan.init);
+    if (prefix.length) reusedCapture.init = sequenceExpression([...prefix.map(embed), reusedCapture.init]);
+  }
   return {
-    capture: splitCapture && receiverRef ? elements.shift().declarator
-      : variableDeclarator(embed(captured), anchorNode ?? embed(plan.init)),
+    capture: reusedCapture ?? variableDeclarator(embed(captured), anchorNode ?? embed(plan.init)),
     elements,
   };
 }
@@ -1301,6 +1301,7 @@ function renderRetainedDefaultCapture(plan, {
 // into native single-property patterns. Rest only admits pristine static-only captures.
 // Nested patterns remain native operands, so their iterator/default effects keep their position.
 // A mixed static/instance claim uses the supplied identity planner over the captured receiver.
+// A captured array element also admits its flat method read after the element's live default.
 // Assignment refs in parameters and instance fields receive their own lexical activation
 // at the binding's final memo placement.
 export function planRetainedObjectCapture(options) {
@@ -1369,6 +1370,7 @@ function planRetainedObjectCaptureShape({
   meta: resolvedMeta = null,
   provenCtorName = null,
   receiverRef = undefined,
+  capturedElement = false,
 }) {
   const ctx = { scope: hostPath?.scope, adapter, path: hostPath };
   if (prop && isClaimedProp?.(prop)) return null;
@@ -1417,7 +1419,9 @@ function planRetainedObjectCaptureShape({
   // the ordered array capture takes the element holding the claim for a guard, an effectful key, and an
   // assignment whose result is read - no mirror may replace that result
   const capturedResult = assignment && !!hostPath && !assignmentValueDiscarded(hostPath);
-  const claimElement = guarded || keyedElement || capturedResult;
+  const defaultElement = kind === 'instance' && pattern?.type === 'ArrayPattern' && pattern.elements.length === 1
+    && pattern.elements[0]?.type === 'AssignmentPattern' && subtreeContainsNode(pattern.elements[0].left, prop);
+  const claimElement = guarded || keyedElement || capturedResult || defaultElement;
   if (pattern?.type === 'ArrayPattern' && (claimElement || pattern.elements.length === 1)
     && (guarded || arraySource?.type === 'ArrayExpression' && arraySource.elements.length >= 1)) {
     // a slot of a BOUND literal may have been written since its declaration: only an inline one
@@ -1462,6 +1466,7 @@ function planRetainedObjectCaptureShape({
         meta: resolvedMeta,
         provenCtorName: kind === 'static' && resolvedMeta?.object
           && receiverCtorName(peelNestedSequenceExpressions(source).tail, ctx) === resolvedMeta.object ? resolvedMeta.object : null,
+        capturedElement: defaultElement,
       });
     if (elementPlan && (claimElement || elementPlan.rest || elementPlan.capture?.rest || elementPlan.nestedRest)) {
       const receiverUnused = elementPlan.readsReceiver === false && !elementPlan.capture && !elementPlan.arrayCapture
@@ -1666,7 +1671,7 @@ function planRetainedObjectCaptureShape({
       : !!provenCtorName && (hostPath.node?.id?.type === 'ArrayPattern' || guardedRealmSelection(init, ctx)));
   // a consumed assignment yields its receiver, which the flat twin and the overwrite cannot keep
   // (`orderedClaimCapture` says which hops and leaf levels capture)
-  if (ordered && kind === 'instance') {
+  if (ordered && !ordered.flat && kind === 'instance') {
     // the constructor each captured level holds, which a split render's ref for it stands for: a
     // sibling moved onto that ref is re-detected there and resolves its statics through it. a
     // realm level is a hop, not a constructor, and its siblings keep their native reads
@@ -1683,7 +1688,7 @@ function planRetainedObjectCaptureShape({
   // a source paren around the target is no part of it: the node dialect keeps one as a node
   const target = unwrapParens(patternSlotTarget(prop?.value));
   // ... a slot the extraction canon writes as spelled (a member, an asserted binding) is consumed like a binding
-  const consumed = consumedHost && pattern.properties.includes(prop)
+  const consumed = (consumedHost || capturedElement) && pattern.properties.includes(prop)
     && (target?.type === 'Identifier' || (assignment && !!memberTargetTakesExtraction(prop?.value)));
   const nestedDefault = !assignment && pattern.properties.length > 1
     && pattern.properties.some(item => item.value?.type === 'AssignmentPattern' && item.value.left?.type === 'ObjectPattern');
@@ -1794,7 +1799,7 @@ function planRetainedObjectCaptureShape({
   // the capture keeps every crossed key in its slot. Already consumed keys are excluded, including
   // a hop its split twin moves (`isConsumedProp`, asked of the HOST's own pattern only: a nested or
   // element level recursing here carries the host's init, not the value that level reads)
-  const keyOrderSplit = !!hostPath && !!adapter && !rest && pattern.properties.includes(prop)
+  const keyOrderSplit = ordered?.flat || !!hostPath && !!adapter && !rest && pattern.properties.includes(prop)
     && pattern === (assignment ? hostPath.node?.left : hostPath.node?.id)
     && (extractionCrossesResidualKeys() || assignment && pattern.properties.some(item => computedKeyHasSideEffects(item,
       { scope: hostPath.scope, adapter, path: hostPath })));
@@ -1907,6 +1912,8 @@ function planRetainedObjectCaptureShape({
     init,
     assignment,
     prop,
+    // This route admits forward binding reads in a flat key; the render must evaluate them.
+    keepKeyReads: !!ordered?.flat,
     narrow,
     retainedStatic,
     primaryPure: primaryStatic?.pure,
@@ -2200,8 +2207,10 @@ export function renderRetainedObjectCapture(plan, {
         });
       }
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
-      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail], ctx).map(embed) : [];
-      // The dispatch reads the property itself; only key effects need an earlier null rejection.
+      const keyEffects = prop.computed
+        ? observableSequenceElements([...prefix, tail], ctx, { preserveSourceReads: plan.keepKeyReads }).map(embed) : [];
+      // Source key reads can throw even without side effects; they follow the receiver
+      // coercion and precede the dispatch, including a later binding in its TDZ.
       declarations.push(keyEffects.length ? renderKeyedDestructureRead({
         receiverName: refName,
         receiver: ref(),
@@ -2231,7 +2240,8 @@ export function renderRetainedObjectCapture(plan, {
       }
       const write = assignmentExpression('=', embed(target), read);
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
-      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail], ctx).map(embed) : [];
+      const keyEffects = prop.computed
+        ? observableSequenceElements([...prefix, tail], ctx, { preserveSourceReads: plan.keepKeyReads }).map(embed) : [];
       assignments.push(keyEffects.length ? sequenceExpression([...keyEffects, write]) : write);
     } else if (plan.siblingStatics?.has(prop)) {
       // A direct polyfill drops the dead default; a guarded native fallback keeps it.

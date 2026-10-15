@@ -18648,6 +18648,7 @@ export function * generate() {
   yield * generateGuardedRealmSelectionCaptures();
   yield * generateReadAssignmentHopCaptures();
   yield * generateForOfPassthroughTargets();
+  yield * generateReceiverEffectsAndDefaults();
 }
 
 // --- Window-valued alias probes ---
@@ -19161,4 +19162,140 @@ function * generateForOfPassthroughTargets() {
       }
     }
   }
+}
+
+// --- Instance receivers retained across effects and defaults ---
+// Every initializer slot finishes before the method read. Native getters/defaults stay observable;
+// the stripped leg separately proves the claimed method reaches the present receiver.
+function * generateReceiverEffectsAndDefaults() {
+  for (const [receiver, value] of [['array', '[5, 6]'], ['string', '"ab"']]) {
+    for (const host of ['declaration', 'for-init', 'assignment']) {
+      for (const order of ['before', 'after']) {
+        const slots = order === 'before' ? 'z: source.z, y: source.y' : 'y: source.y, z: source.z';
+        const read = `{ y: { at } } = { ${ slots } }`;
+        const body = host === 'declaration' ? `const ${ read };` : host === 'for-init'
+          ? `for (var ${ read }; false;) {}` : `let at; (${ read });`;
+        yield {
+          ...snippet(`receiver-effects/literal/${ receiver }/${ host }/${ order }`,
+            `(() => { const hits = []; const row = ${ value }; const source = { `
+            + 'get y() { hits.push("y"); return row; }, get z() { hits.push("z"); return 1; } }; '
+            + `${ body } return [at.call(row, -1), hits.join()]; })()`),
+          strip: true,
+        };
+      }
+    }
+  }
+  for (const [id, init, fallback] of [
+    ['present', '[[5, 6]]', '[7, 8]'],
+    ['missing', '[]', '[7, 8]'],
+    ['own-method', '[{ at: 9 }]', '[7, 8]'],
+    ['default-own-method', '[]', '{ at: 9 }'],
+  ]) yield {
+    ...snippet(`receiver-effects/element-default/${ id }`,
+      `(() => { const hits = []; const wrapper = ${ init }; let at; `
+      + `([{ at } = (hits.push("default"), ${ fallback })] = (hits.push("prefix"), wrapper)); `
+      + 'return [typeof at, typeof at === "function" ? at.call([5, 6], -1) : at, hits.join()]; })()'),
+    strip: true,
+  };
+  for (const [id, slots] of [
+    ['selected', '...source, y: choose ? [5, 6] : [7, 8]'],
+    ['overridden', 'y: [5, 6], ...source'],
+  ]) yield {
+    ...snippet(`receiver-effects/spread/${ id }`,
+      '(() => { const hits = []; const row = [7, 8]; const source = { '
+      + 'get y() { hits.push("y"); return row; }, get z() { hits.push("z"); return 1; } }; '
+      + `function read(source, choose) { const { y: { at } } = { ${ slots } }; return at; } `
+      + 'return [read(source, true).call(row, -1), read(source, false).call(row, -1), hits.join()]; })()'),
+    strip: true,
+  };
+  for (const [id, fields, use] of [
+    ['single', 'at', 'at.call([5, 6], -1)'],
+    ['pair', 'at, flat', '[at.call([5, 6], -1), flat.call([1, [2]])]'],
+  ]) for (const [prefix, effect] of [['getter', 'Source.effect'], ['call', 'hits.push("call")'], ['update', 'count++']]) yield {
+    ...snippet(`receiver-effects/realm-prototype/${ id }/${ prefix }`,
+      '(() => { const hits = []; let count = 0; class Source { static get effect() { hits.push("prefix"); return 0; } } '
+      + `const { Array: { prototype: { ${ fields } } } } = (${ effect }, globalThis) ?? {}; `
+      + `return [${ use }, count, hits.join()]; })()`),
+    strip: true,
+  };
+  for (const [id, receiver, use] of [
+    ['array', '[5, 6]', 'value.call(row, -1)'],
+    ['own-method', '{ get at() { hits.push("at"); return 7; }, get after() { hits.push("after"); return 9; } }', 'value'],
+    ['own-undefined', '{ at: undefined, after: 9 }', 'value'],
+  ]) yield {
+    ...snippet(`receiver-effects/forward-default/${ id }`,
+      `(() => { const hits = []; const row = ${ receiver }; const factory = () => (hits.push("init"), row); `
+      + 'try { const { [(hits.push("key"), "at")]: value = after, after } = factory(); '
+      + `return [${ use }, after, hits.join()]; } catch (error) { return [error instanceof ReferenceError, hits.join()]; } })()`),
+    strip: true,
+  };
+  for (const [id, key, fallback] of [
+    ['forward-key', 'after', ''],
+    ['unbound-key', 'unboundDestructureKey', ' = after'],
+  ]) yield {
+    ...snippet(`receiver-effects/source-key/${ id }`,
+      '(() => { const row = [5, 6]; try { '
+      + `const { [(${ key }, "at")]: value${ fallback }, after } = row; `
+      + 'return [typeof value, after]; } catch (error) { return error instanceof ReferenceError; } })()'),
+    strip: true,
+  };
+  for (const key of [
+    // eslint-disable-next-line no-template-curly-in-string -- the string is a source template under test
+    '(unboundDestructureKey, "at")', '(unboundDestructureKey, "a") + "t"', '`a${(unboundDestructureKey, "t")}`',
+    '(true ? (unboundDestructureKey, "a") : "a") + "t"', 'unboundDestructureKey ? "at" : "at"',
+    '(false && (unboundDestructureKey, "at")) || "at"',
+  ]) {
+    // General Boolean short-circuit keys are outside the key canon's presence decisions.
+    // This full-environment control keeps that native spelling; agreeing ternaries exercise replay.
+    const fullEnv = key.startsWith('(false &&');
+    for (const call of [false, true]) yield {
+      ...snippet(`receiver-effects/member-key/${ key }/${ call }`,
+        `(() => { const row = [5, 6]; try { const value = row[${ key }]${ call ? '(0)' : '' }; `
+        + 'return typeof value; } catch (error) { return error instanceof ReferenceError; } })()'),
+      strip: !fullEnv,
+      fullEnv,
+    };
+  }
+  for (const [id, source, target, prefix, use] of [
+    ['method', '[5, 6]', 'at', 'hits.push("prefix")', 'at.call([5, 6], -1)'],
+    ['default', '{}', 'at = step', 'step = 9', 'at'],
+  ]) yield {
+    ...snippet(`receiver-effects/reused-split/${ id }`,
+      `(() => { const hits = []; let step = 0; const source = { row: ${ source }, other: 1 }; `
+      + `const { [(hits.push("key"), "row")]: { ${ target } }, other } = (${ prefix }, source); `
+      + `return [${ use }, other, hits.join()]; })()`),
+    strip: true,
+  };
+  for (const [id, body, use] of [
+    ['bound-default', 'const { row = [5, [6]] } = {}; const { w: { at, flat } = [] } = { w: row };',
+      '[at.call(row, -1), flat.call(row)]'],
+    ['reassignable-realm', 'let realm = globalThis; const rebind = () => { realm = {}; }; '
+      + 'const { Array: { prototype: { at } } } = (hits.push("prefix"), realm); void rebind;', 'at.call([5, 6], -1)'],
+  ]) yield {
+    ...snippet(`receiver-effects/value-flow/${ id }`, `(() => { const hits = []; ${ body } return [${ use }, hits.join()]; })()`),
+    strip: true,
+  };
+  for (const [id, replacement, use] of [
+    ['missing', '{}', 'at.call([5, 6], -1)'],
+    ['array', '{ Array: { prototype: [7, 8] } }', 'at.call([7, 8], -1)'],
+    ['string', '{ Array: { prototype: "ab" } }', 'at.call("ab", -1)'],
+    ['null', 'null', 'at.call([5, 6], -1)'],
+  ]) for (const invoke of [false, true]) yield {
+    ...snippet(`receiver-effects/written-realm/${ id }/${ invoke }`,
+      `(() => { let effects = 0; let realm = globalThis; const rebind = () => { realm = ${ replacement }; }; `
+      + `${ invoke ? 'rebind();' : 'void rebind;' } try { `
+      + 'const { Array: { prototype: { at } } } = (effects++, realm); '
+      + `return [${ use }, effects]; } catch (error) { return [error instanceof TypeError, effects]; } })()`),
+    strip: true,
+  };
+  for (const guard of ['global', 'shadowed-missing', 'shadowed-present']) for (const invoke of [false, true]) yield {
+    ...snippet(`receiver-effects/guarded-realm/${ guard }/${ invoke }`,
+      `(() => { ${ guard === 'global' ? '' : 'function read(Map) {' } let realm = globalThis; `
+      + 'function rebind() { realm = {}; if (typeof Map === "undefined") realm = { Array: { prototype: "ab" } }; } '
+      + `${ invoke ? 'rebind();' : 'void rebind;' } try { const { Array: { prototype: { at } } } = realm; `
+      + `return at.call(${ guard === 'shadowed-missing' && invoke ? '"ab"' : '[5, 6]' }, -1); `
+      + '} catch (error) { return error instanceof TypeError; } '
+      + `${ guard === 'global' ? '' : `} return read(${ guard === 'shadowed-missing' ? 'undefined' : 'Array' });` } })()`),
+    strip: true,
+  };
 }

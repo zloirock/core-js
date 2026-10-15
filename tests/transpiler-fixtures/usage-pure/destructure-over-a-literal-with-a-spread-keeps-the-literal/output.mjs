@@ -1,14 +1,12 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// A claim reading a value-selecting slot of a literal init consumes the declarator only where the slot
-// performs every effect the init would: a spread beside it reads its source, so the literal stays.
-export const {
-  w: {
-    at: a
-  }
-} = {
+// A selecting slot retains its literal so every spread effect finishes before the method read.
+// A constant slot keeps its existing shared receiver rather than copying that literal.
+const a = _atMaybeArray({
   ...spread,
   w: c ? [1] : [2]
-};
+}.w);
+export { a };
 const _ref = [1];
 export const {
   v: {}

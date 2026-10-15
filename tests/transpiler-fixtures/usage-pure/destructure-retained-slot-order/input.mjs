@@ -1,4 +1,5 @@
 // Instance reads preserve receiver, key and default order across host forms.
+// A default reading a later binding runs only after the actual method read returned undefined.
 export function read(factory, key, fallback) {
   const { before = fallback(), [(key(), 'at')]: value = fallback(), after, ...rest } = factory();
   return [before, value, after, rest];
