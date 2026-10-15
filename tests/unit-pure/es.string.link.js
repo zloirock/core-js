@@ -6,7 +6,7 @@ QUnit.test('String#link', assert => {
   assert.same(link('a', '"'), '<a href="&quot;">a</a>', 'escape quotes');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     const symbol = Symbol('link test');
     assert.throws(() => link(symbol, 'b'), 'throws on symbol context');
     assert.throws(() => link('a', symbol), 'throws on symbol argument');

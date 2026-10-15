@@ -5,7 +5,7 @@ QUnit.test('String#italics', assert => {
   assert.same(italics('a'), '<i>a</i>', 'lower case');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => italics(Symbol('italics test')), 'throws on symbol context');
   }
 });

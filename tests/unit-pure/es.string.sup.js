@@ -5,7 +5,7 @@ QUnit.test('String#sup', assert => {
   assert.same(sup('a'), '<sup>a</sup>', 'lower case');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => sup(Symbol('sup test')), 'throws on symbol context');
   }
 });
