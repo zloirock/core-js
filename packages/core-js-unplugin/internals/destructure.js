@@ -3193,20 +3193,23 @@ export default function createAstDestructureEmitter({
     // ... and a plain SE PREFIX ahead of the nav qualifies once the pattern consumes WHOLE:
     // the declarator empties and the lift spells the prefix as its own statement, so the
     // extraction still reads it exactly once, in source order
+    // A decided selection exposes the same prefix as its bare running operand.
+    const runningInit = decidedRunningOperand(declarator.init, keyCtx);
     const seCarried = seCarriedHopNav({
       forInit,
       chain,
       declarator,
       prop,
       kind,
-      tailRoot: provenRealmCallRoot(peelChainRootValue(declarator.init), metaPath, adapter),
+      initNode: runningInit,
+      tailRoot: provenRealmCallRoot(peelChainRootValue(runningInit), metaPath, adapter),
     });
     // a LIFTED prefix leaves the value the nav reads: a sequence leaves its tail, a kept WRITE leaves
     // what it stores - and the lift emits the write itself, so reading its value here loses nothing
     // ... a carried tail that is a CALL the inline canon proves to yield a proxy global reads as that
     // global: the fold drops the call with the navigation (its run has no effect; the other leg's shape)
     const carriedInitValue = seCarried
-      ? provenRealmCallRoot(peelChainRootValue(declarator.init), metaPath, adapter) ?? peelChainRootValue(declarator.init)
+      ? provenRealmCallRoot(peelChainRootValue(runningInit), metaPath, adapter) ?? peelChainRootValue(runningInit)
       : declarator.init;
     // ... and an init the pattern DESCENDS - a literal holding the receiver in one of its slots -
     // is a nav receiver by what the hops land on, not by what the init spells: the shared decision
