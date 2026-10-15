@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
@@ -49,14 +50,10 @@ const {
     try: _Promise$try
   }
 }) : {};
-const {
-  y: {
-    at: v4
-  }
-} = {
+const v4 = _atMaybeArray({
   y: nb.y,
   z: nb.z
-};
+}.y);
 const [_ref] = [{
   y: nb.y
 }];

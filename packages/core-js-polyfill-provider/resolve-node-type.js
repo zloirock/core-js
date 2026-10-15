@@ -2093,6 +2093,7 @@ function createResolveNodeType(babelNodeType, t, {
     t,
     getScopeBinding,
     violationToAssignment: (...args) => callResolutionCluster.violationToAssignment(...args),
+    getDecisionAdapter,
     babelNodeType,
     resolveNodeType,
     mergeArmHints,
@@ -2117,6 +2118,7 @@ function createResolveNodeType(babelNodeType, t, {
     findTupleElement,
     resolveObjectMember,
     resolveObjectFieldFlow,
+    resolveGlobalSurfaceKeyPath: (value, keys) => resolveGlobalSurfaceKeyPath(value, keys, false),
     findObjectMember,
     // forward-decl thunk: the member-resolve cluster is built after this one
     resolveMemberOfObjectPath: (...args) => memberResolveCluster.resolveMemberOfObjectPath(...args),
@@ -2824,7 +2826,7 @@ function createResolveNodeType(babelNodeType, t, {
     return { receiver, keys };
   }
 
-  function resolveGlobalSurfaceKeyPath(initPath, keyPath) {
+  function resolveGlobalSurfaceKeyPath(initPath, keyPath, projectValues = true) {
     if (keyPath.at(-1) !== 'prototype') return null;
     const init = resolveRuntimeExpression(initPath);
     const descended = descendLiteralKeyPrefix(realmSelectingBranch(init) ?? init, keyPath);
@@ -2842,7 +2844,9 @@ function createResolveNodeType(babelNodeType, t, {
       ?? (resolved?.node?.type === 'Identifier'
         ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null)
       ?? (isGlobalProxy(resolved) ? 'globalThis' : null);
-    if (!rootName) return null;
+    // The same projection serves member and pattern spellings of a mutable container.
+    // Its own leaf fallback asks only for a pristine surface, so cycles stay in that walk.
+    if (!rootName) return projectValues ? resolveObjectMemberPath(resolved, keys, resolved, false, { projectValues: true }) : null;
     const aliased = resolved?.node?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(rootName)
       && !resolveKnownConstructor(rootName)
       ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null;
@@ -3051,7 +3055,11 @@ function createResolveNodeType(babelNodeType, t, {
     if (directInit?.node) return foldDefault(resolveNodeType(directInit));
     // nested pattern: collect key path via shared walk, resolve through the init
     let ancestor = parent;
-    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
+    let outerDefault = false;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
+      outerDefault ||= ancestor.node.type === 'AssignmentPattern' && ancestor !== parent;
+      ancestor = ancestor.parentPath;
+    }
     const keyPath = collectPatternKeyPath(objectPattern);
     if (keyPath?.length) {
       const initPath = getPatternInit(ancestor);
@@ -3075,13 +3083,14 @@ function createResolveNodeType(babelNodeType, t, {
         if (slotDefault?.node && slotDefaultFiresCertainly(valueInit, keyPath, parent)) return resolveNodeType(slotDefault);
         // the init path travels UNRESOLVED as well: the slot read asks it whether a binding stands
         // between the literal and this read, and answers flow-aware where one does
-        const member = resolveObjectMemberPath(resolveRuntimeExpression(valueInit), keyPath, valueInit);
+        const member = resolveObjectMemberPath(resolveRuntimeExpression(valueInit), keyPath, valueInit, false,
+          { projectValues: !outerDefault });
         if (member) return foldDefault(member);
         // ... and a BUILT-IN surface the pattern navigates to off a global object answers the way its
         // member spelling does: the hops name a constructor and its `prototype` reads as an instance
         // (`{ Array: { prototype: { at } } } = globalThis` narrows exactly as `globalThis.Array
         // .prototype.at` - without this the leaf took the generic dispatcher on both legs).
-        const surface = resolveGlobalSurfaceKeyPath(valueInit, keyPath);
+        const surface = resolveGlobalSurfaceKeyPath(valueInit, keyPath, !outerDefault);
         if (surface) return foldDefault(surface);
       }
     }
@@ -3141,21 +3150,26 @@ function createResolveNodeType(babelNodeType, t, {
 
   // A nested pattern reads the same fields and array slots as the corresponding member chain.
   // Reuse its mutation gates, then the element-union fallback for reordered array literals.
+  // The nearest default contributes its own families; a default above that receiver keeps the walk open.
   function nestedReceiverUnionHints(objectPattern, anchorPath) {
     const keyPath = collectPatternKeyPath(objectPattern);
+    const ownDefault = objectPattern.parentPath?.node?.type === 'AssignmentPattern' ? objectPattern.parentPath : null;
     let ancestor = objectPattern.parentPath;
     while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
-      // A default at any containing slot adds another receiver arm.
-      if (ancestor.node.type === 'AssignmentPattern') return null;
+      if (ancestor.node.type === 'AssignmentPattern' && ancestor !== ownDefault) return null;
       ancestor = ancestor.parentPath;
     }
     const initPath = keyPath?.length ? getPatternInit(ancestor) : null;
     if (!initPath?.node) return null;
-    const fields = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath, true);
-    if (fields) return fields;
+    const fields = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath, true, { projectValues: true });
+    // An empty field census alone proves no family, not absence: a spread can still supply the slot.
+    if (ownDefault && fields?.size === 0) return null;
     const index = keyPath.length === 1 ? canonicalArrayIndex(keyPath[0]) : null;
-    const arms = index === null ? null : literalElementUnionPaths(initPath, index, anchorPath);
-    return arms ? mergeArmHints(arms, 0) : null;
+    const arms = fields || index === null ? null : literalElementUnionPaths(initPath, index, anchorPath);
+    const hints = fields ?? (arms ? mergeArmHints(arms, 0) : null);
+    if (!ownDefault || !hints) return hints;
+    const fallback = mergeArmHints([ownDefault.get('right')], 0);
+    return fallback ? new Set([...hints, ...fallback]) : null;
   }
 
   // the element paths an index read off an array LITERAL - spelled in place, or held by a binding whose

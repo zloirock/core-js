@@ -18,6 +18,7 @@
 import {
   $Object,
   $Primitive,
+  MAX_DEPTH,
   PATTERN_WRAPPERS,
   TYPE_HINTS,
   argIndexForParam,
@@ -70,6 +71,8 @@ import {
   rootProgramOf,
   walkAstNodes,
   writesPastCeiling,
+  pathOfNode,
+  reassignmentValueEnumeration,
 } from '../helpers/ast-patterns.js';
 
 // the class whose CONSTRUCTOR this function is, or null. one climb for both parsers: babel keeps
@@ -163,6 +166,8 @@ export function createPatternBindings({
   t,
   getScopeBinding,
   resolveObjectFieldFlow,
+  resolveGlobalSurfaceKeyPath,
+  getDecisionAdapter,
   violationToAssignment,
   babelNodeType,
   resolveNodeType,
@@ -702,14 +707,53 @@ export function createPatternBindings({
     return null;
   }
 
+  // Project every enumerable value of a reassigned container through the same remaining path.
+  // Keep per-question answers by source read, keys and projection; incomplete writes and cycles stay unknown.
+  // The live build adapter excludes writes in decided dead branches, including presence guards.
+  function projectReassignedMemberPath(path, keyPath, binding, { unionHints, depth, answers }) {
+    answers ??= new Map();
+    let cached = answers.get(path.node);
+    if (!cached) answers.set(path.node, cached = new Map());
+    const cacheKey = JSON.stringify([unionHints, keyPath]);
+    if (cached.has(cacheKey)) return cached.get(cacheKey);
+    cached.set(cacheKey, null);
+    if (pathSlotWritten(path, keyPath) || varInitStaleByRedecl({ binding, usagePath: path, name: path.node.name })) return null;
+    const adapter = getDecisionAdapter();
+    const values = reassignmentValueEnumeration({ binding, usagePath: path, name: path.node.name,
+      ctx: adapter ? { scope: path.scope, adapter, path } : null });
+    if (!values.complete || binding.path?.node?.id?.type !== 'Identifier' || !binding.path.node.init) return null;
+    const paths = [binding.path.get('init'), ...values.nodes.map(node => pathOfNode(path, node))];
+    const options = { projectValues: true, depth: depth + 1, answers };
+    const types = paths.map(value => value?.node
+      ? resolveObjectMemberPath(resolveRuntimeExpression(value), keyPath, value, false, options)
+        ?? resolveGlobalSurfaceKeyPath(value, keyPath) : null);
+    let result;
+    if (unionHints) {
+      const hints = types.map((type, index) => {
+        if (!type) return paths[index]?.node
+          ? resolveObjectMemberPath(resolveRuntimeExpression(paths[index]), keyPath, paths[index], true, options) : null;
+        if (isNullableOrNever(type)) return new Set();
+        const hint = toHint(type);
+        return hint ? new Set(TYPE_HINTS.has(hint) ? [hint] : []) : null;
+      });
+      result = hints.some(arm => !arm) ? null : new Set(hints.flatMap(arm => [...arm]));
+    } else result = foldUnionTypes(types, type => type);
+    cached.set(cacheKey, result);
+    return result;
+  }
+
   // { a: [{ b: 'x' }] } with path ['a', 0, 'b'] -> resolveObjectMember for 'x'
   // string keys resolve object properties, number keys resolve array elements
   // `sourcePath`: the UNRESOLVED path the literal was reached through. an Identifier there means a
   // BINDING (`const { y: { at } } = box`), whose slots a writer or a holder can reach - and then the
   // read has to ask the same flow-aware resolver a member read of that slot asks. an inline literal
   // (a for-of element, a call argument) has no binding for a writer to go through, and there the
-  // init type is the whole truth. the rule lives HERE, once, so no caller can spell it differently
-  function resolveObjectMemberPath(objPath, keyPath, sourcePath = null, unionHints = false) {
+  // init type is the whole truth. `projectValues` admits enumerable reassignments and throwing
+  // paths only where no intervening pattern default can supply another receiver.
+  // eslint-disable-next-line max-statements -- one walk across literal, typed and reassigned receiver levels
+  function resolveObjectMemberPath(objPath, keyPath, sourcePath = null, unionHints = false,
+    { projectValues = false, depth = 0, answers = null } = {}) {
+    if (depth > MAX_DEPTH) return null;
     // ... and a binding reached MID-WALK counts the same: an array WRAPPER hands the pattern an
     // element (`[{ y: { at } }] = [box]`), and the slot below that element is as reachable to a
     // writer as one below a binding named at the top. tracked as the walk descends, or the wrapper
@@ -736,6 +780,12 @@ export function createPatternBindings({
     }
     while (true) {
       if (keyPath.length === 0) return unionHints ? null : resolveNodeType(objPath);
+      if (projectValues && t.isIdentifier(objPath.node)) {
+        const binding = getScopeBinding({ scope: objPath.scope, name: objPath.node.name, path: objPath });
+        if (binding?.constantViolations?.length) {
+          return projectReassignedMemberPath(objPath, keyPath, binding, { unionHints, depth, answers });
+        }
+      }
       const [step] = keyPath;
       const rest = keyPath.slice(1);
       if (holder && !ownFinalField(step, rest) && pathSlotWritten(holder, [...holderKeys, step])) return null;
@@ -786,6 +836,8 @@ export function createPatternBindings({
       // member canon answers for both. a hop PAST such a container has no path to descend and stays
       // unresolved, which is the member spelling's own answer for its second hop
       if (!t.isObjectExpression(objPath.node)) {
+        const receiver = projectValues && resolveNodeType(rawPath);
+        if (receiver && isNullableOrNever(receiver)) return unionHints ? new Set() : new $Primitive('never');
         return rest.length || !rawPath?.node ? null : resolveMemberOfObjectPath(rawPath, step, null, unionHints);
       }
       // the FINAL slot read asks the flow-aware resolver, exactly as a member read of the same slot
@@ -803,7 +855,11 @@ export function createPatternBindings({
       // the canonical stepper owns which slots are walkable - a plain value, and a getter through
       // its inline return; a hand-rolled `.value` read here answered null for every getter hop
       const valuePath = walkObjectLiteralPropertyPath(objPath, step);
-      if (!valuePath?.node) return null;
+      if (!valuePath?.node) {
+        if (!projectValues) return null;
+        const field = resolveObjectFieldFlow(objPath, step, null, false, true, true);
+        return field && isNullableOrNever(field) ? unionHints ? new Set() : new $Primitive('never') : null;
+      }
       const valueSource = peelTransparentWrapperPath(valuePath);
       flowAware ||= valueSource.node.type === 'Identifier';
       [holder, holderKeys] = valueSource.node.type === 'Identifier' ? [valueSource, []] : [holder, [...holderKeys, step]];

@@ -1127,7 +1127,9 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   // with the member, so a SE buried in a `+` / template operand must re-emit too, not just a top-level
   // sequence prefix. peel + collect are split so the side channel still collects exactly once
   const computedKeyNode = node.computed ? peelReceiverSequenceTail(node.property) : null;
-  if (node.computed) collectFoldedReceiverSideEffects(node.property, { out: keyEffects, ctx: { scope, adapter, path } });
+  if (node.computed) collectFoldedReceiverSideEffects(node.property, {
+    out: keyEffects, ctx: { scope, adapter, path }, preserveSourceReads: adapter.method !== 'usage-global',
+  });
   let key = node.computed
     ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path, resolveStaticKey })
     : memberKeyName(node);
