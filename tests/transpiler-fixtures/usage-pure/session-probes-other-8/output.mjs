@@ -31,14 +31,10 @@ function mark(t, v) {
   return v;
 }
 {
-  const {
-    w: {
-      at: a
-    }
-  } = {
+  const a = _at({
     w: [1],
     ...o
-  };
+  }.w);
 }
 {
   const a1 = _atMaybeArray([1]);

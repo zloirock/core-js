@@ -143,6 +143,7 @@ import {
   hopComposesSoleLeaf,
   residualHuskIsDead,
   residualInitRunsEffects,
+  decidedRunningOperand,
   decidedRunningOperandPath,
   liftedInitElements,
   liftedPrefixSplit,
@@ -4456,12 +4457,13 @@ export default function createDestructureEmitter({
         }
       }
       if (!objectNode) {
-        // ... and an init that is a plain SE SEQUENCE spells its prefix INSIDE the dispatch, the way
-        // the flat canon spells one (`_flat((eff(), Array.prototype))`): the receiver is read once,
+        // A decided selection uses its running operand here too. A plain SE SEQUENCE spells its
+        // prefix INSIDE the dispatch, as the flat canon does (`_flat((eff(), Array.prototype))`): read once,
         // in source order, and the residual it replaces discards nothing. the prefix nodes ride LIVE
         // - their own claims land through them - and a WRITING tail is not this shape, since peeling
         // it would drop the write
-        const seqInit = unwrapRuntimeExpr(declarator?.init);
+        const seqInit = unwrapRuntimeExpr(decidedRunningOperand(declarator?.init,
+          { scope: prop.scope, adapter, path: prop }));
         // the EXPRESSIONS this init performs before it yields the receiver: a sequence's leading ones,
         // and a kept WRITE (whole - it is both the effect and the store of what the nav then reads)
         const seqParts = seqInit?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(seqInit) : null;
