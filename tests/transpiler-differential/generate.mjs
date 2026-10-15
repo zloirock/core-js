@@ -14933,7 +14933,7 @@ const DM_ARRAY_NESTINGS = new Set(['arrInObj', 'objInArr', 'arr2']);
 // whether a cell skips the stripped realm, where both emitters leave it native; it keeps the full-realm,
 // import and print-through checks. the first three clauses are canon boundaries; every other one is an open
 // loss under its TASKS row and leaves with the fix - one leg serving a cell alone is a divergence, not a fix
-function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId, wrapperId }) {
+function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId }) {
   const instance = DM_INSTANCE_RECEIVERS.has(receiverId);
   // a call argument never reaches the callee's pattern: a constructor argument is replaced by its pure
   // constructor where it stands, a prototype has no pure stand-in
@@ -14948,9 +14948,6 @@ function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestin
   if (spellingId === 'seMiddle' && nestingId === 'arrInObj' && !instance
     && (hostId === 'forOfAssign' || (hostId === 'forOfConst' && receiverId === 'navRealm'))) return true;
   const plainKeys = DM_PLAIN_KEYS.has(spellingId);
-  // FC-590: the plain route of unplugin keeps `globalThis!` under an object hop, which throws in a realm without it
-  if (wrapperId === 'nonNull' && receiverId === 'navRealmProto' && nestingId === 'obj1' && plainKeys
-    && (hostId in DM_EXPORT_HOSTS || ['const', 'let', 'var'].includes(hostId))) return true;
   // FC-588: every other loss sits behind an array level
   if (!DM_ARRAY_NESTINGS.has(nestingId)) return false;
   // (a) an assignment whose value is read, over a constructor or the realm
@@ -14978,7 +14975,7 @@ function destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, 
     : snippet(name, `(() => { ${ boundKey } try { ${ body } } catch (error) { return ['THREW', error?.constructor?.name, log.join()]; } })()`);
   // FC-570: usage-global injects nothing for a flat parameter pattern, so its stripped realm loses the methods
   const fullEnv = hostId === 'paramArg' && (receiverId === 'proto' || receiverId === 'literal') && nestingId === 'flat';
-  const strip = !destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId, wrapperId });
+  const strip = !destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId });
   return { ...cell, ts: wrapperId !== 'none', strip, ...fullEnv ? { fullEnv } : {} };
 }
 // the TS axis branches on the receiver node only, so it rides a reduced product
