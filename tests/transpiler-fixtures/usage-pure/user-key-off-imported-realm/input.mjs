@@ -1,6 +1,5 @@
-// The realm read through an import of its own entry - a file this plugin already transformed, or
-// the user's own pure import - is the same global object: a USER key off it stays a name match
-// both legs keep native, on an assignment and on a loop head as on a declaration.
+// An imported realm entry holds the same global object. Its unknown slots can contain
+// instances, so declarations, assignments and loop heads use generic instance dispatch.
 import realm from '@core-js/pure/actual/global-this';
 export const { y: { at: declaredAt } } = realm;
 let assignedAt;
