@@ -16,6 +16,7 @@ import {
   liftedPrefixSplit,
   flattenArrayWrapperInits,
   isConstantLiteralReceiver,
+  isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   isReReadableSurfaceNav,
   isReReferenceableAcrossReads,
@@ -138,6 +139,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapInitValue,
   unwrapRuntimeExpr,
+  unwrapParens,
   walkPatternIdentifiers,
   walkAstNodes,
   discardedSequenceElement,
@@ -152,7 +154,6 @@ import { detectIifeArgReceiverPath, findSynthSwapReceiver } from './destructure-
 import { nodeSite, stampNodeSite } from './nav-spine.js';
 import { findNodeSlot, replaceNodeInTree } from './emit-shared.js';
 import {
-  renderInstanceDefaultGuard,
   assignmentExpression,
   blockStatement,
   conditionalExpression,
@@ -170,6 +171,7 @@ import {
   absentableStoreReadKeyOf,
   anchorLeadingStatement,
   arrayWrapperDeclarator,
+  buildInstanceDefaultGuard,
   bareProxyGlobalPure,
   buriedKeyClaimInit,
   classifyDeclarationHost,
@@ -1677,6 +1679,9 @@ export default function createAstDestructureEmitter({
 
   // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
   function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
+    // Keep the default's comment position before its own claims replace the value node.
+    const sourceDefault = metaPath.node.value;
+    if (sourceDefault?.type === 'AssignmentPattern') sourceDefault.defaultCommentsAt ??= unwrapParens(sourceDefault.right).start;
     const keyCtx = { scope: metaPath.scope, adapter, path: metaPath };
     // the caller mirror first: where it settles the leaf's inner default arm for every caller
     // (mirrored the default, or proved it dead at each call), the rewrites below would only add
@@ -2852,7 +2857,7 @@ export default function createAstDestructureEmitter({
   function slotDefaultFold({ walk, nav, metaPath }) {
     if (!walk.slotDefault) return nav;
     const slotGuardRef = injector.generateDeclaredRef(metaPath);
-    return renderInstanceDefaultGuard({
+    return buildInstanceDefaultGuard({
       assignedRef: identifier(slotGuardRef),
       call: nav,
       defaultValue: cloneNode(walk.slotDefault),
@@ -3857,8 +3862,11 @@ export default function createAstDestructureEmitter({
       // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
       // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape
       // A computed root has no binding name; the chain carries its source spelling for the same
-      // sole-read extraction, just as it does on a declaration host.
-      const typedUserNav = !typedStatic && typedBase && !typedBase.pure
+      // sole-read extraction, just as it does on a declaration host. A pure realm base supplies
+      // that root too; its user keys still name the values the source reads.
+      // A known namespace keeps the surface/default gate above.
+      const typedUserNav = !typedStatic && typedBase && !typedBase.ctor
+        && !isBuiltInSurfaceNav(typedChain.keys.reduce(memberFromKeyName, typedChain.root), { ctx: keyCtx, isOwnAlias: isOwnPureAlias })
         && !typedChain.slotDefault && consumedAssignmentSlotDropsHost(metaPath) ? typedBase : null;
       // ... and a nav off a name this plugin minted for a built-in surface (a capture's ref) is the
       // re-readable surface the shared rule admits: it carries no substitution the drain could miss
@@ -3905,7 +3913,7 @@ export default function createAstDestructureEmitter({
               // revisits: a bare proxy global spells the pure binding that stands for it
             const barePure = typedStatic || typedSurface || typedUserNav ? null
               : bareProxyGlobalPure(peelTransparentExpr(spelled), metaPath, { adapter, resolveGlobalPolyfill });
-            const pureBase = typedStatic ?? typedSurface;
+            const pureBase = typedStatic ?? typedSurface ?? (typedUserNav?.pure ? typedUserNav : null);
             const root = pureBase ? identifier(injectPureImport(pureBase.pure.entry, pureBase.pure.hintName))
                 : typedUserNav ? typeof typedUserNav.name === 'string' ? identifier(typedUserNav.name)
                     : duplicateReceiver(typedChain.rootSpelling, injector)
@@ -3919,7 +3927,7 @@ export default function createAstDestructureEmitter({
                 ? overwriteDefaultGuard({ call,
                   localName: bindingId.name ?? null,
                   ref: overwriteRef,
-                  defaultNode: prunes ? prop.value.right : null })
+                  defaultNode: prunes ? prop.value.right : null, defaultPattern: prunes ? prop.value : null })
                 : call;
           },
         };
