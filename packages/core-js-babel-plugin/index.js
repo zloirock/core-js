@@ -99,6 +99,7 @@ import {
   renderBoundRawBranch,
   renderCapturedReceiver,
   renderCtorIdentityNarrow,
+  renderDestructureAssignments,
   renderGuardedChainTail,
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
@@ -1060,7 +1061,7 @@ export default function plugin(api, options) {
       // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders as
       // the declarator's value, which is equivalent down to the throw - on a nullish receiver the raw
       // branch dereferences it exactly as the pattern would. a multi-prop pattern splits as the shared
-      // plan admits it (`planGuardedDestructureNarrow`); a default or a computed key has its own canon
+      // plan admits it, including scalar defaults and proven effect-free computed keys
       function emitGuardedDestructureNarrow(meta, prop) {
         const pattern = prop.parentPath;
         const host = pattern?.parentPath;
@@ -1118,17 +1119,30 @@ export default function plugin(api, options) {
         const captureSource = plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
         if (captureSource) plan.recvIdent = generateRef(prop.scope);
         const rawBranch = markedRawBranch(plan, meta.key);
-        const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+        const narrow = !split && estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           spellRecv: () => hostSlot(t.cloneNode(plan.recvIdent)),
-          captureReceiver: captureSource ? hostSlot(captureSource) : null,
+          captureReceiver: captureSource && detach !== 'after' ? hostSlot(captureSource) : null,
+          mintRef: () => generateRef(prop.scope).name,
+          embed: node => hostSlot(t.cloneNode(node, true)),
         }));
         const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
         if (detach) {
           const anchor = hostKind === 'declarator' ? host : peelParenAndTSSlotPath(host).parentPath;
-          if (!Array.isArray(anchor.container)) return false;
+          if (hostKind !== 'assignment-value' && !Array.isArray(anchor.container)) return false;
+          if (captureSource) {
+            host.node[hostKind === 'declarator' ? 'init' : 'right'] = detach === 'before' ? t.cloneNode(plan.recvIdent)
+              : estreeToBabel(renderCapturedReceiver(hostSlot(t.cloneNode(plan.recvIdent)),
+                hostSlot(captureSource), hostSlot(t.cloneNode(plan.recvIdent))));
+          }
           removePatternSlot(prop);
+          if (hostKind === 'assignment-value') {
+            host.replaceWith(estreeToBabel(renderDestructureAssignments([{ name: bindingName, value: hostSlot(value) }], {
+              residual: hostSlot(t.cloneNode(host.node, true)), detach, receiver: hostSlot(t.cloneNode(plan.recvIdent)),
+            })));
+            return true;
+          }
           const placed = hostKind === 'declarator'
             ? t.variableDeclarator(t.identifier(bindingName), value)
             : t.expressionStatement(t.assignmentExpression('=', t.identifier(bindingName), value));
@@ -1139,10 +1153,14 @@ export default function plugin(api, options) {
         // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
         // the plan answered for all of them, so nothing here waits on a later visit
         if (split) {
-          const reads = split.map(item => estreeToBabel(renderCtorIdentityNarrow(item.plan,
-            hostSlot(markedRawBranch(item.plan, item.key)), {
+          const reads = split.map((item, index) => estreeToBabel(renderCtorIdentityNarrow(
+            captureSource ? { ...item.plan, recvIdent: plan.recvIdent } : item.plan,
+            hostSlot(markedRawBranch(captureSource ? plan : item.plan, item.key)), {
               injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
-              spellRecv: () => hostSlot(t.cloneNode(item.plan.recvIdent)),
+              spellRecv: () => hostSlot(t.cloneNode(captureSource ? plan.recvIdent : item.plan.recvIdent)),
+              captureReceiver: captureSource && index === 0 ? hostSlot(captureSource) : null,
+              mintRef: () => generateRef(prop.scope).name,
+              embed: node => hostSlot(t.cloneNode(node, true)),
             })));
           if (hostKind === 'declarator') {
             const declaration = host.parentPath;
@@ -1152,10 +1170,12 @@ export default function plugin(api, options) {
               // the REST reads the same receiver BEHIND the reads, with every consumed key renamed
               // to a sentinel so it still gathers exactly what the source left it
               ...restResidual ? [restResidualDeclarator(pattern.node, plan)] : []);
+            if (split.some(item => item.defaultValue)) declaration.requeue();
           } else {
-            const statement = peelParenAndTSSlotPath(host).parentPath;
-            statement.replaceWith(t.expressionStatement(t.sequenceExpression(
-              split.map((item, index) => t.assignmentExpression('=', t.identifier(item.name), reads[index])))));
+            host.replaceWith(estreeToBabel(renderDestructureAssignments(
+              split.map((item, index) => ({ name: item.name, value: hostSlot(reads[index]) })), {
+                receiver: hostKind === 'assignment-value' ? hostSlot(t.cloneNode(plan.recvIdent)) : null,
+              })));
           }
           return true;
         }
@@ -1175,7 +1195,7 @@ export default function plugin(api, options) {
           // in the moved pattern, including defaults, without mirroring its receiver again.
           for (const item of prop.node.value.properties) skippedNodes.add(item);
           host.requeue();
-        }
+        } else if (plan.destructureDefault) host.requeue();
         return true;
       }
 
