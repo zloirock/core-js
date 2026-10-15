@@ -17,6 +17,15 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  // Guarded scalar defaults retain the foreign read and its live fallback across passes.
+  ['guarded static scalar default', 'export function read(source) { let M = source; if (!M) M = Array; const { of: value = [9].at(0) } = M; return value; }'],
+  ['guarded static computed default', 'let M = pickConstructor(); if (!M) M = Array; const key = "of"; const { [key]: value = [9].at(0) } = M; use(value);'],
+  ['guarded static default after a consumed instance', 'export function read(source) { let M = source; if (!M) M = Array; '
+    + 'const { name: first, of: value = (M = {}, [9].at(0)), from: tail } = M; return [first, value, tail]; }'],
+  ['guarded static default before native assignment value', 'export function read(source) { let M = source; if (!M) M = Array; '
+    + 'let value, extra; return ({ of: value = (M = {}, 9), extra } = M); }'],
+  ['guarded static default after native assignment value', 'export function read(source) { let M = source; if (!M) M = Array; '
+    + 'let value, extra; return ({ extra = (M = {}, 9), of: value = 7 } = M); }'],
   ['array capture with a live default and native sibling', 'export function read(receiver) { const [{ other, at = () => "abc".at(-1) }] = [receiver]; return [at, other]; }'],
   ['array capture with exported siblings', 'export const head = before(), [{ other, at = fallback() }] = [receiver], tail = after();'],
   ['selecting declaration with an unknown key', 'export function read(source, key) { const { from, [key]: other } = source || Array; return [from, other]; }'],

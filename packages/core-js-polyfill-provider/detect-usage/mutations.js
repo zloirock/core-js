@@ -4135,9 +4135,10 @@ export function escapedCtorReferencesReducer() {
   // constructor stored whole off a member chain - reads through the binding it lands in are never
   // resolved past a guarded realm, so the entry it takes has to carry the statics itself - and each
   // slot the pattern reads, off a receiver or off the invocation it stands on, at the LEVEL it reads
-  // from (`{ g: { groupBy } } = K` reads `groupBy` off `K.g`). `guardsIdentity`: the host renders a
-  // slot with no default of its own behind an identity guard on the receiver - a declarator and an
-  // assignment do, a for-of head and a parameter default do not. `belowSource`: the source is a
+  // from (`{ g: { groupBy } } = K` reads `groupBy` off `K.g`). `guardsIdentity`: the census predicts a
+  // default-free slot's identity guard on a declarator or assignment, never on a for-of head or a
+  // parameter default. Claims may additionally guard scalar defaults; this census conservatively
+  // holds their source to the entry carrying the static. `belowSource`: the source is a
   // DEFAULT or a for-of element, which stands below the host's own source (`rawReads`)
   function recordPatternReceivers(pattern, source, {
     guardsIdentity = false, keepsCallRead = false, keepsSelectedReceiver = false, belowSource = false, frame = null,
