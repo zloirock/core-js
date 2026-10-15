@@ -1,7 +1,5 @@
-// a realm key that names no built-in is an unknown slot, capitalised or not: its inner default runs
-// wherever the realm leaves the slot empty, so the default is mirrored and the slot keeps its own
-// read - on every host below alike. the last row is the control: a known built-in is the realm's
-// own slot, whose default never runs
+// Unknown realm slots keep live defaults and their own reads. Instance dispatch folds both
+// the slot and its fallback; static defaults keep their mirrors. A known global makes its default dead.
 function use() {/* empty */}
 const { Deno: { env } = {} } = globalThis;
 const { UserMaps: { groupBy } = Map } = globalThis;
