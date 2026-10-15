@@ -2120,6 +2120,12 @@ export function isForXStatement(node) {
   return FOR_X_STATEMENT_TYPES.has(node?.type);
 }
 
+// Is the declaration the initializer of a for statement? A declaration in its body has
+// the same parent type but does not share the initializer's restrictions on memo placement.
+export function isForInitDeclaration(declarationParent, declaration) {
+  return declarationParent?.type === 'ForStatement' && declarationParent.init === declaration;
+}
+
 // Member ancestry, the nearest var-scope owner of a path (`findNearestVarScopeOwner`) and the value
 // canon's per-node answers (`canonAnswerTable`) are reusable only inside a read-only traversal.
 // Replacing an interior ancestor can preserve both endpoint paths, so endpoint checks cannot validate a
@@ -12108,6 +12114,15 @@ function indexPatternSlots(top, ctx) {
   return slots;
 }
 
+// Whether a property's key or default reads one of the named pattern bindings. A declaration's
+// function-valued default defers its body; an assignment can observe its existing bindings there.
+export function patternPropReadsBindings({ prop, names, assignmentTarget = false }) {
+  const holder = prop?.type === 'AssignmentPattern' ? prop : prop?.value;
+  const parts = [...prop?.computed ? [prop.key] : [], ...holder?.type === 'AssignmentPattern' ? [holder.right] : []];
+  return parts.some(expression => (assignmentTarget || !FUNCTION_LIKE_NODE_TYPES.has(expression.type))
+    && names.some(name => !!name && identifierReferencedInSubtree(expression, name)));
+}
+
 // Extraction writes a claim apart from the residual. On a flat level of a statement or a declaration
 // the claims go ahead of the writes the residual keeps, piece by piece between the slots that break
 // the pattern (`indexPatternSlots`), so an EARLIER slot of the claim's piece that writes its target
@@ -12119,8 +12134,8 @@ function indexPatternSlots(top, ctx) {
 // read inside a closure past every write. A consumed or bodyless assignment (`segmented`) writes slot
 // by slot, and an ordered capture (`isCaptured`) writes the claim's level in source order after the
 // levels above it. A capture plan with `splitCapture` also keeps outer siblings in source order.
-// A claim whose own default or computed key reads the target of a LATER slot is
-// bound on every host: extracted, that part runs after the write the source still had ahead of it.
+// A claim whose own default or computed key reads the target of a LATER slot needs a flat ordered
+// capture: a nested capture or extraction can still run that part after the write it preceded.
 // Returns the properties whose claim keeps its native read in pure mode.
 export function orderBoundPatternProps({ top, assignmentTarget, segmented = false, isClaim = null, isCaptured = null, ctx = null }) {
   const bound = new Set();
@@ -12128,11 +12143,8 @@ export function orderBoundPatternProps({ top, assignmentTarget, segmented = fals
   const slots = indexPatternSlots(top, ctx);
   slots.forEach((own, at) => {
     if (!own.target) return;
-    const holder = own.prop?.type === 'AssignmentPattern' ? own.prop : own.prop?.value;
-    const ownParts = [...own.prop?.computed ? [own.prop.key] : [], ...holder?.type === 'AssignmentPattern' ? [holder.right] : []];
-    if (ownParts.some(expression => (assignmentTarget || !FUNCTION_LIKE_NODE_TYPES.has(expression.type))
-      && slots.slice(at + 1).some(slot => !!slot.target?.name && identifierReferencedInSubtree(expression, slot.target.name)))) {
-      bound.add(own.prop);
+    if (patternPropReadsBindings({ prop: own.prop, names: slots.slice(at + 1).map(slot => slot.target?.name), assignmentTarget })) {
+      if (!isCaptured?.(own.prop)?.flat) bound.add(own.prop);
       return;
     }
     const { name = null, root = null, path = null } = own.target;
@@ -12215,11 +12227,11 @@ export function sequencePrefixWithSideEffects(expr, ctx = null) {
 
 // one member of a discarded container: a NESTED container recurses (re-emitting the whole literal
 // would rebuild it for nothing), anything else is pushed when it carries an effect - the same
-// push-if-observable rule the sequence prefix uses
-function collectContainerMemberSideEffect(node, { out, rescue, ctx }) {
+// push-if-observable rule the sequence prefix uses, including source reads in its preservation mode
+function collectContainerMemberSideEffect(node, { out, rescue, ctx, preserveSourceReads }) {
   if (node?.type === 'ObjectExpression' || node?.type === 'ArrayExpression') {
-    collectFoldedReceiverSideEffects(node, { out, rescue, ctx });
-  } else if (mayHaveSideEffects(node, ctx)) out.push(node);
+    collectFoldedReceiverSideEffects(node, { out, rescue, ctx, preserveSourceReads });
+  } else if (preserveSourceReads ? node && !performsNothing(node, ctx) : mayHaveSideEffects(node, ctx)) out.push(node);
 }
 
 // STRUCTURAL side effects of an expression whose VALUE is fully DISCARDED (an `in` fold replaces the
@@ -12239,8 +12251,13 @@ function collectContainerMemberSideEffect(node, { out, rescue, ctx }) {
 // operands - a chain-assign buried in a KEY is a discarded value, pushed whole. omitted (null) keeps
 // the assignment pushed whole (the `in`-fold / general discard, which re-emits nothing separately).
 // `ctx` is the caller's scope: every "does this run?" question below is then the scoped one, so a
-// getter read the discard would erase is harvested like any other effect
-export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null, chainAssignAt = null, ctx = null } = {}) {
+// getter read the discard would erase is harvested like any other effect. A substituted computed
+// key also keeps source prefix reads that can throw (`preserveSourceReads`); import-only usage
+// leaves the key in place and needs no such replay.
+export function collectFoldedReceiverSideEffects(node, {
+  out = [], rescue = null, chainAssignAt = null, ctx = null, preserveSourceReads = false,
+} = {}) {
+  const nested = { out, rescue, ctx, preserveSourceReads };
   let cur = node;
   while (cur && SKIPPABLE_WRAPPER_TYPES.has(cur.type)) cur = cur.expression;
   // a value-position chain-root receiver CALL is intentionally NOT pushed by the structural walk
@@ -12255,19 +12272,21 @@ export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null
   }
   switch (cur?.type) {
     case 'SequenceExpression':
-      for (const e of cur.expressions.slice(0, -1)) if (mayHaveSideEffects(e, ctx) || rescue?.has(e)) out.push(e);
-      collectFoldedReceiverSideEffects(cur.expressions.at(-1), { out, rescue, chainAssignAt, ctx });
+      for (const e of cur.expressions.slice(0, -1)) {
+        if ((preserveSourceReads ? !performsNothing(e, ctx) : mayHaveSideEffects(e, ctx)) || rescue?.has(e)) out.push(e);
+      }
+      collectFoldedReceiverSideEffects(cur.expressions.at(-1), { ...nested, chainAssignAt });
       break;
     case 'MemberExpression':
     case 'OptionalMemberExpression':
-      collectFoldedReceiverSideEffects(cur.object, { out, rescue, chainAssignAt, ctx });
+      collectFoldedReceiverSideEffects(cur.object, { ...nested, chainAssignAt });
       if (cur.computed) {
         const keyValue = peelSequenceTail(unwrapRuntimeExpr(cur.property), { step: unwrapRuntimeExpr });
         if ((keyValue?.type === 'CallExpression' || keyValue?.type === 'OptionalCallExpression')
           && !zeroArgIifeSideEffectFree(keyValue, ctx)) {
-          collectFoldedReceiverSideEffects(cur.property, { out, rescue, ctx });
+          collectFoldedReceiverSideEffects(cur.property, nested);
           out.push(keyValue);
-        } else collectFoldedReceiverSideEffects(cur.property, { out, rescue, ctx });
+        } else collectFoldedReceiverSideEffects(cur.property, nested);
       }
       break;
     // mirror the other shapes `resolveKey` folds to a static key: a `+`-concat (`(eff(), 'fr') + 'om'`)
@@ -12277,11 +12296,11 @@ export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null
     // harvest stays a SUPERSET of resolveKey's resolvable fold shapes (sequence-tail / computed-member
     // / `+` / template) - a shape resolveKey does NOT fold never reaches a fold branch
     case 'BinaryExpression':
-      collectFoldedReceiverSideEffects(cur.left, { out, rescue, ctx });
-      collectFoldedReceiverSideEffects(cur.right, { out, rescue, ctx });
+      collectFoldedReceiverSideEffects(cur.left, nested);
+      collectFoldedReceiverSideEffects(cur.right, nested);
       break;
     case 'TemplateLiteral':
-      for (const e of cur.expressions) collectFoldedReceiverSideEffects(e, { out, rescue, ctx });
+      for (const e of cur.expressions) collectFoldedReceiverSideEffects(e, nested);
       break;
     // a CONTAINER literal is discarded WHOLE by the static-container collapse (`{ k: { keys } } =
     // { k: Object, x: eff() }` becomes `keys = _Object$keys`), so every effect it carries goes with
@@ -12295,8 +12314,8 @@ export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null
         break;
       }
       for (const prop of cur.properties) {
-        if (prop.computed) collectContainerMemberSideEffect(prop.key, { out, rescue, ctx });
-        collectContainerMemberSideEffect(prop.value, { out, rescue, ctx });
+        if (prop.computed) collectContainerMemberSideEffect(prop.key, nested);
+        collectContainerMemberSideEffect(prop.value, nested);
       }
       break;
     case 'ArrayExpression':
@@ -12306,7 +12325,7 @@ export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null
         break;
       }
       for (const element of cur.elements) {
-        collectContainerMemberSideEffect(element, { out, rescue, ctx });
+        collectContainerMemberSideEffect(element, nested);
       }
       break;
     // a branching receiver is discarded WHOLE, exactly like a sequence prefix: the test always runs
@@ -12317,11 +12336,12 @@ export function collectFoldedReceiverSideEffects(node, { out = [], rescue = null
     // that operand is harvested as the value, as spelled alone: pushed whole, the fold later left its
     // inert parts behind (`(log(), { C: _Iterator }, _Iterator$from)`). no receiver spine runs through
     // a selection, so a store in that operand is pushed whole, never left to the chain-assign re-emit
+    // Replay mode also keeps potentially throwing reads of the test and the selected arm.
     case 'ConditionalExpression':
     case 'LogicalExpression': {
       const decision = ctx?.adapter?.decidedSelection?.(cur, ctx);
-      if (typeof decision?.fold === 'string') collectFoldedReceiverSideEffects(cur[decision.fold], { out, rescue, ctx });
-      else if (mayHaveSideEffects(cur, ctx)) out.push(cur);
+      if (typeof decision?.fold === 'string') collectFoldedReceiverSideEffects(cur[decision.fold], nested);
+      else if (preserveSourceReads ? !performsNothing(cur, ctx) : mayHaveSideEffects(cur, ctx)) out.push(cur);
       break;
     }
     case 'AssignmentExpression':
