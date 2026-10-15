@@ -5465,7 +5465,7 @@ export function patternRootKeyPathsFor(pattern, name, ctx) {
 function patternContainerOwner(init, ctx) {
   const container = unwrapRuntimeExpr(init);
   if (container?.type !== 'Identifier') return null;
-  const followed = followConstIdentifierInit({ node: container, readNode: init, ctx });
+  const followed = followConstIdentifierInit({ node: container, readNode: init, seen: ctx.seen, ctx });
   const containerBinding = ctx.adapter.getBinding({ scope: ctx.scope, name: container.name, path: ctx.path, read: container });
   const ownerNode = followed.readNode?.type === 'VariableDeclarator' ? followed.readNode
     : containerBinding?.path?.node ?? containerBinding?.node ?? null;
@@ -6385,7 +6385,8 @@ export function followConstIdentifierInit(hop, { maybe = false, onReassignedHop 
     // reassignment does not dominate the use, usage-pure when no write reaches the read;
     // narrowing keeps the flat bail
     if (!binding) break;
-    const hopAt = { ...hop, node: cur, readNode, ctx: { ...hop.ctx, scope } };
+    // Reaching writes can pair a pattern back to this alias too; keep the same cycle guard.
+    const hopAt = { ...hop, node: cur, readNode, seen: visited, ctx: { ...hop.ctx, scope, seen: visited } };
     if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) {
       // a dominating reassignment replaced the hop's value - keep following the reaching value
       // (enumerable for global, the single observable one for pure), like the container walk; the
@@ -7937,11 +7938,12 @@ function renderedSlot(slotPath, retired) {
 // stood - the node babel swapped in place under the slot's path, else the node nearest the slot's index
 // within `old`'s span, else the first minted one from that index on (a render inserting ahead of the slot
 // shifts it forward), with each neighbour minted or within that span. an empty run where nothing stands
-// there now
+// there now. The parent owns the current list: a render may replace the array while an old
+// child path still carries the retired one in `container`.
 function pathsInSlot(slot, old) {
   const holder = slot.parentPath;
   if (!Array.isArray(slot.container)) return isASTNode(holder.node[slot.key]) ? [holder.get(slot.key)] : [];
-  const list = slot.container;
+  const list = holder.node[slot.listKey];
   function within(node) {
     return isASTNode(node) && nodeRangeContains(old, node);
   }
@@ -7969,7 +7971,7 @@ function statementPathAbove(path, ownerPath) {
 
 // the paths of the statements a render put right before or after `statement` (`standsFor`)
 function mintedAround(statement) {
-  const list = statement.container;
+  const list = statement.parentPath.node[statement.listKey];
   const at = list[statement.key] === statement.node ? statement.key : list.indexOf(statement.node);
   return at === -1 ? [] : runAround(statement, at, node => standsFor(node, statement.node)).filter(path => path.node !== statement.node);
 }
@@ -7983,7 +7985,7 @@ function standsFor(node, old) {
 // the paths of the run in the list holding `path` that reaches out from index `at` over the neighbours `holds`
 // accepts
 function runAround(path, at, holds) {
-  const list = path.container;
+  const list = path.parentPath.node[path.listKey];
   let from = at;
   let to = at + 1;
   while (from > 0 && holds(list[from - 1])) from--;

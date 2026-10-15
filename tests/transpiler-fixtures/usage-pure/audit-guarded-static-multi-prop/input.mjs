@@ -12,8 +12,7 @@ const { of: of2, from: from2 } = M;
 // a plain data key stays in the pattern, the claims ahead of it detach
 const { from: from3, of: of3, isArray } = M;
 const { from: from4, ...rest } = M;
-// a DEFAULT belongs to its own canon and a COMPUTED key would be printed twice: both stay, the claim
-// at the edge detaches
+// Defaults keep their user fallback, and known computed keys share the guarded static read.
 const { from: from5, of: of5 = 1 } = M;
 const dyn = 'of';
 const { from: from6, [dyn]: of6 } = M;

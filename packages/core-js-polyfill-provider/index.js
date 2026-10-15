@@ -346,6 +346,12 @@ export function hasStaticDefinitions(object) {
   return hasOwn(statics, object);
 }
 
+// Entry dependencies of this global's own statics. An unnamed static read can select any
+// of them; it says nothing about prototype methods on the value the read may return.
+export function staticGlobalDependencies(object) {
+  return Object.values(hasOwn(statics, object) ? statics[object] : {}).flatMap(member => member.global?.dependencies ?? []);
+}
+
 // does a pure import of the namespace entry `namespaced` (`es/promise`) carry `object`'s own static `key`:
 // the static's own entry exists at that namespace and every module of it ships in the import - `es` has
 // no `promise/all-keyed`, so `es/promise` does not carry `Promise.allKeyed` while `actual/promise` does

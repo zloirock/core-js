@@ -11,7 +11,8 @@ import {
 } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
-import { createPolyfillContext, entryToGlobalHint, NARROW_ENTRY, resolve } from './index.js';
+import { createPolyfillContext, NARROW_ENTRY, resolve, staticGlobalDependencies } from './index.js';
+import { NATIVE_STATIC_OWNERS } from './detect-usage/globals.js';
 import { brand } from './helpers/error-tag.js';
 
 const { hasOwn } = Object;
@@ -293,24 +294,15 @@ export function createPolyfillResolver(options, {
     return entry;
   }
 
-  // a global the data defines no module for - `Array`, `String`, `Math` - stays the engine's own: its
-  // methods load where a read names them, so a reference escaping the file pulls none of them. a read of
-  // its statics the claim side does not name - by an unknown key, through a subclass inheriting them, in a
-  // function of this file it is handed to - may land on any static the build DOES polyfill, and the
-  // NAMESPACE entry is that answer
-  const NAME_TO_ENTRY = /[0-9a-z](?=[A-Z])/gu;
-  function unnamedReadNamespaceEntry(meta) {
-    // the same reference in its member spelling (`globalThis.Array`, `self.Array`): the proxy root
-    // names no value of its own, so the KEY is the constructor and the question is the same one
+  // A global with no replacement entry stays native. A read whose key the claims cannot
+  // name can select any own static, so load those statics' entries, never the namespace's
+  // prototype methods. Returning an instance or its prototype does not imply using its methods.
+  function unnamedReadStaticEntries(meta) {
     const name = meta?.kind === 'global' ? meta.name
       : meta?.kind === 'property' && POSSIBLE_GLOBAL_OBJECTS.has(meta.object) ? meta.key : null;
     if (typeof name !== 'string' || readsUnnamedStatic?.(name) !== true) return null;
-    const entry = name.replaceAll(NAME_TO_ENTRY, '$&-').toLowerCase();
-    // ... and the entry has to name THIS constructor back. the mapping folds case, so an ordinary
-    // free identifier that merely rhymes with a global - `array`, `set`, `promise`, and `ARRAY` with
-    // it - derived a real entry and widened into that global's whole family. only the spelling the
-    // entry itself stands for may widen to it
-    return entryToGlobalHint(entry) === name && ctx.isEntryNeeded(entry) ? [entry] : null;
+    const dependencies = staticGlobalDependencies(name).filter(ctx.isEntryNeeded);
+    return dependencies.length ? dependencies : null;
   }
 
   function resolveUsage(meta, path, { skipFilters = false } = {}) {
@@ -321,7 +313,7 @@ export function createPolyfillResolver(options, {
       if (hint && hint !== 'function' && hint !== 'object') return null;
     }
     const resolved = resolve(meta);
-    if (!resolved || !hasOwn(resolved.desc, 'global')) return unnamedReadNamespaceEntry(meta);
+    if (!resolved || !hasOwn(resolved.desc, 'global')) return unnamedReadStaticEntries(meta);
     let { kind, desc: { global: desc } } = resolved;
     // a synthetic inherited-static meta (`super.at()` / `this.at()` in a static method) whose key
     // resolves to an INSTANCE desc means no such static exists on the super class - bail rather than
@@ -343,13 +335,13 @@ export function createPolyfillResolver(options, {
     // call-shape filters (e.g. Error's min-args / cause-option arg check) read the WRONG call (the
     // static method's args) and flip the injection on that arg count. skip them for that pass
     if (!skipFilters && rejectsByFilters(desc, path)) return null;
-    // an OPAQUE constructor owes its family here too: this flavor installs on the global slot, and
-    // the bare `<x>/constructor` module installs the constructor ALONE - so the consumer an escaped
-    // reference was handed read `undefined` for `Map.groupBy`, which the native core-js replaced on
-    // a floor engine answers. asked of the NAME, like the pure half: whichever position spelled the
-    // escape, every read of that name in the file lands on the one global slot
+    // An opaque native static owner owes its own statics alongside its global patch entry;
+    // a whole namespace also carries unrelated prototype methods (`Number#toFixed`, `RegExp#test`).
+    // A replacement constructor keeps its whole entry, including the methods its instances carry.
     if (resolved.kind !== 'global' || !ctorNameIsOpaque(resolved.name)) return dependencies;
-    return dependencies.map(ctorFamilyEntry);
+    return NATIVE_STATIC_OWNERS.has(resolved.name)
+      ? [...dependencies, ...staticGlobalDependencies(resolved.name).filter(ctx.isEntryNeeded)]
+      : dependencies.map(ctorFamilyEntry);
   }
 
   // is a read through this constructor able to land where the file cannot see? the escape census
@@ -366,10 +358,9 @@ export function createPolyfillResolver(options, {
       || isMutatedStatic?.(name, MUTATED_STATIC_PINNED) === true;
   }
 
-  // the entry a NARROW dependency (`NARROW_ENTRY`) widens to: its family sibling, a module superset of
-  // the narrow one in every layer, so widening never drops what the narrow entry carried. ONE answer
-  // for both flavors - pure imports the family ponyfill, usage-global injects that same entry's modules
-  // onto the global slot
+  // The entry a NARROW dependency (`NARROW_ENTRY`) widens to: its family sibling, a module
+  // superset in every layer. Pure imports that one value; global replacements install its family.
+  // Native static owners in usage-global instead load their own statics individually.
   function ctorFamilyEntry(entry) {
     return entry.replace(NARROW_ENTRY, '');
   }
