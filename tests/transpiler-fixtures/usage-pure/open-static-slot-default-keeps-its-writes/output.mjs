@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _Array$of from "@core-js/pure/actual/array/of";
@@ -5,6 +6,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set/constructor";
+var _ref;
 // A default on a static the build serves still runs where its slot may read `undefined`: off a name a
 // write may point elsewhere, off a selection whose other arm lacks the static, over a slot the file
 // writes, on a line the user opted out of. A write in it reaches a later read, which takes the helpers
@@ -15,9 +17,7 @@ let a = [1],
   d = 'gh';
 let R = Array;
 if (flag) R = _Set;
-const {
-  from = (a = 'ab', 0)
-} = R;
+const from = R === Array ? _Array$from : (_ref = R.from) === void 0 ? (a = 'ab', 0) : _ref;
 const {
   of = (b = 'cd', 0)
 } = flag ? {

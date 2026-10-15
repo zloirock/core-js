@@ -876,6 +876,22 @@ function checkPrePostAliasMemberHandoff() {
 }
 checkPrePostAliasMemberHandoff();
 
+// A second pass must keep the raw read inside a guarded scalar default exactly once.
+// Its user fallback remains live, including after an earlier instance extraction.
+for (const importStyle of ['import', 'require']) for (const [label, source] of [
+  ['single', 'export function read(source) { let M = source; if (!M) M = Array; const { of: value = [9].at(0) } = M; return value; }'],
+  ['computed', 'let M = pickConstructor(); if (!M) M = Array; const key = "of"; const { [key]: value = [9].at(0) } = M; use(value);'],
+  ['after instance', 'export function read(source) { let M = source; if (!M) M = Array; '
+    + 'const { name: first, of: value = (M = {}, [9].at(0)), from: tail } = M; return [first, value, tail]; }'],
+  ['before native', 'export function read(source) { let M = source; if (!M) M = Array; let value, extra; return ({ of: value = (M = {}, 9), extra } = M); }'],
+  ['after native', 'export function read(source) { let M = source; if (!M) M = Array; let value, extra; return ({ extra = (M = {}, 9), of: value = 7 } = M); }'],
+]) {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle });
+  const first = plugin.transform(source, 'input.mjs')?.code ?? source;
+  const second = plugin.transform(first, 'input.mjs')?.code ?? first;
+  check(`guarded scalar default re-transform: ${ label } (${ importStyle })`, second, first);
+}
+
 // --- pre+post: a poisoned body-extract alias stays poisoned in post ---
 // pre judges the reassigned alias on its own tree; a sibling between the passes reprints the file
 // (a leading statement moves every position) and exposes reads pre never saw. post finds the alias
