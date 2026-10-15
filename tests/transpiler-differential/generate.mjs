@@ -18301,353 +18301,6 @@ function * generateDeletedGuardedClaimTails() {
   }
 }
 
-export function * generate() {
-  yield * generateSourceGoals();
-  yield * generateUnbackedSequenceHops();
-  yield * generateLoopAliasOwners();
-  yield * generateDeferredReads();
-  yield * generateGuardForms();
-  yield * generatePredicateArms();
-  yield * generateGuardKinds();
-  yield * generateGuardChains();
-  yield * generateGuardDeferralCross();
-  yield * generateReEmittedReceiver();
-  yield * generateLeadingEffectClaims();
-  yield * generateDeclinedInitClaims();
-  yield * generateKeptAssignHops();
-  yield * generateKeptSeqGuards();
-  yield * generateChainTailGets();
-  yield * generateChainMemberHops();
-  yield * generateParenCallees();
-  yield * generateSealedPrefixes();
-  yield * generateBuriedNavRoots();
-  yield * generateMemoStaticExtraction();
-  yield * generateIndexSignatureUnknownKey();
-  yield * generateTaggedTemplateCallArgs();
-  yield * generateSpreadArgumentIteration();
-  yield * generateDeclaredTypeOverResolve();
-  yield * generateDeclarationNarrowRuntime();
-  yield * generateSameTextTagUnion();
-  yield * generateAsiFusion();
-  yield * generateBranchKey();
-  yield * generateGetIteratorKeySE();
-  yield * generateGrammar();
-  yield * generateTsLeadingThis();
-  yield * generateNullableTruthyFold();
-  yield * generateDestructure();
-  yield * generateConsumedDestructureHosts();
-  yield * generateStaticRestHosts();
-  yield * generateAssignmentKeySpelling();
-  yield * generateSequencePrefixOrder();
-  yield * generateReceiverBearingDefault();
-  yield * generateAnchorKeySpelling();
-  yield * generateMultiCtorHopResidual();
-  yield * generateAnchorInnerShape();
-  yield * generateBracketedHopKey();
-  yield * generateLoopHeadNestedSlot();
-  yield * generateObjectHopPairing();
-  yield * generateSeKeySiblingHosts();
-  yield * generateVarRedeclClosureRead();
-  yield * generateWrappedSelectingReceiver();
-  yield * generateDestructureAlias();
-  yield * generateParamInstalledPatch();
-  yield * generateInvokerReceiverReads();
-  yield * generateCallValueProof();
-  yield * generateLoopHeadElements();
-  yield * generateHeadReceiverShapes();
-  yield * generateContainerSlots();
-  yield * generateDominatingWrites();
-  yield * generateProxyAliasCells();
-  yield * generateFallbackArg();
-  yield * generateIifeArgShadow();
-  yield * generateProxyNavKeySpellings();
-  yield * generateSelectingReceiverSynth();
-  yield * generateAwkwardHosts();
-  yield * generateTypeMarkerPeels();
-  yield * generateContainerLocalTypes();
-  yield * generateRestSlices();
-  yield * generateEnumRewrites();
-  yield * generateDirectiveArgForms();
-  yield * generateSharedAliasUnionArms();
-  yield * generateOptionalForeignReceiver();
-  yield * generateUnbracedBodyMinifierSplit();
-  yield * generateFieldShadowsAccessor();
-  yield * generateThisAnchorProvability();
-  yield * generateSelfYieldingIterator();
-  yield * generateChannelCombinations();
-  yield * generateClassChannelCombinations();
-  yield * generateOwnThisHandedOut();
-  yield * generateCarrierReachedMidClimb();
-  yield * generateAliasHopShadow();
-  yield * generateAliasReceiverShadow();
-  yield * generateSuperClassAliasReceiverShadow();
-  yield * generateTypeVarHoist();
-  yield * generateProxyGlobalSEReceiver();
-  yield * generateChainAssignValue();
-  yield * generateCarrierDeleteBase();
-  yield * generateShadowedRealmName();
-  yield * generateDeleteSpanWrappers();
-  yield * generateChainSealedDestructureSource();
-  yield * generateKeptValueCanon();
-  yield * generateTerminalProbeCanon();
-  yield * generateProvenCallGuardHops();
-  yield * generateThisReceiverGuards();
-  yield * generateIifeArgOwnership();
-  yield * generateWrappedSiblingReceiver();
-  yield * generateProxyHopCtor();
-  yield * generateCtorKeySpelling();
-  yield * generateSeHopKeyGuarded();
-  yield * generateKeptProxyRoot();
-  yield * generateRunLandingConsumers();
-  yield * generateBareProxyProbe();
-  yield * generateUnbackedWindowOptionals();
-  yield * wrapperOutcomeRows('wrapped-composition', WRAPPED_COMPOSE_SHAPES);
-  yield * wrapperOutcomeRows('chain-seals', CHAIN_SEAL_SHAPES);
-  yield * generateOpaqueCallRootGuard();
-  yield * generateSymbolReceiverContextFold();
-  yield * generateLoweredOptionalAlias();
-  yield * generateDiscardedKeyPrefixProxy();
-  yield * generateNestedSeHopReceiver();
-  yield * generateBuriedFoldKeySE();
-  yield * generateStaticCollapseSEOrder();
-  yield * generateGetterReceiverDescent();
-  yield * generateNameChainRootCallInner();
-  yield * generateOptionalNameChainRootCall();
-  yield * generateNewArgMember();
-  yield * generateOptionalProxyPureCall();
-  yield * generateSymbolIterProxyReceiver();
-  yield * generateSymbolIterConsume();
-  yield * generateSynthSwapSeqReceiver();
-  yield * generateNestedMirrorMixed();
-  yield * generateReceiverCopyShape();
-  yield * generateFullConsumeSeRescue();
-  yield * generateIdentityIifeRebind();
-  yield * generateSymbolIteratorAliasFold();
-  yield * generateFlattenSeKeySibling();
-  yield * generateArrayWrapperCtorAlias();
-  yield * generateAwSymbolIterDestructure();
-  yield * generateValueUnion();
-  yield * generateNamesakeCallee();
-  yield * generateAmbiguousStaticReceivers();
-  yield * generateContainerStaticReceivers();
-  yield * generateCallPairedSlot();
-  yield * generateWrittenSlotReads();
-  yield * generateNestedInstanceReceiver();
-  yield * generateNestedInstanceSurfaceBase();
-  yield * generateParamDefaultInstance();
-  yield * generateAssignAliasReassign();
-  yield * generateAliasScopeShadow();
-  yield * generateClosureReassignedKey();
-  yield * generateSealedReads();
-  yield * generateProtoInstall();
-  yield * generateDeferredUnion();
-  yield * generateReassignedCallableSlot();
-  yield * generateUnionHopFoldTs();
-  yield * generateSpreadShiftedSlot();
-  yield * generateTypeParamBindingTs();
-  yield * generateCallableIntersectionTs();
-  yield * generateDeferredWriteNarrow();
-  yield * generateUnpluginDestructureEmit();
-  yield * generateSynthSwapPureCtorReRead();
-  yield * generateFlattenRebuiltInit();
-  yield * generateThisStaticDestructure();
-  yield * generateSymbolAliasShadow();
-  yield * generateSeSplitNativeCtorAlias();
-  yield * generateFieldNarrowStale();
-  yield * generateAssertGuardStale();
-  yield * generateChainTrailingContinuations();
-  yield * generateConditionalMirror();
-  yield * generateBranchMirrorStepSlots();
-  yield * generateSelectedRealmMembers();
-  yield * generateChains();
-  yield * generateComputedInnerCallChain();
-  yield * generateIn();
-  yield * generateMutatedStatic();
-  yield * generateEscapeCensusRoutes();
-  yield * generateMutatedSibling();
-  yield * generateMutatedSealChain();
-  yield * generateMutatedDestructure();
-  yield * generateMutatedAnchoredSymbol();
-  yield * generateSlotBackstop();
-  yield * generateMutatedProxyRoot();
-  yield * generateBareSlotWrite();
-  yield * generateMutatedNarrowChain();
-  yield * generateMutatedComputedKey();
-  yield * generateMutatedWrapperAssign();
-  yield * generateMutatedLiteralKey();
-  yield * generateVarShadowedStatic();
-  yield * generateValuelessRedecl();
-  yield * generateSeOrder();
-  yield * generateSideEffectConsumers();
-  yield * generateOptionalArgSe();
-  yield * generateAsyncStatic();
-  yield * generateCollectionReceivers();
-  yield * generateForOfIterable();
-  yield * generateForXHeadKind();
-  yield * generateBuiltinArguments();
-  yield * generateProxyImportSlotWrite();
-  yield * generateNestingDepth();
-  yield * generateDisableDirectives();
-  for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
-    for (const expr of exprs) {
-      const strip = !PURE_FULL_ENV_FAMILIES.has(family) && STRIP_TARGET_RE.test(expr);
-      const row = snippet(`${ family }: ${ expr }`, expr);
-      // A pure residual does not exempt injection-only usage-global from its own stripped oracle.
-      if (expr.includes('restoreProperty(')) row.code = `${ RESTORE_IMPORT }\n${ row.code }`;
-      yield { ...row, strip };
-    }
-  }
-  for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
-    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true, strip: STRIP_TARGET_RE.test(expr) };
-  }
-  yield * generateNativeRestSemantics();
-  yield * generateRetainedPatternOrder();
-  yield * generateGetterRealmReads();
-  yield * generateParameterReceiverChannels();
-  yield * generateCapturedContainerWrites();
-  yield * generateScopedContainerEscapes();
-  yield * generateIteratorPatternOrder();
-  yield * generateCapturedSiblingClaims();
-  yield * generateModuleParameterReceivers();
-  yield * generateNamespaceArgumentPositions();
-  yield * generateConstructorArgumentWrites();
-  yield * generateClassKeyOrder();
-  yield * generateReturnedStaticLoopHeads();
-  yield * generateInnerDefaultReceivers();
-  yield * generateStaticHopPatternAnchor();
-  yield * generateMirrorSlotCanon();
-  yield * generateArrayPropertyOrder();
-  yield * generateBranchCompleteVar();
-  yield * generateIteratorStepEffects();
-  yield * generateHoistedBindingReads();
-  yield * generateSelfBindingReads();
-  yield * generateInnerDefaultHostFallbacks();
-  yield * generateResidualCtorStatics();
-  yield * generateSelectingInnerDefaults();
-  yield * generateSoleHopInstanceLeaf();
-  yield * generateMissingCtorResidual();
-  yield * generateBranchDivertWrites();
-  yield * generateSeReceiverSpellings();
-  yield * generateOpaqueArmSpellings();
-  yield * generateCapturedSelection();
-  yield * generateMirrorHostForms();
-  yield * generateRealmTernaryArms();
-  yield * generateCtorHeldInContainerSlot();
-  yield * generateAnchoredCtorResidualLeaf();
-  yield * generateClonedContainerOwners();
-  yield * generateCapturedContainerOwners();
-  yield * generateInlineReturnPaths();
-  yield * generateReturnedContainerWrites();
-  yield * generateParameterStaticSources();
-  yield * generateWrapperKeyEffects();
-  yield * generateLogicalDestructure();
-  yield * generateForXMemberReads();
-  yield * generateDefinitionTimeReceivers();
-  yield * generateOwnThisDefinitionSlots();
-  yield * generateAmbientNativeInheritance();
-  yield * generateDestructureMatrix();
-  yield * generateRealmKeyInnerDefault();
-  yield * generateUserKeyOffRealm();
-  yield * generateCapitalisedUserKey();
-  yield * generateSubclassInheritedStatic();
-  yield * generateCapitalisedPrototypeHop();
-  yield * generateSlotMemoNamespace();
-  yield * generateNestedMemberInstance();
-  yield * generateNestedMemberRest();
-  yield * generateCarrierValueWrites();
-  yield * generateFieldUnionReceivers();
-  yield * generateConstructorAliasCaptures();
-  yield * generateConstructorAliasWrites();
-  yield * generateOpenRealmPatternWrites();
-  yield * generateQuotedMirrorSiblingReads();
-  yield * generateMixedDestructureClaimOrder();
-  yield * generateNestedPrototypeSequencePrefix();
-  yield * generateSelectedDestructureReadOrder();
-  yield * generatePositionalCaptureActivations();
-  yield * generateForOfWrittenElementFields();
-  yield * generateRetainedReceiverReentry();
-  yield * generateReceiverTypePrecision();
-  yield * generateDeletedFieldReceivers();
-  yield * generateInheritedCallCache();
-  yield * generateAccessorSlotReceivers();
-  yield * generateLocalArgumentReaders();
-  yield * generateWrappedBindingCarriers();
-  yield * generateWrittenFunctionCalls();
-  yield * generateContainerSlotReaders();
-  yield * generateWrittenFunctionCallUnions();
-  yield * generateWrittenPatternReturnUnions();
-  yield * generateComputedReceiverKeyCaptures();
-  yield * generateMirrorReceiverReadOrder();
-  yield * generateAdjacentReceiverExecutionFrames();
-  yield * generateTransparentTsReadonlyReceivers();
-  yield * generateClosedReceiverSnapshots();
-  yield * generateCoercingFunctionReceivers();
-  yield * generateCoercingParameterCallers();
-  yield * generateDecidedFallbackReads();
-  yield * generateDecidedOwnerReads();
-  yield * generateKeyedReceiverNullness();
-  yield * generateDiscardedInitSpellings();
-  yield * generateDecidedUserSelections();
-  yield * generateSelectionOwnerStatics();
-  yield * generateDecidedGuardWrites();
-  yield * generateReachingWriteScopes();
-  yield * generateHelperKeySelections();
-  yield * generateHelperKeyLoops();
-  yield * generateSelectionContainerReads();
-  yield * generateAgreeingKeyArms();
-  yield * generatePatchedGlobalReadOrder();
-  yield * generateDecidedForOfHeadReads();
-  yield * generateOpenPatternSlotLefts();
-  yield * generateHolderWrittenConstructors();
-  yield * generateContainerSelectionsHandedToCalls();
-  yield * generateKeyedCapturesBesideSiblings();
-  yield * generatePrototypeInstallsThroughOwners();
-  yield * generateRealmInstallReadOrder();
-  yield * generateRealmMemberPresenceTests();
-  yield * generateInstallsInArmsNeverTaken();
-  yield * generateLoopHeadSequenceStores();
-  yield * generateAnswerStatementsInWrappers();
-  yield * generateSelectionSlotArms();
-  yield * generateGetterPrefixKeyWrites();
-  yield * generateInstallsInRebuiltArguments();
-  yield * generateKeyAliasesReboundInBlocks();
-  yield * generateUnknownSlotAliasWrites();
-  yield * generateExplicitMemberPathStores();
-  yield * generateAliasChainsAtTheCeiling();
-  yield * generatePrototypeInstallsThatMayNotRun();
-  yield * generatePatternBindingWrites();
-  yield * generatePrototypeInstallsThroughNonSetterArms();
-  yield * generateDecidedFoldsInDiscardedPlaces();
-  yield * generateFoldsBesideDirectives();
-  yield * generateDecidedAnswerReads();
-  yield * generateAliasWrittenSlotConstructors();
-  yield * generateDeletedMemberKeyReads();
-  yield * generateRealmSelfCopies();
-  yield * generateFoldedKeyEscapes();
-  yield * generatePatternMemberEscapes();
-  yield * generateRawStaticReadsOverHeldConstructors();
-  yield * generateNonNullOptionalChainLinks();
-  yield * generateRealmAliasProbes();
-  yield * generateIifeParameterSiblingStatics();
-  yield * generateNonNullStaticChainLinks();
-  yield * generateDeletedGuardedClaimTails();
-  yield * generateWindowValuedAliasProbes();
-  yield * generateWindowValuedAliasNavigations();
-  yield * generatePatternPartsEvaluationOrder();
-  yield * generateDeadDefaultWrites();
-  yield * generateProbeNavRootsAndTails();
-  yield * generateNestedLeafSourceOrder();
-  yield * generateLiteralContainerEffectKeys();
-  yield * generateClaimsBesideANestedClaim();
-  yield * generateSoleChainComputedTargets();
-  yield * generateWrappedMemberTargets();
-  yield * generateNestedRestLevelCaptures();
-  yield * generateGuardedRealmSelectionCaptures();
-  yield * generateReadAssignmentHopCaptures();
-  yield * generateForOfPassthroughTargets();
-  yield * generateReceiverEffectsAndDefaults();
-}
-
 // --- Window-valued alias probes ---
 // an alias holding the environment probe's VALUE (`globalThis.window`, read through `self`, stored by a
 // later write or behind a sequence) is absent wherever that probe is: the optional link over it is the
@@ -19419,4 +19072,433 @@ function * generateReceiverEffectsAndDefaults() {
       export const r = read("${ key }");`,
     strip: false,
   };
+}
+
+// CommonJS supplies a real top-level receiver. Populate its realm slots outside the this-rooted
+// reads, then check both prototype families beside a sibling, default, prefix or relocated loop head.
+function * generateTopLevelThisPrototypeAssignments() {
+  for (const [ctor, value] of [['Array', '[1, 2]'], ['String', '"xy"']]) {
+    for (const sibling of [false, true]) for (const defaulted of [false, true]) {
+      const pattern = `{ ${ ctor }: { prototype: { at: method${ defaulted ? ' = (effects.push("default"), null)' : '' } } }${ sibling ? ', kept' : '' } }`;
+      for (const host of ['plain', 'prefixed', 'prefixed-declaration', 'for-of', 'source-head']) yield {
+        name: `top-level-this-prototype-assignment/${ ctor }/${ sibling ? 'sibling' : 'sole' }/${ defaulted ? 'default' : 'plain' }${ host === 'plain' ? '' : `/${ host }` }`,
+        code: `exports.${ ctor } = ${ ctor }; exports.kept = 7;
+          const effects = []; let method, kept, r;
+          ${ host === 'for-of' ? `for (const ${ pattern } of [this]) { r = [method.call(${ value }, -1), kept]; }`
+    : host === 'source-head' ? `for (const realm of [this]) { const ${ pattern } = realm; r = [method.call(${ value }, -1), kept]; }`
+    : host === 'prefixed-declaration' ? `{ const ${ pattern } = (effects.push("rhs"), this); r = [method.call(${ value }, -1), kept]; }`
+    : `(${ pattern } = ${ host === 'prefixed' ? '(effects.push("rhs"), this)' : 'this' }); r = [method.call(${ value }, -1), kept];` }
+          module.exports = { r, effects };`,
+        sourceType: 'script',
+        strip: true,
+      };
+    }
+  }
+}
+
+// Unknown realm slots can hold either instance family or an own method. Getters and defaults
+// distinguish a single generic lookup from a duplicate read or a fallback-only mirror.
+function * generateRealmUserKeyInstances() {
+  for (const [kind, value] of [
+    ['array', '[1, 2]'],
+    ['string', '"xy"'],
+    ['own', '{ at() { return 7; } }'],
+    ['missing', '{}'],
+    ['absent', 'undefined'],
+  ]) for (const key of ['Data', 'data']) for (const root of ['this', 'globalThis']) {
+    const hosts = [
+      'declaration',
+      'assignment',
+      'alias',
+      'prefix',
+      'wrapped-default',
+      'fallback',
+      'nullish',
+      'conditional',
+      'prefixed-fallback',
+      'fallback-assignment',
+    ];
+    if (root === 'this') hosts.push('captured', 'for-of', 'source-head');
+    else hosts.push('optional', 'optional-default', 'inner-prefix');
+    for (const host of hosts) {
+      if (kind === 'absent' && host !== 'wrapped-default' && host !== 'optional-default') continue;
+      const pattern = `{ ${ key }: { at: method = (effects.push("default"), 9) }${ host === 'wrapped-default' || host === 'optional-default' ? ' = (effects.push("slot-default"), [3, 4])' : '' } }`;
+      const observe = `r = typeof method === "function" ? method.call(${ kind === 'absent' ? '[3, 4]' : 'value' }, -1) : method;`;
+      const body = host === 'assignment' || host === 'fallback-assignment'
+        ? `let method; (${ pattern } = ${ host === 'fallback-assignment' ? `(${ root } || {})` : root }); ${ observe }`
+        : host === 'wrapped-default' ? `const [${ pattern }] = [${ root === 'globalThis' ? 'globalThis?.globalThis' : root }]; ${ observe }`
+        : host === 'for-of' ? `for (const ${ pattern } of [this]) { ${ observe } }`
+        : host === 'source-head' ? `for (const realm of [this]) { const ${ pattern } = realm; ${ observe } }`
+        : host === 'captured' ? `const realm = this; function read() { const ${ pattern } = realm; ${ observe } } read();`
+        : host === 'alias' ? `const realm = ${ root }; const ${ pattern } = realm; ${ observe }`
+        : `const ${ pattern } = ${ host === 'prefix' ? `(effects.push("rhs"), ${ root })`
+    : host === 'fallback' ? `(${ root } || {})` : host === 'nullish' ? `(${ root } ?? {})`
+    : host === 'conditional' ? `(true ? ${ root } : {})` : host === 'prefixed-fallback' ? `((effects.push("rhs"), ${ root }) || {})`
+    : host === 'inner-prefix' ? `(effects.push("rhs"), ${ root } ?? {})`
+    : host === 'optional' || host === 'optional-default' ? 'globalThis?.globalThis' : root }; ${ observe }`;
+      const setup = `const effects = []; const value = ${ value }; let r;`;
+      const descriptor = '{ configurable: true, get() { effects.push("get"); return value; } }';
+      yield {
+        name: `realm-user-key-instance/${ root }/${ key }/${ kind }/${ host }`,
+        code: root === 'this'
+          ? `${ setup } Object.defineProperty(exports, "${ key }", ${ descriptor }); ${ body } module.exports = { r, effects };`
+          : `${ RESTORE_IMPORT } ${ setup }
+            const previous = Object.getOwnPropertyDescriptor(globalThis, "${ key }");
+            restoreProperty(globalThis, "${ key }", ${ descriptor });
+            try { ${ body } } finally { restoreProperty(globalThis, "${ key }", previous); }
+            export { r, effects };`,
+        sourceType: root === 'this' ? 'script' : 'module',
+        strip: true,
+      };
+    }
+  }
+}
+
+export function * generate() {
+  yield * generateSourceGoals();
+  yield * generateUnbackedSequenceHops();
+  yield * generateLoopAliasOwners();
+  yield * generateDeferredReads();
+  yield * generateGuardForms();
+  yield * generatePredicateArms();
+  yield * generateGuardKinds();
+  yield * generateGuardChains();
+  yield * generateGuardDeferralCross();
+  yield * generateReEmittedReceiver();
+  yield * generateLeadingEffectClaims();
+  yield * generateDeclinedInitClaims();
+  yield * generateKeptAssignHops();
+  yield * generateKeptSeqGuards();
+  yield * generateChainTailGets();
+  yield * generateChainMemberHops();
+  yield * generateParenCallees();
+  yield * generateSealedPrefixes();
+  yield * generateBuriedNavRoots();
+  yield * generateMemoStaticExtraction();
+  yield * generateIndexSignatureUnknownKey();
+  yield * generateTaggedTemplateCallArgs();
+  yield * generateSpreadArgumentIteration();
+  yield * generateDeclaredTypeOverResolve();
+  yield * generateDeclarationNarrowRuntime();
+  yield * generateSameTextTagUnion();
+  yield * generateAsiFusion();
+  yield * generateBranchKey();
+  yield * generateGetIteratorKeySE();
+  yield * generateGrammar();
+  yield * generateTsLeadingThis();
+  yield * generateNullableTruthyFold();
+  yield * generateDestructure();
+  yield * generateConsumedDestructureHosts();
+  yield * generateStaticRestHosts();
+  yield * generateAssignmentKeySpelling();
+  yield * generateSequencePrefixOrder();
+  yield * generateReceiverBearingDefault();
+  yield * generateAnchorKeySpelling();
+  yield * generateMultiCtorHopResidual();
+  yield * generateAnchorInnerShape();
+  yield * generateBracketedHopKey();
+  yield * generateLoopHeadNestedSlot();
+  yield * generateObjectHopPairing();
+  yield * generateSeKeySiblingHosts();
+  yield * generateVarRedeclClosureRead();
+  yield * generateWrappedSelectingReceiver();
+  yield * generateDestructureAlias();
+  yield * generateParamInstalledPatch();
+  yield * generateInvokerReceiverReads();
+  yield * generateCallValueProof();
+  yield * generateLoopHeadElements();
+  yield * generateHeadReceiverShapes();
+  yield * generateContainerSlots();
+  yield * generateDominatingWrites();
+  yield * generateProxyAliasCells();
+  yield * generateFallbackArg();
+  yield * generateIifeArgShadow();
+  yield * generateProxyNavKeySpellings();
+  yield * generateSelectingReceiverSynth();
+  yield * generateAwkwardHosts();
+  yield * generateTypeMarkerPeels();
+  yield * generateContainerLocalTypes();
+  yield * generateRestSlices();
+  yield * generateEnumRewrites();
+  yield * generateDirectiveArgForms();
+  yield * generateSharedAliasUnionArms();
+  yield * generateOptionalForeignReceiver();
+  yield * generateUnbracedBodyMinifierSplit();
+  yield * generateFieldShadowsAccessor();
+  yield * generateThisAnchorProvability();
+  yield * generateSelfYieldingIterator();
+  yield * generateChannelCombinations();
+  yield * generateClassChannelCombinations();
+  yield * generateOwnThisHandedOut();
+  yield * generateCarrierReachedMidClimb();
+  yield * generateAliasHopShadow();
+  yield * generateAliasReceiverShadow();
+  yield * generateSuperClassAliasReceiverShadow();
+  yield * generateTypeVarHoist();
+  yield * generateProxyGlobalSEReceiver();
+  yield * generateChainAssignValue();
+  yield * generateCarrierDeleteBase();
+  yield * generateShadowedRealmName();
+  yield * generateDeleteSpanWrappers();
+  yield * generateChainSealedDestructureSource();
+  yield * generateKeptValueCanon();
+  yield * generateTerminalProbeCanon();
+  yield * generateProvenCallGuardHops();
+  yield * generateThisReceiverGuards();
+  yield * generateIifeArgOwnership();
+  yield * generateWrappedSiblingReceiver();
+  yield * generateProxyHopCtor();
+  yield * generateCtorKeySpelling();
+  yield * generateSeHopKeyGuarded();
+  yield * generateKeptProxyRoot();
+  yield * generateRunLandingConsumers();
+  yield * generateBareProxyProbe();
+  yield * generateUnbackedWindowOptionals();
+  yield * wrapperOutcomeRows('wrapped-composition', WRAPPED_COMPOSE_SHAPES);
+  yield * wrapperOutcomeRows('chain-seals', CHAIN_SEAL_SHAPES);
+  yield * generateOpaqueCallRootGuard();
+  yield * generateSymbolReceiverContextFold();
+  yield * generateLoweredOptionalAlias();
+  yield * generateDiscardedKeyPrefixProxy();
+  yield * generateNestedSeHopReceiver();
+  yield * generateBuriedFoldKeySE();
+  yield * generateStaticCollapseSEOrder();
+  yield * generateGetterReceiverDescent();
+  yield * generateNameChainRootCallInner();
+  yield * generateOptionalNameChainRootCall();
+  yield * generateNewArgMember();
+  yield * generateOptionalProxyPureCall();
+  yield * generateSymbolIterProxyReceiver();
+  yield * generateSymbolIterConsume();
+  yield * generateSynthSwapSeqReceiver();
+  yield * generateNestedMirrorMixed();
+  yield * generateReceiverCopyShape();
+  yield * generateFullConsumeSeRescue();
+  yield * generateIdentityIifeRebind();
+  yield * generateSymbolIteratorAliasFold();
+  yield * generateFlattenSeKeySibling();
+  yield * generateArrayWrapperCtorAlias();
+  yield * generateAwSymbolIterDestructure();
+  yield * generateValueUnion();
+  yield * generateNamesakeCallee();
+  yield * generateAmbiguousStaticReceivers();
+  yield * generateContainerStaticReceivers();
+  yield * generateCallPairedSlot();
+  yield * generateWrittenSlotReads();
+  yield * generateNestedInstanceReceiver();
+  yield * generateNestedInstanceSurfaceBase();
+  yield * generateParamDefaultInstance();
+  yield * generateAssignAliasReassign();
+  yield * generateAliasScopeShadow();
+  yield * generateClosureReassignedKey();
+  yield * generateSealedReads();
+  yield * generateProtoInstall();
+  yield * generateDeferredUnion();
+  yield * generateReassignedCallableSlot();
+  yield * generateUnionHopFoldTs();
+  yield * generateSpreadShiftedSlot();
+  yield * generateTypeParamBindingTs();
+  yield * generateCallableIntersectionTs();
+  yield * generateDeferredWriteNarrow();
+  yield * generateUnpluginDestructureEmit();
+  yield * generateSynthSwapPureCtorReRead();
+  yield * generateFlattenRebuiltInit();
+  yield * generateThisStaticDestructure();
+  yield * generateSymbolAliasShadow();
+  yield * generateSeSplitNativeCtorAlias();
+  yield * generateFieldNarrowStale();
+  yield * generateAssertGuardStale();
+  yield * generateChainTrailingContinuations();
+  yield * generateConditionalMirror();
+  yield * generateBranchMirrorStepSlots();
+  yield * generateSelectedRealmMembers();
+  yield * generateChains();
+  yield * generateComputedInnerCallChain();
+  yield * generateIn();
+  yield * generateMutatedStatic();
+  yield * generateEscapeCensusRoutes();
+  yield * generateMutatedSibling();
+  yield * generateMutatedSealChain();
+  yield * generateMutatedDestructure();
+  yield * generateMutatedAnchoredSymbol();
+  yield * generateSlotBackstop();
+  yield * generateMutatedProxyRoot();
+  yield * generateBareSlotWrite();
+  yield * generateMutatedNarrowChain();
+  yield * generateMutatedComputedKey();
+  yield * generateMutatedWrapperAssign();
+  yield * generateMutatedLiteralKey();
+  yield * generateVarShadowedStatic();
+  yield * generateValuelessRedecl();
+  yield * generateSeOrder();
+  yield * generateSideEffectConsumers();
+  yield * generateOptionalArgSe();
+  yield * generateAsyncStatic();
+  yield * generateCollectionReceivers();
+  yield * generateForOfIterable();
+  yield * generateForXHeadKind();
+  yield * generateBuiltinArguments();
+  yield * generateProxyImportSlotWrite();
+  yield * generateNestingDepth();
+  yield * generateDisableDirectives();
+  for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
+    for (const expr of exprs) {
+      const strip = !PURE_FULL_ENV_FAMILIES.has(family) && STRIP_TARGET_RE.test(expr);
+      const row = snippet(`${ family }: ${ expr }`, expr);
+      // A pure residual does not exempt injection-only usage-global from its own stripped oracle.
+      if (expr.includes('restoreProperty(')) row.code = `${ RESTORE_IMPORT }\n${ row.code }`;
+      yield { ...row, strip };
+    }
+  }
+  for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
+    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true, strip: STRIP_TARGET_RE.test(expr) };
+  }
+  yield * generateNativeRestSemantics();
+  yield * generateRetainedPatternOrder();
+  yield * generateGetterRealmReads();
+  yield * generateParameterReceiverChannels();
+  yield * generateCapturedContainerWrites();
+  yield * generateScopedContainerEscapes();
+  yield * generateIteratorPatternOrder();
+  yield * generateCapturedSiblingClaims();
+  yield * generateModuleParameterReceivers();
+  yield * generateNamespaceArgumentPositions();
+  yield * generateConstructorArgumentWrites();
+  yield * generateClassKeyOrder();
+  yield * generateReturnedStaticLoopHeads();
+  yield * generateInnerDefaultReceivers();
+  yield * generateStaticHopPatternAnchor();
+  yield * generateMirrorSlotCanon();
+  yield * generateArrayPropertyOrder();
+  yield * generateBranchCompleteVar();
+  yield * generateIteratorStepEffects();
+  yield * generateHoistedBindingReads();
+  yield * generateSelfBindingReads();
+  yield * generateInnerDefaultHostFallbacks();
+  yield * generateResidualCtorStatics();
+  yield * generateSelectingInnerDefaults();
+  yield * generateSoleHopInstanceLeaf();
+  yield * generateMissingCtorResidual();
+  yield * generateBranchDivertWrites();
+  yield * generateSeReceiverSpellings();
+  yield * generateOpaqueArmSpellings();
+  yield * generateCapturedSelection();
+  yield * generateMirrorHostForms();
+  yield * generateRealmTernaryArms();
+  yield * generateCtorHeldInContainerSlot();
+  yield * generateAnchoredCtorResidualLeaf();
+  yield * generateClonedContainerOwners();
+  yield * generateCapturedContainerOwners();
+  yield * generateInlineReturnPaths();
+  yield * generateReturnedContainerWrites();
+  yield * generateParameterStaticSources();
+  yield * generateWrapperKeyEffects();
+  yield * generateLogicalDestructure();
+  yield * generateForXMemberReads();
+  yield * generateDefinitionTimeReceivers();
+  yield * generateOwnThisDefinitionSlots();
+  yield * generateAmbientNativeInheritance();
+  yield * generateDestructureMatrix();
+  yield * generateRealmKeyInnerDefault();
+  yield * generateUserKeyOffRealm();
+  yield * generateCapitalisedUserKey();
+  yield * generateSubclassInheritedStatic();
+  yield * generateCapitalisedPrototypeHop();
+  yield * generateSlotMemoNamespace();
+  yield * generateNestedMemberInstance();
+  yield * generateNestedMemberRest();
+  yield * generateCarrierValueWrites();
+  yield * generateFieldUnionReceivers();
+  yield * generateConstructorAliasCaptures();
+  yield * generateConstructorAliasWrites();
+  yield * generateOpenRealmPatternWrites();
+  yield * generateQuotedMirrorSiblingReads();
+  yield * generateMixedDestructureClaimOrder();
+  yield * generateNestedPrototypeSequencePrefix();
+  yield * generateSelectedDestructureReadOrder();
+  yield * generatePositionalCaptureActivations();
+  yield * generateForOfWrittenElementFields();
+  yield * generateRetainedReceiverReentry();
+  yield * generateReceiverTypePrecision();
+  yield * generateDeletedFieldReceivers();
+  yield * generateInheritedCallCache();
+  yield * generateAccessorSlotReceivers();
+  yield * generateLocalArgumentReaders();
+  yield * generateWrappedBindingCarriers();
+  yield * generateWrittenFunctionCalls();
+  yield * generateContainerSlotReaders();
+  yield * generateWrittenFunctionCallUnions();
+  yield * generateWrittenPatternReturnUnions();
+  yield * generateComputedReceiverKeyCaptures();
+  yield * generateMirrorReceiverReadOrder();
+  yield * generateAdjacentReceiverExecutionFrames();
+  yield * generateTransparentTsReadonlyReceivers();
+  yield * generateClosedReceiverSnapshots();
+  yield * generateCoercingFunctionReceivers();
+  yield * generateCoercingParameterCallers();
+  yield * generateDecidedFallbackReads();
+  yield * generateDecidedOwnerReads();
+  yield * generateKeyedReceiverNullness();
+  yield * generateDiscardedInitSpellings();
+  yield * generateDecidedUserSelections();
+  yield * generateSelectionOwnerStatics();
+  yield * generateDecidedGuardWrites();
+  yield * generateReachingWriteScopes();
+  yield * generateHelperKeySelections();
+  yield * generateHelperKeyLoops();
+  yield * generateSelectionContainerReads();
+  yield * generateAgreeingKeyArms();
+  yield * generatePatchedGlobalReadOrder();
+  yield * generateDecidedForOfHeadReads();
+  yield * generateOpenPatternSlotLefts();
+  yield * generateHolderWrittenConstructors();
+  yield * generateContainerSelectionsHandedToCalls();
+  yield * generateKeyedCapturesBesideSiblings();
+  yield * generatePrototypeInstallsThroughOwners();
+  yield * generateRealmInstallReadOrder();
+  yield * generateRealmMemberPresenceTests();
+  yield * generateInstallsInArmsNeverTaken();
+  yield * generateLoopHeadSequenceStores();
+  yield * generateAnswerStatementsInWrappers();
+  yield * generateSelectionSlotArms();
+  yield * generateGetterPrefixKeyWrites();
+  yield * generateInstallsInRebuiltArguments();
+  yield * generateKeyAliasesReboundInBlocks();
+  yield * generateUnknownSlotAliasWrites();
+  yield * generateExplicitMemberPathStores();
+  yield * generateAliasChainsAtTheCeiling();
+  yield * generatePrototypeInstallsThatMayNotRun();
+  yield * generatePatternBindingWrites();
+  yield * generatePrototypeInstallsThroughNonSetterArms();
+  yield * generateDecidedFoldsInDiscardedPlaces();
+  yield * generateFoldsBesideDirectives();
+  yield * generateDecidedAnswerReads();
+  yield * generateAliasWrittenSlotConstructors();
+  yield * generateDeletedMemberKeyReads();
+  yield * generateRealmSelfCopies();
+  yield * generateFoldedKeyEscapes();
+  yield * generatePatternMemberEscapes();
+  yield * generateRawStaticReadsOverHeldConstructors();
+  yield * generateNonNullOptionalChainLinks();
+  yield * generateRealmAliasProbes();
+  yield * generateIifeParameterSiblingStatics();
+  yield * generateNonNullStaticChainLinks();
+  yield * generateDeletedGuardedClaimTails();
+  yield * generateWindowValuedAliasProbes();
+  yield * generateWindowValuedAliasNavigations();
+  yield * generatePatternPartsEvaluationOrder();
+  yield * generateDeadDefaultWrites();
+  yield * generateProbeNavRootsAndTails();
+  yield * generateNestedLeafSourceOrder();
+  yield * generateLiteralContainerEffectKeys();
+  yield * generateClaimsBesideANestedClaim();
+  yield * generateSoleChainComputedTargets();
+  yield * generateWrappedMemberTargets();
+  yield * generateNestedRestLevelCaptures();
+  yield * generateGuardedRealmSelectionCaptures();
+  yield * generateReadAssignmentHopCaptures();
+  yield * generateForOfPassthroughTargets();
+  yield * generateReceiverEffectsAndDefaults();
+  yield * generateTopLevelThisPrototypeAssignments();
+  yield * generateRealmUserKeyInstances();
 }

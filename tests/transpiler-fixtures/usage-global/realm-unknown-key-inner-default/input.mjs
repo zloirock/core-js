@@ -1,7 +1,5 @@
-// a realm key that names no built-in is an unknown slot, capitalised or not: where the realm leaves
-// it empty the inner default is what the leaf reads, so the default's static is injected on every
-// host below - one static per row, so a dropped host shows in the import set. the last row is the
-// control: a known built-in keeps its own claim
+// Unknown realm slots keep live defaults. Both their values and their fallbacks need instance
+// patches; known globals still supply the named constructor or namespace.
 function use() {/* empty */}
 const { UserMaps: { groupBy } = Map } = globalThis;
 let fromAsync;

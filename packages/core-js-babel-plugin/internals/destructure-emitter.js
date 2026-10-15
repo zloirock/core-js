@@ -31,6 +31,7 @@ import {
   assignmentValueDiscarded,
   collectPatternDefaultValues,
   computedKeyHasSideEffects,
+  destructureReceiverNode,
   discardedSequenceElement,
   discardedSequenceElementPath,
   dropDeadSequenceElements,
@@ -39,6 +40,7 @@ import {
   hasRestSiblingExcept,
   hostsExportList,
   invalidateScopeVarIndex,
+  invocationCalleeOf,
   isChainAssignment,
   isFunctionParamDestructureParent,
   isDestructurePattern,
@@ -4092,10 +4094,12 @@ export default function createDestructureEmitter({
     const staticReceiver = typedBase?.static ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : null;
     // ... and a TYPED user nav the extraction OWNS - every level dies with the claim, the host
     // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
-    // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape
-    const typedUserNav = !staticReceiver && typedBase && !typedBase.pure
+    // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape.
+    // A pure realm base still reads the user's slot; only a constructor base belongs to the anchor.
+    const typedUserNav = !staticReceiver && typedBase && !typedBase.ctor
       && !typedChain.slotDefault && consumedAssignmentSlotDropsHost(prop)
-      ? estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(t.cloneNode(typedChain.rootSpelling)))) : null;
+      ? estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(typedBase.pure
+        ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : t.cloneNode(typedChain.rootSpelling)))) : null;
     const receiverNode = staticReceiver ?? typedUserNav ?? (resolvedReceiver
       && (carriedReceiver || isReReferenceableReceiver(resolvedReceiver)
         || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name), { ...OPTIONAL_HOPS, ctx: propCtx })
@@ -4430,15 +4434,21 @@ export default function createDestructureEmitter({
             alwaysDefined: true,
           })) : t.cloneNode(staticId);
           typedNavReceiver = true;
-        } else if (typedBase && !typedBase.pure) {
-          // a prefixed init whose tail is a NAME carries the prefix AHEAD of the nav (`(n++, box.y)`),
-          // the prefix canon's spelling; an opaque tail stays the nav's own root (`(n++, mk()).y`)
-          const seqRoot = typedChain.root.type === 'SequenceExpression' ? typedChain.root : null;
+        } else if (typedBase && !typedBase.ctor) {
+          // A realm's pure entry supplies the root, while its user keys stay runtime reads.
+          // A prefixed name or this carries its prefix ahead of the nav inside the dispatch argument;
+          // a decided selection uses the shared value canon, while an opaque root stays whole.
+          const selectedRoot = unwrapRuntimeExpr(decidedRunningOperand(typedChain.root,
+            { scope: prop.scope, adapter, path: prop }));
+          const seqRoot = selectedRoot.type === 'SequenceExpression' ? selectedRoot : null;
           const seqTail = seqRoot && unwrapRuntimeExpr(seqRoot.expressions.at(-1));
-          objectNode = seqTail?.type === 'Identifier'
+          const prefixedRoot = seqTail?.type === 'Identifier' || seqTail?.type === 'ThisExpression';
+          objectNode = prefixedRoot
             ? t.sequenceExpression([...seqRoot.expressions.slice(0, -1).map(expr => t.cloneNode(expr)),
               estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(t.cloneNode(seqTail))))])
-            : estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(t.cloneNode(typedChain.root))));
+            : estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(typedBase.pure
+              ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : t.cloneNode(typedChain.root))));
+          if (prefixedRoot) t.inheritsComments(objectNode, seqRoot);
           typedNavReceiver = true;
           // a root with no NAME - a call, a `new`, a member the walk admitted for the sole read - is
           // spelled by this nav, so the dispatch performs the init's own evaluation: a residual kept
@@ -4829,6 +4839,18 @@ export default function createDestructureEmitter({
   // Previously owned claims stay retired; fallback receivers use the per-branch synth.
   // eslint-disable-next-line max-statements -- the per-prop route dispatch: one branch per route
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
+    // Babel attaches an in-parens prefix comment to the sequence. Keep it on the live
+    // first invocation when the receiver is consumed and its prefix becomes a statement.
+    const sourceHost = destructurePatternHostPath(prop);
+    const sourceInit = sourceHost && unwrapRuntimeExpr(destructureReceiverNode(sourceHost));
+    const first = sourceInit?.type === 'SequenceExpression' ? sourceInit.expressions[0] : null;
+    if (first && invocationCalleeOf(unwrapRuntimeExpr(first)) && sourceInit.extra?.parenthesized) {
+      const inside = sourceInit.leadingComments?.filter(comment => comment.start > sourceInit.extra.parenStart) ?? [];
+      if (inside.length) {
+        t.addComments(first, 'leading', inside);
+        sourceInit.leadingComments = sourceInit.leadingComments.filter(comment => !inside.includes(comment));
+      }
+    }
     // the host rewrite, at this binding's first scoped look at the pattern: a realm-selecting init
     // names ONE object, and every route below reads a plain proxy receiver once it is gone - which
     // is the only thing a pattern of flat ctor slots has, no nested prop to drive a flatten. the

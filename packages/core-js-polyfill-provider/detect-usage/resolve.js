@@ -1409,7 +1409,7 @@ export function withBindingLookupGuard(owner, name, question) {
   }
 }
 
-// direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
+// direct proxy-global (`globalThis`), top-level this, or a managed alias (`_globalThis` via polyfillHint).
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
 // const aliases (`const g = globalThis`) pass through via init-peel. BOTH cycle guards below - the
@@ -1420,6 +1420,7 @@ export function withBindingLookupGuard(owner, name, question) {
 // (unplugin has no AST re-visit to recover it otherwise); a non-proxy self-cycle (`var Map = Map`)
 // stays false
 export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
+  if (node?.type === 'ThisExpression') return isTopLevelThisContext(path) ? 'globalThis' : null;
   if (node?.type !== 'Identifier') return null;
   // the identifier being classified IS the read: anchor the order proofs (the trusted write's span
   // gate, the reaching-definition cut) at its own span when the caller brought no anchor. the PATH
@@ -1993,6 +1994,10 @@ function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path, 
   // sibling gap that dropped injection under an inner-shadowed alias hop (`var g = a.Map` used where
   // `a` is a shadowing param). a write's RHS was written where the write stands
   const initScope = valueScope ?? aliasDeclScope(binding, scope);
+  // Lexical this is classified where the alias captured it, before a later use can bind its own.
+  if (unwrapped?.type === 'ThisExpression') return proxyGlobalRootName({
+    node: unwrapped, scope: initScope, adapter, path: pathOfNode(bindingDeclarationPath(binding) ?? path, unwrapped),
+  });
   // a guard-shaped conditional value (the stored kept-nav render - `null == _globalThis.window
   // ? void 0 : _self.window` - or any user ternary of the same shape) stores either undefined
   // or the defined branch: classification follows that branch, and the undefinable verdict

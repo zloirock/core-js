@@ -242,10 +242,16 @@ for (const [label, source, builtIn, reReadable, mutated = null] of [
   ['typed intermediate', 'const methods = (globalThis.Array as any).prototype;', true, true],
   ['typed whole value', 'const methods = (globalThis.Array.prototype as any);', true, true],
   ['typed realm alias', 'const realm = globalThis; const methods = (realm as any).Array.prototype;', true, true],
+  ['typed top-level this', 'const methods = (this as any).Array.prototype;', true, true],
+  ['typed this alias', 'const realm = this; const methods = (realm as any).Array.prototype;', true, true],
+  ['typed captured this', 'const realm = this; function read() { const methods = (realm as any).Array.prototype; }', true, true],
+  ['typed this user key', 'const methods = (this as any).Data.prototype;', false, false],
+  ['typed this mutated realm slot', 'const methods = (this as any).Array.prototype;', true, false, 'globalThis.Array'],
+  ['typed this mutated prototype', 'const methods = (this.Array as any).prototype;', true, false, 'Array.prototype'],
   ['typed shadow', 'function take(globalThis: object) { const methods = (globalThis as any).Array.prototype; }', false, false],
   ['typed getter', 'const box = { get Array() { return Array; } }; const methods = (box as any).Array.prototype;', false, false],
   ['typed mutable alias', 'let realm = globalThis; realm = other; const methods = (realm as any).Array.prototype;', false, false],
-  ['typed unknown global', 'const methods = (globalThis as any).Data.prototype;', true, false],
+  ['typed unknown global', 'const methods = (globalThis as any).Data.prototype;', false, false],
   ['typed computed nav', 'const methods = (globalThis as any)["Array"].prototype;', false, false],
   ['typed mutated realm slot', 'const methods = (globalThis as any).Array.prototype;', true, false, 'globalThis.Array'],
   ['typed mutated prototype', 'const methods = (globalThis.Array as any).prototype;', true, false, 'Array.prototype'],
@@ -254,6 +260,7 @@ for (const [label, source, builtIn, reReadable, mutated = null] of [
   ['typed sealed optional hop', 'const methods = (globalThis.window?.Array as any).prototype;', false, false],
   ['typed deep sealed hop', 'const methods = ((globalThis.window?.self as any).Array as any).prototype;', false, false],
   ['typed local this', 'function take() { const methods = (this as any).Array.prototype; }', false, false],
+  ['typed local this alias', 'function take() { const realm = this; const methods = (realm as any).Array.prototype; }', false, false],
   ['typed private receiver', 'class Box { #root = globalThis; read() { const methods = (this.#root as any).Array.prototype; } }', false, false],
 ]) runBoth(`typed surface nav/${ label }`, source, (parser, program, row) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'methods');
@@ -264,6 +271,7 @@ for (const [label, source, builtIn, reReadable, mutated = null] of [
   const before = JSON.stringify(path.node.init);
   check(`${ row }/namespace value`, isBuiltInSurfaceNav(path.node.init, { ctx }), builtIn);
   check(`${ row }/second read`, isReReadableSurfaceNav(path.node.init, null, { ctx }), reReadable);
+  check(`${ row }/a raw root is not a minted alias`, isReReadableSurfaceNav(path.node.init, null, { ctx, ownAliasRoot: true }), false);
   check(`${ row }/source AST retained`, JSON.stringify(path.node.init), before);
 });
 

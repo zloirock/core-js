@@ -3,7 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
 import { builders, traverse } from 'estree-toolkit';
-import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
@@ -2162,6 +2162,11 @@ async function checkAstPrintContracts() {
   check('print anchoredComments channel leads a statement', anchoredMembers.startsWith('// core-js-disable-next-line\nuse(a);'), true);
   check('print anchoredComments channel leads an object property', /\/\/ core-js-disable-next-line\n\s*j: 2/.test(anchoredMembers), true);
   check('print anchoredComments channel leads a class member', /\/\/ core-js-disable-next-line\n\s*m\(\) \{/.test(anchoredMembers), true);
+  const annotatedMember = printProgram({
+    program: membersParse.program, comments: membersParse.comments, source: membersSrc, id: '/p.mjs',
+    anchoredComments: new Map([[objectDecl.declarations[0].init.properties[1], [{ type: 'Block', value: ' member ' }]]]),
+  }).code;
+  check('print keeps an explicitly anchored member annotation on its own line', /\/\* member \*\/\n\s*j: 2/.test(annotatedMember), true);
   // ... and carries a source COMMENT in its own spelling: a block keeps its lines, each on a line of its
   // own, and the node opens on the line after it
   const carriedSrc = 'use(a);\nuse(b);\n';
@@ -2323,6 +2328,104 @@ function checkAstEngineBehaviors() {
   const lifted = pure.transform('use(0);\n// header\n\n// note\nconst { of } = (log(), Array);\nuse(of);\n', '/c.mjs')?.code ?? '';
   check('ast lifted effect prints between a section header and the comment its host owns',
     /\/\/ header\n+log\(\);\n+\/\/ note\nconst of = _Array\$of;/.test(lifted), true);
+  // A default moves behind its receiver's effects. Offset-based flushing must not give the
+  // default's annotation to that earlier receiver, including through source parentheses.
+  for (const root of ['this', 'globalThis']) for (const fallback of [
+    '/* default */ fallback()',
+    '/* default */ (fallback())',
+    '(/* default */ fallback())',
+    '/* outer */ (/* default */ fallback())',
+    '// default\n fallback()',
+    '/* default */ () => 1',
+    '/* default */ Array.from',
+    '(/* default */ [].flat)',
+    '/* default */ globalThis',
+    '/* default */ new Map()',
+  ]) {
+    const source = `const { Data: { at = ${ fallback } } } = (/*#__PURE__*/ touch(), ${ root });`;
+    const output = pure.transform(source, '/default.mjs')?.code ?? '';
+    const prefixAt = output.indexOf('touch()');
+    const commentAt = output.indexOf('default');
+    check(`default comment follows receiver/${ root }/${ fallback }`, prefixAt !== -1 && commentAt > prefixAt, true);
+    check(`default comment stays unique/${ root }/${ fallback }`, output.match(/default/g)?.length, 1);
+    check(`receiver annotation stays unique/${ root }/${ fallback }`, output.match(/#__PURE__/g)?.length, 1);
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/default.mjs', output, { sourceType: 'module' });
+    check(`default comment keeps valid syntax/${ root }/${ fallback }`, parsed.errors.length, 0);
+    const first = pure.transform(output, '/default-again.mjs')?.code ?? output;
+    check(`default comment survives another pass/${ root }/${ fallback }`, first.includes('default'), true);
+  }
+  for (const root of ['this', 'globalThis']) {
+    const source = `const { Data: { at = fallback(/*#__PURE__*/ make()) } } = (touch(), ${ root });`;
+    const output = pure.transform(source, '/comments.mjs');
+    check(`default argument keeps its own annotation/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*make\(\)\)/.test(output.code), true);
+    check(`default argument annotation stays unique/${ root }`, output.code.match(/#__PURE__/g)?.length, 1);
+    check(`defaulted receiver carries its prefix inside the read/${ root }`,
+      /_at\(\(touch\(\), (?:_globalThis|this)\.Data\)\)/.test(output.code), true);
+    const map = new TraceMap(output.map);
+    for (const name of ['touch', 'make']) {
+      const offset = output.code.indexOf(`${ name }()`);
+      const before = output.code.slice(0, offset).split('\n');
+      const position = originalPositionFor(map, { line: before.length, column: before.at(-1).length });
+      check(`default comment frame preserves source map/${ root }/${ name }`,
+        JSON.stringify([position.line, position.column]), JSON.stringify([1, source.indexOf(`${ name }()`)]));
+    }
+    const rewrittenSource = `const { Data: { at = fallback(/*#__PURE__*/ getA().toSorted()) } } = (touch(), ${ root });`;
+    const rewritten = pure.transform(rewrittenSource, '/rewritten-comments.mjs');
+    check(`rewritten default call keeps its annotation/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*_toSorted/.test(rewritten.code), true);
+    check(`rewritten default does not annotate its receiver/${ root }`, /\/\*#__PURE__\*\/\s*getA\(/.test(rewritten.code), false);
+    const callAt = rewritten.code.indexOf('_toSorted', rewritten.code.indexOf('fallback('));
+    const callBefore = rewritten.code.slice(0, callAt).split('\n');
+    const callPosition = originalPositionFor(new TraceMap(rewritten.map), { line: callBefore.length, column: callBefore.at(-1).length });
+    check(`rewritten default maps to its original call/${ root }`, callPosition.column, rewrittenSource.indexOf('getA()'));
+    const optionalSource = `const { Data: { at = fallback(/*#__PURE__*/ getA()?.toSorted()) } } = (touch(), ${ root });`;
+    const optional = pure.transform(optionalSource, '/optional-comments.mjs')?.code ?? '';
+    check(`guarded default keeps annotation ahead of its probe/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*null ==/.test(optional), true);
+    const nestedSource = `const { Data: { at = /* outer */ () => {
+      const { Data: { at: inner = /* inner */ fallback() } } = (step(), ${ root });
+      return inner;
+    } } } = (touch(), ${ root });`;
+    const nested = pure.transform(nestedSource, '/nested-comments.mjs')?.code ?? '';
+    check(`nested default keeps its outer annotation/${ root }`, nested.match(/outer/g)?.length, 1);
+    check(`nested default keeps its inner annotation/${ root }`, nested.match(/inner \*\//g)?.length, 1);
+    check(`nested default annotation follows its own prefix/${ root }`, nested.indexOf('/* inner */') > nested.indexOf('step()'), true);
+    const emptySource = `const { Data: { at = fallback(/* argument */) } } = (touch(), ${ root });`;
+    const empty = pure.transform(emptySource, '/empty-comments.mjs')?.code ?? '';
+    check(`empty default argument comment survives/${ root }`, empty.match(/argument/g)?.length, 1);
+    check(`empty default argument comment stays with its default/${ root }`, empty.indexOf('argument') > empty.indexOf('fallback()'), true);
+  }
+  // A static binding removes its unreachable default together with that default's comments.
+  for (const pattern of [
+    'const { Array: { from = DEFAULT } } = (touch(), this);',
+    'let from; ({ Array: { from = DEFAULT } } = (touch(), this));',
+    'const { from = DEFAULT } = (touch(), Array);',
+  ]) for (const fallback of [
+    '/* removed */ fallback(/*#__PURE__*/ make())',
+    '(/* removed */ fallback(/*#__PURE__*/ getA().toSorted()))',
+  ]) {
+    const source = pattern.replace('DEFAULT', fallback);
+    const output = pure.transform(source, '/removed-default.mjs');
+    check(`removed static default drops its annotation/${ source }`, output.code.match(/#__PURE__/g)?.length ?? 0, 0);
+    check(`removed static default drops its prose/${ source }`, output.code.includes('removed'), false);
+    check(`removed static default keeps its prefix/${ source }`, output.code.match(/touch\(\)/g)?.length, 1);
+    const before = output.code.slice(0, output.code.indexOf('touch()')).split('\n');
+    const position = originalPositionFor(new TraceMap(output.map),
+      { line: before.length, column: before.at(-1).length, bias: LEAST_UPPER_BOUND });
+    check(`removed static default keeps its prefix map/${ source }`, position.column, source.indexOf('touch()'));
+  }
+  const retained = pure.transform(
+    'const { Array: { from = fallback(/*#__PURE__*/ make()) } } = (touch(), globalThis);', '/retained-default.mjs',
+  )?.code ?? '';
+  check('surviving static default keeps its own annotation', retained.match(/#__PURE__/g)?.length, 1);
+  check('surviving static default keeps its expression', retained.includes('fallback('), true);
+  const annotatedPrefix = pure.transform(
+    'const { Array: { from = fallback(/*#__PURE__*/ make()) } } = (/*#__PURE__*/ touch(), this);', '/prefix.mjs',
+  )?.code ?? '';
+  check('removing a default keeps the live prefix annotation', annotatedPrefix.match(/#__PURE__/g)?.length, 1);
+  const prefixedAssignment = pure.transform(
+    'let map, sibling; ({ Array: { prototype: { map } }, sibling } = (step(), this));', '/prefixed-this.mjs',
+  )?.code ?? '';
+  check('top-level this residual keeps its prefix in the RHS', /\}\s*=\s*\(step\(\), this\)\)/.test(prefixedAssignment), true);
   // ... and a rewrite whose first statement the render mints opens at its host
   const minted = pure.transform('use(0);\n// note\nconst [{ findLast, at }] = [src.y];\nuse(findLast, at);\n', '/m.mjs')?.code ?? '';
   check('ast minted rewrite opens under the comment its host owns', /\/\/ note\nconst _ref = src\.y;/.test(minted), true);

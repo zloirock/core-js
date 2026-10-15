@@ -2059,15 +2059,20 @@ export function buildNestedDestructurePlan({
         || isDestructurePattern(patternSlotTarget(arrayProp.node.value)))
       && (isDestructurePattern(patternSlotTarget(arrayProp.node.value))
         || typedNavClaimShape(arrayProp, { adapter, rootMemoized: true, allowLeafSiblings: true, allowInlineSpread: true }))) {
-      const { meta } = destructurePropLeafMeta({
-        prop: arrayProp.node,
-        objectPattern: arrayProp.parentPath,
-        scope: arrayProp.scope,
-        path: arrayProp.get('key'),
-        adapter,
-        resolvePure,
-      });
-      const capture = meta && !meta.guardedAliasHint && resolvePure(meta, arrayProp)?.kind === 'instance'
+      // The trigger may itself claim an instance read, including a pattern-valued method.
+      // Otherwise a proxy hop can trigger this plan before its instance leaf is visited.
+      function isInstanceRead(prop) {
+        const { meta } = destructurePropLeafMeta({
+          prop: prop.node,
+          objectPattern: prop.parentPath,
+          scope: prop.scope,
+          path: prop.get('key'),
+          adapter,
+          resolvePure,
+        });
+        return meta && !meta.guardedAliasHint && resolvePure(meta, prop)?.kind === 'instance';
+      }
+      const capture = (isInstanceRead(arrayProp) || firstPatternProp(arrayProp.get('value'), isInstanceRead))
         && planArrayWrapperCapture({ pattern: arrayPath.node.id, init: arrayPath.node.init, force: true, trailingSpread: true });
       if (capture) plan = {
         pattern: arrayPath.node.id,

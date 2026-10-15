@@ -74,6 +74,7 @@ import {
   soleChainToProp,
   statementListOf,
   unwrapRuntimeExpr,
+  unwrapParens,
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -82,7 +83,7 @@ import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
-import { mintedProxyGlobalName, proxyStoreIsSpellable, replaceNodeInTree } from './emit-shared.js';
+import { mintedProxyGlobalName, proxyStoreIsSpellable, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression,
   callExpression,
@@ -882,16 +883,33 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   return { soleBinding, declaratorConsumedWhole, literalReceiver, relaxedReceiver, carriedLive, slotMemo };
 }
 
+// A rendered default guard keeps the dispatch whose receiver accepts an initializer prefix.
+const instanceDefaultReads = new WeakMap();
+
+// The binding adapter gives a moved default its own source/comment span. Its receiver's later
+// offsets must not flush annotations out of that subtree, including after the default is rewritten.
+export function buildInstanceDefaultGuard({ defaultValue, defaultPattern = null, ...options }) {
+  const start = defaultPattern?.defaultCommentsAt ?? unwrapParens(defaultValue).start;
+  const end = defaultPattern?.end ?? defaultValue.end;
+  const value = renderInstanceDefaultGuard({
+    ...options,
+    defaultValue: stampReplacementSpan({ ...defaultValue, ownedCommentsAt: start, ownedCommentsEnd: end }, { start, end }),
+  });
+  instanceDefaultReads.set(value, options.call);
+  return value;
+}
+
 // the guard an overwrite owes: the pure entry answers `it.method` verbatim off a receiver that is not
 // the polyfilled surface, so the dispatch may be undefined and something must stand in that case.
 // while the RAW destructure SURVIVES that is the slot it already assigned - the read, or the source's
 // own default, run exactly once - and re-spelling the default node beside it would run it twice. once
 // the slot is PRUNED nothing ran it, and the default node itself is the one reader left
-export function overwriteDefaultGuard({ call, localName, ref, defaultNode = null }) {
-  return renderInstanceDefaultGuard({
+export function overwriteDefaultGuard({ call, localName, ref, defaultNode = null, defaultPattern = null }) {
+  return buildInstanceDefaultGuard({
     assignedRef: identifier(ref),
     call,
     defaultValue: defaultNode ?? identifier(localName),
+    defaultPattern,
     defaultName: localName,
     reread: identifier(ref),
   });
@@ -1907,20 +1925,19 @@ export function carriedInitPrefix(declarator, declJobs, ctx) {
 }
 
 // the prefix travels WITH the extraction's value: inside the dispatch ARGUMENT where the claim has
-// one (`_m((eff(), recv))`), on the value itself where it does not (`const from = (eff(), _Array$from)`).
+// one, including the read in its default guard; otherwise it prefixes the value (`from = (eff(), _Array$from)`).
 // this is the ONE shape every host accepts - a control slot hosts no statements at all - which is why
 // no host analysis is left here and why both legs print it
 export function carryInitPrefix(value, prefix) {
   if (!prefix.length) return value;
-  if (value?.type === 'CallExpression' && value.arguments.length === 1) {
-    value.arguments[0] = sequenceExpression([...prefix, value.arguments[0]]);
+  const read = instanceDefaultReads.get(value) ?? value;
+  if (read?.type === 'CallExpression' && read.arguments.length === 1) {
+    read.arguments[0] = sequenceExpression([...prefix, read.arguments[0]]);
     return value;
   }
   return sequenceExpression([...prefix, value]);
 }
 
-// does this claim sit inside a function PARAMETER? the walk stops at the first binding host it
-// meets, so a declarator / statement below the params answers no
 // the PROXY-NAV base a synth receiver reduces to: pristine hops fold away, the root identifier
 // carries the literal, and the keys that survive become the passthrough prefix. an ALIAS of a
 // proxy global roots the nav too (`const g = globalThis; g.self.Map`) - the passthrough resolves
@@ -2430,10 +2447,11 @@ export function guardedSlotValue(built, valueNode, guardRef) {
   // a plain binding re-reads for free, a dispatch result has to be memoized to be re-read
   return built.type === 'Identifier'
     ? renderStaticDefaultGuard({ read: built, defaultValue: valueNode.right, reread: built, alwaysDefined: true })
-    : renderInstanceDefaultGuard({
+    : buildInstanceDefaultGuard({
       assignedRef: identifier(guardRef),
       call: built,
       defaultValue: valueNode.right,
+      defaultPattern: valueNode,
       defaultName: valueNode.left?.name,
       reread: identifier(guardRef),
     });
