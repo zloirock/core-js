@@ -37,6 +37,7 @@
     - Marked as still not fixed in stable Safari
     - Marked as [fixed in Bun 1.4.3](https://bun.com/blog/bun-v1.4.3#javascriptcore-upgrade)
   - Because of imprecision (see above), `Math.asinh` is marked as supported from V8 ~ Chrome 54 and as not supported in Rhino, `Math.cbrt` - from FF48
+  - Added [Node 27.0](https://github.com/nodejs/node/pull/66601) compat data mapping
   - [Updated Electron 45 and added 46](https://releases.electronjs.org/) compat data mapping
   - Added Samsung Browser 31 compat data mapping
   - Added Opera for Android [101](https://forums.opera.com/topic/89420/opera-for-android-101) and [102](https://forums.opera.com/topic/89629/opera-for-android-102) compat data mapping
