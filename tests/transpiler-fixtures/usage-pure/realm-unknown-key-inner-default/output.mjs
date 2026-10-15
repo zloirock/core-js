@@ -1,8 +1,8 @@
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Math$sumPrecise from "@core-js/pure/actual/math/sum-precise";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
@@ -10,10 +10,9 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _String$raw from "@core-js/pure/actual/string/raw";
-// a realm key that names no built-in is an unknown slot, capitalised or not: its inner default runs
-// wherever the realm leaves the slot empty, so the default is mirrored and the slot keeps its own
-// read - on every host below alike. the last row is the control: a known built-in is the realm's
-// own slot, whose default never runs
+var _ref, _ref2;
+// Unknown realm slots keep live defaults and their own reads. Instance dispatch folds both
+// the slot and its fallback; static defaults keep their mirrors. A known global makes its default dead.
 function use() {/* empty */}
 const {
   Deno: {
@@ -79,22 +78,9 @@ const {
     of: _Array$of
   }
 } = _globalThis;
-const {
-  userRanges: {
-    at
-  } = {
-    at: _atMaybeArray([1, 2])
-  }
-} = _globalThis;
-const [{
-  self: {
-    userFinders: {
-      includes
-    } = {
-      includes: _includesMaybeArray([1, 2])
-    }
-  }
-}] = [_globalThis];
+const at = _at((_ref = _globalThis.userRanges) === void 0 ? [1, 2] : _ref);
+const [,] = [_globalThis];
+const includes = _includes((_ref2 = _globalThis.userFinders) === void 0 ? [1, 2] : _ref2);
 const {
   Math: {
     sumPrecise

@@ -23,6 +23,7 @@ import {
   withVarScopeOwners,
   runsWithoutOwnVarSlot,
   sequenceElementsKept,
+  sortedPrefixLength,
   mutatedGlobalSlotNames,
   namespaceScopedBindingBlock,
   peelParenAndTSParentPath,
@@ -683,6 +684,18 @@ export default function createPlugin(options) {
         ast.sourceType = format.sourceType;
       }),
       minifierSequenceReducer(),
+      // Only defaults with comments need source-lifetime tracking. Include the gap after
+      // the binding, so an annotation before the value cannot migrate to a surviving effect.
+      ...method === 'usage-pure' && comments.length ? [{
+        visit(node) {
+          if (node.type !== 'AssignmentPattern') return;
+          const first = sortedPrefixLength(comments, comment => comment.start < node.left.end);
+          if (first < comments.length && comments[first].start < node.end) {
+            (ast.defaultCommentSpans ??= []).push([node.right.start, node.end]);
+          }
+        },
+        result() { return {}; },
+      }] : [],
       ...readsCensus ? [
         bindingNamesReducer(),
         escapedCtorReferencesReducer(),

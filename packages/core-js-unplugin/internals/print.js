@@ -9,6 +9,7 @@ import {
   isLineBoundDisableDirective,
   ownedLeadingComments,
 } from '@core-js/polyfill-provider/helpers/source-scan';
+import { stampReplacementSpan } from './emit-shared.js';
 import { sortedPrefixLength, TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // the esrap printer adapter: oxc-parser hands out offsets, esrap attaches comments and
@@ -38,6 +39,10 @@ function peelParens(child, parent, commentBetween) {
     child.expression = inner;
     child.commentInside = true;
     return child;
+  }
+  if (typeof child.ownedCommentsAt === 'number') {
+    Object.assign(inner, { ownedCommentsAt: child.ownedCommentsAt, ownedCommentsEnd: child.ownedCommentsEnd });
+    stampReplacementSpan(inner, { start: child.ownedCommentsAt, end: child.ownedCommentsEnd });
   }
   return inner;
 }
@@ -191,8 +196,9 @@ function synthesizeLocs(program, comments, source) {
   }
   const locate = buildOffsetToLoc(source);
   let hasChainExpression = false;
-  // the statements a rewrite marked to lead the comments its host owns (`anchorLeadingStatement`)
+  // Nodes marked to keep their own leading comments after a rewrite moves them.
   const heirs = [];
+  const sourceStarts = program.defaultCommentSpans?.length ? [] : null;
   (function walk(node, anchor) {
     if (Array.isArray(node)) {
       for (const item of node) walk(item, anchor);
@@ -204,6 +210,10 @@ function synthesizeLocs(program, comments, source) {
     if (node.type === 'ChainExpression') hasChainExpression = true;
     if (typeof node.ownedCommentsAt === 'number') heirs.push(node);
     if (typeof node.type === 'string') {
+      if (sourceStarts) {
+        const sourceStart = Number.isInteger(node.start) ? node.start : node.replacedSpan?.start;
+        if (Number.isInteger(sourceStart)) sourceStarts.push(sourceStart);
+      }
       if (typeof node.start === 'number' && typeof node.end === 'number') {
         node.loc = { start: locate(node.start), end: locate(node.end) };
         anchor = node.loc;
@@ -274,30 +284,64 @@ function synthesizeLocs(program, comments, source) {
     comments: comments.map(comment => ({ ...comment, loc: printLoc(comment), value: printValue(comment) })),
     hasChainExpression,
     heirs,
+    sourceStarts: sourceStarts?.sort((a, b) => a - b),
   };
 }
 
-// the comments each heir leads, by the index of the comment: the run its host's statement owns
-// (`ownedLeadingComments`) among those standing between the code ahead of that statement and it
+// Comments each heir owns, by index: a statement's annotation (`ownedLeadingComments`),
+// or a moved default's leading run (across opening parentheses) and comments inside its source span.
 function ownedCommentIndexes({ heirs, comments, source }) {
   const owned = new Map();
-  if (!heirs.length) return owned;
+  if (!heirs.length || !comments.length) return owned;
   const lineOf = buildOffsetToLine(source);
+  const spans = [];
   for (const heir of heirs) {
+    const expression = !/(?:Declaration|Statement)$/.test(heir.type);
     let end = heir.ownedCommentsAt;
-    // the last comment closing at or before the statement: the list is source-ordered
     const closed = sortedPrefixLength(comments, comment => comment.end <= end);
     let first = closed;
-    while (first > 0 && !source.slice(comments[first - 1].end, end).trim()) end = comments[--first].start;
+    while (first > 0) {
+      const gap = source.slice(comments[first - 1].end, end);
+      if ((expression ? gap.replaceAll('(', '') : gap).trim()) break;
+      end = comments[--first].start;
+    }
     let code = end - 1;
     while (code >= 0 && !source[code].trim()) code--;
     const run = ownedLeadingComments({
       comments: comments.slice(first, closed),
       statementLine: lineOf(heir.ownedCommentsAt),
-      codeLine: code < 0 ? 0 : lineOf(code),
+      codeLine: !expression && code >= 0 ? lineOf(code) : 0,
       offsetToLine: lineOf,
     });
     if (run.length) owned.set(heir, run.map(comment => comments.indexOf(comment, first)));
+    if (typeof heir.ownedCommentsEnd === 'number') {
+      spans.push({ heir, start: heir.ownedCommentsAt, end: heir.ownedCommentsEnd });
+    }
+  }
+  // Source default spans nest or stand apart. Sweep them once so deeply nested defaults
+  // do not repeatedly collect every descendant comment; the innermost frame owns each one.
+  spans.sort((a, b) => a.start - b.start || b.end - a.end);
+  const owners = new Map();
+  const active = [];
+  let next = 0;
+  for (let index = 0; index < comments.length; index++) {
+    const comment = comments[index];
+    while (next < spans.length && spans[next].start <= comment.start) {
+      const span = spans[next++];
+      while (active.length && active.at(-1).end <= span.start) active.pop();
+      active.push(span);
+    }
+    while (active.length && active.at(-1).end < comment.end) active.pop();
+    if (active.length) owners.set(index, active.at(-1).heir);
+  }
+  // Explicit leading ownership, including a statement inside a default, is more specific.
+  for (const [heir, indexes] of owned) for (const index of indexes) owners.set(index, heir);
+  owned.clear();
+  for (let index = 0; index < comments.length; index++) {
+    const heir = owners.get(index);
+    if (!heir) continue;
+    if (!owned.has(heir)) owned.set(heir, []);
+    owned.get(heir).push(index);
   }
   return owned;
 }
@@ -376,14 +420,26 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
     return false;
   }
-  const { comments: locatedComments, hasChainExpression, heirs } = synthesizeLocs(program, ownComments, source);
-  // the comments a heir leads leave the offset flush, which would print them above the lifted effects
+  const { comments: locatedComments, hasChainExpression, heirs, sourceStarts } = synthesizeLocs(program, ownComments, source);
+  // A surviving source node keeps its default's comments, including a rewritten default's span.
+  // No source node in the span means the default was removed: do not annotate a lifted effect.
+  for (const [start, end] of program.defaultCommentSpans ?? []) {
+    const next = sortedPrefixLength(sourceStarts, offset => offset < start);
+    if (next === sourceStarts.length || sourceStarts[next] >= end) {
+      heirs.push({ ownedCommentsAt: start, ownedCommentsEnd: end, discardedComments: true });
+    }
+  }
+  // Owned comments leave the offset flush: moved defaults keep theirs, removed defaults drop theirs.
   const heirComments = ownedCommentIndexes({ heirs, comments: ownComments, source });
   const taken = new Set(heirComments.values().toArray().flat());
   const printComments = taken.size ? locatedComments.filter((comment, index) => !taken.has(index)) : locatedComments;
   const anchors = new Map(anchoredComments);
+  const localized = new Map();
   for (const [heir, indexes] of heirComments) {
-    anchors.set(heir, [...indexes.map(index => locatedComments[index]), ...anchors.get(heir) ?? []]);
+    if (heir.discardedComments) continue;
+    const owned = indexes.map(index => locatedComments[index]);
+    if (typeof heir.ownedCommentsEnd === 'number') localized.set(heir, owned);
+    else anchors.set(heir, [...owned, ...anchors.get(heir) ?? []]);
   }
   // the dead-chain unwrap pays a full-tree walk - a file with no ChainExpression at all
   // (the loc walk already looked at every node) has nothing to unwrap
@@ -406,22 +462,42 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
   })(program);
 
-  const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments }));
-  // explicitly ANCHORED leading comments (node -> texts and comments): emitted ahead of the
-  // node's own print, bypassing the loc heuristics entirely - the deterministic channel
-  // for a directive that must reach the NEXT pass on its own line whatever a sibling's
-  // reprint does to loc-attached comments, and for what a heir leads. wrapped per node TYPE present
-  // in the map: esrap dispatches every printed node through its type's handler, and a type without
-  // one (a switch case, a template quasi) is printed inline by its parent and takes no anchor
-  if (anchors.size) {
+  // Every moved default has its own comment cursor. Its receiver's later source offsets must
+  // not flush comments out of the default, including annotations inside call arguments.
+  function createLanguage(dialectComments) {
+    const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }));
     for (const type of new Set(anchors.keys().map(node => node.type))) {
-      const base = language[type];
+      const base = dialect[type];
       if (typeof base !== 'function') continue;
-      language[type] = (node, context) => {
+      dialect[type] = (node, context) => {
         for (const comment of anchors.get(node) ?? []) writeAnchoredComment(comment, context);
         base(node, context);
       };
     }
+    return dialect;
+  }
+  const language = createLanguage(printComments);
+  function visitLocalized(node, context, visit, base) {
+    const frameComments = localized.get(node);
+    if (!frameComments?.length) return base(node, context, visit);
+    const previous = { ...language };
+    const local = createLanguage(frameComments);
+    Object.assign(language, local, { _: (child, ctx, next) => visitLocalized(child, ctx, next, local._) });
+    try {
+      local._(node, context, child => local[child.type](child, context));
+      // Empty argument lists have no child to flush their interior comments. End the local
+      // cursor here, as the next source token would, before restoring the enclosing frame.
+      if (node.loc) local._(
+        { type: 'EmptyStatement', loc: { start: node.loc.end, end: node.loc.end } }, context,
+        () => { /* Flush comments without a source token. */ },
+      );
+    } finally {
+      Object.assign(language, previous);
+    }
+  }
+  if (localized.size) {
+    const base = language._;
+    language._ = (node, context, visit) => visitLocalized(node, context, visit, base);
   }
   const printed = print(program, language, {
     sourceMapSource: id,
