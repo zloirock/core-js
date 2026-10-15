@@ -51,11 +51,13 @@ import {
   bindingDeclaratorNode,
   computedKeyHasSideEffects,
   exportedSentinelSplit,
+  forOfHeadDeclarationOf,
   forOfHeadIterableElements,
   invalidateScopeVarIndex,
   isDestructurePattern,
   isPristineProxyGlobal,
   isReusableReceiver,
+  isTopLevelThisContext,
   mayHaveSideEffects,
   noteRelocatedHeadName,
   noteRenderRetiredTargets,
@@ -70,6 +72,7 @@ import {
   receiverCarriesLiveOptional,
   statementListOf,
   unwrapRuntimeExpr,
+  unwrapParens,
   walkAstNodes,
   allProxySelectingInit,
   firstProxyBranch,
@@ -91,7 +94,6 @@ import {
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
-  renderInstanceDefaultGuard,
   renderKeyedDestructureRead,
   renderSynthReceiverGuard,
   renderStaticDefaultGuard,
@@ -105,6 +107,7 @@ import {
   anchorAssignmentResidual,
   anchorLeadingStatement,
   assignmentMemoRef,
+  buildInstanceDefaultGuard,
   bareProxyGlobalPure,
   buildMemoArg,
   carriedInitPrefix,
@@ -236,21 +239,40 @@ export default function createDestructureDrains(ctx) {
   // exists because the in-place substitution may have been SUPPRESSED for this nav; where the tree
   // shows it DID run (a claim on the leaf rendered its own dispatch), that rewrite is the
   // authoritative spelling and re-rendering would ship the raw member instead
-  function proxyNavPassthroughValue({ entry, hintName, kind, chainKeys, proxyNav, liveReceiver, receiverNode, guarded }) {
+  function proxyNavPassthroughValue({
+    entry,
+    hintName,
+    kind,
+    chainKeys,
+    proxyNav,
+    liveReceiver,
+    receiverNode,
+    guarded,
+    typedNavChain,
+    metaPath,
+  }) {
     const id0 = injectPureImport(entry, hintName);
     const patternHops = passthroughPatternHops(chainKeys);
     // ... and the SURFACE rule is asked here too, of the hops this render is about to spell: an
     // INSTANCE leaf off the object the hops merely REACH is a name match (`{ Array: { keys: k } }`),
     // which every other path keeps native - the nested arm asks it of the receiver's own spelling,
-    // and a receiver that resolved as a proxy nav reaches the render through here
-    if (kind === 'instance' && entry !== 'get-iterator-method'
+    // and a receiver that resolved as a proxy nav reaches the render through here. A typed user
+    // chain owns its one read and dispatches on the unknown value those keys hold instead.
+    if (kind === 'instance' && entry !== 'get-iterator-method' && !typedNavChain
       && !passthroughHopsNameSurface(patternHops)) return null;
     function passthroughBase(override) {
       if (override) return identifier(override);
       return liveReceiver && liveReceiver() !== receiverNode ? cloneNode(liveReceiver()) : proxyNav();
     }
-    return guarded(override => callExpression(identifier(id0),
-      [patternHops.reduce(memberFromKeyName, passthroughBase(override))]));
+    return guarded(override => {
+      const base = patternHops.reduce(memberFromKeyName, passthroughBase(override));
+      if (!typedNavChain?.slotDefault) return callExpression(identifier(id0), [base]);
+      // The passthrough owns the same slot default as the nested channel, before method lookup.
+      const slotRef = injector.generateDeclaredRef(metaPath);
+      return callExpression(identifier(id0), [buildInstanceDefaultGuard({
+        assignedRef: identifier(slotRef), call: base, defaultValue: typedNavChain.slotDefault, reread: identifier(slotRef),
+      })]);
+    });
   }
 
   // the pattern's OWN hop keys as the passthrough spells them: a LEADING pristine proxy hop drops,
@@ -294,6 +316,8 @@ export default function createDestructureDrains(ctx) {
     carriesInit = false,
   }) {
     const defaulted = prop.value.type === 'AssignmentPattern';
+    const hopDefault = typedHop?.defaultHost;
+    if (hopDefault) hopDefault.defaultCommentsAt ??= unwrapParens(hopDefault.right).start;
     // the STATIC ponyfill an extraction binds is always defined, so a leaf's default is dead text at
     // runtime and drops at every depth (`{ Array: { from = [] } } = globalThis` -> `_Array$from`);
     // the guard survives only where the read is a memo of a hop rather than the import itself
@@ -319,10 +343,11 @@ export default function createDestructureDrains(ctx) {
     // guard path below: the walker's later in-place rewrites replace the default THROUGH that slot
     function leafDefaultFold(ref) {
       const valueNode = prop.value;
-      return call => renderInstanceDefaultGuard({
+      return call => buildInstanceDefaultGuard({
         assignedRef: identifier(ref),
         call,
         defaultValue: valueNode.right,
+        defaultPattern: valueNode,
         defaultName: valueNode.left?.name,
         reread: identifier(ref),
       });
@@ -388,10 +413,11 @@ export default function createDestructureDrains(ctx) {
         // stands as its own declaration ahead of the extraction, which is what the other leg prints
         const guardRef = memoJoin ? mintRefName() : injector.generateDeclaredRef(metaPath);
         function composedGuard(override) {
-          return leafFold(callExpression(identifier(leafId), [renderInstanceDefaultGuard({
+          return leafFold(callExpression(identifier(leafId), [buildInstanceDefaultGuard({
             assignedRef: identifier(guardRef),
             call: callExpression(identifier(hopId), [override ? identifier(override) : spelledReceiverNode()]),
             defaultValue: defaultHost.right,
+            defaultPattern: defaultHost,
             reread: identifier(guardRef),
           })]));
         }
@@ -439,7 +465,7 @@ export default function createDestructureDrains(ctx) {
       // and on a target without the method the source's default won over the ponyfill
       if (proxyNav && (nested || !defaulted)) {
         return proxyNavPassthroughValue({
-          entry, hintName, kind, chainKeys, proxyNav, liveReceiver, receiverNode, guarded,
+          entry, hintName, kind, chainKeys, proxyNav, liveReceiver, receiverNode, guarded, typedNavChain, metaPath,
         });
       }
       // a BARE pristine proxy-global receiver substitutes its pure binding: the clone is
@@ -463,8 +489,11 @@ export default function createDestructureDrains(ctx) {
         // its own dispatch: the walk granted the chain only where the declarator dies whole with the
         // claim, so this is the source's one read of it (`{ data: { at } } = mk()` -> `_at(mk().data)`).
         // read LIVE, like every receiver this dispatch spells itself
+        // Top-level this is a stable realm root even beside a surviving host sibling. Its spelling
+        // stays this, so the dispatch retains the source's receiver and ESM rejection behavior.
+        const realmThis = receiver?.type === 'ThisExpression' && isTopLevelThisContext(metaPath);
         const namelessRoot = receiver?.type !== 'Identifier';
-        if (namelessRoot && (!typedNavChain || entry === 'get-iterator-method')) return null;
+        if (namelessRoot && !realmThis && (!typedNavChain || entry === 'get-iterator-method')) return null;
         // an INSTANCE surface the chain NAMES dispatches on itself; everything else is the shared
         // walk's to grant, and it grants a chain only when every slot it descends dies with it,
         // leaving no residual to call the same getter a second time. so a leaf off the object the
@@ -473,7 +502,7 @@ export default function createDestructureDrains(ctx) {
         // source performs (`{ y: { at } } = src` -> `_at(src.y)`) - a capitalised key off it too, its
         // root naming no surface (`{ Data: { prototype: { at } } } = src`). the SYMBOL leaf keeps its
         // own rule above: its receiver IS the hop surface, prototype or not
-        const navSpelling = namelessRoot ? null : chainKeys.reduce(memberFromKeyName, receiver);
+        const navSpelling = namelessRoot && !realmThis ? null : chainKeys.reduce(memberFromKeyName, receiver);
         const surfaceOptions = { ctx: { scope: metaPath.scope, adapter, path: metaPath }, isOwnAlias: isOwnPureAlias };
         if (navSpelling && entry !== 'get-iterator-method' && !isInstanceSurfaceNav(navSpelling, surfaceOptions)
           && !typedNavChain) return null;
@@ -487,8 +516,10 @@ export default function createDestructureDrains(ctx) {
         // RESOLUTION: a memo's point is its spelling, and a pure base REPLACES that spelling outright
         // while a raw read through the realm would merely re-spell it. So where the realm read
         // resolves no ponyfill, the memo keeps the read it stands for (`_ref.Array.prototype`), and
-        // where it does, the leaf dispatches on it - the relocated loop head binds its element that
-        // way, and the other binding dispatches `_nameMaybeFunction(_Promise)` for the same source
+        // where it does, the leaf dispatches on it. A loop head keeps its bound element
+        // when the pure base only names the same realm - a constructor or static still replaces it.
+        // A typed user chain also keeps its capture: replacing a captured this with the realm
+        // would read another object's user slot in CommonJS.
         const receiverSite = namelessRoot ? null : nodeSite(receiver, metaPath);
         const receiverBinding = namelessRoot ? null
           : adapter.getBinding({ scope: receiverSite.scope, name: receiver.name, path: receiverSite.path, read: receiver });
@@ -508,7 +539,10 @@ export default function createDestructureDrains(ctx) {
           // the chain is read where its receiver is
           read: receiverSite && { node: receiver, path: receiverSite.path },
         });
-        const ref = mintedMemo && !resolvedBase?.pure ? { name: receiver.name, path: chainKeys } : resolvedBase;
+        const ref = (mintedMemo && !resolvedBase?.pure) || (POSSIBLE_GLOBAL_OBJECTS.has(resolvedBase?.pure?.hintName)
+          && ((rootIsAlias && typedNavChain && !isBuiltInSurfaceNav(navSpelling, surfaceOptions))
+            || forOfHeadDeclarationOf(receiver.name, { ...receiverSite, adapter })))
+          ? { name: receiver.name, path: chainKeys } : resolvedBase;
         if (!ref) return null;
         // ... and a surface off a USER root is a getter each other reader of its hops - a sibling
         // leaf, the residual - would fire again: the shared re-read question, unless this dispatch is
@@ -542,7 +576,7 @@ export default function createDestructureDrains(ctx) {
           // only where the source evaluates it (mirroring the default alone leaves the live arm raw)
           if (!typedNavChain?.slotDefault) return callExpression(identifier(id), [base]);
           const slotRef = injector.generateDeclaredRef(metaPath);
-          return callExpression(identifier(id), [renderInstanceDefaultGuard({
+          return callExpression(identifier(id), [buildInstanceDefaultGuard({
             assignedRef: identifier(slotRef),
             call: base,
             defaultValue: typedNavChain.slotDefault,
@@ -571,10 +605,11 @@ export default function createDestructureDrains(ctx) {
       function thunk(override) {
         const recv = override ? identifier(override)
           : proxyNav ? proxyNav() : duplicateReceiver(receiverSpelling, injector);
-        return renderInstanceDefaultGuard({
+        return buildInstanceDefaultGuard({
           assignedRef: identifier(ref),
           call: callExpression(identifier(id), [recv]),
           defaultValue: valueNode.right,
+          defaultPattern: valueNode,
           defaultName: valueNode.left?.name,
           reread: identifier(ref),
         });
@@ -1393,10 +1428,11 @@ export default function createDestructureDrains(ctx) {
     if (job.kind === 'instance') {
       const guardRef = guardRefs.get(job) ?? mintMemoGuardRef(job);
       guardRefs.set(job, guardRef);
-      return renderInstanceDefaultGuard({
+      return buildInstanceDefaultGuard({
         assignedRef: identifier(guardRef),
         call: value,
         defaultValue: job.prop.value.right,
+        defaultPattern: job.prop.value,
         defaultName: job.prop.value.left?.name,
         reread: identifier(guardRef),
       });
@@ -2819,6 +2855,11 @@ export default function createDestructureDrains(ctx) {
     // source wrote it (`({ customW } = (c++, _Map))`)
     const anchorRhsPrefix = inSequence && !wholeRhsLift && rhsExprs && jobs.length === 1
       && jobs[0].prop?.value?.type === 'ObjectPattern' ? rhsExprs.slice(0, -1) : null;
+    // A top-level this residual precedes every nested extraction, so it can keep the
+    // prefix in its own RHS, preserving both its source slot and its comments.
+    const residualCarriesPrefix = rhsExprs && assignment.left.properties?.length > 0
+      && !flatJobs.length && !memoDecl.length && !anchoredResidual && !seKeyResidualFirst && !inSequence
+      && rhsTail?.type === 'ThisExpression' && isTopLevelThisContext(jobs[0].metaPath);
     const frame = patternFrame(jobs[0].metaPath);
     // a SOLE flat extraction that READS the receiver carries the source's prefix INSIDE its dispatch
     // argument (`at = _atMaybeArray((eff(), arr))`), the declaration hosts' shape and the other leg's:
@@ -2839,7 +2880,7 @@ export default function createDestructureDrains(ctx) {
     if (carriesPrefix) carryInitPrefix(soleDispatch, rhsExprs.slice(0, -1));
     // ... and a read the consume discards (`discardedRead`) is that whole right already: it lifts once,
     // ahead of the extractions, and the whole-right lift stands down for it as every channel here does
-    const stmtSeqPrefix = anchorRhsPrefix || carriesPrefix || (wholeRhsLift && discardedRead) ? []
+    const stmtSeqPrefix = anchorRhsPrefix || carriesPrefix || residualCarriesPrefix || (wholeRhsLift && discardedRead) ? []
       : wholeRhsLift ? (probeLead
         ? liftedPrefixStatements(partitionEffectsAtProbe(
           discardRescueNodes({ node: assignment.right, ...frame }), probeNavStartOf(probeLead)).ahead)
@@ -2859,9 +2900,9 @@ export default function createDestructureDrains(ctx) {
         ? discardRescueNodesWithReads({ node: assignment.right, ...frame })[0] === assignment.right
           ? [expressionStatement(assignment.right)] : liftedPrefixStatements(rhsExprs.slice(0, -1), frame)
         : observablePrefixElements(rhsExprs.slice(0, -1), frame).map(expr => expressionStatement(expr))) : [];
-    // the tail moves into the residual whether or not the prefix left a statement behind: a prefix
-    // with nothing to observe still gave up its slot (`({ Map: m, other } = (0, globalThis))`)
-    if (rhsExprs && !anchorRhsPrefix && !wholeRhsLift && assignment.left.properties.length !== 0) {
+    // A prefix this channel lifted or discarded leaves only the tail in the residual.
+    // A residual that carries its own prefix keeps the original RHS instead.
+    if (rhsExprs && !anchorRhsPrefix && !residualCarriesPrefix && !wholeRhsLift && assignment.left.properties.length !== 0) {
       assignment.right = rhsExprs.at(-1);
     }
     if (assignment.left.properties.length === 0) {

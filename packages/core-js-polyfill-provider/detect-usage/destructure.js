@@ -156,7 +156,6 @@ import {
   writeNeverRuns,
   wksComputedKeyName,
   isUndefinedNode,
-  isTopLevelThisContext,
   receiverSlotRead,
   unwrapTransparentSeq,
   ALWAYS_TRUTHY_OBJECT_NODES,
@@ -2414,11 +2413,13 @@ export function isSeFreeMemberReceiver(node) {
 // a caller holding a real ROOT brings its `ctx` (and its leg's `isOwnAlias`), and then the root is
 // asked too: the hop names say what a surface LOOKS like, and a capitalised key off the user's own
 // object is that object's key (`{ Data: { at } } = box`), a user nav its own type resolves - so is
-// one off the `this` a function binds (`const { Data: { at } } = this` in a method). without a ctx
+// one off the realm under an unknown global name (`globalThis.Data`), or the `this` a function
+// binds (`const { Data: { at } } = this` in a method). without a ctx
 // the answer is the hops' alone, for a caller asking about a pattern's hop names
 export function isBuiltInSurfaceNav(node, options = undefined) {
   let cur = unwrapRuntimeExpr(node);
   let hops = 0;
+  let realmKey = null;
   while ((cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression')
     && !cur.computed && cur.property?.type === 'Identifier'
     && (cur.property.name === 'prototype' || POSSIBLE_GLOBAL_OBJECTS.has(cur.property.name)
@@ -2427,19 +2428,23 @@ export function isBuiltInSurfaceNav(node, options = undefined) {
     // check below then fails on the member it stopped at, which is the answer this always gave
     if (cur.optional && !options?.allowOptionalHops) break;
     hops++;
+    if (!POSSIBLE_GLOBAL_OBJECTS.has(cur.property.name)) realmKey = cur.property.name;
     cur = unwrapRuntimeExpr(cur.object);
   }
   if (!hops) return false;
-  if (cur?.type === 'ThisExpression') return !options?.ctx || isTopLevelThisContext(options.ctx.path);
-  return cur?.type === 'Identifier' && (!options?.ctx
-    || builtInNamespaceRoot(cur, { isOwnAlias: options.isOwnAlias, ctx: options.ctx }) !== null);
+  if (!options?.ctx) return cur?.type === 'Identifier' || cur?.type === 'ThisExpression';
+  const rootName = builtInNamespaceRoot(cur, { isOwnAlias: options.isOwnAlias, ctx: options.ctx });
+  return rootName !== null && (!POSSIBLE_GLOBAL_OBJECTS.has(rootName) || realmKey === null
+    || isKnownStaticGlobal(realmKey, options.ctx.adapter));
 }
 
 // the global a nav's ROOT names where it is the built-in namespace itself, else null: the alias this
 // plugin minted in place (`globalThis` -> `_globalThis`) - the INJECTOR is what knows it, and that is
 // per-leg state, so the caller brings the lookup - a known global the source spells, or a binding
-// proven to hold one. `true` stands for a minted alias whose global the canon cannot name
+// proven to hold one. Top-level this names the same namespace through the proxy canon.
+// `true` stands for a minted alias whose global the canon cannot name
 function builtInNamespaceRoot(root, { isOwnAlias = null, ctx = null, ownAliasRoot = false } = {}) {
+  if (root?.type === 'ThisExpression') return ownAliasRoot ? null : proxyGlobalRootName({ node: root, ...ctx });
   if (root?.type !== 'Identifier') return null;
   const adapter = ctx?.adapter;
   if (isOwnAlias?.(root.name)) return (adapter ? resolveObjectName({ objectNode: root, ...ctx }) : null) || true;
@@ -2688,16 +2693,17 @@ export function instanceHopDispatch({ ctorName, key, resolvePure }) {
 // user's own object (`(log.push(1), src).Data`, `wrap.Box.Data`) is that object's key
 function unfoldNestedRoot(root, keys, ctx = null) {
   const surfaceOptions = ctx ? { ctx } : undefined;
-  // a SEQUENCE root is the init spelled whole, prefix included; its tail says what it names - a user
-  // value only: the realm and the built-in surfaces keep their own prefix channels
-  // ... a NAME or a CALL: a member or `this` tail is a pure nav the carried-prefix channels spell
-  // off themselves
+  // A prefix or decided selection keeps its source spelling for one evaluation. Only user
+  // navigation belongs here; built-in surfaces keep their existing prefix channels.
   if (root.type === 'SequenceExpression') {
-    const tail = unwrapRuntimeExpr(root.expressions.at(-1));
-    const userValue = tail?.type === 'Identifier'
-      ? !POSSIBLE_GLOBAL_OBJECTS.has(tail.name) && !isKnownGlobalName(tail.name)
-      : tail?.type === 'CallExpression' || tail?.type === 'NewExpression';
+    const tail = ctx?.adapter ? decidedRunningValue(root, ctx) : unwrapRuntimeExpr(root.expressions.at(-1));
+    const userValue = tail?.type === 'Identifier' || tail?.type === 'ThisExpression'
+      || tail?.type === 'CallExpression' || tail?.type === 'NewExpression';
     return userValue && !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail), surfaceOptions) ? { root, keys } : null;
+  }
+  // An opaque selection is read once too; known global hops retain their namespace routes.
+  if (root.type === 'ConditionalExpression' || root.type === 'LogicalExpression') {
+    return isKnownStaticGlobal(keys[0], ctx?.adapter) ? null : { root, keys };
   }
   if (root.type === 'CallExpression' || root.type === 'NewExpression' || root.type === 'ThisExpression') return { root, keys };
   // An optional user root remains whole: the following pattern read seals its short-circuit.
@@ -2846,7 +2852,9 @@ export function resolveNestedReceiverChain(leafPath, {
       // the prefix where the source does (`{ y: { at } } = (n++, box)` reads `(n++, box).y`)
       const prefixes = [];
       const init = destructureReceiverNode(owner);
-      const rawRoot = unwrapCollectingSePrefixes(init, prefixes);
+      const rawRoot = adapter
+        ? decidedRunningValue(init, { scope: leafPath.scope, adapter, path: leafPath }, prefixes)
+        : unwrapCollectingSePrefixes(init, prefixes);
       if (!rawRoot) return null;
       // ... a DECLARATOR's init only, and not a loop head's: an assignment and a head keep their own
       // prefix channels (the lift, the header sink)
@@ -2854,7 +2862,6 @@ export function resolveNestedReceiverChain(leafPath, {
       // call the realm canon owns
       const headOf = owner.parentPath?.parentPath?.node;
       if (prefixes.length && (ownerType !== 'VariableDeclarator' || slotDefault
-        || leafPath.node?.value?.type === 'AssignmentPattern'
         || (headOf?.type === 'ForStatement' && headOf.init === owner.parentPath.node)
         || provenRealmCallRoot(rawRoot, leafPath, adapter, { allowEffects: true }))) return null;
       // a call the inline canon proves to yield a proxy global reads as that global (its spelling too)
@@ -3032,14 +3039,16 @@ export function wrapperElementNavPlacement(walk) {
 // path-API-agnostic like the walks above: both emitters expose `.get` / `.node`, and the object
 // property's two spellings (babel `ObjectProperty` / estree `Property`) are accepted either way.
 // `accept` selects a leaf without changing the pattern or visiting expression subtrees.
+// A default contributes its left pattern, never the expression evaluated on a miss.
 export function firstPatternProp(patternPath, accept = null) {
+  while (patternPath?.node?.type === 'AssignmentPattern') patternPath = patternPath.get('left');
   const type = patternPath?.node?.type;
   if (type === 'ObjectPattern') {
     for (const prop of patternPath.get('properties')) {
       const propType = prop.node?.type;
       if (propType !== 'Property' && propType !== 'ObjectProperty') continue;
       const valueType = prop.node.value?.type;
-      const nested = valueType === 'ObjectPattern' || valueType === 'ArrayPattern'
+      const nested = valueType === 'ObjectPattern' || valueType === 'ArrayPattern' || valueType === 'AssignmentPattern'
         ? firstPatternProp(prop.get('value'), accept) : null;
       if (nested) return nested;
       if (!accept || accept(prop)) return prop;
@@ -3067,6 +3076,7 @@ export function firstPatternProp(patternPath, accept = null) {
 // unobservable); a user nav's getter would fire a second time, so such a level stays sole
 // `allowAssignmentHost`: the ASSIGNMENT host carries the same receiver facts, and its overwrite
 // channel asks here what static the nav ends on - the extraction itself stays that channel's
+// User keys off a realm can hold instances too; they take the same dispatch as any unknown value.
 export function typedNavClaimShape(leafPath, {
   allowLeafSiblings = false,
   rootMemoized = false,
@@ -3087,21 +3097,6 @@ export function typedNavClaimShape(leafPath, {
   });
   if (!walk) return null;
   const { keys, root } = walk;
-  // a USER key off the GLOBAL OBJECT itself names nothing this plugin models: the slot is whatever
-  // the environment installed there, so the leaf is a name match both legs keep native (`{ y: { at } }
-  // = globalThis`), not a claim resolved through a receiver's type. a first hop INTO the built-in
-  // namespace (`globalThis.Array.of`) is the anchored machinery's shape and keeps its own answer.
-  // WHICH root is the realm is the proxy canon's question, not the spelling's: the alias this plugin
-  // minted, a user alias, an import of the realm entry and a loop head over the realm all hold it,
-  // and a pass that reads its own output back sees those where the first saw the source spelling -
-  // a user binding that merely shares the name holds the user's value. pristine proxy hops reach the
-  // same realm (`{ self: { y: { at } } }`), so the key asked is the first past them, and only a KNOWN
-  // built-in there enters the namespace - a capital letter proves nothing
-  if (root?.type === 'Identifier' && keys.length) {
-    const realmKey = keys.find(key => !isPristineProxyGlobal(adapter, key));
-    if (realmKey !== undefined && !isKnownStaticGlobal(realmKey, adapter)
-      && proxyGlobalRootName({ node: root, scope: leafPath.scope, adapter, path: leafPath })) return null;
-  }
   const climbed = walk.climbed ?? [];
   for (let index = 1; index < climbed.length; index++) {
     if (climbed[index].prop === null || climbed[index].pattern.properties.length <= 1) continue;

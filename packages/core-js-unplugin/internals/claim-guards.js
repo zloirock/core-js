@@ -49,7 +49,7 @@ import {
   renderAliasHeldProbeRead,
   memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
-import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
+import { receiverCarriesOptional, replaceNodeInTree, stampReplacementSpan, withSideEffects } from './emit-shared.js';
 import { markSubtreeSkipped, optionalHeirAbove } from './nav-spine.js';
 
 // does the receiver below a member hop end on an optional CALL (`arr.flat?.()`)? that segment
@@ -435,6 +435,11 @@ export function replaceGuardedHop({
   // consumed span - the mark walks around them
   const keepLive = new Set([...leafKeySe ?? [], ...prefixSe ?? [], ...skippedNodes.keepLive ?? []]
     .filter(expr => subtreeContainsNode(consumed, expr)));
+  // A consumed call's annotations lead its whole replacement, before a guard or dispatch
+  // can print the receiver it reuses. Non-call hops retain their existing source ownership.
+  function land(path, replacement) {
+    path.replaceWith(consumed.type === 'CallExpression' ? stampReplacementSpan(replacement, consumed) : replacement);
+  }
   if (target === hopPath) {
     const deleteTail = deleteHostTail && test;
     // under a `delete` the realm hops between the render and the deleted member read the always-defined
@@ -459,9 +464,9 @@ export function replaceGuardedHop({
     const replacement = test && !deleteHost ? renderShortCircuitGuard(test, value) : value;
     if (test && !deleteHost && returnType) resolvedType?.set(replacement, returnType);
     const inserted = deleteHost ? value : withPrefixSe(replacement);
-    target.replaceWith(inserted);
+    land(target, inserted);
     for (const fold of folds) replaceNodeInTree(fold.parentPath.node, fold.node, inserted);
-    if (deleteHost) deleteHost.replaceWith(withPrefixSe(renderDeleteShortCircuitGuard(test, deleteHost.node.argument)));
+    if (deleteHost) land(deleteHost, withPrefixSe(renderDeleteShortCircuitGuard(test, deleteHost.node.argument)));
     else if (deleteTail) rehangGuardedTailOptional(target, inserted, up);
   } else if (test) {
     // a tail (or the chain wrapper) was absorbed: swap the hop for its emission in place,
@@ -481,7 +486,7 @@ export function replaceGuardedHop({
     const tailCore = peelTailNode(target.node);
     const memberTail = tailCore?.type === 'MemberExpression';
     const builtCore = built.type === 'ChainExpression' ? built.expression : built;
-    hopPath.replaceWith(memberTail ? withLeafKeySe(builtCore) : builtCore);
+    land(hopPath, memberTail ? withLeafKeySe(builtCore) : builtCore);
     for (const wrapper of absorbedWrappers) replaceNodeInTree(target.node, wrapper, wrapper.expression);
     // ... and the realm hops the climb folded: the alternate reads the ponyfill they name, so each
     // is spliced out and its parent reads what stood below it. the OUTERMOST one has no parent
@@ -514,9 +519,9 @@ export function replaceGuardedHop({
     if (returnType) resolvedType?.set(replacement, returnType);
     let wrapped = replacement;
     for (const wrapper of outerTsWrappers.toReversed()) wrapped = { ...wrapper, expression: wrapped };
-    target.replaceWith(withPrefixSe(wrapped));
+    land(target, withPrefixSe(wrapped));
   } else {
-    target.replaceWith(built);
+    land(target, built);
   }
   markSubtreeSkipped(skippedNodes, consumed, keepLive.size ? keepLive : null);
 }

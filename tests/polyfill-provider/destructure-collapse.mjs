@@ -136,6 +136,33 @@ for (const [pattern, key] of [
   check(`${ label }/source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
+for (const [pattern, captured] of [['{ at }', true], ['{ other, at }', true], ['{ other }', false]]) for (const key of [
+  'self', 'Data', captured ? 'at' : 'other',
+]) runBoth(
+  'array plan/proxy trigger finds its instance leaf',
+  `const [{ self: { Data: ${ pattern } = [] } }] = [globalThis, effect()];`,
+  (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator');
+    const arrayProp = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      item => item.node.key.name === key);
+    const original = JSON.stringify(arrayPath.node);
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const plan = buildNestedDestructurePlan({
+      arrayPath,
+      arrayProp,
+      adapter,
+      resolvePure: meta => meta.kind === 'property' && meta.key === 'at'
+        ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
+    });
+    check(`${ label }/${ key }/captured`, !!plan?.array.capture, captured);
+    if (captured) {
+      check(`${ label }/${ key }/original pattern`, plan?.pattern, arrayPath.node.id);
+      check(`${ label }/${ key }/one RHS evaluation`, plan?.array.capture?.init, arrayPath.node.init);
+    }
+    check(`${ label }/${ key }/source unchanged`, JSON.stringify(arrayPath.node), original);
+  },
+);
+
 for (const [source, kind, captured] of [
   ['const [{ at, ...rest }] = [source];', 'instance', true],
   ['const [{ [(effect(), "at")]: at }] = [source];', 'instance', true],
