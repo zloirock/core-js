@@ -15,6 +15,7 @@ import {
   resolveObjectName,
   withBindingLookupGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { followConstIdentifierInit } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { isSymbolDestructureAliasBinding } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 
 const { check, checkTruthy, runBoth, finish } = createChecker('self-referential-bindings');
@@ -211,6 +212,20 @@ runBoth('held-value undefinability control: an alias of an environment probe sti
     const read = pickOptionalObject(parser, program, 'at');
     const aliasCtx = { scope: read.scope, adapter: makeAdapter(parser), path: read };
     checkTruthy(label, proxyReceiverValueCanBeUndefined(read.node, resolvePure, aliasCtx));
+  });
+
+// These are valid writes into an existing binding, rather than TDZ sources. Reaching-definition
+// pairing can return to the same source through a slot; it shares the alias walk's cycle guard.
+for (const method of ['usage-pure', 'usage-global']) for (const fields of [
+  'of: M = 9',
+  'name: first, of: M = 9, from: tail',
+  '[key]: M = 9, from: tail',
+]) runBoth(`pattern source rebound/${ method }/${ fields }`,
+  `let M = source; let first, tail; const key = 'of'; ({ ${ fields } } = M); use(M);`, (parser, program, label) => {
+    const [read] = parser.pickPath(program, 'CallExpression').get('arguments');
+    const hop = { node: read.node, readNode: read.node, ctx: { scope: read.scope, path: read,
+      adapter: makeAdapter(parser, undefined, method) } };
+    check(label, followConstIdentifierInit(hop).node, read.node);
   });
 
 finish();

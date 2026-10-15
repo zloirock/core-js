@@ -19295,4 +19295,128 @@ function * generateReceiverEffectsAndDefaults() {
       + `${ guard === 'global' ? '' : `} return read(${ guard === 'shadowed-missing' ? 'undefined' : 'Array' });` } })()`),
     strip: true,
   };
+  // Exported readers keep their constructor choice open. Native statics alone would mask a
+  // guarded default/computed leaf left raw, so every scalar host carries the stripped oracle.
+  for (const [shape, fields] of [
+    ['default', 'from: first, of: value = (effects.push("default"), 9)'],
+    ['computed', 'from: first, [key]: value'],
+    ['computed-default', 'from: first, [key]: value = (effects.push("default"), 9)'],
+    ['rebind-default', 'of: value = (effects.push("default"), M = { from: 99 }, 9), from: first'],
+    ['named-default', 'of: value = () => 9, from: first'],
+  ]) for (const host of ['declaration', 'assignment', 'value']) for (const [sourceName, source] of [
+    ['constructor', 'Array'],
+    ['undefined', '{ get from() { effects.push("from"); return 7; }, get of() { effects.push("of"); return undefined; } }'],
+    ['defined-getter', '{ get from() { effects.push("from"); return 7; }, get of() { effects.push("of"); return 3; } }'],
+    ['null', '{ from: 7, of: null }'],
+    ['falsy', '{ from: 7, of: 0 }'],
+  ]) {
+    const binding = host === 'declaration' ? `const { ${ fields } } = M;`
+      : `let first, value; ${ host === 'value' ? 'const result = ' : '' }({ ${ fields } } = M);`;
+    yield {
+      name: `guarded-static-leaves/${ shape }/${ host }/${ sourceName }`,
+      code: `export const effects = []; export function read(source) {
+        let M = source; if (!M) M = Array; const key = 'of'; ${ binding }
+        return [first, ${ shape === 'named-default' ? 'typeof value === "function" ? value.name : value' : 'value' }${ host === 'value' ? ', result === source' : '' }];
+      } export const r = read(${ source });`,
+      strip: true,
+    };
+  }
+  // The instance extraction ahead of this guard queues the static read until the drain.
+  // Claims inside its live default must finish before that queued expression is cloned.
+  for (const rebind of [false, true]) for (const host of ['declaration', 'assignment']) for (const [sourceName, source] of [
+    ['constructor', 'Array'],
+    ['undefined', '{ name: "own", of: undefined, from: 7 }'],
+    ['null', '{ name: "own", of: null, from: 7 }'],
+    ['falsy', '{ name: "own", of: 0, from: 7 }'],
+  ]) yield {
+    name: `guarded-static-leaves/after-instance/${ rebind ? 'rebind' : 'claim' }/${ host }/${ sourceName }`,
+    code: `export const effects = []; export function read(source) {
+      let M = source; if (!M) M = Array;
+      ${ host === 'declaration' ? 'const' : 'let first, value, tail; (' } { name: first, of: value = (effects.push("default"), ${ rebind ? 'M = {}, 9' : '[9].at(0)' })${ rebind ? ', from: tail' : '' } } = M${ host === 'declaration' ? ';' : ');' }
+      return [first, value${ rebind ? ', tail' : '' }];
+    } export const r = read(${ source });`,
+    strip: true,
+  };
+  // A value host keeps native siblings in its sequence; queued assignments can retire the source
+  // default's paths, and a binding target can overwrite the source before a later guarded read.
+  for (const [shape, fields, valueHost, use] of [
+    ['native-before', 'before = (M = {}, 6), of: value = 9', true, '[before, value]'],
+    ['native-after', 'of: value = (M = {}, 9), extra: tail', true, '[value, tail]'],
+    ['pending-write', 'name: first, of: value = (effects.push("default"), M = {}, 9), from: tail', false, '[first, value, tail]'],
+    ['source-target', 'of: M, from: tail', false, '[M, tail]'],
+    ['defaulted-source-target', 'name: first, of: M = 9, from: tail', false, '[first, M, tail]'],
+  ]) for (const [sourceName, source] of [
+    ['constructor', 'Array'],
+    ['undefined', '{ name: "own", of: undefined, from: 7, extra: 8 }'],
+    ['null', '{ name: "own", of: null, from: 7, extra: 8 }'],
+    ['falsy', '{ name: "own", of: 0, from: 7, extra: 8 }'],
+  ]) yield {
+    name: `guarded-static-assignment-writes/${ shape }/${ sourceName }`,
+    code: `export const effects = []; export function read(source) {
+      let M = source; if (!M) M = Array; let before, first, value, tail;
+      ${ valueHost ? 'const result = ' : '' }({ ${ fields } } = M);
+      return [${ use }${ valueHost ? ', result === source' : '' }];
+    } export const r = read(${ source });`,
+    strip: true,
+  };
+  for (const host of ['declaration', 'assignment']) for (const [sourceName, source] of [
+    ['constructor', 'Array'],
+    ['undefined', '{ name: "own", of: undefined, from: 7 }'],
+    ['null', '{ name: "own", of: null, from: 7 }'],
+    ['falsy', '{ name: "own", of: 0, from: 7 }'],
+  ]) yield {
+    name: `guarded-static-live-split/${ host }/${ sourceName }`,
+    code: `export const effects = []; export function read(source) {
+      let M = source; if (!M) M = Array;
+      ${ host === 'declaration' ? 'const' : 'let first, value, tail; (' } { name: first, of: value = (M = {}, [9].at(0)), from: tail } = M${ host === 'declaration' ? ';' : ');' }
+      return [first, value, tail];
+    } export const r = read(${ source });`,
+    strip: true,
+  };
+  for (const [shape, body] of [
+    ['single-value', 'const result = ({ of: M } = M); return [typeof M, result === source];'],
+    ['consumed-default', 'const { name: first = (M = {}, "fallback"), of: value } = M; return [first, typeof value];'],
+    ['consumed-default-assignment', 'let first, value; ({ name: first = (M = {}, "fallback"), of: value } = M); return [first, typeof value];'],
+    ['native-target-before', 'let value; ({ extra: M, of: value } = M); return [typeof M, typeof value];'],
+    ['guard-target-before', 'let value; ({ of: M, extra: value } = M); return [typeof M, value];'],
+    ['native-default-before', 'const { before = (M = {}, 6), of: value } = M; return [before, typeof value];'],
+  ]) for (const [sourceName, source] of [
+    ['constructor', 'Array'],
+    ['own', '{ of: 3, extra: 7 }'],
+    ['missing', '{ of: undefined, extra: 7 }'],
+  ]) yield {
+    name: `guarded-static-source-writes/${ shape }/${ sourceName }`,
+    code: `export const effects = []; export function read(source) {
+      let M = source; if (!M) M = Array; ${ body }
+    } export const r = read(${ source });`,
+    strip: true,
+  };
+  // Parameter defaults and fields run outside the body's var slot. Recursive default evaluation
+  // must preserve the enclosing assignment's captured RHS rather than share the inner memo.
+  for (const [frame, body] of [
+    ['parameter', 'function inner(arg = ({ of: value = 9 } = M)) { return [typeof value, arg === source]; } return inner();'],
+    ['field', 'class Inner { value = ({ of: value = 9 } = M); } const instance = new Inner(); return [typeof value, instance.value === source];'],
+    ['reentry', 'let depth = 0; function inner(arg = ({ of: value = (++depth === 1 ? (M = { of: 7 }, inner(), 9) : 9) } = M)) '
+      + '{ return [typeof value === "function" ? value(3) : value, arg === source]; } return inner();'],
+  ]) for (const [sourceName, source] of [['constructor', 'Array'], ['missing', '{ of: undefined }']]) yield {
+    name: `guarded-static-frames/${ frame }/${ sourceName }`,
+    code: `export const effects = []; export function read(source) {
+      let M = source; if (!M) M = Array; let value; ${ body }
+    } export const r = read(${ source });`,
+    strip: true,
+  };
+  // An exported runtime key leaves the static selection unknown. Global usage owes those
+  // statics, while pure keeps the unknown read native; returned instances imply no extra usage.
+  for (const [owner, key, args] of [
+    ['Array', 'of', '3'],
+    ['Array', 'from', '[3]'],
+    ['String', 'raw', '{ raw: ["a", "b"] }, 3'],
+    ['String', 'fromCodePoint', '65'],
+    ['Number', 'isInteger', '3'],
+  ]) for (const destructured of [false, true]) yield {
+    name: `unnamed-own-statics/${ owner }/${ key }/${ destructured ? 'pattern' : 'member' }`,
+    code: `export function read(key) { ${ destructured ? `const { [key]: method } = ${ owner }; return method` : `return ${ owner }[key]` }(${ args }); }
+      export const r = read("${ key }");`,
+    strip: false,
+  };
 }
