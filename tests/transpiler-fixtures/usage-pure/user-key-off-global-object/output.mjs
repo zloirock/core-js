@@ -1,73 +1,31 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
-// A USER key off the global object itself names no surface the plugin models: an instance leaf
-// under it is a name match both legs keep native, on every declaration host - a capitalised key
-// included, past a pristine proxy hop, on an assignment and on a loop head, and under every name
-// that holds the realm (an alias, a loop variable over it).
-export const {
-  y: {
-    at: constAt
-  }
-} = _globalThis;
-export let {
-  y: {
-    at: letAt
-  }
-} = _globalThis;
-const [{
-  y: {
-    at: wrappedAt
-  }
-}] = [_globalThis];
-const [{
-  y: {
-    at: siblingAt
-  }
-}, tail] = [_globalThis, 1];
-const first = 1,
-  {
-    y: {
-      at: multiAt
-    }
-  } = _globalThis;
-const {
-  Y: {
-    at: capitalisedAt
-  }
-} = _globalThis;
-const {
-  y: {
-    at: hopAt
-  }
-} = _globalThis;
+import _at from "@core-js/pure/actual/instance/at";
+// User keys on the realm can hold instances. Generic dispatch serves each runtime value
+// through aliases, proxy hops and loop elements; the key's case proves no built-in type.
+export const constAt = _at(_globalThis.y);
+export let letAt = _at(_globalThis.y);
+const wrappedAt = _at(_globalThis.y);
+const siblingAt = _at(_globalThis.y);
+const [{}, tail] = [_globalThis, 1];
+const first = 1;
+const multiAt = _at(_globalThis.y);
+const capitalisedAt = _at(_globalThis.Y);
+const hopAt = _at(_globalThis.y);
 let assignedAt;
-({
-  Y: {
-    at: assignedAt
-  }
-} = _globalThis);
-for (const {
-  y: {
-    at: loopAt
-  }
-} of [_globalThis]) loopAt;
-for (const {
-  Y: {
-    at: capitalisedLoopAt
-  }
-} of [_globalThis]) capitalisedLoopAt;
+assignedAt = _at(_globalThis.Y);
+for (const _ref of [_globalThis]) {
+  const loopAt = _at(_ref.y);
+  loopAt;
+}
+for (const _ref2 of [_globalThis]) {
+  const capitalisedLoopAt = _at(_ref2.Y);
+  capitalisedLoopAt;
+}
 const realm = _globalThis;
-const {
-  y: {
-    at: aliasAt
-  }
-} = realm;
+const aliasAt = _at(realm.y);
 for (const element of [_globalThis]) {
-  const {
-    y: {
-      at: elementAt
-    }
-  } = element;
+  const elementAt = _at(element.y);
   elementAt;
 }
 // A user object resolves the leaf through its own type and keeps the claim.

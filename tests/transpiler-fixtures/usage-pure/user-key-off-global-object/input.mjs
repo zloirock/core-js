@@ -1,7 +1,5 @@
-// A USER key off the global object itself names no surface the plugin models: an instance leaf
-// under it is a name match both legs keep native, on every declaration host - a capitalised key
-// included, past a pristine proxy hop, on an assignment and on a loop head, and under every name
-// that holds the realm (an alias, a loop variable over it).
+// User keys on the realm can hold instances. Generic dispatch serves each runtime value
+// through aliases, proxy hops and loop elements; the key's case proves no built-in type.
 export const { y: { at: constAt } } = globalThis;
 export let { y: { at: letAt } } = globalThis;
 const [{ y: { at: wrappedAt } }] = [globalThis];

@@ -22,6 +22,8 @@ module.exports = {
         loader: 'babel-loader',
         options: {
           ...babelConfig,
+          // CommonJS hosts retain their top-level receiver through module lowering.
+          overrides: [{ test: /\.cjs$/, sourceType: 'script' }],
           plugins: [
             ['@core-js', {
               method: 'usage-pure',

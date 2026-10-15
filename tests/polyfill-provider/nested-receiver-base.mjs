@@ -4,18 +4,83 @@
 // over a stub adapter - it consumes names, not AST, so the parsers have nothing to add
 import {
   classifyDestructureLeafHost,
+  firstPatternProp,
   instanceHopDispatch,
   resolveNestedDestructureReceiver,
   resolveNestedReceiverBase,
   resolveNestedReceiverChain,
+  typedNavClaimShape,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { proxyGlobalRootName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('nested-receiver-base');
+
+// A hop's default is transparent to a leaf search; its fallback expression is never a pattern.
+for (const source of [
+  'const { Data: { at: method } = fallback() } = globalThis;',
+  'const [{ self: { Data: { at: method } = fallback() } }] = [globalThis];',
+  'const { Data: [{ at: method } = fallback()] } = source;',
+]) runBoth('first leaf through a default', source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  check(label, firstPatternProp(path.get('id'))?.node.key.name, 'at');
+});
+
+// User keys can hold instances on any receiver, including the realm and a function's own this.
+for (const [name, source, claimed] of [
+  ['realm lowercase', 'const { data: { at: method } } = this;', true],
+  ['realm uppercase', 'const { Data: { at: method } } = this;', true],
+  ['realm arrow', 'const read = () => { const { data: { at: method } } = this; };', true],
+  ['realm assignment', 'let method; ({ data: { at: method } } = this);', true],
+  ['realm sibling', 'const { Data: { at: method }, kept } = this;', false],
+  ['realm alias', 'const realm = this; const { data: { at: method } } = realm;', true],
+  ['realm alias captured outside a function', 'const realm = this; function read() { const { Data: { at: method } } = realm; }', true],
+  ['named realm', 'const { data: { at: method } } = globalThis;', true],
+  ['prefixed this', 'const { Data: { at: method } } = (before(), this);', true],
+  ['prefixed named realm', 'const { Data: { at: method } } = (before(), globalThis);', true],
+  ['decided realm fallback', 'const { Data: { at: method } } = globalThis || {};', true],
+  ['decided realm nullish', 'const { Data: { at: method } } = globalThis ?? {};', true],
+  ['decided realm conditional', 'const { Data: { at: method } } = true ? globalThis : {};', true],
+  ['decided realm prefixed fallback', 'const { Data: { at: method } } = (before(), globalThis) || {};', true],
+  ['prefixed decided realm fallback', 'const { Data: { at: method } } = (before(), globalThis || {});', true],
+  ['conditional namespace stays anchored', 'const { Map: { name: method } } = true ? globalThis : {};', false],
+  ['local this', 'function read() { const { data: { at: method } } = this; }', true],
+  ['local uppercase', 'function read() { const { Data: { at: method } } = this; }', true],
+  ['local alias', 'function read() { const realm = this; const { Data: { at: method } } = realm; }', true],
+  ['local object', 'const source = { data: [] }; const { data: { at: method } } = source;', true],
+]) runBoth(`typed nav/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    prop => prop.node.value?.name === 'method');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(label, typedNavClaimShape(path, { adapter, allowAssignmentHost: true }) !== null, claimed);
+});
+
+// Decided receiver facts name the realm before either emitter rewrites the initializer.
+runBoth('chain/decided fallback names its realm', 'const { Data: { at: method } } = globalThis || {};', (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    prop => prop.node.value?.name === 'method');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label }/root`, resolveNestedReceiverChain(path, { soleSlots: true, adapter })?.root?.name, 'globalThis');
+});
+
+// A realm identity survives aliases and loop relocation; an ordinary function still owns its this.
+for (const [name, source, realm] of [
+  ['top-level this', 'use(this);', 'globalThis'],
+  ['lexical arrow', 'const read = () => use(this);', 'globalThis'],
+  ['own receiver', 'function read() { use(this); }', null],
+  ['captured realm', 'const root = this; function read() { use(root); }', 'globalThis'],
+  ['captured own receiver', 'function read() { const root = this; return () => use(root); }', null],
+  ['realm loop element', 'for (const root of [this]) use(root);', 'globalThis'],
+  ['mixed loop elements', 'for (const root of [this, other]) use(root);', null],
+]) runBoth(`proxy identity/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'CallExpression', item => item.node.callee?.name === 'use');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(label, proxyGlobalRootName({ node: path.node.arguments[0], scope: path.scope, adapter, path }), realm);
+});
 
 function pickSymbolLeaf(adapter, prog) {
   const type = adapter.name === 'babel' ? 'ObjectProperty' : 'Property';
