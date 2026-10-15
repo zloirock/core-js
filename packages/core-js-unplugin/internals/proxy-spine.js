@@ -93,6 +93,7 @@ import {
   renderShortCircuitGuard,
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
+  renderDestructureAssignments,
   renderNavCollapseLeaf,
   renderNavCollapseTail,
   renderNavGuardTestBase,
@@ -225,10 +226,16 @@ export default function createProxySpineChannel(ctx) {
   // `captureSource` is the receiver VALUE the branches read through, handed to the render unless the
   // plan hoists its short-circuit INSIDE that capture - there the hoist writes the memo itself, and
   // passing it here too would assign the ref twice
-  function guardChainNode(plan, rawBranch, invoke, captureSource) {
+  function guardChainNode(plan, rawBranch, invoke, captureSource, mintRef, live = null) {
     return renderCtorIdentityNarrow(plan, rawBranch, {
       injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name), invoke,
       captureReceiver: plan.hoistInsideCapture ? null : captureSource,
+      mintRef,
+      embed: node => {
+        const value = cloneNode(node);
+        live?.add(value);
+        return value;
+      },
     });
   }
 
@@ -322,10 +329,8 @@ export default function createProxySpineChannel(ctx) {
     return true;
   }
 
-  // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders
-  // as the declarator's value - on a nullish receiver the raw branch dereferences it exactly as
-  // the pattern would. only the receiver identifier slot is swapped, so a sequence prefix
-  // around it keeps its own claims
+  // Guarded destructure hosts share their admission, captures and ordering with the provider.
+  // Insert the guard while keeping receiver/default claims live and a value host's original RHS.
   // eslint-disable-next-line max-statements -- direct, nested and exported hosts land the shared guard plan
   function emitGuardedDestructureNarrow(meta, metaPath) {
     const prop = metaPath.node;
@@ -383,42 +388,70 @@ export default function createProxySpineChannel(ctx) {
       return true;
     }
     const host = hostPath.node;
+    const pending = admitted.hasConsumedProps
+      ? destructureEmit.queuedJobsFor(hostPath).jobs.find(job => (job.declarator ?? job.assignment) === host) : null;
+    if (admitted.hasConsumedProps && !pending) return false;
+    if (detach && !pending && hostKind !== 'assignment-value') {
+      const list = hostKind === 'declarator' ? hostPath.parentPath.node.declarations : stmtUp?.parentPath?.node?.[stmtUp.listKey];
+      if (!Array.isArray(list) || !list.includes(hostKind === 'declarator' ? host : stmtUp?.node)) return false;
+    }
     // a captured receiver (`const { groupBy } = box.C`) is read once into a ref the guard tests, and
     // the guard takes the receiver's whole place
     const captureSource = plan.captureReceiver ? cloneNode(plan.captureReceiver) : null;
     const captured = plan.captureReceiver;
     if (captureSource) plan.recvIdent = identifier(injector.generateDeclaredRef(metaPath));
-    const chain = guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)), undefined, captureSource);
-    if (admitted.hasConsumedProps) {
+    function mintDefaultRef() {
+      return injector.generateDeclaredRef(metaPath);
+    }
+    const live = new Set(captureSource ? [captureSource] : []);
+    const chain = !split && !admitted.hasConsumedProps
+      && guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)),
+        undefined, detach === 'after' ? null : captureSource, mintDefaultRef, live);
+    if (captureSource && detach) {
+      host[hostKind === 'declarator' ? 'init' : 'right'] = detach === 'before' ? identifier(plan.recvIdent.name)
+        : renderCapturedReceiver(identifier(plan.recvIdent.name), captureSource, identifier(plan.recvIdent.name));
+    }
+    if (pending) {
       // Earlier extractions still occupy their source slots. Drain this guard beside them
       // in property order instead of inserting it ahead of the pending writes.
       const declarationPath = hostKind === 'declarator' ? hostPath.parentPath : stmtUp;
       const exported = declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration';
-      const pending = destructureEmit.queuedJobsFor(hostPath).jobs.find(job => (job.declarator ?? job.assignment) === host);
-      if (!pending) return false;
-      markSubtreeSkipped(skippedNodes, prop);
-      markSubtreeSkipped(skippedNodes, chain);
-      destructureEmit.recordJob({
-        hostPath: exported ? declarationPath.parentPath : declarationPath,
-        job: {
-          prop, pattern, chain: [], ...hostKind === 'declarator' ? { declarator: host } : { assignment: host }, local: bindingName,
-          guardDetach: detach,
-          metaPath, exported, host: pending.host,
-          value: receiverName => receiverName ? guardChainNode({ ...plan, recvIdent: identifier(receiverName) },
-            memberExpression(identifier(receiverName), identifier(meta.key))) : chain,
-        },
-      });
+      const leaves = split ?? [{ prop, key: meta.key, name: bindingName, plan, defaultValue: plan.destructureDefault?.value }];
+      for (const [index, leaf] of leaves.entries()) {
+        if (leaf.defaultValue) live.add(leaf.prop.value.right);
+        markSubtreeSkipped(skippedNodes, leaf.prop, live);
+        destructureEmit.recordJob({
+          hostPath: exported ? declarationPath.parentPath : declarationPath,
+          job: {
+            prop: leaf.prop, pattern, chain: [], local: leaf.name,
+            ...hostKind === 'declarator' ? { declarator: host } : { assignment: host },
+            guardDetach: detach,
+            metaPath, exported, host: pending.host,
+            value: receiverName => {
+              const receiver = receiverName ? identifier(receiverName) : captureSource ? plan.recvIdent : leaf.plan.recvIdent;
+              const readPlan = { ...leaf.plan, recvIdent: receiver };
+              // The queued source default is still visited. Clone its final subtree at drain time.
+              if (leaf.defaultValue) readPlan.destructureDefault = { ...leaf.plan.destructureDefault, value: leaf.prop.value.right };
+              return guardChainNode(readPlan, memberExpression(identifier(receiver.name), identifier(leaf.key)),
+                undefined, !receiverName && index === 0 && detach !== 'after' ? captureSource : null, mintDefaultRef, live);
+            },
+          },
+        });
+      }
       markRewrite();
       return true;
     }
     if (detach) {
-      const list = hostKind === 'declarator' ? hostPath.parentPath.node.declarations : stmtUp?.parentPath?.node?.[stmtUp.listKey];
-      const anchorNode = hostKind === 'declarator' ? host : stmtUp?.node;
-      if (!Array.isArray(list) || !list.includes(anchorNode)) return false;
       markRewrite();
       markSubtreeSkipped(skippedNodes, prop);
-      markSubtreeSkipped(skippedNodes, chain);
+      markSubtreeSkipped(skippedNodes, chain, live);
       pattern.properties.splice(pattern.properties.indexOf(prop), 1);
+      if (hostKind === 'assignment-value') {
+        hostPath.replaceWith(renderDestructureAssignments([{ name: bindingName, value: chain }], {
+          residual: cloneNode(host), detach, receiver: identifier(plan.recvIdent.name),
+        }));
+        return true;
+      }
       const placed = hostKind === 'declarator'
         ? { type: 'VariableDeclarator', id: identifier(bindingName), init: chain }
         : { type: 'ExpressionStatement', expression: assignmentExpression('=', identifier(bindingName), chain) };
@@ -431,30 +464,34 @@ export default function createProxySpineChannel(ctx) {
     markRewrite();
     if (!keepPatternLive) markSubtreeSkipped(skippedNodes, pattern);
     // the captured receiver stays claim-live: its own reads still owe their dispatch
-    markSubtreeSkipped(skippedNodes, chain, captureSource ? new Set([captureSource]) : null);
+    markSubtreeSkipped(skippedNodes, chain, live);
     // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
     // the plan answered for all of them, so nothing here waits on a later visit - which is what lets
     // this leg render it at all, its walk never re-entering what it splices
     if (split) {
-      const reads = split.map(item => {
-        const read = guardChainNode(item.plan,
-          memberExpression(identifier(item.plan.recvIdent.name), identifier(item.key)));
-        markSubtreeSkipped(skippedNodes, read);
+      const reads = split.map((item, index) => {
+        const readPlan = captureSource ? { ...item.plan, recvIdent: plan.recvIdent } : item.plan;
+        const read = guardChainNode(readPlan,
+          memberExpression(identifier(readPlan.recvIdent.name), identifier(item.key)), undefined,
+          captureSource && index === 0 ? captureSource : null, mintDefaultRef, live);
+        markSubtreeSkipped(skippedNodes, read, live);
         return read;
       });
       if (hostKind === 'declarator') {
-        const declaration = hostPath.parentPath.node;
-        declaration.declarations.splice(declaration.declarations.indexOf(host), 1,
+        hostPath.replaceWithMultiple([
           ...split.map((item, index) => ({
             type: 'VariableDeclarator', id: identifier(item.name), init: reads[index],
           })),
           // the REST reads the same receiver BEHIND the reads, with every consumed key renamed to a
           // sentinel so it still gathers exactly what the source left it
-          ...restResidual ? [restResidualDeclarator(pattern, plan)] : []);
+          ...restResidual ? [restResidualDeclarator(pattern, plan)] : [],
+        ]);
         return true;
       }
-      replaceNodeInTree(hostPath.parentPath.node, host, sequenceExpression(
-        split.map((item, index) => assignmentExpression('=', identifier(item.name), reads[index]))));
+      hostPath.replaceWith(renderDestructureAssignments(
+        split.map((item, index) => ({ name: item.name, value: reads[index] })), {
+          receiver: hostKind === 'assignment-value' ? identifier(plan.recvIdent.name) : null,
+        }));
       return true;
     }
     const receiver = captured ?? plan.recvIdent;

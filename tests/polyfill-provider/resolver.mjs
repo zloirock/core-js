@@ -468,6 +468,33 @@ function makeFilterEnv() {
   return { typeResolvers: stubTypeResolvers, astPredicates: stubAstPredicates };
 }
 
+// An unnamed read off a native global owes its own statics, not every prototype method.
+for (const [label, meta, options, expected] of [
+  ['Array', { kind: 'global', name: 'Array' }, {}, ['array/from', 'array/from-async', 'array/of']],
+  ['realm Array', { kind: 'property', object: 'globalThis', key: 'Array', placement: 'static' }, {}, ['array/from', 'array/from-async', 'array/of']],
+  ['filtered static', { kind: 'global', name: 'Array' }, { exclude: ['es.array.of'] }, ['array/from', 'array/from-async']],
+  ['native constructor entry', { kind: 'global', name: 'Number' }, {}, [
+    'number/constructor', 'number/epsilon', 'number/max-safe-integer', 'number/min-safe-integer',
+    'number/is-finite', 'number/is-integer', 'number/is-nan', 'number/is-safe-integer', 'number/parse-float', 'number/parse-int',
+  ]],
+  ['native constructor dependencies', { kind: 'global', name: 'RegExp' }, {}, ['regexp/constructor', 'regexp/escape']],
+  ['filtered constructor keeps statics', { kind: 'global', name: 'RegExp' }, { exclude: ['es.regexp.constructor'] },
+    ['regexp/constructor', 'regexp/escape']],
+  ['filtered static keeps dependencies', { kind: 'global', name: 'RegExp' }, { exclude: ['es.regexp.escape'] },
+    ['regexp/constructor', 'regexp/escape']],
+  ['filtered static keeps constructor', { kind: 'global', name: 'RegExp' },
+    { exclude: ['es.regexp.escape', 'es.string.repeat', 'es.string.pad-start'] }, ['regexp/constructor']],
+  ['case-sensitive name', { kind: 'global', name: 'array' }, {}, null],
+  ['unknown name', { kind: 'global', name: 'Missing' }, {}, null],
+  ['Object prototype name', { kind: 'global', name: 'toString' }, {}, null],
+  ['foreign member', { kind: 'property', object: 'other', key: 'Array', placement: 'static' }, {}, null],
+]) {
+  const { resolver } = createPolyfillResolver({ method: 'usage-global', version: '4.0', targets: { ie: 11 }, ...options }, {
+    ...makeFilterEnv(), readsUnnamedStatic: () => true, isEscapedCtor: () => true,
+  });
+  checkDeep(`unnamed static entries/${ label }`, resolver.resolveUsage(meta), expected);
+}
+
 // Exercise enrichment with the real resolver. Prototype entries live in the instance
 // namespace; methods carried by a routed constructor have no separate instance entry.
 for (const [key, expectedEntry] of [

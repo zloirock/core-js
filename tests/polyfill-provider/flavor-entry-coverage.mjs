@@ -222,12 +222,15 @@ const NARROW = {
 // A native constructor core-js defines no module for owes nothing when handed out: its statics and
 // prototype methods load where a read names them. A static read of a locally returned constructor
 // exposes only that static's result, while a static read the claim side does not name - by a key
-// nothing names, or through a subclass inheriting it - may land on any static, so it takes the namespace.
+// nothing names, or through a subclass inheriting it - may land on any own static. Prototype
+// methods require their own usage even when a static returns an instance or the prototype itself.
 for (const [label, source, used, wide] of [
   ['local IIFE', 'export const value = (() => { if (flag) return Array; return custom; })().of(3);', true, false],
   ['named local call', 'function pick() { if (flag) return Array; return custom; } export const value = pick().of(3);', true, false],
   ['unused function', 'function pick() { if (flag) return Array; return custom; }', false, false],
   ['escaped value', 'hand(Array);', false, false],
+  ['escaped static result', 'export const value = Array.of(3);', true, false],
+  ['escaped prototype', 'export const value = Array.prototype;', false, false],
   ['escaped call', 'hand((() => { if (flag) return Array; return custom; })());', false, false],
   ['escaped container call', 'hand({ value: (() => { if (flag) return Array; return custom; })() });', false, false],
   ['exported function', 'export function pick() { if (flag) return Array; return custom; }', false, false],
@@ -241,8 +244,39 @@ for (const [label, source, used, wide] of [
   ]) {
     check(`${ emitter }: ${ label }: of obligation`, imports.has('core-js/modules/es.array.of'), used);
     check(`${ emitter }: ${ label }: other statics`, imports.has('core-js/modules/es.array.from'), wide);
-    check(`${ emitter }: ${ label }: instance methods`, imports.has('core-js/modules/es.array.find'), wide);
+    check(`${ emitter }: ${ label }: instance methods`, imports.has('core-js/modules/es.array.find'), false);
   }
+}
+
+// Explicit prototype usage remains an independent obligation, even after a static returns it.
+for (const [owner, own, unrelated, used, created] of [
+  ['Number', 'es.number.is-integer', 'es.number.to-fixed', '(1).toFixed(0)', 'Number("1")'],
+  ['RegExp', 'es.regexp.escape', 'es.regexp.test', '/x/.test("x")', 'RegExp("x")'],
+]) {
+  for (const [emitter, collect] of [['babel', babelImports], ['unplugin', unpluginImports]]) {
+    const imports = await collect(`export function read(key) { return ${ owner }[key]; }`, GLOBAL);
+    check(`${ emitter }: ${ owner } unknown static carries own methods`, imports.has(`core-js/modules/${ own }`), true);
+    check(`${ emitter }: ${ owner } unknown static does not use prototype methods`, imports.has(`core-js/modules/${ unrelated }`), false);
+    const consumed = await collect(`export const value = ${ used };`, GLOBAL);
+    check(`${ emitter }: ${ owner } named prototype method is served`, consumed.has(`core-js/modules/${ unrelated }`), true);
+    const local = await collect(`export const value = ${ created };`, GLOBAL);
+    check(`${ emitter }: ${ owner } call does not expose its statics`, local.has(`core-js/modules/${ own }`), false);
+  }
+}
+
+// A replacement namespace keeps its full entry, including its own symbol tag.
+for (const [emitter, imports] of [
+  ['babel', await babelImports('export function read(key) { return Reflect[key]; }', { ...GLOBAL, mode: 'full' })],
+  ['unplugin', unpluginImports('export function read(key) { return Reflect[key]; }', { ...GLOBAL, mode: 'full' })],
+]) check(`${ emitter }: full Reflect keeps its symbol tag`, imports.has('core-js/modules/es.reflect.to-string-tag'), true);
+
+// A returned array's named method still needs its own polyfill.
+for (const [emitter, imports] of [
+  ['babel', await babelImports('export const value = Array.of(3).find(x => x);', GLOBAL)],
+  ['unplugin', unpluginImports('export const value = Array.of(3).find(x => x);', GLOBAL)],
+]) {
+  check(`${ emitter }: a returned array's named method is served`, imports.has('core-js/modules/es.array.find'), true);
+  check(`${ emitter }: a returned array does not owe unrelated methods`, imports.has('core-js/modules/es.array.flat'), false);
 }
 
 for (const name of CONSTRUCTORS) {
@@ -367,7 +401,7 @@ for (const [label, source, wide = true, globalWide = wide] of OPAQUE_PARAMETER_R
 // leaf is covered; known callers contribute their own statics independently of defaults. Spread ambiguity and bare
 // captures still owe their independent family, which `Array`, a constructor core-js does not polyfill, has none of:
 // each row runs again over `Promise`, which does. An argument a spread leaves unpaired is a read of this file the
-// claims do not attribute (`read`), so it takes `Array`'s namespace even so. Compare import sets so one import
+// claims do not attribute (`read`), so it owes Array's own statics, never its prototype methods. One import
 // cannot mask another.
 const DEFAULT_COVERAGE = [
   ['array wrapper', 'function f([{ of } = Array]) { return of(1); } f([Array]);', false],
@@ -408,7 +442,8 @@ for (const [label, source, wide, read = false] of DEFAULT_COVERAGE) {
     ['unplugin', unpluginImports(source, GLOBAL), unpluginImports(polyfilled, GLOBAL)],
   ]) {
     check(`default coverage/${ label } [${ emitter }]: own static`, imports.has('core-js/modules/es.array.of'), named);
-    check(`default coverage/${ label } [${ emitter }]: namespace`, imports.has('core-js/modules/es.array.find'), read);
+    check(`default coverage/${ label } [${ emitter }]: unnamed own statics`, imports.has('core-js/modules/es.array.from-async'), read);
+    check(`default coverage/${ label } [${ emitter }]: no prototype usage`, imports.has('core-js/modules/es.array.find'), false);
     check(`default coverage/${ label } over Promise [${ emitter }]: own static`,
       polyfilledImports.has('core-js/modules/es.promise.all-settled'), named || wide);
     check(`default coverage/${ label } over Promise [${ emitter }]: unrelated family`,

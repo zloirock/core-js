@@ -41,6 +41,8 @@ import {
   unwrapRuntimeExpr,
   isTransparentWrapper,
   patternEdgeSide,
+  patternBindsName,
+  patternHasAnyDefault,
   peelChainAssignment,
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
@@ -471,7 +473,8 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
 }
 
 // The destructured guarded-alias narrow (`const { groupBy: g } = M`): admit a named binding
-// and an uncomputed key, and return the existing identity guard. Direct hosts can replace their
+// and a proven effect-free key, and return the existing identity guard. Direct scalar hosts also
+// retain user defaults; their raw branch reads once before testing undefined. Direct hosts can replace their
 // binding or split a fully answered pattern; a pattern with an unanswered prop keeps it in the
 // original node and `detach`es only a claim at its EDGE ('before' / 'after'), so source order holds.
 // Nested hosts can capture their receiver for the same guard; an instance fallback takes that
@@ -488,9 +491,18 @@ export function planGuardedDestructureNarrow({
   isConsumedProp = null,
 }) {
   if (patternNode?.type !== 'ObjectPattern' || !patternNode.properties.length) return null;
-  if (propNode?.computed || (propNode?.shorthand && propNode.value?.type !== 'Identifier')) return null;
-  const binding = propNode?.value;
+  const defaultValue = propNode?.value?.type === 'AssignmentPattern' ? propNode.value.right : null;
+  const binding = defaultValue ? propNode.value.left : propNode?.value;
   if (binding?.type !== 'Identifier' && binding?.type !== 'ObjectPattern') return null;
+  const ctx = { scope: path?.scope, adapter, path };
+  if (propNode.computed && (!adapter || resolveKey({
+    node: propNode.key, computed: true, bailOnSideEffectKey: true, ...ctx,
+  }) !== meta.key)) return null;
+  // Nested captures retain their own pattern/default renderer. The scalar extension owns direct
+  // hosts only; rest over an uncertain constructor keeps its native reads and exclusions.
+  if ((defaultValue || propNode.computed) && (binding.type !== 'Identifier'
+    || !['VariableDeclarator', 'AssignmentExpression'].includes(hostNode?.type)
+    || patternNode.properties.some(item => item.type === 'RestElement'))) return null;
   // A nested guard must occupy this property's Get without moving surrounding bindings.
   // The capture keeps ordinary outer siblings in order; a rest still needs its own copy plan.
   // A constructor read can itself feed a nested pattern. Guard that outer Get before the pattern
@@ -535,8 +547,8 @@ export function planGuardedDestructureNarrow({
   // answers for every one of them. a prop it cannot answer would have to reach the claim funnel on
   // its own, and only one leg re-visits what it splices, so the two would disagree about it; with
   // every prop answered here nothing is left for that pass to do. each has to be re-spellable for
-  // the split at all: a rest gathers what no read names, a computed key would be printed twice, and
-  // a default belongs to its own canon
+  // the split at all: a rest gathers what no read names; a computed key must fold without effects.
+  // Scalar defaults use the existing single-read default renderer on the guard's raw branch.
   const receiverNode = nested ? { type: 'Identifier', name: '' } : isDeclarator ? hostNode.init : hostNode.right;
   function memberOf(key) {
     return {
@@ -558,25 +570,26 @@ export function planGuardedDestructureNarrow({
     : patternNode.properties;
   const splitProps = remainingProps.filter(item => item.type !== 'RestElement');
   const split = (nested && !captureCandidate) || (splitProps.length === 1 && !restResidual) ? null : splitProps.map(item => {
-    if (item.computed || item.value?.type !== 'Identifier') return null;
-    const key = item.key?.name ?? item.key?.value ?? null;
+    const fallback = item.value?.type === 'AssignmentPattern' ? item.value.right : null;
+    const target = fallback ? item.value.left : item.value;
+    if (target?.type !== 'Identifier' || (nested || restResidual) && (fallback || item.computed)) return null;
+    const key = item.computed ? adapter && resolveKey({
+      node: item.key, computed: true, bailOnSideEffectKey: true, ...ctx,
+    }) : item.key?.name ?? item.key?.value ?? null;
     if (key === null) return null;
-    if (item === propNode) return { key, name: item.value.name, plan: null, self: true };
+    if (item === propNode) return { key, name: target.name, prop: item, plan: null, self: true, defaultValue: fallback };
     const sibling = planGuardedStaticNarrow({
       memberNode: memberOf(key), parent: null, meta: { ...meta, key }, path, resolvePure, adapter,
     });
-    return sibling && !sibling.bail ? { key, name: item.value.name, plan: sibling, self: false } : null;
+    return sibling && !sibling.bail ? { key, name: target.name, prop: item, plan: sibling, self: false, defaultValue: fallback } : null;
   });
   let detach = null;
   if (split && split.some(item => !item)) {
     detach = patternEdgeSide({ properties: remainingProps }, propNode);
-    if (!detach || nested || restResidual || binding.type !== 'Identifier' || (!isDeclarator && !hostInStatement)
+    if (!detach || nested || restResidual || binding.type !== 'Identifier'
       || unwrapRuntimeExpr(decidedReceiverSpelling(receiverNode, meta.decidedReceiver))?.type !== 'Identifier') return null;
   }
-  // ... and the split needs a host whose VALUE nobody reads: a declaration, or an assignment
-  // standing as its own statement - an assignment in value position yields the receiver, and the
-  // pieces of a split cannot
-  if (split && !captureCandidate && !isDeclarator && !hostInStatement) return null;
+  // A split in value position captures its RHS and yields that same value after the writes.
   // ... and the REST residual needs a declaration to sit in: an assignment host would have to
   // re-spell the whole pattern as a second assignment, which is a shape of its own
   if (restResidual && !isDeclarator) return null;
@@ -594,10 +607,22 @@ export function planGuardedDestructureNarrow({
   // would leave it standing in front of whichever read the claim happens to be. a receiver the guard
   // CAPTURES (`captureGuardReceiver`: `const { groupBy } = box.C`) is read once too, so it renders only
   // where the guard takes the receiver's whole place - not in a render spelling it once per read
-  if ((split || detach) && plan.seqPrefix.length) return null;
-  if (plan.captureReceiver && (split || detach || restResidual
+  if ((split || detach) && plan.seqPrefix.length || plan.captureReceiver && (split || detach || restResidual
     || remainingProps.length !== patternNode.properties.length)) return null;
-  for (const item of detach ? [] : split ?? []) if (item.self) item.plan = plan;
+  if (defaultValue) plan.destructureDefault = { value: defaultValue, name: binding.name };
+  for (const item of detach ? [] : split ?? []) {
+    if (item.self) item.plan = plan;
+    if (item.defaultValue) item.plan.destructureDefault = { value: item.defaultValue, name: item.name };
+  }
+  // A default or a binding target can rebind the source before the next read or the RHS result.
+  // Capture once for those scalar forms, including an edge guard in a value-position assignment.
+  const scalarExtension = defaultValue || propNode.computed
+    || splitProps.some(item => item.value?.type === 'AssignmentPattern' || item.computed);
+  if (!nested && (isSoleAssignment && (split || detach || !hostInStatement) && patternBindsName(patternNode, plan.recvIdent.name)
+    || (detach ? propNode.computed || patternHasAnyDefault(patternNode) || isSoleAssignment && !hostInStatement
+      : scalarExtension && split || isSoleAssignment && !hostInStatement && (scalarExtension || split)))) {
+    plan.captureReceiver = receiverNode;
+  }
   return {
     plan,
     detach,

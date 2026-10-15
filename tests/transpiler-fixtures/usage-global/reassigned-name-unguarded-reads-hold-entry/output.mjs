@@ -56,7 +56,7 @@ import "core-js/modules/web.url-search-params.delete";
 import "core-js/modules/web.url-search-params.has";
 import "core-js/modules/web.url-search-params.size";
 // a reassigned name is served through the identity guard its host renders, over values that guard
-// can name. an `in` test, a slot default, a for-of head and a parameter's `in` render none, and a
+// can name, including scalar defaults. an `in` test, a for-of head and a parameter's `in` render none, and a
 // getter with an effect is no value the guard names: each keeps the whole pure entry of what it may
 // hold, and usage-global injects the static it reads off each
 let probed = Set;
