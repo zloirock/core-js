@@ -153,18 +153,20 @@ var createElementHolder = function (holder, key) {
   };
 };
 
-// own keys of objects are sorted - integer-like keys are moved to the beginning,
+// own keys of objects are sorted - integer-like keys are moved to the beginning, and some old engines
+// (like Firefox < 39) skip the own `__proto__` key of a null prototype object in the enumeration,
 // so such keys should be marked and restored in the serialized string
 var getKeyPrefix = function (propertyList) {
   for (var i = 0, length = propertyList.length; i < length; i++) {
-    if (exec(digits, propertyList[i])) return KEY_MARK;
+    var key = propertyList[i];
+    if (key === '__proto__' || exec(digits, key)) return KEY_MARK;
   } return '';
 };
 
 // `SerializeJSONObject` iterates the property list, so the value is replaced with an object with keys in this order
 var createOrderedObject = function (value, propertyList, keyPrefix) {
-  // keys are not marked if the property list has no integer-like keys, so `Object.prototype`
-  // with a setter, a non-writable property or `__proto__` should not intercept the assignment
+  // keys are not marked if the property list has neither integer-like keys nor `__proto__`,
+  // so `Object.prototype` with a setter or a non-writable property should not intercept the assignment
   var ordered = create(null);
   for (var i = 0, length = propertyList.length; i < length; i++) {
     var key = propertyList[i];
