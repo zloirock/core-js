@@ -8,5 +8,5 @@ for (const [{
   groupBy
 } = {
   groupBy: _Map$groupBy
-}] of [[undefined]]) _pushMaybeArray(out).call(out, groupBy([1, 2], x => x % 2).size);
+}] of [[undefined]]) (_pushMaybeArray(out) || 0).call(out, groupBy([1, 2], x => x % 2).size);
 export { out };

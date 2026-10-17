@@ -10,7 +10,7 @@ let k = 0;
 if (flag) M = _Map;
 export const plainReceiver = M === _Map ? _Map$groupBy : M.groupBy;
 export const seqReceiver = (n++, M === _Map ? _Map$groupBy : M.groupBy);
-export const seqReceiverCall = (n++, M === _Map ? _Map$groupBy : M.groupBy.bind(M))(new _Map([[1, 1]]), x => x);
+export const seqReceiverCall = (n++, M === _Map ? _Map$groupBy(new _Map([[1, 1]]), x => x) : M.groupBy(new _Map([[1, 1]]), x => x));
 // NEGATIVE: a side-effecting KEY stays raw - the guard's taken branch would skip the effect the
 // source always evaluates. read raw off the swapped binding, it takes the static ON it: the alias
 // imports the whole constructor (`map`), where the narrow one answered only through the guarded

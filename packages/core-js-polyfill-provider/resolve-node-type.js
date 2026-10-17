@@ -2798,6 +2798,7 @@ function createResolveNodeType(babelNodeType, t, {
     narrowByGuardsCluster.reset();
     nameResolutionCluster.reset();
     bindingAnalysisCluster.reset(options);
+    memberResolveCluster.reset();
     classFieldsCluster.reset();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();

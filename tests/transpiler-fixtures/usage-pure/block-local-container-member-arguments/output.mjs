@@ -7,7 +7,7 @@ export function f(g) {
   const C = [];
   {
     const a = g();
-    _pushMaybeArray(C).call(C, a.b, a.b);
+    (_pushMaybeArray(C) || 0).call(C, a.b, a.b);
   }
   return C.x.y;
 }

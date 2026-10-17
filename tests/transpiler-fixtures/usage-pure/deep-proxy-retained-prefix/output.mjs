@@ -4,4 +4,4 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // Collapsing a deep proxy receiver must retain the prefix and its own static claim.
 // The prefix runs before the outer call, and both statics need separate polyfills.
 const effects = [];
-const result = (_pushMaybeArray(effects).call(effects, _Array$of('prefix')[0]), _Array$from)([7]);
+const result = ((_pushMaybeArray(effects) || 0).call(effects, _Array$of('prefix')[0]), _Array$from)([7]);

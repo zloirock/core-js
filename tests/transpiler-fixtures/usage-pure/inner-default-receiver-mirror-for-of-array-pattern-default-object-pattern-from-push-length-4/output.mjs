@@ -8,5 +8,5 @@ for (const [[{
   from
 } = {
   from: _Array$from
-}]] of [[[undefined]]]) _pushMaybeArray(out).call(out, from([1]).length);
+}]] of [[[undefined]]]) (_pushMaybeArray(out) || 0).call(out, from([1]).length);
 export { out };

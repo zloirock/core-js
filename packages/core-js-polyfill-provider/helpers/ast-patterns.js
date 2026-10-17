@@ -11,6 +11,7 @@ import {
 } from '../resolve-node-type/base.js';
 import { NESTED_BINDING_INTRODUCERS, nodeAlwaysReaches } from '../resolve-node-type/exit-analysis.js';
 import { moduleIdLanguage } from './path-normalize.js';
+import { pushMultimap } from './pattern-matching.js';
 
 // the escape census, keyed by PROGRAM node -> the NAMES a value handed out (a call argument, a
 // member-assignment RHS, a throw / yield / export-default), alias hops followed. written by the
@@ -6561,6 +6562,13 @@ function pairerSources(rhs, ctx) {
   return rhs && !CENSUS_CONTAINER_TYPES.has(rhs.type) && !isReceiverShapedNode(rhs) ? ctx?.pairedSources?.(rhs, ctx) : null;
 }
 
+// The read a pattern slot takes from a receiver, or an invocation when its caller reads through.
+// Nested levels read through only on request; both pairers take that same source spelling.
+function patternSourceSlotRead(rhs, key, ctx, nested = false) {
+  return key !== null && (isReceiverShapedNode(rhs) || (ctx?.readsThrough && invocationNode(rhs)))
+    && (!nested || ctx?.readsThrough) ? receiverSlotRead(rhs, key) : null;
+}
+
 // the pattern SLOTS the binding `name` is spelled at whose value is a receiver read - the pairing of
 // `patternSlotValues` walked for its node rather than its value. a census that anchors on positions
 // has nothing else to name here: the read itself is synthesized over the receiver's span, and the
@@ -6569,8 +6577,8 @@ function pairerSources(rhs, ctx) {
 // `includeNestedReceivers` also reports a receiver read whose value feeds a nested pattern: a
 // guarded constructor yielded there must carry the static slots that pattern subsequently reads.
 // `includeBindings` includes every named slot, so an opaque receiver's static reads are counted
-// even when no particular local binding is queried. `slotReceivers` maps each reported slot to the
-// receiver its level reads it off.
+// even when no particular local binding is queried. `slotReceivers` maps each reported slot to ALL
+// receivers its level reads it off: supplied candidates and defaults may share one property node.
 // `keepsSelectedReceiver` reports reads from a selection retained by a value-consuming host.
 // `restSources` collects the source values of object-rest levels during the same pairing walk, and
 // `restValues` each rest level of either kind with the source it copies from (`restCopiedValues`).
@@ -6579,6 +6587,8 @@ function pairerSources(rhs, ctx) {
 // `selectionLevels` collects each level whose value SELECTS (the arms `flattenBranchingValueNodes`
 // splits) with its pattern, for a caller reading the level one arm per run: no slot is read off the
 // selection here
+// `positionalReads` collects slots reached through a nonliteral array source. Their synthesized
+// member reads are a census approximation; the scoped claim may resolve a single reaching value.
 // `rawReads` collects each slot reached through a STORE below the source - or through one at all where
 // the source itself stands below the host's (`belowSource`: a default, a for-of element): pure's mirror
 // steps through no such store, which would rewrite a container the store hands to another reader, and
@@ -6620,8 +6630,13 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       }
       const slot = patternSlotTarget(element);
       if (!isDestructurePattern(slot)) continue;
-      const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, at) : [];
-      for (const candidate of candidates) out.push(...patternReceiverSlotNodes(slot, candidate, name, ctx));
+      const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, at)
+        : [patternSourceSlotRead(rhs, String(at), ctx, true)].filter(Boolean);
+      for (const candidate of candidates) {
+        const slots = patternReceiverSlotNodes(slot, candidate, name, ctx);
+        out.push(...slots);
+        if (rhs?.type !== 'ArrayExpression') for (const read of slots) ctx?.positionalReads?.add(read);
+      }
       if (element.type === 'AssignmentPattern') out.push(...patternReceiverSlotNodes(slot, element.right, name, ctx));
     }
     return out;
@@ -6646,12 +6661,11 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
     // ... the same sources `patternSlotValues` pairs against: the container slot, the receiver read
     // and the slot's own default. the first two are exclusive by construction - a paired value means
     // an object / array literal rhs, which is never receiver-shaped
-    const received = isReceiverShapedNode(rhs) || (ctx?.readsThrough && invocationNode(rhs))
-      || (ctx?.keepsSelectedReceiver && getFallbackBranchSlots(rhs)) ? receiverSlotRead(rhs, key) : null;
+    const received = patternSourceSlotRead(rhs, key, ctx)
+      ?? (ctx?.keepsSelectedReceiver && getFallbackBranchSlots(rhs) ? receiverSlotRead(rhs, key) : null);
     if (isDestructurePattern(slot)) {
       if (received && ctx?.includeNestedReceivers) {
-        out.push(prop);
-        ctx.slotReceivers?.set(prop, rhs);
+        recordPatternReceiverSlot(out, prop, rhs, ctx);
       }
       const source = paired ?? received;
       if (source) out.push(...patternReceiverSlotNodes(slot, source, name, ctx));
@@ -6661,11 +6675,16 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       continue;
     }
     if (received && slot?.type === 'Identifier' && (slot.name === name || ctx?.includeBindings)) {
-      out.push(prop);
-      ctx?.slotReceivers?.set(prop, rhs);
+      recordPatternReceiverSlot(out, prop, rhs, ctx);
     }
   }
   return out;
+}
+
+// A slot can be visited against several sources. Keep each receiver beside the one source node.
+function recordPatternReceiverSlot(out, prop, rhs, ctx) {
+  out.push(prop);
+  if (ctx?.slotReceivers) pushMultimap(ctx.slotReceivers, prop, rhs);
 }
 
 // the function's OWN return statements: a shallow walk that does not descend into nested
@@ -6995,12 +7014,6 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       });
     });
   }
-  const readable = isReceiverShapedNode(rhs) || (!!ctx?.readsThrough && !!invocationNode(rhs));
-  // the read a slot of such a source stands for, where the pairer asks for it: a leaf always, a
-  // nested level where the caller reads through (`readsThrough`)
-  function sourceSlotRead(key, nested) {
-    return key !== null && readable && (!nested || ctx?.readsThrough) ? receiverSlotRead(rhs, key) : null;
-  }
   function propKey(prop) {
     return patternPropKey(prop, ctx, pattern);
   }
@@ -7020,7 +7033,8 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       // so enumerate them all; the spread's items stay unenumerable, which
       // `patternSlotSpreadShifted` reports to consumers that need the union to be COMPLETE
       const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, i)
-        : [ctx?.readsThrough && element?.type !== 'RestElement' && sourceSlotRead(String(i), isDestructurePattern(slot))].filter(Boolean);
+        : [ctx?.readsThrough && element?.type !== 'RestElement'
+          && patternSourceSlotRead(rhs, String(i), ctx, isDestructurePattern(slot))].filter(Boolean);
       if (isDestructurePattern(slot)) {
         for (const cand of candidates) out.push(...patternSlotValues(slot, cand, name, ctx));
         if (includeDefaults && element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
@@ -7057,7 +7071,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
           : [];
       const paired = candidates.filter(Boolean);
       if (isDestructurePattern(slot)) {
-        const levels = paired.length ? paired : [sourceSlotRead(key, true)].filter(Boolean);
+        const levels = paired.length ? paired : [patternSourceSlotRead(rhs, key, ctx, true)].filter(Boolean);
         for (const cand of levels) out.push(...patternSlotValues(slot, cand, name, ctx));
         if (includeDefaults && prop.value.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, prop.value.right, name, ctx));
         continue;
@@ -7070,7 +7084,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       // `globalThis.Promise` exactly like the identifier-assignment form (`M = globalThis.Promise`).
       // an unresolvable receiver just fails downstream resolution, same as no value
       else {
-        const read = sourceSlotRead(key, false);
+        const read = patternSourceSlotRead(rhs, key, ctx);
         if (read) out.push(read);
       }
     }
@@ -14395,6 +14409,59 @@ export function performsNothing(value, ctx = null) {
   return inner?.type === 'Identifier'
     && (ctx?.injectorState?.isOwnPassGeneratedName?.(inner.name) || ctx?.injectorState?.isOwnPassPureBinding?.(inner.name))
     && isReusableReceiver(inner, { ctx });
+}
+
+// Unlike discarding source, rejecting a call may skip allocations whose values it never consumes.
+// Coercion, getters and argument iteration still precede the non-callable error.
+// Plain value reads, including typeof, do not justify a guard; preserving a missing/TDZ
+// read's ReferenceError over this TypeError is outside this effect-order repair.
+export function callArgumentMayBeObserved(value, ctx = null, depth = 0) {
+  const node = unwrapRuntimeExpr(value);
+  if (node?.type === 'Identifier') return false;
+  if (!node || performsNothing(node, ctx)) return false;
+  if (depth >= SIDE_EFFECTS_MAX_DEPTH) return true;
+  if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') return false;
+  function observes(child) {
+    return callArgumentMayBeObserved(child, ctx, depth + 1);
+  }
+  function primitiveKind(operand) {
+    let inner = unwrapRuntimeExpr(operand);
+    if (inner?.type === 'Identifier' && ctx?.adapter) inner = unwrapRuntimeExpr(followConstIdentifierInit({ node: inner, ctx }).node);
+    if (isQuietLiteralOperand(inner) && inner.type !== 'RegExpLiteral' && !inner.regex) {
+      const primitive = literalNodeValue(inner);
+      return primitive === null ? 'null' : typeof primitive;
+    }
+    if (isMemberAccessNode(inner) && memberKeyName(inner) === 'length'
+      && typeof literalNodeValue(unwrapRuntimeExpr(inner.object)) === 'string') return 'number';
+    return null;
+  }
+  // A boxed string's own length is immutable data, so this read cannot invoke a getter.
+  if (isMemberAccessNode(node) && primitiveKind(node)) return false;
+  if (node.type === 'UnaryExpression') {
+    if (node.operator === 'void' || node.operator === '!' || node.operator === 'typeof') return observes(node.argument);
+    const kind = primitiveKind(node.argument);
+    if ((node.operator === '-' || node.operator === '+' || node.operator === '~') && kind) {
+      return observes(node.argument) || node.operator === '+' && kind === 'bigint';
+    }
+    return true;
+  }
+  if (node.type === 'ArrayExpression') return node.elements.some(observes);
+  if (node.type === 'ObjectExpression') return node.properties.some(property => property.type === 'SpreadElement'
+    || property.computed && (!isQuietLiteralOperand(property.key) || property.key.type === 'RegExpLiteral' || property.key.regex)
+    || observes(property.value));
+  if (node.type === 'SequenceExpression') return node.expressions.some(observes);
+  if (node.type === 'LogicalExpression' || node.type === 'BinaryExpression' && (node.operator === '===' || node.operator === '!==')) {
+    return observes(node.left) || observes(node.right);
+  }
+  if (node.type === 'BinaryExpression' && node.operator !== 'in' && node.operator !== 'instanceof') {
+    const left = primitiveKind(node.left);
+    const right = primitiveKind(node.right);
+    if (left && right && left !== 'bigint' && right !== 'bigint') return observes(node.left) || observes(node.right);
+  }
+  if (node.type === 'ConditionalExpression') return observes(node.test) || observes(node.consequent) || observes(node.alternate);
+  if (node.type === 'TemplateLiteral') return node.expressions.some(expression => !isQuietLiteralOperand(expression)
+    || expression.type === 'RegExpLiteral' || expression.regex);
+  return true;
 }
 
 // ... and one the build's render put there: a binding this pass minted is its own wherever it stands, a literal

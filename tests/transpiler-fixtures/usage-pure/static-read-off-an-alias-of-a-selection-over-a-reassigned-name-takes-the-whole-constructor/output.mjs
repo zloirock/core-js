@@ -14,7 +14,7 @@ const iterated = [];
 for (let X of [_Iterator, Array]) {
   if (iterated.length) X = null;
   const held = X ?? Object;
-  _pushMaybeArray(iterated).call(iterated, typeof held.from);
+  (_pushMaybeArray(iterated) || 0).call(iterated, typeof held.from);
 }
 export { iterated };
 let M = _Map;

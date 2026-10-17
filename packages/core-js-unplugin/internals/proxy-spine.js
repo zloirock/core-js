@@ -93,6 +93,7 @@ import {
   renderShortCircuitGuard,
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
+  renderMethodCallMember,
   renderDestructureAssignments,
   renderNavCollapseLeaf,
   renderNavCollapseTail,
@@ -240,8 +241,8 @@ export default function createProxySpineChannel(ctx) {
   }
 
   // runtime ctor guard render: the DECISION is the shared provider plan,
-  // this only composes nodes - `M === _Map ? _Map$groupBy : M.groupBy`, a callee raw branch
-  // binding `this` via `.bind(M)`
+  // this only composes nodes - `M === _Map ? _Map$groupBy : M.groupBy`. A raw callee binds
+  // `this`, or its call stays in the branch when argument timing needs it.
   function emitGuardedStaticNarrow(meta, metaPath, parent) {
     const memberNode = metaPath.node;
     const plan = planGuardedStaticNarrow({ memberNode, parent, meta, path: metaPath, resolvePure, adapter });
@@ -272,7 +273,13 @@ export default function createProxySpineChannel(ctx) {
       const call = { ...cloneNode(parent), callee, optional };
       for (const arg of call.arguments) liveArguments.add(arg);
       // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
-      if (thisArg) Object.assign(call, { callee: { ...callee, optional }, arguments: [thisArg, ...call.arguments], optional: false });
+      if (thisArg) Object.assign(call, {
+        callee: renderMethodCallMember(callee.object, {
+          optional, args: call.arguments, ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState: injector },
+        }),
+        arguments: [thisArg, ...call.arguments],
+        optional: false,
+      });
       // an absorbed optional call is its own chain in the branch it lands in
       return optional ? chainExpression(call) : call;
     } : undefined, captureSource);

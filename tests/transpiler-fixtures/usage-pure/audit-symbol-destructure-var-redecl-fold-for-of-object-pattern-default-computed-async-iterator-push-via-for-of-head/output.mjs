@@ -7,5 +7,5 @@ for (const {
 } of [{
   asyncIterator: _Symbol$asyncIterator
 }]) {
-  _pushMaybeArray(export_).call(export_, [][viaForOfHead]);
+  (_pushMaybeArray(export_) || 0).call(export_, [][viaForOfHead]);
 }

@@ -14,5 +14,5 @@ const {
     of: _Array$of
   }
 };
-const result = _concatMaybeArray(_ref = f([1])).call(_ref, o(2));
+const result = (_concatMaybeArray(_ref = f([1])) || 0).call(_ref, o(2));
 export { result };

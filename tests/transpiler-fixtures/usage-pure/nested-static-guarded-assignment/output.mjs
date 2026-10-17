@@ -17,7 +17,7 @@ try {
     Array: {
       [(_pushMaybeArray(events).call(events, 'key'), 'from')]: from
     },
-    [(_pushMaybeArray(events).call(events, _atMaybeString('x').call('x', 0), typeof from), 'Object')]: {
+    [((_pushMaybeArray(events) || 0).call(events, _atMaybeString('x').call('x', 0), typeof from), 'Object')]: {
       keys
     }
   } = (_pushMaybeArray(events).call(events, 'source'), {} = null == _globalThis.window ? void 0 : _self, {
@@ -46,10 +46,10 @@ try {
     Array: {}
   } = _ref, _pushMaybeArray(events).call(events, 'partial'), method = _Array$from, {
     Object: {
-      keys: box[_pushMaybeArray(events).call(events, method === pureFrom, _atMaybeString('y').call('y', 0)), 'value']
+      keys: box[(_pushMaybeArray(events) || 0).call(events, method === pureFrom, _atMaybeString('y').call('y', 0)), 'value']
     }
   } = _ref;
 } catch (error) {
-  _pushMaybeArray(events).call(events, _nameMaybeFunction(error));
+  (_pushMaybeArray(events) || 0).call(events, _nameMaybeFunction(error));
 }
 export const partial = [method === pureFrom, typeof box.value];

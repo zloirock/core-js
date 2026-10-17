@@ -10,5 +10,5 @@ const seen = [];
 for (const {
   at,
   ...rest
-} of [rows]) _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest);
+} of [rows]) (_pushMaybeArray(seen) || 0).call(seen, typeof at, 'at' in rest);
 export { seen };

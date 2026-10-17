@@ -212,8 +212,8 @@ runBoth('guarded static keeps the instance fallback', 'receiver.entries;', (adap
 
 // a captured static whose key other receivers carry as an instance method absorbs the call too: the raw
 // branch invokes the instance dispatch's method through `.call`, the captured receiver leading the
-// arguments, as the ordinary dispatch invokes it - a nullish method throws ahead of them there alike, and
-// an absorbed `?.()` asks the method itself. a tagged template keeps that ordinary dispatch
+// arguments, as the ordinary dispatch invokes it. Its call renderer preserves observable arguments
+// before rejection, and an absorbed `?.()` asks the method itself. A tagged template keeps that dispatch
 for (const [source, expected] of [
   ['held.Object.entries(effect());', 'call'],
   ['held.Object.entries?.(effect());', 'call'],
@@ -777,6 +777,32 @@ for (const [label, source, captured] of [
   checkTruthy(`${ name }/admitted`, plan && !plan.bail);
   check(`${ name }/capture`, !!plan.captureReceiver, captured);
   check(`${ name }/callee stays in its branch`, plan.callInBranches, true);
+});
+
+// Ordinary calls with observable arguments must not bind a possibly absent raw method first.
+for (const [source, expected] of [
+  ['receiver.of(effect());', 'call'],
+  ['(receiver.of)(effect());', 'call'],
+  ['receiver.of({ value: effect() });', 'call'],
+  ['receiver.of(...effect());', 'call'],
+  ['receiver.of(value);', 'read'],
+  ['receiver.of(-1);', 'read'],
+  ['receiver.of(1 + 2);', 'read'],
+  ['receiver.of?.(effect());', 'bail'],
+  ['receiver?.of(effect());', 'bail'],
+]) runBoth(`uncaptured static argument timing/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'of')
+    ?? parser.pickPath(program, 'OptionalMemberExpression', item => item.node.property.name === 'of');
+  const parent = peelParenAndTSSlotPath(path).parentPath;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: parent.node, path, adapter,
+    meta: { key: 'of', guardedAliasHint: 'Array' },
+    resolvePure: meta => meta.kind === 'property' && meta.object === 'Array' && meta.key === 'of'
+      ? { kind: 'static', entry: 'array/of', hintName: 'of' } : null,
+  });
+  check(`${ label }/route`, plan?.bail ? 'bail' : plan?.callInBranches ? 'call' : 'read', expected);
+  check(`${ label }/no receiver capture`, !!plan?.captureReceiver, false);
 });
 
 finish();
