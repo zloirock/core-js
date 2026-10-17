@@ -1,0 +1,7 @@
+// a bare same-name `var` redeclaration writes NO value, but the scope trackers record a
+// phantom violation for it in parser-specific shapes (babel: the valueless declarator;
+// estree: the redeclared identifier). the phantom must not poison the Symbol destructure
+// alias - the extract folds and the use reads the well-known symbol on BOTH emitters
+var { iterator } = Symbol;
+var iterator;
+export const viaRedecl = [][iterator];

@@ -1,3 +1,4 @@
+// fixture-size: 44 -- Resolving the receiver requires following forty consecutive TypeScript aliases in the same lexical scope. Splitting the chain into files or shortening it removes the depth regression.
 type T0 = number[];
 type T1 = T0;
 type T2 = T1;

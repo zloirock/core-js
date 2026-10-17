@@ -1,0 +1,1 @@
+enum PatPatched { OF = 'of' }
