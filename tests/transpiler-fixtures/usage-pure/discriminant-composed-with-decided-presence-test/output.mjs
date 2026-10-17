@@ -3,11 +3,9 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _sliceMaybeArray from "@core-js/pure/actual/array/instance/slice";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// a discriminant check composed with a presence test this build always answers narrows by the part
-// of the test that runs: a test always false leaves `||` to its right, a test always true leaves `&&`
-// to it, a decided conditional its live arm, an exit's too - and a write to the discriminant after it
-// drops the narrow as it would after the bare check. a test always true over `||` and an undecided one
-// narrow nothing
+// A discriminant check composed with a presence test this build always answers narrows by the part of the test that runs: a test
+// always false leaves `||` to its right, a test always true leaves `&&` to it, a decided conditional its live arm, an exit's too -
+// and a write to the discriminant after it drops the narrow as it would after the bare check.
 type Box = {
   kind: 'text';
   data: string;

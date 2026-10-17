@@ -1,0 +1,1 @@
+for ([Number] of streams) use(Number.isFinite(value));

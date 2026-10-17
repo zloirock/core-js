@@ -1,0 +1,1 @@
+const viaNull = ((null)<string>)(1);

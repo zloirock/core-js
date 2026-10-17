@@ -1,0 +1,3 @@
+namespace Outer {
+  class WeakSet {}
+}

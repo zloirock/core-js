@@ -270,6 +270,17 @@ for (const [emitter, imports] of [
   ['unplugin', unpluginImports('export function read(key) { return Reflect[key]; }', { ...GLOBAL, mode: 'full' })],
 ]) check(`${ emitter }: full Reflect keeps its symbol tag`, imports.has('core-js/modules/es.reflect.to-string-tag'), true);
 
+// A default can replace a parameter before the function returns it. Its write has unknown
+// scope provenance when the parameter and body share a name, rather than a file-level owner.
+const defaultRebind = 'function read(value, later = (value = Array)) { return value; } use(read(Promise).of(4));';
+for (const [emitter, imports] of [
+  ['babel', await babelImports(defaultRebind, GLOBAL)],
+  ['unplugin', unpluginImports(defaultRebind, GLOBAL)],
+]) {
+  check(`${ emitter }: a default write retains its selected static`, imports.has('core-js/modules/es.array.of'), true);
+  check(`${ emitter }: a default write needs no unrelated static`, imports.has('core-js/modules/es.array.from'), false);
+}
+
 // A returned array's named method still needs its own polyfill.
 for (const [emitter, imports] of [
   ['babel', await babelImports('export const value = Array.of(3).find(x => x);', GLOBAL)],

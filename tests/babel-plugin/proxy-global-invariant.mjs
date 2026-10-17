@@ -1,11 +1,13 @@
 // Independent output invariant: a runtime reference to a backed proxy global must be
 // substituted or belong to a reviewed exception. Local bindings and erased types do not count.
 // Window/global have no pure entry and are intentionally outside this invariant.
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse } from '@babel/parser';
 import _traverse from '@babel/traverse';
 import { createChecker } from '../polyfill-provider/harness.mjs';
+import { collectFixtures } from './fixture-shards.mjs';
 
 const traverse = _traverse.default ?? _traverse;
 const { check, checkDeep, checkTruthy, finish } = createChecker('proxy-global-invariant');
@@ -25,7 +27,8 @@ const ALLOWED = new Map([
   ['audit-opaque-root-se-key-keeps-its-claim', Array(5).fill('globalThis')],
   ['audit-proxy-host-optional-erases-by-entry', Array(2).fill('globalThis')],
   ['audit-realm-fold-drops-its-guard', Array(3).fill('globalThis')],
-  ['audit-realm-run-under-an-excluded-root', Array(2).fill('globalThis')],
+  ['audit-realm-run-under-an-excluded-root-bare-root', ['globalThis']],
+  ['audit-realm-run-under-an-excluded-root-guarded-over-store', ['globalThis']],
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
   ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
   ['realm-alias-window-probe-native-root', ['globalThis', 'self']],
@@ -36,7 +39,10 @@ const ALLOWED = new Map([
   ['audit-mutated-hop-slot-reads', ['self']],
   ['audit-mutated-proxy-root-reads', ['self', 'self']],
   ['audit-mutated-self-copy-mutated-receiver', ['self']],
-  ['audit-nested-proxy-destructure-binding-narrows', Array(4).fill('self')],
+  ['audit-nested-proxy-destructure-binding-narrows-mut-from', ['self']],
+  ['audit-nested-proxy-destructure-binding-narrows-mut-iter', ['self']],
+  ['audit-nested-proxy-destructure-binding-narrows-via-alias', ['self']],
+  ['audit-nested-proxy-destructure-binding-narrows-via-param', ['self']],
   ['realm-name-install-leaves-bare-globals-served', ['globalThis', 'globalThis', 'globalThis']],
   ['realm-root-replaced-keeps-the-generic-dispatch', ['self']],
   // Babel's scope tracker does not register these TS runtime bindings before lowering.
@@ -76,10 +82,11 @@ checkDeep('unbacked environment names', references('consume(window, global);'), 
 
 let checked = 0;
 const seen = new Set();
-for (const directory of await readdir(ROOT)) {
+for (const fixture of await collectFixtures(fileURLToPath(ROOT))) {
+  const directory = relative(fileURLToPath(ROOT), fixture).replaceAll('\\', '/');
   for (const filename of ['output.mjs', 'output-unplugin.mjs']) {
     let source;
-    try { source = await readFile(new URL(join(directory, filename), ROOT), 'utf8'); } catch (error) {
+    try { source = await readFile(join(fixture, filename), 'utf8'); } catch (error) {
       if (error.code === 'ENOENT' || error.code === 'ENOTDIR') continue;
       throw error;
     }

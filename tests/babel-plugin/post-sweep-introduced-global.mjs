@@ -296,6 +296,8 @@ for (const importStyle of [undefined, 'require']) {
 
 // A bare async source names no Promise static that could decorate the narrow constructor.
 // Run the repository's actual sibling lowering pipeline, then assert its entire import set.
+// Regenerator reads named Symbol keys; an inner parameter named `r` must not hand out the
+// outer `r` holding Symbol. An actual exported Symbol below still requires its namespace.
 {
   const lowering = requireBabel('../../babel.config.js');
   const expected = [
@@ -305,14 +307,19 @@ for (const importStyle of [undefined, 'require']) {
     '@core-js/pure/actual/object/define-property',
     '@core-js/pure/actual/object/get-prototype-of',
     '@core-js/pure/actual/promise',
-    '@core-js/pure/actual/symbol',
     '@core-js/pure/actual/symbol/async-iterator',
+    '@core-js/pure/actual/symbol/constructor',
     '@core-js/pure/actual/symbol/iterator',
     '@core-js/pure/actual/symbol/to-string-tag',
   ];
   for (const importStyle of ['import', 'require']) for (const [label, source, imports] of [
     ['tiny async', 'export async function run() { return 1; }', expected],
     ['early constructor', 'export const early = new Promise(resolve => resolve(0)); export async function run() { return 1; }', expected],
+    [
+      'exported symbol',
+      'export function symbols() { return Symbol; } export async function run() { return 1; }',
+      expected.map(name => name === '@core-js/pure/actual/symbol/constructor' ? '@core-js/pure/actual/symbol' : name).sort(),
+    ],
     [
       'author constructor',
       "import Kept from '@core-js/pure/actual/promise/constructor';"
@@ -332,6 +339,9 @@ for (const importStyle of [undefined, 'require']) {
     });
     const actual = code.matchAll(/require\(["'](?<source>@core-js\/pure\/[^"']+)["']\)/gu).map(match => match.groups.source).toArray().sort();
     checkTruthy(`late namespace/${ importStyle }/${ label }/exact imports`, JSON.stringify(actual) === JSON.stringify(imports), JSON.stringify(actual));
+    const context = { exports: {}, require: createRequire(import.meta.url), Symbol: undefined };
+    runInNewContext(code, context);
+    checkTruthy(`late namespace/${ importStyle }/${ label }/runtime without native Symbol`, await context.exports.run() === 1);
   }
 }
 

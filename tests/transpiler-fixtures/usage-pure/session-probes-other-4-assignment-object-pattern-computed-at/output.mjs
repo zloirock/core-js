@@ -1,0 +1,8 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+const k = 'k';
+{
+  const k = 'w';
+  let m;
+  m = _atMaybeArray([1, 2]);
+  use(m);
+}
