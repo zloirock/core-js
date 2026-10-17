@@ -43,6 +43,8 @@ function zxCliPath() {
 export async function collectFixtures(directory, out = []) {
   const names = (await fs.readdir(directory)).sort();
   if (names.includes('input.mjs')) {
+    const source = await fs.readFile(path.join(directory, 'input.mjs'), 'utf8');
+    checkFixtureSize(source, directory);
     out.push(directory);
     return out;
   }
@@ -56,6 +58,26 @@ export async function collectFixtures(directory, out = []) {
   // either - that check compares counters against what was COLLECTED, and this never was
   if (out.length === before) throw new Error(`fixture tree: ${ directory } holds no input.mjs and no fixture below it`);
   return out;
+}
+
+// Count source lines, including trivia, before any skip or OVERWRITE path can admit a fixture.
+// An exception carries its own ceiling so an indivisible regression cannot grow unchecked.
+export function checkFixtureSize(source, directory) {
+  const rows = source.split(/\r\n|[\n\r\u{2028}\u{2029}]/u);
+  const lines = source ? rows.length - Number(/[\n\r\u{2028}\u{2029}]$/u.test(source)) : 0;
+  const [first] = rows;
+  const directive = /^\/\/ fixture-size: (?<maxLines>\d+) -- \S.*$/u.exec(first);
+  const limit = directive ? Number(directive.groups.maxLines) : 30;
+  if (/^\/\/\s*fixture-size\b/u.test(first) && (!directive || !Number.isSafeInteger(limit) || limit <= 30)) {
+    throw new Error(`fixture size: ${ directory } has an invalid fixture-size directive`);
+  }
+  if (lines <= 30) {
+    if (directive) throw new Error(`fixture size: ${ directory } no longer needs a fixture-size directive`);
+    return;
+  }
+  if (lines > limit) {
+    throw new Error(`fixture size: ${ directory } has ${ lines } lines (limit ${ limit }); split independent claims`);
+  }
 }
 
 export function defaultShardCount(fixtureCount) {
