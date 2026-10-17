@@ -4,6 +4,7 @@ import _of from "@core-js/pure/actual/array/of";
 import _getIterator from "@core-js/pure/actual/get-iterator";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getPrototypeOf from "@core-js/pure/actual/object/get-prototype-of";
+// fixture-size: 32 -- The getter installs an iterator return accessor during the same parameter read. Installation, read and restoration must share one input to test that order.
 // A visible late return accessor keeps IteratorClose around the original native reads.
 const events = [];
 const rawArray = Function('return Array')();
