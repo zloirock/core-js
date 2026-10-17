@@ -8,7 +8,7 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 const log = [];
 function observe(read) {
   try {
-    _pushMaybeArray(log).call(log, typeof read());
+    (_pushMaybeArray(log) || 0).call(log, typeof read());
   } catch {
     _pushMaybeArray(log).call(log, 'tdz');
   }

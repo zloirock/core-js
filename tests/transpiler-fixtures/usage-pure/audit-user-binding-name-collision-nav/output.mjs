@@ -43,4 +43,4 @@ export { _globalThis, _globalThis2, _self };
 // the dispatches above take a nav receiver, which carries no type, so they record the GENERIC
 // entry. this row narrows: a literal receiver resolves to `array`, and the element type `at`
 // yields carries the second call to `string`. a single-family dispatch shows neither verdict
-export const typedNarrowing = null == (_ref5 = _atMaybeArray(_ref6 = ['ab', 'cd']).call(_ref6, (null == _globalThis3.window ? void 0 : _self2.collideBox.list) ? 0 : 1)) ? void 0 : _includesMaybeString(_ref5).call(_ref5, 'a');
+export const typedNarrowing = null == (_ref5 = (_atMaybeArray(_ref6 = ['ab', 'cd']) || 0).call(_ref6, (null == _globalThis3.window ? void 0 : _self2.collideBox.list) ? 0 : 1)) ? void 0 : _includesMaybeString(_ref5).call(_ref5, 'a');

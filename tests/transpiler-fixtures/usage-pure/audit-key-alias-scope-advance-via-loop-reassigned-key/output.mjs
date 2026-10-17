@@ -5,7 +5,7 @@ export const loopOut = [];
 let loopKey = 'from';
 export function viaLoopReassignedKey() {
   for (let i = 0; i < 2; i++) {
-    _pushMaybeArray(loopOut).call(loopOut, Array[loopKey]?.([1]));
+    (_pushMaybeArray(loopOut) || 0).call(loopOut, Array[loopKey]?.([1]));
     loopKey = 'of';
   }
 }

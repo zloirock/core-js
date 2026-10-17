@@ -959,6 +959,10 @@ export function createMemberResolve({
 
   // A cached reference keeps its source call role when a rewrite clones its receiver into a helper.
   const arrayMemberCallRoles = new WeakMap();
+  // References in the binding's own scope can share a read-only proof across receiver rewrites.
+  // Recrawls of that scope, changed reference bags and resets invalidate it; captured uses and
+  // positional writes never enter it, since a child crawl can preserve the outer bag's identity.
+  let arrayElementReadProofs = new WeakMap();
 
   // descend a member chain to the identifier it is rooted at; anything else returns as-is
   function memberChainRootPath(path) {
@@ -973,6 +977,7 @@ export function createMemberResolve({
   // element hold at all. a permuting mutator is admitted there and records its key, and a destructure
   // of the binding - which copies elements out and puts none back - reads like any other read.
   // `followed` is the reference an alias read reached this binding through (`aliasedElementsMayBeRetyped`)
+  // eslint-disable-next-line max-statements -- keep the shared read-only proof and per-read writer fold in one pass
   function arrayElementsMayBeRetyped(objectPath, anchorPath, {
     elementWrites = null, permutes = null, followed = null, literalPath = null,
   } = {}) {
@@ -993,10 +998,16 @@ export function createMemberResolve({
     if (!t.isIdentifier(objectPath?.node)) return false;
     const binding = getScopeBinding({ scope: objectPath.scope, name: objectPath.node.name, path: objectPath });
     if (!binding) return true;
-    let references = collectBindingReferences(binding, anchorPath);
     const sourceName = elementWrites && objectBindingName(literalPath);
     const sourceBinding = sourceName && getScopeBinding({ scope: literalPath.scope, name: sourceName, path: literalPath });
     if (sourceName && !sourceBinding) return true;
+    const nativeReferences = binding.referencePaths ?? binding.references;
+    const cacheable = elementWrites && !permutes && !followed && sourceBinding === binding
+      && !binding.constantViolations?.length && Array.isArray(nativeReferences);
+    const proof = cacheable && arrayElementReadProofs.get(literalPath.node);
+    if (proof && proof.binding === binding && proof.references === nativeReferences
+      && proof.size === nativeReferences.length) return false;
+    let references = collectBindingReferences(binding, anchorPath);
     const lifetimeBinding = sourceBinding || binding;
     const hasAlias = elementWrites && (sourceBinding && sourceBinding !== binding || references?.some(ref => ref.parentPath?.node?.type
       === 'VariableDeclarator' && ref.parentPath.node.init === ref.node && t.isIdentifier(ref.parentPath.node.id)));
@@ -1008,7 +1019,9 @@ export function createMemberResolve({
     // a retyping write may exist and simply be out of reach. reading it as "no references" kept
     // the element narrow alive over writes nobody looked at
     if (!references || references.includes(null)) return true;
+    let readOnly = !hasAlias && !!binding.scope;
     for (const ref of references) {
+      if (ref.scope !== binding.scope) readOnly = false;
       if (ref.node === followed) continue;
       const member = ref.parentPath;
       const memberNode = member?.node;
@@ -1041,6 +1054,7 @@ export function createMemberResolve({
         && t.isIdentifier(memberNode.id)) continue;
       if (!isMemberRead) return true;
       if (isMemberWriteHost(member)) {
+        readOnly = false;
         const write = member.parentPath;
         // An exact direct assignment can supply this element's type. Other writers and
         // escapes still veto it; the caller proves that the collected write reaches the read.
@@ -1104,6 +1118,9 @@ export function createMemberResolve({
         return true;
       }
     }
+    if (cacheable && readOnly) arrayElementReadProofs.set(literalPath.node, {
+      binding, references: nativeReferences, size: nativeReferences.length,
+    });
     return false;
   }
 
@@ -1252,6 +1269,8 @@ export function createMemberResolve({
   }
 
   return {
+    // A later pass over the same tree must re-establish its source proof.
+    reset() { arrayElementReadProofs = new WeakMap(); },
     resolveMemberCallChain,
     resolveBindingReturnInfo,
     memberCallReturnAnnotation,

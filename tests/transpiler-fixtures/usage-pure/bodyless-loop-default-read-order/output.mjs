@@ -28,6 +28,6 @@ for (const _ref3 of [[], []]) {
     {
       sibling: second
     } = _ref;
-  _pushMaybeArray(results).call(results, [of(3), dash, first, second]);
+  (_pushMaybeArray(results) || 0).call(results, [of(3), dash, first, second]);
 }
 use(results, events);

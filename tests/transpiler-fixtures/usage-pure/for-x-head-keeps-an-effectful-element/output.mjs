@@ -70,6 +70,6 @@ for (const _ref of [make(7)]) {
     from: _unused,
     ...rest
   } = _ref;
-  _pushMaybeArray(log).call(log, typeof from, 'from' in rest);
+  (_pushMaybeArray(log) || 0).call(log, typeof from, 'from' in rest);
 }
 export { log };

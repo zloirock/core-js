@@ -10,7 +10,7 @@ const out = [];
   } = {
     from: _Array$from
   }
-}) => _pushMaybeArray(out).call(out, from([1]).length))({
+}) => (_pushMaybeArray(out) || 0).call(out, from([1]).length))({
   k: {
     from: _Array$from
   }

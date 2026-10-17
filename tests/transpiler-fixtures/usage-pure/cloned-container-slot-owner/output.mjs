@@ -3,7 +3,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 // Rewriting push clones its argument, including the container declarations inside it.
 // The clone must retain its own slot writes, without borrowing a namesake's records.
 export const values = [];
-_pushMaybeArray(values).call(values, (() => {
+(_pushMaybeArray(values) || 0).call(values, (() => {
   const holder = {
     item: {
       slot: Array
