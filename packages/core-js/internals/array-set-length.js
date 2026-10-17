@@ -1,17 +1,11 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
-var isArray = require('../internals/is-array');
-
 var $TypeError = TypeError;
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var isArray = Array.isArray;
 
 // Safari < 13 does not throw an error in this case
-var SILENT_ON_NON_WRITABLE_LENGTH_SET = DESCRIPTORS && !function () {
-  // makes no sense without proper strict mode support
-  if (this !== undefined) return true;
+var SILENT_ON_NON_WRITABLE_LENGTH_SET = !function () {
   try {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).length = 1;
   } catch (error) {
     return error instanceof TypeError;

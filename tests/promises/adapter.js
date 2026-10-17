@@ -1,11 +1,11 @@
 'use strict';
 delete globalThis.Promise;
 
-const pkg = process.argv.includes('--pure') ? 'core-js-pure' : 'core-js';
+const pkg = process.argv.includes('--pure') ? '@core-js/pure' : 'core-js';
 
 // eslint-disable-next-line import/no-dynamic-require -- dynamic
-const Promise = require(`../../packages/${ pkg }/es/promise`);
-const assert = require('node:assert');
+const Promise = require(`${ pkg }/es/promise`);
+const assert = require('node:assert/strict');
 
 module.exports = {
   deferred() {

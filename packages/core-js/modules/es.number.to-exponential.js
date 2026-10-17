@@ -1,9 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
-var $repeat = require('../internals/string-repeat');
 var log10 = require('../internals/math-log10');
 var fails = require('../internals/fails');
 
@@ -15,7 +15,8 @@ var floor = Math.floor;
 var pow = Math.pow;
 var round = Math.round;
 var nativeToExponential = uncurryThis(1.1.toExponential);
-var repeat = uncurryThis($repeat);
+// @dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 
 var POW_10_308 = pow(10, 308);
@@ -29,15 +30,6 @@ var ROUNDS_PROPERLY = nativeToExponential(-6.9e-11, 4) === '-6.9000e-11'
   // FF86-, V8 ~ Chrome 49-50
   && nativeToExponential(25, 0) === '3e+1';
 
-// IE8-
-var throwsOnInfinityFraction = function () {
-  return fails(function () {
-    nativeToExponential(1, Infinity);
-  }) && fails(function () {
-    nativeToExponential(1, -Infinity);
-  });
-};
-
 // Safari <11 && FF <50
 var properNonFiniteThisCheck = function () {
   return !fails(function () {
@@ -46,7 +38,7 @@ var properNonFiniteThisCheck = function () {
   });
 };
 
-var FORCED = !ROUNDS_PROPERLY || !throwsOnInfinityFraction() || !properNonFiniteThisCheck();
+var FORCED = !ROUNDS_PROPERLY || !properNonFiniteThisCheck();
 
 // `Number.prototype.toExponential` method
 // https://tc39.es/ecma262/#sec-number.prototype.toexponential
@@ -103,5 +95,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     }
     m += 'e' + c + d;
     return s + m;
-  }
+  },
 });

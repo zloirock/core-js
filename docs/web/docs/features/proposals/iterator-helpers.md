@@ -23,5 +23,8 @@ class Iterator {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/iterator-helpers-stage-3-2
+core-js/proposals/iterator-helpers
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-helpers`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-helpers.d.ts)

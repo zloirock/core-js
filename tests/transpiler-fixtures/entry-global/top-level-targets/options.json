@@ -1,0 +1,14 @@
+{
+  "targets": {
+    "chrome": 135
+  },
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "entry-global",
+        "version": "4.0"
+      }
+    ]
+  ]
+}

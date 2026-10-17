@@ -1,0 +1,7 @@
+import _getIterator from "@core-js/pure/actual/get-iterator";
+// OPTIONAL get-iterator on a comma-sequence receiver whose computed Symbol.iterator key also
+// carries a side-effect prefix. the receiver-SE runs once inside the null guard and its stable
+// tail can be reused; the key-SE must fold into the guard's alternate so it runs only when the receiver is
+// non-nullish (native short-circuits the key eval on a nullish receiver). `r()` then `k()`.
+let recv = [1, 2, 3];
+const it = null == (r(), recv) ? void 0 : (k(), _getIterator(recv));

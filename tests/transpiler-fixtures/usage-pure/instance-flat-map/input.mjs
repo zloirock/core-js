@@ -1,0 +1,1 @@
+arr.flatMap(x => [x]);

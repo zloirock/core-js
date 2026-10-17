@@ -4,11 +4,17 @@ var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.resolve
+var Promise = getBuiltIn('Promise');
+
 module.exports = function (iterator, method, argument, reject) {
   try {
     var returnMethod = getMethod(iterator, 'return');
     if (returnMethod) {
-      return getBuiltIn('Promise').resolve(call(returnMethod, iterator)).then(function (result) {
+      return Promise.resolve(call(returnMethod, iterator)).then(function (result) {
         try {
           if (method !== reject) anObject(result);
         } catch (error3) {
@@ -22,6 +28,6 @@ module.exports = function (iterator, method, argument, reject) {
     }
   } catch (error2) {
     // the original error (`argument`) takes priority over `return()` errors
-    return method === reject ? reject(argument) : reject(error2);
+    return reject(method === reject ? argument : error2);
   } method(argument);
 };

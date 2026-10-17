@@ -1,0 +1,1 @@
+JSON.stringify(obj);

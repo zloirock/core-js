@@ -1,0 +1,9 @@
+unknown: `module ... {}` declarations must have a string name. Use `namespace ... {}` instead. (4:0)
+
+[0m [90m 2 |[39m [90m// @babel/parser@8 rejects (reserves `module` for external-module declarations with a[39m
+ [90m 3 |[39m [90m// string name). modern equivalent lives in at-call-ts-namespace-body[39m
+[31m[1m>[22m[39m[90m 4 |[39m module [33mN[39m {
+ [90m   |[39m [31m[1m^[22m[39m
+ [90m 5 |[39m   [36mexport[39m [36mconst[39m x [33m=[39m [[35m1[39m[33m,[39m [35m2[39m[33m,[39m [35m3[39m][33m.[39mat([35m0[39m)[33m;[39m
+ [90m 6 |[39m }
+ [90m 7 |[39m[0m

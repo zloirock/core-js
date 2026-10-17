@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/es/symbol';
-import cooked from 'core-js-pure/full/string/cooked';
+import Symbol from '@core-js/pure/es/symbol';
+import cooked from '@core-js/pure/full/string/cooked';
 
 QUnit.test('String.cooked', assert => {
   assert.isFunction(cooked);

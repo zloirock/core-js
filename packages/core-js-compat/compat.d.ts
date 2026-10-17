@@ -1,4 +1,4 @@
-import type { ModuleName, Target, TargetVersion } from "./shared";
+import type { ModuleName, Target, TargetVersion } from "./shared.js";
 
 type StringOrRegExp = string | RegExp;
 
@@ -20,16 +20,16 @@ type CompatOptions = {
   modules?: Modules,
   /** a blacklist, entry / module / namespace / an array of them, by default - empty list */
   exclude?: Modules,
-  /** optional browserslist or core-js-compat format query */
+  /** optional browserslist or `@core-js/compat` format query */
   targets?: Targets | BrowserslistQuery,
+  /** directory to search for browserslist config (for monorepos) */
+  configPath?: string,
+  /** do not use browserslist config, only explicit `targets` */
+  ignoreBrowserslistConfig?: boolean,
   /** used `core-js` version, by default the latest */
   version?: string,
   /** inverse of the result, shows modules that are NOT required for the target environment */
   inverse?: boolean,
-  /**
-   * @deprecated use `modules` instead
-   */
-  filter?: Modules
 };
 
 type CompatOutput = {
@@ -45,4 +45,4 @@ type CompatOutput = {
 
 declare function compat(options?: CompatOptions): CompatOutput;
 
-export = compat;
+export default compat;

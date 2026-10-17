@@ -1,0 +1,1 @@
+sink(Symbol('x'));

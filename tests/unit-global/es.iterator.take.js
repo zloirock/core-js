@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 QUnit.test('Iterator#take', assert => {
@@ -16,10 +15,8 @@ QUnit.test('Iterator#take', assert => {
   assert.arrayEqual(take.call(createIterator([1, 2, 3]), 0).toArray(), [], 'zero');
   assert.arrayEqual(take.call(createIterator([1, 2, 3]), Infinity).toArray(), [1, 2, 3], 'Infinity');
 
-  if (STRICT) {
-    assert.throws(() => take.call(undefined, 1), TypeError);
-    assert.throws(() => take.call(null, 1), TypeError);
-  }
+  assert.throws(() => take.call(undefined, 1), TypeError);
+  assert.throws(() => take.call(null, 1), TypeError);
 
   assert.throws(() => take.call({}, 1).next(), TypeError);
   assert.throws(() => take.call([], 1).next(), TypeError);
@@ -29,6 +26,21 @@ QUnit.test('Iterator#take', assert => {
   assert.throws(() => take.call(it, -Infinity), RangeError, '-Infinity');
   assert.throws(() => take.call(it, 0x20000000000000), RangeError, 'unsafe integer');
   assert.true(it.closed, 'take closes iterator on validation error');
+  // .return() on wrapper propagates to underlying iterator
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    const taken = take.call(it2, 2);
+    taken.next();
+    taken.return();
+    assert.same(returnCount, 1, '.return() on taken iterator propagates to underlying');
+  }
+
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => take.call({ next: null }, 1).next(), TypeError);
 });

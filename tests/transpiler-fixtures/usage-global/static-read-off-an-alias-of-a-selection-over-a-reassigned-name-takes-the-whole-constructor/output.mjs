@@ -1,0 +1,70 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.group-by";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.with-resolvers";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.push";
+import "core-js/modules/es.global-this";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.chunks";
+import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.iterator.drop";
+import "core-js/modules/es.iterator.every";
+import "core-js/modules/es.iterator.filter";
+import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.from";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.iterator.join";
+import "core-js/modules/es.iterator.map";
+import "core-js/modules/es.iterator.reduce";
+import "core-js/modules/es.iterator.some";
+import "core-js/modules/es.iterator.take";
+import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.windows";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.from-code-point";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+import "core-js/modules/web.url.constructor";
+import "core-js/modules/web.url.can-parse";
+import "core-js/modules/web.url.to-json";
+import "core-js/modules/web.url-search-params.constructor";
+import "core-js/modules/web.url-search-params.delete";
+import "core-js/modules/web.url-search-params.has";
+import "core-js/modules/web.url-search-params.size";
+// a name some write reassigns is read through the identity guard its writes register, and so is a plain
+// alias of it; an alias of a selection of it with another value holds what no such guard names, so the read
+// stays as written and the constructor takes its whole entry - a written for-of head and a written binding,
+// selected by `??`, `||` or a ternary, one constructor per row. a plain alias keeps the guard
+const iterated = [];
+for (let X of [Iterator, Array]) {
+  if (iterated.length) X = null;
+  const held = X ?? Object;
+  iterated.push(typeof held.from);
+}
+export { iterated };
+let M = Map;
+if (globalThis.c) M = null;
+const maps = M || Object;
+export const grouped = maps.groupBy([1, 2], x => x % 2);
+let P = Promise;
+if (globalThis.c) P = null;
+const promises = globalThis.d ? Object : P;
+export const resolvers = typeof promises.withResolvers;
+let U = URL;
+if (globalThis.c) U = null;
+const urls = U;
+export const parsable = urls.canParse('x:');

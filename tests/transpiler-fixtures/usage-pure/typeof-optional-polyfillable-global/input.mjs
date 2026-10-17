@@ -1,0 +1,1 @@
+typeof globalThis?.Map === "function";

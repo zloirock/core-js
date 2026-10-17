@@ -6,20 +6,16 @@ var setArrayLength = require('../internals/array-set-length');
 var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
-// IE8-
-var INCORRECT_RESULT = [].unshift(0) !== 1;
-
 // V8 ~ Chrome < 71 and Safari <= 15.4, FF < 23 throws InternalError
 var properErrorOnNonWritableLength = function () {
   try {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).unshift();
   } catch (error) {
     return error instanceof TypeError;
   }
 };
 
-var FORCED = INCORRECT_RESULT || !properErrorOnNonWritableLength();
+var FORCED = !properErrorOnNonWritableLength();
 
 // `Array.prototype.unshift` method
 // https://tc39.es/ecma262/#sec-array.prototype.unshift
@@ -41,5 +37,5 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
         O[j] = arguments[j];
       }
     } return setArrayLength(O, len + argCount);
-  }
+  },
 });

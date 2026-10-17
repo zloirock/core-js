@@ -1,0 +1,1 @@
+Error.isError(x).toString();

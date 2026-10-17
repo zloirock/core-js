@@ -1,0 +1,8 @@
+// proving WHICH global a call root yields is not proving it yields a DEFINED one: a body that
+// navigates to the environment probe is undefined off-window, so a `?.` over such a call is
+// load-bearing. erased, the collapse read the ponyfill where the source short-circuits - and the
+// plan built on that root rendered a test that dereferences the probe
+let n = 0, w;
+// a SEALED live `?.` over a kept write: the write stores the probe, so the test is the write itself
+export const sealedKeptWrite = ((w = globalThis.window)?.self)?.Promise.resolve(1);
+export { w };

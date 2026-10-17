@@ -1,7 +1,7 @@
 # setImmediate
 
 ## Module 
-[`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
+[`web.set-immediate`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.set-immediate.js) and [`web.clear-immediate`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.clear-immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
 
 ## Built-ins signatures
 ```ts
@@ -14,6 +14,9 @@ function clearImmediate(id: number): void;
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/efficient-script-yielding`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/efficient-script-yielding.d.ts)
 
 ## Examples
 ```js

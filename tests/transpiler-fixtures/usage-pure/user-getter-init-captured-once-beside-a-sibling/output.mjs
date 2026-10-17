@@ -1,0 +1,87 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
+import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
+import _Array$of from "@core-js/pure/actual/array/of";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
+import _Promise from "@core-js/pure/actual/promise";
+import _Promise$try from "@core-js/pure/actual/promise/try";
+var _ref6;
+// Nested claims beside constructor statics retain one evaluation of each user getter receiver.
+// A proven class getter narrows its prototype to Array and preserves its sibling statics.
+class KE {
+  static get A() {
+    log();
+    return Array;
+  }
+  static get I() {
+    log();
+    return _Iterator;
+  }
+  static get P() {
+    log();
+    return _Promise;
+  }
+}
+const OE = {
+  get A() {
+    log();
+    return Array;
+  }
+};
+const _ref = KE.A;
+const m1 = _atMaybeArray(_ref.prototype);
+const a1 = _Array$from;
+const _ref2 = KE.A;
+const m2 = _flatMaybeArray(_ref2.prototype);
+const {
+  foo: r2
+} = _ref2;
+const _ref4 = KE.A,
+  {
+    prototype: _ref3
+  } = _ref4,
+  m3 = _withMaybeArray(_ref3),
+  f3 = _toSortedMaybeArray(_ref3),
+  {
+    bar: a3
+  } = _ref4;
+const _ref5 = OE.A;
+const m4 = _findLastMaybeArray(_ref5.prototype);
+const a4 = _Array$fromAsync;
+export const {
+  prototype: {
+    drop: m5
+  }
+} = KE.I;
+export const a5 = _Iterator$concat;
+const z6 = 1;
+const {
+  prototype: {
+    take: m6
+  }
+} = KE.I;
+const a6 = _Iterator$from;
+const m7 = _flatMapMaybeArray(Array.prototype);
+const {
+  isArray: a7
+} = Array;
+let m8, a8;
+_ref6 = KE.A;
+m8 = _toReversedMaybeArray(_ref6.prototype);
+a8 = _Array$of;
+const _ref7 = KE.P,
+  a9 = _Promise$try,
+  {
+    prototype: {
+      finally: m9
+    }
+  } = _ref7;
+use(m1, a1, m2, r2, m3, f3, a3, m4, a4, z6, m6, a6, m7, a7, m8, a8, a9, m9);

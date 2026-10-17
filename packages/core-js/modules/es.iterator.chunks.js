@@ -1,3 +1,4 @@
+// @types: proposals/iterator-chunking
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
@@ -30,13 +31,14 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.prototype.chunks` method
-// https://tc39.es/ecma262/#sec-iterator.prototype.chunks
+// https://github.com/tc39/proposal-iterator-chunking
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   chunks: function chunks(chunkSize) {
     anObject(this);
     chunkSizeValidation(chunkSize, this);
     return new IteratorProxy(getIteratorDirect(this), {
-      chunkSize: chunkSize
+      chunkSize: chunkSize,
     });
-  }
+  },
 });

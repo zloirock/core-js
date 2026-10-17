@@ -1,0 +1,1 @@
+new Map().clear().toString();

@@ -1,9 +1,9 @@
 /* eslint-disable @stylistic/max-len -- ok */
 import { createIterable } from '../helpers/helpers.js';
 import { PROTO } from '../helpers/constants.js';
-import getIterator from 'core-js-pure/es/get-iterator';
-import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
+import getIterator from '@core-js/pure/es/get-iterator';
+import setPrototypeOf from '@core-js/pure/es/object/set-prototype-of';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
 
 QUnit.test('Math.sumPrecise', assert => {
   const { sumPrecise } = Math;
@@ -79,7 +79,9 @@ QUnit.test('Math.sumPrecise', assert => {
   assert.same(sumPrecise([-1, -HALF_ULP, Number.MIN_VALUE]), -1, 'just above the negative tie');
   assert.same(sumPrecise([-1, -HALF_ULP, -Number.MIN_VALUE]), -1 - ULP, 'just below the negative tie');
 
-  const customIterator = () => getIterator(createIterable([100, 200, 300]));
+  function customIterator() {
+    return getIterator(createIterable([100, 200, 300]));
+  }
 
   // https://issues.chromium.org/issues/500536164
   if (PROTO) {

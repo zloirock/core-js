@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -22,7 +23,7 @@ var FORCED = IS_PURE || TAKE_WITHOUT_THROWING_ON_INVALID_ITERATOR || takeWithout
   try {
     // eslint-disable-next-line es/no-iterator, es/no-iterator-prototype-take -- detection
     Iterator.prototype.take.call({
-      next: function () { return { done: true }; }
+      next: function () { return { done: true }; },
     }, 0x20000000000000);
   } catch (error) {
     return error instanceof $RangeError;
@@ -42,6 +43,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.take` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.take
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   take: function take(limit) {
     anObject(this);
@@ -58,7 +60,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (takeWithoutClosingOnEarlyError) return call(takeWithoutClosingOnEarlyError, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

@@ -1,12 +1,8 @@
 import { nullProto } from '../helpers/helpers.js';
 
-import $allSettledKeyed from 'core-js-pure/actual/promise/all-settled-keyed';
-import Promise from 'core-js-pure/actual/promise';
-import create from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import keys from 'core-js-pure/es/object/keys';
-import Symbol from 'core-js-pure/es/symbol';
+import $allSettledKeyed from '@core-js/pure/actual/promise/all-settled-keyed';
+import Promise from '@core-js/pure/actual/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise.allSettledKeyed', assert => {
   const { allSettledKeyed } = Promise;
@@ -77,8 +73,8 @@ QUnit.test('Promise.allSettledKeyed, synchronous callbacks', assert => {
     assert.deepEqual(result.a, { status: 'fulfilled', value: 1 }, 'synchronous fulfillment');
     assert.deepEqual(result.b, { status: 'rejected', reason: -2 }, 'synchronous rejection');
     assert.deepEqual(result[symbol], { status: 'fulfilled', value: 3 }, 'symbol key');
-    assert.deepEqual(keys(result), ['a', 'b'], 'key order');
-    assert.same(getPrototypeOf(result), null, 'null prototype');
+    assert.deepEqual(Object.keys(result), ['a', 'b'], 'key order');
+    assert.same(Object.getPrototypeOf(result), null, 'null prototype');
   });
 });
 
@@ -98,7 +94,7 @@ QUnit.test('Promise.allSettledKeyed, mixed synchronous and asynchronous callback
       b: { status: 'fulfilled', value: 2 },
       c: { status: 'fulfilled', value: 3 },
     }), 'preserves all entries');
-    assert.deepEqual(keys(result), ['a', 'b', 'c'], 'key order');
+    assert.deepEqual(Object.keys(result), ['a', 'b', 'c'], 'key order');
   });
 });
 
@@ -117,9 +113,9 @@ QUnit.test('Promise.allSettledKeyed, resolved with empty object', assert => {
 });
 
 QUnit.test('Promise.allSettledKeyed, resolved with hidden attributes', assert => {
-  const obj = create({ proto: Promise.resolve('hidden') });
+  const obj = Object.create({ proto: Promise.resolve('hidden') });
   obj.visible = Promise.resolve(42);
-  defineProperty(obj, 'invisible', { value: Promise.resolve(99), enumerable: false });
+  Object.defineProperty(obj, 'invisible', { value: Promise.resolve(99), enumerable: false });
   return Promise.allSettledKeyed(obj).then(it => {
     assert.deepEqual(it, nullProto({ visible: { status: 'fulfilled', value: 42 } }), 'ignores prototype/invisible');
   });
@@ -199,7 +195,7 @@ QUnit.test('Promise.allSettledKeyed, result object has null prototype', assert =
     b: Promise.resolve(2),
   }).then(result => {
     assert.strictEqual(
-      getPrototypeOf(result),
+      Object.getPrototypeOf(result),
       null,
       'Result object has null prototype',
     );
@@ -226,7 +222,7 @@ QUnit.test('Promise.allSettledKeyed, keys order', assert => {
     b: new Promise(resolve => setTimeout(() => resolve(2), 10)),
     c: Promise.resolve(3),
   }).then(it => {
-    const actualKeys = keys(it);
+    const actualKeys = Object.keys(it);
     assert.deepEqual(actualKeys, ['a', 'b', 'c'], 'correct order in the case when promises resolves in different order');
   });
 });
