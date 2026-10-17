@@ -11,5 +11,5 @@ for (const [{
   from
 } = {
   from: _Array$from
-}] of [[pick()]]) _pushMaybeArray(out).call(out, from([1])[0]);
+}] of [[pick()]]) (_pushMaybeArray(out) || 0).call(out, from([1])[0]);
 export { out };

@@ -17,7 +17,7 @@ function pureLeftPrefix({
 }
 function seLeftPrefix({
   from
-} = (_pushMaybeArray(log).call(log, _Object$fromEntries([])), {
+} = ((_pushMaybeArray(log) || 0).call(log, _Object$fromEntries([])), {
   from: _Array$from
 })) {
   return from;

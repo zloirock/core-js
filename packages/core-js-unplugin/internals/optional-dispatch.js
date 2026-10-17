@@ -61,6 +61,7 @@ import {
   memberExpression,
   nullGuardTest,
   renderNavCollapseLeaf,
+  renderMethodCallMember,
   renderNavCollapseTail,
   renderShortCircuitGuard,
   sequenceExpression,
@@ -1602,6 +1603,7 @@ export default function createOptionalDispatchChannel(ctx) {
     const { check, lookupArg, callReceiver } = spelling;
     ({ guardDisjuncts } = spelling);
     let built;
+    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
     // the paren-lookup twin under a guard: `(X?.nav.m)(args)` keeps the native throw on the
     // void branch - the guard wraps only the LOOKUP and `.call` rides the ternary
     // (`(test ? void 0 : _mMaybe(_ref = nav)).call(_ref, args)`)
@@ -1610,7 +1612,7 @@ export default function createOptionalDispatchChannel(ctx) {
     if (isCall && parenWrapped && test && !callOptional) {
       const lookup = callExpression(identifier(id), [lookupArg]);
       built = callExpression(
-        memberExpression(renderShortCircuitGuard(test, lookup), identifier('call')),
+        renderMethodCallMember(renderShortCircuitGuard(test, lookup), { args: parent.arguments, ctx: receiverCtx }),
         [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
       );
       const returnTypePl = valueIsDroppedAt(climbTransparentWrapperPath(callerPath)) ? null : resolveNodeType(callerPath);
@@ -1622,7 +1624,7 @@ export default function createOptionalDispatchChannel(ctx) {
     if (isCall) {
       const lookup = callExpression(identifier(id), [lookupArg]);
       const dispatch = callExpression(
-        memberExpression(lookup, identifier('call'), { optional: callOptional }),
+        renderMethodCallMember(lookup, { optional: callOptional, args: parent.arguments, ctx: receiverCtx }),
         [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
       );
       // the `?.call` needs a chain wrapper of its own ONLY when the original chain does not
@@ -1780,7 +1782,7 @@ export default function createOptionalDispatchChannel(ctx) {
         ...meta.sideEffects.slice(meta.receiverEffectCount ?? 0).map(effect => cloneNode(effect)),
       ];
       const dispatch = callExpression(
-        memberExpression(callExpression(identifier(id), [cloneNode(receiver)]), identifier('call')),
+        renderMethodCallMember(callExpression(identifier(id), [cloneNode(receiver)]), { args: parent.arguments, ctx: receiverCtx }),
         [cloneNode(receiver), ...parent.arguments.map(argument => cloneNode(argument))],
       );
       markRewrite();
@@ -1824,7 +1826,10 @@ export default function createOptionalDispatchChannel(ctx) {
     const fusableReceiver = LITERAL_RECEIVER_TYPES.has(unwrapRuntimeExpr(effReceiver)?.type);
     const fuseMemo = !memberOptional && !guardDisjuncts && fusableReceiver && !interveningEffects && !mayHaveSideEffects(effReceiver);
     const dispatch = callExpression(
-      memberExpression(callExpression(identifier(id), [fuseMemo ? memo : identifier(ref)]), identifier('call')),
+      renderMethodCallMember(callExpression(identifier(id), [fuseMemo ? memo : identifier(ref)]), {
+        args: parent.arguments,
+        ctx: receiverCtx,
+      }),
       [identifier(ref), ...parent.arguments.map(argument => cloneNode(argument))],
     );
     const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(firstReceiver, effect)).map(effect => cloneNode(effect));

@@ -10,5 +10,5 @@ for (const [{
   from: _Array$from
 }] of [[], [{
   from: _Array$from
-}]]) _pushMaybeArray(out).call(out, from([1]).length);
+}]]) (_pushMaybeArray(out) || 0).call(out, from([1]).length);
 export { out };

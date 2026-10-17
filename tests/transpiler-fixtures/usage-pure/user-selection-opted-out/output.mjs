@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
-import _Promise from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 // A line the user opted out of is not rewritten: a decided selection there keeps its text, and its
 // reads are served by nothing this build does - so an alias of it stays undecided where it is used,

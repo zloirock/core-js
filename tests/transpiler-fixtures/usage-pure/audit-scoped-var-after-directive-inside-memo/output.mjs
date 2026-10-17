@@ -11,13 +11,13 @@ export const inArray = _atMaybeArray(_ref = [function () {
   var _ref2;
   return _atMaybeArray(_ref2 = [1]).call(_ref2, 0);
 }()]).call(_ref, 0);
-export const inArgument = _atMaybeArray(_ref3 = [1]).call(_ref3, (() => {
+export const inArgument = (_atMaybeArray(_ref3 = [1]) || 0).call(_ref3, (() => {
   'use strict';
 
   var _ref4;
   return _atMaybeArray(_ref4 = [2]).call(_ref4, 0);
 })());
-export const inOptional = arr == null ? void 0 : _at(arr).call(arr, (() => {
+export const inOptional = arr == null ? void 0 : (_at(arr) || 0).call(arr, (() => {
   'use strict';
 
   var _ref5;

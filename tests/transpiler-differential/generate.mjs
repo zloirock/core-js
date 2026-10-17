@@ -19599,6 +19599,7 @@ export function * generate() {
   yield * generatePriorIteratorFlavors();
   yield * generateImportedKeyShadows();
   yield * generateNestedParameterInstances();
+  yield * generateMethodArgumentEffects();
 }
 
 // A source import and a local key share a spelling, but only the visible binding owns the read.
@@ -19750,5 +19751,40 @@ function * generateNestedParameterInstances() {
         strip: true,
       };
     }
+  }
+}
+
+// Argument evaluation survives a rejected dispatch, including effects inside allocated values.
+function * generateMethodArgumentEffects() {
+  for (const [argument, expression] of [
+    ['object', '{ value: effect() }'],
+    ['sequence', '(effect(), 0)'],
+    ['conditional', 'value ? effect() : 0'],
+    // eslint-disable-next-line no-template-curly-in-string -- the interpolation belongs to generated source
+    ['template', '`value:${value}`'],
+  ]) for (const [host, call, before = '', key = 'at'] of [
+    ['ordinary', 'receiver.at(ARG)'],
+    ['optional receiver', 'receiver?.at(ARG)'],
+    ['optional method', 'receiver.at?.(ARG)'],
+    ['sealed', '(receiver?.at)(ARG)'],
+    ['selected static', 'Ctor.from(ARG)', 'const Ctor = value ? receiver : Array;', 'from'],
+    ['selected instance fallback', 'Ctor.entries(ARG)', 'const Ctor = value ? receiver : Object;', 'entries'],
+  ]) for (const absent of [false, true]) {
+    yield {
+      name: `method-argument-effects/${ argument }/${ host }/${ absent ? 'absent' : 'callable' }`,
+      code: `const log = [];
+        export function read(receiver, value, effect) { ${ before }return ${ call.replace('ARG', expression) }; }
+        const value = { toString() { log.push('coercion'); return '7'; } };
+        const receiver = { get ${ key }() { log.push('lookup'); return ${ absent ? 'undefined' : `function (argument) {
+          log.push(this === receiver ? 'this' : 'lost receiver'); return typeof argument;
+        }` }; } };
+        let r;
+        try { r = read(receiver, value, () => { log.push('argument'); return 7; }); }
+        catch (error) { r = error.name; }
+        export { r };
+        export const effects = log;`,
+      // An own method tests dispatch timing; removing native methods does not arm this family.
+      strip: false,
+    };
   }
 }

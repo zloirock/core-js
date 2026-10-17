@@ -4,5 +4,5 @@ import _at from "@core-js/pure/actual/instance/at";
 // the root, and only its source position tells them apart.
 export function pickLast(fn, o) {
   var _ref, _ref2;
-  return null == (_ref = o.items) ? void 0 : _at(_ref).call(_ref, _findLastIndexMaybeArray(_ref2 = o.items).call(_ref2, fn));
+  return null == (_ref = o.items) ? void 0 : (_at(_ref) || 0).call(_ref, _findLastIndexMaybeArray(_ref2 = o.items).call(_ref2, fn));
 }

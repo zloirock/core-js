@@ -19,7 +19,7 @@ let defaults = 0;
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString('x').call('x', 0)), 'bind')]: bind
+      [((_pushMaybeArray(events) || 0).call(events, _atMaybeString('x').call('x', 0)), 'bind')]: bind
     }
   }
 } = {
@@ -34,14 +34,14 @@ let defaults = 0;
   Array: {}
 } = _globalThis), _pushMaybeArray(events).call(events, 'second'), from = _Array$from, {
   Object: {
-    keys: box[_pushMaybeArray(events).call(events, _atMaybeString('y').call('y', 0)), 'value']
+    keys: box[(_pushMaybeArray(events) || 0).call(events, _atMaybeString('y').call('y', 0)), 'value']
   }
 } = _globalThis;
 ({
   Array: {}
 } = _globalThis), _pushMaybeArray(events).call(events, 'third'), from = _Array$from, {
   Object: {
-    keys: box[_pushMaybeArray(events).call(events, _atMaybeString('z').call('z', 0)), 'value'] = (defaults++, null)
+    keys: box[(_pushMaybeArray(events) || 0).call(events, _atMaybeString('z').call('z', 0)), 'value'] = (defaults++, null)
   }
 } = _globalThis;
 export const result = [from([7])[0], from === pureFrom, typeof bind, typeof box.value, defaults, events];
@@ -49,7 +49,7 @@ function observe() {
   try {
     _pushMaybeArray(events).call(events, typeof boundFrom);
   } catch (error) {
-    _pushMaybeArray(events).call(events, _nameMaybeFunction(error));
+    (_pushMaybeArray(events) || 0).call(events, _nameMaybeFunction(error));
   }
 }
 const {
@@ -58,7 +58,7 @@ const {
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString('a').call('a', 0)), 'bind')]: boundBind
+      [((_pushMaybeArray(events) || 0).call(events, _atMaybeString('a').call('a', 0)), 'bind')]: boundBind
     }
   }
 } = {
@@ -75,7 +75,7 @@ function read({
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString('b').call('b', 0)), 'bind')]: bound
+      [((_pushMaybeArray(events) || 0).call(events, _atMaybeString('b').call('b', 0)), 'bind')]: bound
     }
   }
 } = {

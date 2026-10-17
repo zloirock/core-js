@@ -15,5 +15,5 @@ const log = [];
       this.f = f;
     }
   }
-  _pushMaybeArray(log).call(log, new C1().f === _Array$from, new C1([userObj]).f());
+  (_pushMaybeArray(log) || 0).call(log, new C1().f === _Array$from, new C1([userObj]).f());
 }

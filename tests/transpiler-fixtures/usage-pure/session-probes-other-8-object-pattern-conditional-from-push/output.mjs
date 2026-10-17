@@ -9,5 +9,5 @@ const log = [];
   } = {
     w: 0 ? Array : userObj
   };
-  _pushMaybeArray(log).call(log, f());
+  (_pushMaybeArray(log) || 0).call(log, f());
 }

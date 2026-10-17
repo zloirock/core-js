@@ -9,10 +9,10 @@ for (var _ref of [Array]) {
     from: _unused,
     ...staticRest
   } = _ref;
-  _pushMaybeArray(seen).call(seen, typeof from, 'from' in staticRest);
+  (_pushMaybeArray(seen) || 0).call(seen, typeof from, 'from' in staticRest);
 }
 for (var {
   at,
   ...instanceRest
-} of [[1, 2]]) _pushMaybeArray(seen).call(seen, typeof at, 'at' in instanceRest);
+} of [[1, 2]]) (_pushMaybeArray(seen) || 0).call(seen, typeof at, 'at' in instanceRest);
 export { seen };

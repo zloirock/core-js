@@ -9,5 +9,5 @@ for (const [{
   from
 } = {
   from: _Array$from
-}] of src) _pushMaybeArray(out).call(out, from([1]).length);
+}] of src) (_pushMaybeArray(out) || 0).call(out, from([1]).length);
 export { out };

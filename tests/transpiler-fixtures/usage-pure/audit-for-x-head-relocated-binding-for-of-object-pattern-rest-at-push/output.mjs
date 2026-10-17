@@ -10,6 +10,6 @@ for (const {
   at,
   ...rest
 } of [rows]) {
-  _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest, rest.at(0));
+  (_pushMaybeArray(seen) || 0).call(seen, typeof at, 'at' in rest, rest.at(0));
 }
 export { seen };
