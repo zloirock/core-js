@@ -164,11 +164,11 @@ function mark(t, v) {
     } = arr;
 }
 {
-  const _ref3 = c ? a1 : a2,
-    s = null == _ref3 ? _ref3[""] : (k(), _at(_ref3)),
+  const {} = a1,
+    s = (k(), _at(a1)),
     {
       z
-    } = _ref3;
+    } = a1;
 }
 {
   const {
@@ -184,11 +184,11 @@ function mark(t, v) {
   } = eff();
 }
 {
-  const _ref4 = holder.p,
-    s = null == _ref4 ? _ref4[""] : (k(), _at(_ref4)),
+  const _ref3 = holder.p,
+    s = null == _ref3 ? _ref3[""] : (k(), _at(_ref3)),
     {
       z
-    } = _ref4;
+    } = _ref3;
 }
 {
   const {
@@ -222,7 +222,15 @@ function mark(t, v) {
   };
 }
 {
-  const v = _Array$of;
+  const {
+    a: {
+      of: v
+    }
+  } = {
+    a: {
+      of: _Array$of
+    }
+  };
 }
 {
   const {
@@ -304,15 +312,15 @@ function mark(t, v) {
   }] = [...rest, Array];
 }
 {
-  var _ref5, _ref6;
+  var _ref4, _ref5;
   let a;
-  [_ref5] = [{
+  [_ref4] = [{
     w: src
   }];
   ({
-    [(eff('k'), 'w')]: _ref6
-  } = null == _ref5 ? _ref5[""] : _ref5);
-  a = _at(_ref6);
+    [(eff('k'), 'w')]: _ref5
+  } = null == _ref4 ? _ref4[""] : _ref4);
+  a = _at(_ref5);
 }
 {
   let a;
@@ -321,10 +329,10 @@ function mark(t, v) {
   use(a);
 }
 {
-  var _ref7, _ref8;
+  var _ref6, _ref7;
   let e, k;
-  [_ref7, _ref8] = [(g(), f()), 1];
-  e = _at(_ref7);
-  k = _ref8;
+  [_ref6, _ref7] = [(g(), f()), 1];
+  e = _at(_ref6);
+  k = _ref7;
   use(e, k);
 }

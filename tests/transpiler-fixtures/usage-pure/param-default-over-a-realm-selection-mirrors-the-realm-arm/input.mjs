@@ -1,6 +1,6 @@
-// A parameter default selecting the realm mirrors the realm arm level by level: a defaulted instance leaf
-// off the prototype hop, an instance leaf beside a static, a `Symbol.iterator` slot, a descended prototype
-// hop and a proxy hop over two constructors each take their slot in the arm the realm stands in.
+// Static and defaulted leaves mirror the realm arm of a selected parameter default.
+// Plain nested instance bindings dispatch on the actual selected or supplied receiver;
+// siblings retain their order and share the prototype read where needed.
 const user = {};
 export function a({ Array: { prototype: { at: x = 1 }, from: y } } = c ? globalThis : user) { return [x, y]; }
 export function b({ Array: { of: x, name: y } } = c ? globalThis : user) { return [x, y]; }

@@ -21,6 +21,7 @@
 // `walkStaticReceiverChain` for `extends NS.Inner.Class` lookups
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteReceiverPath } from './class-member-shapes.js';
+import { destructureReachesAnon } from './binding-analysis.js';
 import {
   VALUE_FLOW_ASSIGN_OPS,
   classBodyHoldsSuperMethod,
@@ -51,9 +52,9 @@ import {
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   walkAstChildren,
-  walkPatternIdentifiers,
   isDestructurePattern,
   aliasDeclScope,
+  bindingDeclarationPath,
   throwCatchHandler,
 } from '../helpers/ast-patterns.js';
 import {
@@ -95,6 +96,8 @@ export function createClosureAnalysis({
   // cached per ObjectExpression node: a single literal can have many distinct field reads but the
   // closure is field-agnostic
   let objectAliasClosureCache = [new WeakMap(), new WeakMap()];
+  let closureBindingDeclarations = new WeakMap();
+  let arrayCarrierPositions = new WeakMap();
   // the carrier (with the object inside) is bound to a NAME - via a declarator (`const x = [...]`) or a
   // `=` assignment (`x = [...]`). the object escapes iff that binding LEAKS: reuse the bound-path leak
   // analysis, where a member-read (`x[0]` / `x.f`) is trivial/local but `return x` / `f(x)` / `export
@@ -111,7 +114,9 @@ export function createClosureAnalysis({
       rootBinding: getScopeBinding({ scope, name, path: anchorPath }),
       rootName: name,
       anchorPath,
-      fieldPath,
+      // A stored array can be reordered or observed before a later destructure reads it.
+      // Literal positions prove only the immediate target pairing, never a named carrier.
+      fieldPath: fieldPath.map(step => step.index ? { index: true } : step),
       valueRead,
     });
     if (closure && !fieldPath.length && receiverClosure) {
@@ -128,74 +133,15 @@ export function createClosureAnalysis({
     return found;
   }
   // a destructuring pattern's bare-var targets (`const [g] = [{...}]` / `({ x: g } = ...)`): each target
-  // binding receives a matched value, so the anon escapes iff ANY target binding leaks. one pattern level
-  // consumes one fieldPath step (mirrors the for-of element hop); a rest target receives a same-shape
-  // container, so its level's step is preserved - `walkPatternIdentifiers` reports that depth per target.
+  // binding receives a matched value, so only targets along the anon's own slot path can leak it.
   // A target deeper than the anon's path holds a field, not the anon. Only own-this methods can
-  // expose the owner through such a read; patternBindsAnonMethod checks those before the target walk.
+  // expose the owner through such a read; the shared slot walk checks those at the owner's level.
   // A non-pattern LHS shape cannot be enumerated and keeps the conservative escape verdict.
   function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath, receiverClosure, valueRead }) {
     if (!isDestructurePattern(pattern)) return true;
-    if (!valueRead && patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
-    let leaks = false;
-    walkPatternIdentifiers(
-      pattern,
-      (id, depth) => {
-        if (!leaks && depth <= fieldPath.length) {
-          leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth), receiverClosure, valueRead) === null;
-        }
-      },
-    );
-    return leaks;
-  }
-  // can the pattern BIND one of the anon's own-this methods? a key match at the anon's own level
-  // (`const { read } = { read() {...} }` / a deeper pattern following the slot path into the anon),
-  // a rest element that scoops the remaining props at that level, or an untrackable computed pattern
-  // key all extract a this-rebindable function - conservative escape, mirroring held method reads.
-  // levels below the anon index into FIELD values and cannot reach its methods
-  function patternBindsAnonMethod({ pattern, fieldPath, methodInfo, level = 0 }) {
-    if (!methodInfo) return false;
-    // peel transparent wrappers (`(x)`, `x = d`) - they carry the binding through unchanged
-    while (pattern?.type === 'ParenthesizedExpression' || pattern?.type === 'AssignmentPattern') {
-      pattern = pattern.type === 'ParenthesizedExpression' ? pattern.expression : pattern.left;
-    }
-    if (pattern?.type === 'ObjectPattern') {
-      for (const p of pattern.properties ?? []) {
-        if (p.type === 'RestElement' || p.type === 'SpreadElement') {
-          if (level === fieldPath.length) return true;
-          continue;
-        }
-        const key = propertyKeyName(p);
-        if (level === fieldPath.length) {
-          // an untrackable pattern key could name any method; a resolvable key only a known one
-          const matches = key === null || key === undefined
-            ? methodInfo.methodKeys.size || methodInfo.unknownKey
-            : methodInfo.methodKeys.has(key);
-          if (matches) return true;
-          continue;
-        }
-        const step = fieldPath[level];
-        // descend only through the property that can read the anon's slot: an untrackable pattern
-        // key or the matching object-key step (array slots are read by index keys - conservative)
-        if ((key === null || key === undefined || step.index || key === step.key)
-          && patternBindsAnonMethod({ pattern: p.value, fieldPath, methodInfo, level: level + 1 })) return true;
-      }
-      return false;
-    }
-    if (pattern?.type === 'ArrayPattern') {
-      // the anon itself destructured as an array binds nothing method-shaped (iterator protocol)
-      if (level === fieldPath.length) return false;
-      for (const el of pattern.elements ?? []) {
-        if (!el) continue;
-        if (el.type === 'RestElement' || el.type === 'SpreadElement') {
-          if (patternBindsAnonMethod({ pattern: el.argument, fieldPath, methodInfo, level })) return true;
-        } else if (patternBindsAnonMethod({ pattern: el, fieldPath, methodInfo, level: level + 1 })) return true;
-      }
-      return false;
-    }
-    // an Identifier target binds a VALUE (carrier or the anon itself) - the depth-based leak
-    // analysis in the caller covers it
-    return false;
+    return destructureReachesAnon(pattern, fieldPath,
+      valueRead ? null : objectOwnThisMethodInfo(anchorPath?.node), 0,
+      (id, remaining) => carrierBindingClosure(scope, id.name, anchorPath, remaining, receiverClosure, valueRead) === null);
   }
   // `obj.f = [{...}]` stores the object into a member slot - it escapes iff the chain ROOT binding is
   // externally reachable. a LOCAL var (const / let / var) is reachable only when it leaks (export /
@@ -320,9 +266,18 @@ export function createClosureAnalysis({
   function enterCarrier(parent, parentPath, valueNode, fieldPath) {
     if (positionDisposition(parent, valueNode, parentPath) !== POSITION_FORWARDS) return null;
     switch (parent.type) {
-      case 'ArrayExpression':
-        fieldPath.unshift({ index: true });
+      case 'ArrayExpression': {
+        // Many tracked literals can share one array; index its static slots only once.
+        const positions = memoize(arrayCarrierPositions, parent, () => {
+          const elements = parent.elements ?? [];
+          return elements.every(element => element?.type !== 'SpreadElement')
+            ? new Map(elements.map((element, position) => [unwrapRuntimeExpr(element), position])) : null;
+        });
+        const position = babelBindingAdapter.isMutatedStatic('Array.prototype', 'Symbol.iterator')
+          ? undefined : positions?.get(unwrapRuntimeExpr(valueNode));
+        fieldPath.unshift({ index: true, ...position !== undefined ? { position } : {} });
         return parentPath;
+      }
       case 'ObjectProperty':
       case 'Property': {
         if (parentPath.parentPath?.node?.type !== 'ObjectExpression') return null;
@@ -492,6 +447,11 @@ export function createClosureAnalysis({
           );
           if (target.leaks) return null;
           pendingCarrier ??= target.closure ?? null;
+          // The assignment's result is now a stored carrier, even if an outer pattern
+          // immediately reads it. Its binding/member store may expose or reorder the array.
+          for (let index = 0; index < fieldPath.length; index++) {
+            if (fieldPath[index].index) fieldPath[index] = { index: true };
+          }
           valuePath = parentPath;
           continue;
         }
@@ -563,7 +523,9 @@ export function createClosureAnalysis({
       objectAliasClosureCache[+valueRead],
       objectPath.node,
       () => {
-        if (holderShapeInfo({ paths: [objectPath], anchorPath: objectPath }).handsThisOut) return null;
+        // Array elements use the element-write walk; named bindings share this cached alias closure.
+        if (objectPath.node.type !== 'ArrayExpression'
+          && holderShapeInfo({ paths: [objectPath], anchorPath: objectPath }).handsThisOut) return null;
         const rootName = objectBindingName(objectPath);
         if (rootName) {
           return computeAliasClosureFromBinding({
@@ -590,7 +552,24 @@ export function createClosureAnalysis({
     const node = unwrapRuntimeExpr(objPath.node);
     if (!t.isIdentifier(node)) return false;
     const binding = getScopeBinding({ scope: objPath.scope, name: node.name, path: objPath });
-    return !!binding && closure.has(binding);
+    if (!binding) return false;
+    if (closure.has(binding)) return true;
+    // A source census can retain an earlier traversal's scope. Declaration and name
+    // identify its binding across views; a pattern can declare several different names.
+    let declarations = closureBindingDeclarations.get(closure);
+    if (!declarations) {
+      declarations = new WeakMap();
+      for (const [member, name] of closure) {
+        const declaration = bindingDeclarationPath(member)?.node;
+        if (!declaration) continue;
+        let names = declarations.get(declaration);
+        if (!names) declarations.set(declaration, names = new Set());
+        names.add(name);
+      }
+      closureBindingDeclarations.set(closure, declarations);
+    }
+    const declaration = bindingDeclarationPath(binding)?.node;
+    return !!declaration && declarations.get(declaration)?.has(node.name) === true;
   }
 
   // an INSTANCE slot is also written through the prototype (`C.prototype.m = fn`, or the same
@@ -1277,6 +1256,8 @@ export function createClosureAnalysis({
 
   function reset() {
     objectAliasClosureCache = [new WeakMap(), new WeakMap()];
+    closureBindingDeclarations = new WeakMap();
+    arrayCarrierPositions = new WeakMap();
     ownThisEscapesCache = new WeakMap();
     closureTemporalBoundCache = new WeakMap();
     classInstanceTemporalBoundCache = new WeakMap();

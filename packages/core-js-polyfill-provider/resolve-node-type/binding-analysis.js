@@ -20,7 +20,8 @@
 //                                              the node where the shape allows
 //   protoSetterCalleeArms(calleePath)        - `Object` / `Reflect` `setPrototypeOf` recognizer: 'lone'
 //                                              for its canonical spelling, 'every' / 'some' for an open
-//                                              selection every / some arm of which is one, else null
+//                                              selection every / some arm of which is one; 'unknown'
+//                                              for a local body's possible install, else null
 //   resolveKnownStaticEntry(callee, refPath) - registry lookup via the resolved pair
 //   isReflectConstructCallee(callee, scope)  - non-shadowed Reflect.construct recognizer
 //   isKnownNonMutatingCallSite               - SpreadElement-aware non-mutating arg check
@@ -40,6 +41,12 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   calleeParameterMemberRead,
+  canonAnswerTable,
+  cycleGuardCuts,
+  cycleGuardHas,
+  findNearestVarScopeOwner,
+  withCanonQuestion,
+  writeNeverRuns,
   annexBHoistOutrunsBinding,
   ancestorChainDetached,
   bindingBoundName,
@@ -55,6 +62,7 @@ import {
   jsxIdentifierReferencesBinding,
   isTSTypeOnlyIdentifierPath,
   memberReadKeyName,
+  patternSlotTarget,
   patternSlotHost,
   objectOwnThisMethodInfo,
   ownThisMethodKeyMatches,
@@ -75,11 +83,76 @@ import {
   isDestructurePattern,
 } from '../helpers/ast-patterns.js';
 
+// Does a destructuring pattern bind an own-this method at its top level? Deeper levels
+// read field values; rest and an untrackable key can extract any of the owner's methods.
+function patternBindsMethodKey(pattern, methodInfo) {
+  if (pattern?.type !== 'ObjectPattern') return false;
+  for (const p of pattern.properties ?? []) {
+    if (p.type === 'RestElement' || p.type === 'SpreadElement') return true;
+    if (ownThisMethodKeyMatches(methodInfo, propertyKeyName(p))) return true;
+  }
+  return false;
+}
+
+// Does a pattern reach the anonymous object along its carrier slot path? A held carrier
+// keeps wildcard array steps. Only an immediately paired fresh literal supplies a position;
+// its caller drops those positions before following a stored carrier or a rest copy.
+// `targetLeaks` asks about each matching binding instead of treating the binding as a handout.
+export function destructureReachesAnon(pattern, fieldPath, methodInfo = null, level = 0, targetLeaks = null) {
+  pattern = unwrapRuntimeExpr(patternSlotTarget(unwrapRuntimeExpr(pattern)));
+  if (!pattern) return false;
+  if (targetLeaks && pattern.type === 'Identifier' && level <= fieldPath.length) {
+    return targetLeaks(pattern, fieldPath.slice(level));
+  }
+  if (level === fieldPath.length) {
+    // Data destructures read through the owner. A fresh target walk also follows a rest
+    // binding's own closure; held carriers retain their unknown-key and iterator boundary.
+    if (pattern.type !== 'ObjectPattern') return !targetLeaks;
+    return pattern.properties.some(item => {
+      if (item.type === 'RestElement' || item.type === 'SpreadElement') {
+        return !!methodInfo
+          || !!targetLeaks && destructureReachesAnon(item.argument, fieldPath, methodInfo, level, targetLeaks);
+      }
+      const key = propertyKeyName(item);
+      return !targetLeaks && (key === null || key === undefined)
+        || !!methodInfo && ownThisMethodKeyMatches(methodInfo, key);
+    });
+  }
+  const step = fieldPath[level];
+  if (pattern.type === 'ObjectPattern') {
+    return (pattern.properties ?? []).some(item => {
+      if (item.type === 'RestElement' || item.type === 'SpreadElement') {
+        return !targetLeaks || destructureReachesAnon(item.argument, fieldPath, methodInfo, level, targetLeaks);
+      }
+      const key = item.computed ? null : propertyKeyName(item);
+      if (key === null || key === undefined) {
+        if (!targetLeaks) return true;
+      } else if (step.index ? step.position !== undefined && key !== String(step.position) : key !== step.key) return false;
+      return destructureReachesAnon(item.value, fieldPath, methodInfo, level + 1, targetLeaks);
+    });
+  }
+  if (pattern.type === 'ArrayPattern') {
+    return (pattern.elements ?? []).some((item, index) => {
+      if (!item) return false;
+      if (item.type === 'RestElement' || item.type === 'SpreadElement') {
+        // Rest creates a different array. Its index origin no longer matches the literal.
+        return !targetLeaks || destructureReachesAnon(item.argument,
+          fieldPath.map(part => part.index ? { index: true } : part), methodInfo, level, targetLeaks);
+      }
+      return (!step.index || step.position === undefined || step.position === index)
+        && destructureReachesAnon(item, fieldPath, methodInfo, level + 1, targetLeaks);
+    });
+  }
+  // A bare name or member target above the object's level takes its carrier with it.
+  return true;
+}
+
 // eslint-disable-next-line max-statements -- factory of the binding / reference analysis
 export function createBindingAnalysis({
   getScopeBinding,
   resolveComputedKeyName,
   resolveRuntimeExpression,
+  getDecisionAdapter,
   bindingAdapter,
   walkObjectLiteralPropertyPath,
   scannedMethodInstall,
@@ -380,7 +453,11 @@ export function createBindingAnalysis({
         seen: new Set(),
       }, { allowIdentityParam: true, rejectConditional: true, allowAsync: false });
       const returned = callee && memoize(parameterMemberReadCache, callee.node, () => calleeParameterMemberRead(callee.node));
-      return returned && { member: returned.member, argument: resolveCallArgument(callee.args, returned.paramIndex) };
+      return returned && !callee.argsUnknown && { member: returned.member, argument: resolveCallArgument(
+        callee.args,
+        returned.paramIndex,
+        getDecisionAdapter()?.isMutatedStaticSlot,
+      ) };
     });
     return read?.argument && unwrapRuntimeExpr(read.argument) === unwrapRuntimeExpr(argNode) ? read.member : null;
   }
@@ -439,10 +516,12 @@ export function createBindingAnalysis({
   // AND every visitor bundle the factory contributes from sibling clusters (the module-field
   // index). visitor keys across contributions are disjoint - the factory owns that invariant.
   // without the sharing, each lazy index re-walked the whole program on its own first query
+  // Paths and native scopes belong to the current Program path context. A recrawl can
+  // retain every source node while replacing that context and its binding references.
   let programCensusCache = new WeakMap();
   let currentTreeReferences = false;
   function programCensus(programPath) {
-    return memoize(programCensusCache, programPath.node, () => {
+    return memoize(programCensusCache, programPath, () => {
       const referenceIdentifierPaths = [];
       const newExprByName = new Map();
       const visitors = {
@@ -491,7 +570,7 @@ export function createBindingAnalysis({
   // emitters, so both pay it once per program that resolves a closure-narrowed field
   let programIndexCache = new WeakMap();
   function buildProgramIndex(programPath) {
-    return memoize(programIndexCache, programPath.node, () => {
+    return memoize(programIndexCache, programPath, () => {
       const { referenceIdentifierPaths, newExprByName } = programCensus(programPath);
       const identifierByBinding = new Map();
       // the binding each reference position resolves to, null for one that names no binding
@@ -509,18 +588,7 @@ export function createBindingAnalysis({
       // case block or a namespace lists a nested namesake's references under the outer binding
       for (const [binding, indexed] of identifierByBinding) {
         if (currentTreeReferences || !Array.isArray(binding.references)) continue;
-        const declaration = binding.path?.node ?? binding.node;
-        const references = new Map();
-        for (const ref of binding.references) {
-          const key = nodeSpan(ref.node)?.start ?? ref.node;
-          const resolved = bindingAtPosition.get(key);
-          if (resolved === undefined || (resolved && (resolved.path?.node ?? resolved.node) === declaration)) references.set(key, ref);
-        }
-        for (const ref of indexed) {
-          const key = nodeSpan(ref.node)?.start ?? ref.node;
-          if (!references.has(key)) references.set(key, ref);
-        }
-        identifierByBinding.set(binding, references.values().toArray());
+        identifierByBinding.set(binding, bindingReferencesOverIndex(binding, indexed, bindingAtPosition));
       }
       // a scope tracker may hand a later lookup another object for the same binding: its declaration and
       // its name identify it, so the references are found through that too - by both, since a pattern, a
@@ -536,6 +604,32 @@ export function createBindingAnalysis({
       }
       return { identifierByBinding, bindingByDeclaration, newExprByName };
     });
+  }
+
+  // Merge the tracker's current references with census-only source positions. A selective
+  // scope crawl can add a reference without replacing the Program path or any source node.
+  // The native path wins at a shared position; consumers still validate a retained source
+  // path's live role and binding before using it as a runtime dependency.
+  function bindingReferencesOverIndex(binding, indexed, bindingAtPosition = null) {
+    const answers = canonAnswerTable(bindingReferencesOverIndex, [bindingAtPosition]);
+    const known = answers?.get(binding);
+    if (known) return known;
+    const cuts = cycleGuardCuts();
+    const declaration = binding.path?.node ?? binding.node;
+    const references = new Map();
+    for (const ref of binding.references) {
+      const key = nodeSpan(ref.node)?.start ?? ref.node;
+      const resolved = bindingAtPosition ? bindingAtPosition.get(key)
+        : getScopeBinding({ scope: ref.scope, name: ref.node.name, path: ref });
+      if (resolved === undefined || (resolved && (resolved.path?.node ?? resolved.node) === declaration)) references.set(key, ref);
+    }
+    for (const ref of indexed) {
+      const key = nodeSpan(ref.node)?.start ?? ref.node;
+      if (!references.has(key)) references.set(key, ref);
+    }
+    const result = references.values().toArray();
+    if (cycleGuardCuts() === cuts) answers?.set(binding, result);
+    return result;
   }
 
   // a JSXIdentifier babel's reference walker reports that the tag-name canon does not: babel keeps
@@ -567,7 +661,9 @@ export function createBindingAnalysis({
     if (!program) return null;
     const { identifierByBinding, bindingByDeclaration } = buildProgramIndex(program);
     const sameDeclaration = bindingByDeclaration.get(binding.path?.node ?? binding.node);
-    return identifierByBinding.get(binding) ?? identifierByBinding.get(sameDeclaration?.get(bindingBoundName(binding))) ?? [];
+    const indexed = identifierByBinding.get(binding) ?? identifierByBinding.get(sameDeclaration?.get(bindingBoundName(binding))) ?? [];
+    return !currentTreeReferences && Array.isArray(binding.references)
+      ? bindingReferencesOverIndex(binding, indexed) : indexed;
   }
 
   // computed member key that's a compile-time constant - a write through it touches a KNOWN
@@ -855,20 +951,6 @@ export function createBindingAnalysis({
     if (ctx?.type === 'UnaryExpression' && ctx.operator === 'void') return false;
     return true;
   }
-  // does a destructuring pattern bind an own-this method at its TOP level (`const { read } = o` /
-  // `{ read: m }` target / a rest that scoops the remaining props / an untrackable computed key)?
-  // deeper pattern levels index into FIELD values and cannot reach the object's methods
-  function patternBindsMethodKey(pattern, methodInfo) {
-    if (pattern?.type !== 'ObjectPattern') return false;
-    for (const p of pattern.properties ?? []) {
-      if (p.type === 'RestElement' || p.type === 'SpreadElement') return true;
-      // the key-vs-method-set question is `ownThisMethodKeyMatches`, which this file already
-      // consults ten lines above: an untrackable pattern key could name any method, a resolvable
-      // one only a known one
-      if (ownThisMethodKeyMatches(methodInfo, propertyKeyName(p))) return true;
-    }
-    return false;
-  }
   // callee -> argument indices at which an object's function-valued properties can neither
   // escape nor be reached through the call: pure key / flag readers, string serialization
   // (functions are skipped; `toJSON` runs with the object itself as `this`), and prototype
@@ -932,18 +1014,51 @@ export function createBindingAnalysis({
   // test. a call the build replaced itself (pure's guard over owners whose setter it imports absorbs
   // the call into its arms) survives in one emitter's cached reference chain alone, detached from the
   // tree, so neither reads it. shared by the type layer's install channel and the closure classifier,
-  // so the two cannot disagree on which call installs a prototype
-  function protoSetterCalleeArms(calleePath) {
+  // so the two cannot disagree on which call installs a prototype. A local function's live
+  // writes through its first parameter may install too, but its second argument proves no family:
+  // the body supplies an unknown install, never a family from an unselected native setter
+  function protoSetterCalleeArms(calleePath, seen = new Set()) {
     if (namesProtoSetter(calleePath)) return 'lone';
     const callee = peelSkippableWrapperPath(calleePath);
     const { node } = callee;
     const readOffOwners = isMemberAccessNode(node) && !node.computed
       && node.property?.type === 'Identifier' && node.property.name === 'setPrototypeOf';
-    if (!readOffOwners && node.type !== 'Identifier' && !getFallbackBranchSlots(node)) return null;
+    if (!readOffOwners && node.type !== 'Identifier' && !getFallbackBranchSlots(node) && !t.isFunction(node)) return null;
     const value = resolveRuntimeExpression(readOffOwners ? callee.get('object') : callee);
     const selection = !!getFallbackBranchSlots(value.node);
-    if (!selection && !readOffOwners || ancestorChainDetached(callee)) return null;
-    if (selection) return openArmsPassing(value, readOffOwners ? namesProtoSetterOwner : namesProtoSetter);
+    if (ancestorChainDetached(callee)) return null;
+    if (!selection && !readOffOwners) {
+      if (!t.isFunction(value.node) || value.node.params?.[0]?.type !== 'Identifier') return null;
+      return withCanonQuestion(() => {
+        if (cycleGuardHas(seen, value.node)) return null;
+        const adapter = getDecisionAdapter();
+        const answers = canonAnswerTable(protoSetterCalleeArms, [adapter, bindingAdapter]);
+        if (answers?.has(value.node)) return answers.get(value.node);
+        const cuts = cycleGuardCuts();
+        const [parameter] = value.get('params');
+        const binding = getScopeBinding({ scope: parameter.scope, name: parameter.node.name, path: parameter });
+        const closure = binding && computeAliasClosureFromBinding({
+          rootBinding: binding, rootName: parameter.node.name, anchorPath: value,
+        });
+        const undefinedShadowed = !!getScopeBinding({ scope: value.scope, name: 'undefined', path: value });
+        const nextSeen = new Set(seen).add(value.node);
+        const writes = binding && [...closure?.keys() ?? [binding]].some(alias => collectBindingReferences(alias, value)?.some(ref => {
+          if (writeNeverRuns({ write: ref, usagePath: ref, adapter })) return false;
+          for (let owner = findNearestVarScopeOwner(ref); owner?.node && owner.node !== value.node;
+            owner = findNearestVarScopeOwner(owner.parentPath)) {
+            const name = owner.node.type === 'FunctionDeclaration' ? owner.node.id?.name : getDeclaratorBindingName(owner);
+            const held = name && getScopeBinding({ scope: owner.parentPath.scope, name, path: owner });
+            if (held && collectBindingReferences(held, owner)?.length === 0 || valueIsDroppedAt(owner)) return false;
+          }
+          return !!installedPrototypeValueAt(ref, path => protoSetterCalleeArms(path, nextSeen), undefinedShadowed);
+        }));
+        // A local body's live write may install, but its parameter supplies no proven family.
+        const answer = writes ? 'unknown' : null;
+        if (cuts === cycleGuardCuts()) answers?.set(value.node, answer);
+        return answer;
+      });
+    }
+    if (selection) return openArmsPassing(value, readOffOwners ? namesProtoSetterOwner : path => protoSetterCalleeArms(path, seen));
     return namesProtoSetterOwner(value) ? 'every' : null;
   }
 
@@ -965,6 +1080,7 @@ export function createBindingAnalysis({
   // which arms of the open selection `path` stands on pass `test`: `every` one, only `some`, or none
   // (null). an arm failing it is read through the value walk - an alias, a selection this build decides,
   // whose arm it never takes passes nothing - and asked of its own arms where it holds an open selection.
+  // A local writer's unknown install dominates known setter families; a proven no-op passes nothing.
   // each selection is walked once per question: one reached again inside its own walk passes nothing
   function openArmsPassing(path, test, verdicts = new Map()) {
     const slots = getFallbackBranchSlots(path.node);
@@ -975,7 +1091,13 @@ export function createBindingAnalysis({
     let some = false;
     for (const slot of slots) {
       const arm = peelSkippableWrapperPath(path.get(slot));
-      const verdict = test(arm) ? 'every' : openArmsPassing(resolveRuntimeExpression(arm), test, verdicts);
+      const value = resolveRuntimeExpression(arm);
+      const passed = !getFallbackBranchSlots(value.node) && test(arm);
+      const verdict = passed === true || passed === 'lone' ? 'every' : passed || openArmsPassing(value, test, verdicts);
+      if (verdict === 'unknown') {
+        verdicts.set(path.node, verdict);
+        return verdict;
+      }
       every &&= verdict === 'every';
       some ||= verdict !== null;
     }
@@ -1085,45 +1207,6 @@ export function createBindingAnalysis({
     if (next?.type === 'UnaryExpression' && next.operator === 'void') return false;
     return true;
   }
-  // does a DESTRUCTURING read of the carrier reach the anon ITSELF? the pattern is walked along the
-  // slot path: the level that BINDS A NAME there hands the anon out (`const { wrap } = o` - then
-  // `wrap.f = ...` writes the very slot a narrow would rest on), while a level that descends further
-  // reads THROUGH it and binds a FIELD's value, which no write can route back to the slot. an
-  // untrackable key or a rest ABOVE that level could name it either way, so those stay a reach
-  function destructureReachesAnon(pattern, fieldPath, methodInfo = null, level = 0) {
-    while (pattern?.type === 'ParenthesizedExpression' || pattern?.type === 'AssignmentPattern') {
-      pattern = pattern.type === 'ParenthesizedExpression' ? pattern.expression : pattern.left;
-    }
-    if (!pattern) return false;
-    // At the object's own level, data keys and rest only copy its field values, not the object.
-    // Unknown keys, iteration and own-this method extraction still lose the closed receiver.
-    if (level === fieldPath.length) {
-      if (pattern.type !== 'ObjectPattern') return true;
-      return pattern.properties.some(item => item.type !== 'RestElement' && item.type !== 'SpreadElement'
-        && (propertyKeyName(item) === null || propertyKeyName(item) === undefined))
-        || !!methodInfo && patternBindsMethodKey(pattern, methodInfo);
-    }
-    const step = fieldPath[level];
-    if (pattern.type === 'ObjectPattern') {
-      return (pattern.properties ?? []).some(item => {
-        if (item.type === 'RestElement' || item.type === 'SpreadElement') return true;
-        const key = item.computed ? null : propertyKeyName(item);
-        if (key === null || key === undefined) return true;
-        // an ARRAY slot is read by its index key, which a pattern spells as a string - compare
-        // conservatively there rather than by identity
-        if (!step.index && key !== step.key) return false;
-        return destructureReachesAnon(item.value, fieldPath, methodInfo, level + 1);
-      });
-    }
-    if (pattern.type === 'ArrayPattern') {
-      return (pattern.elements ?? []).some(item => item
-        && (item.type === 'RestElement' || item.type === 'SpreadElement'
-          || destructureReachesAnon(item, fieldPath, methodInfo, level + 1)));
-    }
-    // a bare name or a member target ABOVE the anon's level takes the whole carrier with it
-    return true;
-  }
-
   // classifier for a NESTED anon: `fieldPath` is its slot path inside the carrier binding (`[{index}]` array
   // slot / `[{key}]` object field, outermost-first). a read through its OWN slot (`a[i]` / `o.wrap`)
   // stays local when the continuation only reads data fields, by member access or a pattern;

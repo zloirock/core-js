@@ -1,7 +1,5 @@
-// the INSTANCE param-default synth replaces the default with `{ key: helper(receiver) }`. it used to
-// admit Identifier keys only, on the grounds that the literal would drop any other spelling - once
-// the literal replays them, that restriction only cost the polyfill. the key's resolved name also
-// picks the TYPED helper over the generic dispatcher, so it must come from the shared resolver
+// Parameter default mirrors replay resolved keys and keep instance reads at their original slot.
+// The key's resolved name also selects the typed helper through the shared resolver.
 const identifierKey = (function ({ at } = [1, 2]) {
   return at;
 })();

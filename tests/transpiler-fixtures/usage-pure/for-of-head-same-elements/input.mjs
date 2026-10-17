@@ -39,8 +39,8 @@ for (const [{ getOwnPropertyNames: viaHole }] of [[Object], [, Object]]) viaHole
 // element: the static walk reads a for-of head's sole element as the init the head never had
 for (const viaLater of [{ w: Object }]) { const z = 1; const { w: { keys: viaLaterKeys } } = viaLater; [z, viaLaterKeys]; }
 
-// an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour
-// element that runs lifts as a statement ahead, in source order (the `push` claims are carriers)
+// an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; an effectful
+// neighbour stays in the shared array evaluation ahead of extraction, in source order
 let { w: { entries: viaEmptiedObject }, y: { at: viaEmptiedObjectAt } } = rec;
 [viaEmptiedObject, viaEmptiedObjectAt];
 const [{ w: { values: viaEmptiedWrap }, y: { at: viaEmptiedWrapAt } }] = [rec];

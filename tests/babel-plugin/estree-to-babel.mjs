@@ -14,7 +14,9 @@ const requireBabel = BABEL_REQUIRE_FROM
 const generateModule = requireBabel('@babel/generator');
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import {
+  arrowFunctionExpression,
   assignmentExpression,
+  assignmentPattern,
   blockStatement,
   bareImport,
   bareRequire,
@@ -29,6 +31,7 @@ import {
   logicalExpression,
   memberExpression,
   objectExpression,
+  objectGetter,
   objectPattern,
   objectProperty,
   renderMemoActivation,
@@ -61,6 +64,10 @@ function caught(node) {
 
 // --- per-element shape locks: every builder output converts, one lock per element ---
 check('identifier', print(identifier('x')), 'x');
+check('arrow/expression', print(arrowFunctionExpression([identifier('x')], identifier('x'))), 'x => x');
+check('arrow/block', print(arrowFunctionExpression([], blockStatement([]))), '() => {}');
+check('assignment pattern/captured receiver default', print(assignmentPattern(identifier('_ref'), identifier('source'))), '_ref = source');
+check('assignment pattern/trailing inert default', print(assignmentPattern(identifier('_unused'), voidZero())), '_unused = void 0');
 check('literal/string type', estreeToBabel(literal('a')).type, 'StringLiteral');
 check('literal/string raw rides extra', estreeToBabel(literal('a')).extra.raw, '"a"');
 check('literal/number', estreeToBabel(literal(7)).type, 'NumericLiteral');
@@ -109,6 +116,10 @@ check('objectProperty/computed becomes ObjectProperty',
 const quotedProperty = objectProperty(literal('with-dash'), memberExpression(identifier('source'), literal('with-dash'), { computed: true }));
 check('objectProperty/quoted key keeps a data slot', print(objectExpression([quotedProperty])), '{\n  "with-dash": source["with-dash"]\n}');
 check('objectProperty/quoted key becomes ObjectProperty', estreeToBabel(quotedProperty).type, 'ObjectProperty');
+const getter = objectGetter(literal('with-dash'), memberExpression(identifier('source'), identifier('length')));
+check('objectGetter becomes ObjectMethod', estreeToBabel(getter).type, 'ObjectMethod');
+check('objectGetter delays its read', print(objectExpression([getter])), '{\n  get "with-dash"() {\n    return source.length;\n  }\n}');
+check('objectGetter keeps its computed key', estreeToBabel(objectGetter(identifier('key'), identifier('value'), { computed: true })).computed, true);
 check('bareImport', print(bareImport('core-js/modules/es.array.flat')), 'import "core-js/modules/es.array.flat";');
 check('defaultImport', print(defaultImport('_at', '@core-js/pure/actual/array/at')),
   'import _at from "@core-js/pure/actual/array/at";');
@@ -193,6 +204,14 @@ checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?
 check('memo activation/lexical local var and return', generate(estreeToBabel(
   renderMemoActivation(identifier('value'), ['_ref']),
 )).code, '(() => {\n  var _ref;\n  return value;\n})()');
+const suspendedReceiver = { type: 'AwaitExpression', argument: identifier('value') };
+const suppliedActivation = estreeToBabel(renderMemoActivation(identifier('_ref'), ['_ref', '_next'], [hostSlot(suspendedReceiver)]));
+check('memo activation/supplied receiver binds a parameter', suppliedActivation.callee.params[0]?.name, '_ref');
+checkTruthy('memo activation/suspended receiver stays in the outer argument', suppliedActivation.arguments[0] === suspendedReceiver);
+check('memo activation/unsupplied memo keeps its local declaration', suppliedActivation.callee.body.body[0].declarations[0].id.name, '_next');
+check('memo activation/all supplied memos need no var declaration', print(
+  renderMemoActivation(identifier('_ref'), ['_ref'], [callExpression(identifier('source'), [])]),
+), '(_ref => {\n  return _ref;\n})(source())');
 checkTruthy('totality/function expressions stay outside the vocabulary',
   caught({ type: 'FunctionExpression', id: null, params: [], body: blockStatement([]) })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/optional member outside chain throws',

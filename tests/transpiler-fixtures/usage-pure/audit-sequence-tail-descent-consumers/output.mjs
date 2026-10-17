@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _at from "@core-js/pure/actual/instance/at";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 // One comma-sequence descent serves every consumer that reaches a value through a sequence tail, so
@@ -18,11 +18,8 @@ export function branch(cond) {
   const flat = _flatMaybeArray(cond ? (d(), Array.prototype) : _Iterator.prototype);
   return flat;
 }
-export function defaulted({
-  at
-} = (e(), {
-  at: _atMaybeArray(Array.prototype)
-})) {
+export function defaulted(_ref = (e(), Array.prototype)) {
+  let at = _at(_ref);
   return at;
 }
 export const viaIife = _Promise$allSettled([]);

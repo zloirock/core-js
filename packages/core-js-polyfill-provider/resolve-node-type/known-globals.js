@@ -258,7 +258,7 @@ export function createKnownGlobals({
     // which raw slot holds the EFFECTIVE argument at `index` is the canon's question, and it answers
     // it better than a spread-anywhere bail did: `f(...[a, b])` still names its arguments, and only
     // a spread whose source is not a literal makes the position undecidable
-    const coords = resolveCallArgumentCoords(args.map(a => a.node), index);
+    const coords = resolveCallArgumentCoords(args.map(a => a.node), index, isMutatedStatic);
     return coords ? callArgumentPathAt(args, coords) : null;
   }
 

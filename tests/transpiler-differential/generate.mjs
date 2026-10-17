@@ -12610,6 +12610,12 @@ function * generateArrayPropertyOrder() {
       return [at.call(list, -1), log];`,
     ],
     [
+      'paired-folded-computed-data',
+      `const list = [3, [1, 2]]; let at, after;
+      ({ y: { at }, o: after } = { ['y']: list.flat(), o: 1 });
+      return [at.call([9], 0), after];`,
+    ],
+    [
       'paired-bodyless-assignment',
       `const source = { get at() { log.push('at'); return 3; } };
       let at; if (true) ([{ at }] = [source, log.push('rhs')]);
@@ -14925,22 +14931,14 @@ const DM_EXPORT_HOSTS = {
   exportVar: (lhs, init) => `export var ${ lhs } = ${ init };\n${ DM_EXPORT_RETURN }`,
   exportMulti: (lhs, init) => `export const x0 = 1, ${ lhs } = ${ init }, y0 = 2;\n${ DM_EXPORT_RETURN }`,
 };
-// receivers whose keys are prototype methods; key spellings without an effect - an effectful key takes the
-// relocating route, which serves array levels the plain routes decline
+// Receivers whose selected keys name instance methods.
 const DM_INSTANCE_RECEIVERS = new Set(['proto', 'literal', 'navProto', 'navRealmProto']);
 const DM_PLAIN_KEYS = new Set(['plain', 'defaulted', 'boundKey']);
 const DM_ARRAY_NESTINGS = new Set(['arrInObj', 'objInArr', 'arr2']);
-// whether a cell skips the stripped realm, where both emitters leave it native; it keeps the full-realm,
-// import and print-through checks. the first three clauses are canon boundaries; every other one is an open
-// loss under its TASKS row and leaves with the fix - one leg serving a cell alone is a divergence, not a fix
+// Static shapes outside the supported captures retain their native reads in pure and keep
+// the full-realm, import and print-through checks. Instance leaves run stripped on every host.
 function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId }) {
   const instance = DM_INSTANCE_RECEIVERS.has(receiverId);
-  // a call argument never reaches the callee's pattern: a constructor argument is replaced by its pure
-  // constructor where it stands, a prototype has no pure stand-in
-  if (hostId === 'paramArg') return instance;
-  // B3 G2 / G3: a parameter default navigated to a prototype (`({ prototype: { at } } = Array) => {}`)
-  // has no route, and a new one is not worth it for a shape no code spells
-  if (hostId === 'paramDefault' || hostId === 'arrowDefault') return receiverId === 'navProto' || receiverId === 'navRealmProto';
   // a static under an effectful key ahead of a passthrough, below an array level of a for-of head
   // (`{ w: [{ of, [(e(), 'from')]: b, length }] }`): the mirror would read the passthrough ahead of the
   // effect, and the relocated pattern has no route for a static off the iterated element - a shape no
@@ -14948,20 +14946,10 @@ function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestin
   if (spellingId === 'seMiddle' && nestingId === 'arrInObj' && !instance
     && (hostId === 'forOfAssign' || (hostId === 'forOfConst' && receiverId === 'navRealm'))) return true;
   const plainKeys = DM_PLAIN_KEYS.has(spellingId);
-  // FC-588: every other loss sits behind an array level
+  // A consumed static through a deep literal container retains its native pattern.
+  // Instance leaves use the same ordered captures at every array level.
   if (!DM_ARRAY_NESTINGS.has(nestingId)) return false;
-  // (a) an assignment whose value is read, over a constructor or the realm
-  if (hostId === 'assignValue' && !instance) return nestingId !== 'arr2' || plainKeys || receiverId === 'navRealm';
-  if (!instance) return false;
-  // (b) an instance claim of an assignment
-  if (['assignValue', 'assignSeq', 'forOfAssign'].includes(hostId)) return nestingId === 'arrInObj' || plainKeys;
-  // (c) a pattern its host wraps in an array, under `{ w: [...] }`
-  if (hostId === 'wrapMulti') return nestingId === 'arrInObj';
-  if (hostId === 'wrapSoleDecl' || hostId === 'wrapMultiDecl') return nestingId === 'arrInObj' && (plainKeys || spellingId === 'twoSe');
-  // (d) a declarator between others, through two array levels
-  if (hostId === 'exportMulti' && nestingId === 'arr2' && plainKeys) return true;
-  // (e) two effectful keys under `{ w: [...] }`
-  return spellingId === 'twoSe' && nestingId === 'arrInObj' && (receiverId === 'proto' || receiverId === 'literal' || hostId === 'forOfConst');
+  return hostId === 'assignValue' && !instance && (nestingId !== 'arr2' || plainKeys || receiverId === 'navRealm');
 }
 function destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, spellingId, nestingId, wrapperId }) {
   const [wrapPattern, wrapInit] = DM_NESTINGS[nestingId];
@@ -14973,10 +14961,8 @@ function destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, 
   const cell = hostId in DM_EXPORT_HOSTS
     ? { name, code: [...PRELUDE, boundKey, body, 'export const effects = log;'].join('\n') }
     : snippet(name, `(() => { ${ boundKey } try { ${ body } } catch (error) { return ['THREW', error?.constructor?.name, log.join()]; } })()`);
-  // FC-570: usage-global injects nothing for a flat parameter pattern, so its stripped realm loses the methods
-  const fullEnv = hostId === 'paramArg' && (receiverId === 'proto' || receiverId === 'literal') && nestingId === 'flat';
   const strip = !destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId });
-  return { ...cell, ts: wrapperId !== 'none', strip, ...fullEnv ? { fullEnv } : {} };
+  return { ...cell, ts: wrapperId !== 'none', strip };
 }
 // the TS axis branches on the receiver node only, so it rides a reduced product
 const DM_SHAPES = Object.keys(DM_SPELLINGS).flatMap(spellingId => Object.keys(DM_NESTINGS).flatMap(nestingId => Object.keys(DM_WRAPPERS)
@@ -14990,6 +14976,33 @@ function * generateDestructureMatrix() {
       }
     }
   }
+}
+
+// Array captures cannot move element reads across writes through an exposed source.
+function * generateDestructureArrayAliasOrder() {
+  for (const assignment of [false, true]) for (const iterator of [false, true]) yield {
+    ...snippet(`destructure-array-alias-order/${ assignment ? 'assignment' : 'declaration' }/${ iterator ? 'iterator' : 'getter' }`, `(() => {
+      const row = [{ at() { return 7; } }, 0];
+      ${ iterator ? 'row[Symbol.iterator] = function* () { yield { at() { return 7; } }; log.push(typeof method); yield 9; };'
+        : 'Object.defineProperty(row, 1, { get() { log.push(typeof method); return 9; } });' }
+      ${ assignment ? 'let method, tail; ({ w: [{ at: method }, tail] } = { w: row });'
+        : 'const { w: [{ at: method }, tail] } = { w: row };' }
+      return [method(), tail, log.join()];
+    })()`),
+    strip: true,
+  };
+  for (const nested of [false, true]) for (const chain of [false, true]) yield {
+    name: `destructure-array-store-order/${ nested ? 'nested' : 'keyed' }/${ chain ? 'chain' : 'single' }`,
+    code: `let stored, held;
+      export function read(input) {
+        const ${ nested ? '[{ w: [{ at }, tail] }]' : '{ w: [{ at }, tail] }' }
+          = ${ nested ? '[' : '' }{ w: (${ chain ? 'held = ' : '' }stored = [input, 0]) }${ nested ? ']' : '' };
+        return [at(), tail];
+      }
+      export const r = read({ get at() { stored[1] = 9; return () => 7; } });
+      export const effects = [];`,
+    strip: true,
+  };
 }
 
 // Field flow must keep every receiver family through writes and nested extraction.
@@ -19154,6 +19167,83 @@ function * generateRealmUserKeyInstances() {
   }
 }
 
+// Closed caller mirrors must keep null rejection ahead of computed keys, and leave
+// undefined available to the parameter's own default before either emitter lowers syntax.
+function * generateNullishParameterCallers() {
+  for (const source of ['null', 'undefined']) for (const defaulted of [false, true]) {
+    yield {
+      name: `nullish-parameter-callers/${ source }/${ defaulted ? 'default' : 'required' }`,
+      code: `const events = [];
+function source() { events.push('source'); return ${ source }; }
+let answer;
+try {
+  answer = (({ [(events.push('key'), 'at')]: at }${ defaulted ? ' = Array.prototype' : '' }, other) => at.call([4], 0))(
+    source(), events.push('argument')
+  );
+} catch (error) {
+  answer = error instanceof TypeError ? 'TypeError' : error.name;
+}
+export const r = [answer, events];`,
+      strip: true,
+    };
+  }
+}
+
+// Suspending caller arguments evaluate in their source activation before the lazy
+// instance mirror captures the resulting receiver for the parameter's later read.
+function * generateSuspendingParameterCallers() {
+  for (const kind of ['await', 'yield']) {
+    yield {
+      name: `suspending-parameter-callers/${ kind }`,
+      code: `const events = [];
+function make(value) { events.push(value); return 'ab'; }
+${ kind === 'await' ? 'async function run()' : 'function * run()' } {
+  return (({ at }, other) => [at.call('ab', -1), other])(
+    make(${ kind === 'await' ? "await Promise.resolve('resume')" : "yield 'pause'" }), events.push('argument')
+  );
+}
+${ kind === 'await' ? 'export const r = [await run(), events];' : `const iterator = run();
+const first = iterator.next();
+export const r = [first, iterator.next('resume'), events];` }`,
+      strip: true,
+    };
+  }
+}
+
+// Receiver getters execute while later parameters are still uninitialized. A closure created by an
+// earlier default can read or write those bindings; a same-named nested parameter is a separate binding.
+function * generateParameterBindingDependencies() {
+  for (const [operation, expression] of [
+    ['read', 'later'],
+    ['write', 'later = 7'],
+    ['update', '++later'],
+    ['destructure-write', '({ value: later } = { value: 7 })'],
+  ]) {
+    for (const supplied of [false, true]) {
+      const probe = supplied ? `(reader = () => ${ expression })` : `() => ${ expression }`;
+      const receiver = supplied ? '' : ' = { get at() { log.push("get"); return probe(); } }';
+      const argument = supplied ? 'undefined, { get at() { log.push("get"); return reader(); } }' : '';
+      const code = [
+        ...PRELUDE,
+        'let reader;',
+        `export function read(probe = ${ probe }, { at }${ receiver }, later) { log.push("body"); return at; }`,
+        `export let r; try { r = read(${ argument }); } catch (error) { r = error.name; }`,
+        'export const effects = log;',
+      ].join('\n');
+      yield { name: `parameter-binding-dependencies/${ operation }/${ supplied ? 'supplied' : 'default' }`, code, strip: true };
+    }
+  }
+  for (const shadow of ['at', 'later']) {
+    const code = [
+      ...PRELUDE,
+      `export function read(probe = (${ shadow } => () => ${ shadow })(7), { at }, later) { return [at.call([4], 0), probe()]; }`,
+      'export const r = read(undefined, [4]);',
+      'export const effects = log;',
+    ].join('\n');
+    yield { name: `parameter-binding-dependencies/shadow/${ shadow }`, code, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -19501,4 +19591,164 @@ export function * generate() {
   yield * generateReceiverEffectsAndDefaults();
   yield * generateTopLevelThisPrototypeAssignments();
   yield * generateRealmUserKeyInstances();
+  yield * generateDestructureArrayAliasOrder();
+  yield * generateNullishParameterCallers();
+  yield * generateSuspendingParameterCallers();
+  yield * generateParameterBindingDependencies();
+  yield * generateRuntimeIteratorPositions();
+  yield * generatePriorIteratorFlavors();
+  yield * generateImportedKeyShadows();
+  yield * generateNestedParameterInstances();
+}
+
+// A source import and a local key share a spelling, but only the visible binding owns the read.
+function * generateImportedKeyShadows() {
+  for (const binder of ['default', 'named']) for (const [name, expression] of [
+    ['local', "function read() { const key = 'at'; log.push('read'); return [7][key](0); }"],
+    ['block', "function read() { { const key = 'at'; log.push('read'); return [7][key](0); } }"],
+    ['literal control', "function read() { log.push('read'); return [7]['at'](0); }"],
+  ]) {
+    yield {
+      name: `imported-key-shadow/${ binder }/${ name }`,
+      code: `import ${ binder === 'named' ? '{ default as key }' : 'key' } from '@core-js/pure/actual/symbol/async-iterator';
+        const log = [];
+        ${ expression }
+        export const r = [read(), { [key]: 23 }[key]];
+        export const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
+// Prior output keeps its native sentinel beside the explicit read, across import flavors.
+// Each host is a separate extraction route; the getter log observes an extra source read.
+function * generatePriorIteratorFlavors() {
+  for (const flavor of ['actual', 'full']) for (const binder of ['default', 'named']) for (const [name, kind, expression, invoke, hasValue] of [
+    ['return', 'function', 'return method(globalThis);', 'read(extra)', true],
+    ['throw', 'function', 'throw method(globalThis);', '(() => { try { read(extra); } catch (value) { return value; } })()', true],
+    ['effect', 'function', 'method(globalThis);', 'read(extra)', false],
+    ['void', 'function', 'void method(globalThis);', 'read(extra)', false],
+    ['yield', 'function*', 'yield method(globalThis);', 'read(extra).next().value', true],
+    ['await', 'async function', 'return await method(globalThis);', 'await read(extra)', true],
+  ]) {
+    yield {
+      name: `prior-iterator-flavor/${ flavor }/${ binder }/${ name }`,
+      code: `${ RESTORE_IMPORT }
+        import ${ binder === 'named' ? '{default as iteratorKey}' : 'iteratorKey' } from '@core-js/pure/${ flavor }/symbol/iterator';
+        import ${ binder === 'named' ? '{default as method}' : 'method' } from '@core-js/pure/${ flavor }/get-iterator-method';
+        const log = [];
+        function selected() { return 23; }
+        const prior = Object.getOwnPropertyDescriptor(globalThis, iteratorKey);
+        Object.defineProperty(globalThis, iteratorKey, {
+          configurable: true, get() { log.push('iterator'); return selected; }
+        });
+        ${ kind } read(extra) {
+          const { w: { [iteratorKey]: _unused } } = { ...extra, w: globalThis };
+          ${ expression }
+        }
+        let r;
+        try {
+          const extra = { get marker() { log.push('spread'); return 1; } };
+          r = (${ invoke }) === ${ hasValue ? 'selected' : 'undefined' };
+        } finally { restoreProperty(globalThis, iteratorKey, prior); }
+        export { r };
+        export const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
+// Source positions and iterator-produced values answer different questions.
+function * generateRuntimeIteratorPositions() {
+  for (const [name, invoke] of [
+    ['direct', 'read(...[], true)'],
+    ['apply', 'read.apply(null, [...[], true])'],
+    ['reflect', 'Reflect.apply(read, null, [...[], true])'],
+  ]) {
+    const row = snippet(`runtime-iterator-position/selection/${ name }`, `(() => {
+      const prior = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+      try {
+        Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield false; };
+        function read(flag) { return (flag ? [1] : 'text').at(0); }
+        return ${ invoke };
+      } finally { restoreProperty(Array.prototype, Symbol.iterator, prior); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+  for (const [name, expression] of [
+    ['identity', '((value) => value)(...[[1]]).at(0)'],
+    ['default', "(({ at } = [1]) => at.call('ok', 0))(...[])"],
+    ['binding', '(() => { const [value] = [[1]]; return value.at(0); })()'],
+    ['assignment', '(() => { let value; [value] = [[1]]; return value.at(0); })()'],
+    ['for-of', '(() => { let result; for (const value of [[1]]) result = value.at(0); return result; })()'],
+    ['property', '(() => { const { 0: value } = [[1]]; return value.at(0); })()'],
+  ]) {
+    const row = snippet(`runtime-iterator-position/value/${ name }`, `(() => {
+      const prior = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+      try {
+        Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield 'text'; };
+        return ${ expression };
+      } finally { restoreProperty(Array.prototype, Symbol.iterator, prior); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+  // Slot absence is a runtime protocol/property fact; defaults never override inherited values.
+  for (const [name, owner, key, setup, pattern, expression] of [
+    ['replaced iterator', 'Array', 'Symbol.iterator',
+      "Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield 'xy'; };", 'const [value = [1]] = [];', "value.includes('xy')"],
+    ['inherited hole', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [,];', "value.includes('xy')"],
+    ['iterator done', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [];', 'value.includes(1)'],
+    ['own undefined', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [void 0];', 'value.includes(1)'],
+    ['numeric property', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const { 0: value = [1] } = [];', "value.includes('xy')"],
+    ['inherited object slot', 'Object', "'typedDefaultValue'", "Object.prototype.typedDefaultValue = 'xy';",
+      'const { typedDefaultValue: value = [1] } = {};', "value.includes('xy')"],
+  ]) {
+    const row = snippet(`default-slot-presence/${ name }`, `(() => {
+      const prior = Object.getOwnPropertyDescriptor(${ owner }.prototype, ${ key });
+      try { ${ setup } ${ pattern } return ${ expression }; }
+      finally { restoreProperty(${ owner }.prototype, ${ key }, prior); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+  // An open iterated receiver keeps its slot default without constraining supplied values.
+  for (const [name, expression] of [
+    ['provided String', "readOpenDefaultedSlot(['text'], 'ok')"],
+    ['missing and undefined', '[(readOpenDefaultedSlot([], [7])), readOpenDefaultedSlot([void 0], [8])]'],
+  ]) {
+    const row = snippet(`defaulted-iterated-open/${ name }`, expression);
+    yield {
+      ...row,
+      code: `export function readOpenDefaultedSlot(external, target) {
+        const [{ at } = (log.push('default'), [1])] = external;
+        return at.call(target, 0);
+      }\n${ row.code }`,
+      strip: true,
+    };
+  }
+}
+
+// Nested object parameters use the same receiver dispatch as their flat bindings.
+function * generateNestedParameterInstances() {
+  for (const [family, type, initial, written, key, argument] of [
+    ['string', 'string', "'ab'", "'cd'", 'at', '-1'],
+    ['array', 'number[]', '[1]', '[2]', 'includes', '2'],
+  ]) for (const fallback of [false, true]) for (const form of ['closed', 'exported', 'arrow']) {
+    for (const absent of fallback ? [false, true] : [false]) {
+      const pattern = `{ value: { ${ key } }${ fallback ? ` = ${ written }` : '' } }`;
+      const declaration = form === 'arrow'
+        ? `const read = (${ pattern }) => ${ key };`
+        : `${ form === 'exported' ? 'export ' : '' }function read(${ pattern }) { return ${ key }; }`;
+      yield {
+        name: `nested-parameter-instance/${ family }/${ fallback ? 'default' : 'plain' }/${ form }/${ absent ? 'absent' : 'written' }`,
+        code: `const log = [];
+          const box: { value: ${ type } } = { value: ${ initial } };
+          box.value = ${ written };
+          ${ declaration }
+          export const r = read(${ absent ? '{}' : 'box' }).call(box.value, ${ argument });
+          export const effects = log;`,
+        ts: true,
+        strip: true,
+      };
+    }
+  }
 }

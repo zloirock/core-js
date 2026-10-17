@@ -1,8 +1,4 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
-import "core-js/modules/es.json.stringify";
-import "core-js/modules/es.string.iterator";
 // usage-global only prepends side-effect imports (never rewrites the destructure), so a nested
 // proxy leaf is flagged when EITHER ternary branch is a global proxy: a diverging
 // `globalThis : userObj` receiver still injects the statics it MIGHT need (over-inject is safe).

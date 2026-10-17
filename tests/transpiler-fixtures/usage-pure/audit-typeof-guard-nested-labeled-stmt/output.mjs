@@ -1,8 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// nested LabeledStatement (`outer: inner: if (...) return;`) - the sibling guard classification used to
-// peel only ONE label layer, so the second-level label would block the if-stmt dispatch
-// and the early-exit narrow drops. switched to a `while` loop so any depth of label
-// wrapping unwraps cleanly to the contained if / expression statement
+// Nested labels around an early-return guard preserve its narrowing for the next
+// statement. The method read after the guard needs only the Array implementation.
 declare const x: string | string[];
 function fn() {
   outer: inner: if (!Array.isArray(x)) return;

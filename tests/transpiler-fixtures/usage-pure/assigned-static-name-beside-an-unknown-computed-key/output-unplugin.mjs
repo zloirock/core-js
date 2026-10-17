@@ -1,10 +1,8 @@
-// An assignment pattern extracting a static's `name` beside an unknown computed key: babel writes the
-// extraction first, in source order, while unplugin's drain runs the residual - its key included - ahead of
-// the extracted write (the sidecar).
+// A static's instance name is bound before the following unknown computed key.
+// Unplugin retains a receiver capture in its sequence; Babel spells separate statements.
 import _Array$from from "@core-js/pure/actual/array/from";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 
 let name, zk;
 
-({ [k]: zk } = Array);
-name = _nameMaybeFunction(_Array$from);
+(name = _nameMaybeFunction(_Array$from), { [k]: zk } = Array);
