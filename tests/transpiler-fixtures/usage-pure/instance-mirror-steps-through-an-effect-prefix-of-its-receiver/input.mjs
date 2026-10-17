@@ -1,7 +1,6 @@
-// an instance method a parameter default or an IIFE argument mirrors reads its receiver through a sequence,
-// the prefix left to run where the source wrote it, as that receiver spelled alone: the default itself, a
-// hop slot, an arrow's default, a decided arm, a decided container and an argument's decided arm. a store
-// is no prefix: a mirror would write through it, so that default stays as written
+// Instance defaults and caller arguments keep receiver effects ahead of property extraction.
+// Nested literal slots and decided arms retain the same order.
+// A receiver assignment stores its original value and evaluates it once before extraction.
 export function seq({ at } = (eff(), [])) {
   return at;
 }

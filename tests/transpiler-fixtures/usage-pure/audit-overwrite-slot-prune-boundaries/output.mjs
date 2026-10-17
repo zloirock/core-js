@@ -17,10 +17,10 @@ declare const userNs: {
 let dropped, kept, sibling, wrapped, computed, other, z;
 dropped = _copyWithinMaybeArray(_globalThis.Array.prototype);
 kept = _flatMaybeArray(userNs.Array.prototype);
+sibling = _atMaybeArray(_globalThis.Array.prototype);
 ({
   z
 } = _globalThis);
-sibling = _atMaybeArray(_globalThis.Array.prototype);
 let rest;
 ({
   Array: {

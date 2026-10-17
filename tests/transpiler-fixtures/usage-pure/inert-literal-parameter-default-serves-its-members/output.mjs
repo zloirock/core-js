@@ -1,12 +1,11 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _at from "@core-js/pure/actual/instance/at";
 import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-// a parameter default spelled as an element of an INERT literal (`[Iterator][0]`, `[[1, 2]][0]`,
-// `({ I: Iterator }).I`) serves the statics and instance members destructured off it, as the direct
-// spelling does. Unknown callers keep instance-family injection conservative; their own argument
-// still destructures natively.
+// Inert literal defaults retain the Iterator and Array family facts of their default paths. A supplied
+// argument remains the actual receiver: pure body-entry dispatch preserves its own properties, while
+// global usage injects the possible families without rewriting the parameter.
 function h1({
   from: s1,
   name: nm1
@@ -16,11 +15,8 @@ function h1({
 }) {
   return [s1, nm1];
 }
-function h2({
-  at: a2
-} = {
-  at: _atMaybeArray([[1, 2]][0])
-}) {
+function h2(_ref = [[1, 2]][0]) {
+  let a2 = _at(_ref);
   return a2;
 }
 const h3 = ({

@@ -1,4 +1,4 @@
-import { entryToGlobalHint } from './index.js';
+import { entryToGlobalHint, NARROW_ENTRY } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
 import {
   bindingDeclarationPath,
@@ -290,7 +290,9 @@ export default class ImportInjectorState {
 
   addPureImport(entry, hint) {
     const source = `${ this.mode }/${ entry }`;
-    const existing = this.existingPureImports.get(source) ?? this.pureImports.get(source);
+    // A promoted binding also serves later requests for its old narrow entry.
+    const existing = this.existingPureImports.get(source) ?? this.pureImports.get(source)
+      ?? (NARROW_ENTRY.test(entry) ? this.pureImports.get(source.replace(NARROW_ENTRY, '')) : null);
     if (existing) return existing;
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
@@ -299,6 +301,19 @@ export default class ImportInjectorState {
     // of reverse-engineering the UID hint shape, so changing the UID convention can't
     // silently break receiver-type narrowing through alias chains
     this.#importInfoByName.set(name, { source, hint, entry });
+    return name;
+  }
+
+  // A late census can widen a THIS-pass constructor import after its binding was placed.
+  // Keep that binding and its source metadata together; user imports remain their own values.
+  promotePureImport(entry, nextEntry) {
+    const source = `${ this.mode }/${ entry }`;
+    const name = this.pureImports.get(source);
+    if (!name) return null;
+    const nextSource = `${ this.mode }/${ nextEntry }`;
+    this.pureImports.delete(source);
+    this.pureImports.set(nextSource, name);
+    this.#importInfoByName.set(name, { ...this.#importInfoByName.get(name), source: nextSource, entry: nextEntry });
     return name;
   }
 

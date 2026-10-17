@@ -33,7 +33,7 @@ const [,] = [_globalThis];
 const flatMap = _flatMapMaybeArray((_ref3 = _globalThis.Data) === void 0 ? fallback() : _ref3);
 const join = _joinMaybeArray((_ref4 = _self.Data) === void 0 ? fallback() : _ref4);
 const findLastIndex = _findLastIndexMaybeArray(_globalThis.data);
-const toReversed = _toReversedMaybeArray((true ? _globalThis : {}).Data);
+const toReversed = _toReversedMaybeArray(_globalThis.Data);
 const toSorted = _toSortedMaybeArray((touch(), _globalThis.data));
 const toSpliced = _toSplicedMaybeArray((touch(), _globalThis).Data);
 const realm = _globalThis;

@@ -1,7 +1,6 @@
-// An assignment over a literal whose claimed slot runs code keeps a reader beside the claim - a sibling key
-// ahead of it or behind it, a second slot that runs code, a deeper level: the literal is captured once,
-// where the source builds it, and the claim reads its slot off the capture - in a statement, an unbraced
-// body and a discarded sequence element.
+// Literal assignments keep initializer effects ahead of nested method reads and preserve sibling order.
+// Quiet trailing values can be assigned directly; other effectful slots and preceding sibling reads
+// retain the required source value. Statement, unbraced body and sequence hosts keep that order.
 const list = [3, [1, 2]];
 function make() { return [1, 2]; }
 let at, after, includes, twin, findLast, guarded, toSorted, kept, seq, before, findLastIndex;

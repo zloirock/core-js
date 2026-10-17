@@ -313,9 +313,7 @@ function mark(t, v) {
       from: f
     }
   } = {
-    w: 0 ? {
-      from: _Array$from
-    } : userObj
+    w: 0 ? Array : userObj
   };
   _pushMaybeArray(log).call(log, f());
 }
@@ -399,14 +397,5 @@ function mark(t, v) {
   };
 }
 {
-  const {
-    w: {
-      from: f
-    }
-  } = {
-    w: pick ? {
-      from: _Array$from
-    } : userObj,
-    [k]: 1
-  };
+  const f = _Array$from;
 }

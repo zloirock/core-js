@@ -139,4 +139,16 @@ runBoth('invoker mutation does not reject ordinary calls', 'function f(value = [
   check(label, adapter.makeResolver().parameterCallSites(parameter, { staticIsMutated: () => true })?.length, 1);
 });
 
+for (const [name, source, overridden] of [
+  ['spread supplies the slot', 'function f(value = []) {} f(...[undefined]);', true],
+  ['undefined prefix before spread', 'function f(value = []) {} f(undefined, ...[]);', false],
+  ['apply undefined prefix', 'function f(value = []) {} f.apply(null, [undefined, ...[]]);', false],
+]) runBoth(`default with iterator provenance/${ name }`, source, (parser, program, label) => {
+  const parameter = parser.pickPath(program, 'AssignmentPattern');
+  const resolver = parser.makeResolver({ isMutatedStatic: (owner, key) => owner === 'Array.prototype' && key === 'Symbol.iterator' });
+  const sites = resolver.parameterCallSites(parameter);
+  check(`${ label }/retains its source list`, !!sites[0].pairing.argsUnknown, false);
+  check(`${ label }/default authority`, resolver.paramDefaultNeverOverridden(parameter), !overridden);
+});
+
 finish();

@@ -13,23 +13,16 @@ import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // it keeps its own entry. the negatives are a proxy global with no entry of its own to arrive as
 // (nothing to substitute, so the receiver stays the source's own read) and the array receiver, which
 // names no global at all
-export const viaArrowIife = (({
-  name
-}) => name)({
-  name: _nameMaybeFunction(_Iterator)
-});
-export const viaFunctionIife = function ({
-  name
-}) {
+export const viaArrowIife = ((_ref, _unused = void 0) => {
+  let name = _nameMaybeFunction(_ref);
   return name;
-}({
-  name: _nameMaybeFunction(_WeakSet)
-});
-export function viaParameterDefault({
-  name
-} = {
-  name: _nameMaybeFunction(_Map)
-}) {
+})(_Iterator);
+export const viaFunctionIife = function (_ref2, _unused2 = void 0) {
+  let name = _nameMaybeFunction(_ref2);
+  return name;
+}(_WeakSet);
+export function viaParameterDefault(_ref3 = _Map) {
+  let name = _nameMaybeFunction(_ref3);
   return name;
 }
 export const mixedWithAStatic = (({
@@ -43,8 +36,7 @@ export const mixedWithAStatic = (({
 export const proxyWithNoEntry = (({
   name
 }) => name)(window);
-export const arrayReceiver = (({
-  at
-}) => at)({
-  at: _atMaybeArray([1, 2])
-});
+export const arrayReceiver = ((_ref4, _unused3 = void 0) => {
+  let at = _atMaybeArray(_ref4);
+  return at;
+})([1, 2]);

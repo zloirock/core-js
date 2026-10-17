@@ -120,11 +120,7 @@ export function viaMirrorTernary({
   Array: {
     of
   }
-} = cond1 ? {
-  Array: {
-    of: _Array$of
-  }
-} : {
+} = cond1 ? null == _globalThis.window ? void 0 : _self : {
   Array: {
     of: () => 1
   }

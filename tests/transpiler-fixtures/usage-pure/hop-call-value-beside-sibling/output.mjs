@@ -1,6 +1,5 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _keys from "@core-js/pure/actual/instance/keys";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 // A static reached through a call keeps that call and neighboring effects in source order.
 // Known constructor arms receive pure values; user branches keep their own members, and an arm the
@@ -82,28 +81,28 @@ const {
   },
   q: 1
 };
+const {
+  w: {
+    keys: viaTernaryUser
+  },
+  q: q8
+} = {
+  w: c ? (eff(), {
+    keys: _Object$keys
+  }) : userObj,
+  q: 1
+};
 const _ref2 = {
-    w: c ? eff() : userObj,
+    w: userObj || eff(),
     q: 1
   },
   {
     w: _ref
   } = _ref2,
-  viaTernaryUser = _ref === Object ? _Object$keys : _keys(_ref),
-  {
-    q: q8
-  } = _ref2;
-const _ref4 = {
-    w: userObj || eff(),
-    q: 1
-  },
-  {
-    w: _ref3
-  } = _ref4,
-  viaUserLeft = _ref3 === Object ? _Object$keys : _ref3.keys,
+  viaUserLeft = _ref === Object ? _Object$keys : _ref.keys,
   {
     q: q9
-  } = _ref4;
+  } = _ref2;
 const {
   w: {
     keys: viaSequence

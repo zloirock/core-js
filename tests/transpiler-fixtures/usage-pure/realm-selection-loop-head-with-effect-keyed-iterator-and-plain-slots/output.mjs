@@ -1,9 +1,8 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// An iterator claim and a plain slot, each keyed by an effect, in a loop head over a realm selection: both
-// legs run the keys in source order around the claim's binding, babel reading the realm again for each part
-// while unplugin's drain memoizes it (the sidecar).
+// An iterator claim and a plain slot, each keyed by an effect, in a loop head over a realm selection.
+// Both legs bind the iterator between the two key effects and reuse the immutable pure realm import.
 let done;
 for (const {
     [(k(), _Symbol$iterator)]: _unused

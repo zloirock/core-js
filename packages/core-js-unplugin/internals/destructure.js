@@ -28,6 +28,7 @@ import {
   planSideEffectKeyStrategy,
   planSynthReceiverGuard,
   qualifiesForParamBodyExtract,
+  planParameterInstanceExtraction,
   renderSynthTree,
   resolveNestedDestructureReceiver,
   resolveNestedNavDispatch,
@@ -166,6 +167,7 @@ import {
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
+  renderParameterInstanceCapture,
 } from '@core-js/polyfill-provider/render';
 import {
   absentableStoreReadKeyOf,
@@ -386,7 +388,15 @@ export default function createAstDestructureEmitter({
   // Keep preserved receiver/probe nodes live and retire only completed claims. With `argumentSites`,
   // return whether every caller settles the inner default arm; otherwise return the application
   // result: true where the plan rendered or its bail ends the dispatch, false where no plan stands.
-  function renderNestedParamSynth({ metaPath, meta, withinNode = null, argumentSites = null, fallbackOnBail = false }) {
+  function renderNestedParamSynth({
+    metaPath,
+    meta,
+    withinNode = null,
+    argumentSites = null,
+    fallbackOnBail = false,
+    allowFlatInstanceDefault = false,
+    deferredOnly = false,
+  }) {
     const leafPattern = metaPath.parentPath;
     if (!argumentSites && synthDone.has(leafPattern.node)) return true;
     const options = {
@@ -396,13 +406,16 @@ export default function createAstDestructureEmitter({
       adapter,
       parameterCallSites: argumentSites,
       isDisabledProp: isDisabled,
+      allowFlatInstanceDefault,
     };
     const plan = argumentSites ? buildParameterArgumentSynthPlan(options) : buildNestedParamSynthPlan(options);
+    if (deferredOnly && !plan?.targets?.some(target => target.localMemo)) return false;
     const applied = applyNestedParamSynthPlan({
       plan,
       fallbackOnBail,
       // Caller-argument mirrors own their memo in the caller's evaluation frame.
-      mintMemoRef: target => injector.generateDeclaredRef(target.host ?? plan.host ?? metaPath),
+      mintMemoRef: target => target.localMemo ? mintRefName()
+        : injector.generateDeclaredRef(target.host ?? plan.host ?? metaPath),
       renderTree: (tree, recv) => renderSynthTree(tree, {
         injectImport: injectPureImport,
         ...recv,
@@ -674,7 +687,7 @@ export default function createAstDestructureEmitter({
     flattenArrayWrapperInits(metaPath);
     // the receiver the pattern reads: its host's slot, the IIFE argument, or - under an ARRAY
     // WRAPPER - the element the host's literal pairs it with, the shared resolver's own climb
-    const desc = resolveFallbackReceiver(patternPath.parentPath, pattern);
+    const desc = resolveFallbackReceiver(patternPath.parentPath, pattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     if (!desc?.rhsNode) return;
     // the SECOND way a foreign-frame receiver enters the channel (the first is the arg detector):
     // the shared resolver hands back the call-ARG plus the site it evaluates at, so the subtree
@@ -1480,7 +1493,10 @@ export default function createAstDestructureEmitter({
       const declaration = restHost.parentPath;
       const pendingJobs = queuedJobsFor(restHost)?.jobs ?? [];
       // Earlier queued reads can declare this same receiver in their original statement slot.
-      const deferredReceiver = restPlan.claimedProps?.size && assignmentValueDiscarded(restHost)
+      // A split capture shares that declaration; only its inner refs need hoisted slots.
+      const deferredReceiver = restPlan.claimedProps?.size
+        && (!restPlan.capture || restPlan.capture.splitCapture && assignmentInStatementPosition(restHost))
+        && assignmentValueDiscarded(restHost)
         && pendingJobs.some(job => job.readsReceiver) && pendingJobs.every(job => !job.bodyless);
       const rendered = renderRetainedObjectCapture(restPlan, {
         mintRef: mintRefName,
@@ -1489,6 +1505,7 @@ export default function createAstDestructureEmitter({
         injectImport: injectPureImport,
         entry,
         hintName,
+        renderDefaultGuard: buildInstanceDefaultGuard,
         mintUnused: declared => declared ? injector.declareUnusedRef(metaPath) : mintUnusedName(),
         claimProperties: properties => { for (const item of properties) skippedNodes.add(item); },
         noteStaticAlias: (name, aliasEntry) => injectorState.registerBodyExtractAlias(name, aliasEntry, metaPath.scope.getBinding(name)),
@@ -1511,7 +1528,7 @@ export default function createAstDestructureEmitter({
             if (deferredReceiver) job.receiverExpression = rendered.expression;
           }
         }
-        const statement = restPlan.capture?.inlineLeaf && assignmentInStatementPosition(restHost)
+        const statement = restPlan.capture?.inlineLeaf && !pendingJobs.length && assignmentInStatementPosition(restHost)
           ? peelToExpressionStatement(restHost)?.exprStmt : null;
         if (statement) {
           const statements = rendered.expression.expressions.map(expressionStatement);
@@ -1677,8 +1694,35 @@ export default function createAstDestructureEmitter({
     return true;
   }
 
+  function captureParameterInstance(metaPath) {
+    const plan = planParameterInstanceExtraction({
+      propPath: metaPath, adapter, resolvePure, isDisabledProp: isDisabled, parameterCallSites,
+      isClaimedProp: path => overwriteRebindEmitted({ metaPath: path, injectorState, adapter }),
+    });
+    // A completed default mirror owns its pattern before remaining siblings revisit it.
+    if (!plan || synthDone.has(plan.pattern)) return false;
+    for (const property of plan.claimedProperties) skippedNodes.add(property);
+    for (const leaf of plan.bindingProperties) resolvePropertyObjectType(leaf);
+    const rendered = renderParameterInstanceCapture(plan, {
+      receiverName: mintRefName(),
+      unusedName: plan.paddingRequired ? mintUnusedName() : null,
+    });
+    plan.rootPath.replaceWith(rendered.head);
+    if (rendered.padding) plan.fnPath.node.params.push(rendered.padding);
+    const { body } = plan.fnPath.node;
+    if (body.type === 'BlockStatement') body.body.splice(prologueEndIndex(body.body), 0, rendered.declaration);
+    else {
+      plan.fnPath.node.body = blockStatement([rendered.declaration, { type: 'ReturnStatement', argument: body }]);
+      plan.fnPath.node.expression = false;
+    }
+    plan.fnPath.scope.crawl();
+    markRewrite();
+    return true;
+  }
+
   // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
   function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
+    if (kind === 'instance' && captureParameterInstance(metaPath)) return;
     // Keep the default's comment position before its own claims replace the value node.
     const sourceDefault = metaPath.node.value;
     if (sourceDefault?.type === 'AssignmentPattern') sourceDefault.defaultCommentsAt ??= unwrapParens(sourceDefault.right).start;
@@ -1687,6 +1731,12 @@ export default function createAstDestructureEmitter({
     // (mirrored the default, or proved it dead at each call), the rewrites below would only add
     // dead text beside it
     if (parameterCallSites && renderNestedParamSynth({ metaPath, meta, argumentSites: parameterCallSites, fallbackOnBail: true })) return;
+    if (kind === 'instance' && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
+    // A flat open default normally uses the compact data-slot synth. If an earlier
+    // parameter/default step can observe its reads, use the shared lazy mirror instead.
+    if (kind === 'instance' && renderNestedParamSynth({
+      metaPath, meta, allowFlatInstanceDefault: true, deferredOnly: true,
+    })) return;
     // A declined caller mirror must retain absent properties and the caller's own defaults.
     if (meta?.parameterArgumentsOnly) return;
     // every leaf of this pattern answers its receiver type before the routes below rewrite it
@@ -1873,9 +1923,11 @@ export default function createAstDestructureEmitter({
     // other. every wider shape belongs to the branch mirror, whose slot serves the static with the
     // statement standing and nothing moved - the shared plan's own rule for the same decision
     const liftTakesHostWhole = !liftHostPattern(metaPath) || soleChainToProp(liftHostPattern(metaPath), prop);
+    // Original leaf defaults stay in the constructor pattern; only the binding target qualifies here.
     const ctorPattern = liftTakesHostWhole && prop.value?.type === 'ObjectPattern' && !prop.computed
       && (kind === 'global' || (kind === 'static' && !thisReceiver && !adapter.isMutatedStatic?.(meta?.object, meta?.key)))
-      && prop.value.properties.every(leaf => leaf.value?.type === 'Identifier' && (claimsRide ? leaf.type === 'Property'
+      && prop.value.properties.every(leaf => patternSlotTarget(leaf.value)?.type === 'Identifier'
+        && (claimsRide ? leaf.type === 'Property'
         : !leafKeyMayClaim(leaf, kind === 'global'
           ? { object: hintName, placement: 'static' } : { object: undefined, placement: 'prototype' }, true)));
     // a pattern default becomes the extraction's own LHS, so its leaves may spell anything a
@@ -1933,11 +1985,15 @@ export default function createAstDestructureEmitter({
         readsReceiver: kind === 'instance',
         ctx: keyCtx,
       });
-      const receiverName = keyReadPlan.exported && !keyReadPlan.reuseReceiver && !discarded
+      const inlineReceiver = proven && keyReadPlan.inlineReceiver;
+      const receiverSlot = keyReadPlan.receiver === init ? null : findNodeSlot(init, keyReadPlan.receiver);
+      const receiverName = keyReadPlan.exported && !keyReadPlan.reuseReceiver && !inlineReceiver && !discarded
         ? injector.generateDeclaredRef(metaPath) : null;
       let value = buildValue({
         kind, entry, hintName, receiverNode: declaratorPath.node.init, prop, metaPath,
         literalRoute: true,
+        liveReceiver: inlineReceiver ? () => receiverSlot
+          ? receiverSlot.owner[receiverSlot.key] : declaratorPath.node.init : null,
       });
       if (!value) return;
       // a single instance leaf binds its own dispatch over the helper result, as the extraction does
@@ -1969,7 +2025,7 @@ export default function createAstDestructureEmitter({
           receiverName,
           // the operand of a decided init the read evaluates, addressed by its slot: a claim inside
           // renders by replacing it, and the drain reads what stands there then
-          receiverSlot: keyReadPlan.receiver === init ? null : findNodeSlot(init, keyReadPlan.receiver),
+          receiverSlot,
           // ... and what discarding a receiver nothing reads runs, addressed the same way
           discardedSlots: discarded?.map(node => findNodeSlot(declaratorPath.node, node)),
           metaPath,
@@ -2280,6 +2336,7 @@ export default function createAstDestructureEmitter({
     relaxedReceiver,
     declaratorConsumedWhole = false,
     carried = false,
+    receiverConsumesInit = false,
     exported,
     slotMemo = null,
     metaPath = null,
@@ -2305,12 +2362,12 @@ export default function createAstDestructureEmitter({
       // TDZ-fault a receiver bound earlier in the same declaration - so a shared declaration keeps
       // it, and a for-INIT header keeps its own. unless keeping it would READ the receiver a SECOND
       // time: that is a defect, not a reorder risk, and the consumed declarator empties instead
-      // (`const { y: { at } } = { y: nb.y }, zn = 1` fired the `y` getter twice). a CARRIED receiver
-      // is not that case in a header - it rides the sink channel, which re-emits the discarded init
+      // (`const { y: { at } } = { y: nb.y }, zn = 1` fired the `y` getter twice). a receiver proven
+      // to perform the complete init is not that case in a header: the dispatch is the init's one read
       // ... a SYMBOL leaf under a hop beside a SIBLING prop keeps its sentinel: the residual binds
       // the sibling, and the helper reads the slot the extraction spells (`{ w: { [S]: _unused }, z }`)
       || (entry === 'get-iterator-method' && !!literalReceiver && declarator.id?.properties?.length > 1)
-      || (kind === 'instance' && entry !== 'get-iterator-method' && !!literalReceiver
+      || (!receiverConsumesInit && kind === 'instance' && entry !== 'get-iterator-method' && !!literalReceiver
         && ((forInit && (carried || reReadable))
           || !((soleBinding || (declaratorConsumedWhole && !reReadable))
             && (relaxedReceiver || carriesInitWhole
@@ -3039,7 +3096,14 @@ export default function createAstDestructureEmitter({
       && !mayHaveSideEffects(nestedReceiver) ? nestedReceiver : null;
     if (kind === 'instance' && chain.length && !carriedReceiver
       && !isReReferenceableReceiver(nestedReceiver) && !surfaceLeafValue
-      && !(relaxedNestedReceiver && nestedMemoNode)) return;
+      && !(relaxedNestedReceiver && nestedMemoNode)) {
+      // The ordinary drain can capture a slot that this compact host cannot re-read.
+      // Re-detect every declarator inside the same conditional var scope.
+      ledger.delete(host.declaration);
+      host.declarationPath.replaceWith(blockStatement([host.declaration]));
+      markRewrite();
+      return;
+    }
     // ... and a DISCARDED init has a slot after all: a static / global claim reads nothing off the
     // receiver at runtime, so with the pattern consumed WHOLE the block the drain opens hosts the
     // source's own read as a statement, where the source evaluated it - the same shape the
@@ -3232,9 +3296,9 @@ export default function createAstDestructureEmitter({
     });
     const typedNavChain = typedNavChainFor({ kind, entry, chain, metaPath, allowSurfaceBase: true });
     const literalRoute = planLiteralRoute({
-      metaPath, prop, sentinel, chain, declarator, declaration, pureNav: pureNav || !!typedHopPure, adapter,
+      metaPath, prop, sentinel, chain, declarator, declaration, pureNav: pureNav || !!typedHopPure, forInit, adapter,
     });
-    const { soleBinding, declaratorConsumedWhole, relaxedReceiver, carriedLive } = literalRoute;
+    const { soleBinding, declaratorConsumedWhole, relaxedReceiver, carriedLive, receiverConsumesInit } = literalRoute;
     let { literalReceiver } = literalRoute;
     // a STATIC extraction drops the slot's read, and a slot whose live `?.` can short-circuit is the
     // probe channel's (the nested plan declines the same pair): no leg carries that probe through a
@@ -3396,6 +3460,7 @@ export default function createAstDestructureEmitter({
       metaPath,
       declaratorConsumedWhole,
       carried: !!carriedLive,
+      receiverConsumesInit,
       // ... and an ALL-PROXY SELECTING init is re-readable the same way a bare proxy root is:
       // every branch names the same surface, so the sibling needs no kept key
       symbolPatternResidual: isSymbolIteratorPatternClaim(prop, entry)
@@ -3517,7 +3582,7 @@ export default function createAstDestructureEmitter({
         sinkDrop: forInit && sinkDropsReceiver(declarator.init, metaPath, adapter),
         // ... less the read the dispatch itself performs: a carried receiver the claim dispatches on is
         // read once, by that dispatch
-        sinkKeep: forInit && (mayHaveSideEffects(declarator.init)
+        sinkKeep: forInit && !receiverConsumesInit && (mayHaveSideEffects(declarator.init)
           || discardRescueNodesWithReads({ node: declarator.init, scope: metaPath.scope, adapter, path: metaPath })
             .some(node => !literalReceiver || !nodeHoldsSubtree(literalReceiver, node))),
         // the sink's re-read target resolves on the PRISTINE tree, like every other memo arg -
@@ -4248,10 +4313,8 @@ export default function createAstDestructureEmitter({
     return ref?.static ? ref.pure : null;
   }
 
-  // for-init: consumed declarators are replaced IN PLACE by the extracted siblings, and an
-  // effect-bearing consumed init stays live as an `_unused` dummy declarator
-
   return {
+    captureParameterInstance,
     capturePatternForExtraction,
     // the probe renders read their channel members off this object, and the channel that owns
     // them is built after this one - the two cross-reference, like the sealed-probe context
@@ -4274,7 +4337,7 @@ export default function createAstDestructureEmitter({
     sentinelAlreadyProcessed({ metaPath, meta }) {
       return sentinelAlreadyProcessed(metaPath, { node: metaPath.node, meta, injector: injectorState });
     },
-    overwriteRebindEmitted: args => overwriteRebindEmitted({ ...args, injectorState }),
+    overwriteRebindEmitted: args => overwriteRebindEmitted({ ...args, injectorState, adapter }),
     warnConditionalFallbackUntouched(meta, metaPath) {
       warnConditionalFallbackUntouched(meta, metaPath, { getDebugOutput, adapter, resolvePure });
     },

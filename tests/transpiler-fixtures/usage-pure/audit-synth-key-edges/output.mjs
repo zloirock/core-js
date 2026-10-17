@@ -11,13 +11,11 @@ export const f = function ({
 }();
 // a `__proto__` pattern key spells COMPUTED-STRING in the synth literal: an own property,
 // not the prototype-setter form - the literal keeps its own prototype
-export const g = function ({
-  __proto__: p,
-  at
-} = {
-  ["__proto__"]: [1, 2].__proto__,
-  at: _atMaybeArray([1, 2])
-}) {
+export const g = function (_ref = [1, 2]) {
+  let {
+    __proto__: p
+  } = _ref;
+  let at = _atMaybeArray(_ref);
   return [p, at];
 }();
 // a WELL-KNOWN-SYMBOL key through a bound alias joins the synth: the slot renders the
@@ -26,10 +24,13 @@ const s = _Symbol$iterator;
 export const h = function ({
   at,
   [s]: it
-} = {
-  at: _atMaybeArray([1, 2]),
-  [s]: _getIteratorMethod([1, 2])
-}) {
+} = (() => {
+  var _ref2;
+  return _ref2 = [1, 2], {
+    at: _atMaybeArray(_ref2),
+    [_Symbol$iterator]: _getIteratorMethod(_ref2)
+  };
+})()) {
   return [at, it];
 }();
 // a STRING spelling of a symbol's own name is an ordinary property, never the symbol: the
@@ -37,34 +38,40 @@ export const h = function ({
 export const s2 = function ({
   at,
   ["Symbol.iterator"]: x
-} = {
-  at: _atMaybeArray([1, 2]),
-  ["Symbol.iterator"]: [1, 2]["Symbol.iterator"]
-}) {
+} = (() => {
+  var _ref3;
+  return _ref3 = [1, 2], {
+    at: _atMaybeArray(_ref3),
+    "Symbol.iterator": _ref3["Symbol.iterator"]
+  };
+})()) {
   return [at, x];
 }();
 // a FOLDED computed key reads back COMPUTED with its own string, whatever produced the fold:
 // a side-effecting key whose prefix stays on the pattern, and a plain string literal
-export const s3 = function (_ref = void 0) {
-  let _ref2 = false;
-  let _ref3 = _ref === void 0 ? (_ref2 = true, [1, 2]) : _ref,
-    {} = _ref3,
+export const s3 = function (_ref4 = void 0) {
+  let _ref5 = false;
+  let _ref6 = _ref4 === void 0 ? (_ref5 = true, [1, 2]) : _ref4,
+    {} = _ref6,
     {
       at
-    } = _ref2 ? {
-      "at": _atMaybeArray(_ref3)
-    } : _ref3,
+    } = _ref5 ? {
+      "at": _atMaybeArray(_ref6)
+    } : _ref6,
     {
       [(effect(), "k")]: v
-    } = _ref3;
+    } = _ref6;
   return [at, v];
 }();
 export const s4 = function ({
   at,
   ["z"]: z
-} = {
-  at: _atMaybeArray([1, 2]),
-  ["z"]: [1, 2]["z"]
-}) {
+} = (() => {
+  var _ref7;
+  return _ref7 = [1, 2], {
+    at: _atMaybeArray(_ref7),
+    z: _ref7.z
+  };
+})()) {
   return [at, z];
 }();

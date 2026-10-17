@@ -15,7 +15,7 @@
 // Service object collects factory helpers + the two `type-expansion` cluster outputs
 // (`unwrapMappedTypePassthrough`, `evaluateConditionalType`) the handlers call into.
 import { $Object, MAX_DEPTH, firstTypeParamIsInner } from './base.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, IMPORT_SPECIFIER_TYPES } from '../helpers/ast-patterns.js';
 import { markMappedReadonly, markReadonlyCollection } from './ast-shapes.js';
 
 // shared accessor for the first type-arg slot on a TS/Flow ref node. `getTypeArgs` returns
@@ -33,6 +33,9 @@ export function createTypeResolveDispatch({
   resolveUserDefinedType,
   resolveNamedType,
   findTypeParameter,
+  findTypeDeclaration,
+  typeDeclarationShadowsGlobal,
+  getScopeBinding,
   isNullableOrNever,
   safeInnerType,
   tupleAsArrayType,
@@ -65,16 +68,21 @@ export function createTypeResolveDispatch({
     if (segments.length === 1 && typeParamMap.has(name)) {
       return applyHigherKindedArgs({ bound: typeParamMap.get(name), node, typeParamMap, scope, depth, seen });
     }
-    // a type-PARAMETER in scope outranks the same-named global here too. this lane resolves type
-    // ARGUMENTS (`Outer<Array>` written inside `function f<Array>`), where the map binds the
-    // alias's own parameters rather than the caller's, so the bound-check above does not see it.
+    // a type-PARAMETER or local type ALIAS in scope outranks the same-named global here too.
+    // this lane resolves type ARGUMENTS (`Outer<Array>`), where the map binds the alias's own
+    // parameters rather than the caller's, so the bound-check above does not see either shadow.
+    // Only global interface augmentations stay on the container lane.
     // only the container lookup is suppressed - the ref still resolves through the lanes below
-    const known = findTypeParameter(name, scope) ? null : resolveKnownContainerType({
+    const base = resolveKnownConstructor(name);
+    const shadowedByLocalTypeAlias = base && segments.length === 1
+      && typeDeclarationShadowsGlobal(findTypeDeclaration(segments, scope), name, scope);
+    const imported = segments.length === 1 && IMPORT_SPECIFIER_TYPES.has(getScopeBinding({ scope, name })?.path?.node?.type);
+    const known = findTypeParameter(name, scope) || shadowedByLocalTypeAlias || imported ? null : resolveKnownContainerType({
       name,
       node,
       scope,
       typeParamMap,
-      base: resolveKnownConstructor(name),
+      base,
       innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
     });
     if (known) return known;

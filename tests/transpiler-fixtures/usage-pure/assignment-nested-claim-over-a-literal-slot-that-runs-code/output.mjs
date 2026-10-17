@@ -4,58 +4,36 @@ import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-l
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
-// An assignment over a literal whose claimed slot runs code keeps a reader beside the claim - a sibling key
-// ahead of it or behind it, a second slot that runs code, a deeper level: the literal is captured once,
-// where the source builds it, and the claim reads its slot off the capture - in a statement, an unbraced
-// body and a discarded sequence element.
+var _ref, _ref2;
+// Literal assignments keep initializer effects ahead of nested method reads and preserve sibling order.
+// Quiet trailing values can be assigned directly; other effectful slots and preceding sibling reads
+// retain the required source value. Statement, unbraced body and sequence hosts keep that order.
 const list = [3, [1, 2]];
 function make() {
   return [1, 2];
 }
 let at, after, includes, twin, findLast, guarded, toSorted, kept, seq, before, findLastIndex;
+at = _atMaybeArray(_flatMaybeArray(list).call(list));
+after = 1;
 _ref = {
-  y: _flatMaybeArray(list).call(list),
-  o: 1
-};
-at = _atMaybeArray(_ref.y);
-({
-  o: after
-} = _ref);
-_ref2 = {
   y: make(),
   z: make()
 };
-includes = _includesMaybeArray(_ref2.y);
+includes = _includesMaybeArray(_ref.y);
 ({
   z: twin
-} = _ref2);
+} = _ref);
 if (list) {
-  _ref3 = {
-    y: new Array(1, 2),
-    o: 2
-  };
-  findLast = _findLastMaybeArray(_ref3.y);
-  ({
-    o: guarded
-  } = _ref3);
+  findLast = _findLastMaybeArray(new Array(1, 2));
+  guarded = 2;
 }
-seq = (_ref4 = {
-  x: {
-    y: make()
-  },
-  o: 3
-}, {
-  x: _ref5
-} = _ref4, toSorted = _toSortedMaybeArray(_ref5.y), {
-  o: kept
-} = _ref4, 5);
-_ref6 = {
+seq = (toSorted = _toSortedMaybeArray(make()), kept = 3, 5);
+_ref2 = {
   o: 4,
   y: make()
 };
 ({
   o: before
-} = _ref6);
-findLastIndex = _findLastIndexMaybeArray(_ref6.y);
+} = _ref2);
+findLastIndex = _findLastIndexMaybeArray(_ref2.y);
 export { at, after, includes, twin, findLast, guarded, toSorted, kept, seq, before, findLastIndex };

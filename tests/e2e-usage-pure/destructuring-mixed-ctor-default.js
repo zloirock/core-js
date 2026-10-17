@@ -44,3 +44,25 @@ QUnit.test('mixed constructor default: expression body and nested wrappers', ass
   assert.same(new nested[0]([key]).has(key), true);
   assert.deepEqual([first[1], last[1], nested[1]], [undefined, undefined, undefined]);
 });
+
+QUnit.test('constructor pattern: a decided realm alias keeps its source leaf default', assert => {
+  const events = [];
+  /* eslint-disable no-var, block-scoped-var -- the conditional hoisted alias is the source form under test */
+  function read(enabled) {
+    if (enabled) { var realm = globalThis; }
+    const { Promise: { missing = (events.push('default'), Array.of(7)) } } = realm;
+    return missing;
+  }
+  function skipped(enabled) {
+    if (enabled) { var realm = globalThis; }
+    const { Promise: { missing = (events.push('skipped-default'), Array.of(9)) } } = realm;
+    return missing;
+  }
+  /* eslint-enable no-var, block-scoped-var -- both source aliases end here */
+  // A neighbouring constructor import must not hide a native read of realm.Promise.
+  withTemporaryProperty(globalThis, 'Promise', undefined, () => {
+    assert.deepEqual(read(true), [7], 'the retained pattern reads the served constructor');
+    assert.throws(() => skipped(false), TypeError, 'a skipped initialization still rejects before its default');
+  });
+  assert.deepEqual(events, ['default'], 'the original leaf default runs once, after the constructor read');
+});

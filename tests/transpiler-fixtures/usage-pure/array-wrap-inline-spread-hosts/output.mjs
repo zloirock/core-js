@@ -58,6 +58,6 @@ class K {
     y: {
       toReversed: viaClassField
     }
-  }]) => viaClassField)([nb]);
+  }]) => viaClassField)([...[nb]]);
 }
 export { viaLaterSpread, K };

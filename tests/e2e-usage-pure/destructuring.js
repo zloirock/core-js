@@ -2718,6 +2718,25 @@ QUnit.test('destructuring: for-init receiver SE runs first and once', assert => 
   assert.same(`${ log }`, 'se');
 });
 
+// a consumed loop-head slot carries its initializer's sequence prefix inside the instance dispatch.
+// the prefix and the getter each run once, before the method binding is used
+QUnit.test('destructuring: for-init carried receiver serves its instance claim', assert => {
+  const events = [];
+  const array = [4, 7];
+  const holder = {
+    get value() {
+      events.push('get');
+      return array;
+    },
+  };
+  let bound;
+  // eslint-disable-next-line no-var -- the var loop-head declarator is the host under test
+  for (var { value: { at: method } } = { value: (events.push('prefix'), holder.value) }, i = 0;
+    i < 1; i++) bound = method;
+  assert.deepEqual(events, ['prefix', 'get'], 'the prefix and getter run once in source order');
+  assert.strictEqual(bound.call(array, -1), 7, 'the loop head receives the pure instance method');
+});
+
 // a side-effect computed key destructuring a GLOBAL constructor: the key SE runs, and member reads
 // through the local binding re-polyfill (`P.allSettled` resolves the pure static) rather than landing
 // raw on a bare constructor that lacks it (which would throw TypeError)
@@ -2995,11 +3014,13 @@ QUnit.test('destructuring: alias + MIXED static+SE proxy hop collapses (no doubl
 
 // the same MIXED static+SE hop inside a LOGICAL operand - the gate must descend the logical to see the owned operand
 QUnit.test('destructuring: MIXED static+SE proxy hop inside a LOGICAL operand collapses', assert => {
-  let count = 0;
-  // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- proxy-hop seq + logical-operand parens under test
-  const { getOwnPropertyNames } = (globalThis.self[count++, 'window'].Object) || Object;
-  assert.deepEqual(getOwnPropertyNames({ z: 1 }), ['z']);
-  assert.same(count, 1);
+  withWindowPresence(true, () => {
+    let count = 0;
+    // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- proxy-hop seq + logical-operand parens under test
+    const { getOwnPropertyNames } = (globalThis.self[count++, 'window'].Object) || Object;
+    assert.deepEqual(getOwnPropertyNames({ z: 1 }), ['z']);
+    assert.same(count, 1);
+  });
 });
 
 // a CALL / IIFE-rooted proxy receiver consumed by a destructure (`const {resolve} = sf().self.Promise`): the
@@ -6256,6 +6277,35 @@ QUnit.test('destructuring: an inline-array spread in a wrapper evaluates its ele
   assert.deepEqual(log, ['a', 'b', 'c', 'd', 'e', 'g', 'h']);
 });
 
+QUnit.test('destructuring: a nested inline spread keeps its ponyfill and later read order', assert => {
+  const list = [5, 9];
+  withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+    // eslint-disable-next-line unicorn/no-useless-spread -- the pristine inline spread is the eager-read case
+    const method = (([{ at }]) => at)([...[list]]);
+    assert.same(method.call(list, -1), 9, 'the quiet nested receiver works without the native method');
+  });
+
+  const prior = Object.getOwnPropertyDescriptor(Array.prototype, 'at');
+  const events = [];
+  function own() { return 'own'; }
+  function mark(tag, value) {
+    events.push(tag);
+    return value;
+  }
+  restoreProperty(Array.prototype, 'at', {
+    configurable: true,
+    get() { events.push('get'); return own; },
+  });
+  try {
+    // eslint-disable-next-line unicorn/no-useless-spread -- later spread work is the deferred-read control
+    const method = (([{ at }]) => at)([...[mark('receiver', list), mark('later', 0)]]);
+    assert.same(method, own, 'the control reads the receiver method');
+    assert.deepEqual(events, ['receiver', 'later', 'get'], 'later element work finishes before the method read');
+  } finally {
+    restoreProperty(Array.prototype, 'at', prior);
+  }
+});
+
 QUnit.test('destructuring: an object hop slot runs its prefix once on every host', assert => {
   let hits = 0;
   function bump() {
@@ -9449,4 +9499,48 @@ QUnit.test('destructuring: computed roots keep one read and seal optional naviga
   const absent = null;
   // eslint-disable-next-line no-unsafe-optional-chaining -- The pattern must throw after the root short-circuits.
   assert.throws(() => { ({ data: { at } } = absent?.box); }, TypeError);
+});
+
+QUnit.test('destructuring: decided slots retain later literal overwrites', assert => {
+  const pick = 1;
+  const userObj = {};
+  // eslint-disable-next-line @stylistic/quote-props -- a string-spelled index exercises a distinct source form
+  const { '0': { from: stringIndex } } = [pick ? Array : userObj];
+  const { 0: { from: numberIndex } } = [pick ? Array : userObj];
+  const { 1: { from: secondIndex } } = [0, pick ? Array : userObj];
+  const empty = {};
+  const { w: { from: emptySpread } } = { w: pick ? Array : userObj, ...empty };
+  assert.deepEqual([stringIndex([3])[0], numberIndex([4])[0], secondIndex([5])[0], emptySpread([6])[0]], [3, 4, 5, 6]);
+  const events = [];
+  function key() {
+    events.push('key');
+    return 'w';
+  }
+  const { w: { from: overwritten } } = { w: pick ? Array : userObj, [key()]: 1 };
+  assert.same(typeof overwritten, 'undefined');
+  const more = {
+    get w() {
+      events.push('spread');
+      return { from: () => ['user'] };
+    },
+  };
+  const { w: { from: spread } } = { w: pick ? Array : userObj, ...more };
+  assert.deepEqual(spread(), ['user']);
+  assert.deepEqual(events, ['key', 'spread']);
+});
+
+QUnit.test('destructuring: a decided optional slot keeps its nested binding rejection', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const c = 1;
+    let result;
+    try {
+      // Absence must reject the nested binding.
+      const { a: { of } } = { a: c ? globalThis.window?.Array : Set };
+      const [value] = of(3);
+      result = value;
+    } catch (error) {
+      result = error.name;
+    }
+    assert.same(result, live ? 3 : 'TypeError');
+  });
 });

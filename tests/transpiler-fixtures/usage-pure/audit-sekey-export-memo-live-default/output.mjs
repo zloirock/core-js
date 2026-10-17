@@ -4,7 +4,7 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
-var _ref, _ref4, _ref5, _ref7, _ref9;
+var _ref, _ref4, _ref5, _ref6, _ref8;
 // Exported computed-key instance patterns retain every user binding and keep generated
 // receiver captures private. Receiver reads, key effects and live defaults run in source
 // order across literal and member receivers, including multiple declarators.
@@ -19,16 +19,14 @@ const _ref3 = holder.p,
     other
   } = _ref3;
 export { m, other };
-const _ref6 = [7],
-  a = (e4(), (_ref5 = _atMaybeArray(_ref6)) === void 0 ? dflt() : _ref5);
+const a = (e4(), (_ref5 = _atMaybeArray([7])) === void 0 ? dflt() : _ref5);
 console.log(w, t, m, other, a);
 // Two receiver captures in one exported declaration stay distinct; only user bindings are exported.
-const _ref8 = [3],
-  r1 = (e5(), (_ref7 = _toReversedMaybeArray(_ref8)) === void 0 ? dflt() : _ref7),
+const _ref7 = [3],
+  r1 = (e5(), (_ref6 = _toReversedMaybeArray(_ref7)) === void 0 ? dflt() : _ref6),
   {
     other2
-  } = _ref8,
-  _ref10 = [4],
-  s1 = (e6(), (_ref9 = _toSortedMaybeArray(_ref10)) === void 0 ? dflt() : _ref9);
+  } = _ref7,
+  s1 = (e6(), (_ref8 = _toSortedMaybeArray([4])) === void 0 ? dflt() : _ref8);
 export { r1, other2, s1 };
 console.log(r1, s1, other2);

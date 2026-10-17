@@ -2,12 +2,12 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
-  claimWriteOrderBound, orderedClaimCapture, planNestedKeyedPatternCapture,
+  claimWriteOrderBound, orderedClaimCapture, planNestedKeyedPatternCapture, receiverValueNeverNullish, resolveDestructureReceiverPlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import {
   planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderNestedKeyedPatternCapture, renderRetainedObjectCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
-import { collectFoldedReceiverSideEffects, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFoldedReceiverSideEffects, noteRelocatedHeadName, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { toHint } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 import { createChecker, findNode } from './harness.mjs';
 
@@ -160,6 +160,9 @@ for (const [source, expectedType, expectedHints, options] of [
   ['const source = {}; function list() { return [1]; } const { row: { at } = list() } = source;', null, null],
   ['let realm = globalThis; const rebind = () => { realm = {}; }; const { Array: { prototype: { at } } } = realm;', 'array', 'array'],
   ['let realm = globalThis; const rebind = () => { realm = {}; }; const { at } = realm.Array.prototype;', 'array', null],
+  ['let realm = globalThis; const rebind = () => { realm = { Array: { prototype: [1] } }; }; const { at } = realm.Array.prototype;', 'array', null],
+  ['let realm = globalThis; const rebind = () => { realm = { Array: { prototype: "ab" } }; }; const { at } = realm.Array.prototype;', null, null],
+  ['let realm = globalThis; const rebind = () => { realm = unknown; }; const { at } = realm.Array.prototype;', null, null],
   ['let realm = globalThis; const rebind = () => { realm = { Array: { prototype: [1] } }; }; const { Array: { prototype: { at } } } = realm;', 'array', 'array'],
   ['let realm = globalThis; const rebind = () => { realm = { Array: { prototype: "ab" } }; }; const { Array: { prototype: { at } } } = realm;', null, 'array,string'],
   ['let realm = globalThis; const rebind = () => { realm = { Array: { prototype: choice ? [1] : "ab" } }; }; '
@@ -230,5 +233,230 @@ for (const depth of [4, 8, 16, 32]) {
       check(`${ label } repeated question keeps the source fact`, resolver.resolvePropertyObjectType(prop), type);
     });
 }
+
+for (const source of [
+  'let at, flat; const result = (([[{ at, flat }]] = [[[1, [2]]]]), 7);',
+  'let at, flat; const result = ({ w: [{ at, flat }] } = { w: [[1, [2]]] });',
+  'let at, flat, tail; ([{ w: [{ prototype: { at, flat } }] }, tail] = [{ w: [Array] }, 7]);',
+  'const { w: [{ [(effect(), "at")]: at, [(effect(), "flat")]: flat }] } = { w: [[1, [2]]] };',
+  'export const before = effect(), [[{ at, flat }]] = [[[1, [2]]]], after = effect();',
+]) runBoth('array levels retain the instance receiver and source host', source, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    item => item.node.value.name === 'at');
+  let host = prop;
+  while (host.node.type !== 'VariableDeclarator' && host.node.type !== 'AssignmentExpression') host = host.parentPath;
+  const before = JSON.stringify(host.node);
+  const assignment = host.node.type === 'AssignmentExpression';
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id ?? host.node.left, init: host.node.init ?? host.node.right,
+    prop: prop.node, kind: 'instance', entry: 'actual/array/instance/at', assignment, hostPath: host, adapter,
+  });
+  checkTruthy(`${ label } native capture admission`, plan);
+  let leaf = plan;
+  while (leaf?.innerPlan || leaf?.elementPlan) leaf = leaf.innerPlan ?? leaf.elementPlan;
+  check(`${ label } claim keeps its own receiver`, leaf?.prop, prop.node);
+  check(`${ label } source query is read-only`, JSON.stringify(host.node), before);
+});
+
+for (const wrap of [source => source, source => `out = (() => { ${ source } })();`, source => `out = () => { ${ source } };`]) {
+  for (const assignment of [false, true]) runBoth('a relocated keyed array keeps each nested receiver level',
+    wrap(`for (const held of [{ w: [[1, 2]] }]) { ${ assignment
+      ? '({ w: [{ at }] } = held);' : 'const { w: [{ at }] } = held;' } }`),
+    (parser, program, label) => {
+      const loop = parser.pickPath(program, 'ForOfStatement');
+      // Relocation inserts the assignment directly, without a source paren node.
+      if (assignment) loop.node.body.body[0].expression = unwrapRuntimeExpr(loop.node.body.body[0].expression);
+      noteRelocatedHeadName(loop.node, 'held');
+      const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator',
+        item => (item.node.id ?? item.node.left).type === 'ObjectPattern');
+      const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+        item => item.node.key.name === 'at');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const plan = planRetainedObjectCapture({
+        pattern: host.node.id ?? host.node.left, init: host.node.init ?? host.node.right,
+        prop: prop.node, kind: 'instance', entry: 'actual/array/instance/at', assignment, hostPath: host, adapter,
+      });
+      checkTruthy(`${ label } array below the original object capture`, plan?.capture && plan.innerPlan?.arrayCapture);
+      check(`${ label } leaf uses its selected element`, plan?.innerPlan?.elementPlan?.prop, prop.node);
+    });
+}
+
+for (const source of ['row', '(held = [[], 0])', '(held = (effect(), mirror = [[], 0]))']) {
+  for (const written of [false, true]) runBoth('a written array alias retains its native ordered iteration',
+    `const row = [[], 0]; const { w: [{ at }, tail] } = { w: ${ source } };`, (parser, program, label) => {
+      const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+      const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'at');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      adapter.isWrittenContainerSlot = name => written && ['row', 'held', 'mirror'].includes(name);
+      const before = JSON.stringify(host.node);
+      const plan = planRetainedObjectCapture({
+        pattern: host.node.id, init: host.node.init, prop: prop.node, kind: 'instance', entry: 'actual/instance/at',
+        hostPath: host, adapter,
+      });
+      check(`${ label } only an unchanged unstored alias permits positional capture`, !!plan?.innerPlan?.arrayCapture, source === 'row' && !written);
+      check(`${ label } query preserves the source pattern`, JSON.stringify(host.node), before);
+    });
+}
+
+for (const [source, expected] of [
+  ['const [{ [Symbol.iterator]: { missing = 7 }, tail }] = [source];', true],
+  ['const key = Symbol.iterator; const [{ [key]: { missing = 7 }, tail }] = [source];', true],
+  ['function read(Symbol) { const [{ [Symbol.iterator]: { missing = 7 }, tail }] = [source]; }', false],
+]) runBoth('a captured iterator pattern resolves its own scoped level', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.computed);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(host.node);
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id, init: host.node.init, prop: prop.node, patternPath: host.get('id'),
+    kind: 'instance', entry: 'get-iterator-method', hostPath: host, adapter,
+  });
+  check(`${ label } only the real iterator key admits the nested read`, !!plan?.elementPlan, expected);
+  if (expected) check(`${ label } the claim belongs to its element`, plan.elementPlan.prop, prop.node);
+  check(`${ label } query preserves the source pattern`, JSON.stringify(host.node), before);
+});
+
+for (const [source, expected] of [
+  ['const { [Symbol.iterator]: { missing = 7 }, tail } = source;', true],
+  ['const key = Symbol.iterator; const { [key]: { missing = 7 }, tail } = source;', true],
+  ['function read(Symbol) { const { [Symbol.iterator]: { missing = 7 }, tail } = source; }', false],
+  ['const key = "iterator"; const { [key]: { missing = 7 }, tail } = source;', false],
+  ['const { [Symbol.iterator]: { missing = 7 }, tail, ...rest } = source;', false],
+]) runBoth('a relocated iterator root keeps its scoped path without source offsets', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const pattern = host.node.id;
+  // Catch relocation can keep this live path while dropping the pattern's source offsets.
+  delete pattern.start;
+  delete pattern.end;
+  const [prop] = pattern.properties;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(host.node);
+  const plan = planRetainedObjectCapture({
+    pattern, init: host.node.init, prop, kind: 'instance', entry: 'get-iterator-method', hostPath: host, adapter,
+  });
+  check(`${ label } scoped iterator admission`, !!plan, expected);
+  if (expected) check(`${ label } owns the iterator read`, plan?.prop, prop);
+  check(`${ label } query preserves the moved pattern`, JSON.stringify(host.node), before);
+});
+
+for (const [source, expected] of [
+  ['const slotted = { Model: { prototype: [3] } }; const { slot: { Model: { prototype: { flat } } } } = { slot: slotted };', 'MemberExpression'],
+  ['const slotted = { Model: { prototype: [3] } }; const { slot: { Model: { prototype: { flat } } } } = { before: hit(), slot: slotted };', null],
+  ['const slotted = { Model: { prototype: [3] } }; const { before, slot: { Model: { prototype: { flat } } } } = { before: hit(), slot: slotted };', null],
+]) runBoth('a sole quiet nested navigation consumes its literal host', source, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'flat');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(program.node);
+  const plan = resolveDestructureReceiverPlan(prop, { allowSeFreeSingleRead: true, adapter });
+  check(`${ label } receiver`, plan.channel === 'resolved' ? plan.node?.type ?? null : null, expected);
+  check(`${ label } read-only query`, JSON.stringify(program.node), before);
+});
+
+const nonNullLiteralMembers = [
+  ['arrayData', true], ['objectData', true], ['arrayPrototype', true],
+  ['arrayHole', false], ['arrayOob', false], ['arraySpread', false],
+  ['objectGetter', false], ['objectSetter', false], ['objectUndefined', false],
+  ['objectCollision', false], ['objectSpread', false], ['effectKey', false],
+  ['nullData', false], ['namespacePrototype', false],
+  ['optionalObjectData', false], ['arrayOtherMember', false],
+];
+runBoth('literal member non-null proof accepts only unambiguous own data', `
+  const arrayData = [[1]][0];
+  const objectData = ({ slot: [1] }).slot;
+  const arrayPrototype = Array.prototype;
+  const arrayHole = [,][0];
+  const arrayOob = [[1]][1];
+  const arraySpread = [...[[1]]][0];
+  const objectGetter = ({ get slot() { return [1]; } }).slot;
+  const objectSetter = ({ set slot(value) {} }).slot;
+  const objectUndefined = ({ slot: undefined }).slot;
+  const objectCollision = ({ slot: [1], [unknown]: null }).slot;
+  const objectSpread = ({ slot: [1], ...other }).slot;
+  const effectKey = [[1]][(hit(), 0)];
+  const nullData = ({ slot: null }).slot;
+  const namespacePrototype = Math.prototype;
+  const optionalObjectData = ({ slot: [1] })?.slot;
+  const arrayOtherMember = Array.other;
+`, (parser, program, label) => {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  for (const [name, expected] of nonNullLiteralMembers) {
+    const declarator = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === name);
+    check(`${ label } ${ name }`, receiverValueNeverNullish(declarator.node.init, {
+      scope: declarator.scope, adapter, path: declarator,
+    }), expected);
+  }
+});
+
+// A surviving binding below the same outer hop still shares the receiver with the claim.
+// An effectful key can replace that source name before the helper reads the saved value.
+for (const [name, prefix, value, expected] of [
+  ['unbraced mutable source', '', 'src', 'object-slot-memo'],
+  ['braced mutable source', '{', 'src', 'object-slot-memo'],
+  ['constant source', 'const stable = src;', 'stable', 'resolved'],
+]) runBoth(`nested native sibling keeps its source receiver/${ name }`, `
+  function read(condition, src) {
+    function effect() { src = other; }
+    ${ prefix === '{' ? '' : prefix }
+    if (condition) ${ prefix === '{' ? '{' : '' } var { y: { other: { q }, [(effect(), 'includes')]: includes = fallback } } = { y: ${ value } };
+    ${ prefix === '{' ? '}' : '' }
+    return [q, includes];
+  }
+`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.computed);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(program.node);
+  const plan = resolveDestructureReceiverPlan(prop, { allowSeFreeSingleRead: true, adapter });
+  check(`${ label } source channel`, plan.channel, expected);
+  check(`${ label } the saved receiver is the source value`, plan.node?.name, value);
+  check(`${ label } query leaves the source intact`, JSON.stringify(program.node), before);
+});
+
+for (const [pattern, expected, owned] of [
+  ['{ row: { inner: { at }, includes } }', true, true],
+  ['{ row: { inner: { at }, includes } }', false, false],
+  ['{ row: { at } }', false, true],
+  ['{ row: { at, includes } }', true, false],
+]) runBoth(`an owned receiver keeps nested claimed siblings/${ pattern }/${ owned }`,
+  `function read(held) { let ${ pattern } = held; }`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.value?.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(host.node);
+    const plan = orderedClaimCapture({
+      pattern: host.node.id, init: host.node.init, prop: prop.node, assignment: false, hostPath: host,
+      kind: 'instance', entry: 'instance/at', adapter,
+      injectorState: { isOwnPassGeneratedName: name => owned && name === 'held' },
+    });
+    check(`${ label } admission`, !!plan, expected);
+    check(`${ label } does not mutate source`, JSON.stringify(host.node), before);
+    if (expected && plan) {
+      check(`${ label } original receiver`, plan.init, host.node.init);
+      check(`${ label } selected leaf`, plan.leafPattern, prop.parentPath.node);
+      check(`${ label } branching hops split`, plan.splitCapture, owned);
+      if (owned) {
+        const [, row] = plan.ancestors;
+        check(`${ label } inner claim precedes sibling`, row.pattern.properties[0], row.prop);
+        check(`${ label } sibling retains original slot`, row.pattern.properties[1].key.name, 'includes');
+      }
+    }
+  });
+
+runBoth('an owned receiver leaves a quiet defaulted leaf on its ordinary route',
+  'function read(held) { let { codes: { findIndex: method = () => -1 }, other } = held; }',
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.key.name === 'findIndex');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(host.node);
+    check(`${ label } no extra hop capture`, !!orderedClaimCapture({
+      pattern: host.node.id, init: host.node.init, prop: prop.node, assignment: false, hostPath: host,
+      kind: 'instance', entry: 'instance/find-index', adapter,
+      injectorState: { isOwnPassGeneratedName: name => name === 'held' },
+    }), false);
+    check(`${ label } does not mutate source`, JSON.stringify(host.node), before);
+  });
 
 finish();

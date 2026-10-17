@@ -1,8 +1,8 @@
 import "core-js/modules/es.array.flat";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat";
-// An instance leaf under a hop default the assigned literal proves dead, beside a sibling, counts as usage:
-// its method's module loads.
+// An assigned literal supplies the live nested instance receiver beside an outer sibling.
+// The live Array slot supplies the imports; the dead hop default never runs.
 let fl, zw;
 const holder = {
   list: [1, 2]

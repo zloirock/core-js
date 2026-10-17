@@ -2,6 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _sliceMaybeArray from "@core-js/pure/actual/array/instance/slice";
 import _at from "@core-js/pure/actual/instance/at";
+var _ref8, _ref9, _ref10;
 // Native object neighbours share the positional capture and read after earlier claims.
 // Later plain bindings and array rest bind after those reads; earlier bindings stay in place.
 // A later default or destructuring rest keeps the pattern native.
@@ -48,11 +49,9 @@ const [{
 }, _ref7] = _sliceMaybeArray(pair).call(pair).reverse();
 const a6 = _at(_ref7.y);
 let a7, z7;
-[{
-  y: {
-    at: a7
-  }
-}, {
+[_ref8, _ref9] = pair, {
+  y: _ref10
+} = _ref8, a7 = _atMaybeArray(_ref10), {
   z: z7
-}] = pair;
+} = _ref9;
 export { a1, z1, a2, t2, a3, z3, a4, t4, a5, r5, a6, z6, a7, z7, seen };

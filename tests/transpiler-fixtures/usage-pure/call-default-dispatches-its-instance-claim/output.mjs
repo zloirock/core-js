@@ -33,11 +33,8 @@ function h3(o) {
   } = o);
   return fm;
 }
-function h4({
-  findLast: fl
-} = {
-  findLast: _findLastMaybeArray(fa())
-}) {
+function h4(_ref2 = fa()) {
+  let fl = _findLastMaybeArray(_ref2);
   return fl;
 }
 const w = _withMaybeArray([1, 2]);

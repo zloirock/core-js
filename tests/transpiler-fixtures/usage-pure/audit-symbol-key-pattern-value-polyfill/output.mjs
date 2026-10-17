@@ -1,16 +1,24 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
+import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Symbol$toPrimitive from "@core-js/pure/actual/symbol/to-primitive";
 var _ref, _ref2;
 // Well-known-symbol patterns read the selected iterator method and retain nested defaults.
 // Computed sibling keys and effectful receivers keep their order beside static and instance claims.
-const obj = {};
+const obj = {
+  Array: {
+    from: _Array$from
+  },
+  [_Symbol$iterator]: _getIteratorMethod(Array.prototype)
+};
 const {
     Array: {
       from
@@ -24,9 +32,10 @@ const {
 const fb = {
   done: true
 };
+const nonIterable = {};
 const {
   done
-} = (_ref2 = _getIteratorMethod(obj)) === void 0 ? fb : _ref2;
+} = (_ref2 = _getIteratorMethod(nonIterable)) === void 0 ? fb : _ref2;
 const arr = [3];
 const {
   [_Symbol$iterator]: {
@@ -45,8 +54,16 @@ const {
   [_Symbol$toPrimitive]: tp
 } = _getIteratorMethod([1]); // A computed key and iterator pattern share one receiver and execute their reads in source order.
 let c = 0;
+const arrayIteratorKey = _Symbol$iterator;
+const previousArrayIterator = _Object$getOwnPropertyDescriptor(Array, arrayIteratorKey);
+_Object$defineProperty(Array, arrayIteratorKey, {
+  configurable: true,
+  value: _getIteratorMethod(Array.prototype)
+});
 const of = (c++, _Array$of);
-const iterName2 = _nameMaybeFunction(_getIteratorMethod(Array)); // Each nested iterator pattern reads its receiver once: an array literal, a member,
+const iterName2 = _nameMaybeFunction(_getIteratorMethod(Array));
+if (previousArrayIterator) _Object$defineProperty(Array, arrayIteratorKey, previousArrayIterator);else delete Array[arrayIteratorKey];
+// Each nested iterator pattern reads its receiver once: an array literal, a member,
 // a conditional receiver and a call result. Sibling reads share the selected value.
 const {
   length: litArity,

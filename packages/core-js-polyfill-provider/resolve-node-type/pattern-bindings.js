@@ -38,6 +38,7 @@ import {
   functionScopeBindsVarOrFunction,
   isVoidExpression,
   objectLiteralPrototypeValue,
+  prototypeChainMayLend,
   spreadAtOrBefore,
   argumentOverridesSlot,
   effectiveArgsLength,
@@ -164,6 +165,7 @@ function aliasDeclaratorOf(ref) {
 
 export function createPatternBindings({
   t,
+  isMutatedStatic = () => false,
   getScopeBinding,
   resolveObjectFieldFlow,
   resolveGlobalSurfaceKeyPath,
@@ -340,10 +342,20 @@ export function createPatternBindings({
       return 'present';
     }
     if (pattern.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
+      if (isMutatedStatic?.('Array.prototype', 'Symbol.iterator')) return null;
       const index = findPatternIndex(pattern, varName);
       if (index < 0) return null;
-      if (!resolveCallArgumentCoords(init.elements, index)) return spreadAtOrBefore(init.elements, index) ? null : valuePresence(undefined);
-      return valuePresence(resolveCallArgument(init.elements, index));
+      const coords = resolveCallArgumentCoords(init.elements, index, isMutatedStatic);
+      if (!coords) return spreadAtOrBefore(
+        init.elements,
+        index,
+      ) ? null : valuePresence(undefined);
+      const value = resolveCallArgument(init.elements, index, isMutatedStatic);
+      if (!value
+        && prototypeChainMayLend(
+          String(coords.at(-1)), { adapter: { isMutatedStaticSlot: isMutatedStatic } }, ['Array', 'Object'],
+        )) return null;
+      return valuePresence(value);
     }
     if (pattern.type === 'ObjectPattern' && init?.type === 'ObjectExpression') {
       const keyPath = findDestructuredKeyPath(pattern, varName, bindingPath.scope);
@@ -367,6 +379,7 @@ export function createPatternBindings({
       // undecided so the member x default fold keeps both sides (a false 'absent' narrowed a
       // getter-supplied array to the default's string flavor)
       if (match && (match.type === 'ObjectMethod' || match.method === true || (match.kind && match.kind !== 'init'))) return null;
+      if (!match && prototypeChainMayLend(keyPath[0], { adapter: { isMutatedStaticSlot: isMutatedStatic } }, ['Object'])) return null;
       return valuePresence(match?.value);
     }
     return null;
@@ -449,19 +462,19 @@ export function createPatternBindings({
   // resolve the type of a specific element in an ArrayExpression by index
   // arrayPath must already be a resolved ArrayExpression path
   function resolveArrayLiteralElement(arrayPath, index) {
-    const element = positionalElementPath(arrayPath, index);
+    const element = positionalElementPath(arrayPath, index, isMutatedStatic);
     return element ? resolveNodeType(element) : null;
   }
 
   // resolve common element type from an ArrayExpression if all elements share the same type
   // arrayPath must already be a resolved ArrayExpression path
   function resolveArrayLiteralCommonType(arrayPath) {
-    const length = effectiveArgsLength(arrayPath.node.elements);
+    const length = effectiveArgsLength(arrayPath.node.elements, isMutatedStatic);
     if (!length) return null;
     let common = null;
     for (let i = 0; i < length; i++) {
       // a hole reads as no element - no common type through it
-      const element = positionalElementPath(arrayPath, i);
+      const element = positionalElementPath(arrayPath, i, isMutatedStatic);
       const resolved = element && resolveNodeType(element);
       if (!resolved) return null;
       common = commonType(common, resolved);
@@ -475,11 +488,11 @@ export function createPatternBindings({
   // type, else narrowing to the leading string would unsoundly drop the array element's polyfill.
   // holes / spreads / an unresolvable element / mixed types -> null (caller bails to speculative)
   function resolveArrayLiteralMemberCommonType(arrayPath, keyPath) {
-    const length = effectiveArgsLength(arrayPath.node.elements);
+    const length = effectiveArgsLength(arrayPath.node.elements, isMutatedStatic);
     if (!length) return null;
     let common = null;
     for (let i = 0; i < length; i++) {
-      const element = positionalElementPath(arrayPath, i);
+      const element = positionalElementPath(arrayPath, i, isMutatedStatic);
       if (!element) return null;
       // ... elements stay on the init-only read: the flow resolver has no alias closure for a slot
       // inside an array literal, so asking it there declines every narrow, held container or not -
@@ -497,7 +510,10 @@ export function createPatternBindings({
   // resolve element type from a runtime iterable (follows variables via resolvePath)
   // handles: string literals (chars) and homogeneous array literals (common element type)
   function resolveRuntimeIterableElement(path) {
-    return resolveInnerType(resolveNodeType(resolveRuntimeExpression(path)));
+    const type = resolveNodeType(resolveRuntimeExpression(path));
+    if (type?.constructor === 'Array' && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(path, ['Symbol.iterator']))) return null;
+    return resolveInnerType(type);
   }
 
   function findBindingAnnotation(bindingPath) {
@@ -575,6 +591,7 @@ export function createPatternBindings({
         // init names a binding whose element the file wrote (`pathSlotWritten`)
         if (pathSlotWritten(initSource, [index])) return null;
         const initType = resolveNodeType(initPath);
+        if (initType?.constructor === 'Array') return resolveObjectMemberPath(initPath, [index], initSource);
         const inner = resolveInnerType(initType);
         if (inner) return inner;
         if (t.isArrayExpression(initPath.node)) {
@@ -763,6 +780,7 @@ export function createPatternBindings({
     // the UNRESOLVED path the current container was reached through - what a member read of it
     // would stand on, for the step that has no literal to walk
     let rawPath = sourcePath ?? objPath;
+    let propertyIndex = false;
     // the last BINDING the walk stood on and the keys taken off it since: a step into a slot the
     // file wrote through that binding (`pathSlotWritten`) reads no value off the literal - an
     // element, a hop, and a final key of a literal the binding does not declare itself (a call's),
@@ -790,6 +808,10 @@ export function createPatternBindings({
       const rest = keyPath.slice(1);
       if (holder && !ownFinalField(step, rest) && pathSlotWritten(holder, [...holderKeys, step])) return null;
       if (typeof step === 'number') {
+        // A pattern's numeric step consumes an iterator; a string property key only indexes.
+        if (!propertyIndex && step >= 0 && isMutatedStatic('Array.prototype', 'Symbol.iterator')
+          && resolveNodeType(rawPath)?.constructor === 'Array') return null;
+        propertyIndex = false;
         // -1 = rest element. with no further keys the binding IS the rest Array; a remaining
         // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
         // needs the source element type - bail so the member doesn't mis-resolve as the Array
@@ -812,7 +834,7 @@ export function createPatternBindings({
         }
         // the positional read `resolveArrayLiteralElement` makes, so this nested path matches the
         // top-level extraction semantics
-        const elementPath = positionalElementPath(objPath, step);
+        const elementPath = positionalElementPath(objPath, step, isMutatedStatic);
         if (!elementPath) return null;
         const elementSource = peelTransparentWrapperPath(elementPath);
         flowAware ||= elementSource.node.type === 'Identifier';
@@ -829,6 +851,7 @@ export function createPatternBindings({
       const asIndex = canonicalArrayIndex(step);
       if (asIndex !== null && t.isArrayExpression(objPath.node)) {
         keyPath = [asIndex, ...rest];
+        propertyIndex = true;
         continue;
       }
       // no literal to walk: the container is a VALUE - a class instance, a call result, an annotated
@@ -1078,17 +1101,25 @@ export function createPatternBindings({
   // shared slot rule (`argumentOverridesSlot`), with the call's own scope answering for `undefined`
   function invocationOverridesSlot(pairing, argIndex, scope) {
     if (pairing.argsUnknown) return true;
-    return argumentOverridesSlot(pairing.args ?? [], argIndex, () => !!getScopeBinding({ scope, name: 'undefined' }));
+    return argumentOverridesSlot(
+      pairing.args ?? [],
+      argIndex,
+      () => !!getScopeBinding({ scope, name: 'undefined' }),
+      getDecisionAdapter()?.isMutatedStaticSlot ?? isMutatedStatic,
+    );
   }
 
   // every invocation that can supply this parameter, with its live call path and runtime argument
   // index. null means an incomplete caller set, while [] proves that no call reaches it. the type
   // resolver asks whether these slots override a default; a synth consumer asks which source paths
   // it can replace, and owns its additional consumed-value / arguments-object restrictions.
-  // that consumer also supplies the mutation hook: the call canon alone decides whether an invoker
-  // still calls the apparent function, without a second pairing at the rewrite site.
+  // The type adapter supplies the mutation hook by default; a consumer may provide its own.
+  // The call canon alone decides whether an invoker still calls the apparent function,
+  // without a second pairing at the rewrite site.
   // eslint-disable-next-line max-statements -- one census accounts for function, constructor and method owners
-  function parameterCallSites(bindingPath, { staticIsMutated = null, getBindingEntry = null } = {}) {
+  function parameterCallSites(bindingPath, {
+    staticIsMutated = getDecisionAdapter()?.isMutatedStaticSlot ?? isMutatedStatic, getBindingEntry = null,
+  } = {}) {
     const fnPath = bindingPath.parentPath;
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return null;
     const paramIndex = fnPath.node.params.indexOf(bindingPath.node);
@@ -1561,6 +1592,7 @@ export function createPatternBindings({
     findForLoopParent,
     resolveArrayLiteralElement,
     resolveArrayLiteralCommonType,
+    resolveRuntimeIterableElement,
     annotationAtKeyPath,
     findBindingAnnotation,
     bindingDestructuringPattern,

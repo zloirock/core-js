@@ -1,7 +1,6 @@
-// NESTED conditional with TWO SE-bearing call branches and an unresolved key: each call leaf
-// gets its OWN memoized function-IIFE param (numbered consistently), each branch literal carries
-// that branch's polyfill, and the plain leaf keeps the mixed literal. only the taken branch's
-// call runs, exactly once
+// The local `a = true` decides the Array arm for `from`. The unresolved `custom` read keeps the
+// original nested calls and selects only the taken call once. The undecided interaction remains
+// covered by `nested-call-selection-keeps-an-unresolved-sibling`.
 let a = true;
 let b = false;
 let c = 0;

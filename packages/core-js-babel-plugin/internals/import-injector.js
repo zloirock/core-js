@@ -240,7 +240,7 @@ export default class ImportInjector extends ImportInjectorState {
   // detected by the trailing param and recorded for the post-pass normalizer, falling back
   // to per-ref `scope.push` for that scope
   #declaredRefHosts = new Map();
-  #hasParamLandedRef = false;
+  #paramLandedRefNames = new Set();
   #pushRefDeclarator(target, id) {
     const host = this.#declaredRefHosts.get(target);
     if (host?.node?.declarations && host.parentPath) {
@@ -264,7 +264,7 @@ export default class ImportInjector extends ImportInjectorState {
       markGeneratedMemoDeclarator(bindingPath.node);
       this.#declaredRefHosts.set(target, parent);
     } else {
-      this.#hasParamLandedRef = true;
+      this.#paramLandedRefNames.add(id.name);
       // a param-landed ref has no declarator until the post-pass normalizer materializes the
       // `var` - synthesize one over the SAME id node so the memo-provenance follow sees the
       // init-less declarator shape during the pass (identity on the id keeps user params out)
@@ -315,17 +315,17 @@ export default class ImportInjector extends ImportInjectorState {
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
   // container pointers still point at the pre-convert arrow.body slot - they clobber the
   // new block when they fire.
-  // Only trailing refs or unused sentinels allocated by this injector may move. The minters
-  // avoid existing bindings, so a user-written parameter with a similar name stays in place.
+  // Only actual scope-pushed refs or unused sentinels may move. Local refs can be real
+  // argument-fed capture parameters; their generated names alone authorize no relocation.
   normalizeArrowRefParams() {
     // the walk is needed only when at least one `scope.push` landed a ref OUTSIDE a var
     // declaration (trailing param / any unlocatable landing). it stays a WHOLE-program
     // traverse then: a later emission may CLONE a function that already carries pushed ref
     // params (rescue re-emits run after the pushes), and a host list recorded at push time
     // would miss the clone - the common case this gate serves is the zero-param-push file
-    if (!this.#hasParamLandedRef) return;
+    if (!this.#paramLandedRefNames.size) return;
     const t = this.#t;
-    const refNames = this.declaredRefNames;
+    const refNames = this.#paramLandedRefNames;
     const isSentinel = this.hasGeneratedUnusedName.bind(this);
     function normalize(path) {
       const params = path.node?.params;
@@ -674,6 +674,31 @@ export default class ImportInjector extends ImportInjectorState {
     return this.#t.cloneNode(id);
   }
 
+  // Retarget an already-flushed own import without replacing its local name. Match surviving
+  // clones by the same source and local; an elided import is emitted again by the normal flush.
+  promotePureImport(entry, nextEntry) {
+    const source = `${ this.mode }/${ entry }`;
+    const name = super.promotePureImport(entry, nextEntry);
+    if (!name) return null;
+    const nextSource = `${ this.mode }/${ nextEntry }`;
+    const previousPath = this.#resolvePath(source);
+    let present = false;
+    for (const node of this.#programPath.node.body) {
+      const declaration = node.type === 'VariableDeclaration' && node.declarations.length === 1 ? node.declarations[0] : null;
+      const literal = node.type === 'ImportDeclaration'
+        && node.specifiers.some(specifier => specifier.type === 'ImportDefaultSpecifier' && specifier.local.name === name)
+        ? node.source : declaration?.id?.name === name && requireCallSource(declaration.init) === previousPath
+          ? declaration.init.arguments[0] : null;
+      if (!literal || literal.value !== previousPath) continue;
+      literal.value = this.#resolvePath(nextSource);
+      this.#emittedKeyByNode.set(node, nextSource);
+      present = true;
+    }
+    this.#flushedPure.delete(source);
+    if (present) this.#flushedPure.add(nextSource);
+    return name;
+  }
+
   // `options` carries the reassignment poison - swallowing it here silently registered a WRITTEN
   // binding as the dedup target, and every later read of the entry resolved to the user's
   // reassigned value instead of the polyfill
@@ -690,6 +715,22 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   #buildNodes() {
+    // A sibling can elide an import before a later helper needs it again. Cloned imports
+    // still satisfy the same source and local name; only an absent binding is unflushed.
+    if (this.importStyle !== 'require' && this.#flushedPure.size) {
+      const present = new Set(this.survivingEmittedNodes(this.#programPath.node.body)
+        .map(node => this.#emittedKeyByNode.get(node)));
+      for (const node of this.#programPath.node.body) {
+        if (node.type !== 'ImportDeclaration') continue;
+        const specifier = node.specifiers.find(spec => spec.type === 'ImportDefaultSpecifier');
+        const name = specifier?.local.name;
+        const source = name && this.getBindingInfo(name)?.source;
+        if (source && this.pureImports.get(source) === name && node.source.value === this.#resolvePath(source)) present.add(source);
+      }
+      for (const source of this.#flushedPure) {
+        if (!present.has(source) && !this.#programPath.scope.getBinding(this.pureImports.get(source))) this.#flushedPure.delete(source);
+      }
+    }
     // subtract plugin-emitted so a re-flush doesn't re-emit. a user's own global import is
     // REMOVED and re-emitted through `addGlobalImport`, so it never needs suppressing here
     const newGlobals = [...this.globalImports.difference(this.#emittedGlobals)];

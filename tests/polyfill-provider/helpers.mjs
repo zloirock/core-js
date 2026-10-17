@@ -3,6 +3,7 @@
 // and entry detection across babel-plugin + unplugin; regressions here surface as silent
 // pattern matcher / import-id misnormalisation downstream
 import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
+import { receiverPerformsEveryInitEffect } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import {
   findUniqueName,
@@ -2477,6 +2478,8 @@ for (const adapter of adapters) {
   // without a pure entry; a require declarator counts in every spelling the require canon peels
   const program = adapter.parseAndScope([
     `import _from from '${ PURE_FROM }';`,
+    `import { default as _named, "default" as _string } from '${ PURE_FROM }';`,
+    `import * as namespace from '${ PURE_FROM }';`,
     "import { named } from '@core-js/pure/actual/array/of';",
     "import fs from 'node:fs';",
     "var _of = require('@core-js/pure/actual/array/of');",
@@ -2490,6 +2493,9 @@ for (const adapter of adapters) {
   ].join('\n')).node;
   const sources = defaultImportSourcesOf(program);
   check(`defaultImportSourcesOf/default import ${ label }`, sources.get('_from'), PURE_FROM);
+  check(`defaultImportSourcesOf/named default ${ label }`, sources.get('_named'), PURE_FROM);
+  check(`defaultImportSourcesOf/string default ${ label }`, sources.get('_string'), PURE_FROM);
+  check(`defaultImportSourcesOf/namespace is not the default ${ label }`, sources.has('namespace'), false);
   check(`defaultImportSourcesOf/named import binds no default ${ label }`, sources.has('named'), false);
   check(`defaultImportSourcesOf/library import is a source ${ label }`, sources.get('fs'), 'node:fs');
   check(`defaultImportSourcesOf/require declarator ${ label }`, sources.get('_of'), '@core-js/pure/actual/array/of');
@@ -2513,12 +2519,19 @@ for (const adapter of adapters) {
     'import type _typed = require("@core-js/pure/actual/array/of");',
     'export import _exported = require("@core-js/pure/actual/array/at");',
     'export const _exportedVar = require("@core-js/pure/actual/array/includes");',
+    `import type _only from '${ PURE_FROM }';`,
+    `import type { default as _onlyNamed } from '${ PURE_FROM }';`,
+    `import { type default as _spec, default as _live } from '${ PURE_FROM }';`,
   ].join('\n'), 'module', ['typescript']).node;
   check(`defaultImportSourcesOf/TS import-equals binds ${ label }`, defaultImportSourcesOf(tsEquals).get('_eq'), PURE_FROM);
   check(`pureImportEntryOfProgram/TS import-equals spells its entry ${ label }`, pureImportEntryOfProgram(tsEquals, '_eq'), 'array/from');
   check(`defaultImportSourcesOf/type-only import-equals binds nothing ${ label }`, defaultImportSourcesOf(tsEquals).has('_typed'), false);
   check(`defaultImportSourcesOf/exported import-equals binds like the plain one ${ label }`, defaultImportSourcesOf(tsEquals).get('_exported'), '@core-js/pure/actual/array/at');
   check(`defaultImportSourcesOf/exported require var binds like the plain one ${ label }`, defaultImportSourcesOf(tsEquals).get('_exportedVar'), '@core-js/pure/actual/array/includes');
+  for (const name of ['_only', '_onlyNamed', '_spec']) {
+    check(`defaultImportSourcesOf/erased ${ name } ${ label }`, defaultImportSourcesOf(tsEquals).has(name), false);
+  }
+  check(`defaultImportSourcesOf/live specifier beside erased one ${ label }`, defaultImportSourcesOf(tsEquals).get('_live'), PURE_FROM);
 
   // an in-file `require` binding makes every require alias opaque; the imports stay
   const shadowed = adapter.parseAndScope([
@@ -3700,5 +3713,46 @@ export function f() {
   const root = { type: 'Program', body: [{ type: 'ExpressionStatement', expression: deep }] };
   check('foldWalkReach: a tree too deep to tell', foldWalkReach(root, { isDecided: () => false, injectorState: null }), null);
 }
+
+// Free receivers follow actual source writes, including lowercase slots outside the built-in census.
+for (const [source, ordinary, effects = ordinary] of [
+  ['rows.at(0);', true],
+  ['function write() { other = next; } rows.at(0);', true],
+  ['function write(rows) { rows = next; } rows.at(0);', true],
+  ['function write() { let rows; rows = next; } rows.at(0);', true],
+  ['rows = next; rows.at(0);', true],
+  ['rows.at(0); rows = next;', true],
+  ['function write() { rows = next; } rows.at(0);', false],
+  ['function write() { [rows] = next; } rows.at(0);', false],
+  ['function write() { for (rows of values) {} } rows.at(0);', false],
+  ['rows[(rows = next, "at")](0);', true, false],
+  // Intentionally invalid TS: an ambient const write must still prevent receiver reuse.
+  ['declare const rows: number[]; function write() { rows = next; } rows.at(0);', false],
+  ['const rows = []; function write() { globalThis.rows = next; } rows.at(0);', true],
+]) runBoth(`isReusableReceiver/source free write/${ source }`, source, (parser, program, label) => {
+  const read = parser.pickPath(program, 'MemberExpression', path => path.node.object?.name === 'rows');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: read.scope, path: read, adapter };
+  const before = JSON.stringify(program.node);
+  check(`${ label } adjacent reads`, isReusableReceiver(read.node.object, { ctx }), ordinary);
+  check(`${ label } across effects`, isReusableReceiver(read.node.object, { ctx, interveningEffects: true }), effects);
+  check(`${ label } read-only`, JSON.stringify(program.node), before);
+});
+
+// A receiver can replace a literal init only when it performs every observable part.
+// The optional quiet proof applies at every nested level; an unknown computed key remains observable.
+for (const [name, source, expected] of [
+  ['unknown computed key', 'const value = { [key]: quiet, y: receiver };', false],
+  ['folded computed key', "const value = { ['known']: quiet, y: receiver };", true],
+  ['nested quiet sibling', 'const value = { x: { sibling: stable(), y: receiver } };', true],
+  ['nested observable sibling', 'const value = { x: { sibling: noisy(), y: receiver } };', false],
+]) runBoth(`receiver performs every init effect/${ name }`, source, (adapter, program, label) => {
+  const { init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  const receiver = findNode(init, node => node.type === 'Identifier' && node.name === 'receiver');
+  function isQuiet(node) {
+    return node.type === 'Identifier' || node.type === 'CallExpression' && node.callee?.name === 'stable';
+  }
+  check(label, receiverPerformsEveryInitEffect(init, receiver, null, isQuiet), expected);
+});
 
 finish();

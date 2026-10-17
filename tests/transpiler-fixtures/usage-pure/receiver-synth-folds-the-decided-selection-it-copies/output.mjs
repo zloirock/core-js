@@ -10,15 +10,11 @@ export function viaOr({
 })) {
   return from;
 }
-export function viaCall({
-  at
-} = {
-  at: _at(make(1))
-}) {
+export function viaCall(_ref = make(1)) {
+  let at = _at(_ref);
   return at;
 }
-export const viaArgument = (({
-  flat
-}) => flat)({
-  flat: _flatMaybeArray(make(1))
-});
+export const viaArgument = ((_ref2, _unused = void 0) => {
+  let flat = _flatMaybeArray(_ref2);
+  return flat;
+})(make(1));

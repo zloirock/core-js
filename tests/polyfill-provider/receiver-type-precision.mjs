@@ -2,14 +2,22 @@
 // Unknown computed keys retain explicit slots as a deliberate precision policy.
 // Sources intentionally read absent members; runtime JS accepts these reads even where TS rejects them.
 import { createChecker } from './harness.mjs';
-import { CENSUS_KEY_NAMES, collectFileCensus, ESCAPED_CONTAINER_NAMES } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import {
+  CENSUS_KEY_NAMES,
+  collectFileCensus,
+  ESCAPED_CONTAINER_NAMES,
+  pathOfNode,
+  resolveCallArgument,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { resolveKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createMemberResolve } from '../../packages/core-js-polyfill-provider/resolve-node-type/member-resolve.js';
+import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
+import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 
-const { check, runBoth, finish } = createChecker('receiver-type-precision');
+const { check, checkDeep, doesNotThrow, runBoth, finish } = createChecker('receiver-type-precision');
 const cases = [
   ['inherited function', 'const result = ({}).toString;', 'Function'],
   ['inherited function alias', 'const box = {}; const result = box.hasOwnProperty;', 'Function'],
@@ -91,13 +99,222 @@ for (const [label, source, expected] of [
   ['inherited default is dead', 'const { toString: { at } = [1] } = {};', 'Function'],
   ['closed parameter default', 'function f({ at } = [[1]][0]) { return at; } f();', 'Array'],
   ['undefined argument default', 'function f({ at } = [[1]][0]) { return at; } f(void 0);', 'Array'],
-  ['overridden parameter default', 'function f({ at } = [[1]][0]) { return at; } f("ab");', null],
+  ['overridden parameter default', 'function f({ at } = [[1]][0]) { return at; } f("ab");', 'string'],
   ['escaped parameter default', 'function f({ at } = [[1]][0]) { return at; } use(f);', null],
 ]) runBoth(label, source, (adapter, program, name) => {
   const property = adapter.pickPath(program, 'ObjectProperty', p => p.node.key?.name === 'at')
     ?? adapter.pickPath(program, 'Property', p => p.node.key?.name === 'at');
   const type = adapter.makeResolver().resolvePropertyObjectType(property);
   check(name, type ? type.primitive ? type.type : type.constructor : null, expected);
+});
+
+// A closed parameter reads every caller's actual receiver, including the call's scope.
+// Cross-family callers keep their exact hint union; unknown callers retain the generic answer.
+for (const [label, source, expected, hints] of [
+  ['closed array', 'function read({ at }) {} read([1, [2]]);', [false, 'Array'], ['array']],
+  ['closed string', 'function read({ at }) {} read("ab");', [true, 'string'], ['string']],
+  ['closed array prototype', 'function read({ at }) {} read(Array.prototype);', [false, 'Array'], ['array']],
+  ['direct array prototype', '(({ at }) => at)(Array.prototype);', [false, 'Array'], ['array']],
+  ['direct string prototype', '(({ at }) => at)(String.prototype);', [false, 'String'], ['string']],
+  ['direct constructor prototype', '(({ prototype: { at } }) => at)(String);', [false, 'String'], ['string']],
+  ['named constructor prototype', 'function read({ prototype: { at } }) {} read(Array);', [false, 'Array'], ['array']],
+  ['nested literal', 'function read({ row: { at } }) {} read({ row: "ab" });', [true, 'string'], ['string']],
+  ['nested array', 'function read([[{ at }]]) {} read([["ab"]]);', [true, 'string'], ['string']],
+  ['several arrays', 'function read({ at }) {} read([1]); read([2]);', [false, 'Array'], ['array']],
+  ['tag strings array', 'function read({ at }) {} read`ab`;', [false, 'Array'], ['array']],
+  ['mixed families', 'function read({ includes: at }) {} read([1]); read("ab");', null, ['array', 'string']],
+  ['caller branch families', '(({ toString: at }) => at)(globalThis.window?.Object || {});', null, ['function', 'object']],
+  ['conditional caller families', '(({ toString: at }) => at)(flag ? Object : {});', null, ['function', 'object']],
+  ['default branch families', '(({ toString: at } = flag ? Object : {}) => at)();', null, ['function', 'object']],
+  ['aliased caller families', 'const value = flag ? Object : {}; function read({ toString: at }) {} read(value);', null, ['function', 'object']],
+  ['asserted branch families', '(({ toString: at }) => at)((flag ? Object : {}) as unknown as string);', null, ['function', 'object']],
+  ['instance caller branch families', 'function read({ includes: at }) {} read(flag ? [1] : "ab");', null, ['array', 'string']],
+  ['RegExp caller family', '(({ toString: at }) => at)(flag ? /x/ : {});', null, ['object', 'regexp']],
+  ['unresolved caller keeps the RegExp default live', 'function read({ toString: at } = /x/) {} read(flag ? Object : undefined);', null, null],
+  ['unknown caller branch', '(({ toString: at }) => at)(flag ? external : {});', null, null],
+  ['unknown caller call branch', '(({ toString: at }) => at)(flag ? external() : {});', null, null],
+  ['unsettled logical and', 'function read({ includes: at }) {} read("" && [1]);', null, ['array', 'string']],
+  ['unsettled logical or', 'function read({ includes: at }) {} read("" || [1]);', null, ['array', 'string']],
+  ['unknown logical left', 'function read({ includes: at }) {} read(external && [1]);', null, null],
+  ['IIFE receiver assertion', '(({ includes: at }) => at)(external as string);', [true, 'string'], ['string']],
+  ['named receiver assertion', 'function read({ includes: at }) {} read(external as string);', [true, 'string'], ['string']],
+  ['default receiver assertion', 'function read({ includes: at } = external as string) {} read();', [true, 'string'], ['string']],
+  ['inner default receiver assertion', 'function read({ row: { includes: at } = external as string }) {} read({});', [true, 'string'], ['string']],
+  ['nested receiver assertions', '(({ includes: at }) => at)((external! as unknown) as string);', [true, 'string'], ['string']],
+  ['open string default annotation',
+    'declare const external: unknown; export function read({ includes: at } = external as string) {}',
+    [true, 'string'], ['string']],
+  ['open array default annotation',
+    'declare const external: unknown; export function read({ includes: at } = external as number[]) {}',
+    [false, 'Array'], ['array']],
+  ['nested open default annotation',
+    'declare const external: unknown; type Box = { row: string }; '
+      + 'export function read({ row: { includes: at } } = external as Box) {}',
+    [true, 'string'], ['string']],
+  ['open union default remains unknown',
+    'declare const external: unknown; export function read({ includes: at } = external as string | number[]) {}',
+    null, null],
+  ['open any default remains unknown',
+    'declare const external: unknown; export function read({ includes: at } = external as any) {}',
+    null, null],
+  ['explicit pattern annotation wins',
+    'declare const external: unknown; export function read({ includes: at }: string = external as any) {}',
+    [true, 'string'], null],
+  // `as any` deliberately admits a runtime value outside the inferred string parameter type.
+  ['supplied Array overrides default source annotation',
+    'declare const external: unknown; function read({ includes: at } = external as string) {} read([1] as any);',
+    [false, 'Array'], ['array']],
+  ['runtime default and supplied annotation remain distinct arms',
+    'export function read({ includes: at } = [1] as unknown as string) {}',
+    null, ['array', 'string']],
+  // Deliberate double assertions do not erase a runtime union already proved by the value arms.
+  ['runtime branch default and supplied annotation remain distinct arms',
+    'export function read({ toString: at } = (flag ? Object : {}) as unknown as string) {}',
+    null, ['function', 'object', 'string']],
+  ['caller annotation resolves in caller scope',
+    'declare const external: unknown; type Receiver = string; '
+      + '(({ includes: at }) => { type Receiver = number[]; return at; })(external as Receiver);',
+    [true, 'string'], ['string']],
+  ['plain open runtime default stays unknown',
+    'export function read({ includes: at } = [1]) {}',
+    null, null],
+  ['asserted array literal', '(({ includes: at }) => at)([1] as unknown as string);', [false, 'Array'], ['array']],
+  ['asserted string literal', '(({ includes: at }) => at)("ab" as unknown as number[]);', [true, 'string'], ['string']],
+  ['assertion preserves array binding annotation',
+    'declare const external: any; const value: number[] = external; (({ includes: at }) => at)(value as unknown as string);', [false, 'Array'], ['array']],
+  ['assertion preserves string binding annotation',
+    'declare const external: any; const value: string = external; (({ includes: at }) => at)(value as unknown as number[]);', [true, 'string'], ['string']],
+  ['assertion preserves ambient annotation', 'declare const value: number[]; (({ includes: at }) => at)(value as unknown as string);', [false, 'Array'], ['array']],
+  ['unknown caller value', 'function read({ includes: at }) {} read([1]); read(external);', null, null],
+  ['exported function', 'export function read({ at }) {} read([1]);', null, null],
+  ['escaped function', 'function read({ at }) {} hand(read); read([1]);', null, null],
+  ['unknown spread', 'function read({ at }) {} read(...external);', null, null],
+  ['opaque apply list', 'function read({ at } = [1]) {} read.apply(null, external);', null, null],
+  ['opaque Reflect.apply list', 'function read({ at } = [1]) {} Reflect.apply(read, null, external);', null, null],
+  ['known empty apply list', 'function read({ at } = [1]) {} read.apply(null, []);', [false, 'Array'], ['array']],
+  ['known string apply list', 'function read({ at } = [1]) {} read.apply(null, ["ab"]);', [true, 'string'], ['string']],
+  ['omitted default', 'function read({ at } = [1]) {} read();', [false, 'Array'], ['array']],
+  ['undefined default', 'function read({ at } = [1]) {} read(undefined);', [false, 'Array'], ['array']],
+  ['supplied default override', 'function read({ at } = [1]) {} read("ab");', [true, 'string'], ['string']],
+  ['supplied custom object', 'function read({ at } = [1]) {} read({ at() {} });', [false, 'Object'], ['object']],
+  ['supplied null', 'function read({ at } = [1]) {} read(null);', [true, 'null'], null],
+  ['default plus string', 'function read({ includes: at } = [1]) {} read(); read("ab");', null, ['array', 'string']],
+  ['inner default', 'function read({ row: { at } = [1] }) {} read({});', [false, 'Array'], ['array']],
+  ['inner default is dead', 'function read({ row: { at } = [1] }) {} read({ row: "ab" });', [true, 'string'], ['string']],
+  ['outer default', 'function read({ box: { row: { at } } = { row: "ab" } }) {} read({});', [true, 'string'], ['string']],
+  ['nested defaults', 'function read({ box: { row: { at } } = { row: "ab" } } = {}) {} read();', [true, 'string'], ['string']],
+  ['inner mixed default', 'function read({ row: { at } = "ab" }) {} read({ row: [1] }); read({});', null, ['array', 'string']],
+  ['caller scope', 'function read(String, { prototype: { at } }) {} read(other, String);', [false, 'String'], ['string']],
+  ['undefined caller scope', '((undefined, { at } = [1]) => at)(5, undefined);', [false, 'Array'], ['array']],
+  ['named expression', 'const read = function inner({ at }) {}; read("ab");', [true, 'string'], ['string']],
+  ['recursive caller', 'function read({ at } = [1]) { read("ab"); } read();', null, ['array', 'string']],
+  ['arguments object', 'function read({ at }) { return arguments[0]; } read([1]);', null, null],
+  ['later argument replaces a binding', 'let value = [1]; function read({ at }) {} read(value, value = "ab");', [false, 'Array'], ['array']],
+  ['later argument writes a slot', 'const box = { row: [1] }; function read({ row: { at } }) {} read(box, box.row = "ab");', null, null],
+  ['pattern key writes a slot', 'const box = { row: [1] }; function read({ [(box.row = "ab", "row")]: { at } }) {} read(box);', null, null],
+]) runBoth(`parameter receiver/${ label }`, source, (adapter, program, name) => {
+  const property = adapter.pickPath(program, 'ObjectProperty', p => p.node.value?.name === 'at')
+    ?? adapter.pickPath(program, 'Property', p => p.node.value?.name === 'at');
+  const resolver = adapter.makeResolver();
+  const type = resolver.resolvePropertyObjectType(property);
+  check(`${ name } primitive`, type?.primitive ?? null, expected?.[0] ?? null);
+  check(`${ name } family`, type ? type.primitive ? type.type : type.constructor : null, expected?.[1] ?? null);
+  check(`${ name } hints`, resolver.resolvePropertyUnionHints(property)?.size
+    ? [...resolver.resolvePropertyUnionHints(property)].sort().join(',') : null, hints?.join(',') ?? null);
+});
+
+// The same source facts reach the dependency decision. A constructor is a Function value,
+// and the plain fallback does not authorize a RegExp patch; a real or unknown arm still does.
+for (const [label, source, expected] of [
+  ['Function/Object', '(({ toString }) => toString)(flag ? Object : {});', ['object/to-string']],
+  ['RegExp/Object', '(({ toString }) => toString)(flag ? /x/ : {});', ['object/to-string', 'regexp/to-string']],
+  ['live RegExp default', 'function read({ toString } = /x/) {} read(flag ? Object : undefined);', ['object/to-string', 'regexp/to-string']],
+  ['unknown/Object', '(({ toString }) => toString)(flag ? external : {});', ['object/to-string', 'regexp/to-string']],
+]) runBoth(`parameter union dependencies/${ label }`, source, (adapter, program, name) => {
+  const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property');
+  const typeResolvers = adapter.makeResolver();
+  const env = { typeResolvers,
+    astPredicates: { isMemberLike: () => false, isCallee: () => false, isSpreadElement: () => false } };
+  for (const method of ['usage-global', 'usage-pure']) {
+    const { resolver } = createPolyfillResolver({ method, version: '4.0', targets: { ie: 11 } }, env);
+    const meta = { kind: 'property', key: 'toString' };
+    check(`${ name }/${ method } dependency entries`, resolver.resolveUsage(meta, property)?.sort().join(','), expected.join(','));
+    check(`${ name }/${ method } preserves pure availability`, resolver.resolvePure(meta, property), null);
+  }
+});
+
+runBoth('parameter union retains source hints after caller mirrors',
+  '(({ toString }) => toString)(flag ? Object : {});', (adapter, program, name) => {
+    const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property');
+    const call = adapter.pickPath(program, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    check(`${ name } scalar is a union`, resolver.resolvePropertyObjectType(property), null);
+    call.node.arguments[0] = { type: 'ObjectExpression', properties: [] };
+    check(`${ name } source families`, [...resolver.resolvePropertyUnionHints(property) ?? []].sort().join(','), 'function,object');
+  });
+
+runBoth('parameter receivers retain source facts after caller mirrors',
+  'function read([{ at }, { includes }]) {} read([[1], "ab"]);', (adapter, program, name) => {
+    const propertyType = adapter.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const properties = adapter.collectPaths(program, propertyType, p => p.parentPath.node.type === 'ObjectPattern');
+    const call = adapter.pickPath(program, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    check(`${ name } first source receiver`, resolver.resolvePropertyObjectType(properties[0])?.constructor, 'Array');
+    call.node.arguments[0] = { type: 'ArrayExpression', elements: [
+      { type: 'ObjectExpression', properties: [] }, { type: 'ObjectExpression', properties: [] },
+    ] };
+    const second = resolver.resolvePropertyObjectType(properties[1]);
+    check(`${ name } sibling source primitive`, second?.primitive, true);
+    check(`${ name } sibling source family`, second?.type, 'string');
+    check(`${ name } sibling source union`, [...resolver.resolvePropertyUnionHints(properties[1]) ?? []].join(','), 'string');
+  });
+
+runBoth('separate parameter receivers retain source facts after caller mirrors',
+  'function read({ at }, { includes }) {} read([1], "ab");', (adapter, program, name) => {
+    const propertyType = adapter.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const properties = adapter.collectPaths(program, propertyType, p => p.parentPath.node.type === 'ObjectPattern');
+    const call = adapter.pickPath(program, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    check(`${ name } first family`, [...resolver.resolvePropertyUnionHints(properties[0]) ?? []].join(','), 'array');
+    call.node.arguments[1] = { type: 'ObjectExpression', properties: [] };
+    const second = resolver.resolvePropertyObjectType(properties[1]);
+    check(`${ name } sibling primitive`, second?.primitive, true);
+    check(`${ name } sibling family`, second?.type, 'string');
+  });
+
+// Caller entry lookup adapts the path-based census to the injector's positional, lazy
+// binding lookup. A user-named Reflect.apply alias serves its own binding, including
+// after extraction, while a parameter shadow inside that span remains an unknown call.
+for (const [label, invoke, expected] of [
+  ['serving invoker', 'invoke(read, null, [[1]]);', 'Array'],
+  ['shadowed invoker', 'function run(invoke) { invoke(read, null, [[1]]); } run(custom);', null],
+]) runBoth(`parameter receiver entry callback/${ label }`,
+  `const invoke = Reflect.apply; function read({ at }) {} ${ invoke }`, (adapter, program, name) => {
+    const call = adapter.pickPath(program, 'CallExpression', path => path.node.callee?.name === 'invoke');
+    const binding = program.scope.getBinding('invoke');
+    const injector = new ImportInjectorState({ mode: 'actual', pkg: '@core-js/pure', importStyle: 'import' });
+    injector.registerBodyExtractAlias('invoke', 'reflect/apply', binding);
+    const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property');
+    const resolver = adapter.makeResolver({ getPolyfillBindingEntry(scope, key, useStart, useBinding) {
+      return injector.getBindingInfo(key, useStart, useBinding)?.entry ?? null;
+    } });
+    let type;
+    doesNotThrow(`${ name } callback accepts lazy binding`, () => { type = resolver.resolvePropertyObjectType(property); });
+    check(`${ name } receiver primitive`, type?.primitive ?? null, expected ? false : null);
+    check(`${ name } receiver family`, type?.constructor ?? null, expected);
+    check(`${ name } invoker binding is caller scoped`, call.scope.getBinding('invoke')?.path.node === binding.path.node, expected !== null);
+  });
+
+for (const [label, source, object, key] of [
+  ['mutated invoker', 'function read({ at }) {} read.call(null, [1]);', 'Function.prototype', 'call'],
+  ['replaced constructor prototype', 'function read({ prototype: { at } }) {} read(Array);', 'globalThis', 'Array'],
+  ['replaced prototype receiver', 'function read({ at }) {} read(Array.prototype);', 'globalThis', 'Array'],
+]) runBoth(`parameter receiver/${ label }`, source, (adapter, program, name) => {
+  const property = adapter.pickPath(program, 'ObjectProperty', p => p.node.value?.name === 'at')
+    ?? adapter.pickPath(program, 'Property', p => p.node.value?.name === 'at');
+  const resolver = adapter.makeResolver({ isMutatedStatic: (owner, member) => owner === object && member === key });
+  check(`${ name } keeps the receiver unknown`, resolver.resolvePropertyObjectType(property), null);
+  check(`${ name } keeps families open`, resolver.resolvePropertyUnionHints(property), null);
 });
 for (const [label, source, expected] of [
   ['unwritten local key', 'let key; use(Array[key]);', false],
@@ -144,6 +361,41 @@ runBoth('ordinary member reads skip scoped enum lookup',
     });
     for (const member of adapter.collectPaths(program, 'MemberExpression')) cluster.resolveEnumMemberAccess(member, true);
     check(name, lookups, 0);
+  });
+
+// An alias closure is complete only when every binding in it has an enumerable reference set.
+// A missing set is unknown, not evidence that no write can retype the array's elements.
+runBoth('an incomplete array alias reference set refuses element precision',
+  'const rows = []; const alias = rows; rows[0];', (adapter, program, name) => {
+    const rowsDecl = adapter.pickPath(program, 'VariableDeclarator', path => path.node.id?.name === 'rows');
+    const aliasDecl = adapter.pickPath(program, 'VariableDeclarator', path => path.node.id?.name === 'alias');
+    const member = adapter.pickPath(program, 'MemberExpression');
+    for (const [label, incomplete, expected] of [
+      ['incomplete', true, true],
+      ['complete', false, false],
+    ]) {
+      const binding = { constantViolations: [] };
+      const sourceBinding = { constantViolations: [] };
+      let referenceReads = 0;
+      const cluster = createMemberResolve({
+        t: {
+          isIdentifier: node => node?.type === 'Identifier',
+          isArrayExpression: node => node?.type === 'ArrayExpression',
+        },
+        getScopeBinding: ({ name: bindingName }) => bindingName === 'source' ? sourceBinding : binding,
+        collectBindingReferences() {
+          referenceReads++;
+          if (referenceReads === 1) return [aliasDecl.get('init')];
+          return incomplete ? null : [];
+        },
+        objectBindingName: () => 'source',
+        computeObjectAliasClosure: () => new Map([[binding, true]]),
+        KNOWN_INSTANCE_METHOD_RETURN_TYPES: { Array: {} },
+      });
+      check(`${ name }/${ label }`, cluster.arrayElementsMayBeRetyped(member.get('object'), member, {
+        elementWrites: [], literalPath: rowsDecl.get('init'),
+      }), expected);
+    }
   });
 
 // Assert the key answer itself: constructor-escape precision alone can mask a lost key proof.
@@ -698,4 +950,249 @@ for (const [wrapper, argument] of [
     check(name, type ? type.primitive ? type.type : type.constructor : null, written ? null : 'Array');
   });
 }
+// A sibling binding does not receive the tracked owner. Match the literal's own slot,
+// rather than treating every target at the same pattern depth as an alias. Opaque names
+// stand for external inputs. These JS rows deliberately keep the extra method that TS's
+// contextual destructuring rejects; for-of also needs tuple context there. Independent
+// tsc checks with the complete carrier shape verify the same number[] receiver type.
+const inlineHolder = '{ rows: [1, 2], read() { const result = this.rows; return result; } }';
+for (const [label, shape, expected, mutatedIterator = false] of [
+  ['first positional sibling', 'const [{ rows }, tail] = [HOLDER, 7]; sink(tail);', 'Array'],
+  ['later positional sibling', 'const [head, { rows }] = [7, HOLDER]; sink(head);', 'Array'],
+  ['positional hole', 'const [, { rows }, tail] = [, HOLDER, 7]; sink(tail);', 'Array'],
+  ['nested positional sibling', 'const [[{ rows }, inner], tail] = [[HOLDER, 7], 9]; sink(inner, tail);', 'Array'],
+  ['keyed positional sibling', 'const [{ box: { rows } }, tail] = [{ box: HOLDER }, 7]; sink(tail);', 'Array'],
+  ['keyed sibling', 'const { box: { rows }, tail } = { box: HOLDER, tail: 7 }; sink(tail);', 'Array'],
+  ['assignment sibling', 'let rows, tail; ([{ rows }, tail] = [HOLDER, 7]); sink(tail);', 'Array'],
+  ['for-of sibling', 'for (const [{ rows }, tail] of [[HOLDER, 7]]) sink(tail);', 'Array'],
+  ['for-of assignment sibling', 'let rows, tail; for ([{ rows }, tail] of [[HOLDER, 7]]) sink(tail);', 'Array'],
+  ['catch sibling', 'try { throw [HOLDER, 7]; } catch ([{ rows }, tail]) { sink(tail); }', 'Array'],
+  ['parameter default sibling', 'function f([{ rows }, tail] = [HOLDER, 7]) { sink(tail); } f();', 'Array'],
+  ['property default sibling', 'const { missing: [{ rows }, tail] = [HOLDER, 7] } = {}; sink(tail);', 'Array'],
+  ['other owner method', 'const [{ rows }, { read }] = [HOLDER, { read() {} }]; sink(read);', 'Array'],
+  ['matching positional alias', 'const [held, tail] = [HOLDER, 7]; sink(held);', null],
+  ['matching keyed alias', 'const { box: held, tail } = { box: HOLDER, tail: 7 }; sink(held);', null],
+  ['matching method', 'const [{ read }, tail] = [HOLDER, 7]; sink(read);', null],
+  ['rest carrier', 'const [...held] = [HOLDER, 7]; sink(held);', null],
+  ['unknown key', 'const { [key]: held, tail } = { box: HOLDER, tail: 7 }; sink(held);', null],
+  ['spread source', 'const [{ rows }, tail] = [...unknown, HOLDER, 7]; sink(tail);', null],
+  ['named array stays wildcard', 'const source = [HOLDER, 7]; const [{ rows }, tail] = source; sink(tail);', null],
+  ['reordered array stays wildcard', 'const source = [HOLDER, 7]; source.reverse(); const [{ rows }, tail] = source; sink(tail);', null],
+  ['stored expression stays wildcard', 'let source; const [{ rows }, tail] = source = [HOLDER, 7]; sink(tail);', null],
+  ['member target stays conservative', 'let rows; const target = { set tail(value) {} }; ([{ rows }, target.tail] = [HOLDER, 7]);', null],
+  ['repeated assignment target', 'let held; ([held, held] = [7, HOLDER]); sink(held);', null],
+  ['modified iterator stays wildcard', 'const [{ rows }, tail] = [HOLDER, 7]; sink(tail);', null, true],
+]) runBoth(`anonymous owner ${ label }`, shape.replace('HOLDER', inlineHolder), (adapter, program, name) => {
+  const result = adapter.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result');
+  const type = adapter.makeResolver({
+    isMutatedStatic: (owner, key) => mutatedIterator && owner === 'Array.prototype' && key === 'Symbol.iterator',
+  }).resolveNodeType(result.get('init'));
+  check(name, type ? type.primitive ? type.type : type.constructor : null, expected);
+});
+
+// The same closure pairs a constructor's proxy slot before resolving its prototype methods.
+for (const [label, source] of [
+  ['declaration', 'const [{ w: [{ prototype: { at, flat } }] }, tail] = [{ w: [Array] }, 7]; use(at, flat, tail);'],
+  ['assignment', 'let at, flat, tail; ([{ w: [{ prototype: { at, flat } }] }, tail] = [{ w: [Array] }, 7]); use(at, flat, tail);'],
+]) runBoth(`constructor carrier sibling ${ label }`, source, (adapter, program, name) => {
+  const properties = adapter.collectPaths(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property',
+    p => p.parentPath.node.type === 'ObjectPattern' && ['at', 'flat'].includes(p.node.key?.name));
+  const resolver = adapter.makeResolver();
+  for (const property of properties) {
+    const type = resolver.resolvePropertyObjectType(property);
+    check(`${ name }/${ property.node.key.name }`, type ? type.primitive ? type.type : type.constructor : null, 'Array');
+  }
+});
+
+// A closed parameter keeps the caller's TypeScript slot type after a legal same-slot write.
+// A neighboring write leaves the same proof intact; an unknown annotation invents no family.
+for (const [label, source, expected] of [
+  [
+    'typed same-slot write',
+    'let box: { row: string } = { row: "xy" }; box.row = "ab"; function read({ row: { at } }) {} read(box);',
+    'string',
+  ],
+  [
+    'typed neighboring write',
+    'let box: { row: string, other: number } = { row: "xy", other: 0 }; box.other = 1; function read({ row: { at } }) {} read(box);',
+    'string',
+  ],
+  [
+    'unknown same-slot write',
+    'let box: { row: unknown } = { row: [1] }; box.row = "ab"; function read({ row: { at } }) {} read(box);',
+    null,
+  ],
+  [
+    'typed string slot write with inner default',
+    'let box: { row: string } = { row: "xy" }; box.row = "ab"; function read({ row: { at } = "cd" }) {} read(box);',
+    'string',
+  ],
+  [
+    'typed array slot write with inner default',
+    'let box: { row: number[] } = { row: [1] }; box.row = [2]; function read({ row: { at } = [3] }) {} read(box);',
+    'Array',
+  ],
+  [
+    'unannotated slot write with inner default',
+    'let box = { row: "xy" }; box.row = "ab"; function read({ row: { at } = "cd" }) {} read(box);',
+    null,
+  ],
+  [
+    'undefined literal slot written before inner default',
+    'const box = { row: undefined }; box.row = "ab"; function read({ row: { at } = [1] }) {} read(box);',
+    null,
+  ],
+  [
+    'direct undefined slot fires inner default',
+    'function read({ row: { at } = [1] }) {} read({ row: undefined });',
+    'Array',
+  ],
+  [
+    'direct defined slot skips inner default',
+    'function read({ row: { at } = [1] }) {} read({ row: "ab" });',
+    'string',
+  ],
+]) runBoth(`parameter caller annotation ${ label }`, source, (adapter, program, name) => {
+  const census = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
+  const reader = (adapter.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.node.value?.name === 'at');
+  const type = adapter.makeResolver({
+    isWrittenContainerSlot: (...args) => reader.isWrittenContainerSlot(...args),
+  }).resolvePropertyObjectType(property);
+  check(name, type ? type.primitive ? type.type : type.constructor : null, expected);
+});
+
+// A supplied argument minted by a sibling AST plugin has no source spans. `pathOfNode` cannot
+// anchor it, so only the caller pairing's argument identity distinguishes it from an omitted slot.
+// Keep that receiver unknown instead of projecting `null` and pretending the parameter default ran.
+for (const [label, argumentSource, mintedFamily, expected] of [
+  ['source-spanned String', '"xy"', null, 'string'],
+  ['source-spanned Array', '[]', null, 'Array'],
+  ['spanless String', '[]', 'String', null],
+  ['spanless Array', '[]', 'Array', null],
+]) runBoth(`parameter caller argument anchor/${ label }`,
+  `function read({ at } = []) {} read(${ argumentSource });`, (adapter, program, name) => {
+    const parameter = adapter.pickPath(program, 'AssignmentPattern', path => path.parentPath?.node?.params?.includes(path.node));
+    const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.parentPath?.node?.type === 'ObjectPattern' && path.node.key?.name === 'at');
+    const callPath = adapter.pickPath(program, 'CallExpression', path => path.node.callee?.name === 'read');
+    if (mintedFamily) callPath.node.arguments[0] = adapter.name === 'babel'
+      ? mintedFamily === 'String' ? { type: 'StringLiteral', value: 'xy' } : { type: 'ArrayExpression', elements: [] }
+      : mintedFamily === 'String' ? { type: 'Literal', value: 'xy', raw: '"xy"' } : { type: 'ArrayExpression', elements: [] };
+    const resolver = adapter.makeResolver();
+    const sites = resolver.parameterCallSites(parameter);
+    const argument = resolveCallArgument(sites[0].pairing.args ?? [], sites[0].argIndex);
+    check(`${ name }/caller identity`, argument, callPath.node.arguments[0]);
+    check(`${ name }/source anchor`, Boolean(pathOfNode(sites[0].callPath, argument)?.node), !mintedFamily);
+    const type = resolver.resolvePropertyObjectType(property);
+    check(`${ name }/receiver`, type ? type.primitive ? type.type : type.constructor : null, expected);
+  });
+
+// A nested parameter reads its written container annotation in that declaration's scope.
+// Supplied arguments and runtime defaults remain separate arms, including explicit any casts.
+for (const [label, source, expected, expectedHints] of [
+  [
+    'open string',
+    'export function read({row:{at}}:{row:string}){return at}',
+    'string',
+    ['string'],
+  ],
+  [
+    'open array',
+    'export function read({row:{includes}}:{row:number[]}){return includes}',
+    'Array',
+    ['array'],
+  ],
+  [
+    'local alias scope',
+    'type Fields={row:number[]};export function owner(){type Fields={row:string};return function read({row:{at}}:Fields){return at}}',
+    'string',
+    ['string'],
+  ],
+  [
+    'supplied skips default',
+    'function read({row:{at}}:{row:string}={row:[1]} as any){return at}read({row:"ab"});',
+    'string',
+    ['string'],
+  ],
+  [
+    'omitted selects default',
+    'function read({row:{at}}:{row:string}={row:[1]} as any){return at}read();',
+    'Array',
+    ['array'],
+  ],
+  [
+    'open default source arm',
+    'export function read({row:{at}}:{row:string}={row:[1]} as any){return at}',
+    null,
+    ['array', 'string'],
+  ],
+  [
+    'inner default source arm',
+    'export function read({row:{at}=[1] as any}:{row:string|undefined}){return at}',
+    null,
+    ['array', 'string'],
+  ],
+  [
+    'unknown field keeps supplied open',
+    'export function read({row:{at}="ab"}:{row:any}={row:"ab"}){return at}',
+    null,
+    null,
+  ],
+  [
+    'unknown root keeps supplied open',
+    'export function read({row:{at}}:any={row:"ab"}){return at}',
+    null,
+    null,
+  ],
+  [
+    'closed caller sibling',
+    'let box:{row:string}={row:"ab"};box.row="cd";function read({row:{at}}){return at}read(box);',
+    'string',
+    ['string'],
+  ],
+  [
+    'arguments does not erase declaration type',
+    'export function read({row:{at}}:{row:string}){return[at,arguments.length]}',
+    'string',
+    ['string'],
+  ],
+  [
+    'untyped arguments remain open',
+    'function read({row:{at}}){return[at,arguments.length]}read({row:"ab"});',
+    null,
+    null,
+  ],
+  [
+    'open union default',
+    'export function read({row:{at}}:{row:string|number[]}={row:[1]}){return at}',
+    null,
+    ['array', 'string'],
+  ],
+  [
+    'existing annotated default source',
+    'declare const value:{row:string};export function read({row:{at}}=value){return at}',
+    'string',
+    ['string'],
+  ],
+  [
+    'existing unknown default source',
+    'declare const value:any;export function read({row:{at}}=value){return at}',
+    null,
+    null,
+  ],
+]) runBoth(`nested parameter annotation/${ label }`, source, (adapter, program, name) => {
+  const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.parentPath.node.type === 'ObjectPattern' && ['at', 'includes'].includes(path.node.value?.name));
+  const resolver = adapter.makeResolver();
+  const type = resolver.resolvePropertyObjectType(property);
+  const hints = resolver.resolvePropertyUnionHints(property);
+  checkDeep(name, [type ? type.primitive ? type.type : type.constructor : null, hints ? [...hints].sort() : null],
+    [expected, expectedHints]);
+});
+
 finish();

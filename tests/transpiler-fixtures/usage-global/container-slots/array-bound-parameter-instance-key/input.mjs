@@ -1,6 +1,11 @@
-// A const-bound computed key selects an instance method from an array parameter default.
+// Const-bound computed keys preserve the Array and String families of parameter defaults.
+// Distinct shared methods expose each receiver type independently in the imports.
 const constBoundComputedInstanceKey = (function () {
-  const KEY = 'flat';
+  const KEY = 'at';
   return (function ({ [KEY]: f } = [3, [4]]) { return f; })();
 })();
-export { constBoundComputedInstanceKey };
+const constBoundComputedStringKey = (function () {
+  const KEY = 'includes';
+  return (function ({ [KEY]: f } = '34') { return f; })();
+})();
+export { constBoundComputedInstanceKey, constBoundComputedStringKey };

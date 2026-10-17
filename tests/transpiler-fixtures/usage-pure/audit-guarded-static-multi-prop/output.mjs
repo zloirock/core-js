@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-var _ref, _ref2, _ref3;
+var _ref;
 // Object-rest keeps named slots at that level and reads through it native in usage-pure.
 // Independent reads and key/default expressions still receive their own polyfills.
 // a binding that MAY be a constructor takes the identity guard, and a pattern reading several of its
@@ -25,11 +25,11 @@ const {
   ...rest
 } = M;
 // Defaults keep their user fallback, and known computed keys share the guarded static read.
-const from5 = (_ref = M, _ref === Array ? _Array$from : _ref.from),
-  of5 = _ref === Array ? _Array$of : (_ref2 = _ref.of) === void 0 ? 1 : _ref2;
+const from5 = M === Array ? _Array$from : M.from,
+  of5 = M === Array ? _Array$of : (_ref = M.of) === void 0 ? 1 : _ref;
 const dyn = 'of';
-const from6 = (_ref3 = M, _ref3 === Array ? _Array$from : _ref3.from),
-  of6 = _ref3 === Array ? _Array$of : _ref3.of;
+const from6 = M === Array ? _Array$from : M.from,
+  of6 = M === Array ? _Array$of : M.of;
 // the ASSIGNMENT host splits too, where its value is nobody's - a statement of its own
 let a, b;
 a = M === Array ? _Array$from : M.from, b = M === Array ? _Array$of : M.of;

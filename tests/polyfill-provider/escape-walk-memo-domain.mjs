@@ -196,4 +196,67 @@ runBoth('a root is derived once per file, not once per escape', hopCounterSource
     check(`${ label }: visits do not grow with the read count`, many, one);
   });
 
+// A generated return value has no source span. Reads synthesized over it share the
+// same root, but different paths and different roots must keep separate answers.
+for (const row of [
+  {
+    name: 'two paths off one spanless return keep their own answers',
+    code: 'function read() { return (0, { first: Map, second: Set }); } hand([read().first, read().second]);',
+    roots: 1,
+  },
+  {
+    name: 'same path off two spanless returns keeps each root',
+    code: 'function first() { return (0, { item: Map }); }'
+      + ' function second() { return (0, { item: Set }); } hand([first().item, second().item]);',
+    roots: 2,
+  },
+]) {
+  runBoth(row.name, row.code, (adapter, programPath, label) => {
+    const roots = adapter.collectPaths(programPath, 'SequenceExpression');
+    check(`${ label }: roots reached`, roots.length, row.roots);
+    for (const { node } of roots) {
+      delete node.start;
+      delete node.end;
+      delete node.loc;
+    }
+    const { escapedCtorNames } = collectFileCensus(programPath.node, [escapedCtorReferencesReducer()]);
+    for (const name of ['Map', 'Set']) check(`${ label }: ${ name } escapes`, escapedCtorNames.has(name), true);
+  });
+}
+
+// Counting the return's expansion distinguishes its shared slot memo from the
+// fresh member nodes that each call synthesizes. The fixed graph is the same size
+// for one escape and sixteen; only the number of references to it changes.
+{
+  function source(reads) {
+    return `function read() { return (0, { item: Map }); }${ 'hand(read().item);'.repeat(reads) }`;
+  }
+  runBoth('a spanless return slot expands once per file', source(ESCAPE_READS), (adapter, programPath, label) => {
+    function count(program) {
+      const root = findNode(program, node => node.type === 'SequenceExpression');
+      checkTruthy(`${ label }: the generated-root control is present`, !!root);
+      delete root.start;
+      delete root.end;
+      delete root.loc;
+      const { expressions } = root;
+      let visits = 0;
+      Object.defineProperty(root, 'expressions', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          visits++;
+          return expressions;
+        },
+      });
+      const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer()]);
+      check(`${ label }: Map escapes after the shared read`, escapedCtorNames.has('Map'), true);
+      return visits;
+    }
+    const one = count(adapter.parseAndScope(source(1)).node);
+    const many = count(programPath.node);
+    checkTruthy(`${ label }: the counted expansion is on the walk path`, one > 0);
+    check(`${ label }: repeated escapes do not re-expand the same root and path`, many, one);
+  });
+}
+
 finish();

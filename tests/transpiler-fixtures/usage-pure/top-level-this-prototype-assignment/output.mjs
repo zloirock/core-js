@@ -11,41 +11,48 @@ import _endsWithMaybeString from "@core-js/pure/actual/string/instance/ends-with
 import _repeatMaybeString from "@core-js/pure/actual/string/instance/repeat";
 import _startsWithMaybeString from "@core-js/pure/actual/string/instance/starts-with";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-var _ref, _ref2;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // Top-level this names the realm. Nested prototype leaves bind their instance ponyfills
 // beside a sibling, a prefix or a leaf default, and after loop-head relocation.
 // A prefix runs once, either inside the residual RHS or immediately before it.
 let at, stringAt, includes, flat, sibling;
-({
-  sibling
-} = this);
 at = _atMaybeArray(this.Array.prototype);
 ({
   sibling
 } = this);
 stringAt = _atMaybeString(this.String.prototype);
-includes = _includesMaybeArray(this.Array.prototype);
 ({
   sibling
 } = this);
-flat = (_ref = _flatMaybeArray(this.Array.prototype)) === void 0 ? fallback() : _ref;
+includes = _includesMaybeArray(this.Array.prototype);
+({
+  Array: _ref
+} = this), {
+  prototype: _ref2
+} = _ref, flat = (_ref3 = _flatMaybeArray(_ref2)) === void 0 ? fallback() : _ref3, {
+  sibling
+} = this;
 const findIndex = _findIndexMaybeArray((touch(), this.Array.prototype));
 const codePointAt = _codePointAtMaybeString((touch(), this.String.prototype));
 let map, endsWith;
-({
-  sibling
-} = (touch(), this));
+touch(), this;
 map = _mapMaybeArray(this.Array.prototype);
 ({
   sibling
-} = (/* receiver prefix */touch(), this));
-endsWith = (_ref2 = _endsWithMaybeString(this.String.prototype)) === void 0 ? /* method default */fallback() : _ref2;
-for (const _ref3 of [this]) {
-  const findLast = _findLastMaybeArray(_ref3.Array.prototype);
+} = this);
+(/* receiver prefix */touch(), this), {
+  String: _ref4
+} = this, {
+  prototype: _ref5
+} = _ref4, endsWith = (_ref6 = _endsWithMaybeString(_ref5)) === void 0 ? /* method default */fallback() : _ref6, {
+  sibling
+} = this;
+for (const _ref7 of [this]) {
+  const findLast = _findLastMaybeArray(_ref7.Array.prototype);
   consume(findLast);
 }
-for (const _ref4 of [this]) {
-  const startsWith = _startsWithMaybeString(_ref4.String.prototype);
+for (const _ref8 of [this]) {
+  const startsWith = _startsWithMaybeString(_ref8.String.prototype);
   consume(startsWith);
 }
 for (const realm of [this]) {

@@ -1,5 +1,6 @@
 import {
   isValidIdentifierName,
+  PRIMITIVE_LITERAL_TYPES,
   markGeneratedMemoDeclarator,
   markRenderedStoredValue,
   noteRenderRetiredWrites,
@@ -72,19 +73,22 @@ export function variableDeclarator(id, init = null) {
   return { type: 'VariableDeclarator', id, init };
 }
 
-// A lexical activation for memos in a parameter expression or instance-field initializer.
-// The source expression stays in one return slot and every ref belongs to this evaluation.
-export function renderMemoActivation(expression, names) {
-  return callExpression({
-    type: 'ArrowFunctionExpression',
-    params: [],
-    async: false,
-    expression: false,
-    body: blockStatement([
-      variableDeclaration('var', names.map(name => markGeneratedMemoDeclarator(variableDeclarator(identifier(name))))),
+export function arrowFunctionExpression(params, body) {
+  return { type: 'ArrowFunctionExpression', params, body, generator: false, async: false, expression: body.type !== 'BlockStatement' };
+}
+
+// A lexical activation for memos in a parameter expression, field initializer or caller.
+// Supplied values evaluate in the outer scope, preserving source await/yield and lexical reads.
+// Every ref belongs to this evaluation; names without an argument keep their local var slot.
+export function renderMemoActivation(expression, names, args = []) {
+  const declarations = names.slice(args.length).map(name => markGeneratedMemoDeclarator(variableDeclarator(identifier(name))));
+  return callExpression(arrowFunctionExpression(
+    names.slice(0, args.length).map(identifier),
+    blockStatement([
+      ...declarations.length ? [variableDeclaration('var', declarations)] : [],
       { type: 'ReturnStatement', argument: expression },
     ]),
-  }, []);
+  ), args);
 }
 
 export function binaryExpression(operator, left, right) {
@@ -124,6 +128,23 @@ export function arrayExpression(elements) {
   return { type: 'ArrayExpression', elements };
 }
 
+export function assignmentPattern(left, right) {
+  return { type: 'AssignmentPattern', left, right };
+}
+
+// Capture an object parameter once and let the ordinary declaration renderer serve its properties.
+// A trailing inert default preserves a bare pattern's length and unmapped arguments semantics.
+export function renderParameterInstanceCapture(plan, { receiverName, unusedName, embed = node => node }) {
+  return {
+    head: plan.root.type === 'AssignmentPattern'
+      ? assignmentPattern(identifier(receiverName), embed(plan.root.right)) : identifier(receiverName),
+    padding: plan.paddingRequired ? assignmentPattern(identifier(unusedName), voidZero()) : null,
+    declaration: variableDeclaration('let', plan.pattern.properties.map(prop => variableDeclarator(
+      embed({ ...plan.pattern, properties: [prop] }), identifier(receiverName),
+    ))),
+  };
+}
+
 export function objectPattern(properties) {
   return { type: 'ObjectPattern', properties };
 }
@@ -131,6 +152,18 @@ export function objectPattern(properties) {
 // A data property in a rendered object or pattern.
 export function objectProperty(key, value, { computed = false } = {}) {
   return { type: 'Property', kind: 'init', method: false, shorthand: false, computed, key, value };
+}
+
+// A getter delays one captured receiver read until the surviving pattern consumes its slot.
+export function objectGetter(key, value, { computed = false } = {}) {
+  return {
+    ...objectProperty(key, {
+      type: 'FunctionExpression', id: null, params: [],
+      body: blockStatement([{ type: 'ReturnStatement', argument: value }]),
+      generator: false, async: false, expression: false,
+    }, { computed }),
+    kind: 'get',
+  };
 }
 
 export function bareImport(path) {
@@ -313,8 +346,8 @@ export function memberFromKeyName(object, keyName, options = {}) {
 export function renderSynthSlotRead({ base, key, computed, lookupKey }) {
   // a host-slotted key is the caller's own node passing through - its SPELLING still decides
   const spelled = hostSlotNode(key);
-  const literalKey = !computed && (spelled.type === 'Literal' || spelled.type === 'StringLiteral');
-  return memberExpression(base, computed || literalKey ? cloneNode(key) : identifier(lookupKey),
+  const literalKey = !computed && PRIMITIVE_LITERAL_TYPES.has(spelled.type);
+  return memberExpression(base, computed || literalKey || spelled.name === lookupKey ? cloneNode(key) : identifier(lookupKey),
     { computed: computed || literalKey });
 }
 

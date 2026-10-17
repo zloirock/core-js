@@ -17,6 +17,7 @@ import {
   buildNestedParamSynthPlan,
   buildPatternRenderPlan,
   isReReferenceableAcrossReads,
+  instanceSynthSpellsReceiver,
   planNestedKeyedPatternCapture,
   paramDefaultInstanceSynthAllowed,
   patternComputedKeysSynthSafe,
@@ -659,6 +660,35 @@ for (const [fields, allowed] of [
       adapter: keyAdapter,
       resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null,
     }), allowed);
+  });
+
+// A plain store is consumed whole by one instance dispatch; its target never receives the mirror.
+for (const [receiver, fields, expected] of [
+  ['receiver = []', 'toSorted', true],
+  ['receiver = other = []', 'toSorted', true],
+  ['receiver = (effect(), other = [3, 1])', 'toSorted', true],
+  ['holder[(effect(), "slot")] = [effect()]', 'toSorted', true],
+  ['(effect(), receiver = [3, 1])', 'toSorted', true],
+  ['receiver = make()', 'toSorted', true],
+  ['receiver = { toSorted: own }', 'toSorted', true],
+  ['{ toSorted: own }', 'toSorted', false],
+  ['receiver ||= [3, 1]', 'toSorted', false],
+  ['({ receiver } = holder)', 'toSorted', false],
+  ['receiver = [3, 1]', 'toSorted, flat', false],
+]) runBoth(`instance default consumes its stored value/${ receiver }/${ fields }`,
+  `let receiver, other; const holder = {}; function read({ ${ fields } } = ${ receiver }) {}`,
+  (parser, program, label) => {
+    const wrapper = parser.pickPath(program, 'AssignmentPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(program.node);
+    check(`${ label } admission`, paramDefaultInstanceSynthAllowed({
+      objectPatternNode: wrapper.node.left, receiverNode: wrapper.node.right,
+      scope: wrapper.scope, path: wrapper, adapter,
+      resolvePure: meta => meta.key === 'toSorted' || meta.key === 'flat'
+        ? { kind: 'instance', entry: `array/instance/${ meta.key }` } : null,
+    }), expected);
+    if (expected) check(`${ label } inner claims remain live`, instanceSynthSpellsReceiver(wrapper.node.right), true);
+    check(`${ label } read-only`, JSON.stringify(program.node), before);
   });
 
 finish();

@@ -6,16 +6,12 @@ import _Promise from "@core-js/pure/actual/promise";
 // later statement reassigns may hold the replacement at the read, which keeps its live value. usage-pure
 // only: the global flavor injects either way
 for (let g of [_globalThis]) {
-  var _ref;
   if (c) g = {
     Map: MapShim
   };
-  use((_ref = g, _ref === _globalThis ? _Map : _ref.Map).groupBy(list, key));
+  use((g === _globalThis ? _Map : g.Map).groupBy(list, key));
 }
-for (var h of [_globalThis]) _pushMaybeArray(later).call(later, () => {
-  var _ref2;
-  return (_ref2 = h, _ref2 === _globalThis ? _Promise : _ref2.Promise).resolve(1);
-});
+for (var h of [_globalThis]) _pushMaybeArray(later).call(later, () => (h === _globalThis ? _Promise : h.Promise).resolve(1));
 h = {
   Promise: PromiseShim
 };

@@ -1,6 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
@@ -10,9 +11,9 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// A parameter default selecting the realm mirrors the realm arm level by level: a defaulted instance leaf
-// off the prototype hop, an instance leaf beside a static, a `Symbol.iterator` slot, a descended prototype
-// hop and a proxy hop over two constructors each take their slot in the arm the realm stands in.
+// Static and defaulted leaves mirror the realm arm of a selected parameter default.
+// Plain nested instance bindings dispatch on the actual selected or supplied receiver;
+// siblings retain their order and share the prototype read where needed.
 const user = {};
 export function a({
   Array: {
@@ -57,14 +58,14 @@ export function d({
 } : user) {
   return [x, y];
 }
-export function e({
-  Array: {
-    prototype: {
-      flat: x
-    },
-    isArray: y
-  }
-} = c ? _globalThis : user) {
+export function e(_ref = c ? _globalThis : user) {
+  let {
+    Array: _ref2
+  } = _ref;
+  let x = _flatMaybeArray(_ref2.prototype),
+    {
+      isArray: y
+    } = _ref2;
   return [x, y];
 }
 export function g({

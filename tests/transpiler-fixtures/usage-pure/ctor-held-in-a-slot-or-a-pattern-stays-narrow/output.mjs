@@ -44,18 +44,14 @@ unread.k = _WeakMap;
 use(1);
 // the pattern channel, and the shadowing parameter that raised it - what the census answers for is
 // the pairing, not the name
-use((({
-  name
-}) => name)({
-  name: _nameMaybeFunction(_Iterator)
-}));
-use(function ({
-  name
-}, Symbol) {
+use(((_ref, _unused = void 0) => {
+  let name = _nameMaybeFunction(_ref);
   return name;
-}({
-  name: _nameMaybeFunction(_Symbol)
-}));
+})(_Iterator));
+use(function (_ref2, Symbol, _unused2 = void 0) {
+  let name = _nameMaybeFunction(_ref2);
+  return name;
+}(_Symbol));
 // ... and the three spellings that read PAST the pairing: an IDENTIFIER parameter holds the value
 // whole, a key the pattern cannot name reads a slot nothing here names, and a REST element takes
 // every own property in one binding.

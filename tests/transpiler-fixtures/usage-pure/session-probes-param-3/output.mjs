@@ -37,11 +37,8 @@ function mark(t, v) {
   return v;
 }
 {
-  function f({
-    at
-  } = {
-    at: _atMaybeArray(arr)
-  }) {
+  function f(_ref = arr) {
+    let at = _atMaybeArray(_ref);
     return at;
   }
 }
@@ -317,12 +314,12 @@ function mark(t, v) {
   // A later computed key can replace w. Substitute Map only when the final w still holds the realm object.
   function k(key) {
     const {
-        w: _ref
+        w: _ref2
       } = {
         w: _globalThis,
         [key]: other
       },
-      kd = _ref === _globalThis ? _Map : _ref.Map;
+      kd = _ref2 === _globalThis ? _Map : _ref2.Map;
     return kd;
   }
 }
@@ -331,34 +328,28 @@ function mark(t, v) {
   function key() {
     return 'k';
   }
-  const _ref2 = {
+  const _ref3 = {
     m: [1],
     k: 2
   };
-  const at = _atMaybeArray(_ref2.m),
+  const at = _atMaybeArray(_ref3.m),
     {
       [key()]: picked
-    } = _ref2;
+    } = _ref3;
 }
 {
   function mark() {}
-  const viaSeqArg = (({
-    at: m
-  }) => m)((mark(), {
-    at: _atMaybeArray([1, 2])
-  }));
+  const viaSeqArg = ((_ref4, _unused = void 0) => {
+    let m = _atMaybeArray(_ref4);
+    return m;
+  })((mark(), [1, 2]));
   use(viaSeqArg);
 }
 {
-  function p({
-    w: {
-      at: m
-    }
-  } = {
-    w: {
-      at: _atMaybeString('ab')
-    }
+  function p(_ref5 = {
+    w: 'ab'
   }) {
+    let m = _atMaybeString(_ref5.w);
     use(m);
   }
   p();

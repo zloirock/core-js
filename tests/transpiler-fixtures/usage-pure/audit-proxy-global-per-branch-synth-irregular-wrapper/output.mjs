@@ -6,11 +6,5 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // survives, ahead of the synth literal. both emitters drop the discarded receiver identically
 let c = true,
   e = () => 0;
-const {
-  from
-} = c ? {
-  from: _Array$from
-} : (e(), {
-  from: _Array$from
-});
+const from = _Array$from;
 from([1]);

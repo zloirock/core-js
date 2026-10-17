@@ -540,8 +540,8 @@ export function hasCtorAliasCandidateShapes(programNode) {
 }
 
 // a statement placement that provably executes whenever its enclosing function (or module body) runs:
-// only plain blocks between the statement and the function/program boundary. any control structure on
-// the way (if / loops / try / switch / labeled bodies) makes execution path-dependent -> false.
+// plain blocks and statement arms this build always takes pass through to the function/program
+// boundary. any other control structure on the way makes execution path-dependent -> false.
 // the walk starts at the statement's PARENT (the statement node itself - ExpressionStatement /
 // VariableDeclaration - is not judged)
 // the statements whose HEAD slot is an expression evaluated whenever the statement runs: the tests,
@@ -562,7 +562,7 @@ const CONTROL_TEST_HOSTS = new Set([
 // slot: the test (discriminant for switch) runs whenever the statement runs - a write there is
 // as unconditional as an expression statement's. branches / bodies stay refused (the ancestor
 // walk already rejects a host nested under them)
-function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode = null) {
+function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode = null, adapter = null) {
   // callers pass paths at different depths (a declarator, the assignment, its statement) -
   // normalize by climbing to the hosting statement first, judging every EDGE on the way: a
   // conditional expression container (`c ? ({ Map: M } = g) : 0`, `c && ({ Map: M } = g)`) or a
@@ -608,7 +608,7 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode =
     stmt = parent;
   }
   let throughStaticBlock = false;
-  for (let cur = stmt?.parentPath; cur; cur = cur.parentPath) {
+  for (let child = stmt, cur = stmt?.parentPath; cur; child = cur, cur = cur.parentPath) {
     const type = cur.node?.type;
     // a class STATIC BLOCK owns a var scope but defers nothing: it runs exactly once, when the class
     // definition evaluates - so it is transparent here, and the walk goes on to judge where that
@@ -637,6 +637,10 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode =
     // an export wrapper around the hosting statement (`export const r = (_g = g) == null ? ...`)
     // runs exactly when its module body does - transparent for placement, and so is a LABEL: it
     // names the statement it wraps without guarding it
+    if (type === 'IfStatement' && adapter?.settledSelection) {
+      const decision = adapter.settledSelection(cur.node, { scope: cur.scope, adapter, path: cur });
+      if (decision?.fold && cur.node[decision.fold] === child?.node) continue;
+    }
     if (type !== 'BlockStatement' && type !== 'LabeledStatement'
       && type !== 'ExportNamedDeclaration' && type !== 'ExportDefaultDeclaration') return false;
   }
@@ -700,7 +704,7 @@ export function registerDeclAliasIfSound({
   // EVERY `{ Global: local }` pair, i.e. O(pairs * scope size) for a file that destructures the
   // global repeatedly - and it also admitted ambient `declare var M`, which tsc elides
   if (kind === 'var') extraBindingNodes.push(...findVarOwnerDeclaring(stmtPath, localName)?.declarators ?? []);
-  if (kind === 'var' && !unconditionalStatementPlacement(stmtPath)) {
+  if (kind === 'var' && !unconditionalStatementPlacement(stmtPath, null, null, adapter)) {
     // refused flow-trust (conditional hoisted `var`): the member reads get the runtime ctor
     // guard. `srcPos` keys the multi-write merge positionally, same as the assignment form -
     // a MIXED decl+assignment dirty binding then deterministically guards on the LAST source
@@ -734,7 +738,7 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
     return branchingInitResolves(node, { scope, adapter, path: keyCtx?.path ?? null },
       branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured, keyCtx));
   }
-  const peeled = peelProxyGlobalObject(node);
+  const peeled = peelProxyGlobalObject(node, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   if (peeled?.type === 'Identifier') {
     // a bare `Symbol` counts only while unshadowed - a user binding (`const Symbol = Array`)
     // redirects the read to the user object, and folding its keys as well-known symbols
@@ -846,7 +850,10 @@ function destructuredGlobalKeyPathLeaf(init, keyPath, scope, adapter, seen) {
   // thread the caller's cycle guard: a cyclic destructure chain (`{ x: a } = b; { y: b } = a`)
   // re-enters this walk through the init's own proxy-root resolution
   if (!keyPath?.length) return null;
-  if (!isProxyGlobalIdentifierNode({ node: peelProxyGlobalObject(init), scope, adapter, path: null, seen })) return null;
+  if (!isProxyGlobalIdentifierNode({ node: peelProxyGlobalObject(
+    init,
+    adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+  ), scope, adapter, path: null, seen })) return null;
   for (let i = 0; i < keyPath.length - 1; i++) {
     if (!isPristineProxyGlobal(adapter, keyPath[i])) return null;
   }
@@ -1092,12 +1099,12 @@ export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) 
 
 // `super.X` in a static method -> static meta on the parent class. peel parens + TS casts
 // on the superClass node so `class C extends (Base as typeof Base)` resolves to Base
-export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
+export function buildSuperStaticMeta(classNode, key, resolveSuperType, staticIsMutated = null) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
   // the SE-aware peel, like every other entry into the name walk: an effect-wrapped base
   // (`class C extends (n++, Map)`) names the same super statics as its plain twin, and the
   // effect stays where the source ran it
-  const superClass = peelProxyGlobalObject(classNode.superClass);
+  const superClass = peelProxyGlobalObject(classNode.superClass, staticIsMutated);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
   // `inheritedStatic` marks this as a SYNTHETIC static meta for `super.X()` / `this.X()` in a static
@@ -1535,7 +1542,7 @@ export function createClassHelpers({
     }
     // a container bound through a zero-arg IIFE (`const NS = (() => ({...}))(); NS.X`) resolves
     // to the IIFE's returned container, same as the inline-IIFE extends clause
-    return peelIifeReturnTarget(unwrapInitForResolution(declNode?.init));
+    return peelIifeReturnTarget(unwrapInitForResolution(declNode?.init), adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   }
 
   // member-access value lookup: outer -> container, look up leaf property. shared by
@@ -1552,7 +1559,7 @@ export function createClassHelpers({
   // handles bare Identifier (lookup), nested member chain (recurse + property lookup), direct
   // container literals. null when no static container is reachable
   function resolveToContainer(node, scope, seen, classAnchor = null) {
-    const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node));
+    const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node), adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
     if (peeled?.type === 'Identifier') {
       // the binding's value may be another alias or member hop rather than the container itself
       // (`const NS0 = { Base: Map }; const NS = NS0`) - re-enter, exactly like the member arm
@@ -1573,7 +1580,7 @@ export function createClassHelpers({
   // class-as-namespace, and any N-level composition through them. shared `seen` enables
   // mutually-recursive alias cycle detection; `path` anchors TS-runtime shadow checks
   function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null, classAnchor = null) {
-    const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node));
+    const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node), adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
     if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled, scope, seen, path, classAnchor);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });
@@ -1616,7 +1623,7 @@ export function createClassHelpers({
       const resolved = resolveBindingToGlobalName(superClass, classScope, new Set(), classAnchor ?? path, classAnchor);
       superTypeCache.set(info.classNode, resolved);
       return resolved;
-    });
+    }, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
     // a base the class may have captured under ANOTHER value - a conditional or closure write the
     // dominance proof cannot settle - unions its written constructors' statics beside the primary,
     // exactly as a member read off the same slot does (usage-global over-inject-safe; the union
@@ -1627,7 +1634,10 @@ export function createClassHelpers({
     // Identifier-only gate read every hop as no base at all, so a class extending one lost the
     // alternatives its member-read sibling (`ns.Base.from()`) enumerates off that very slot; the
     // container leg of the axis is that sibling's own walk, run here with its union sink
-    const superClass = attachUnionExtras ? peelProxyGlobalObject(info.classNode.superClass) : null;
+    const superClass = attachUnionExtras ? peelProxyGlobalObject(
+      info.classNode.superClass,
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+    ) : null;
     if (superClass) {
       // an UNRESOLVED base still reaches every constructor written into its slot, and `super.X`
       // dispatches whichever one ran - so the enumeration rides the typeless carrier the member

@@ -1227,7 +1227,7 @@ export function bindingSymbolKey(binding, packages = null, ctx = null) {
 // unrelated. CORE_JS_SOURCE_PREFIX (+ user `packages`) rejects a coincidental `my-lib/symbol/X`;
 // SYMBOL_STATIC_KEYS then rejects the `symbol/` leaves that are NOT a `Symbol.<name>` value
 // (`constructor` exports the constructor itself, `description` nothing, `index` the namespace)
-function symbolKeyFromSource(source, packages) {
+export function symbolKeyFromSource(source, packages) {
   if (!source) return null;
   if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
   const match = SYMBOL_IMPORT_SOURCE.exec(source);
@@ -1557,14 +1557,14 @@ export function globalProxyMemberName({ node, scope, adapter, path, seen, resolv
   }
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-  let object = peelProxyGlobalObject(node.object);
+  let object = peelProxyGlobalObject(node.object, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
     const linkName = keyOf(object);
     // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
     // global-object surface, so it must not resolve to the leaf global
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
       || isMutatedGlobalSlot(adapter, linkName, path && { node: object, path })) return null;
-    object = peelProxyGlobalObject(object.object);
+    object = peelProxyGlobalObject(object.object, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path, seen })) return null;
   // a mutated proxy ROOT (`window = fake; window.Promise`) reads through the user's
@@ -2039,7 +2039,7 @@ function walkAliasValueNode({ value, name, binding, scope, adapter, seen, path, 
   // direct member-receiver IIFE (`((arg) => arg)(WeakMap).has(1)`) doesn't reach here
   // and preserves its AST shape -- the identifier-visitor's inner-arg rewrite stays
   // unrivalled, no double-rewrite overlap with a wide polyfill substitution
-  const iifePeeled = peelZeroArgIifeReturn(unwrapped);
+  const iifePeeled = peelZeroArgIifeReturn(unwrapped, { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic });
   if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope: initScope, adapter, seen, path, usageNode: iifePeeled });
   // `var g = require('<pkg>/<mode>/global-this')` - the require-style twin of the proxy-entry
   // import branch in resolveGuardedBindingToGlobal: same source canon, so the CJS import style
@@ -2093,7 +2093,7 @@ function resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope, adapt
   for (let i = 0; i < pattern.elements.length; i++) {
     const raw = pattern.elements[i];
     const slot = patternSlotTarget(raw);
-    const paired = slot ? resolveCallArgument(init.elements, i) : null;
+    const paired = slot ? resolveCallArgument(init.elements, i, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic) : null;
     if (!paired) continue;
     if (slot.type === 'ObjectPattern') {
       const alias = resolveProxyGlobalDestructureAlias({ pattern: slot, init: paired, name, scope, adapter, seen, path });
@@ -3172,7 +3172,7 @@ export function reachableAliasValues({
     // aliases the IIFEs' return, so peel to a fixpoint to reach the underlying binding - the same
     // wrapper the container / global resolvers peel
     while (node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression') {
-      const ret = peelZeroArgIifeReturn(node);
+      const ret = peelZeroArgIifeReturn(node, { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic });
       if (!ret) break;
       node = unwrapTransparentSeq(ret);
     }
@@ -3316,12 +3316,12 @@ function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
   if (invocationNode(node) !== node) return null;
   const pairing = callPairing(node, null, {
     nameIsShadowed: (name, read) => adapter.hasBinding({ scope, name, path, read }),
-    staticIsMutated: adapter.isMutatedStatic ?? null,
+    staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic ?? null,
     getCalleeEntry: callee => pureImportSourceEntry(moduleDefaultSource({ node: callee, scope, adapter, path, getBinding })),
   });
   if (!pairing?.callee) return null;
-  if (node.type !== 'TaggedTemplateExpression' && pairing.args === node.arguments) return null;
-  return { ...node, type: 'CallExpression', callee: pairing.callee, arguments: pairing.argsUnknown ? [] : pairing.args };
+  if (!pairing.argsUnknown && node.type !== 'TaggedTemplateExpression' && pairing.args === node.arguments) return null;
+  return { ...node, type: 'CallExpression', callee: pairing.callee, arguments: pairing.args, argsUnknown: pairing.argsUnknown };
 }
 
 // Resolve a call's returned literal and its parameter-filled slots through the shared callee proof.
@@ -3335,7 +3335,10 @@ export function callYieldedContainer(hop, options = {}) {
   // the return is read for its VALUE: an effect prefix in a sequence return stays in the callee,
   // which every reader of the yielded container keeps running in place
   const yielded = resolved && calleeYieldedContainer(resolved.node, { unwrap: unwrapExpressionChain });
-  return yielded ? { ...yielded, args: resolved.args, callee: resolved.node, scope: resolved.ctx.scope, seen: resolved.seen } : null;
+  return yielded ? {
+    ...yielded, args: resolved.args, argsUnknown: resolved.argsUnknown,
+    callee: resolved.node, scope: resolved.ctx.scope, seen: resolved.seen,
+  } : null;
 }
 
 // ... the same container as a VALUE reader pairs it: `paramArgs` holds the literal, the argument each
@@ -3349,7 +3352,11 @@ export function pairedYieldedContainer(hop, options = {}) {
   const args = new Map();
   const unproven = new Set();
   for (const [at, param] of dropLeadingThisParam(yielded.callee.params).entries()) {
-    const argument = yielded.confined.has(at) ? resolveCallArgument(yielded.args, at) : null;
+    const argument = !yielded.argsUnknown && yielded.confined.has(at) ? resolveCallArgument(
+      yielded.args,
+      at,
+      hop.ctx.adapter.isMutatedStaticSlot ?? hop.ctx.adapter.isMutatedStatic,
+    ) : null;
     if (argument) args.set(param.name, argument);
     else unproven.add(param.name);
   }
@@ -3552,6 +3559,7 @@ export function resolveInlineCalleeFunction(hop, {
   // SE-bail keeps the shape unresolved (native call survives)
   const call = pairedCallView(hop.node, hop.ctx, bindings ? calleeBinding : null) ?? hop.node;
   const args = call.arguments ?? [];
+  const argsUnknown = !!call.argsUnknown;
   let callee = unwrapTransparentSeq(call.callee);
   let hopScope = hop.ctx.scope;
   let lookupPath = path;
@@ -3618,6 +3626,7 @@ export function resolveInlineCalleeFunction(hop, {
       hop,
       callee: rhs,
       args,
+      argsUnknown,
       scope: writeScopeAt(lookupPath, write, aliasDeclScope(binding, hopScope)),
       seen,
       allowIdentityParam,
@@ -3699,7 +3708,7 @@ export function resolveInlineCalleeFunction(hop, {
     hopScope = aliasDeclScope(binding, hopScope);
     lookupPath = bindingDeclarationPath(binding) ?? lookupPath;
   }
-  return finishInlineCallee({ hop, callee, args, scope: hopScope, seen, allowIdentityParam, allowAsync });
+  return finishInlineCallee({ hop, callee, args, argsUnknown, scope: hopScope, seen, allowIdentityParam, allowAsync });
 }
 
 // the callee a PATTERN-bound name holds (`const { make } = o`): the one value the pairer names for its
@@ -3741,7 +3750,7 @@ function patternMethodSlot(declarator, name, ctx) {
 // the shared callee-shape validation every proof arm funnels through; on success the hop advanced
 // onto the callee, at `scope`, carrying the ARGUMENTS the invocation pairs with its parameters
 // babel spells a class's STATIC method as the member itself, where ESTree hands the function under it
-function finishInlineCallee({ hop, callee, args, scope, seen, allowIdentityParam, allowAsync }) {
+function finishInlineCallee({ hop, callee, args, argsUnknown, scope, seen, allowIdentityParam, allowAsync }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod'
     && !(callee.type === 'ClassMethod' && callee.static && callee.kind === 'method'))
@@ -3750,7 +3759,7 @@ function finishInlineCallee({ hop, callee, args, scope, seen, allowIdentityParam
   // A named function expression binds its own name, outside the declaration scope carried here.
   if (callee.type === 'FunctionExpression' && callee.id?.name
     && identifierReferencedInSubtree(callee.body, callee.id.name)) return null;
-  return { ...hop, node: callee, seen, args, ctx: { ...hop.ctx, scope } };
+  return { ...hop, node: callee, seen, args, argsUnknown, ctx: { ...hop.ctx, scope } };
 }
 
 // the ASSIGNMENT a constant-violation records, across the parser duality: babel points the
@@ -3808,6 +3817,7 @@ export function inlineCallReturnExpression(hop, {
   const index = tail?.type === 'Identifier' ? callee.params.findIndex(param => patternSlotTarget(param).name === tail.name
     || isDestructurePattern(patternSlotTarget(param)) && !!collectParamBindingNames([param])?.has(tail.name)) : -1;
   if (index !== -1) {
+    if (resolved.argsUnknown) return null;
     const returnedName = new Set([tail.name]);
     // Only the returned parameter needs this proof. Scanning the first parameter while
     // resolving every callee repeated whole-body walks even when no argument was returned.
@@ -3840,13 +3850,14 @@ export function inlineCallReturnExpression(hop, {
     // ends this descent is the finite tree, since every step moves strictly inward
     let source;
     if (param.type === 'AssignmentPattern' && !argumentOverridesSlot(resolved.args, argIndex,
-      read => !!hop.ctx.adapter.getBinding({ scope: hop.ctx.scope, name: 'undefined', path: hop.ctx.path, read }))) {
+      read => !!hop.ctx.adapter.getBinding({ scope: hop.ctx.scope, name: 'undefined', path: hop.ctx.path, read }),
+      hop.ctx.adapter.isMutatedStaticSlot ?? hop.ctx.adapter.isMutatedStatic)) {
       const names = collectParamBindingNames(callee.params);
       if (!names || identifierReferencedInSubtree(param.right, names)
         || identifierReferencedInSubtree(param.right, 'arguments')) return null;
       source = { ...resolved, node: param.right };
     } else {
-      const argument = resolveCallArgument(resolved.args, argIndex);
+      const argument = resolveCallArgument(resolved.args, argIndex, hop.ctx.adapter.isMutatedStaticSlot ?? hop.ctx.adapter.isMutatedStatic);
       if (!argument) return null;
       // ... where a DEFAULT stands behind it, the argument is the value only if it cannot come out
       // undefined - an object-valued literal, a global constructor - or the default answers instead
@@ -4841,7 +4852,12 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null
       node = argument;
       continue;
     }
-    const iifeRet = peelZeroArgIifeReturn(node) ?? (ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null);
+    const iifeRet = peelZeroArgIifeReturn(node, { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic })
+      ?? (ctx && !bailOnSideEffectKey ? identityCallKeyArgument(
+        node,
+        adapter,
+        ctx,
+      ) : null);
     if (!iifeRet) return node;
     node = unwrapTransparentSeq(iifeRet, ctx);
   }

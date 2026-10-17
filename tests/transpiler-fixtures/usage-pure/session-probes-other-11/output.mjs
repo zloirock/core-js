@@ -63,11 +63,9 @@ function mark(t, v) {
 }
 {
   var t = 0,
-    _ref5 = [1],
-    a = (k++, _atMaybeArray(_ref5));
+    a = (k++, _atMaybeArray([1]));
 }
 {
-  var _ref6 = [1],
-    a = (k++, _atMaybeArray(_ref6)),
+  var a = (k++, _atMaybeArray([1])),
     t = 0;
 }

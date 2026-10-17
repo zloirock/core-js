@@ -1,6 +1,6 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _joinMaybeArray from "@core-js/pure/actual/array/instance/join";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _at from "@core-js/pure/actual/instance/at";
 // array WRAPPERS nest, and every level is the same pairing asked again: the pattern's slot picks
 // the literal's element there, so a claim under two wrappers resolves like one under a single
 // wrapper. what the row pins is the RECEIVER the dispatch reads: a pairing that dropped a level
@@ -10,7 +10,7 @@ const nb = {
 };
 const nested = function () {
   const [[,]] = [[nb]];
-  const at = _at(nb.y);
+  const at = _atMaybeArray(nb.y);
   return at;
 }();
 // ... and the ORDER questions read every level too: a neighbour after the slot at the INNER level
@@ -18,7 +18,7 @@ const nested = function () {
 const log = [];
 const besideAnInnerEffect = function () {
   const [[, _ref]] = [[nb, _pushMaybeArray(log).call(log, 'n')]];
-  const at = _at(nb.y);
+  const at = _atMaybeArray(nb.y);
   const zn = _ref;
   return [at, zn, _joinMaybeArray(log).call(log)];
 }();

@@ -1,6 +1,10 @@
+import { createClosureAnalysis } from '../../packages/core-js-polyfill-provider/resolve-node-type/closure-analysis.js';
 // Local carriers and named-key destructures preserve the held literal's field types.
 // Escaping carriers, path writes, copied object references and own-this methods widen them.
-import { createBindingAnalysis } from '../../packages/core-js-polyfill-provider/resolve-node-type/binding-analysis.js';
+import {
+  createBindingAnalysis,
+  destructureReachesAnon,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/binding-analysis.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('literal-carrier-closure');
@@ -209,5 +213,84 @@ for (const shape of ['chain', 'diamond']) for (const size of [8, 16, 128]) {
     checkTruthy(`${ label } visited the carrier graph`, lookups >= Math.min(size, 64));
   });
 }
+
+// A source census can keep an earlier traversal's binding record. The actual declaration
+// and name survive that scope recreation; two names in one pattern remain distinct.
+for (const size of [16, 32]) runBoth(`field-write closure across binding views/${ size }`, `
+  function read() {
+    const { ${ Array.from({ length: size }, (unused, index) => `v${ index }`).join(', ') } } = source;
+    ${ Array.from({ length: size }, (unused, index) => `v${ index }.slot = 1;`).join(' ') }
+    { const v0 = {}; v0.slot = 2; }
+  }
+`, (parser, program, label) => {
+  const paths = parser.collectPaths(program, 'Identifier', item => item.parentPath?.node?.type === 'MemberExpression'
+    && item.parentPath.node.object === item.node);
+  const refs = paths.slice(0, size);
+  const shadow = paths.at(-1);
+  const member = refs[0].scope.getBinding('v0');
+  const bindings = refs.map(ref => ref.scope.getBinding(ref.node.name));
+  const closure = new Map();
+  let reads = 0;
+  for (const [index, binding] of bindings.entries()) {
+    // Fresh records with the same scoped declarations model a separate parser traversal.
+    const view = {
+      ...binding,
+      get path() {
+        reads++;
+        return binding.path;
+      },
+    };
+    closure.set(view, `v${ index }`);
+  }
+  const analysis = createClosureAnalysis({
+    t: { isIdentifier: node => node?.type === 'Identifier' },
+    getScopeBinding: ({ scope, name }) => scope.getBinding(name),
+  });
+  for (const ref of refs) check(`${ label } recorded write/${ ref.node.name }`, analysis.isReceiverInClosure(ref, closure), true);
+  check(`${ label } same-name shadow stays separate`, analysis.isReceiverInClosure(shadow, closure), false);
+  check(`${ label } every declaration is indexed once`, reads <= size + 1, true);
+  const sole = new Map([[{ ...member }, 'v0']]);
+  check(`${ label } another name in the same declaration is not an alias`, analysis.isReceiverInClosure(refs[1], sole), false);
+  check(`${ label } the native identity fast path remains valid`, analysis.isReceiverInClosure(refs[0], new Map([[member, 'v0']])), true);
+});
+
+// A fresh carrier follows only its original array position. At the owner level, a rest target
+// is a separate binding whose own closure decides whether the anonymous object escapes.
+for (const [name, source, fieldPath, targetLeaks, expected] of [
+  ['different object key for a known array position', 'const { wrong: value } = input;', [{ index: true, position: 1 }], () => true, false],
+  ['matching object key for a known array position', 'const { 1: value } = input;', [{ index: true, position: 1 }], () => true, true],
+  ['owner rest target leaks', 'const { ...rest } = input;', [], () => true, true],
+  ['owner rest target stays local', 'const { ...rest } = input;', [], () => false, false],
+]) runBoth(`destructure reaches anonymous owner/${ name }`, source, (adapter, program, label) => {
+  const pattern = adapter.pickPath(program, 'ObjectPattern').node;
+  check(label, destructureReachesAnon(pattern, fieldPath, null, 0, targetLeaks), expected);
+});
+
+// Rest, holes and wildcard keys preserve the exact anonymous-owner reachability path.
+// These direct rows keep each decision independent of the surrounding carrier traversal.
+for (const [name, source, patternType, fieldPath, targetLeaks, expected, remainingExpected] of [
+  ['exhausted object rest follows target', 'const { ...rest } = source;', 'ObjectPattern', [], true, true],
+  ['object rest follows a deeper target', 'const { ...rest } = source;', 'ObjectPattern', [{ key: 'x' }], true, true],
+  ['computed object key is a wildcard', 'const { [key]: { y } } = source;', 'ObjectPattern',
+    [{ key: 'x' }, { key: 'z' }], null, true],
+  ['named object mismatch refuses the path', 'const { y: { z } } = source;', 'ObjectPattern',
+    [{ key: 'x' }, { key: 'z' }], null, false],
+  ['array hole leaves a later position reachable', 'const [, { x }] = source;', 'ArrayPattern',
+    [{ index: true, position: 1 }, { key: 'x' }], true, true],
+  ['array rest follows a deeper target', 'const [...rest] = source;', 'ArrayPattern',
+    [{ index: true, position: 0 }], true, true, [{ index: true }]],
+  ['array pattern follows a non-index carrier step', 'const [leaf] = source;', 'ArrayPattern',
+    [{ key: 'x' }], true, true],
+]) runBoth(`anonymous reachability child/${ name }`, source, (adapter, program, label) => {
+  const pattern = adapter.pickPath(program, patternType,
+    path => path.parentPath?.node?.type === 'VariableDeclarator').node;
+  let remaining;
+  const reached = destructureReachesAnon(pattern, fieldPath, null, 0, targetLeaks === null ? undefined : (_id, path) => {
+    remaining = path;
+    return targetLeaks;
+  });
+  check(`${ label }/reachability`, reached, expected);
+  if (remainingExpected) check(`${ label }/remaining path`, JSON.stringify(remaining), JSON.stringify(remainingExpected));
+});
 
 finish();

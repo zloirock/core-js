@@ -17,6 +17,7 @@ import {
   identifier as canonIdentifier,
   memberExpression as canonMember,
   renderInstanceDefaultGuard,
+  renderParameterInstanceCapture,
   renderKeyedDestructureRead,
   nullGuardTest,
   renderStaticDefaultGuard,
@@ -126,6 +127,7 @@ import {
   planSideEffectKeyStrategy,
   pruneHopFromLevels,
   qualifiesForParamBodyExtract,
+  planParameterInstanceExtraction,
   receiverPerformsEveryInitEffect,
   refineInstanceEntryByReceiver,
   renderSynthTree,
@@ -428,7 +430,15 @@ function liftDeclaratorInitSE(t, declaratorNode, hostPath, { wrapperDies = false
 // Recover each live target, replace it, and mark only discarded subtrees and completed claims.
 // With `parameterCallSites`, return whether every caller settles the inner default arm;
 // otherwise return the shared plan's application result.
-function renderNestedParamSynth({ prop, meta, deps, parameterCallSites = null, fallbackOnBail = false }) {
+function renderNestedParamSynth({
+  prop,
+  meta,
+  deps,
+  parameterCallSites = null,
+  fallbackOnBail = false,
+  allowFlatInstanceDefault = false,
+  deferredOnly = false,
+}) {
   const {
     t,
     resolvePure,
@@ -450,15 +460,19 @@ function renderNestedParamSynth({ prop, meta, deps, parameterCallSites = null, f
     adapter,
     parameterCallSites,
     isDisabledProp: isDisabled,
+    allowFlatInstanceDefault,
   };
   const plan = parameterCallSites ? buildParameterArgumentSynthPlan(options) : buildNestedParamSynthPlan(options);
+  if (deferredOnly && !plan?.targets?.some(target => target.localMemo)) return false;
   const applied = applyNestedParamSynthPlan({
     plan,
     fallbackOnBail,
     embed: node => hostSlot(t.cloneNode(node, true)),
     // A caller mirror owns its memo where that caller evaluates the argument, rather than
     // where the callee's parameter leaf was detected.
-    mintMemoRef: target => generateRef((target.host ?? plan.host)?.scope ?? prop.scope, target.node).name,
+    mintMemoRef: target => target.localMemo
+      ? injector.generateLocalRef((target.host ?? plan.host)?.scope ?? prop.scope).name
+      : generateRef((target.host ?? plan.host)?.scope ?? prop.scope, target.node).name,
     renderTree: (tree, recv) => estreeToBabel(renderSynthTree(tree, {
       injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
       ...recv,
@@ -1064,6 +1078,39 @@ export default function createDestructureEmitter({
     generateRef,
   };
 
+  function captureParameterInstance(prop) {
+    const plan = planParameterInstanceExtraction({
+      propPath: prop, adapter, resolvePure, isDisabledProp: isDisabled, parameterCallSites,
+      isClaimedProp: path => ownEmittedPatternClaim(path, ownOutputTests(injector), adapter),
+    });
+    if (!plan) return false;
+    for (const property of plan.claimedProperties) skippedNodes.add(property);
+    for (const leaf of plan.bindingProperties) resolvePropertyObjectType(leaf);
+    const receiver = generateLocalRef(prop.scope);
+    const rendered = renderParameterInstanceCapture(plan, {
+      receiverName: receiver.name,
+      unusedName: plan.paddingRequired ? generateUnusedId().name : null,
+      embed: hostSlot,
+    });
+    const writes = releaseMovedBindings(plan.rootPath, Object.keys(t.getBindingIdentifiers(plan.pattern)));
+    plan.rootPath.replaceWith(estreeToBabel(rendered.head));
+    if (rendered.padding) plan.fnPath.pushContainer('params', [estreeToBabel(rendered.padding)]);
+    for (const param of plan.fnPath.get('params')) param.scope.registerBinding('param', param);
+    const declaration = estreeToBabel(rendered.declaration);
+    catchBornDeclarations.add(declaration);
+    const body = plan.fnPath.get('body');
+    let inserted;
+    if (body.isBlockStatement()) inserted = insertBodyExtractDecl(plan.fnPath, declaration);
+    else {
+      body.replaceWith(t.blockStatement([declaration, t.returnStatement(body.node)]));
+      plan.fnPath.node.expression = false;
+      [inserted] = plan.fnPath.get('body').get('body');
+    }
+    rebindMovedBindings(plan.fnPath.scope, inserted.get('declarations'), 'let', writes);
+    revisitNext([inserted]);
+    return true;
+  }
+
   // Route parameter and nested receiver claims through caller mirrors, then host/default synths.
   // Instance claims need a proven receiver. A parameter may use a proven body extraction;
   // otherwise it stays native, and so does a claim of another host no synth takes.
@@ -1072,6 +1119,12 @@ export default function createDestructureEmitter({
     // (mirrored the default, or proved it dead at each call), the rewrites below would only add
     // dead text beside it
     if (parameterCallSites && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return;
+    if (kind === 'instance' && renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
+    // A flat open default normally uses the compact data-slot synth. If an earlier
+    // parameter/default step can observe its reads, use the shared lazy mirror instead.
+    if (kind === 'instance' && renderNestedParamSynth({
+      prop, meta, deps: synthPlanDeps, allowFlatInstanceDefault: true, deferredOnly: true,
+    })) return;
     // A declined caller mirror cannot be replaced by a leaf default: an absent supplied
     // property must stay undefined, and an existing user default must still execute.
     if (meta?.parameterArgumentsOnly) return;
@@ -2216,7 +2269,7 @@ export default function createDestructureEmitter({
       ObjectProperty(propPath) {
         const { value } = propPath.node;
         if (value?.type === 'Identifier' && injector.isAdoptedUnusedName(value.name)
-          && sentinelAlreadyProcessed(propPath, { node: propPath.node, meta: null, injector })) spent.add(propPath.node);
+          && sentinelAlreadyProcessed(propPath, { node: propPath.node, meta: null, injector, adapter })) spent.add(propPath.node);
       },
     });
     return spent;
@@ -2644,7 +2697,7 @@ export default function createDestructureEmitter({
         if (!hopPatternHoldsOnlyProcessedSentinels(slot)) return false;
         continue;
       }
-      if (!sentinelAlreadyProcessed(propPath, { node: propPath.node, meta: null, injector })) return false;
+      if (!sentinelAlreadyProcessed(propPath, { node: propPath.node, meta: null, injector, adapter })) return false;
     }
     return true;
   }
@@ -3446,9 +3499,10 @@ export default function createDestructureEmitter({
       planGuardedNarrow: planGuardedStaticNarrow,
       resolveStaticKey,
       parameterCallSites,
-      // this binding's per-prop channel removes a prop it claimed before this render sees it, so the
-      // set is normally empty here; a prop whose VALUE alone is marked is one whose claim is spent
-      isClaimedProp: item => skippedNodes.has(item) || (!!item.value && skippedNodes.has(item.value))
+      // A receiver mirror serves properties without consuming their native bindings or keys.
+      // Per-prop extractions remove their slot or leave a spent value / sentinel behind.
+      isClaimedProp: item => (!synthPlanDeps.mirroredHosts.has(declarator.node) && skippedNodes.has(item))
+        || (!!item.value && skippedNodes.has(item.value))
         || injector.hasGeneratedUnusedName(propBindingIdentifier(item.value)?.name),
       // A guarded source still owes its outer coercion before any nested key.
       probedInit: !assignment && kind === 'static' && computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))
@@ -3595,7 +3649,10 @@ export default function createDestructureEmitter({
         readsReceiver: kind === 'instance',
         ctx: aliasCtxFromPath(prop),
       });
-      const receiverRef = keyReadPlan.reuseReceiver ? t.identifier(unwrapRuntimeExpr(keyReadPlan.receiver).name)
+      const inlineReceiver = proven && keyReadPlan.inlineReceiver;
+      const reuseReceiver = keyReadPlan.reuseReceiver || inlineReceiver;
+      const receiverRef = inlineReceiver ? keyReadPlan.receiver
+        : keyReadPlan.reuseReceiver ? t.identifier(unwrapRuntimeExpr(keyReadPlan.receiver).name)
         : discarded ? null : keyReadPlan.exported ? generateRef(prop.scope, prop.node) : generateLocalRef(prop.scope);
       let read = kind === 'instance'
         ? t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverRef)])
@@ -3626,8 +3683,8 @@ export default function createDestructureEmitter({
         binding: hostSlot(binding),
         keys: keyReadPlan.keys.map(key => hostSlot(t.cloneWithoutRetiring(key))),
         read: hostSlot(read),
-        storeReceiver: keyReadPlan.exported && !keyReadPlan.reuseReceiver && !discarded,
-        reuseReceiver: keyReadPlan.reuseReceiver,
+        storeReceiver: keyReadPlan.exported && !reuseReceiver && !discarded,
+        reuseReceiver,
         proven,
         // what discarding an unread receiver runs moves the same way: the requeue renders its claims,
         // and the rest of the receiver leaves unvisited
@@ -3641,6 +3698,7 @@ export default function createDestructureEmitter({
       declarator.requeue();
       return true;
     }
+    if (!plan) return false;
     // a MULTI-declarator host whose claimed declarator is consumed WHOLE joins the post-traverse
     // split like every other route: the memo and the extraction this function plants would otherwise
     // stay welded to the source's siblings in one declaration, where the other leg prints a statement
@@ -4615,16 +4673,23 @@ export default function createDestructureEmitter({
     // ... and so does ANY consumed declarator whose receiver a residual could not re-read for FREE:
     // the split renders one statement per declarator, so the extraction takes this one whole and the
     // siblings render beside it, where a kept residual would spell the receiver a second time and
-    // fire its getter twice (`const { y: { at } } = { y: nb.y }, zn = 1`). a loop HEAD too: the drop needs
-    // a declarator slot, not a statement, and the header has one - where the dispatch's read is all
-    // the dropped init runs (the sink rule the other leg asks: a getter slot beside it keeps the husk)
+    // fire its getter twice (`const { y: { at } } = { y: nb.y }, zn = 1`). a loop HEAD too: its one
+    // receiver may take the declarator whole when it carries every init effect and every rescued read;
+    // the dispatch then evaluates that init once inside the header, where the source did
     if (objectNode && !isReReferenceableReceiver(objectNode)
-      && (!isForInit || (!mayHaveSideEffects(declarator?.init)
-        && discardRescueNodesWithReads({ node: declarator?.init, scope: prop.scope, adapter, path: prop })
-          .every(node => subtreeContainsNode(objectNode, node))))
+      && (!isForInit || (receiverPerformsEveryInitEffect(declarator?.init, objectNode, {
+        scope: prop.scope,
+        adapter,
+        path: prop,
+      }) && discardRescueNodesWithReads({ node: declarator?.init, scope: prop.scope, adapter, path: prop })
+        .every(node => subtreeContainsNode(objectNode, node))))
       && bindingCount === patternBindingCount(prop.node.value)) {
       slotDropsAlone = true;
     }
+    // The sole-key renderer owns the receiver's one evaluation. A residual-only
+    // placement question must not decline it before that shared plan is asked.
+    if (kind === 'instance' && keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan: null, objectNode,
+      typedNav: typedNavReceiver })) return true;
     const plan = planSideEffectKeyStrategy({
       polyfillKind: kind,
       entry,
@@ -4770,7 +4835,11 @@ export default function createDestructureEmitter({
     // instead of the branch object. the receiver's own value wins over the leaf here - the same
     // trade the unplugin emitter makes, whose gate sits ahead of the registration
     const rhsPath = destructureAssignmentValueIsCaptured(prop)
-      ? null : resolveFallbackReceiverPath(prop.parentPath?.parentPath, prop.parentPath?.node);
+      ? null : resolveFallbackReceiverPath(
+        prop.parentPath?.parentPath,
+        prop.parentPath?.node,
+        adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+      );
     // the winning CALL-ARG leaves the wrapper-default live on its undefined-shaped arm -
     // thread the default so the leaf substitutes it there (the shared S081-1 rule)
     const wrapperNode = prop.parentPath?.parentPath?.node;
@@ -4839,10 +4908,15 @@ export default function createDestructureEmitter({
   // Previously owned claims stay retired; fallback receivers use the per-branch synth.
   // eslint-disable-next-line max-statements -- the per-prop route dispatch: one branch per route
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
+    if (kind === 'instance' && captureParameterInstance(prop)) return;
     // Babel attaches an in-parens prefix comment to the sequence. Keep it on the live
     // first invocation when the receiver is consumed and its prefix becomes a statement.
     const sourceHost = destructurePatternHostPath(prop);
-    const sourceInit = sourceHost && unwrapRuntimeExpr(destructureReceiverNode(sourceHost));
+    const sourceInit = sourceHost && unwrapRuntimeExpr(destructureReceiverNode(
+      sourceHost,
+      null,
+      adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+    ));
     const first = sourceInit?.type === 'SequenceExpression' ? sourceInit.expressions[0] : null;
     if (first && invocationCalleeOf(unwrapRuntimeExpr(first)) && sourceInit.extra?.parenthesized) {
       const inside = sourceInit.leadingComments?.filter(comment => comment.start > sourceInit.extra.parenStart) ?? [];
@@ -4870,7 +4944,7 @@ export default function createDestructureEmitter({
     // a prop a prior pass already claimed (its overwrite rebind, substituted default,
     // minted computed key or printed sentinel stands beside it) - the shared census
     // family, ahead of every route
-    if (ownEmittedPatternClaim(prop, ownOutputTests(injector))
+    if (ownEmittedPatternClaim(prop, ownOutputTests(injector), adapter)
       || sentinelAlreadyProcessed(prop, { node: prop.node, meta, injector })
       || anchoredCtorResidualLeaf(prop)) return;
     // the group's size is read HERE, at the first prop of it to dispatch - the emissions below
@@ -4885,6 +4959,13 @@ export default function createDestructureEmitter({
     // place - and a leaf asked after that reads a shrunken path, taking the generic dispatcher where
     // its sibling narrowed. the resolver caches by prop, so this only moves the question earlier
     primeDestructureReceiverTypes(prop);
+    const objectPattern = prop.parentPath;
+    // Caller mirrors replace their paired leaf in the original argument, before any wrapper flatten.
+    if (kind === 'instance' && isFunctionParamDestructureParent(objectPattern)) {
+      if (parameterCallSites
+        && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return;
+      if (renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
+    }
     // an inline-array spread in a wrapper literal flattens first: every route below edits by slot
     flattenArrayWrapperInits(prop);
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
@@ -4928,7 +5009,6 @@ export default function createDestructureEmitter({
       registerFallbackBranchSynth({ prop, meta });
       return;
     }
-    const objectPattern = prop.parentPath;
     // patternParent walks past transparent destructure wrappers (AssignmentPattern default,
     // single-element ArrayPattern) - both are passthrough for proxy-global resolution
     const { parent: patternParent } = peelTransparentWrappers(objectPattern);
@@ -5340,6 +5420,7 @@ export default function createDestructureEmitter({
       allowSeFreeSingleRead,
       allowInitCarriedEffects,
       adapter,
+      injectorState: injector,
       resolvePureGlobal: resolveGlobalPure,
       patternSize: patternSizeOf(path.parentPath),
       memoizedName: name => pureNames.has(name),
@@ -5846,7 +5927,10 @@ export default function createDestructureEmitter({
     // disabled sibling keeps it live - those keep the collapse via the side-effect / non-empty disjuncts
     let survivingSiblingsAllConsumed = false;
     if (retainedInit && !hasRest && !isEmpty) {
-      const receiverName = globalProxyMemberName({ node: peelProxyGlobalObject(retainedInit), scope: parent.scope, adapter, path: parent });
+      const receiverName = globalProxyMemberName({ node: peelProxyGlobalObject(
+        retainedInit,
+        adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+      ), scope: parent.scope, adapter, path: parent });
       survivingSiblingsAllConsumed = !!receiverName && objectPattern.node.properties.every(sibling => {
         return !!resolvePolyfillableStaticProp({ prop: sibling, receiverName, resolvePure, isDisabled });
       });

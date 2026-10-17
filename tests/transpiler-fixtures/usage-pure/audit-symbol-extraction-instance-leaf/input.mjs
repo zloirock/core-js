@@ -11,8 +11,16 @@ const { [Symbol.iterator]: { bind } } = globalThis;
 const { [Symbol.iterator]: plain } = globalThis;
 // a non-proxy receiver reaches the synth through the emitters' own symbol route rather than the
 // plan - it asks the SAME shared helper, so the leaf resolves there too, with or without a sibling
+const arrayIteratorKey = Symbol.iterator;
+const previousArrayIterator = Object.getOwnPropertyDescriptor(Array, arrayIteratorKey);
+Object.defineProperty(Array, arrayIteratorKey, {
+  configurable: true,
+  value: Array.prototype[Symbol.iterator],
+});
 const { [Symbol.iterator]: { name: viaCtor } } = Array;
 const { of, [Symbol.iterator]: { name: viaSiblingCtor } } = Array;
+if (previousArrayIterator) Object.defineProperty(Array, arrayIteratorKey, previousArrayIterator);
+else delete Array[arrayIteratorKey];
 // NEGATIVE: a DEFAULTED leaf keeps the destructure - binding the dispatcher result directly would
 // drop the user's default, and guarding it is the instance-default channel's own shape
 const { [Symbol.iterator]: { name: viaDefault = fallback() } } = Array;

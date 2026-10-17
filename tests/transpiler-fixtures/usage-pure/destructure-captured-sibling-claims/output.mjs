@@ -40,7 +40,6 @@ export function following(effect) {
         from: _Array$from
       }
     },
-    _ref = Array.prototype,
-    flat = (effect(), _flatMaybeArray(_ref));
+    flat = (effect(), _flatMaybeArray(Array.prototype));
   return [from, flat];
 }

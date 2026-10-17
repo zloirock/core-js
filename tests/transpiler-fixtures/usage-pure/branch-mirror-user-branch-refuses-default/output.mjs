@@ -60,7 +60,7 @@ const {
   Array: {
     from: gatedFrom = null
   }
-} = gate && {
+} = {
   Array: {
     from: _Array$from
   }

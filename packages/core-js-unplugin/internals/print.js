@@ -233,7 +233,9 @@ function synthesizeLocs(program, comments, source) {
         // (`const _ref = // note\nsrc.y;`)
         const spelled = firstSpelledOffset(node);
         if (spelled !== null) node.loc = { start: locate(spelled), end: locate(spelled) };
-        anchor = null;
+        // A returned synthetic getter still belongs to this activation. Its body needs
+        // that source anchor or esrap advances its comment cursor to EOF on entry.
+        if (node.type !== 'ReturnStatement') anchor = null;
       } else if (anchor) {
         // a SYNTHESIZED expression stands where the node it replaced stood: map it to the
         // nearest positioned ancestor's START, the way a text splice keeps the spelled

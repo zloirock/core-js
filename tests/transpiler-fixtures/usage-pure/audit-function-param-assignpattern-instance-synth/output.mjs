@@ -4,11 +4,8 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // evaluates when the caller omits the arg (a passed value destructures natively, caller args win).
 // an unknown receiver keeps the generic receiver-dispatching helper; a typed one (`= Array.prototype`)
 // refines to the receiver-narrowed variant
-function fn({
-  includes
-} = {
-  includes: _includes(X)
-}) {
+function fn(_ref = X) {
+  let includes = _includes(_ref);
   return includes;
 }
 fn;

@@ -1,4 +1,4 @@
-// A conditional slot write leaves both runtime constructor candidates possible at the read.
+// The closed truthy caller makes the slot write replace Object with Map before the read.
 const conditionalSlotWrite = (function (flag) {
   const maybe = { k: Object };
   if (flag) maybe.k = Map;

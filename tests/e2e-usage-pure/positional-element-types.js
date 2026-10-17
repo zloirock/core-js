@@ -80,6 +80,26 @@ QUnit.test('positional types: captures use the value from each activation', asse
   assert.same(outer, '02');
 });
 
+QUnit.test('positional types: source and alias writes keep the current instance family', assert => {
+  const rows = [[0, 2]];
+  const alias = rows;
+  const before = alias[0].includes;
+  assert.false(before.call(alias[0], '02'));
+  rows[0] = '02';
+  const after = alias[0].includes;
+  assert.true(after.call(alias[0], '02'));
+  assert.same(typeof alias[0].at, 'function');
+  assert.same(alias[0].at(-1), '2');
+
+  const reverse = ['02'];
+  const writer = reverse;
+  assert.true(reverse[0].includes('02'));
+  writer[0] = [0, 2];
+  const current = reverse[0].includes;
+  assert.false(current.call(reverse[0], '02'));
+  assert.same(reverse[0].at(-1), 2);
+});
+
 QUnit.test('positional types: loop element fields use their current values', assert => {
   const row = { w: [0, 2] };
   row.w = '02';
@@ -148,4 +168,25 @@ QUnit.test('positional types: opaque captures retain guards, calls and key effec
     return result;
   }
   assert.deepEqual(readEffect(custom.prototype), [[9], 2, 0, ['make']]);
+});
+
+QUnit.test('positional types: branching instance hops keep one ordered receiver read', assert => {
+  const events = [];
+  function read(source) {
+    let result;
+    for (const { row: { inner: { at }, includes } } of [source]) result = [at.call('ab', -1), includes.call([7], 7)];
+    return result;
+  }
+  assert.isFunction(read, 'the iterated receiver can arrive from unknown callers');
+  const row = {
+    get inner() { events.push('inner'); return 'cd'; },
+    get includes() {
+      events.push('includes');
+      return function (value) { return this[0] === value; };
+    },
+  };
+  assert.deepEqual(read({
+    get row() { events.push('row'); return row; },
+  }), ['b', true]);
+  assert.deepEqual(events, ['row', 'inner', 'includes']);
 });

@@ -319,3 +319,75 @@ QUnit.test('constructor selections: a default over a selection runs where an arm
   assert.deepEqual(read(true), ['function', 4]);
   assert.deepEqual(read(false), ['string', 'b']);
 });
+
+QUnit.test('constructor selections: a generic instance beside a fallback static reads the truthy arm', assert => {
+  withTemporaryProperty(Function('return this')(), 'selectedReceiverForTheTest', 'ab', () => {
+    const { includes, groupBy } = globalThis.selectedReceiverForTheTest || Map;
+    assert.true(includes.call('ab', 'b'));
+    assert.same(groupBy, undefined);
+    let assigned, sibling;
+    if (assert) ({ includes: assigned, groupBy: sibling } = globalThis.selectedReceiverForTheTest || Map);
+    assert.true(assigned.call('ab', 'b'));
+    assert.same(sibling, undefined);
+    const { groupBy: first, includes: second } = globalThis.selectedReceiverForTheTest || Map;
+    assert.same(first, undefined);
+    assert.true(second.call('ab', 'b'));
+  });
+  withTemporaryProperty(Function('return this')(), 'selectedReceiverForTheTest', false, () => {
+    const { includes, groupBy } = globalThis.selectedReceiverForTheTest || Map;
+    assert.same(includes, undefined);
+    assert.deepEqual(groupBy([7], value => value).get(7), [7]);
+  });
+});
+
+QUnit.test('constructor selections: selected instance and static getters keep pattern order', assert => {
+  const events = [];
+  const selected = {
+    get includes() { events.push('instance'); return 'own'; },
+    get groupBy() { events.push('static'); return 9; },
+  };
+  withTemporaryProperty(Function('return this')(), 'selectedReceiverForTheTest', selected, () => {
+    const { includes, groupBy } = globalThis.selectedReceiverForTheTest || Map;
+    assert.deepEqual([includes, groupBy], ['own', 9]);
+    assert.deepEqual(events, ['instance', 'static']);
+    events.length = 0;
+    const { groupBy: first, includes: second } = globalThis.selectedReceiverForTheTest || Map;
+    assert.deepEqual([first, second], [9, 'own']);
+    assert.deepEqual(events, ['static', 'instance']);
+  });
+});
+
+QUnit.test('constructor selections: stable source values keep exact selection results', assert => {
+  const effects = [];
+  const empty = '';
+  const negativeZero = -0;
+  function takeAt(value) { return (({ at }) => at)(value); }
+  let selected;
+
+  takeAt(selected = empty && (effects.push('empty-and'), [1]));
+  assert.same(selected, '');
+  takeAt(selected = empty ?? (effects.push('empty-nullish'), [2]));
+  assert.same(selected, '');
+  takeAt(selected = negativeZero && (effects.push('negative-zero-and'), [3]));
+  assert.true(Object.is(selected, -0));
+  assert.deepEqual(effects, []);
+
+  const flag = true;
+  const grouped = (flag ? Map : Object).groupBy([1, 2, 3], value => value % 2);
+  assert.true(grouped instanceof Map);
+  assert.deepEqual(grouped.get(1), [1, 3]);
+});
+
+QUnit.test('constructor selections: a local prototype writer keeps both runtime dispatches', assert => {
+  function read(flag) {
+    const target = [4, 3];
+    const setter = flag ? Object.setPrototypeOf : object => {
+      Object.setPrototypeOf(object, String.prototype);
+      object.toString = () => '43';
+    };
+    setter(target, Array.prototype);
+    return target.at(-1);
+  }
+  assert.same(read(JSON.parse('1')), 3, 'the native setter uses its prototype argument');
+  assert.same(read(JSON.parse('0')), '3', 'the local writer supplies its own prototype');
+});
