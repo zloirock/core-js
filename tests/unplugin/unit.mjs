@@ -13,6 +13,10 @@ import {
   expressionStatement as mintStatement,
   identifier as mintIdentifier,
   literal as mintLiteral,
+  objectExpression as mintObject,
+  objectGetter as mintGetter,
+  renderMemoActivation,
+  sequenceExpression as mintSequence,
   variableDeclaration as mintDeclaration,
   variableDeclarator as mintDeclarator,
 } from '../../packages/core-js-polyfill-provider/render.js';
@@ -1639,6 +1643,10 @@ function checkPhaseSnapshotFlow() {
     // the nested-instance plain sentinel, and the defaulted guard spellings all re-transform
     // to a fixpoint - each was a growth class (FC-86) before its census arm
     for (const [label, fixSrc] of [
+      ['nullable parameter mirror stays lazy',
+        'const events = []; const receiver = JSON.parse("null");\n'
+          + 'try { (({ [(events.push("key"), "at")]: at }, other) => [at, other])(receiver, events.push("argument")); }'
+          + '\ncatch (error) {} export { events };'],
       ['kept-raw overwrite rebind', 'let m;\n({ y: { flat: m } } = { y: arr });\nuse(m);'],
       ['static overwrite rebind under a multi wrapper', 'let g, zn;\n[{ Map: { groupBy: g } }, zn] = [globalThis, 7];\nuse(g, zn);'],
       ['defaulted rebind under a multi wrapper', 'let k, other;\n[{ findIndex: k = fb }, other] = [arr, 1];\nuse(k, other);'],
@@ -2190,6 +2198,28 @@ async function checkAstPrintContracts() {
   check('print opens a minted statement ahead of a comment its source node follows', printProgram({
     program: mintedParse.program, comments: mintedParse.comments, source: mintedSrc, id: '/p.mjs',
   }).code.startsWith('// note\nconst _ref = src.y;'), true);
+  // A synthetic return still belongs to its source activation. Its nested getter body
+  // must not reset the comment cursor past later comments, including repeated ones.
+  const memoSource = 'const out = receiver;\n// after getter\n// after getter\n/* next */\nuse(out);\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const memoParse = parseSync('/p.mjs', memoSource, { sourceType: 'module' });
+  const [memoHost] = memoParse.program.body[0].declarations;
+  const memoReceiver = memoHost.init;
+  const { stampReplacementSpan } = await import('../../packages/core-js-unplugin/internals/emit-shared.js');
+  const memoGetter = mintGetter(mintIdentifier('at'), memberFromKeyName(mintIdentifier('_memo'), 'at'));
+  const memoValue = mintSequence([
+    mintAssignment('=', mintIdentifier('_memo'), memoReceiver),
+    mintObject([memoGetter]),
+  ]);
+  memoHost.init = stampReplacementSpan(renderMemoActivation(memoValue, ['_memo']), memoReceiver);
+  const memoOutput = printProgram({
+    program: memoParse.program, comments: memoParse.comments, source: memoSource, id: '/p.mjs',
+  }).code;
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const memoPrinted = parseSync('/p.mjs', memoOutput, { sourceType: 'module' });
+  checkDeep('print keeps comment kind, order and multiplicity after a synthetic getter return',
+    commentSignature(memoPrinted.comments), commentSignature(memoParse.comments));
+  check('print of a synthetic getter return is a fixed point', reprint(memoOutput), memoOutput);
   // a comment between `throw` / `yield` and the operand keeps the parens the peel drops elsewhere,
   // and the operand opens on its own line: `throw // note` is a bare `throw;` by the grammar
   const thrown = reprint('function f() {\n  throw (\n    // note\n    a.at(0)\n  );\n}\n');
@@ -2360,8 +2390,35 @@ function checkAstEngineBehaviors() {
     const output = pure.transform(source, '/comments.mjs');
     check(`default argument keeps its own annotation/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*make\(\)\)/.test(output.code), true);
     check(`default argument annotation stays unique/${ root }`, output.code.match(/#__PURE__/g)?.length, 1);
-    check(`defaulted receiver carries its prefix inside the read/${ root }`,
-      /_at\(\(touch\(\), (?:_globalThis|this)\.Data\)\)/.test(output.code), true);
+    const runtimeSource = `${ source }\nmodule.exports = at;`;
+    const runtimeCode = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+      .transform(runtimeSource, '/default-order.cjs')?.code ?? runtimeSource;
+    for (const [leg, program] of [['native', runtimeSource], ['transformed', runtimeCode]]) {
+      const events = [];
+      const context = {
+        module: { exports: null },
+        touch() { events.push('prefix'); },
+        make() { events.push('make'); return 7; },
+        fallback(value) { events.push('fallback'); return value; },
+      };
+      Object.defineProperty(context, 'Data', {
+        get() {
+          events.push('Data');
+          return {
+            get at() {
+              events.push('at');
+              return undefined;
+            },
+          };
+        },
+      });
+      context.globalThis = context;
+      const loadPure = createRequire(import.meta.url);
+      context.require = path => path.endsWith('/actual/global-this') ? context : loadPure(path);
+      runInNewContext(program, context);
+      checkDeep(`defaulted receiver keeps its prefix and getter order/${ root }/${ leg }`,
+        [context.module.exports, events], [7, ['prefix', 'Data', 'at', 'make', 'fallback']]);
+    }
     const map = new TraceMap(output.map);
     for (const name of ['touch', 'make']) {
       const offset = output.code.indexOf(`${ name }()`);
@@ -2425,7 +2482,38 @@ function checkAstEngineBehaviors() {
   const prefixedAssignment = pure.transform(
     'let map, sibling; ({ Array: { prototype: { map } }, sibling } = (step(), this));', '/prefixed-this.mjs',
   )?.code ?? '';
-  check('top-level this residual keeps its prefix in the RHS', /\}\s*=\s*\(step\(\), this\)\)/.test(prefixedAssignment), true);
+  check('top-level this assignment retains exactly one prefix', occurrencesOf(prefixedAssignment, 'step()'), 1);
+  const assignmentSource = 'let map, sibling; ({ Array: { prototype: { map } }, sibling } = (step(), this)); module.exports = [map, sibling];';
+  const assignmentCode = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+    .transform(assignmentSource, '/assignment-order.cjs')?.code ?? assignmentSource;
+  for (const [leg, program] of [['native', assignmentSource], ['transformed', assignmentCode]]) {
+    const events = [];
+    function selected() { return 7; }
+    const context = { module: { exports: null }, require: createRequire(import.meta.url), step() { events.push('prefix'); } };
+    Object.defineProperties(context, {
+      Array: {
+        get() {
+          events.push('Array');
+          return {
+            get prototype() {
+              events.push('prototype');
+              return {
+                get map() {
+                  events.push('map');
+                  return selected;
+                },
+              };
+            },
+          };
+        },
+      },
+      sibling: { configurable: true, get() { events.push('sibling'); return 9; } },
+    });
+    runInNewContext(program, context);
+    checkDeep(`top-level this assignment keeps prefix and getter order/${ leg }`,
+      [context.module.exports[0] === selected, context.module.exports[1], events],
+      [true, 9, ['prefix', 'Array', 'prototype', 'map', 'sibling']]);
+  }
   // ... and a rewrite whose first statement the render mints opens at its host
   const minted = pure.transform('use(0);\n// note\nconst [{ findLast, at }] = [src.y];\nuse(findLast, at);\n', '/m.mjs')?.code ?? '';
   check('ast minted rewrite opens under the comment its host owns', /\/\/ note\nconst _ref = src\.y;/.test(minted), true);
@@ -2529,12 +2617,20 @@ function checkPostAdoptsUnusedSentinels() {
   const unread = 'import "@core-js/pure/actual/array/from";\nexport const { from: _unused, ...rest } = Array;';
   const unreadPost = createPlugin(opts).transform(unread, '/x30u.mjs', 'post');
   check('post-adopt-unused/an exported sentinel name still extracts',
-    /export const _unused = _Array\$from;/.test(unreadPost?.code ?? ''), true);
+    /const _unused = _Array\$from,/.test(unreadPost?.code ?? ''), true);
   check('post-adopt-unused/an exported sentinel name keeps a distinct exclusion',
     /from: _unused2, \.\.\.rest/.test(unreadPost?.code ?? ''), true);
+  check('post-adopt-unused/the source leaf remains exported',
+    unreadPost?.code?.includes('export { _unused, rest };'), true);
   const ours = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const from = _Array$from;\nexport const { from: _unused, ...rest } = Array;';
   const oursPost = createPlugin(opts).transform(ours, '/x30o.mjs', 'post');
-  check('post-adopt-unused/our exported sentinel beside its extraction adopts', oursPost?.code ?? null, null);
+  // A prior extraction does not own a different, externally read source binding.
+  check('post-adopt-unused/an exported source leaf beside an extraction still extracts',
+    /const _unused = _Array\$from,/.test(oursPost?.code ?? ''), true);
+  check('post-adopt-unused/only the private exclusion is omitted from exports',
+    oursPost?.code?.includes('export { _unused, rest };'), true);
+  check('post-adopt-unused/the private exclusion is adopted on the next pass',
+    createPlugin(opts).transform(oursPost?.code ?? ours, '/x30o.mjs', 'post')?.code ?? null, null);
   const other = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const y = _Array$from([1]);\nexport const { at: _unused, ...rest } = [2];';
   const otherPost = createPlugin(opts).transform(other, '/x30k.mjs', 'post');
   check('post-adopt-unused/other native rest stays intact', otherPost?.code ?? other, other);
@@ -3903,10 +3999,27 @@ function checkSynthKeyEdges() {
   const bailed = out('export const f = (function ({ at, [window.k]: alias } = [1, 2]) { return [at, alias]; })();');
   check('synth keys/unresolvable computed key bails the synth', bailed.includes('@core-js/pure'), false);
   check('synth keys/bailed pattern stays native', bailed.includes('{ at, [window.k]: alias } = [1, 2]'), true);
-  // `__proto__` re-spells computed-string: an own property, the literal keeps its prototype
-  const proto = out('export const g = (function ({ __proto__: p, at } = [1, 2]) { return [p, at]; })();');
-  check('synth keys/__proto__ spells computed-string', proto.includes('["__proto__"]: [1, 2].__proto__'), true);
-  check('synth keys/__proto__ never spells the setter form', /\{\s*__proto__:/.test(proto.replace(/\{ __proto__: p/, '')), false);
+  // A lazy getter may supply the value, but the mirror still owns a computed string key.
+  // It must never reinterpret `__proto__` as the object-literal prototype setter.
+  const nativeProto = out('export const g = (function ({ __proto__: p, at } = [1, 2]) { return [p, at]; })();');
+  const nativeProtoProperties = [];
+  walkAstNodes({ root: programOf(nativeProto), visit(node, parent) {
+    if (parent?.type === 'ObjectPattern' && node.type === 'Property'
+      && (node.key?.name ?? node.key?.value) === '__proto__') nativeProtoProperties.push(node);
+  } });
+  check('synth keys/__proto__ flat capture keeps its native pattern slot', nativeProtoProperties.length, 1);
+  const proto = out('export const g = (function ({ __proto__: p, at, missing = 0 } = [1, 2]) { return [p, at, missing]; })();');
+  const protoProperties = [];
+  walkAstNodes({
+    root: programOf(proto),
+    visit(node, parent) {
+      if (parent?.type === 'ObjectExpression' && node.type === 'Property'
+        && (node.key?.name ?? node.key?.value) === '__proto__') protoProperties.push(node);
+    },
+  });
+  checkDeep('synth keys/__proto__ spells computed-string',
+    protoProperties.map(({ key, computed }) => [key.type, key.value, computed]), [['Literal', '__proto__', true]]);
+  check('synth keys/__proto__ never spells the setter form', protoProperties.some(prop => !prop.computed && prop.kind === 'init'), false);
 }
 checkSynthKeyEdges();
 
@@ -5361,7 +5474,7 @@ for (const [source, typed] of [
 }
 
 // Rendered sequence receivers evaluate their prefix once and reuse a stable tail.
-// A prior import, a foreign live binding and a nearer written shadow still capture.
+// A free accessor, a prior import, a foreign live binding and a nearer written shadow still capture.
 {
   for (const [label, declaration, expression, ownImport, priorImport, capture] of [
     ['pending own import', '', '(before(), (middle(), _held))', true, false, false],
@@ -5395,7 +5508,7 @@ for (const [source, typed] of [
     check(`rendered sequence guard/${ label }/captures`, checkNode.type === 'AssignmentExpression', capture);
     const firstRead = capture ? checkNode.right : checkNode;
     check(`rendered sequence guard/${ label }/prefix retained`, unwrapNode(firstRead).type, 'SequenceExpression');
-    check(`rendered sequence guard/${ label }/first prefix retained`, unwrapNode(firstRead).expressions[0].callee.name, 'before');
+    check(`rendered sequence guard/${ label }/first prefix retained`, unwrapNode(firstRead).expressions?.[0]?.callee?.name, 'before');
     check(`rendered sequence guard/${ label }/later read is bare`, guard.makeBase().type, 'Identifier');
     check(`rendered sequence guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
   }
@@ -5418,6 +5531,79 @@ for (const [source, typed] of [
     check('rendered bare guard/actual realm import', code.includes('@core-js/pure/actual/self'), true);
     check('rendered bare guard/actual method import', code.includes('/instance/at'), true);
     check('rendered bare guard/no receiver capture', captures, 0);
+  }
+  // A lookup that consumes its receiver once needs no memo, even for a foreign accessor.
+  for (const [label, expression] of [
+    ['bare read', 'unknown.at'],
+    ['TS assertion', '(unknown as any).at'],
+    ['TS non-null', 'unknown!.at'],
+    ['sequence read', '(prefix(), unknown).at'],
+    ['descriptor getter', 'Object.defineProperty({}, "method", { get() { return unknown.at; } }).method'],
+  ]) {
+    const source = `module.exports = ${ expression };`;
+    const code = createPlugin(options).transform(source, '/single-receiver-read.ts')?.code ?? source;
+    const runtimeCode = code.replaceAll(' as any', '').replaceAll('unknown!', 'unknown');
+    let captures = 0;
+    walkAstNodes({ root: programOf(runtimeCode), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`single receiver read/${ label }/no receiver memo`, captures, 0);
+    check(`single receiver read/${ label }/polyfill retained`, code.includes('/instance/at'), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const events = [];
+      const module = { exports: null };
+      function selected() { /* method identity */ }
+      const context = { module, require, prefix() { events.push('prefix'); } };
+      Object.defineProperty(context, 'unknown', {
+        get() {
+          events.push('receiver');
+          return {
+            get at() {
+              events.push('method');
+              return selected;
+            },
+          };
+        },
+      });
+      runInNewContext(program.replaceAll(' as any', '').replaceAll('unknown!', 'unknown'), context);
+      check(`single receiver read/${ label }/${ leg }/method identity`, module.exports, selected);
+      checkDeep(`single receiver read/${ label }/${ leg }/one receiver and method read`, events,
+        label === 'sequence read' ? ['prefix', 'receiver', 'method'] : ['receiver', 'method']);
+    }
+  }
+  // The source type crosses the guarded receiver clone used by both symbol consume forms.
+  for (const [label, annotation, expression, expected, entry] of [
+    ['array non-null', 'string[] | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'array/instance/at'],
+    ['array plain', 'string[] | null', 'receiver?.at(-1)[Symbol.iterator]().next().value', 'c', 'array/instance/at'],
+    ['array method read', 'string[] | null', 'typeof receiver?.at(-1)![Symbol.iterator]', 'function', 'array/instance/at'],
+    ['string non-null', 'string | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'd', 'string/instance/at'],
+    ['unknown', 'any', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'instance/at'],
+    ['cross-family', 'string[] | string | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'instance/at'],
+  ]) {
+    const source = `Object.defineProperty(globalThis, "receiver", receiverDescriptor);
+      declare const receiver: ${ annotation }; module.exports = ${ expression };`;
+    const code = createPlugin(options).transform(source, '/guarded-symbol-receiver.ts')?.code ?? source;
+    check(`guarded symbol receiver/${ label }/typed entry`, code.includes(`/actual/${ entry }`), true);
+    check(`guarded symbol receiver/${ label }/generic only for unknown families`,
+      code.includes('/actual/instance/at'), entry === 'instance/at');
+    for (const present of [false, true]) {
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        let reads = 0;
+        const module = { exports: null };
+        const receiverDescriptor = {
+          configurable: true,
+          get() {
+            reads++;
+            return present ? annotation === 'string | null' ? 'cd' : ['ab', 'cd'] : null;
+          },
+        };
+        const context = { module, receiverDescriptor };
+        // eslint-disable-next-line import/no-dynamic-require -- bind the injected realm entry to this VM
+        context.require = request => request.endsWith('/global-this') ? context : require(request);
+        runInNewContext(program.replaceAll(/declare const receiver: [^;]+;/g, '').replaceAll(')!', ')'), context);
+        check(`guarded symbol receiver/${ label }/${ present }/${ leg }/value`, module.exports,
+          present ? expected : expression.startsWith('typeof') ? 'undefined' : undefined);
+        check(`guarded symbol receiver/${ label }/${ present }/${ leg }/one source read`, reads, 1);
+      }
+    }
   }
   for (const [label, declaration, capture] of [['foreign live import', 'import held from "foreign";', true], ['completed local write', 'let held = []; held = [1];', false]]) {
     const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
@@ -5955,6 +6141,30 @@ for (const [source, typed] of [
     walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
     check(`sequence optional continuation/${ label }/required captures`, captures, expectedCaptures);
   }
+  {
+    const source = 'Object.defineProperty(globalThis, "unknown", receiverDescriptor);\n'
+      + 'module.exports = (prefix(), unknown).flat?.().includes(1);';
+    const code = createPlugin(options).transform(source, '/optional-free-sequence.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const effects = [];
+      let reads = 0;
+      const module = { exports: null };
+      const receiverDescriptor = {
+        configurable: true,
+        get() {
+          effects.push('receiver');
+          return [++reads];
+        },
+      };
+      const context = { module, receiverDescriptor, prefix() { effects.push('prefix'); } };
+      // eslint-disable-next-line import/no-dynamic-require -- bind the visibly installed accessor to this VM
+      context.require = request => request.endsWith('/global-this') ? context : require(request);
+      runInNewContext(program, context);
+      check(`sequence optional continuation/free accessor/${ leg }/first receiver`, module.exports, true);
+      check(`sequence optional continuation/free accessor/${ leg }/one receiver read`, reads, 1);
+      checkDeep(`sequence optional continuation/free accessor/${ leg }/prefix order`, effects, ['prefix', 'receiver']);
+    }
+  }
   for (const [label, source, expected, expectedCaptures, entry, expectedImport = true] of [
     [
       'ordinary const read',
@@ -6445,6 +6655,12 @@ module.exports = [name, reads];`;
     ['adjacent claims', 'for (const { from, of } = (mark("init"), Array), tail = mark("tail"); once; once = false) trace.push(from(of(1))[0]);'],
     ['two patterns', 'for (var { from } = (mark("first"), Array), { keys } = (mark("second"), Object); once; once = false) trace.push(from(keys({ x: 1 }))[0]);'],
     ['carried getter', 'for (var { y: { includes } } = { y: holder.y }; once; once = false) trace.push(includes.call([1], 1));'],
+    ['source-known carried getter', `const local = { get y() { trace.push('local-getter'); return [1]; } };
+      for (var { y: { includes } } = { y: local.y }; once; once = false) trace.push(includes.call([1], 1));`],
+    ['source-known carried getter in a let group', `const local = { get y() { trace.push('local-getter'); return [1]; } };
+      for (let { y: { findLast } } = { y: local.y }, i = 0; once; once = false) trace.push(findLast.call([1], Boolean), i);`],
+    ['source-known carried getter beside a live slot', `const local = { get y() { trace.push('local-getter'); return [1]; } };
+      for (var { y: { includes }, z } = { y: local.y, z: mark('slot') }; once; once = false) trace.push(includes.call([1], 1), z);`],
     ['single nested leaf', 'const [{ y: { includes } }] = [holder]; trace.push(includes.call([1], 1));'],
     ['single object leaf', 'const { y: { includes } } = holder; trace.push(includes.call([1], 1));'],
     ['private defaulted slot', 'const box = { y: [1], keep: 2 }; const { y: { includes } = [], keep } = box; trace.push(includes.call([1], 1), keep);', true],
@@ -6470,7 +6686,12 @@ module.exports = [name, reads];`;
       results.push(JSON.stringify(trace));
     }
     check(`loop-header effects/${ label }/effects and values`, results[1], results[0]);
-    check(`loop-header effects/${ label }/member snapshot`, /_(?:ref|unused)\d*\s*=/u.test(code), memberSnapshot);
+    let memberCapture = false;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      const read = node.type === 'AssignmentExpression' ? node.right : null;
+      if (read?.type === 'MemberExpression' && read.object.name === 'box' && read.property.name === 'y') memberCapture = true;
+    } });
+    check(`loop-header effects/${ label }/member snapshot`, memberCapture, memberSnapshot);
     if (memberSnapshot) {
       let reads = 0;
       walkAstNodes({ root: programOf(code), visit(node) {
@@ -6516,6 +6737,13 @@ module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(
   const require = createRequire(import.meta.url);
   for (const [label, source, setup, expected, entry] of [
     [
+      'quiet ordered assignment',
+      'const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); module.exports = [m.call([5]), n.call(a2)];',
+      'const trace = [];',
+      [[5], [3, 4], []],
+      'array/instance/flat',
+    ],
+    [
       'ordered assignment',
       'const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); module.exports = [m === selected, n.call(a2)];',
       'const trace = []; const selected = function () {}; '
@@ -6549,6 +6777,7 @@ module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(
     for (const [leg, program] of [['native', fullSource], ['transformed', code]]) {
       const module = { exports: null };
       const context = { module };
+      if (label === 'quiet ordered assignment') context.arr = [1];
       context.globalThis = context;
       // eslint-disable-next-line import/no-dynamic-require -- delegate injected entries to the VM's realm
       context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
@@ -6559,9 +6788,9 @@ module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(
     if (label === 'ordered assignment') check('unbound destructure fallback/both claims survive', code.match(/_flatMaybeArray\(/gu)?.length, 2);
     const twice = createPlugin(options).transform(code, '/unbound-destructure-fallback.cjs')?.code ?? code;
     check(`unbound destructure fallback/${ label }/fixed point`, twice, code);
-    if (label === 'sole assignment') {
+    if (label === 'sole assignment' || label === 'quiet ordered assignment') {
       const fallbackDeclarations = programOf(code).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
-      check('unbound destructure fallback/sole assignment has no capture',
+      check(`unbound destructure fallback/${ label } has no capture`,
         fallbackDeclarations.filter(node => !node.init && ORPHAN_REF_PATTERN.test(node.id.name)).length, 0);
     }
   }
@@ -6952,6 +7181,517 @@ module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(
     });
     check(`receiver prefix canon/${ label }/first lookup slot`, lookupArgument, expectedArgument);
     check(`receiver prefix canon/${ label }/whole first capture`, wholeCapture, hasCapture);
+  }
+}
+
+// Deferred declarations keep every source job when sentinel, literal and opaque
+// receivers share one statement. The caller supplies the receivers outside the source census.
+{
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const cases = [];
+  const keyed = "{ y: { last: { t }, [(effect(), 'fill')]: fill } } = { y: [1] }";
+  for (const kind of ['const', 'let', 'var']) {
+    for (const reverse of [false, true]) {
+      cases.push([
+        `sentinel memo/${ kind }/${ reverse ? 'preceding' : 'following' } opaque sibling`,
+        `${ kind } ${ reverse ? `{ at } = arr, ${ keyed }` : `${ keyed }, { at } = arr` }; module.exports = { at, fill, t };`,
+        ['/array/instance/fill', '/instance/at'],
+        result => [result.t, result.at.call([4], 0), result.fill.call([1], 6)[0]],
+        [7, 4, 6],
+      ]);
+    }
+  }
+  for (const receiver of ['Map || Map', 'globalThis.Map || Map']) {
+    for (const reverse of [false, true]) {
+      cases.push([
+        `mixed memo/${ receiver }/${ reverse ? 'static first' : 'instance first' }`,
+        `const { ${ reverse ? 'groupBy, name' : 'name, groupBy' } } = ${ receiver }; module.exports = { groupBy };`,
+        ['/function/instance/name', '/map/group-by'],
+        result => result.groupBy([1], value => value).get(1)[0],
+        1,
+      ]);
+    }
+  }
+  for (const [label, leading, defaultValue, condition] of [
+    ['sole', '', '', 'true'],
+    ['false arm', '', '', 'false'],
+    ['preceding opaque job', '{ at } = getArr(), ', '', 'true'],
+    ['preceding key-read job', "{ [(effect(), 'at')]: at } = arr, ", '', 'true'],
+    ['preceding static job', '{ from } = Array, ', '', 'true'],
+    ['default', '', '= fallback', 'true'],
+  ]) {
+    cases.push([
+      `bodyless nested memo/${ label }`,
+      `if (${ condition }) var ${ leading }{ y: { other: { q }, [(effect(), 'includes')]: includes ${ defaultValue } } } = { y: src };
+      module.exports = { includes, q };`,
+      ['/instance/includes'],
+      result => [result.q, typeof result.includes === 'function' ? result.includes.call([1, 2], 2) : result.includes],
+      condition === 'false' ? [undefined, undefined] : [8, true],
+    ]);
+  }
+  for (const [label, source] of [
+    ['ordinary default refs', 'const { data: { at }, keys: key = fallback } = obj; module.exports = { at, key };'],
+    ['catch default refs', 'try { throw obj; } catch ({ data: { at }, keys: key = fallback }) { module.exports = { at, key }; }'],
+    ['catch leading default refs', 'try { throw obj; } catch ({ keys: key = fallback, data: { at } }) { module.exports = { at, key }; }'],
+  ]) {
+    cases.push([
+      `guard composition/${ label }`, source, ['/instance/at', '/instance/keys'],
+      result => [result.at.call([4], 0), result.key()], [4, 'fallback'],
+    ]);
+  }
+  cases.push([
+    'guard composition/ordered effectful key capture',
+    "const { data: { at }, [(effect(), 'keys')]: key } = obj; module.exports = { at, key };",
+    ['/instance/at', '/instance/keys'], result => [result.at.call([4], 0), result.key], [4, undefined],
+  ]);
+  for (const [label, source, entries, read, expected] of cases) {
+    const code = createPlugin(options).transform(source, '/deferred-declaration-jobs.cjs')?.code ?? source;
+    for (const entry of entries) check(`deferred declaration/${ label }/${ entry }`, code.includes(entry), true);
+    for (const stripped of [false, true]) {
+      const module = { exports: null };
+      const arr = [4, 5];
+      const src = Object.assign([1, 2], { other: { q: 8 } });
+      function run() {
+        Function('module', 'require', 'arr', 'src', 'obj', 'effect', 'getArr', 'fallback', code)(
+          module, require, arr, src, { data: [2], keys: undefined }, () => undefined, () => arr, () => 'fallback',
+        );
+      }
+      withTemporaryProperty(Array.prototype, 'last', { t: 7 }, () => {
+        if (stripped) {
+          withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+            withTemporaryProperty(Array.prototype, 'fill', undefined, () => {
+              withTemporaryProperty(Array.prototype, 'includes', undefined, run);
+            });
+          });
+        } else run();
+      });
+      checkDeep(`deferred declaration/${ label }/${ stripped ? 'stripped' : 'full' }`, read(module.exports), expected);
+    }
+  }
+}
+
+// A source declaration keeps its comma group when the renderer returns only its
+// consumed binding. Memos and independently owned source hosts still keep their boundaries.
+{
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  for (const [fixture, name, expected] of [
+    ['literal-hop-effect-keyed-claim-ahead-of-another-declarator', 'g', ['pattern', 'cc', 'g']],
+    ['sequence-and-bodyless-hosts-drain-in-place', 'm', ['m', 'zTail']],
+    ['se-init-defaulted-leaf-beside-sibling', 'm6', ['m6']],
+  ]) {
+    const source = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
+    const code = createPlugin(options).transform(source, '/source-declarator-group.mjs')?.code ?? source;
+    const ast = programOf(code);
+    let declaration;
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclaration' && node.declarations.some(item => item.id.name === name)) declaration = node;
+    } });
+    checkDeep(`source declarator groups/${ fixture }/one original group`,
+      declaration?.declarations.map(item => item.id.name ?? 'pattern'), expected);
+    // eslint-disable-next-line node/no-sync -- the printer's comment channel is independent of the AST comparison
+    const comments = [source, code].map(text => commentSignature(parseSync('/group.mjs', text, { sourceType: 'module' }).comments));
+    checkDeep(`source declarator groups/${ fixture }/source comments`, comments[1], comments[0]);
+  }
+  for (const [label, source, expected, grouped = true] of [
+    [
+      'independent source host',
+      'var { y: { flat: m = nul } } = (0, { y: arr }), zTail = 1; var after = 2; export { m, zTail, after };',
+      [['m', 'zTail'], ['after']],
+    ],
+    [
+      'another claim keeps its source order',
+      'var { y: { flat: m = nul } } = (0, { y: arr }), zTail = 1, { at: g } = arr; export { m, zTail, g };',
+      ['m', 'zTail', 'g'],
+      false,
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/source-declarator-boundary.mjs')?.code ?? source;
+    const groups = programOf(code).body.filter(node => node.type === 'VariableDeclaration'
+      && node.declarations.some(item => ['m', 'zTail', 'g', 'after'].includes(item.id.name)))
+      .map(node => node.declarations.map(item => item.id.name));
+    checkDeep(`source declarator groups/${ label }`, grouped ? groups : groups.flat(), expected);
+  }
+}
+
+// An emitted realm import is already stable across loop-header keys. Reusing it must
+// keep a method read before the next key, while source bindings still need their capture.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const realmSources = [];
+  for (const fixture of [
+    'realm-selection-for-init-with-an-effect-keyed-iterator-claim',
+    'realm-selection-loop-head-with-effect-keyed-iterator-and-plain-slots',
+  ]) {
+    const source = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
+    realmSources.push(source);
+    const code = createPlugin(options).transform(source, '/own-realm-for-init.cjs')?.code ?? source;
+    const ast = programOf(code);
+    const realmImports = new Set();
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclarator' && node.init?.type === 'CallExpression'
+        && node.init.callee.name === 'require' && node.init.arguments[0]?.value === '@core-js/pure/actual/global-this') {
+        realmImports.add(node.id.name);
+      }
+    } });
+    let copies = 0;
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier'
+        && node.init?.type === 'Identifier' && realmImports.has(node.init.name)) copies++;
+    } });
+    check(`own realm for-init/${ fixture }/actual realm import`, realmImports.size, 1);
+    check(`own realm for-init/${ fixture }/no import copy`, copies, 0);
+  }
+  const realmSource = realmSources[1].replace('done = 1;', '{ module.exports = it5; done = 1; }');
+  const realmCode = createPlugin(options).transform(realmSource, '/own-realm-key-order.cjs')?.code ?? realmSource;
+  for (const [leg, program] of [['native', realmSource], ['transformed', realmCode]]) {
+    const module = { exports: null };
+    const trace = [];
+    function selected() { return 'old'; }
+    function replacement() { return 'new'; }
+    let current = selected;
+    const context = {
+      module,
+      c: true,
+      k() { trace.push('claim-key'); },
+      k2() { trace.push('next-key'); current = replacement; },
+    };
+    context.globalThis = context.self = context;
+    Object.defineProperty(context, Symbol.iterator, { get() {
+      trace.push(current === selected ? 'read:old' : 'read:new');
+      return current;
+    } });
+    // eslint-disable-next-line import/no-dynamic-require -- the realm entry must address this VM's realm
+    context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
+    runInNewContext(program, context);
+    check(`own realm for-init/${ leg }/method identity before next key`, module.exports === selected, true);
+    checkDeep(`own realm for-init/${ leg }/key order`, trace.filter(event => event.endsWith('-key')), ['claim-key', 'next-key']);
+    check(`own realm for-init/${ leg }/method read before next key`, trace.indexOf('read:old') > trace.indexOf('claim-key')
+      && trace.lastIndexOf('read:old') < trace.indexOf('next-key'), true);
+    check(`own realm for-init/${ leg }/no method read after next key`, trace.includes('read:new'), false);
+  }
+  for (const [label, source, setup, expected] of [
+    [
+      'unknown receiver',
+      `let source = first;
+      for (const { [(k(), Symbol.iterator)]: it, [(source = second, 'x')]: x, [(k3(), 'y')]: y } = source; ;) {
+        module.exports = [it === selected, x, y, source === second]; break;
+      }`,
+      `const first = { get [Symbol.iterator]() { trace.push('read:old'); return selected; }, x: 7, y: 8 };
+      const second = { get [Symbol.iterator]() { trace.push('read:new'); return replacement; }, x: 97, y: 98 };`,
+      [true, 7, 8, true],
+    ],
+    [
+      'array receiver',
+      `const second = [9, 10]; let source = [4];
+      for (const { [(k(), 'at')]: at, [(source = second, '0')]: x, [(k3(), 'length')]: length } = source; ;) {
+        module.exports = [at === selected, x, length, source === second]; break;
+      }`,
+      `Object.defineProperty(Array.prototype, 'at', { get() {
+        trace.push(this[0] === 4 ? 'read:old' : 'read:new');
+        return this[0] === 4 ? selected : replacement;
+      } });`,
+      [true, 4, 1, true],
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/source-receiver-key-write.cjs')?.code ?? source;
+    let captured = false;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && node.id.name !== 'source'
+        && node.init?.type === 'Identifier' && node.init.name === 'source') captured = true;
+    } });
+    check(`source receiver key write/${ label }/receiver capture`, captured, true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      const trace = [];
+      runInNewContext(`${ setup }\n${ program }`, {
+        module,
+        trace,
+        require,
+        selected() { return 'old'; },
+        replacement() { return 'new'; },
+        k() { trace.push('claim-key'); },
+        k3() { trace.push('third-key'); },
+      });
+      checkDeep(`source receiver key write/${ label }/${ leg }/original receiver`, module.exports, expected);
+      checkDeep(`source receiver key write/${ label }/${ leg }/key order`, trace.filter(event => event.endsWith('-key')),
+        ['claim-key', 'third-key']);
+      check(`source receiver key write/${ label }/${ leg }/no replacement method read`, trace.includes('read:new'), false);
+    }
+  }
+}
+
+// A body-entry capture must keep native array reads on their source side of the helper call.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [name, pattern, expected] of [
+    ['native prefix', '__proto__: prototype, at', [2, true, false, true]],
+    ['native slots around', 'length, at, __proto__: prototype', [2, false, true, true]],
+    ['native slots reversed', '__proto__: prototype, at, length', [1, true, false, true]],
+  ]) {
+    const source = `function read({ ${ pattern } } = [1, 2]) {
+      return [${ pattern.includes('length') ? 'length' : '2' }, prototype === original, prototype === other, at === selected];
+    } module.exports = read();`;
+    const setup = `const original = Array.prototype; const other = {}; const selected = function () {};
+      Object.defineProperty(original, 'at', { configurable: true, get() {
+        this.length = 1; Object.setPrototypeOf(this, other); return selected;
+      } });`;
+    const code = createPlugin(options).transform(source, '/parameter-native-slot-order.cjs')?.code ?? source;
+    check(`parameter native slot/${ name }/actual Array helper`, code.includes('/array/instance/at'), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup } ${ program }`, { module, require });
+      checkDeep(`parameter native slot/${ name }/${ leg }`, module.exports, expected);
+    }
+  }
+}
+
+// Static metadata stays static after mutation filtering; user-object instance metadata does not.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const source = `export function read({ at } = (globalThis.window?.self).self.box) { return at; }
+    export const removed = delete (globalThis.window?.self).self.box.at;`;
+  const code = createPlugin(options).transform(source, '/parameter-deleted-user-slot.mjs')?.code ?? source;
+  check('parameter deleted user slot/actual instance helper', code.includes('/instance/at'), true);
+  check('parameter deleted user slot/receiver capture', /function read\(_ref\s*=/u.test(code), true);
+  const staticSource = 'delete Array.from; module.exports = Array.from?.([1]);';
+  const staticCode = createPlugin(options).transform(staticSource, '/deleted-optional-static.cjs')?.code ?? staticSource;
+  check('deleted optional static/keeps native optional call', staticCode.includes('?.'), true);
+  check('deleted optional static/does not import from', staticCode.includes('/array/from'), false);
+}
+
+// A prior pass's static default keeps its native read while an unowned sibling still captures
+// the actual receiver. Exact imports keep sibling claims from masking another keys dispatcher.
+for (const importStyle of ['import', 'require']) for (const [name, source, entries] of [
+  ['sealed synth default', 'export function f({ keys } = (globalThis.window?.self).Object) { return keys; }',
+    ['global-this', 'object/keys', 'self']],
+  ['mixed owned default', "import Keys from '@core-js/pure/actual/object/keys'; export function f({keys,at}={keys:Keys}){return[keys,at];}",
+    ['instance/at', 'object/keys']],
+  ['body shadow', "import Keys from '@core-js/pure/actual/object/keys'; export function f({keys,at}={keys:Keys}){var Keys=99;return[keys,at,Keys];}",
+    ['instance/at', 'object/keys']],
+  ['unrelated import', "import Keys from '@core-js/pure/actual/object/keys'; export function f({at}){return[Keys,at];}",
+    ['instance/at', 'object/keys']],
+]) {
+  const options = { method: 'usage-pure', importStyle, version: '4.0', targets: { ie: 11 } };
+  const first = createPlugin(options).transform(source, '/retained-owned-default.mjs')?.code ?? source;
+  const second = createPlugin(options).transform(first, '/retained-owned-default.mjs')?.code ?? first;
+  const third = createPlugin(options).transform(second, '/retained-owned-default.mjs')?.code ?? second;
+  check(`owned parameter default/${ name }/${ importStyle } second pass`, second, first);
+  check(`owned parameter default/${ name }/${ importStyle } third pass`, third, first);
+  const imports = new Set();
+  for (const { groups } of first.matchAll(/["']@core-js\/pure\/actual\/(?<entry>[^"']+)["']/gu)) imports.add(groups.entry);
+  checkDeep(`owned parameter default/${ name }/${ importStyle } exact imports`, [...imports].sort(), entries);
+}
+
+// A closed selection may resolve a static directly. Its discarded running arm still
+// owns an accessor read, even though the conditional itself has no call expression.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  for (const [label, pattern, host, selected, expectedReads] of [
+    ['served declaration', '{ groupBy }', 'declaration', true, 1],
+    ['default declaration', '{ groupBy = null }', 'declaration', true, 1],
+    ['unselected declaration', '{ groupBy }', 'declaration', false, 0],
+    ['unselected default', '{ groupBy = null }', 'declaration', false, 0],
+    ['served assignment', '{ groupBy }', 'assignment', true, 1],
+    ['native sibling', '{ groupBy, prototype }', 'declaration', true, 1],
+  ]) {
+    const binding = host === 'assignment' ? `let groupBy; (${ pattern } = flag ? shelf.M : Object);`
+      : `const ${ pattern } = flag ? shelf.M : Object;`;
+    const source = `const events = []; module.exports = (flag => {
+      const shelf = { get M() { events.push('get'); return Map; } };
+      ${ binding }
+      return groupBy([3, 4], value => value % 2).size;
+    })(${ selected });`;
+    const code = createPlugin(options).transform(source, '/selection-getter-static.cjs')?.code ?? source;
+    let reads = 0;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'MemberExpression' && node.object?.name === 'shelf' && node.property?.name === 'M') reads++;
+    } });
+    check(`selected static getter/${ label }/source read`, reads, expectedReads);
+    check(`selected static getter/${ label }/static import`,
+      code.includes(`/actual/${ selected ? 'map' : 'object' }/group-by`), true);
+  }
+}
+
+// A closed true guard exposes the same constructor pattern as the opaque guard's
+// retained arm. Its source leaf default still renders in that pattern and keeps its claims.
+{
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const original = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/guarded-constructor-nested-default/input.mjs', import.meta.url), 'utf8');
+  for (const [label, source, guarded] of [
+    ['closed true', original, false],
+    ['export open', original.replace('function read', 'export function read'), true],
+    ['opaque caller', original.replace('read(true)', 'read(Boolean(1))'), true],
+  ]) {
+    const code = createPlugin(options).transform(source, '/guarded-constructor-default.mjs')?.code ?? source;
+    const ast = programOf(code);
+    const imports = ast.body.filter(node => node.type === 'ImportDeclaration');
+    checkDeep(`constructor pattern default/${ label }/exact imports`, imports.map(node => node.source.value).sort(), [
+      '@core-js/pure/actual/array/of', '@core-js/pure/actual/global-this', '@core-js/pure/actual/promise',
+    ]);
+    const promise = imports.find(node => node.source.value.endsWith('/actual/promise'))?.specifiers[0].local.name;
+    const of = imports.find(node => node.source.value.endsWith('/actual/array/of'))?.specifiers[0].local.name;
+    let pattern;
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclarator' && node.id?.type === 'ObjectPattern'
+        && node.id.properties[0]?.key?.name === 'missing') pattern = node;
+    } });
+    check(`constructor pattern default/${ label }/original leaf`, pattern?.id.properties[0]?.value?.type, 'AssignmentPattern');
+    check(`constructor pattern default/${ label }/default claim`, pattern?.id.properties[0]?.value?.right?.callee?.name, of);
+    check(`constructor pattern default/${ label }/guard retained`, pattern?.init?.type === 'ConditionalExpression', guarded);
+    check(`constructor pattern default/${ label }/served constructor`,
+      guarded ? pattern?.init?.consequent?.name : pattern?.init?.name, promise ?? null);
+  }
+}
+
+// The nested render keeps its sequence alive until the earlier queued job drains.
+{
+  const source = `let source;
+    export function replace(value) { source = value; }
+    replace({ keys: undefined, data: [1] });
+    let keys, at; ({ keys, data: { at } } = source);
+    export const result = [keys, at.call([4], 0)];`;
+  const code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/queued-slot-capture.mjs')?.code ?? source;
+  const ast = programOf(code);
+  const imports = ast.body.filter(node => node.type === 'ImportDeclaration');
+  const keysImport = imports.find(node => node.source.value.endsWith('/actual/instance/keys'))?.specifiers[0].local.name;
+  const atImport = imports.find(node => node.source.value.endsWith('/actual/instance/at'))?.specifiers[0].local.name;
+  const captures = [];
+  const reads = [];
+  let hoisted = 0;
+  walkAstNodes({ root: ast, visit(node) {
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') hoisted += node.declarations.length;
+    if (node.type === 'VariableDeclarator' && node.init?.type === 'Identifier' && node.init.name === 'source') captures.push(node);
+    if (node.type === 'CallExpression' && [keysImport, atImport].includes(node.callee.name)) reads.push(node);
+  } });
+  check('queued nested capture/earlier claim remains imported', !!keysImport, true);
+  check('queued nested capture/later claim remains imported', !!atImport, true);
+  check('queued nested capture/one receiver declaration', captures.length, 1);
+  check('queued nested capture/no extra hoisted forwarding slots', hoisted, 0);
+  checkDeep('queued nested capture/claim order', reads.map(node => node.callee.name), [keysImport, atImport]);
+  check('queued nested capture/earlier job uses captured root', reads[0]?.arguments[0]?.name, captures[0]?.id.name);
+  check('queued nested capture/later job uses the same root', reads[1]?.arguments[0]?.object?.name, captures[0]?.id.name);
+  check('queued nested capture/direct nested slot read', reads[1]?.arguments[0]?.property?.name, 'data');
+}
+
+// A final-read hint must not change admission of distinct nested source hops.
+{
+  const source = `export function read(source) {
+    let values, at; ({ w: { values }, y: { at } } = source); return [values, at];
+  }`;
+  const code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/distinct-nested-slots.mjs')?.code ?? source;
+  const entries = programOf(code).body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value).sort();
+  checkDeep('queued nested capture/distinct hop claims stay served', entries,
+    ['@core-js/pure/actual/instance/at', '@core-js/pure/actual/instance/values']);
+}
+
+// A sole inner hop belongs to its final read, including quoted and numeric keys.
+for (const [label, nested] of [
+  ['quoted', "'wrapper' /* outer */: { 'data' /* inner */: { at } }"],
+  ['numeric', '0 /* outer */: { 1 /* inner */: { at } }'],
+  ['prototype spelling', "'__proto__' /* outer */: { 'data' /* inner */: { at } }"],
+]) {
+  const source = `let source; export function replace(value){source=value}
+    let at, tail; ({ ${ nested }, tail }=source); export const r=[at,tail];`;
+  // eslint-disable-next-line node/no-sync -- OXC exposes comments through its synchronous parser
+  const expected = commentSignature(parseSync('/quiet-hop.mjs', source).comments);
+  let code = source;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/quiet-hop.mjs')?.code ?? code;
+    // eslint-disable-next-line node/no-sync -- the emitted code is reparsed for spelling and comment assertions
+    const parsed = parseSync('/quiet-hop.mjs', code);
+    checkDeep(`quiet inner hop/${ label }/pass ${ pass }/valid syntax`, parsed.errors, []);
+    checkDeep(`quiet inner hop/${ label }/pass ${ pass }/one comment owner`, commentSignature(parsed.comments), expected);
+    const reads = [];
+    const stored = [];
+    walkAstNodes({ root: parsed.program, visit(node) {
+      if (node.type === 'VariableDeclaration' && node.kind === 'var') stored.push(...node.declarations);
+      if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.arguments[0]?.type === 'MemberExpression') reads.push(node);
+    } });
+    check(`quiet inner hop/${ label }/pass ${ pass }/only the shared root is stored`, stored.length, 1);
+    check(`quiet inner hop/${ label }/pass ${ pass }/one direct composed read`, reads.length, 1);
+    check(`quiet inner hop/${ label }/pass ${ pass }/both source hops stay in the final read`,
+      reads[0]?.arguments[0]?.object?.type, 'MemberExpression');
+  }
+}
+
+// The existing synth caller retains its source pattern key beside the native read.
+{
+  const source = "export function read({at,['length'] /* native key */:size}=[1]){return[at.call([4],0),size]} export const r=read();";
+  // eslint-disable-next-line node/no-sync -- OXC exposes comments through its synchronous parser
+  const expected = commentSignature(parseSync('/native-key.mjs', source).comments);
+  let code = source;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/native-key.mjs')?.code ?? code;
+    // eslint-disable-next-line node/no-sync -- the emitted code is reparsed for spelling and comment assertions
+    const parsed = parseSync('/native-key.mjs', code);
+    checkDeep(`retained native key/pass ${ pass }/valid syntax`, parsed.errors, []);
+    checkDeep(`retained native key/pass ${ pass }/one comment owner`, commentSignature(parsed.comments), expected);
+  }
+}
+
+// Parameter capture answers before a fallback hop mirrors it. A completed mirror retains its owner.
+{
+  const source = `const user = {};
+    export function b({ Array: { of: x, name: y } } = flag ? globalThis : user) { return [x, y]; }
+    export function e({ Array: { prototype: { flat: x }, isArray: y } } = flag ? globalThis : user) { return [x, y]; }`;
+  let prior = null;
+  let code = source;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/parameter-capture-owner.mjs')?.code ?? code;
+    const ast = programOf(code);
+    const methods = new Map(ast.body.filter(node => node.type === 'ImportDeclaration')
+      .map(node => [node.source.value, node.specifiers[0].local.name]));
+    const functions = new Map(ast.body.filter(node => node.type === 'ExportNamedDeclaration')
+      .map(node => [node.declaration.id.name, node.declaration]));
+    checkDeep(`parameter capture ownership/pass ${ pass }/exact imports`, methods.keys().toArray().sort(), [
+      '@core-js/pure/actual/array/instance/flat', '@core-js/pure/actual/array/of',
+      '@core-js/pure/actual/function/instance/name', '@core-js/pure/actual/global-this',
+    ]);
+    const b = functions.get('b');
+    const e = functions.get('e');
+    check(`parameter capture ownership/pass ${ pass }/static default stays mirrored`, b.params[0].left.type, 'ObjectPattern');
+    check(`parameter capture ownership/pass ${ pass }/instance default stays raw`, e.params[0].right.consequent.type, 'Identifier');
+    check(`parameter capture ownership/pass ${ pass }/static default needs no body capture`, b.body.body.length, 1);
+    for (const [key, fn] of [['function/instance/name', b], ['array/instance/flat', e]]) {
+      let calls = 0;
+      walkAstNodes({ root: fn, visit(node) {
+        if (node.type === 'CallExpression' && node.callee.name === methods.get(`@core-js/pure/actual/${ key }`)) calls++;
+      } });
+      check(`parameter capture ownership/pass ${ pass }/one ${ key } read`, calls, 1);
+    }
+    if (prior) checkDeep('parameter capture ownership/repass retains its structural verdict', strip(ast), prior);
+    prior = strip(ast);
+  }
+}
+
+// An early nested capture leaves flat proxy reads and completed mixed mirrors with their owners.
+{
+  const source = `export const named = (({ name }) => name)(Iterator);
+    export const raw = (({ name }) => name)(window);
+    export const mixed = (({ Promise, Array: { at } } = globalThis) => [Promise, at])();`;
+  let code = source;
+  let prior = null;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/parameter-capture-boundaries.mjs')?.code ?? code;
+    const ast = programOf(code);
+    const functions = new Map(ast.body.filter(node => node.type === 'ExportNamedDeclaration')
+      .map(node => [node.declaration.declarations[0].id.name, unwrapNode(node.declaration.declarations[0].init.callee)]));
+    check(`parameter capture boundaries/pass ${ pass }/flat proxy pattern stays raw`, functions.get('raw').params[0].type, 'ObjectPattern');
+    check(`parameter capture boundaries/pass ${ pass }/completed mirror keeps its pattern`, functions.get('mixed').params[0].left.type, 'ObjectPattern');
+    check(`parameter capture boundaries/pass ${ pass }/completed mirror needs no body capture`, functions.get('mixed').body.type, 'ArrayExpression');
+    check(`parameter capture boundaries/pass ${ pass }/static Array.at has no instance import`,
+      ast.body.some(node => node.type === 'ImportDeclaration' && node.source.value.endsWith('/instance/at')), false);
+    if (prior) checkDeep('parameter capture boundaries/repass retains its structural verdict', strip(ast), prior);
+    prior = strip(ast);
   }
 }
 

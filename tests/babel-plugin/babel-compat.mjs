@@ -1077,6 +1077,50 @@ for (const [name, code, receiverType] of [
     someNode(firstExprStmt(program.node.body), n => seen.has(n)));
 }
 
+// Symbol consumption clones a guarded receiver without losing its source type.
+for (const [label, annotation, expression, expected, entry] of [
+  ['array non-null', 'string[] | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'array/instance/at'],
+  ['array plain', 'string[] | null', 'receiver?.at(-1)[Symbol.iterator]().next().value', 'c', 'array/instance/at'],
+  ['array method read', 'string[] | null', 'typeof receiver?.at(-1)![Symbol.iterator]', 'function', 'array/instance/at'],
+  ['string non-null', 'string | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'd', 'string/instance/at'],
+  ['unknown', 'any', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'instance/at'],
+  ['cross-family', 'string[] | string | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'instance/at'],
+]) {
+  const source = `Object.defineProperty(globalThis, "receiver", receiverDescriptor);
+    declare const receiver: ${ annotation }; module.exports = ${ expression };`;
+  // eslint-disable-next-line node/no-sync -- the synchronous compiler preserves the source type through its memo
+  const { code } = transformSync(source, {
+    configFile: false,
+    babelrc: false,
+    filename: 'guarded-symbol-receiver.ts',
+    parserOpts: { plugins: ['typescript'] },
+    plugins: [[babelPlugin, { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } }]],
+  });
+  check(`guarded symbol receiver/${ label }/typed entry`, code.includes(`/actual/${ entry }`), true);
+  check(`guarded symbol receiver/${ label }/generic only for unknown families`,
+    code.includes('/actual/instance/at'), entry === 'instance/at');
+  for (const present of [false, true]) {
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      let reads = 0;
+      const module = { exports: null };
+      const receiverDescriptor = {
+        configurable: true,
+        get() {
+          reads++;
+          return present ? annotation === 'string | null' ? 'cd' : ['ab', 'cd'] : null;
+        },
+      };
+      const context = { module, receiverDescriptor };
+      const loadImport = createRequire(import.meta.url);
+      context.require = specifier => specifier.endsWith('/global-this') ? context : loadImport(specifier);
+      runInNewContext(program.replaceAll(/declare const receiver: [^;]+;/g, '').replaceAll(')!', ')'), context);
+      check(`guarded symbol receiver/${ label }/${ present }/${ leg }/value`, module.exports,
+        present ? expected : expression.startsWith('typeof') ? 'undefined' : undefined);
+      check(`guarded symbol receiver/${ label }/${ present }/${ leg }/one source read`, reads, 1);
+    }
+  }
+}
+
 // resolvedType relocation: replaceInstanceChainCombined moves the outer call's pre-combine return-
 // type stamp onto the wrapping conditional so chained callers still resolve it off the result node
 {
@@ -1919,6 +1963,74 @@ for (const [label, source] of [
     parses = false;
   }
   check(`angle-asserted write target/${ label }: the output parses back`, parses, true);
+}
+
+for (const [label, source] of [
+  ['direct caller', 'const method = (([{ at }]) => at)([...[[1, 2]]]);'],
+  ['nested caller', 'const method = (({ rows: [{ at }] }) => at)({ rows: [...[[1, 2]]] });'],
+]) {
+  // eslint-disable-next-line node/no-sync -- the checker is synchronous
+  const { ast } = transformSync(source, {
+    configFile: false,
+    babelrc: false,
+    ast: true,
+    plugins: [[babelPlugin, { method: 'usage-pure', targets: { ie: 11 } }]],
+  });
+  check(`caller mirror/${ label }: keeps the original array spread`, !!findNode(ast, node => node.type === 'SpreadElement'), true);
+  check(`caller mirror/${ label }: injects the array method`, !!findNode(ast,
+    node => node.type === 'ImportDeclaration' && node.source.value.endsWith('/array/instance/at')), true);
+}
+
+// Moving the parameter head must not let an old RHS path rewrite the new head's receiver.
+for (const [label, invocation, throws, expected] of [
+  ['default', 'read()', false, 9],
+  ['explicit undefined', 'read(undefined)', false, 9],
+  ['supplied receiver', "read({ at() { return 'own'; } })", false, 'own'],
+  ['throwing prefix', 'read()', true, 'RangeError'],
+]) {
+  const source = `const rows = [3, [1, 2]];
+    function read({ at } = (mark('default'), rows).flat()) { return at.call([4, 9], -1); }
+    const result = ${ invocation };`;
+  // eslint-disable-next-line node/no-sync -- exercise the parameter relocation and its scheduled RHS paths
+  const { ast, code } = transformSync(source, {
+    ast: true, configFile: false, babelrc: false, filename: 'parameter-default-receiver-effect.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
+  const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
+  for (const [leg, body] of [['native', source], ['emitted', code.replaceAll(/^import .*;$/gm, '')]]) {
+    const events = [];
+    let result;
+    function mark(value) {
+      events.push(value);
+      if (throws) throw new RangeError();
+    }
+    try {
+      result = Function('mark', ...imports.map(node => node.specifiers[0].local.name), `${ body } return result;`)(mark, ...values);
+    } catch (error) { result = error.name; }
+    check(`parameter default receiver/${ label }/${ leg }: value`, result, expected);
+    checkDeep(`parameter default receiver/${ label }/${ leg }: prefix runs once`, events,
+      label === 'supplied receiver' ? [] : ['default']);
+  }
+}
+
+// A decided statement guard gives its hoisted declaration the same alias proof as a plain write.
+for (const [label, before, calls, guards] of [
+  ['closed true caller', '', 'read(true);', 0],
+  ['mixed callers', '', 'read(true); try { read(false); } catch {}', 1],
+  ['read before initialization', 'try { void P.try; } catch {}', 'read(true);', 1],
+]) {
+  // eslint-disable-next-line node/no-sync -- inspect the real alias registration before and after its pattern swap
+  const { ast } = transformSync(`function read(flag) { ${ before } if (flag) { var { Promise: P } = globalThis; } return typeof P.try; } ${ calls }`, {
+    ast: true, configFile: false, babelrc: false, filename: 'decided-conditional-alias.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let identityGuards = 0;
+  t.traverseFast(ast, node => {
+    if (node.type === 'ConditionalExpression' && node.test.type === 'BinaryExpression'
+      && node.test.operator === '===' && node.test.left.type === 'Identifier' && node.test.left.name === 'P') identityGuards++;
+  });
+  check(`conditional var alias/${ label }: runtime identity guards`, identityGuards, guards);
 }
 
 finish();

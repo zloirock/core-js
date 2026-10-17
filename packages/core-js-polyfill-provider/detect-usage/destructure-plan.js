@@ -51,6 +51,7 @@ import {
   objectInitSpreadSurvives,
   objectLevelPairedProperty,
   objectLiteralHoldsObservable,
+  objectLiteralPrototypeValue,
   patternKeepsEffectfulHop,
   patternRootKeyPathsFor,
   patternSlotTarget,
@@ -160,12 +161,18 @@ function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfil
   let fallbackDropped = false;
   if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
     || isChainAssignment(init)
-    || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
+    || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(
+      init,
+      { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic },
+    ))) {
     if (!fallbackInitWhollyDiscardable(init, true, { scope, adapter, path })) init = null;
     else for (let guard = 0; guard < 8 && init; guard++) {
       // a selection the build decides is the operand it always yields: the rest never runs
       const live = decidedSelectionValue(init, { scope, adapter, path });
-      const inlined = live === init && peelZeroArgIifeReturn(init);
+      const inlined = live === init && peelZeroArgIifeReturn(
+        init,
+        { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic },
+      );
       if (live !== init) init = unwrapExpressionChain(live);
       else if (inlined) init = unwrapExpressionChain(inlined);
       // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
@@ -1018,6 +1025,52 @@ function positionalArrayRoot(path, { adapter, resolvePure }) {
   return { init, level, keyed };
 }
 
+// A closed keyed literal can serve a first-yield instance claim without moving the later
+// iterator step before that binding. Iterator.map owns abrupt closing around the claimed read;
+// the native patterns bind the first step and continue the same helper for the tail.
+function interleavedIteratorClaimPlan({ assignment, position, arrayRoot, element, propPath, pattern, init, path, leafPlans }) {
+  if (assignment || position.length !== 1 || position[0] !== 0
+    || arrayRoot.node.elements.length !== 2 || arrayRoot.node.elements[0] !== element.node
+    || arrayRoot.node.elements[1]?.type !== 'Identifier'
+    || element.node.properties.length !== 1 || element.node.properties[0] !== propPath.node
+    || propPath.node.computed || propPath.node.value?.type !== 'Identifier') return null;
+  const sourceObject = unwrapRuntimeExpr(init);
+  const [patternHop] = pattern.type === 'ObjectPattern' ? pattern.properties : [];
+  const [sourceHop] = sourceObject?.type === 'ObjectExpression' ? sourceObject.properties : [];
+  const sourceKey = isPropertyNode(sourceHop) && !sourceHop.computed ? propertyKeyName(sourceHop) : null;
+  const patternKey = isPropertyNode(patternHop) && !patternHop.computed ? propertyKeyName(patternHop) : null;
+  const declaration = path.parentPath;
+  const placement = declaration?.node?.type === 'VariableDeclaration' && classifyVariableDeclarationHost({
+    declaration: declaration.node,
+    declarationParent: declaration.parentPath?.node,
+  });
+  const child = leafPlans.get(propPath.node);
+  const extraction = child?.kind === 'consumed' && child.extractions.length === 1
+    && child.extractions[0].kind === 'instance' ? child.extractions[0] : null;
+  const receiver = isPropertyNode(sourceHop) ? unwrapRuntimeExpr(sourceHop.value) : null;
+  if (!placement || placement.isExport || placement.isForInit || placement.isBodyless || placement.isMultiDecl
+    || pattern.type !== 'ObjectPattern' || pattern.properties.length !== 1
+    || !isPropertyNode(patternHop) || patternHop.value !== arrayRoot.node
+    || sourceObject?.type !== 'ObjectExpression' || sourceObject.properties.length !== 1
+    || objectLiteralPrototypeValue(sourceObject) || sourceKey === null || sourceKey !== patternKey
+    || receiver?.type !== 'Identifier' || !extraction) return null;
+  return {
+    pattern,
+    extractions: [extraction],
+    array: {
+      interleavedIterator: {
+        receiver,
+        extraction,
+        claimPattern: element.node,
+        tailPattern: arrayRoot.node,
+        tail: arrayRoot.node.elements[1],
+        claimIndex: position[0],
+      },
+      exportFrom: null,
+    },
+  };
+}
+
 // Decide positional siblings on the original host, from the last slot backwards.
 // A planned capture releases earlier slots without mutating or requeueing the tree.
 // The selected slots then render in source order through the same native capture.
@@ -1034,7 +1087,11 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
     let last = -1;
     for (const [index, element] of level.get('elements').entries()) {
       if (element.node?.type === 'ArrayPattern') collectSlots(element, [...position, index], levels);
-      else if (element.node) slots.push({ element, position: [...position, index], levels });
+      else if (element.node) {
+        const defaultValue = element.node.type === 'AssignmentPattern'
+          && element.node.left.type === 'ObjectPattern' ? element.node.right : null;
+        slots.push({ element: defaultValue ? element.get('left') : element, defaultValue, position: [...position, index], levels });
+      }
       if (slotReadsWhenBound(element.node, capturedSlots, lastReadingSlots)) last = index;
     }
     lastReadingSlots.set(level.node, last);
@@ -1054,7 +1111,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
   let placement = null;
   let statement = null;
   for (let index = slots.length - 1; index >= 0; index--) {
-    const { element, position } = slots[index];
+    const { element, position, defaultValue } = slots[index];
     if (element.node.type !== 'ObjectPattern') continue;
     const receiver = outerDestructureReceiver(element, path.scope, adapter) ?? init;
     const propPath = firstPatternProp(element, candidate => {
@@ -1072,12 +1129,15 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
     });
     if (!propPath) {
       if (element.get('properties').some(child => leafPlans.get(child.node)?.kind === 'unhandled')) continue;
-      slots[index].planned = { kind: 'verbatim', node: element.node, index: position[0], path: position };
+      slots[index].planned = { kind: 'verbatim', node: element.node, defaultValue, index: position[0], path: position };
       releaseSlot(slots[index]);
       continue;
     }
-    const staticLeaf = leafPlans.get(propPath.node)?.extractions?.every(extraction => extraction.kind === 'static');
-    if (!staticLeaf && resolveNestedReceiverNode(propPath, { adapter })) return null;
+    const staticLeaf = leafPlans.get(propPath.node)?.extractions?.every(extraction => extraction.kind === 'static'),
+          interleaved = interleavedIteratorClaimPlan({
+            assignment, position, arrayRoot, element, propPath, pattern, init, path, leafPlans,
+          });
+    if (interleaved || !staticLeaf && resolveNestedReceiverNode(propPath, { adapter })) return interleaved;
     const surface = resolveNestedReceiverNode(propPath, { allowSePeeledFragment: true, allowNavSegments: true, adapter });
     const positional = resolvePositionalElementSlot(propPath, adapter, { lastReadingSlots });
     if (!positional || positional.slot.node !== element.node) continue;
@@ -1137,6 +1197,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
     slots[index].planned = {
       kind: 'rebuilt',
       node: element.node,
+      defaultValue,
       nestedKeys: positional.keys,
       nested: !!positional.keys.length,
       index: position[0],
@@ -1182,7 +1243,9 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       capture: {
         pattern,
         init,
-        elements: elements.map(element => ({ pattern: element.node, index: element.index, path: element.path })),
+        elements: elements.map(element => ({
+          pattern: element.node, defaultValue: element.defaultValue, index: element.index, path: element.path,
+        })),
         keyed,
       },
       exportFrom: null,
@@ -1768,7 +1831,9 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
         staticLevels = walk.climbed.slice(0, -1).map((level, at) => ({ prop: level.prop, pattern: walk.climbed[at + 1].pattern }));
       } else {
         const hostPlan = shape ? planNestedLeafHost(walk, null, { pairing: true }) : null;
-        if (!hostPlan?.navPlacement || receiver?.type === 'Identifier'
+        const nestedReceiver = hostPlan?.navPlacement
+          && resolveNestedReceiverNode(first, { allowNavSegments: true, allowSeFreeSingleRead: singleRead, adapter });
+        if (!nestedReceiver || receiver?.type === 'Identifier'
           && isReassignedBeyondDeclarator(adapter.getBinding({ scope: path.scope, name: receiver.name, path }) ?? {})) {
           // The original element can carry its own receiver computation. Keep its
           // iteration and every RHS effect before reading the captured object; the
@@ -1826,8 +1891,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
           }
           return expandedElements ? null : positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
         }
-        receiver = resolveNestedReceiverNode(first, { allowNavSegments: true, allowSeFreeSingleRead: singleRead, adapter });
-        if (!receiver) return null;
+        receiver = nestedReceiver;
         nestedKeys = walk.keys;
         trailing = hostPlan.navPlacement === 'trail';
       }
@@ -2880,7 +2944,13 @@ function slotOrInnerDefault(elementNode, slotNode) {
 // the call's arguments (`paramArgs`); any other element passes through as written
 function headLevelLiteral(receiver, ctx) {
   let node = unwrapRuntimeExpr(receiver);
-  for (let inlined = peelZeroArgIifeReturn(node); inlined; inlined = peelZeroArgIifeReturn(node)) node = unwrapRuntimeExpr(inlined);
+  for (let inlined = peelZeroArgIifeReturn(
+    node,
+    { staticIsMutated: ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic },
+  ); inlined; inlined = peelZeroArgIifeReturn(
+      node,
+      { staticIsMutated: ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic },
+    )) node = unwrapRuntimeExpr(inlined);
   let hop = { node, readNode: node, seen: new Set(), ctx };
   if (node?.type === 'Identifier') {
     const followed = followConstIdentifierInit(hop);
@@ -2918,7 +2988,11 @@ function substituteParamSlots(node, paramArgs) {
 function headLevelSlot(receiver, step, ctx) {
   const { literal, paramArgs } = headLevelLiteral(receiver, ctx);
   const slot = step.index !== undefined
-    ? literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, step.index) : null
+    ? literal?.type === 'ArrayExpression' ? resolveCallArgument(
+      literal.elements,
+      step.index,
+      ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic,
+    ) : null
     : literal?.type === 'ObjectExpression' ? objectLevelPairedProperty(literal, step.key)?.read ?? null : null;
   return slot && yieldedSlotValue(paramArgs, slot) && substituteParamSlots(slot, paramArgs);
 }

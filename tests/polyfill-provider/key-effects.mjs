@@ -287,4 +287,70 @@ runBoth('a rescue query preserves unsettled getter return candidates', `
   checkDeep(`${ label }/all returns still reach injection`, candidates.map(node => node.name).sort(), ['Math', 'Promise']);
 });
 
+// A quiet sole keyed receiver can move after its key, but the same value must still be selected.
+// Nullish rejection remains independent and precedes the key whenever the receiver may be nullish.
+for (const [name, source, inline, mutation = null] of [
+  ['literal', 'let k = 0; const { [(k++, "at")]: method } = [1, 2];', true],
+  ['template', 'let k = 0; const { [(k++, "at")]: method } = `text`;', true],
+  ['bound fallback', 'let k = 0; const maybe = choose(); const { [(k++, "at")]: method } = maybe ?? [1];', true],
+  ['prototype', 'let k = 0; const { [(k++, "at")]: method } = Array.prototype;', true],
+  ['conditional parameter', 'let k = 0; const rows = [1]; function read(flag) { const { [(k++, "at")]: method } = flag ? rows : Array.prototype; }', true],
+  ['wrapped conditional', 'let k = 0; const flag = true; const { [(k++, "at")]: method } = ((flag ? [1] : [2]) as number[]);', true],
+  ['nullable', 'let k = 0; const flag = choose(); const { [(k++, "at")]: method } = flag ? [1] : null;', false],
+  ['opaque', 'let k = 0; const flag = choose(), opaque = choose(); const { [(k++, "at")]: method } = flag ? [1] : opaque;', false],
+  ['key writes selector', 'let flag = true; const { [(flag = false, "at")]: method } = flag ? [1] : [2];', false],
+  ['key writes receiver', 'let rows = [1]; const { [(rows = [2], "at")]: method } = rows ?? [3];', false],
+  ['getter', 'let k = 0; const holder = { get rows() { effect(); return [1]; } }; const { [(k++, "at")]: method } = holder.rows;', false],
+  ['effectful literal', 'let k = 0; const { [(k++, "at")]: method } = [effect()];', false],
+  ['implicit throw', 'let k = 0; const { [(k++, "at")]: method } = [+1n];', false],
+  ['free test throws first', 'let k = 0; const { [(k++, "at")]: method } = missing ? [1] : [2];', false],
+  ['test before initializer', 'let k = 0; const { [(k++, "at")]: method } = flag ? [1] : [2]; const flag = true;', false],
+  ['shadowed prototype', 'let k = 0; function read(Array) { const { [(k++, "at")]: method } = Array.prototype; }', false],
+  ['possibly missing constructor', 'let k = 0; const { [(k++, "at")]: method } = WeakRef.prototype;', false],
+  ['written prototype', 'let k = 0; const { [(k++, "at")]: method } = Array.prototype;', false, 'globalThis.Array'],
+  ['later parameter', 'let k = 0; function read(first = (() => { const { [(k++, "at")]: method } = later ? [1] : [2]; })(), later) {}', false],
+]) runBoth(`a sole keyed receiver needs only its observable snapshot/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    getMutatedStatics: () => new Set(mutation ? [mutation] : []),
+  });
+  const plan = destructureKeyReadPlan(prop, { scope: prop.scope, path: prop, adapter });
+  const proven = keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter });
+  const inlineReceiver = !!plan.inlineReceiver && proven;
+  check(`${ label }/inline receiver`, inlineReceiver, inline);
+  const rendered = renderKeyedDestructureRead({
+    receiverName: inlineReceiver ? null : 'capture',
+    receiver: hostSlot(plan.receiver),
+    binding: identifier('method'),
+    keys: plan.keys.map(hostSlot),
+    read: callExpression(identifier('dispatch'), [inlineReceiver ? hostSlot(plan.receiver) : identifier('capture')]),
+    reuseReceiver: inlineReceiver,
+    proven,
+  });
+  check(`${ label }/capture count`, rendered.length, inline ? 1 : 2);
+});
+
+// Sloppy simple parameters can change through mapped arguments without a named write.
+// Module and directive strictness keep arguments unmapped, so the quiet selection can still move.
+for (const [name, sourceType, directive, inline] of [
+  ['mapped arguments', 'script', '', false],
+  ['strict Program', 'script', '"use strict";', true],
+  ['strict module', 'module', '', true],
+]) runBoth(`sole keyed parameter movement/${ name }`, `${ directive }
+  function read(flag) {
+    const { [(arguments[0] = false, 'at')]: method } = flag ? [1] : 'text';
+    return method;
+  }
+  read(true);
+`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = destructureKeyReadPlan(prop, { scope: prop.scope, path: prop, adapter });
+  check(`${ label }/inline receiver`, !!plan.inlineReceiver, inline);
+  check(`${ label }/non-null proof is independent`, keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter }), true);
+}, undefined, sourceType);
+
 finish();

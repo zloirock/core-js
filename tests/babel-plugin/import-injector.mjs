@@ -9,6 +9,8 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import ImportInjector from '../../packages/core-js-babel-plugin/internals/import-injector.js';
+import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
+import { hostSlot, renderMemoActivation } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
 
 const { BABEL_REQUIRE_FROM } = process.env;
@@ -133,6 +135,49 @@ function ordering(lines) {
   const { lastImport, firstVar } = ordering(code.split('\n'));
   checkTruthy('reorderRefsAfterImports/pure-ref node still lands after import',
     lastImport !== -1 && (firstVar === -1 || lastImport < firstVar));
+}
+
+// A scope-pushed trailing ref may become a var, while an argument-fed capture keeps
+// its actual parameter. The distinction survives a sibling cloning either activation.
+for (const clone of [false, true]) {
+  let pushedName;
+  let capturedName;
+  const { ast, code } = await transformAsync('(function () { return 7; })();', {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    plugins: [() => ({
+      visitor: {
+        Program(programPath) {
+          const injector = new ImportInjector({ t, programPath, pkg: '@core-js/pure', mode: 'actual', importStyle: 'import' });
+          const pushedCall = programPath.get('body.0.expression');
+          const pushedFunction = pushedCall.get('callee');
+          const pushedRef = injector.generateDeclaredRef(pushedFunction.scope);
+          pushedName = pushedRef.name;
+          pushedFunction.node.body.body.at(-1).argument = t.assignmentExpression('=', t.cloneNode(pushedRef), t.numericLiteral(7));
+          const capturedRef = injector.generateLocalRef(programPath.scope);
+          capturedName = capturedRef.name;
+          const capturedCall = estreeToBabel(renderMemoActivation(hostSlot(t.cloneNode(capturedRef)), [capturedName],
+            [hostSlot(t.numericLiteral(9))]));
+          if (clone) pushedCall.replaceWith(t.cloneNode(pushedCall.node, true));
+          programPath.pushContainer('body', t.expressionStatement(t.assignmentExpression('=',
+            t.memberExpression(t.identifier('module'), t.identifier('exports')),
+            clone ? t.cloneNode(capturedCall, true) : capturedCall)));
+          injector.normalizeArrowRefParams();
+        },
+      },
+    })],
+  });
+  const capturedFunction = findNode(ast, node => node.type === 'ArrowFunctionExpression');
+  check(`normalizeArrowRefParams/argument-fed capture keeps its parameter/clone=${ clone }`,
+    capturedFunction.params[0]?.name, capturedName);
+  const pushedFunction = findNode(ast, node => node.type === 'FunctionExpression');
+  check(`normalizeArrowRefParams/scope-pushed ref leaves the parameter list/clone=${ clone }`, pushedFunction.params.length, 0);
+  checkTruthy(`normalizeArrowRefParams/scope-pushed ref owns a body var/clone=${ clone }`,
+    !!findNode(pushedFunction.body, node => node.type === 'VariableDeclarator' && node.id.name === pushedName));
+  const module = { exports: null };
+  runInNewContext(code, { module });
+  check(`normalizeArrowRefParams/argument-fed capture retains its value/clone=${ clone }`, module.exports, 9);
 }
 
 // --- generateDeclaredRef: a TS parameter-property default owns its receiver memo in a lexical
@@ -389,7 +434,13 @@ for (const [label, source, memberSnapshot = false] of [
     results.push(JSON.stringify(trace));
   }
   check(`loop-header discarded store/${ label }/effects and values`, results[1], results[0]);
-  check(`loop-header discarded store/${ label }/member snapshot`, /_ref\d*\s*=/u.test(code), memberSnapshot);
+  let memberCapture = false;
+  t.traverseFast(ast, node => {
+    const read = node.type === 'AssignmentExpression' ? node.right : null;
+    if ((read?.type === 'MemberExpression' || read?.type === 'OptionalMemberExpression')
+      && read.object.name === 'box' && read.property.name === 'y') memberCapture = true;
+  });
+  check(`loop-header discarded store/${ label }/member snapshot`, memberCapture, memberSnapshot);
   if (memberSnapshot) {
     let reads = 0;
     t.traverseFast(ast, node => {
@@ -399,6 +450,46 @@ for (const [label, source, memberSnapshot = false] of [
     check(`loop-header discarded store/${ label }/one member read`, reads, 1);
   }
   checkTruthy(`loop-header discarded store/${ label }/polyfill retained`, code.includes('@core-js/pure/actual/'));
+}
+
+// A nested slot capture is already stable; later claims reuse it without copying the generated ref.
+for (const [label, host, pattern, value] of [
+  ['if', 'if (true)', 'other: { q }, at, includes', '[q, at.call([n], 0), includes.call([n], n)]'],
+  ['while', 'while (count++ < 1)', 'more: { q }, flat, fill, find',
+    '[q, flat.call([n, [n + 1]])[1], fill.call([0], n)[0], find.call([n], () => true)]'],
+  ['for', 'for (let i = 0; i < 1; i++)', 'last: { q }, findLast = null, keys',
+    '[q, findLast.call([n], () => true), keys.call([n]).next().value]'],
+]) {
+  const source = `const trace = [];
+function run(n) {
+  const rows = JSON.parse('[1]');
+  rows.other = rows.more = rows.last = { q: n };
+  const box = { get y() { trace.push(n); return rows; } };
+  let count = 0;
+  ${ host } var { y: { ${ pattern } } } = { y: box.y }, tail = 1;
+  return [${ value }, tail];
+}
+module.exports = [run(4), run(9), trace];`;
+  const { ast, code } = await transformAsync(source, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    plugins: [['@core-js', { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } }]],
+  });
+  let copies = 0;
+  t.traverseFast(ast, node => {
+    const left = node.type === 'VariableDeclarator' ? node.id : node.type === 'AssignmentExpression' ? node.left : null;
+    const right = node.type === 'VariableDeclarator' ? node.init : node.type === 'AssignmentExpression' ? node.right : null;
+    if (left?.type === 'Identifier' && right?.type === 'Identifier'
+      && /^_ref\d*$/u.test(left.name) && /^_ref\d*$/u.test(right.name)) copies++;
+  });
+  check(`nested slot/${ label }/no copies of generated captures`, copies, 0);
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require: requireBabel });
+  check(`nested slot/${ label }/values and activation-local reads`, JSON.stringify(transformed.exports), JSON.stringify(original.exports));
+  checkDeep(`nested slot/${ label }/one slot read per activation`, transformed.exports[2], [4, 9]);
 }
 
 // Ordered extraction keeps both claims and reads each receiver once without an extra copy.
@@ -421,6 +512,48 @@ for (const [label, source, memberSnapshot = false] of [
   }
   check('ordered assignment/no extra receiver capture', code.match(/_ref\d*\s*=/gu)?.length ?? 0, 0);
   check('ordered assignment/both dispatches survive', code.match(/_flatMaybeArray\(/gu)?.length, 2);
+}
+
+// Delayed literal slots must preserve global reads, early throws and native defaults.
+for (const [label, source, expectedTrace, expectedValue, expectedError = null] of [
+  ['free sibling', 'let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: other }); module.exports = [m === selected, n === selectedOther];',
+    ['arr', 'other', 'arr.flat', 'other.flat'], [true, true]],
+  ['earlier claimed sibling', 'const a2 = other; let m, n; ({ z: { flat: n }, y: { flat: m } } = { y: arr, z: a2 }); module.exports = [m === selected, n === selectedOther];',
+    ['other', 'arr', 'other.flat', 'arr.flat'], [true, true]],
+  ['later lexical initializer', 'let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); const a2 = [];',
+    ['arr'], null, 'ReferenceError'],
+  ['sibling default', 'let m, n; ({ y: { flat: m }, z: n = fallback() } = { y: arr, z: void 0 }); module.exports = [m === selected, n];',
+    ['arr', 'arr.flat', 'default'], [true, 'fallback']],
+  ['this before super', 'class Base {} class Derived extends Base { constructor() { const a2 = other; let m, n; '
+    + '({ y: { flat: m }, z: n } = { y: a2, z: this }); super(); } } new Derived();',
+  ['other'], null, 'ReferenceError'],
+]) {
+  const { code } = await transformAsync(source, {
+    configFile: false,
+    babelrc: false,
+    plugins: [['@core-js', { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const setup = "Object.defineProperty(globalThis, 'arr', { get() { trace.push('arr'); "
+    + "return { get flat() { trace.push('arr.flat'); return selected; } }; } });"
+    + "Object.defineProperty(globalThis, 'other', { get() { trace.push('other'); "
+    + "return { get flat() { trace.push('other.flat'); return selectedOther; } }; } });"
+    + "function fallback() { trace.push('default'); return 'fallback'; }";
+  for (const [leg, program] of [['native', source], ['transformed', code]]) {
+    const module = { exports: null };
+    const trace = [];
+    let error = null;
+    try {
+      runInNewContext(`${ setup }\n${ program }`, {
+        module, trace, selected: () => 1, selectedOther: () => 2, require: requireBabel,
+      });
+    } catch (error_) {
+      error = error_.name;
+    }
+    check(`ordered literal/${ label }/${ leg }/read order`, JSON.stringify(trace), JSON.stringify(expectedTrace));
+    check(`ordered literal/${ label }/${ leg }/value`, JSON.stringify(module.exports), JSON.stringify(expectedValue));
+    check(`ordered literal/${ label }/${ leg }/error`, error, expectedError);
+  }
+  check(`ordered literal/${ label }/required capture`, code.match(/_ref\d*\s*=/gu)?.length ?? 0, 1);
 }
 
 // A discarded sequence tail owns its element, keeping earlier captures and assignments live.
@@ -512,5 +645,99 @@ for (const collision of [false, true]) {
     /var _unused\d*;/.test(code));
   if (collision) checkTruthy('rest sentinel/source initializer survives', /var _unused = 7;/.test(code));
 }
+
+// A mirrored receiver still owes its native assignments and nested computed-key effects.
+for (const [label, key, events] of [
+  ['key write', "(trace.push('key'), text = 'k', 'at')", ['rhs', 'key']],
+  ['read before write', "(trace.push(text.at(0)), text = 'k', 'at')", ['rhs', 3]],
+]) {
+  const source = `const trace = []; let text, from, first;
+({ from, prototype: { [${ key }]: first } } = (trace.push('rhs'), text = [3], Array));
+module.exports = [text.at(-1), from('ab')[0], first.call([4], 0), trace];`;
+  const { code } = await transformAsync(source, {
+    configFile: false,
+    babelrc: false,
+    plugins: [['@core-js', { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require: requireBabel });
+  checkDeep(`mirrored assignment/${ label }/native values and order`, original.exports, ['k', 'a', 4, events]);
+  checkDeep(`mirrored assignment/${ label }/bindings, values and order`, transformed.exports, original.exports);
+}
+
+// A closed named caller resolves an escaped container member at its actual source path.
+for (const [label, parameter, argument] of [
+  ['default', '{ flat } = held.y', ''],
+  ['supplied argument', '{ flat }', 'held.y'],
+]) {
+  const source = `const held = { y: [3, [4]] };
+const hold = () => held;
+function read(${ parameter }) { return flat.call(held.y); }
+module.exports = read(${ argument });`;
+  const { code } = await transformAsync(source, {
+    configFile: false,
+    babelrc: false,
+    plugins: [['@core-js', { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require: requireBabel });
+  checkDeep(`closed member receiver/${ label }/native values`, original.exports, [3, 4]);
+  checkDeep(`closed member receiver/${ label }/transformed values`, transformed.exports, original.exports);
+  checkTruthy(`closed member receiver/${ label }/polyfill retained`, code.includes('/actual/array/instance/flat'));
+}
+
+// A later sibling can make an already-emitted constructor need its whole entry. Its
+// same binding, metadata, clone/elision state and subsequent narrow requests stay together.
+for (const importStyle of ['import', 'require']) for (const shape of ['live', 'clone', 'elided']) {
+  const label = `promotePureImport/${ importStyle }/${ shape }`;
+  const { code } = await transformAsync('', {
+    configFile: false,
+    babelrc: false,
+    plugins: [() => ({
+      visitor: {
+        Program(programPath) {
+          const injector = new ImportInjector({ t, programPath, pkg: '@core-js/pure', mode: 'actual', importStyle });
+          const first = injector.addPureImport('promise/constructor', 'Promise');
+          injector.flush();
+          const emitted = programPath.get('body.0');
+          if (shape === 'clone') emitted.replaceWith(t.cloneNode(emitted.node, true));
+          else if (shape === 'elided') emitted.remove();
+          check(`${ label }/same local`, injector.promotePureImport?.('promise/constructor', 'promise'), first.name);
+          check(`${ label }/narrow repeat`, injector.addPureImport('promise/constructor', 'Promise').name, first.name);
+          check(`${ label }/whole repeat`, injector.addPureImport('promise', 'Promise').name, first.name);
+          checkDeep(`${ label }/one entry`, [...injector.pureImports], [['actual/promise', first.name]]);
+          check(`${ label }/source metadata`, injector.getBindingInfo(first.name).source, 'actual/promise');
+          check(`${ label }/entry metadata`, injector.getBindingInfo(first.name).entry, 'promise');
+          checkDeep(`${ label }/debug entry`, injector.emittedPolyfills(), ['promise']);
+          injector.flush();
+        },
+      },
+    })],
+  });
+  check(`${ label }/whole emitted once`, code.match(/@core-js\/pure\/actual\/promise(?=["'])/gu)?.length, 1);
+  checkTruthy(`${ label }/narrow no longer emitted`, !code.includes('/promise/constructor'));
+}
+
+// A source-owned narrow import is a distinct value; promotion owns only THIS-pass imports.
+await transformAsync('', {
+  configFile: false,
+  babelrc: false,
+  plugins: [() => ({
+    visitor: {
+      Program(programPath) {
+        const injector = new ImportInjector({ t, programPath, pkg: '@core-js/pure', mode: 'actual', importStyle: 'import' });
+        injector.registerUserPureImport('promise/constructor', 'Kept');
+        check('promotePureImport/source import is not owned', injector.promotePureImport?.('promise/constructor', 'promise'), null);
+        check('promotePureImport/source import remains narrow', injector.getBindingInfo('Kept').entry, 'promise/constructor');
+        check('promotePureImport/source dedup remains', injector.addPureImport('promise/constructor', 'Promise').name, 'Kept');
+        check('promotePureImport/source import not minted', injector.pureImports.size, 0);
+      },
+    },
+  })],
+});
 
 finish();

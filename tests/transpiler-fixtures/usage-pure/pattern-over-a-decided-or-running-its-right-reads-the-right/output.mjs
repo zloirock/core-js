@@ -1,5 +1,6 @@
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
@@ -70,11 +71,8 @@ export const {
   }
 };
 export const at = _atMaybeArray([1, 2]);
-export function instanceViaParam({
-  at: last
-} = {
-  at: _atMaybeArray([1, 2])
-}) {
+export function instanceViaParam(_ref = [1, 2]) {
+  let last = _at(_ref);
   return last;
 }
 export const {

@@ -118,4 +118,84 @@ runBoth('an install the tree lost after an earlier read', 'const target = {}; (c
     check(`${ label } after`, type ? type.constructor ?? type.type : null, 'Object');
   });
 
+// A local setter may write its first argument's prototype through an alias. Its live body
+// supplies a possible install, but its second argument proves no installed family.
+for (const method of ['usage-pure', 'usage-global']) for (const [name, setup, body] of [
+  ['literal target', 'const target = { length: 2, 0: 4, 1: 3 };', 'object.__proto__ = proto;'],
+  ['typed target', 'const target = new String("43");', 'object.__proto__ = proto;'],
+  ['aliased target write', 'const target = {};', 'const held = object; held.__proto__ = proto;'],
+  ['invoked nested writer', 'const target = {};', 'function writer() { object.__proto__ = proto; } writer();'],
+]) runBoth(`selected prototype writer/${ method }/${ name }`,
+  `(flag => { ${ setup }
+    const setter = flag ? (object, proto) => { ${ body } } : Object.setPrototypeOf;
+    setter(target, Array.prototype); target.at(0);
+  })(true);`, (parser, program, label) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const decision = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method, isEntryAvailable: () => true, resolveConstantSelection: (...args) => resolver.resolveConstantSelection(...args),
+    });
+    const resolver = parser.makeResolver({ getDecisionAdapter: () => decision });
+    const type = resolver.resolvePropertyObjectType(member);
+    check(`${ label }/type`, type ? type.constructor ?? type.type : null, null);
+    const hints = resolver.resolvePropertyUnionHints(member);
+    check(`${ label }/no family from the discarded setter`, hints ? [...hints].sort().join(',') : null, null);
+  });
+
+for (const method of ['usage-pure', 'usage-global']) for (const [name, callee] of [
+  ['direct arrow', '(object, proto) => { object.__proto__ = proto; }'],
+  ['direct function', 'function (object, proto) { object.__proto__ = proto; }'],
+]) runBoth(`direct prototype writer/${ method }/${ name }`,
+  `const target = {}; (${ callee })(target, Array.prototype); target.at(0);`, (parser, program, label) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const decision = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method, isEntryAvailable: () => true, resolveConstantSelection: (...args) => resolver.resolveConstantSelection(...args),
+    });
+    const resolver = parser.makeResolver({ getDecisionAdapter: () => decision });
+    const type = resolver.resolvePropertyObjectType(member);
+    check(`${ label }/type`, type ? type.constructor ?? type.type : null, null);
+    const hints = resolver.resolvePropertyUnionHints(member);
+    check(`${ label }/no argument-derived family`, hints ? [...hints].sort().join(',') : null, null);
+  });
+
+for (const method of ['usage-pure', 'usage-global']) for (const [name, callee] of [
+  ['selected no-op', 'flag ? (object, proto) => {} : Object.setPrototypeOf'],
+  ['direct no-op', '(object, proto) => {}'],
+  ['literal-dead write', 'flag ? (object, proto) => { if (false) object.__proto__ = proto; } : Object.setPrototypeOf'],
+  ['binding-dead write', 'flag ? (object, proto) => { const run = 0; if (run) object.__proto__ = proto; } : Object.setPrototypeOf'],
+  ['presence-dead write', "flag ? (object, proto) => { if (typeof Symbol == 'undefined') object.__proto__ = proto; } : Object.setPrototypeOf"],
+  ['unused nested writer', 'flag ? (object, proto) => { function unused() { object.__proto__ = proto; } } : Object.setPrototypeOf'],
+  ['unused retained writer', 'flag ? (object, proto) => { const unused = () => { object.__proto__ = proto; }; } : Object.setPrototypeOf'],
+  ['discarded nested writer', 'flag ? (object, proto) => { (() => { object.__proto__ = proto; }); } : Object.setPrototypeOf'],
+  ['dead presence setter', "typeof Symbol == 'undefined' ? Object.setPrototypeOf : (object, proto) => {}"],
+]) runBoth(`a non-installing selected body/${ method }/${ name }`,
+  `(flag => { const target = {}; (${ callee })(target, Array.prototype); target.at(0); })(true);`, (parser, program, label) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const decision = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method, isEntryAvailable: () => true, resolveConstantSelection: (...args) => resolver.resolveConstantSelection(...args),
+    });
+    const resolver = parser.makeResolver({ getDecisionAdapter: () => decision });
+    const type = resolver.resolvePropertyObjectType(member);
+    check(`${ label }/keeps its own type`, type ? type.constructor ?? type.type : null, 'Object');
+  });
+
+// Opening the callee selection cannot supply a family its actual writer never promised.
+// A native setter beside a proven no-op still contributes its ordinary conditional install.
+for (const method of ['usage-pure', 'usage-global']) for (const [name, callee, prototype, families] of [
+  ['open writer', 'flag ? Object.setPrototypeOf : (object, proto) => { object.__proto__ = String.prototype; }', 'Array.prototype', null],
+  ['reverse open writer', 'flag ? (object, proto) => { object.__proto__ = String.prototype; } : Object.setPrototypeOf', 'Array.prototype', null],
+  ['nested open writer', 'flag ? Object.setPrototypeOf : other ? (object, proto) => { object.__proto__ = String.prototype; } : Reflect.setPrototypeOf', 'Array.prototype', null],
+  ['open no-op', 'flag ? Object.setPrototypeOf : (object, proto) => {}', 'String.prototype', 'array,string'],
+]) runBoth(`open prototype writer/${ method }/${ name }`,
+  `(flag => { const target = [4, 3]; (${ callee })(target, ${ prototype }); target.at(0); })(input);`, (parser, program, label) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const decision = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method, isEntryAvailable: () => true, resolveConstantSelection: (...args) => resolver.resolveConstantSelection(...args),
+    });
+    const resolver = parser.makeResolver({ getDecisionAdapter: () => decision });
+    const type = resolver.resolvePropertyObjectType(member);
+    check(`${ label }/type`, type ? type.constructor ?? type.type : null, null);
+    const hints = resolver.resolvePropertyUnionHints(member);
+    check(`${ label }/families`, hints ? [...hints].sort().join(',') : null, families);
+  });
+
 finish();

@@ -22,6 +22,7 @@ import {
   chainReadsThroughSeal,
   descendToChainRoot,
   foldableRealmHop,
+  globalProxyMemberName,
   isKnownStaticGlobal,
   isStaticPlacement,
   inlineCallHasObservableEffects,
@@ -49,10 +50,12 @@ import {
 import {
   aliasWriteCtorNames,
   buildDestructuringInitMeta,
+  buildDestructureLeafMeta,
   collectDestructureUnionCandidates,
   prepareDestructureUnion,
   destructureAssignmentValueIsCaptured,
   destructurePatternHostPath,
+  destructurePropLeafMeta,
   attachMemberUnionExtras,
   collectMemberUnionCandidates,
   flattenFallbackBranches,
@@ -62,6 +65,7 @@ import {
   isSeFreeMemberReceiver,
   resolvePositionalElementSlot,
   staticContainerReceiverName,
+  walkStaticReceiverChain,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { createClassHelpers, ctorAliasShapesReducer } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { hopNamesMissingAbleCtor, peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
@@ -75,6 +79,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
   bareAssignmentPatternLeafPath,
+  patternSlotCertainDefault,
   bindingInvisibleFromUseRegion,
   BRACE_STATEMENT_HOST_TYPES,
   catchPropRewriteObservable,
@@ -103,9 +108,16 @@ import {
   unwrapRuntimeExpr,
   isTypeAnnotationNodeType,
   callPairing,
+  destructureReceiverNode,
+  resolveFallbackReceiver,
+  resolveCallArgument,
+  resolveCallArgumentCoords,
+  argumentOverridesSlot,
+  effectiveArgsLength,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   escapedCtorReferencesReducer,
+  createDetectionAdapter,
   mutationShapesReducer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
@@ -3558,22 +3570,29 @@ runBoth('container union/an alternative carries the key it replaced', NESTED_SLO
   checkDeep(`${ lbl } sink`, unionSink, ['Set', 'Map']);
 });
 
-// the flavors part on a BRANCHING array slot: enumerating arms is the union axis's own move, so the
-// slot resolves for global, which only over-injects, and stays unresolved for pure, which would
-// rewrite the read off a value the slot need not hold. the sink cannot decide it - both producers
-// allocate one whatever the flavor
+// A decided slot has one receiver in either flavor; genuinely selecting slots still need the
+// branch mirror in pure. A union sink cannot turn those alternatives into a single receiver.
 const BRANCHING_SLOT = 'const box = [globalThis ?? {}];\nf(box[0].Map);';
 runBoth('container union/a branching array slot resolves in global', BRANCHING_SLOT, (adapter, prog, lbl) => {
   check(lbl, containerWalkUnion({ adapter, prog, unionSink: [], key: 'Map' }), 'globalThis');
 });
-runBoth('container union/a branching array slot declines in pure', BRANCHING_SLOT, (adapter, prog, lbl) => {
+runBoth('container union/a decided array slot resolves in pure', BRANCHING_SLOT, (adapter, prog, lbl) => {
   check(`${ lbl } with a sink`, containerWalkUnion({
     adapter, prog, unionSink: [], key: 'Map', extraAdapter: { method: 'usage-pure' },
-  }), null);
+  }), 'globalThis');
   check(`${ lbl } without`, containerWalkUnion({
     adapter, prog, key: 'Map', extraAdapter: { method: 'usage-pure' },
-  }), null);
+  }), 'globalThis');
 });
+runBoth('container union/an undecided array slot retains its alternatives in pure',
+  'const box = [flag ? globalThis : userObj];\nf(box[0].Map);', (adapter, prog, lbl) => {
+    check(`${ lbl } with a sink`, containerWalkUnion({
+      adapter, prog, unionSink: [], key: 'Map', extraAdapter: { method: 'usage-pure' },
+    }), null);
+    check(`${ lbl } without`, containerWalkUnion({
+      adapter, prog, key: 'Map', extraAdapter: { method: 'usage-pure' },
+    }), null);
+  });
 
 for (const [name, setup, call, expected] of [
   ['shorthand', 'const o = { m() { return Map; } };', 'o.m()', 'Map'],
@@ -3769,5 +3788,231 @@ for (const [name, source, expected] of [
   adapter.recordEmittedBindingSource(declaration.node, 'S', '@core-js/pure/full/symbol');
   check(label, moduleDefaultSource(query), expected);
 });
+
+for (const method of ['usage-global', 'usage-pure']) {
+  for (const [receiver, expectedObject] of [
+    ["'' || [1]", null],
+    ["'' ?? [1]", 'string'],
+    ["'text' || [1]", 'string'],
+    ['[1] || "text"', null],
+    ['Array || String', 'Array'],
+  ]) runBoth('logical destructure keeps the receiver selector', `const { at } = ${ receiver };`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const before = JSON.stringify(host.node);
+    const meta = buildDestructuringInitMeta({ initNode: host.node.init, key: 'at', scope: host.scope, adapter, path: host });
+    check(`${ label }/${ method } selected receiver identity`, meta?.object, expectedObject);
+    check(`${ label }/${ method } retains the ordinary instance decision`, !!meta?.fromFallback, false);
+    check(`${ label }/${ method } read-only decision`, JSON.stringify(host.node), before);
+  });
+}
+
+for (const method of ['usage-global', 'usage-pure']) for (const receiver of [
+  'globalThis.selected || Map', 'globalThis.selected ?? Map', 'flag ? globalThis.selected : Map',
+]) runBoth(`a generic instance claim reads every selected arm/${ receiver }/${ method }`,
+  `const { includes, groupBy } = ${ receiver };`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const before = JSON.stringify(host.node);
+    const instance = buildDestructuringInitMeta({ initNode: host.node.init, key: 'includes', scope: host.scope, adapter, path: host });
+    const sibling = buildDestructuringInitMeta({ initNode: host.node.init, key: 'groupBy', scope: host.scope, adapter, path: host });
+    check(`${ label } reads the selected instance surface`, instance?.placement, null);
+    check(`${ label } keeps ordinary instance extraction`, !!instance?.fromFallback, false);
+    check(`${ label } keeps the static sibling on its branch`, !!sibling?.fromFallback, true);
+    check(`${ label } read-only decision`, JSON.stringify(host.node), before);
+  });
+
+// The OR's static receiver is the running value of a decided AND, before its fallback is considered.
+for (const method of ['usage-pure', 'usage-global']) for (const [name, source, key, target, direct] of [
+  ['decided declaration', "const { groupBy } = typeof Symbol != 'undefined' && (effect(), Map) || Object;", 'groupBy', 'Map', true],
+  ['consumed assignment', "let from; const result = ({ from } = typeof Symbol != 'undefined' && Array || Object);", 'from', 'Array', true],
+  ['runtime guard', 'function read(flag) { const { groupBy } = flag && Map || Object; }', 'groupBy', 'Map', false],
+  ['shadowed Symbol', "function read(Symbol) { const { groupBy } = typeof Symbol != 'undefined' && Map || Object; }", 'groupBy', 'Map', false],
+  ['false AND', 'const { from } = false && Array || Object;', 'from', 'Array', false],
+]) runBoth(`decided running static/${ method }/${ name }`, source, (parser, program, label) => {
+  const host = name === 'consumed assignment' ? parser.pickPath(program, 'AssignmentExpression')
+    : parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const initNode = host.node.type === 'AssignmentExpression' ? host.node.right : host.node.init;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method, isEntryAvailable: () => true });
+  const before = JSON.stringify(host.node);
+  const meta = buildDestructuringInitMeta({ initNode, key, scope: host.scope, adapter, path: host });
+  check(`${ label }/unconditional static receiver`, meta?.object === target && !meta.fromFallback && !meta.guardedAliasHint, direct);
+  check(`${ label }/source remains live`, JSON.stringify(host.node), before);
+});
+
+// A source-known selector settles the slot value, while writes, TDZ and an absent optional arm
+// still prevent unconditional extraction. This is the same decision adapter both emitters use.
+for (const [name, source, walkPath, expected] of [
+  ['selected array slot', 'let pick = 1; const userObj = {}; const { 0: { from: f } } = [pick ? Array : userObj];', ['0'], 'Array'],
+  ['other selected arm', 'let pick = 0; const userObj = {}; const { 0: { from: f } } = [pick ? Array : userObj];', ['0'], null],
+  ['reassigned selector', 'let pick = 1; const userObj = {}; pick = 0; const { 0: { from: f } } = [pick ? Array : userObj];', ['0'], null],
+  ['selector TDZ', 'const userObj = {}; { const { 0: { from: f } } = [pick ? Array : userObj]; let pick = 1; }', ['0'], null],
+  ['nullable selected arm', 'const c = 1; const { a: { of: f } } = { a: c ? globalThis.window?.Array : Set };', ['a'], null],
+]) runBoth(`decided nested slot/${ name }`, source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const resolver = parser.makeResolver({ getDecisionAdapter: () => adapter });
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', isEntryAvailable: () => true, resolveConstantSelection: resolver.resolveConstantSelection,
+  });
+  const before = JSON.stringify(host.node);
+  check(label, walkStaticReceiverChain({ receiverNode: host.node.init, walkPath, scope: host.scope, adapter, path: host }), expected);
+  check(`${ label }/read-only`, JSON.stringify(host.node), before);
+});
+
+// Candidate pairing cannot prove that its arm wins past a later spread or computed key. Retaining
+// the existing branch mirror keeps those overwrites, and a nullable arm's nested binding rejection.
+for (const [name, source, key, fallback] of [
+  ['fresh selected slot', 'let pick = 1; const userObj = {}; const { 0: { from: f } } = [pick ? Array : userObj];', 'from', false],
+  ['later spread', 'let pick = 1; const userObj = {}; const { w: { from: f } } = { w: pick ? Array : userObj, ...more };', 'from', true],
+  ['later computed key', 'let pick = 1; const userObj = {}; const { w: { from: f } } = { w: pick ? Array : userObj, [k()]: 1 };', 'from', true],
+  ['nullable arm', 'const c = 1; const { a: { of: f } } = { a: c ? globalThis.window?.Array : Set };', 'of', true],
+]) runBoth(`selected nested slot mirror/${ name }`, source, (parser, program, label) => {
+  const objectPattern = parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === key);
+  const [property] = objectPattern.get('properties');
+  const resolver = parser.makeResolver({ getDecisionAdapter: () => adapter });
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', isEntryAvailable: () => true, resolveConstantSelection: resolver.resolveConstantSelection,
+  });
+  const before = JSON.stringify(objectPattern.node);
+  const { meta } = destructurePropLeafMeta({
+    prop: property.node, objectPattern, scope: property.scope, path: property, adapter,
+  });
+  check(`${ label }/static receiver`, meta?.object, 'Array');
+  check(`${ label }/selection obligation`, !!meta?.fromFallback, fallback);
+  check(`${ label }/read-only`, JSON.stringify(objectPattern.node), before);
+});
+
+// Source positions before a changed iterator remain exact; consuming its spread does not.
+for (const [name, source, before, consumed] of [
+  ['direct', 'f(x, ...[y]);', 0, 1],
+  ['apply', 'f.apply(null, [x, ...[y]]);', 0, 1],
+  ['Reflect.apply', 'Reflect.apply(f, null, [x, ...[y]]);', 0, 1],
+  ['leading empty spread', 'f(...[], x);', null, 0],
+]) runBoth(`call positions through a changed iterator/${ name }`, source, (parser, program, label) => {
+  const call = parser.pickPath(program, 'CallExpression', p => p.parentPath?.node?.type === 'ExpressionStatement').node;
+  function staticIsMutated(owner, key) { return owner === 'Array.prototype' && key === 'Symbol.iterator'; }
+  const pairing = callPairing(call, null, { staticIsMutated });
+  check(`${ label }/source list is not opaque`, !!pairing.argsUnknown, false);
+  if (before !== null) checkDeep(`${ label }/known prefix`, resolveCallArgument(pairing.args, before, staticIsMutated)?.name, 'x');
+  checkDeep(`${ label }/iterator supplies no exact source position`, resolveCallArgumentCoords(pairing.args, consumed, staticIsMutated), null);
+  checkDeep(`${ label }/pristine source position survives`, resolveCallArgument(pairing.args, consumed)?.name, before === null ? 'x' : 'y');
+});
+
+runBoth('unknown suffix does not override a known default prefix', 'f(undefined, ...[]);', (parser, program, label) => {
+  const args = parser.pickPath(program, 'CallExpression').node.arguments;
+  function staticIsMutated() { return true; }
+  check(`${ label }/undefined prefix`, argumentOverridesSlot(args, 0, () => false, staticIsMutated), false);
+  check(`${ label }/unknown suffix`, argumentOverridesSlot(args, 1, () => false, staticIsMutated), true);
+  check(`${ label }/whole length remains unknown`, effectiveArgsLength(args, staticIsMutated), null);
+});
+
+// The new predicate runs only at a consumed spread, without a second source-shape scan.
+for (const width of [32, 64]) runBoth(`positional iterator proof work ${ width }`, 'f();', (parser, program, label) => {
+  const values = Array.from({ length: width }, () => ({ type: 'Identifier', name: 'value' }));
+  values.push({ type: 'SpreadElement', argument: { type: 'ArrayExpression', elements: [] } });
+  let reads = 0;
+  let mutations = 0;
+  const args = new Proxy(values, { get(target, key, receiver) {
+    if (/^\d+$/u.test(String(key))) reads++;
+    return Reflect.get(target, key, receiver);
+  } });
+  function staticIsMutated() {
+    mutations++;
+    return true;
+  }
+  checkDeep(`${ label }/last known prefix position`, resolveCallArgumentCoords(args, width - 1, staticIsMutated), [width - 1]);
+  check(`${ label }/one linear walk`, reads <= width, true);
+  check(`${ label }/no iterator question before the spread`, mutations, 0);
+});
+
+// The public receiver locator must carry the same positional proof through its private bridge.
+for (const [name, source, changed] of [
+  ['spread argument', '((value) => value)(...[x]);', null],
+  ['prefix argument', '((value) => value)(x, ...[]);', 'x'],
+]) runBoth(`destructure receiver positional bridge/${ name }`, source, (parser, program, label) => {
+  const fn = parser.pickPath(program, 'ArrowFunctionExpression');
+  const [parameter] = fn.node.params;
+  function staticIsMutated() { return true; }
+  check(`${ label }/pristine`, destructureReceiverNode(fn, parameter)?.name ?? null, 'x');
+  check(`${ label }/changed iterator`, destructureReceiverNode(fn, parameter, staticIsMutated)?.name ?? null, changed);
+});
+
+for (const source of ['globalThis.Array;', 'globalThis.self.Array;']) runBoth(
+  `unscoped realm census preserves its optional adapter/${ source }`, source, (parser, program, label) => {
+    const { node } = parser.pickPath(program, 'MemberExpression');
+    check(label, globalProxyMemberName({ node }), 'Array');
+  },
+);
+
+// An undecidable spread may supply a value: it is never evidence that the default ran.
+for (const [name, argumentsSource, expected] of [
+  ['unknown spread', '...[]', null],
+  ['explicit undefined prefix', 'undefined, ...[]', 'fallback'],
+]) runBoth(`default receiver locator/${ name }`, `(({ at } = fallback) => at)(${ argumentsSource });`, (parser, program, label) => {
+  const parameter = parser.pickPath(program, 'AssignmentPattern');
+  function staticIsMutated() { return true; }
+  check(`${ label }/node locator`, destructureReceiverNode(parameter, parameter.node.left, staticIsMutated)?.name ?? null, expected);
+  check(`${ label }/fallback locator`, resolveFallbackReceiver(parameter, parameter.node.left, staticIsMutated)?.rhsNode?.name ?? null, expected);
+});
+
+// A completed record answers iteration-only protocol reads in constant work per read.
+for (const width of [32, 64]) {
+  let reads = 0;
+  const escapes = new Proxy(Array.from({ length: width }, () => ({ iteration: true })), {
+    get(target, key, receiver) {
+      if (/^\d+$/u.test(String(key))) reads++;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  const index = { byName: new Map([['items', ['items#0']]]), escapes: new Map([['items#0.*', escapes]]), nonIterationEscapes: new Set() };
+  const adapter = createDetectionAdapter({
+    getWrittenContainerSlots: () => new Map([['items#0.*', []]]),
+    getContainerSlotIndex: () => index,
+  }, () => ({}));
+  for (const phase of ['cold', 'warm']) {
+    for (let read = 0; read < width; read++) check(`iterator summary/${ width }/${ phase }/${ read }`,
+      adapter.isWrittenContainerSlot('items', ['Symbol.iterator']), false);
+    check(`iterator summary/${ width }/${ phase }/no repeated list reads`, reads, 0);
+  }
+  index.nonIterationEscapes.add('items#0.*');
+  check(`iterator summary/${ width }/an actual writer still invalidates the slot`,
+    adapter.isWrittenContainerSlot('items', ['Symbol.iterator']), true);
+  index.nonIterationEscapes.clear();
+  check(`iterator summary/${ width }/other slots keep their iteration escape`,
+    adapter.isWrittenContainerSlot('items', ['at']), true);
+}
+
+// Certain defaults depend on the protocol as well as literal length. The returned default
+// is a source node, so identity asserts the exact arm without depending on a dispatcher.
+for (const [name, source, mutated, certain] of [
+  ['pristine empty literal', 'const [value = [1]] = [];', false, true],
+  ['changed iterator', 'const [value = [1]] = [];', true, false],
+  ['assignment host', 'let value; [value = [1]] = [];', true, false],
+  ['parameter host', 'function read([value = [1]] = []) {}', true, false],
+  ['numeric object property', 'const { 0: value = [1] } = {};', true, true],
+  ['IIFE receiver spread', 'const [value = [1]] = ((arg) => arg)(...[[]]);', true, false],
+]) runBoth(`certain default protocol/${ name }`, source, (parser, program, label) => {
+  const wrapper = parser.pickPath(program, 'AssignmentPattern', path => path.node.left?.name === 'value');
+  const pattern = wrapper.parentPath.node.type === 'ObjectProperty' || wrapper.parentPath.node.type === 'Property'
+    ? wrapper.parentPath.parentPath : wrapper.parentPath;
+  const host = pattern.parentPath;
+  const rhs = host.node.type === 'VariableDeclarator' ? host.node.init : host.node.type === 'AssignmentExpression'
+    || host.node.type === 'AssignmentPattern' ? host.node.right : null;
+  const ctx = { path: host, scope: host.scope, followIifeReturns: true, resolveKey,
+    adapter: { ...minimalAdapter, isMutatedStaticSlot: (owner, key) => mutated && owner === 'Array.prototype' && key === 'Symbol.iterator' } };
+  check(label, patternSlotCertainDefault(pattern.node, rhs, 'value', ctx), certain ? wrapper.node.right : null);
+});
+
+// A replaced iterator declines pure extraction, while global still needs its typeless import.
+runBoth('a nested default retains the global instance claim after unknown iteration',
+  'const [{ at } = [1]] = [];', (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key?.name === 'at');
+    for (const method of ['usage-global', 'usage-pure']) {
+      const adapter = { ...minimalAdapter, method,
+        isMutatedStatic: (owner, key) => owner === 'Array.prototype' && key === 'Symbol.iterator' };
+      const meta = buildDestructureLeafMeta({ descriptor: { host: 'array', objectPattern: prop.parentPath }, key: 'at', adapter });
+      checkDeep(`${ label }/${ method }`, meta, method === 'usage-global' ? { kind: 'property', object: null, key: 'at', placement: null } : null);
+    }
+  });
 
 finish();

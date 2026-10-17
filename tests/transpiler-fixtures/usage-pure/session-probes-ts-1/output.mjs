@@ -135,11 +135,10 @@ function mark(t, v) {
   }]];
 }
 {
-  const r = (({
-    at
-  }) => at)(...([{
-    at: _atMaybeArray([1, 2])
-  }] as any));
+  const r = ((_ref, _unused = void 0) => {
+    let at = _atMaybeArray(_ref);
+    return at;
+  })(...([[1, 2]] as any));
 }
 {
   const r = (({
@@ -200,19 +199,18 @@ function mark(t, v) {
   });
 }
 {
-  const r = (0, ({
-    at
-  }) => at)({
-    at: _atMaybeArray([1, 2])
-  } as any);
+  const r = (0, (_ref2, _unused2 = void 0) => {
+    let at = _atMaybeArray(_ref2);
+    return at;
+  })([1, 2] as any);
 }
 {
-  var _ref;
-  const r = _at(_ref = o['data' as string]).call(_ref, 0);
+  var _ref3;
+  const r = _at(_ref3 = o['data' as string]).call(_ref3, 0);
 }
 {
-  var _ref2;
-  const r4 = _at(_ref2 = o['s' as string]).call(_ref2, 0);
+  var _ref4;
+  const r4 = _at(_ref4 = o['s' as string]).call(_ref4, 0);
 }
 {
   const v = _Object$freeze(...([Array] as any));
@@ -235,19 +233,19 @@ function mark(t, v) {
 }
 {
   const {
-      [(eff('k'), 'w' as string)]: _ref3
+      [(eff('k'), 'w' as string)]: _ref5
     } = {
       w: src
     },
-    a = _at(_ref3);
+    a = _at(_ref5);
 }
 {
   const {
-      [(eff('k'), 'w')]: _ref4
+      [(eff('k'), 'w')]: _ref6
     } = {
       w: src
     } as any,
-    a = _at(_ref4);
+    a = _at(_ref6);
 }
 {
   const at = _atMaybeArray([1, 2]);
@@ -260,14 +258,14 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const _ref5 = {
+  const _ref7 = {
     w: [1, 2] as any,
     z: 1
   };
-  const m = _atMaybeArray(_ref5.w);
+  const m = _atMaybeArray(_ref7.w);
   const {
     z
-  } = _ref5;
+  } = _ref7;
   use(m, z);
 }
 {
