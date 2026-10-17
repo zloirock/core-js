@@ -60,6 +60,7 @@ function copyMeta(source, target) {
   if (source.end !== undefined) target.end = source.end;
   if (source.loc !== undefined) target.loc = cloneLoc(source.loc);
   if (source.range !== undefined) target.range = [...source.range];
+  if (source.extra?.corejsMethodCallGuard) target.extra = { ...target.extra, corejsMethodCallGuard: true };
   for (const key of ['leadingComments', 'trailingComments', 'innerComments']) {
     if (source[key]) target[key] = source[key].map(comment => convertComment(comment));
   }

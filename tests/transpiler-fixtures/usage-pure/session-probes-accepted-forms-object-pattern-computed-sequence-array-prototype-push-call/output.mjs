@@ -10,5 +10,5 @@ function eff() {
       prototype: _ref
     } = _globalThis.Array,
     a = null == _ref ? _ref[""] : (eff('k2'), _atMaybeArray(_ref));
-  _pushMaybeArray(log).call(log, a.call([3], 0));
+  (_pushMaybeArray(log) || 0).call(log, a.call([3], 0));
 }

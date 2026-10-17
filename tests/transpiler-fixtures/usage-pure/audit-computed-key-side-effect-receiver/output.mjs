@@ -8,4 +8,4 @@ var _ref, _ref2, _ref3;
 // key SE, a multi-element key sequence, and a member-chain receiver with a trailing argument
 export const a = (_ref = getObj(), p(), _at(_ref).call(_ref, -1));
 export const b = (_ref2 = getObj(), c1(), c2(), _flatMaybeArray(_ref2).call(_ref2));
-export const c = (_ref3 = getList().rows, p(), _findLastMaybeArray(_ref3).call(_ref3, side()));
+export const c = (_ref3 = getList().rows, p(), (_findLastMaybeArray(_ref3) || 0).call(_ref3, side()));

@@ -49,6 +49,7 @@ import {
   expressionStatement,
   memberExpression,
   renderMemoActivation,
+  settleMethodCallGuard,
   sequenceExpression,
   variableDeclaration,
 } from './render.js';
@@ -1082,6 +1083,9 @@ export function collectInjectorCensus(program, {
   const memberKeys = memberKeyNamesReducer();
   // eslint-disable-next-line max-statements -- one final-tree census keeps liveness and positional memo facts together
   walkAstNodes({ root: program, visit(node, parent, key, listKey) {
+    // Normalize only our annotated call members in the existing final-tree walk.
+    if ((node.type === 'CallExpression' || node.type === 'OptionalCallExpression')
+      && node.callee?.object?.extra?.corejsMethodCallGuard) settleMethodCallGuard(node);
     // a `:` slot is where babel's uid scan stops: a name written past one claims nothing
     // (`declare const v: { _ref2(): void }` leaves `_ref2` free), while a type-alias RHS or
     // an interface body carries no such wrapper and is walked at any depth

@@ -51,7 +51,7 @@ function proxyBranch({
       from: _Array$from,
       nope: _ref3.nope
     };
-  }((_pushMaybeArray(log).call(log, _atMaybeArray(_ref4 = [3]).call(_ref4, 0)), _self).Array);
+  }(((_pushMaybeArray(log) || 0).call(log, _atMaybeArray(_ref4 = [3]).call(_ref4, 0)), _self).Array);
 })()) {
   return [typeof x, typeof y, log[0]];
 }

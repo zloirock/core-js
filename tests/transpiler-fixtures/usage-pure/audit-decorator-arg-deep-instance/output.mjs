@@ -4,5 +4,5 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // outer `arr.includes(...)` and inner `other.at(0)`. each receiver gets its own
 // polyfill rewrite; the decorator visitor must descend into the argument and
 // rewrite both call sites without dropping either.
-@dec(_includes(arr).call(arr, _at(other).call(other, 0)))
+@dec((_includes(arr) || 0).call(arr, _at(other).call(other, 0)))
 class C {}

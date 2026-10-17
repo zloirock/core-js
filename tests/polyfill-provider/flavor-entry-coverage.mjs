@@ -568,4 +568,96 @@ for (const [label, source, entry, statics, filename] of [
   }
 }
 
+// A raw nested pattern read needs its static on every constructor the written source may hold.
+for (const [label, pattern, initial, written, globalClaim = true] of [
+  ['array', '[{ groupBy }]', '[Array]', '[Map]'],
+  ['nested array', '[[{ groupBy }]]', '[[Array]]', '[[Map]]'],
+  ['object then array', '{ entries: [{ groupBy }] }', '{ entries: [Array] }', '{ entries: [Map] }'],
+  // This compound static route is outside detection's supported spellings. Pure must still
+  // preserve the property when it substitutes a constructor the ordinary census already sees.
+  ['array then object', '[{ entry: { groupBy } }]', '[{ entry: Array }]', '[{ entry: Map }]', false],
+  ['default', '[{ groupBy } = Map]', '[Array]', '[Map]'],
+  ['different default', '[{ groupBy } = Object]', '[Array]', '[Map]'],
+  ['hole', '[, { groupBy }]', '[, Array]', '[, Map]'],
+  ['rest', '[{ groupBy }, ...rest]', '[Array]', '[Map]'],
+]) {
+  const source = `let sources = ${ initial }; for (let i = 0; i < 1; i++) { sources = ${ written }; const ${ pattern } = sources; use(groupBy); }`;
+  for (const options of [GLOBAL, PURE]) for (const [emitter, imports] of [
+    ['babel', await babelImports(source, options)],
+    ['unplugin', unpluginImports(source, options)],
+  ]) {
+    const modules = new Set([...imports].flatMap(spec => spec.startsWith('core-js/modules/')
+      ? [spec.slice('core-js/modules/'.length)] : entries[spec.replace('@core-js/pure/', '')] ?? []));
+    check(`written array pattern/${ label }/${ options.method } [${ emitter }]: static available`, modules.has('es.map.group-by'), options === PURE || globalClaim);
+  }
+}
+
+// A directive leaves the read intact; a substituted receiver must supply that retained static.
+for (const [label, source] of [
+  ['member', 'const M = Map;\n// core-js-disable-next-line\nuse(M.groupBy);'],
+  ['nested pattern', 'const box = { C: Map };\nconst {\n// core-js-disable-next-line\nC: { groupBy }\n} = box; use(groupBy);'],
+  ['multiline pattern', 'const box = { C: Map };\n// core-js-disable-next-line\nconst {\nC: { groupBy }\n} = box; use(groupBy);'],
+  ['multiline nested property', 'const box = { C: Map };\nconst {\n// core-js-disable-next-line\nC: {\ngroupBy\n}\n} = box; use(groupBy);'],
+  ['multiline member', 'const M = Map;\n// core-js-disable-next-line\nuse(\nM.groupBy\n);'],
+  ['pattern property over global', 'const {\n// core-js-disable-next-line\ngroupBy\n} = Map; use(groupBy);'],
+  ['native initializer with pure write', '// core-js-disable-next-line\nlet C = Map;\nif (flag) C = Map;\n// core-js-disable-next-line\nuse(C.groupBy);'],
+]) for (const options of [GLOBAL, PURE]) for (const [emitter, imports] of [
+  ['babel', await babelImports(source, options)],
+  ['unplugin', unpluginImports(source, options)],
+]) {
+  check(`opted-out static/${ label }/${ options.method } [${ emitter }]: whole substituted receiver`, imports.has('@core-js/pure/actual/map'), options === PURE);
+  if (options === GLOBAL) check(`opted-out static/${ label } [${ emitter }]: disabled import`, imports.has('core-js/modules/es.map.group-by'), false);
+}
+
+// A fully opted-out native receiver never reads through a pure constructor imported elsewhere.
+for (const [label, source] of [
+  ['global', 'new Map();\n// core-js-disable-next-line\nuse(Map.groupBy);'],
+  ['realm member', 'new Map();\n// core-js-disable-next-line\nuse(globalThis.Map.groupBy);'],
+  ['whole pattern', 'new Map();\n// core-js-disable-next-line\nconst { groupBy } = Map; use(groupBy);'],
+  ['native alias', 'new Map();\n// core-js-disable-next-line\nconst C = Map;\n// core-js-disable-next-line\nuse(C.groupBy);'],
+]) for (const [emitter, imports] of [
+  ['babel', await babelImports(source, PURE)],
+  ['unplugin', unpluginImports(source, PURE)],
+]) check(`opted-out native static/${ label } [${ emitter }]: narrow constructor`, imports.has('@core-js/pure/actual/map'), false);
+
+// A constructor used only as a constructor owes no own static after the pairing change.
+for (const source of ['const [C] = [Map]; use(new C());', 'const [{ groupBy }] = [Map]; use(groupBy);']) {
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, PURE)],
+    ['unplugin', unpluginImports(source, PURE)],
+  ]) check(`array pattern narrow control [${ emitter }]: ${ source }`, imports.has('@core-js/pure/actual/map'), false);
+}
+
+// A positional read that resolves to its own static import owes no constructor namespace.
+// Keep the raw-pattern controls above: those still read through the substituted constructor.
+for (const [label, source, entry, staticEntry] of [
+  ['reassigned nested container', 'let rows = [{ C: Object }]; rows = [{ C: Promise }]; const [{ C: { race } }] = rows; use(race);', 'promise', 'race'],
+  ['chained container write', 'let rows = [Object], other; rows = other = [Promise]; const [{ allSettled }] = rows; use(allSettled);', 'promise', 'all-settled'],
+  ['decided container', 'const rows = typeof Symbol != "undefined" ? [Map] : [Object]; const [{ groupBy }] = rows; use(groupBy);', 'map', 'group-by'],
+  ['decided parameter default', 'const rows = typeof Symbol != "undefined" ? [Map] : [Object]; export function read([{ groupBy }] = rows) { return groupBy; }', 'map', 'group-by'],
+  ['same nested block', '{ let rows = [Object]; rows = [Promise]; const [{ race }] = rows; use(race); }', 'promise', 'race'],
+]) for (const [emitter, imports] of [
+  ['babel', await babelImports(source, PURE)],
+  ['unplugin', unpluginImports(source, PURE)],
+]) {
+  check(`served positional static/${ label } [${ emitter }]: static`, imports.has(`@core-js/pure/actual/${ entry }/${ staticEntry }`), true);
+  check(`served positional static/${ label } [${ emitter }]: constructor`, imports.has(`@core-js/pure/actual/${ entry }/constructor`), true);
+  check(`served positional static/${ label } [${ emitter }]: namespace`, imports.has(`@core-js/pure/actual/${ entry }`), false);
+}
+
+// Serving one read cannot discharge another retained read of the same constructor.
+for (const [label, source] of [
+  ['loop read', `let rows = [Object]; rows = [Promise]; const [{ race }] = rows; use(race);
+for (let i = 0; i < 1; i++) { rows = [Promise]; const [{ allSettled }] = rows; use(allSettled); }`],
+  ['disabled read', `let rows = [Object]; rows = [Promise]; const [{ race }] = rows; use(race);
+// core-js-disable-next-line
+const [{ allSettled }] = rows; use(allSettled);`],
+]) for (const [emitter, imports] of [
+  ['babel', await babelImports(source, PURE)],
+  ['unplugin', unpluginImports(source, PURE)],
+]) {
+  check(`independent positional static/${ label } [${ emitter }]: served static`, imports.has('@core-js/pure/actual/promise/race'), true);
+  check(`independent positional static/${ label } [${ emitter }]: retained namespace`, imports.has('@core-js/pure/actual/promise'), true);
+}
+
 finish();

@@ -4,6 +4,6 @@ export class Box {
   items = [];
   trim(fn) {
     var _ref, _ref2;
-    return null == (_ref = this.items) ? void 0 : _flatMaybeArray(_ref).call(_ref, _findIndexMaybeArray(_ref2 = this.items).call(_ref2, fn));
+    return null == (_ref = this.items) ? void 0 : (_flatMaybeArray(_ref) || 0).call(_ref, _findIndexMaybeArray(_ref2 = this.items).call(_ref2, fn));
   }
 }

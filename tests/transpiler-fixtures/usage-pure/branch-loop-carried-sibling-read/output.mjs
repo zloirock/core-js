@@ -6,7 +6,7 @@ export function read(flags) {
   let value = 'ab';
   const result = [];
   for (const flag of flags) {
-    if (flag) value = ['a', 'b'];else _pushMaybeArray(result).call(result, _includes(value).call(value, 'a,b'));
+    if (flag) value = ['a', 'b'];else (_pushMaybeArray(result) || 0).call(result, _includes(value).call(value, 'a,b'));
   }
   return result;
 }

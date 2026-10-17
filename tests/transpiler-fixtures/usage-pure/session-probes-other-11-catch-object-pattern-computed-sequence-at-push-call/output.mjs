@@ -20,6 +20,6 @@ function eff() {
         [(eff('k'), 'w')]: _ref2
       } = null == _ref ? _ref[""] : _ref,
       a = _at(_ref2);
-    _pushMaybeArray(log).call(log, a.call([5], 0));
+    (_pushMaybeArray(log) || 0).call(log, a.call([5], 0));
   }
 }

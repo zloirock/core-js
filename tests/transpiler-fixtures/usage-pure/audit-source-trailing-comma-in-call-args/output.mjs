@@ -22,7 +22,7 @@ export const constructed = new _Map([[1, 2]]);
 
 // a comma the argument itself contains is not the list's own
 export const inString = _includesMaybeArray(_ref3 = ["x"]).call(_ref3, "a,");
-export const inRegex = _includesMaybeArray(_ref4 = ["x"]).call(_ref4, /a,/.source);
+export const inRegex = (_includesMaybeArray(_ref4 = ["x"]) || 0).call(_ref4, /a,/.source);
 
 // NEGATIVE: no source comma, so the two emitters agree byte for byte on these
 export const plain = _flatMaybeArray(a).call(a, 1);

@@ -6,6 +6,6 @@ for (const {
 } in {
   a: 1
 }) {
-  _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest);
+  (_pushMaybeArray(seen) || 0).call(seen, typeof at, 'at' in rest);
 }
 export { seen };

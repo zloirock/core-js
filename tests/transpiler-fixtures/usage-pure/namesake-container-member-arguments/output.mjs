@@ -9,6 +9,6 @@ export function make(Format) {
 }
 export function collect(a) {
   const r = [];
-  _pushMaybeArray(r).call(r, a.b, a.b);
+  (_pushMaybeArray(r) || 0).call(r, a.b, a.b);
   return r;
 }
