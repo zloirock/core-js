@@ -19,7 +19,7 @@ const {
   from
 } = pushes ? {
   from: _Array$from
-} : (_pushMaybeArray(log).call(log, _Array$from([1])), {
+} : ((_pushMaybeArray(log) || 0).call(log, _Array$from([1])), {
   from: _Array$from
 });
 export { withParamDefault, from };

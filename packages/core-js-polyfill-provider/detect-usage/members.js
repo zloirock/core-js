@@ -3,6 +3,7 @@
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
   asProxyGlobalName,
+  callArgumentMayBeObserved,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   deleteHostAboveChain,
@@ -1495,7 +1496,7 @@ export function bareReceiverGuardRenders(memberNode, invocation = null) {
 // cannot reproduce, or a synthesized guard-only meta with no resolvable static); else the
 // render inputs - the unwrapped receiver identifier (or, for a meta asking `captureGuardReceiver`,
 // the receiver NODE the emitter captures into a ref of its own - `captureReceiver`), the static's
-// pure entry, callee-ness (the raw branch then binds `this`), and the ctor comparator (the swapped
+// pure entry, callee-ness (the raw branch preserves `this`), and the ctor comparator (the swapped
 // pure binding - never equal to a native the receiver read off the realm where pure wraps that
 // constructor, a dead branch accepted since no data tells which wrap; its raw global name when the
 // ctor does not polyfill for the targets; a member of the realm entry when that raw name is shadowed
@@ -1579,14 +1580,18 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   const isCallee = ((parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
     && unwrapRuntimeExpr(parent.callee) === memberNode)
     || isTaggedTemplateTagPosition(parent, memberNode);
-  // the call the guard can move INTO its branches: an ordinary invocation over a captured receiver,
-  // each branch spelling its own, so `this` is that branch's value and the arguments still run ahead
-  // of the throw a non-callable method owes. a tagged-template tag is not one of them
+  // Move a captured receiver's call into its branches, and an uncaptured ordinary call whose
+  // arguments are observable: binding a possibly absent raw method would reject before them.
+  // Each branch preserves `this`; quiet uncaptured calls keep their bound spelling.
+  // A tagged-template tag is not a call this render can absorb.
   // ... and a SEALED callee slot is not one either: parens / a paren'd cast around the member end the
   // chain there, so the call runs on the short-circuited value and owes its throw. absorbing it would
   // move the call inside a guard the seal put it outside of
-  const absorbableCall = Boolean(captureReceiver && isCallee
+  const absorbableCall = Boolean(isCallee
     && (parent.type === 'CallExpression' || parent.type === 'OptionalCallExpression')
+    && (captureReceiver || (!parent.optional && !optionalHops.length && parent.arguments.some(argument => callArgumentMayBeObserved(
+      argument, adapter && path ? { scope: path.scope, adapter, path } : null,
+    ))))
     && !(optionalHops.length && sealedLayerBetween(parent.callee, memberNode)));
   // a live `?.` has exactly one render each: at the member or in its receiver it rides the hoisted
   // guard above the whole continuation, and ON the call it rides the raw branch, which only the

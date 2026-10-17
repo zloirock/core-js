@@ -8,9 +8,9 @@ let held;
 let seqE = 0;
 const sink = [];
 const utRoot = () => _globalThis;
-export const inRebuiltArg = _pushMaybeArray(sink).call(sink, (held = (seqE++, _self))?.customQ);
+export const inRebuiltArg = (_pushMaybeArray(sink) || 0).call(sink, (held = (seqE++, _self))?.customQ);
 export const inLoopRebuiltArg = (() => {
-  for (let i = 0; i < 2; i++) _pushMaybeArray(sink).call(sink, (held = (seqE++, _self))?.customQ);
+  for (let i = 0; i < 2; i++) (_pushMaybeArray(sink) || 0).call(sink, (held = (seqE++, _self))?.customQ);
   return sink.length;
 })();
 export { held, seqE };

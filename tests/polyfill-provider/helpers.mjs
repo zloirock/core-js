@@ -44,6 +44,7 @@ import {
   bindingWrittenBeyondItsFrame,
   buildScopeReassignmentIndex,
   callArgumentPathAt,
+  callArgumentMayBeObserved,
   effectiveArgsLength,
   emptyMemoActivationValue,
   findIifeArgPath,
@@ -3581,6 +3582,35 @@ for (const [source, keys] of [
   }
 }
 
+// The receiver and value pairers follow the same positional reads when requested by a census.
+for (const [label, source, receivers, shallow] of [
+  ['array receiver', 'const [{ groupBy: value }] = list;', ['list.0'], []],
+  ['nested array receiver', 'const [[{ groupBy: value }]] = list;', ['list.0.0'], []],
+  ['object then array', 'const { entries: [{ groupBy: value }] } = list;', ['list.entries.0'], []],
+  ['array then object', 'const [{ entry: { groupBy: value } }] = list;', ['list.0.entry'], []],
+  ['invocation receiver', 'const [{ groupBy: value }] = list();', ['list.0'], []],
+  ['slot default', 'const [{ groupBy: value } = Map] = list;', ['list.0', 'Map'], ['Map']],
+  ['different candidate sources', 'const [{ groupBy: value }] = [...items, Map, Object];', ['Map', 'Object'], ['Map', 'Object']],
+  ['hole before slot', 'const [, { groupBy: value }] = list;', ['list.1'], []],
+  ['rest after slot', 'const [{ groupBy: value }, ...rest] = list;', ['list.0'], []],
+  ['rest is no indexed slot', 'const [...{ groupBy: value }] = list;', [], []],
+  ['literal source', 'const [{ groupBy: value }] = [Map];', ['Map'], ['Map']],
+  ['missing literal slot', 'const [{ groupBy: value }] = [];', [], []],
+]) for (const adapter of adapters) {
+  const program = adapter.parseAndScope(source);
+  const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  for (const readsThrough of [false, true]) {
+    const slotReceivers = new Map();
+    const slots = patternReceiverSlotNodes(id, init, 'value', { readsThrough, slotReceivers });
+    const actual = slotReceivers.values().flatMap(sources => sources.map(receiver => {
+      const { root, keys } = memberChainKeys(receiver);
+      return [root.name ?? root.callee?.name, ...keys].join('.');
+    })).toArray();
+    check(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]: slot count`, slots.length, (readsThrough ? receivers : shallow).length);
+    checkDeep(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]`, actual, readsThrough ? receivers : shallow);
+  }
+}
+
 runBoth('walkAstNodes/leave follows children in source order', 'outer(first, inner(second), third);', (adapter, program, label) => {
   const root = adapter.pickPath(program, 'CallExpression').node;
   const entered = [];
@@ -3754,5 +3784,51 @@ for (const [name, source, expected] of [
   }
   check(label, receiverPerformsEveryInitEffect(init, receiver, null, isQuiet), expected);
 });
+
+// Argument timing does not need a guard for plain values or deferred function bodies.
+// TDZ examples intentionally read before initialization; plain reads add no effect-order guard.
+for (const [name, expression, expected, before = 'const index = 0;', after = ''] of [
+  ['literal', '0', false],
+  ['negative index', '-1', false],
+  ['bigint value', '1n', false],
+  ['bigint numeric coercion', '+1n', true],
+  ['constant arithmetic', 'index - 1', false],
+  ['string length arithmetic', "'abc'.length - 1", false],
+  ['parameter', 'value', false],
+  ['external value', 'externalValue', false],
+  ['initialized lexical', 'index', false],
+  ['function body deferred', '() => effect()', false],
+  ['array allocation', '[value, -1]', false],
+  ['object allocation', '{ value, get read() { return effect(); } }', false],
+  ['object value effect', '{ value: effect() }', true],
+  ['literal computed key', "{ ['known']: value }", false],
+  ['regexp computed key', '{ [/key/]: value }', true],
+  ['conditional allocation', 'value ? [1] : { value: 2 }', false],
+  ['conditional effect', 'value ? effect() : 0', true],
+  ['logical effect', 'value && effect()', true],
+  ['sequence effect', '(effect(), value)', true],
+  // eslint-disable-next-line no-template-curly-in-string -- the string is template source under test
+  ['literal template', '`value:${1}`', false],
+  // eslint-disable-next-line no-template-curly-in-string -- the string is template source under test
+  ['coercing template', '`value:${value}`', true],
+  ['class computed key', 'class { [effect()]() {} }', true],
+  ['class static effect', 'class { static { effect(); } }', true],
+  ['strict equality', 'value === externalValue', false],
+  ['argument call', 'effect()', true],
+  ['property read', 'value.key', true],
+  ['string length key effect', "'abc'[(effect(), 'length')]", true],
+  ['argument coercion', 'value + 1', true],
+  ['unary coercion', '+value', true],
+  ['spread allocation', '[...value]', true],
+  ['object spread', '{ ...value }', true],
+  ['computed method key', '{ [effect()]() {} }', true],
+  ['lexical TDZ value', 'later', false, '', 'const later = 0;'],
+  ['lexical TDZ typeof', 'typeof later', false, '', 'const later = 0;'],
+]) runBoth(`call argument timing/${ name }`,
+  `function probe(value) { ${ before } consume(${ expression }); ${ after } }`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', candidate => candidate.node.callee.name === 'consume');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    check(label, callArgumentMayBeObserved(path.node.arguments[0], { scope: path.scope, path, adapter }), expected);
+  });
 
 finish();

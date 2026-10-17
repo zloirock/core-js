@@ -11,7 +11,7 @@ const src = [3, [1, 2]];
 // of another one
 export function composedWraps(absent) {
   const arr = absent ? null : src;
-  return [('flat' in (arr == null ? void 0 : _sliceMaybeArray(arr).call(arr, null == _globalThis.window ? void 0 : _Math$trunc(0.5))), true), (() => {
+  return [('flat' in (arr == null ? void 0 : (_sliceMaybeArray(arr) || 0).call(arr, null == _globalThis.window ? void 0 : _Math$trunc(0.5))), true), (() => {
     var _ref;
     return 'at' in (arr == null ? void 0 : _concatMaybeArray(_ref = _sliceMaybeArray(arr).call(arr)).call(_ref, [4])), true;
   })(), [('flat' in (arr == null ? void 0 : _sliceMaybeArray(arr).call(arr)), true), ('at' in (arr == null ? void 0 : _sliceMaybeArray(arr).call(arr)), true)], ('flat' in (('at' in (arr == null ? void 0 : _sliceMaybeArray(arr).call(arr)), true) ? _sliceMaybeArray(src).call(src) : src), true)];

@@ -12,5 +12,5 @@ var {
   at: at2,
   ...rest
 } = [3, 4];
-_pushMaybeArray(out).call(out, typeof at2, 'at' in rest);
+(_pushMaybeArray(out) || 0).call(out, typeof at2, 'at' in rest);
 export { out };

@@ -11,6 +11,6 @@ try {
 } = {
   from: _Array$from
 }]) {
-  _pushMaybeArray(out).call(out, caught([1]).length);
+  (_pushMaybeArray(out) || 0).call(out, caught([1]).length);
 }
 export { out };

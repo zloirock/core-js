@@ -10,6 +10,6 @@ export const log = [];
 export const value = null == (() => {
   var _ref;
   const inner = _flatMaybeArray(_ref = [1, [2]]).call(_ref);
-  _pushMaybeArray(log).call(log, inner.length);
+  (_pushMaybeArray(log) || 0).call(log, inner.length);
   return _globalThis;
 })() ? void 0 : _atMaybeArray(_ref2 = _Array$of(5)).call(_ref2, 0);
