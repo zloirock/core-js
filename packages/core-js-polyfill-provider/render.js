@@ -3,6 +3,7 @@ import {
   PRIMITIVE_LITERAL_TYPES,
   markGeneratedMemoDeclarator,
   markRenderedStoredValue,
+  callArgumentMayBeObserved,
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
@@ -54,6 +55,27 @@ export function callExpression(callee, args, { optional = false } = {}) {
 
 export function memberExpression(object, property, { computed = false, optional = false } = {}) {
   return { type: 'MemberExpression', object, property, computed, optional };
+}
+
+// A missing method must reject the CALL after its arguments, not the preceding `.call` read.
+// Zero boxes without throwing and has no call method; falsy non-callables reject at the same point.
+// Optional calls retain the nullish short-circuit. Quiet arguments need no timing repair.
+export function renderMethodCallMember(method, { optional = false, args = [], ctx = null } = {}) {
+  const base = !optional && args.some(argument => callArgumentMayBeObserved(hostSlotNode(argument), ctx))
+    ? logicalExpression('||', method, literal(0)) : method;
+  // The argument's own claim may later replace an observable lookup with a pure import.
+  if (base !== method) base.extra = { corejsMethodCallGuard: true };
+  return memberExpression(base, identifier('call'), { optional });
+}
+
+// After claims settle, remove guards whose observable arguments became plain values.
+export function settleMethodCallGuard(call) {
+  const member = unwrapRuntimeExpr(call.callee);
+  const guard = member?.object;
+  if (!guard?.extra?.corejsMethodCallGuard || member.computed || member.property?.name !== 'call') return;
+  if (call.arguments.slice(1).every(argument => !callArgumentMayBeObserved(argument))) {
+    member.object = guard.left;
+  }
 }
 
 // a sequence of ONE is that one expression, and building the node anyway leaves a pair of printer

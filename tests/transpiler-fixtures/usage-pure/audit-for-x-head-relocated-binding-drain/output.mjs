@@ -6,7 +6,7 @@ async function drain(source) {
     at,
     ...rest
   } of source) {
-    _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest, rest.extra);
+    (_pushMaybeArray(seen) || 0).call(seen, typeof at, 'at' in rest, rest.extra);
   }
 }
 export { seen };

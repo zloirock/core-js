@@ -52,6 +52,7 @@ import {
   nullGuardTest,
   nullFirstGuardTest,
   renderInExpressionPlan,
+  renderMethodCallMember,
   renderProxyReceiverPlan,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
@@ -687,20 +688,19 @@ export default function createAstUsagePureCallback({
   // the consume CORE: the helper call, and for the method form its `.call` dispatch -
   // a non-reusable receiver memoizes into the helper argument
   function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone, lookup = null }) {
+    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
     const receiverCore = unwrapRuntimeExpr(object);
     const receiver = receiverCore?.type === 'SequenceExpression' ? peelReceiverSequenceTail(receiverCore) : object;
-    if (methodCallConsume && !lookup && !isReusableReceiver(receiver, {
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-    })) {
+    if (methodCallConsume && !lookup && !isReusableReceiver(receiver, { ctx: receiverCtx })) {
       const recvRef = injector.generateDeclaredRef(metaPath);
-      return callExpression(memberExpression(
+      return callExpression(renderMethodCallMember(
         callExpression(identifier(id), [assignmentExpression('=', identifier(recvRef), receiverClone())]),
-        identifier('call'),
+        { args: callerPath.node.arguments, ctx: receiverCtx },
       ), [identifier(recvRef), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
     }
     let core = lookup ?? callExpression(identifier(id), [receiverClone()]);
     if (methodCallConsume) {
-      core = callExpression(memberExpression(core, identifier('call')),
+      core = callExpression(renderMethodCallMember(core, { args: callerPath.node.arguments, ctx: receiverCtx }),
         [cloneNode(receiver), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
     }
     return core;
@@ -712,8 +712,10 @@ export default function createAstUsagePureCallback({
     const guard = guardObject(object, metaPath, { interveningEffects: !!effects?.length });
     let guardedCore = callExpression(identifier(id), [guard.makeBase()]);
     if (methodCallConsume) {
-      guardedCore = callExpression(memberExpression(guardedCore, identifier('call')),
-        [guard.makeBase(), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
+      guardedCore = callExpression(renderMethodCallMember(guardedCore, {
+        args: callerPath.node.arguments, ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+      }),
+      [guard.makeBase(), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
     }
     const [check] = guard.disjuncts;
     // the split hands raw CHECKS - the spelling is the canon's, at the render boundary

@@ -23,6 +23,6 @@ for (const ctor of [Array, _Set]) {
 }
 // both spellings of one read agree - the member form was never gated on the binding's cloud
 for (const ctor of [Array, _Set]) {
-  _pushMaybeArray(seen).call(seen, _nameMaybeFunction(ctor), typeof (ctor === Array ? _Array$from : ctor.from));
+  (_pushMaybeArray(seen) || 0).call(seen, _nameMaybeFunction(ctor), typeof (ctor === Array ? _Array$from : ctor.from));
 }
 export { seen };

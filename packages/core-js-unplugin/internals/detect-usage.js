@@ -1,7 +1,12 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
 import { destructurePropLeafMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } from '@core-js/polyfill-provider/detect-usage/mutations';
+import {
+  beginMutationPrePass,
+  createDetectionAdapter,
+  heldPatternReadCollector,
+  mutationSiteVisitors,
+} from '@core-js/polyfill-provider/detect-usage/mutations';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
@@ -411,8 +416,9 @@ function hasRuntimeBinding(scope, name, path = null, read = null) {
 
 // the ONE scoped pre-pass walk (estree side): every registration that has to stand before the
 // usage pass meets a use rides it, and each lane brings its own cheap census gate - a file that
-// trips neither pays no walk at all. the mutation lane classifies its sites in place; the alias
-// lane only COLLECTS, because registration reads an injector this walk runs ahead of and has to
+// trips none pays no walk at all. The mutation lane classifies its sites in place; the held-read
+// lane collects property paths for scoped settlement. The alias lane only COLLECTS, because
+// registration reads an injector this walk runs ahead of and has to
 // stay behind the mutated-static enrichment that feeds it. shares every resolution step with the
 // read side via `mutations` (provider)
 export function collectPrePassSites({
@@ -429,16 +435,18 @@ export function collectPrePassSites({
   const wantsAliases = !!isDisabled
     && (census ? census.hasCtorAliasShapes : hasCtorAliasCandidateShapes(ast));
   const aliasSites = [];
-  if (!handleSite && !wantsAliases) return { mutated, aliasSites };
-  const siteVisitors = wantsAliases
+  const heldReads = collectMutations ? heldPatternReadCollector(census) : null;
+  if (!handleSite && !wantsAliases && !heldReads) return { mutated, aliasSites };
+  let siteVisitors = wantsAliases
     ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
-    : mutationSiteVisitors(handleSite);
+    : handleSite ? mutationSiteVisitors(handleSite) : {};
+  if (heldReads) siteVisitors = mergeVisitors(siteVisitors, { ObjectPattern: heldReads.ObjectPattern });
   traverse(ast, {
     $: { scope: true },
     ...siteVisitors,
   });
   finalize?.();
-  return { mutated, aliasSites };
+  return { mutated, aliasSites, heldReads };
 }
 
 // the ctor-alias lane's collectors: the destructure-of-global sites in document order, each
