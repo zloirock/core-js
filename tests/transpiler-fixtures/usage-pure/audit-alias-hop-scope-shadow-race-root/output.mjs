@@ -1,0 +1,4 @@
+import _Promise from "@core-js/pure/actual/promise/constructor";
+// A `var` hoists its NAME to the function scope, but its initializer still evaluates in the block it is written in: an init name
+// shadowed THERE must win, even though the use sits outside that block.
+const raceRoot = _Promise;

@@ -13,7 +13,7 @@ const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { parse: babelParse } = requireBabel('@babel/parser');
-const { transformSync } = requireBabel('@babel/core');
+const { transformAsync, transformSync } = requireBabel('@babel/core');
 const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
 import createASTHelpers, { cloneWriteTarget, rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
@@ -1636,7 +1636,7 @@ for (const [typed, call] of [[false, "events.push('hop')"], [true, "events.push(
 
 // These native runtime checks use fresh VM arrays and the actual pure helpers.
 for (const [fixture, needle, method, binding] of [
-  ['positional-read-inline-spread', 'toSpliced: viaIndexKey', 'toSpliced', 'viaIndexKey'],
+  ['positional-read-inline-spread-via-index-key', 'toSpliced: viaIndexKey', 'toSpliced', 'viaIndexKey'],
   ['bound-computed-key-under-a-hop-names-its-slot', 'const { [k]: { at: m } } = { ...spread', 'at', 'm'],
 ]) {
   const input = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
@@ -2031,6 +2031,28 @@ for (const [label, before, calls, guards] of [
       && node.test.operator === '===' && node.test.left.type === 'Identifier' && node.test.left.name === 'P') identityGuards++;
   });
   check(`conditional var alias/${ label }: runtime identity guards`, identityGuards, guards);
+}
+
+// A cast-wrapped pattern target is a write, while the same spelling in an object value or a
+// default initializer is a read. Keep imports observable without a sibling read masking them.
+for (const method of ['usage-global', 'usage-pure']) for (const createParenthesizedExpressions of [false, true]) {
+  for (const target of ['(array.at as any)', '(((array.at as any) as any))']) {
+    for (const [statement, reads] of [
+      [`({ p: ${ target } } = source);`, false],
+      [`({ p: ${ target } = fallback } = source);`, false],
+      [`use({ p: ${ target } });`, true],
+      [`({ p: binding = ${ target } } = source);`, true],
+    ]) {
+      const output = await transformAsync(`const array: number[] = []; ${ statement }`, {
+        configFile: false, babelrc: false, ast: true, code: false,
+        plugins: [[babelPlugin, { method, version: '4.0', targets: { ie: 11 } }]],
+        parserOpts: { plugins: ['typescript'], createParenthesizedExpressions },
+      });
+      const imports = output.ast.program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value);
+      check(`wrapped member target/${ method }/${ createParenthesizedExpressions }/${ statement }`,
+        imports.some(name => method === 'usage-global' ? name === 'core-js/modules/es.array.at' : name.endsWith('/at')), reads);
+    }
+  }
 }
 
 finish();

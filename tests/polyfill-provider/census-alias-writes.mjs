@@ -455,4 +455,17 @@ for (const parser of adapters) {
   check(`${ parser.name }/a namesake writes its own slot`, census.writtenContainerSlots.has(`${ key }.C`), false);
 }
 
+// A declaration without a recorded value still owns its aliases. An outer literal must not
+// turn a parameter's or catch binding's arbitrary key into a known static name.
+for (const parser of adapters) for (const kind of ['const', 'let', 'var']) for (const [name, code, unnamed] of [
+  ['parameter shadows a literal', "const key = 'name'; export function read(key) { const alias = key; return Array[alias]; }", true],
+  ['catch shadows a literal', "const key = 'name'; try { work(); } catch (key) { const alias = key; use(Array[alias]); }", true],
+  ['inner literal keeps its own value', "const key = 'name'; function read() { const key = 'of'; const alias = key; return Array[alias]; }", false],
+  ['outer alias ignores a parameter shadow', "const key = 'from'; const alias = key; export function read(key) { return Array[alias]; }", false],
+]) {
+  const program = parser.parseAndScope(code.replaceAll('const ', `${ kind } `));
+  const { escapedCtorNames } = collectFileCensus(program.node, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
+  check(`${ parser.name }/${ kind }/${ name }/unnamed static`, escapedCtorNames.readsUnnamedStatic('Array'), unnamed);
+}
+
 finish();

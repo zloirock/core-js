@@ -1,0 +1,2 @@
+const other = {};
+export { other };

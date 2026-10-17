@@ -1,0 +1,1 @@
+globalThis.RegExp = fake;

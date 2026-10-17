@@ -2004,7 +2004,7 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
       // Opaque provenance is not such a value: following its source below discovers any actual
       // substituted constructor without mistaking the head's own spelling for it.
       const realm = classifyRealm ? classifyRealm(leaf) : 'proven';
-      const substituted = realm === 'maybe' && aliasEntriesInScope(aliases?.get(name) ?? [], scopes)
+      const substituted = realm === 'maybe' && aliasEntriesInScope(aliases, name, scopes)
         .some(({ value }) => !value?.opaqueSource);
       if (realm === 'proven' || substituted) {
         ctorNames.add(name);
@@ -2102,8 +2102,10 @@ function entryOwnerIndex(entries) {
     // A write resolves only after the walk has collected every declaration, including hoisted
     // and valueless ones. Its target's evaluation region can differ from the surrounding body.
     const scopes = entry.target && aliasReferenceScopes(entry.aliases, entry.target);
-    const at = scopes ? ALIAS_SCOPE_FACTS.get(entry.aliases).declarations.resolve(entry.target.name, scopes) ?? null : entry.at;
-    if (at === null) unowned.push([ordinal, entry]);
+    let { at } = entry;
+    if (entry.target) at = scopes ? ALIAS_SCOPE_FACTS.get(entry.aliases).declarations.resolve(entry.target.name, scopes) : undefined;
+    // `null` owns a file-level var binding; only an unknown owner may reach every scope.
+    if (at === undefined) unowned.push([ordinal, entry]);
     else if (byOwner.has(at)) byOwner.get(at).push([ordinal, entry]);
     else byOwner.set(at, [[ordinal, entry]]);
   });
@@ -2128,10 +2130,13 @@ function innermostBindingScope(entries, scopes) {
 // both keep every value, which is the widening side the census owes. A recorded chain reaching
 // none of the declarations cannot read a namesake in another function. the two lists merge back
 // into recording order, the order a plain filter over the entries kept. a caller that resolved the
-// binding through the declarations passes it as `owner`: the innermost ENTRY owner is only a proxy
-// for it, blind to a shadow that records no value (a parameter), whose entries are none
-function aliasEntriesInScope(entries, scopes, owner = innermostBindingScope(entries, scopes)) {
+// binding through the declarations can pass it as `owner`; otherwise the declaration index owns
+// that lookup. Entry owners alone cannot see a shadow with no recorded value, such as a parameter
+function aliasEntriesInScope(aliases, name, scopes, owner) {
+  const entries = aliases?.get(name) ?? [];
   if (!scopes) return entries;
+  const declarations = ALIAS_SCOPE_FACTS.get(aliases)?.declarations;
+  if (owner === undefined) owner = declarations ? declarations.resolve(name, scopes) : innermostBindingScope(entries, scopes);
   const { byOwner, unowned, inScope } = entryOwnerIndex(entries);
   let merged = inScope.get(owner);
   if (merged) return merged;
@@ -2163,7 +2168,7 @@ function aliasReferenceScopes(aliases, node) {
 function aliasBindingKey(aliases, name, scopes) {
   if (!scopes) return name;
   const facts = ALIAS_SCOPE_FACTS.get(aliases);
-  const owner = facts.declarations?.resolve(name, scopes) ?? innermostBindingScope(aliases?.get(name), scopes);
+  const owner = facts.declarations ? facts.declarations.resolve(name, scopes) : innermostBindingScope(aliases?.get(name), scopes);
   return `${ name }\u0000${ scopeId(facts.scopeIds, owner) }`;
 }
 
@@ -2253,7 +2258,7 @@ function computeStoredValues(aliases, name, seen, slots, scopes) {
   const censusKey = ALIAS_SCOPE_FACTS.get(aliases)?.censusKey ?? null;
   const ctx = { preservesBody: true, readsThrough: true, pairedSources: expandedSources, resolveKey: censusKey };
   // the graph is a per-program record: a program this census never walked stores none
-  for (const { value: entry } of aliasEntriesInScope(aliases?.get(name) ?? [], scopes)) {
+  for (const { value: entry } of aliasEntriesInScope(aliases, name, scopes)) {
     if (entry.type || entry.opaqueSource) out.push(entry);
     else for (const source of aliasedValues(aliases, entry.source, seen)) {
       if (source.opaqueSource) {
@@ -2574,7 +2579,7 @@ function aliasPathsOf(aliases, name, scopes, seen = new Set()) {
   if (seen.has(name)) return null;
   seen.add(name);
   const paths = [];
-  for (const { value, paired } of aliasEntriesInScope(aliases.get(name) ?? [], scopes)) {
+  for (const { value, paired } of aliasEntriesInScope(aliases, name, scopes)) {
     const held = value?.type ? unwrapRuntimeExpr(installedWriteValue(value)) : null;
     let inner = null;
     if (paired) inner = null;
@@ -3794,7 +3799,7 @@ export function escapedCtorReferencesReducer() {
   // way the language does: an inner shadow's value belongs to the inner scope alone, and answering
   // by spelling handed the outer binding's value to a leaf that never reaches it. A write carries
   // its target instead: the completed declaration index resolves its owner on the first query.
-  function recordAliasInit(name, value, at = null, target = null) {
+  function recordAliasInit(name, value, at, target = null) {
     let values = aliasInit.get(name);
     if (!values) aliasInit.set(name, values = []);
     values.push({ at, value, target, aliases: target ? aliasInit : null, paired: walked });
@@ -3918,7 +3923,7 @@ export function escapedCtorReferencesReducer() {
 
   // A plain binding holds the installed value; a destructured one holds its paired slot. Keep the
   // pattern beside that value so the canonical reader answers the pairing once the source resolves.
-  function recordPatternAlias(pattern, source, at = null, assignment = false) {
+  function recordPatternAlias(pattern, source, at, assignment = false) {
     source = installedWriteValue(source);
     if (isDestructurePattern(pattern) && source) {
       patternReceiverSlotNodes(pattern, source, null, { preservesBody: true, restSources, restValues });
@@ -5391,7 +5396,7 @@ function localCallableOf(name, scopes, localCallables, scopeFacts) {
 // static the class body defines, which the write replaces only from where it runs
 function ownerMethodWrite(owner, member, scopeFacts) {
   const scopes = scopeFacts.referenceScopes.get(owner) ?? [];
-  const values = aliasEntriesInScope(scopeFacts.aliases.get(owner.name) ?? [], scopes);
+  const values = aliasEntriesInScope(scopeFacts.aliases, owner.name, scopes);
   const container = values.length === 1 ? unwrapRuntimeExpr(values[0].value) : null;
   if (!FUNCTION_LIKE_NODE_TYPES.has(container?.type) && !CLASS_NODE_TYPES.has(container?.type)) return null;
   const key = memberKeyName(member);
@@ -5413,7 +5418,7 @@ function heldOwner(value, scopeFacts) {
     const scopes = scopeFacts.referenceScopes.get(owner) ?? [];
     const held = scopeFacts.declarations.resolve(owner.name, scopes);
     if (held) links.push([owner.name, held]);
-    const heldValues = held ? aliasEntriesInScope(scopeFacts.aliases.get(owner.name) ?? [], scopes, held) : [];
+    const heldValues = held ? aliasEntriesInScope(scopeFacts.aliases, owner.name, scopes, held) : [];
     owner = heldValues.length === 1 ? unwrapRuntimeExpr(heldValues[0].value) : null;
   }
   const answer = { owner, links };
@@ -5520,7 +5525,7 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
       continue;
     }
     if (!binding) return finish(null);
-    const values = aliasEntriesInScope(scopeFacts.aliases.get(owner.name) ?? [], ownerScopes, binding);
+    const values = aliasEntriesInScope(scopeFacts.aliases, owner.name, ownerScopes, binding);
     const held = values.length === 1 ? heldOwner(unwrapRuntimeExpr(values[0].value), scopeFacts) : null;
     const chain = [[owner.name, binding], ...held?.links ?? []];
     // ... a literal's method is opened by any read or write of a binding on the way to it, a class's static by a

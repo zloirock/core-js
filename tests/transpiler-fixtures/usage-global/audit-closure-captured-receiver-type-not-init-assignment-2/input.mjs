@@ -1,0 +1,2 @@
+let staticField = null;
+staticField = [];

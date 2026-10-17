@@ -1,0 +1,11 @@
+import "core-js/modules/es.array.of";
+import "core-js/modules/es.global-this";
+// A receiver-bearing default supplies a ponyfill only when its source slot is undefined.
+// A live supplied slot keeps the corresponding native destructuring read.
+function use() {/* empty */}
+const {
+  Array: {
+    of
+  } = {}
+} = globalThis;
+use(of);
