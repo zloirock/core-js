@@ -1,0 +1,1 @@
+Promise.allSettled = asPatch;

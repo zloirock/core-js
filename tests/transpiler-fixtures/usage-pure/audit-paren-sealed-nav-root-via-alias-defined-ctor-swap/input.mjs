@@ -1,0 +1,6 @@
+// ALIAS-rooted probe navs ride the same canon with the alias identifier kept verbatim in
+// the guard test; a DEFINED alias nav keeps the hop-drop / ctor-swap collapses
+const gAlias = globalThis;
+let cb = 0;
+export const viaAliasDefinedCtorSwap = (cb++, gAlias).self.Map;
+export { cb };

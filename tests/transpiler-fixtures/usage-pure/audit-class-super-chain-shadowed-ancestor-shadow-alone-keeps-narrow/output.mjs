@@ -1,0 +1,13 @@
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+class Bare {}
+class Plain extends Bare {}
+// the same shadow, but no ancestor static exists to extract: nothing can rebind `this`, so the
+// narrow is CORRECT and must survive - the array `includes` leg alone
+export function shadowAloneKeepsNarrow() {
+  var _ref;
+  class Bare {}
+  class Sub extends Plain {
+    static items = [1, 2, 3];
+  }
+  return _includesMaybeArray(_ref = Sub.items).call(_ref, "x");
+}

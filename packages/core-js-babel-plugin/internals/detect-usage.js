@@ -24,6 +24,7 @@ import {
   isAssignOrForXWriteTargetPath,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
+  climbTransparentWrapperPath,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   buildOwnerWritePathIndex,
@@ -873,14 +874,14 @@ export function createUsageVisitors({
   }
 
   function handleMemberExpression(path) {
-    const { node, parent } = path;
     // this emitter mutates the AST and has no text-span collision, so a hop the detector
     // recorded as still-live gets its render driven through the core's suppressed-hop callback
     if (core.memberAlreadyHandled(path)) return;
     // a proxy-named hop inside an assignment a QUEUED kept-nav plan owns: its claim would
     // detach the nodes the deferred flush renders from - the plan spells the whole value
     if (suppressKeptNavHop?.(path)) return;
-    if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
+    const anchor = climbTransparentWrapperPath(path);
+    if (isMemberWriteOnlyContext(anchor.node, anchor.parentPath?.node, anchor.parentPath?.parent)) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
       // intent); a deliberate override's receiver follows the SAME identifier routing the
       // reads use, so the patch and the reads land on one object - no marking there
