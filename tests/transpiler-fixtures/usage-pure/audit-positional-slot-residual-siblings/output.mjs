@@ -2,8 +2,10 @@ import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Object$assign from "@core-js/pure/actual/object/assign";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
+var _ref9, _ref10;
 // an array-wrapped claim one level down binds through a captured element: the residual re-emits the
 // named siblings beside the claim - a numeric key included - in the place the source's nesting reads
 // them, what stands before the hop before it and what stands after it after the inner level. a rest
@@ -46,17 +48,18 @@ const {
   extra: extra2,
   0: first
 } = _ref6;
-const [{
-  y: {
-    [_Symbol$iterator]: it,
+const [_ref7] = pair,
+  {
+    y: _ref8
+  } = _ref7,
+  it = _getIteratorMethod(_ref8),
+  {
     extra: extra3
-  }
-}] = pair;
+  } = _ref8;
 let viaAssign, keptAssign;
-[{
-  y: {
-    includes: viaAssign,
-    keep: keptAssign
-  }
-}] = pair;
+[_ref9] = pair, {
+  y: _ref10
+} = _ref9, viaAssign = _includesMaybeArray(_ref10), {
+  keep: keptAssign
+} = _ref10;
 export { at, rest, flat, extra, concat, keep, leadKeep, findLastIndex, findLast, extra2, first, it, extra3, viaAssign, keptAssign };

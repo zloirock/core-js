@@ -188,11 +188,11 @@ function mark(t, v) {
   s(z);
 }
 {
-  const _ref5 = c ? a1 : a2,
-    s = null == _ref5 ? _ref5[""] : (k(), _at(_ref5)),
+  const {} = a1,
+    s = (k(), _at(a1)),
     {
       z
-    } = _ref5,
+    } = a1,
     q = 2;
   s(z, q);
 }
@@ -205,11 +205,11 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const _ref6 = eff().constructor.prototype,
-    s = null == _ref6 ? _ref6[""] : (k(), _at(_ref6)),
+  const _ref5 = eff().constructor.prototype,
+    s = null == _ref5 ? _ref5[""] : (k(), _at(_ref5)),
     {
       z
-    } = _ref6,
+    } = _ref5,
     q = 2;
   s(z, q);
 }
@@ -221,45 +221,45 @@ function mark(t, v) {
   s(z);
 }
 {
-  const _ref7 = _globalThis.Array.prototype,
-    s = (k(), _atMaybeArray(_ref7)),
+  const _ref6 = _globalThis.Array.prototype,
+    s = (k(), _atMaybeArray(_ref6)),
     {
       z
-    } = _ref7,
+    } = _ref6,
     q = 2;
   s(z, q);
 }
 {
-  const _ref8 = _globalThis.Array.prototype,
-    s = (k(), _atMaybeArray(_ref8)),
+  const _ref7 = _globalThis.Array.prototype,
+    s = (k(), _atMaybeArray(_ref7)),
     {
       z
-    } = _ref8;
+    } = _ref7;
   s(z);
+}
+{
+  const _ref8 = holder.p,
+    s = null == _ref8 ? _ref8[""] : (k(), _at(_ref8)),
+    {
+      z
+    } = _ref8,
+    q = 2;
+  s(z, q);
 }
 {
   const _ref9 = holder.p,
     s = null == _ref9 ? _ref9[""] : (k(), _at(_ref9)),
     {
       z
-    } = _ref9,
-    q = 2;
-  s(z, q);
-}
-{
-  const _ref10 = holder.p,
-    s = null == _ref10 ? _ref10[""] : (k(), _at(_ref10)),
-    {
-      z
-    } = _ref10;
+    } = _ref9;
   s(z);
 }
 {
-  const _ref11 = _self.Array.prototype,
-    s = (k(), _atMaybeArray(_ref11)),
+  const _ref10 = _self.Array.prototype,
+    s = (k(), _atMaybeArray(_ref10)),
     {
       z
-    } = _ref11;
+    } = _ref10;
   s(z);
 }
 {
@@ -278,11 +278,11 @@ function mark(t, v) {
   v(w);
 }
 {
-  const _ref12 = _globalThis.Object,
+  const _ref11 = _globalThis.Object,
     fr = (k(), _Object$freeze),
     {
       z
-    } = _ref12;
+    } = _ref11;
   fr(z);
 }
 {
@@ -298,14 +298,14 @@ function mark(t, v) {
   use(a, m);
 }
 {
-  const _ref13 = {
+  const _ref12 = {
     a: g(),
     w: obj.p
   };
   const {
     a
-  } = _ref13;
-  const m = _at(_ref13.w);
+  } = _ref12;
+  const m = _at(_ref12.w);
   use(a, m);
 }
 {

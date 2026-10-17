@@ -515,7 +515,7 @@ export function isPolyfillableOptional({
   // undefined - save a read the substitution serves (`isDeoptedStaticRead`). no adapter outside
   // usage-pure answers a static mutated, so this never changes global-mode deopts
   return !isDeoptedStaticRead({
-    meta: { kind: 'property', object: staticHost, key: memberKey },
+    meta: { kind: 'property', object: staticHost, key: memberKey, placement: 'static' },
     adapter,
     path,
     read: path && { node: member, path },

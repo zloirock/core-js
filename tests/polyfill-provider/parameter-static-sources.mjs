@@ -2,10 +2,39 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
-import { staticContainerReceiverName, buildParameterArgumentSynthPlan, collectMemberUnionCandidates } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  staticContainerReceiverName,
+  buildParameterArgumentSynthPlan,
+  buildDestructureLeafMeta,
+  classifyDestructureLeafHost,
+  collectMemberUnionCandidates,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { adapters, createChecker } from './harness.mjs';
 
 const { check, finish } = createChecker('parameter-static-sources');
+
+// Open callers carry no static proof, but both methods owe an instance claim for the key.
+// Pure dispatches on the actual incoming receiver and preserves its own undefined properties.
+for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
+  for (const [name, source] of [
+    ['export', 'export function read({ at }) { return at; }'],
+    ['escape', 'function read({ at }) { return at; } hand(read);'],
+    ['callback', 'subscribe(({ at }) => at);'],
+    ['unknown invoker', 'function read({ at }) { return at; } invoke(read, foreign);'],
+  ]) {
+    const program = parser.parseAndScope(source);
+    const objectPattern = parser.pickPath(program, 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const meta = buildDestructureLeafMeta({
+      descriptor: classifyDestructureLeafHost({ objectPattern }), key: 'at', adapter,
+      parameterCallSites: parser.makeResolver().parameterCallSites,
+    });
+    const label = `${ parser.name }/${ method }/instance ${ name }`;
+    check(`${ label } claim`, meta?.kind ?? null, 'property');
+    check(`${ label } has no static receiver`, meta?.object, null);
+    check(`${ label } retains the key`, meta?.key, 'at');
+  }
+}
 
 for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
   for (const [name, setup, argument, expected, after = ''] of [

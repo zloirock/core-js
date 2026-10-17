@@ -11,12 +11,12 @@ import _Set from "@core-js/pure/actual/set/constructor";
 function viaTernary(c) {
   let M;
   c ? (M = _Map, _globalThis) : 0;
-  return typeof (M === _Map ? _Map$groupBy : M.groupBy);
+  return typeof _Map$groupBy;
 }
 function viaLogical(c) {
   let P;
   c && (P = _Promise, _globalThis);
-  return typeof (P === _Promise ? _Promise$try : P.try);
+  return typeof _Promise$try;
 }
 let S;
 const w = () => (S = _Set, _globalThis);

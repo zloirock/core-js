@@ -1,5 +1,5 @@
-// the param-default / IIFE-arg instance synth types its receiver off the PEELED path, so a TS cast
-// on the receiver cannot force a type-specific instance helper onto a value of another runtime type
+// A receiver assertion supplies the String family for an otherwise unknown value.
+// Parameter defaults and IIFE arguments retain that annotation at the extraction site.
 function f({ at } = x as string) {
   return at;
 }

@@ -26,7 +26,7 @@
 //
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
-import { MAX_DEPTH, $Object, $Primitive, dropLeadingThisParam, nodePathInScope } from './base.js';
+import { MAX_DEPTH, $Object, $Primitive, canonicalArrayIndex, dropLeadingThisParam, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments,
   isMethodShapeMember,
@@ -37,12 +37,16 @@ import {
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
+  arrayLiteralSlotValue,
+  bindingLoopAnchor,
   calleeYieldedContainer,
   getTypeArgs,
   isDestructurePattern,
   isMemberWriteHost,
+  isReassignedBeyondDeclarator,
   memberKeyName,
   nodeHoldsChild,
+  noReassignmentReachesUsage,
   peelSkippableWrapperPath,
   peelTransparentWrapperPath,
   unwrapRuntimeExpr,
@@ -101,6 +105,8 @@ export function createMemberResolve({
   resolveRuntimeExpression,
   resolveInnerType,
   collectBindingReferences,
+  computeObjectAliasClosure,
+  objectBindingName,
   resolveThisObject,
   resolveObjectFieldFlow,
   walkObjectLiteralPropertyPath,
@@ -929,9 +935,9 @@ export function createMemberResolve({
   }
 
   // arr[0], arr[1] - numeric index access on array literals
-  // element-type precision follows the initializer or a single dominating element assignment.
+  // element-type precision follows the initializer or the final dominating element assignment.
   // Other writers between creation and the read - a mutating method
-  // (`a.unshift(v)` / `a.fill(v)`) or an escape of the binding (call argument, alias,
+  // (`a.unshift(v)` / `a.fill(v)`) or an escape of the binding (call argument, untracked alias,
   // spread - the holder may write elements) invalidate it. whitelist: a reference is safe
   // only as a member-access READ off the binding with a non-mutating key. the object-field
   // twin consults its external-write fold the same way; destructure-time element reads
@@ -951,6 +957,9 @@ export function createMemberResolve({
   // may read any element, but never a value the literal did not spell (`permutes`)
   const ELEMENT_PERMUTING_METHODS = new Set(['copyWithin', 'pop', 'reverse', 'shift', 'sort']);
 
+  // A cached reference keeps its source call role when a rewrite clones its receiver into a helper.
+  const arrayMemberCallRoles = new WeakMap();
+
   // descend a member chain to the identifier it is rooted at; anything else returns as-is
   function memberChainRootPath(path) {
     let cur = path;
@@ -964,7 +973,9 @@ export function createMemberResolve({
   // element hold at all. a permuting mutator is admitted there and records its key, and a destructure
   // of the binding - which copies elements out and puts none back - reads like any other read.
   // `followed` is the reference an alias read reached this binding through (`aliasedElementsMayBeRetyped`)
-  function arrayElementsMayBeRetyped(objectPath, anchorPath, { elementWrites = null, permutes = null, followed = null } = {}) {
+  function arrayElementsMayBeRetyped(objectPath, anchorPath, {
+    elementWrites = null, permutes = null, followed = null, literalPath = null,
+  } = {}) {
     // a receiver that is a STORED SLOT rather than a binding (`o.xs[0]`) is UNKNOWN, not clean: this
     // walk enumerates a binding's references and finds nothing for a member path, so answering "no
     // retype" kept the element narrow over writes nobody looked for - `o.xs[0] = "abc"` then
@@ -982,11 +993,21 @@ export function createMemberResolve({
     if (!t.isIdentifier(objectPath?.node)) return false;
     const binding = getScopeBinding({ scope: objectPath.scope, name: objectPath.node.name, path: objectPath });
     if (!binding) return true;
-    const references = collectBindingReferences(binding, anchorPath);
+    let references = collectBindingReferences(binding, anchorPath);
+    const sourceName = elementWrites && objectBindingName(literalPath);
+    const sourceBinding = sourceName && getScopeBinding({ scope: literalPath.scope, name: sourceName, path: literalPath });
+    if (sourceName && !sourceBinding) return true;
+    const lifetimeBinding = sourceBinding || binding;
+    const hasAlias = elementWrites && (sourceBinding && sourceBinding !== binding || references?.some(ref => ref.parentPath?.node?.type
+      === 'VariableDeclarator' && ref.parentPath.node.init === ref.node && t.isIdentifier(ref.parentPath.node.id)));
+    // Ordinary element reads keep the original reference fast path; named aliases share the cached closure.
+    const closure = hasAlias && sourceBinding ? computeObjectAliasClosure(literalPath) : null;
+    if (hasAlias && (!closure || closure.keys().some(alias => alias !== binding && isReassignedBeyondDeclarator(alias)))) return true;
+    if (closure) references = closure.keys().flatMap(alias => collectBindingReferences(alias, anchorPath) ?? [null]).toArray();
     // a null reference set is "could not be enumerated", the opposite verdict from an empty one:
     // a retyping write may exist and simply be out of reach. reading it as "no references" kept
     // the element narrow alive over writes nobody looked at
-    if (!references) return true;
+    if (!references || references.includes(null)) return true;
     for (const ref of references) {
       if (ref.node === followed) continue;
       const member = ref.parentPath;
@@ -1016,6 +1037,8 @@ export function createMemberResolve({
         && memberNode.right === ref.node && isDestructurePattern(memberNode.left)))) continue;
       const isMemberRead = (memberNode?.type === 'MemberExpression' || memberNode?.type === 'OptionalMemberExpression')
         && memberNode.object === ref.node;
+      if (closure && memberNode?.type === 'VariableDeclarator' && memberNode.init === ref.node
+        && t.isIdentifier(memberNode.id)) continue;
       if (!isMemberRead) return true;
       if (isMemberWriteHost(member)) {
         const write = member.parentPath;
@@ -1023,8 +1046,17 @@ export function createMemberResolve({
         // escapes still veto it; the caller proves that the collected write reaches the read.
         if (!elementWrites || binding.constantViolations?.length
           || write?.node.type !== 'AssignmentExpression' || write.node.operator !== '='
-          || write.node.left !== memberNode || memberKeyName(memberNode) !== memberKeyName(anchorPath.node)) return true;
-        elementWrites.push(write);
+          || write.node.left !== memberNode) return true;
+        const writtenIndex = canonicalArrayIndex(memberKeyName(memberNode));
+        if (writtenIndex !== null && writtenIndex !== canonicalArrayIndex(memberKeyName(anchorPath.node))
+          && arrayLiteralSlotValue(literalPath?.node, writtenIndex)
+          && literalPath.node.elements.slice(0, writtenIndex + 1).every(element => element?.type !== 'SpreadElement')) continue;
+        if (memberKeyName(memberNode) !== memberKeyName(anchorPath.node)) return true;
+        if (!noReassignmentReachesUsage({
+          reassignmentNodes: [write.node], usagePath: anchorPath,
+          bindingScopeNode: lifetimeBinding.scope?.block ?? lifetimeBinding.scope?.path?.node,
+          bindingAnchor: bindingLoopAnchor(lifetimeBinding),
+        })) elementWrites.push(write);
         continue;
       }
       // the write may sit further UP the chain than this hop: from a reference to `o`, the element
@@ -1054,12 +1086,14 @@ export function createMemberResolve({
       // `use(a.includes)` rewires to `use(_includesMaybeArray(a))`, and reading that as a call
       // kept the element narrow over the extraction the branch below exists to bail on. a
       // parent the parser gave no position keeps the permissive verdict
-      const ledParent = !Number.isInteger(parentOfMember?.start) || !Number.isInteger(memberNode?.start)
-        || parentOfMember.start === memberNode.start;
-      const rewiredParent = !calleeOfParent && parentOfMember && ledParent
+      const rewiredParent = !calleeOfParent && parentOfMember
+        && (!Number.isInteger(parentOfMember.start) || !Number.isInteger(memberNode.start)
+          || parentOfMember.start === memberNode.start)
         && !nodeHoldsChild(parentOfMember, memberNode);
+      const callsMember = arrayMemberCallRoles.get(memberNode) ?? Boolean(calleeOfParent || rewiredParent);
+      arrayMemberCallRoles.set(memberNode, callsMember);
       const key = memberKeyName(memberNode);
-      if (calleeOfParent || rewiredParent) {
+      if (callsMember) {
         if (permutes && ELEMENT_PERMUTING_METHODS.has(key)) permutes.push(key);
         else if (key === null || key === undefined || !ELEMENT_SAFE_METHODS.has(key)) return true;
       } else if (key !== null && key !== undefined && Object.hasOwn(ARRAY_METHOD_HINTS, key)) {
@@ -1092,18 +1126,20 @@ export function createMemberResolve({
     const hops = [];
     const objectPath = resolveRuntimeExpression(rawObject, hops);
     const elementWrites = t.isIdentifier(rawObject.node) && t.isArrayExpression(objectPath.node) ? [] : null;
-    if (arrayElementsMayBeRetyped(rawObject, path, { elementWrites }) || aliasedElementsMayBeRetyped(hops, path)) return null;
+    if (arrayElementsMayBeRetyped(rawObject, path, { elementWrites, literalPath: objectPath })
+      || (!elementWrites || !objectBindingName(objectPath)) && aliasedElementsMayBeRetyped(hops, path)) return null;
     // a write in an arm the build never takes is no write (`writeNeverRuns`), and one in an arm it
     // always takes is unconditional (the dominance ask's adapter)
     const adapter = getDecisionAdapter();
     const liveWrites = elementWrites?.filter(write => !writeNeverRuns({ write, usagePath: path, adapter }));
     if (liveWrites?.length) {
-      // A single observed write must precede and dominate this read. Multiple writes,
-      // deferred execution and conditional replacement keep the element type unknown.
-      const [write] = liveWrites;
-      return liveWrites.length === 1 && provablyPrecedes(write.node, path.node)
+      const write = liveWrites.reduce((last, next) => next.node.end > last.node.end ? next : last);
+      // A dominating final write replaces earlier writers only when they run in this activation before it.
+      return provablyPrecedes(write.node, path.node)
         && reassignmentDominatesUsage({ reassignmentNodes: [write.node], usagePath: path, adapter })
-        ? resolveNodeType(write.get('right')) : null;
+        && liveWrites.every(other => other === write || noReassignmentReachesUsage({
+          reassignmentNodes: [write.node], usagePath: other,
+        })) ? resolveNodeType(write.get('right')) : null;
     }
     if (t.isArrayExpression(objectPath.node)) return resolveArrayLiteralElement(objectPath, index);
     // a receiver whose RESOLVED type carries an element type (a rest-slice, an inner-typed

@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-var _ref, _ref2, _ref4, _ref5;
+var _ref, _ref3, _ref4;
 // an EFFECT-bearing SLOT of a nested receiver is served because the residual it would have needed is
 // DROPPED: what that residual would have evaluated, the dispatch evaluates instead, exactly once
 const arr = [3, [1, 2]];
@@ -16,35 +16,28 @@ viaAssignCall = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 }];
 viaAssignWrap = _atMaybeArray(_ref.y);
 if (1) viaAssignBodyless = _atMaybeArray(_flatMaybeArray(arr).call(arr));
-// ... and it stands down wherever a reader SURVIVES the slot - a sibling binding, a second
-// effect-bearing part of the init the dispatch does not spell - where the literal is captured once
-// and the claim reads the slot off the capture; a sibling KEY off the same receiver instead reads
-// the slot's memo, which the claim reads too - the slot still evaluates once
+// A quiet sibling value can follow its claim directly. A second effectful initializer remains
+// evaluated before either slot is read. A sibling key sharing the claimed receiver keeps
+// that receiver available to both reads.
 let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
-_ref2 = {
-  y: _flatMaybeArray(arr).call(arr),
-  o: 1
-};
-keptSibling = _atMaybeArray(_ref2.y);
-({
-  o: keptOther
-} = _ref2);
-const _ref3 = _flatMaybeArray(arr).call(arr);
-keptKey = _atMaybeArray(_ref3);
+keptSibling = _atMaybeArray(_flatMaybeArray(arr).call(arr));
+keptOther = 1;
+const _ref2 = _flatMaybeArray(arr).call(arr);
+keptKey = _atMaybeArray(_ref2);
 ({
   length: keptLen
-} = _ref3);
-_ref4 = {
+} = _ref2);
+_ref3 = {
   y: _flatMaybeArray(arr).call(arr),
   z: _flatMaybeArray(arr).call(arr)
 };
-twoEffects = _atMaybeArray(_ref4.y);
+twoEffects = _atMaybeArray(_ref3.y);
 ({
   z: twoEffectsZ
-} = _ref4); // A sequence in the source element runs its prefix once before the method read.
+} = _ref3); // A sequence in the source element runs its prefix once before the method read.
 let out, seqElement;
-[_ref5] = [_flatMaybeArray((out = 1, arr)).call(arr)];
-seqElement = _atMaybeArray(_ref5);
+[_ref4] = [_flatMaybeArray((out = 1, arr)).call(arr)];
+seqElement = _atMaybeArray(_ref4);
 // A discarded assignment inside a sequence keeps its own source read before the final value.
 let viaSeqElement, seqTail;
 seqTail = (viaSeqElement = _atMaybeArray(_flatMaybeArray(arr).call(arr)), 5);

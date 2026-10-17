@@ -49,7 +49,7 @@ function mark(t, v) {
       y: {
         at: a
       }
-    }]) => a)([nb]);
+    }]) => a)([...[nb]]);
   }
 }
 {
@@ -217,9 +217,9 @@ function mark(t, v) {
 {
   const r = (([{
     at
-  }]) => at)([{
+  }]) => at)([...[{
     at: _atMaybeArray([1, 2])
-  }]);
+  }]]);
 }
 {
   const r = (([{
@@ -250,7 +250,9 @@ function mark(t, v) {
 {
   const r = (([{
     at
-  }]) => at)([_globalThis.Array.prototype]);
+  }]) => at)([{
+    at: _atMaybeArray(_globalThis.Array.prototype)
+  }]);
 }
 {
   const r = (([{

@@ -61,6 +61,7 @@ export function createReturnType({
   resolveNodeType,
   resolvePath,
   resolveInnerType,
+  resolveRuntimeIterableElement,
   resolveTypeAnnotation,
   substituteTypeParams,
   generatorTypeParams,
@@ -78,6 +79,7 @@ export function createReturnType({
   resolveObjectMemberPath,
   walkObjectLiteralPropertyPath,
   decidedLiveKey,
+  isMutatedStatic = () => false,
 }) {
   // sidecar map (typeParamMap -> paramName -> arg NodePath) so indexed-access resolution
   // can inspect the actual call arg - the declared constraint is usually broader.
@@ -99,7 +101,7 @@ export function createReturnType({
   // `buildTypeParamMap`'s phase-1 direct/rest paths
   function resolveCallArgType(arg) {
     return arg.node?.type === 'SpreadElement'
-      ? resolveInnerType(resolveNodeType(arg.get('argument')))
+      ? resolveRuntimeIterableElement(arg.get('argument'))
       : resolveNodeType(arg);
   }
 
@@ -111,10 +113,11 @@ export function createReturnType({
     // dual index: align `args` on the this-dropped `argIndex`, keep the raw `i` for the AST params
     // path (the AssignmentPattern default lookup below)
     const argIndex = argIndexForParam(fnPath.node.params, i);
-    const length = effectiveArgsLength(args.map(a => a.node));
-    if (length === null) return null;
-    if (argIndex < length) {
-      const arg = positionalPathAt(args, argIndex);
+    const nodes = args.map(a => a.node);
+    const arg = positionalPathAt(args, argIndex, isMutatedStatic);
+    const length = effectiveArgsLength(nodes, isMutatedStatic);
+    if (length === null && !arg) return null;
+    if (arg || argIndex < length) {
       const type = arg ? resolveCallArgType(arg) : null;
       if (unionHints) {
         if (!arg) return null;
@@ -147,26 +150,25 @@ export function createReturnType({
     // dual index, like resolveDirectParam: `argIndex` aligns the call args past a leading `this`, raw
     // `i` keeps the AST `params` path on the real slot
     const argIndex = argIndexForParam(fnPath.node.params, i);
-    const length = effectiveArgsLength(args.map(a => a.node));
-    if (length === null) return null;
-    if (argIndex < length) {
-      const arg = positionalPathAt(args, argIndex);
-      if (param.type !== 'AssignmentPattern' || !arg || resolveCallArgType(arg)?.type !== 'undefined') {
-        // A plain one-field pattern captures a fresh data slot before the callee body
-        // can mutate its argument. No sibling getter, key/default work or prototype install
-        // can replace that slot on this shape; other arguments keep the closure proof.
-        const pattern = patternSlotTarget(param);
-        const literal = arg && peelSkippableWrapperPath(arg);
-        const property = pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
+    const nodes = args.map(a => a.node);
+    const arg = positionalPathAt(args, argIndex, isMutatedStatic);
+    const length = effectiveArgsLength(nodes, isMutatedStatic);
+    if (length === null && !arg) return null;
+    if ((arg || argIndex < length) && (param.type !== 'AssignmentPattern' || !arg || resolveCallArgType(arg)?.type !== 'undefined')) {
+      // A plain one-field pattern captures a fresh data slot before the callee body
+      // can mutate its argument. No sibling getter, key/default work or prototype install
+      // can replace that slot on this shape; other arguments keep the closure proof.
+      const pattern = patternSlotTarget(param);
+      const literal = arg && peelSkippableWrapperPath(arg);
+      const property = pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
           ? pattern.properties[0] : null;
-        if (unionHints && keyPath.length === 1 && property && !property.computed && property.value?.type === 'Identifier'
+      if (unionHints && keyPath.length === 1 && property && !property.computed && property.value?.type === 'Identifier'
           && t.isObjectExpression(literal?.node) && literal.node.properties.length === 1
           && t.isObjectProperty(literal.node.properties[0]) && !propertyInstallsPrototype(literal.node.properties[0])) {
-          const value = walkObjectLiteralPropertyPath(literal, keyPath[0]);
-          return value ? mergeArmHints([value], 0) : null;
-        }
-        return arg ? resolveDestructuredMember(arg, keyPath, unionHints) : null;
+        const value = walkObjectLiteralPropertyPath(literal, keyPath[0]);
+        return value ? mergeArmHints([value], 0) : null;
       }
+      return arg ? resolveDestructuredMember(arg, keyPath, unionHints) : null;
     }
     if (param.type === 'AssignmentPattern') {
       return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath, null, unionHints);
@@ -232,7 +234,7 @@ export function createReturnType({
     // the slot itself is the shared rule's (a spread no position survives, an `undefined` / `void`
     // argument that runs the default - narrowing to it would drop the polyfill)
     return argumentOverridesSlot(args, argIndexForParam(fnPath.node.params, found.index),
-      () => !!getScopeBinding({ scope: callPath.scope, name: 'undefined' }));
+      () => !!getScopeBinding({ scope: callPath.scope, name: 'undefined' }), isMutatedStatic);
   }
 
   // resolve expression type within a function body, with fallback to call-site parameter inference
@@ -573,7 +575,8 @@ export function createReturnType({
     // phase-0 explicit type-args that were PRESENT but unresolvable: they bind opaque after
     // phase 1 unless the arg inference recovered a concrete type
     // phase 1: match param annotations against type parameter names
-    for (let i = 0; i < params.length && i < args.length; i++) {
+    const inferredLength = Math.min(params.length, args.length);
+    for (let i = 0; i < inferredLength; i++) {
       const { param, isRest } = effectiveParam(params[i]);
       const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
       if (!paramAnnotation) continue;
@@ -619,7 +622,8 @@ export function createReturnType({
     for (const name of typeParamNames) {
       if (typeParamMap.has(name)) continue;
       const singleName = new Set([name]);
-      for (let i = 0; i < params.length && i < args.length; i++) {
+      const suppliedLength = Math.min(params.length, args.length);
+      for (let i = 0; i < suppliedLength; i++) {
         if (!hasParamTypeRef(effectiveParam(params[i]).param, singleName, 0)) continue;
         typeParamMap.set(name, null);
         break;

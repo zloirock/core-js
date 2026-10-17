@@ -122,8 +122,7 @@ let counted = 0;
 let seTarget;
 class AssignSeKey extends Array {
   static m() {
-    var _ref;
-    _ref = this, null == _ref ? _ref[""] : (counted++, seTarget = _Array$of);
+    ({} = this), counted++, seTarget = _Array$of;
     return seTarget;
   }
 }
@@ -171,8 +170,8 @@ export const viaComputedShadow = ComputedShadow.m();
 let ticks = 0;
 class SeKeyDecl extends Array {
   static m() {
-    const _ref2 = this,
-      o = null == _ref2 ? _ref2[""] : (ticks++, _Array$of);
+    const _ref = this,
+      o = null == _ref ? _ref[""] : (ticks++, _Array$of);
     return o;
   }
 }

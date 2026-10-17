@@ -8,6 +8,7 @@
 // dialect, so a paren the second run merely re-prints is not a difference) plus the import set.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { bindingLoopAnchor, lookupReadPath, pathOfNode } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 
@@ -15,7 +16,7 @@ const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
-const { parseSync, transformAsync } = requireBabel('@babel/core');
+const { parseAsync, parseSync, transformAsync, transformFromAstAsync } = requireBabel('@babel/core');
 
 const { check, finish } = createChecker('parser-dialect-equivalence');
 
@@ -197,6 +198,45 @@ for (const method of ['usage-pure', 'usage-global']) {
     check(`${ method }: one program, both paren dialects: ${ label }`, structure(node, parserPlugins), structure(flag, parserPlugins));
     check(`${ method }: same import set in both dialects: ${ label }`, imports(node), imports(flag));
   }
+}
+
+// Reusing one source tree in another File keeps node identity, not the earlier File's scope.
+{
+  const source = 'export function read(local) { const box = { first: globalThis, second: globalThis }; return box; }';
+  const ast = await parseAsync(source, { configFile: false, babelrc: false });
+  let original;
+  let hub;
+  await transformFromAstAsync(ast, source, {
+    cloneInputAst: false, configFile: false, babelrc: false, code: false,
+    plugins: [() => ({ visitor: { Program(program) {
+      const fn = program.get('body')[0].get('declaration');
+      original = fn.node.body.body[0].declarations[0].init.properties[0].value;
+      hub = program.hub;
+      const sourcePath = pathOfNode(fn, original);
+      check('source path first File has no parameter shadow', bindingLoopAnchor(sourcePath.scope.getBinding('globalThis')).decl, null);
+      check('source path first File retains its node', sourcePath.node, original);
+    } } })],
+  });
+  // Clear native caches so the second File owns fresh paths over the same parsed nodes.
+  requireBabel('@babel/traverse').default.cache.clear();
+  ast.program.body[0].declaration.params[0].name = 'globalThis';
+  await transformFromAstAsync(ast, source, {
+    cloneInputAst: false, configFile: false, babelrc: false, code: false,
+    plugins: [() => ({ visitor: { Program(program) {
+      const fn = program.get('body')[0].get('declaration');
+      const literal = fn.get('body').get('body')[0].get('declarations')[0].get('init');
+      const native = literal.get('properties')[0].get('value');
+      check('source path second File has a new native owner', program.hub !== hub, true);
+      check('source path second File retains source identity', native.node, original);
+      check('source path native binding is the parameter', bindingLoopAnchor(native.scope.getBinding('globalThis')).decl, fn.node.params[0]);
+      const cached = pathOfNode(fn, original);
+      check('source path cached value uses the new File binding', bindingLoopAnchor(cached.scope.getBinding('globalThis')).decl, fn.node.params[0]);
+      const sibling = pathOfNode(fn, literal.node.properties[1].value);
+      check('source path uncached sibling uses current containers', bindingLoopAnchor(sibling.scope.getBinding('globalThis')).decl, fn.node.params[0]);
+      const apart = lookupReadPath(fn.get('body').get('body')[1].get('argument'), original);
+      check('source path apart lookup uses the new File binding', bindingLoopAnchor(apart.scope.getBinding('globalThis')).decl, fn.node.params[0]);
+    } } })],
+  });
 }
 
 finish();

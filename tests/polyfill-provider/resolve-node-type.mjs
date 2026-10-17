@@ -4336,6 +4336,35 @@ runBoth('mapped passthrough: a key outside the source key-set does not resolve',
     pass();
   });
 
+// A local type alias outranks a same-named global container. Interfaces keep the built-in
+// identity because `interface Array<T>` / `interface String` are the normal augmentation shape.
+// Include the substitution lane (`Box<String>`) separately: it resolves a type argument before
+// re-entering the plain named-type dispatcher.
+// The opaque-alias row deliberately reads a member of unknown, which TypeScript rejects.
+for (const [label, src, expected] of [
+  ['String alias resolves through its Array body',
+    'export {}; type String = number[]; declare const v: String; v.at(0);', 'Array'],
+  ['Array alias resolves through its string body',
+    'export {}; type Array = string; declare const v: Array; v.at(0);', 'string'],
+  ['an opaque String alias stays unresolved',
+    'export {}; type String = unknown; declare const v: String; v.at(0);', null],
+  ['a nested String type argument resolves through its alias body',
+    'export {}; type String = number[]; type Box<T> = { value: T }; declare const v: Box<String>; v.value.at(0);', 'Array'],
+  ['a function-scoped String alias wins at the local use',
+    'export {}; function outer() { type String = number[]; function read(v: String) { v.at(0); } }', 'Array'],
+  ['a String interface retains the built-in identity',
+    'interface String { marker: true; } declare const v: String; v.at(0);', 'String'],
+  ['an Array interface retains the built-in identity',
+    'interface Array<T> { marker: true; } declare const v: Array<number>; v.at(0);', 'Array'],
+  ['an unshadowed String retains the built-in identity',
+    'declare const v: String; v.at(0);', 'String'],
+]) {
+  runBoth(`type-alias container shadow: ${ label }`, src, (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    check(lbl, resolved ? resolved.primitive ? resolved.type : resolved.constructor : null, expected);
+  });
+}
+
 // a type-parameter outranks a same-named global: the annotation names the parameter, which is
 // opaque, not the built-in container. only a single-segment reference can be shadowed, and a name
 // that matches no global has nothing to shadow
@@ -9374,9 +9403,6 @@ for (const [variant, code] of [
   ['deep chain store then held slot read', `function f(sink) {\n  const holder = { a: {} };\n  holder.a.b = ${ ANON_ESC };\n  sink(holder.a.b);\n}`],
   ['computed member store conservative escape', `function f(k) {\n  const holder = {};\n  holder[k] = ${ ANON_ESC };\n  holder.q.read();\n}`],
   ['member store of a carrier, held inner slot', `function f(sink) {\n  const holder = {};\n  holder.f = [${ ANON_ESC }];\n  sink(holder.f[0]);\n}`],
-  // a leaking target under a DIFFERENT key over-approximates to escape (bias-safe; a precise key match
-  // may legitimately relax this later)
-  ['different-key leaking target over-bails', `function f(sink) {\n  const { other: h } = { x: ${ ANON_ESC }, other: [1] };\n  sink(h);\n}`],
 ]) {
   runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
@@ -9388,6 +9414,8 @@ for (const [variant, code] of [
 // runs against the remainder path); a transparent wrapper on a DEREFERENCED slot read stays local; a plain
 // `=` member store is the write that places the anon, not a read that hands it out
 for (const [variant, code] of [
+  // This target receives the sibling array, so handing it out cannot expose the object at x.
+  ['different-key leaking target does not reach the anon', `function f(sink) {\n  const { other: h } = { x: ${ ANON_ESC }, other: [1] };\n  sink(h);\n}`],
   ['declarator array-pattern target dereferenced', `function f() {\n  const [g] = [${ ANON_ESC }];\n  g.read();\n}`],
   ['assignment array-pattern target dereferenced', `function f() {\n  let g;\n  [g] = [${ ANON_ESC }];\n  g.read();\n}`],
   ['pattern target carrier slot dereferenced', `function f() {\n  const { x: g } = { x: [${ ANON_ESC }] };\n  g[0].read();\n}`],
@@ -10458,20 +10486,21 @@ for (const [label, before, after, narrow] of [
   ['logical write', 'flag && (a[0] = [8]);', '', false],
   ['logical assignment', 'a[0] ||= [8];', '', false],
   ['write after read', '', 'a[0] = [8];', false],
-  ['second write', 'a[0] = [8]; a[0] = "text";', '', false],
-  ['later write', 'a[0] = [8];', 'a[0] = "text";', false],
+  ['second write supplies String', 'a[0] = [8]; a[0] = "text";', '', 'String'],
+  ['later write preserves the captured Array', 'a[0] = [8];', 'a[0] = "text";', true],
   ['unknown key writer', 'a[0] = [8]; a[key] = "text";', '', false],
   ['escaped array', 'a[0] = [8]; mutate(a);', '', false],
-  ['aliased array', 'const alias = a; a[0] = [8]; alias[0] = "text";', '', false],
+  ['alias write supplies String', 'const alias = a; a[0] = [8]; alias[0] = "text";', '', 'String'],
   ['mutating method', 'a[0] = [8]; a.unshift("text");', '', false],
   ['deferred write', 'function change() { a[0] = [8]; } change();', '', false],
   ['whole binding replacement', 'a[0] = [8]; a = ["text"];', '', false],
 ]) {
   runBoth(`element replacement: ${ label }`,
     `let a = [globalThis.Array]; ${ before } const v = a[0].at(0); ${ after }`,
-    (adapter, prog, lbl) => narrow
-      ? checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' })
-      : checkGenericAt(adapter, prog, lbl));
+    (adapter, prog, lbl) => narrow === 'String'
+      ? checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' })
+      : narrow ? checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' })
+        : checkGenericAt(adapter, prog, lbl));
 }
 
 runBoth('element access: element write retypes - slice route bails',
@@ -11350,13 +11379,29 @@ runBoth('union hints: an unresolvable object-literal-typed arm bails the set',
     check(lbl, hints, null);
   });
 
-runBoth('union hints: a param-default destructure is NOT an authoritative receiver',
+// The closed g() caller uses only r: tsc infers string | number[] for its receiver.
+runBoth('union hints: a closed param-default caller uses its annotated default',
   'function f(r: number[] | string) { function g({ includes } = r) { return includes; } g(); }',
   (adapter, prog, lbl) => {
     const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
-    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
-    check(lbl, hints, null);
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolvePropertyObjectType(prop), null);
+    checkHintSet(lbl, resolver.resolvePropertyUnionHints(prop), 'array,string');
   });
+
+for (const [label, source, expected] of [
+  ['explicit undefined keeps the default union', 'function f(r: number[] | string) { function g({ includes } = r) { return includes; } g(undefined); }', 'array,string'],
+  ['an unknown default supplies no family proof', 'function f(r: any) { function g({ includes } = r) { return includes; } g(); }', null],
+  ['an escaping caller set is not closed', 'function f(r: number[] | string) { function g({ includes } = r) { return includes; } g(); return g; }', null],
+  ['an unknown supplied receiver cannot inherit default hints',
+    'function f(r: number[] | string, value: any) { function g({ includes } = r) { return includes; } g(value); }', null],
+  ['a supplied receiver excludes the unused default union', 'function f(r: number[] | string) { function g({ includes } = r) { return includes; } g("s"); }', 'string'],
+]) {
+  runBoth(`union hints: param-default ${ label }`, source, (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    checkHintSet(lbl, adapter.makeResolver().resolvePropertyUnionHints(prop), expected);
+  });
+}
 
 runBoth('union hints: a guard-narrowed arm resolves precisely inside the branch',
   'function f(r: number[] | string, arr: number[]) { if (typeof r !== "string") { (r ?? arr).includes(1); } }',
@@ -15168,5 +15213,346 @@ runBoth('a derived interface does not answer to its base declaration',
     const derived = resolver.resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id.name === 'y').get('id'));
     check(lbl, Boolean(base?.identity && derived?.identity && base.identity !== derived.identity), true);
   }, ['typescript']);
+
+// These JavaScript rows deliberately retype String-initialized array slots. TypeScript rejects
+// those unannotated writes; this decision concerns runtime receiver flow, not assignability.
+// Stable aliases share one write census. A later write is ignored only within the array's lifetime;
+// deferred/callback, conditional and unknown-key writers keep the element unresolved.
+for (const [name, source, families] of [
+  ['exact',
+    `const rows = ['02'];
+    const alias = rows;
+    use(rows[0].at(-1));
+    alias[0] = [0, 2];
+    const current = rows[0].includes;
+    use(current);`,
+    { at: 'String', includes: 'Array' }],
+  ['alias-chain',
+    `const rows=['02'];
+    const alias=rows;
+    const other=alias;
+    export const before=rows[0].at(-1);
+    other[0]=[0,2];
+    export const after=rows[0].includes;`,
+    { at: 'String', includes: 'Array' }],
+  ['alias-read-before', "const rows=['02'];const alias=rows;export const result=alias[0].at(-1);rows[0]=[0,2];", { at: 'String' }],
+  ['alias-read-after', "const rows=['02'];const alias=rows;rows[0]=[0,2];export const result=alias[0].includes;", { includes: 'Array' }],
+  ['multiple-writes', "const rows=['02'];const alias=rows;alias[0]='ab';alias[0]=[0,2];export const result=rows[0].at(-1);", { at: 'Array' }],
+  ['unrelated-own-alias', "const rows=['02',0];const alias=rows;alias[1]=[0,2];export const result=rows[0].at(-1);", { at: 'String' }],
+  ['unrelated-alias', "const rows=['02'];const alias=rows;alias[1]=[0,2];export const result=rows[0].at(-1);", { at: null }],
+  // A spread's iterator can change the own slots the initializer creates.
+  ['unrelated-spread-slot',
+    "const rows=[...['x',0]];const alias=rows;alias[0]='02';alias[1]=[0,2];rows[0].at(-1);", { at: null }],
+  ['deferred-write', "const rows=['02'];const alias=rows;function write(){alias[0]=[0,2];}write();export const result=rows[0].at(-1);", { at: null }],
+  ['deferred-read-reentry',
+    `const rows=['02'];
+    const alias=rows;
+    export function read(){const result=rows[0].at(-1);
+    alias[0]=[0,2];
+    return result;
+    }export const result=[read(),read()];`,
+    { at: null }],
+  ['alias-read-reentry',
+    `const rows=['02'];
+    export function read(){const alias=rows;
+    const result=alias[0].at(-1);
+    alias[0]=[0,2];
+    return result;
+    }export const result=[read(),read()];`,
+    { at: null }],
+  ['unknown-key', "const rows=['02'];const alias=rows;alias[globalThis.key]=[0,2];export const result=rows[0].at(-1);", { at: null }],
+  ['conditional-after-prefix', "const rows=['02'];const alias=rows;alias[0]=[0,2];if(globalThis.flag)alias[0]='ab';export const result=rows[0].at(-1);", { at: null }],
+  ['escaping-alias', "const rows=['02'];const alias=rows;foreign(alias);export const result=rows[0].at(-1);", { at: null }],
+  ['reassigned-alias', "const rows=['02'];let alias=rows;alias=[];alias[0]=[0,2];export const result=rows[0].at(-1);", { at: null }],
+  ['callback-later-text', "const rows=['02'];const alias=rows;[0].forEach(write);export const result=rows[0].at(-1);function write(){alias[0]=[0,2];}", { at: null }],
+  ['loop-backedge', "const rows=['02'];const alias=rows;export const result=[];for(let i=0;i<2;i++){result.push(rows[0].at(-1));alias[0]=[0,2];}", { at: null }],
+  ['prefix-writes-in-function',
+    `const rows=['02'];
+    export function read(){const alias=rows;
+    alias[0]='ab';
+    alias[0]=[0,2];
+    return alias[0].at(-1);
+    }export const result=[read(),read()];`,
+    { at: 'Array' }],
+]) runBoth(`array element alias write order/${ name }`, source, (parser, program, label) => {
+  const resolver = parser.makeResolver();
+  for (const [key, family] of Object.entries(families)) {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === key);
+    const type = resolver.resolveNodeType(member.get('object'));
+    if (family === 'String') checkType(`${ label }/${ key }`, type, { primitive: true, kind: 'string' });
+    else if (family === 'Array') checkType(`${ label }/${ key }`, type, { primitive: false, ctor: 'Array' });
+    else {
+      check(`${ label }/${ key } does not assume String`, !!type?.primitive && type.type === 'string', false);
+      check(`${ label }/${ key } does not assume Array`, type?.constructor === 'Array', false);
+    }
+  }
+});
+
+// A held method rewrite clones its receiver into the helper call. Cached reference paths still
+// climb through the replaced parent, so an element read must keep its original non-callee role.
+for (const [name, initial, assigned, firstFamily, lastFamily] of [
+  ['Array to String', '[[0, 2]]', "'02'", 'Array', 'String'],
+  ['String to Array', "['02']", '[0, 2]', 'String', 'Array'],
+]) runBoth(`array element source role survives a cloned helper receiver/${ name }`,
+  `const rows = ${ initial }; const alias = rows; const before = alias[0].at;
+  rows[0] = ${ assigned }; use(before, alias[0].includes('2'));`, (parser, program, label) => {
+    const first = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const last = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'includes');
+    const resolver = parser.makeResolver();
+    function expected(family) {
+      return family === 'String' ? { primitive: true, kind: 'string' } : { primitive: false, ctor: 'Array' };
+    }
+    checkType(`${ label } before rewrite`, resolver.resolveNodeType(first.get('object')), expected(firstFamily));
+    const receiver = structuredClone(first.node.object);
+    // Emulate an emitter replacement: the old receiver's path now climbs into the new helper,
+    // which holds a CLONE. A helper name is immaterial; this is a source-role preservation proof.
+    const replacement = first.node;
+    for (const key of Object.keys(replacement)) delete replacement[key];
+    Object.assign(replacement, {
+      type: 'CallExpression', callee: { type: 'Identifier', name: '_helper' }, arguments: [receiver],
+    });
+    checkType(`${ label } after rewrite`, resolver.resolveNodeType(last.get('object')), expected(lastFamily));
+  });
+
+// A complete closed-default answer is a source receiver fact. A body entry capture keeps
+// the property nodes while the fresh receiver node carries no source answer of its own.
+for (const [name, initial, expected] of [
+  ['Array', '[1, 2]', { primitive: false, ctor: 'Array' }],
+  ['String', "'ab'", { primitive: true, kind: 'string' }],
+]) runBoth(`closed parameter default receiver survives body relocation/${ name }`,
+  `const source = ${ initial }; { function read({ at } = source) { return at; } }`,
+  (parser, program, label) => {
+    const fn = parser.pickPath(program, 'FunctionDeclaration');
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const propertyType = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const prop = parser.pickPath(program, propertyType, path => path.node.value?.name === 'at');
+    const resolver = parser.makeResolver();
+    checkType(`${ label } before relocation`, resolver.resolvePropertyObjectType(prop), expected);
+    // The real body-entry render preserves the source default in the parameter list and
+    // moves the same property nodes onto a new body declaration reading the captured value.
+    fn.node.params[0].left = { type: 'Identifier', name: '_captured' };
+    fn.node.body.body.unshift({
+      type: 'VariableDeclaration', kind: 'let', declarations: [{
+        type: 'VariableDeclarator', id: { ...pattern.node }, init: { type: 'Identifier', name: '_captured' },
+      }],
+    });
+    fn.scope.crawl();
+    const moved = parser.pickPath(program, propertyType, path => path.node.value?.name === 'at');
+    check(`${ label } keeps source property identity`, moved.node, prop.node);
+    const declarator = moved.parentPath.parentPath.node;
+    const { init } = declarator;
+    let initReads = 0;
+    Object.defineProperty(declarator, 'init', {
+      configurable: true, enumerable: true,
+      get() { initReads++; return init; },
+    });
+    checkType(`${ label } after relocation`, resolver.resolvePropertyObjectType(moved), expected);
+    check(`${ label } keeps its source fact ahead of the synthetic receiver`, initReads, 0);
+  });
+
+for (const [name, source] of [
+  ['exported default', 'const source = [1]; export function read({ at } = source) { return at; }'],
+  ['escaped default', 'const source = [1]; function read({ at } = source) { return at; } hand(read);'],
+  ['supplied String', "const source = [1]; function read({ at } = source) { return at; } read('ab'); read();"],
+  ['mutable default', "let source = [1]; function read({ at } = source) { return at; } read(); source = 'ab'; read();"],
+]) runBoth(`a parameter default source fact does not replace incoming receivers/${ name }`, source,
+  (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.value?.name === 'at');
+    const type = parser.makeResolver().resolvePropertyObjectType(prop);
+    check(`${ label } does not assume Array`, type?.constructor === 'Array', false);
+    check(`${ label } does not select a default-only family`, type, null);
+  });
+
+// Constructor selections project the same builtin prototype families as their flat member reads.
+// The real decision adapter supplies literal/const folds before the prototype query joins arms.
+for (const [name, source, family, expectedHints] of [
+  ['Array plain', 'function read(flag){const {prototype:{at}}=flag?Array:Array;}', 'Array', ['array']],
+  ['Array effect', 'function read(pick){const {prototype:{at}}=pick()?Array:Array;}', 'Array', ['array']],
+  ['String', 'function read(flag){const {prototype:{at}}=flag?String:String;}', 'String', ['string']],
+  ['constructor aliases', 'const Left=Array;const Right=Array;function read(flag){const {prototype:{at}}=flag?Left:Right;}', 'Array', ['array']],
+  ['constructor shadow alias', 'const Array=String;function read(flag){const {prototype:{at}}=flag?Array:Array;}', 'String', ['string']],
+  ['mixed Array String', 'function read(flag){const {prototype:{at}}=flag?Array:String;}', null, ['array', 'string']],
+  ['opaque arm', 'function read(flag,Other){const {prototype:{at}}=flag?Array:Other;}', null, null],
+  ['nullable arm', 'function read(flag){const {prototype:{at}}=flag?Array:null;}', 'Array', ['array']],
+  ['prior alias reassignment', 'function read(flag){let C=Array;C=String;const {prototype:{at}}=flag?C:C;}', 'String', ['string']],
+  ['different arm assignment', 'function read(flag){let C=Array;const {prototype:{at}}=flag?(C=String,C):C;}', null, ['array', 'string']],
+  ['true conditional', 'const {prototype:{at}}=true?Array:String;', 'Array', ['array']],
+  ['false conditional', 'const {prototype:{at}}=false?Array:String;', 'String', ['string']],
+  ['const conditional', 'const flag=true;const {prototype:{at}}=flag?Array:String;', 'Array', ['array']],
+  ['explicit parameter union', 'function read({at}: string | number[]){return at;}read(\'ab\');', null, ['array', 'string']],
+  // The cyclic row deliberately tests an invalid TS/TDZ source, not type-checker ground truth.
+  ['cyclic alias', 'function read(flag){const C=flag?C:Array;const {prototype:{at}}=C;}', null, null],
+]) {
+  runBoth(`constructor selection prototype family/${ name }`, source, (parser, program, label) => {
+    const propertyType = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const prop = parser.pickPath(program, propertyType, path => path.node.key?.name === 'at');
+    const decisions = {
+      decidedSelection(node, { path }) { return resolver.resolveConstantSelection(node, path); },
+      settledSelection(node, ctx) { return decisions.decidedSelection(node, ctx); },
+    };
+    const resolver = parser.makeResolver({ getDecisionAdapter: () => decisions });
+    const type = resolver.resolvePropertyObjectType(prop);
+    if (family) checkType(label, type, { primitive: false, ctor: family });
+    else check(`${ label } no scalar family`, type, null);
+    const hints = resolver.resolvePropertyUnionHints(prop);
+    checkDeep(`${ label } exact receiver hints`, hints ? [...hints].sort() : null, expectedHints);
+  });
+}
+
+runBoth('a constructor selection keeps the explicit source member annotation',
+  'function read(source: {prototype: string}, flag: boolean) { const {prototype: {at}} = flag ? source : source; }',
+  (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.key?.name === 'at');
+    checkType(label, parser.makeResolver().resolvePropertyObjectType(prop), { primitive: true, kind: 'string' });
+  });
+
+runBoth('a constructor selection observes writes in its test without choosing a stale Array family',
+  'function read(flag) { let C = Array; const {prototype: {at}} = (C = String, flag) ? C : C; }',
+  (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.key?.name === 'at');
+    const resolver = parser.makeResolver();
+    check(`${ label } does not choose Array`, resolver.resolvePropertyObjectType(prop)?.constructor === 'Array', false);
+    check(`${ label } retains String`, resolver.resolvePropertyUnionHints(prop)?.has('string'), true);
+  });
+
+// A source declaration keeps its spelling before built-in synonym normalization. The nested
+// alias row also reaches type substitution; Flow uses the same declaration-kind canon.
+for (const name of ['PromiseLike', 'Thenable', 'IteratorObject', 'AsyncIteratorObject']) {
+  for (const [variant, source, expected] of [
+    ['local alias', `export {}; type ${ name }<T> = string; function read(value: ${ name }<number>) { value.at(0); }`, 'string'],
+    ['constrained parameter', `function read<${ name } extends string>(value: ${ name }) { value.at(0); }`, 'string'],
+    ['nested alias', `export {}; type ${ name }<T> = string; type Box<T> = { value: T }; function read(value: Box<${ name }<number>>) { value.value.at(0); }`, 'string'],
+    ['imported type', `import type { ${ name } } from './types'; function read(value: ${ name }<number>) { value.at(0); }`, null],
+  ]) {
+    runBoth(`type synonym shadow/${ name }/${ variant }`, source, (parser, program, label) => {
+      const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+      const resolver = parser.makeResolver();
+      for (const phase of ['cold', 'warm']) {
+        const resolved = resolver.resolveNodeType(member.get('object'));
+        check(`${ label }/${ phase }`, resolved ? resolved.primitive ? resolved.type : resolved.constructor : null, expected);
+      }
+    });
+  }
+  const parser = adapters.find(candidate => candidate.name === 'babel');
+  for (const [variant, source, expected] of [
+    ['local alias', `export {}; type ${ name }<T> = string; function read(value: ${ name }<number>) { value.at(0); }`, 'string'],
+    ['constrained parameter', `function read<${ name }: string>(value: ${ name }) { value.at(0); }`, 'string'],
+    ['nested alias', `export {}; type ${ name }<T> = string; type Box<T> = { value: T }; function read(value: Box<${ name }<number>>) { value.value.at(0); }`, 'string'],
+    ['imported type', `import type { ${ name } } from './types'; function read(value: ${ name }<number>) { value.at(0); }`, null],
+  ]) {
+    const program = parser.parseAndScope(source, 'module', ['flow']);
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const resolver = parser.makeResolver();
+    for (const phase of ['cold', 'warm']) {
+      const resolved = resolver.resolveNodeType(member.get('object'));
+      check(`type synonym shadow/${ name }/${ variant }/flow/${ phase }`,
+        resolved ? resolved.primitive ? resolved.type : resolved.constructor : null, expected);
+    }
+  }
+}
+
+for (const name of ['PromiseLike', 'Thenable']) {
+  runBoth(`type synonym shadow/unshadowed ${ name }`, `function read(value: ${ name }<number>) { value.then; }`,
+    (parser, program, label) => {
+      const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'then');
+      checkType(label, parser.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Promise' });
+    });
+}
+
+// Runtime class and enum declarations also own their source spelling before built-in synonym
+// normalization. Class heritage and a string enum's own value family remain available.
+for (const [name, source, expected] of [
+  ['class PromiseLike', 'export {}; class PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); }', 'String'],
+  ['class Thenable', 'export {}; class Thenable<T> extends String {} function read(value: Thenable<number>) { value.at(0); }', 'String'],
+  ['class IteratorObject', 'export {}; class IteratorObject<T> extends String {} function read(value: IteratorObject<number>) { value.at(0); }', 'String'],
+  ['class AsyncIteratorObject', 'export {}; class AsyncIteratorObject<T> extends String {} function read(value: AsyncIteratorObject<number>) { value.at(0); }', 'String'],
+  ['enum PromiseLike', "export {}; enum PromiseLike { A = 'xy' } function read(value: PromiseLike) { value.at(0); }", 'string'],
+  ['enum Thenable', "export {}; enum Thenable { A = 'xy' } function read(value: Thenable) { value.at(0); }", 'string'],
+  ['qualified enum PromiseLike', "export {}; enum PromiseLike { A = 'xy' } function read(value: PromiseLike.A) { value.at(0); }", null],
+]) {
+  runBoth(`local runtime type container shadow/${ name }`, source, (parser, program, label) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const answer = parser.makeResolver().resolveNodeType(member.get('object'));
+    check(label, answer ? answer.primitive ? answer.type : answer.constructor : null, expected);
+  });
+}
+
+{
+  const parser = adapters.find(candidate => candidate.name === 'babel');
+  const program = parser.parseAndScope(
+    'declare class PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); }',
+    'module', ['flow']);
+  const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+  const answer = parser.makeResolver().resolveNodeType(member.get('object'));
+  check('local runtime type container shadow/Flow DeclareClass PromiseLike',
+    answer ? answer.primitive ? answer.type : answer.constructor : null, 'String');
+}
+
+// Interfaces declared in a module or lexical scope shadow a built-in too. Bare global
+// scripts and explicit global augmentations retain their built-in identities.
+for (const [name, source, expected] of [
+  ['export marker', 'export {}; interface PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); }', 'String'],
+  ['type import marker', "import type { Other } from './types'; interface PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); }", 'String'],
+  ['exported interface', 'export interface PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); }', 'String'],
+  ['lexical interface', 'function outer() { interface PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); } }', 'String'],
+  ['namespace interface', 'namespace NS { export interface PromiseLike<T> extends String {} export function read(value: PromiseLike<number>) { value.at(0); } }', 'String'],
+  ['substituted local interface',
+    'export {}; interface Array<T> extends String {} type Box<T> = { value: T }; function read(value: Box<Array<number>>) { value.value.at(0); }', 'String'],
+  ['global script interface', 'interface String { marker?: true } function read(value: String) { value.at(0); }', 'String'],
+  ['explicit global augmentation', 'export {}; declare global { interface String { marker?: true } } function read(value: String) { value.at(0); }', 'String'],
+  ['imported builtin direct', "import type { Array } from './types'; function read(value: Array<number>) { value.at(0); }", null],
+  ['imported builtin substituted', "import type { Array } from './types'; type Box<T> = { value: T }; function read(value: Box<Array<number>>) { value.value.at(0); }", null],
+]) {
+  runBoth(`local interface container shadow/${ name }`, source, (parser, program, label) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const resolver = parser.makeResolver();
+    for (const phase of ['cold', 'warm']) {
+      const answer = resolver.resolveNodeType(member.get('object'));
+      check(`${ label }/${ phase }`, answer ? answer.primitive ? answer.type : answer.constructor : null, expected);
+    }
+  });
+}
+
+// The known-base guard is independently necessary for both annotation and substitution.
+{
+  const parser = adapters.find(candidate => candidate.name === 'babel');
+  for (const source of [
+    'type Array<T> = string; function read(value: Array<number>) { value.at(0); }',
+    'type Array<T> = string; type Box<T> = { value: T }; function read(value: Box<Array<number>>) { value.value.at(0); }',
+  ]) {
+    const program = parser.parseAndScope(source, 'module', ['flow']);
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const answer = parser.makeResolver().resolveNodeType(member.get('object'));
+    check('Flow known-base alias shadows the builtin', answer?.primitive ? answer.type : answer?.constructor, 'string');
+  }
+}
+
+// Type module markers are SOURCE facts. Erasing one during render keeps its origin until
+// reset(); a new source question then agrees with a fresh resolver on the changed tree.
+for (const marker of ['export {};', "import type { Other } from './types';"]) {
+  runBoth(`interface module source origin/${ marker }`,
+    `${ marker } interface PromiseLike<T> extends String {} function read(value: PromiseLike<number>) { value.at(0); }`,
+    (parser, program, label) => {
+      const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+      const resolver = parser.makeResolver();
+      function family(current) {
+        const answer = current.resolveNodeType(member.get('object'));
+        return answer ? answer.primitive ? answer.type : answer.constructor : null;
+      }
+      check(`${ label }/initial`, family(resolver), 'String');
+      const removed = program.node.body.shift();
+      check(`${ label }/render removal keeps source origin`, family(resolver), 'String');
+      resolver.reset();
+      check(`${ label }/reset after removal`, family(resolver), 'Promise');
+      check(`${ label }/fresh after removal`, family(parser.makeResolver()), 'Promise');
+      program.node.body.unshift(removed);
+      resolver.reset();
+      check(`${ label }/reset after addition`, family(resolver), 'String');
+      check(`${ label }/fresh after addition`, family(parser.makeResolver()), 'String');
+    });
+}
 
 finish();
