@@ -14,20 +14,20 @@ for (const [{
   from: _Array$from
 }, eff(1)], [{
   from: _Array$from
-}, eff(2)]]) _pushMaybeArray(out).call(out, from([1]).length, tail);
+}, eff(2)]]) (_pushMaybeArray(out) || 0).call(out, from([1]).length, tail);
 for (let [{
   of
 }, count] of [[{
   of: _Array$of
-}, 1]]) _pushMaybeArray(out).call(out, of(1).length, count);
+}, 1]]) (_pushMaybeArray(out) || 0).call(out, of(1).length, count);
 for (const [{
   Array: {
     isArray
   }
-}, tail] of [[_globalThis, eff(3)]]) _pushMaybeArray(out).call(out, isArray([]), tail);
+}, tail] of [[_globalThis, eff(3)]]) (_pushMaybeArray(out) || 0).call(out, isArray([]), tail);
 for (const [[{
   from
 }], tail] of [[[{
   from: _Array$from
-}], 4]]) _pushMaybeArray(out).call(out, from([1]).length, tail);
+}], 4]]) (_pushMaybeArray(out) || 0).call(out, from([1]).length, tail);
 export { out, log };

@@ -5,6 +5,7 @@ import {
 import {
   beginMutationPrePass,
   createDetectionAdapter,
+  heldPatternReadCollector,
   mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
@@ -65,24 +66,22 @@ function stringLiteralValue(node) {
   return inner?.type === 'StringLiteral' ? inner.value : null;
 }
 
-// factory for a Babel scope adapter bound to a specific plugin-instance injector.
-// the closure over `getInjector` avoids module-level mutable state, which would race
-// under parallel transforms (Vite/Rollup/thread-loader)
-// scoped mutation pre-pass: the cheap shape gate runs first; only files that actually
-// monkey-patch pay for the path traverse + canonical receiver resolution. shares every
-// resolution step with the read side via `mutations` (provider)
+// One scoped pre-pass collects mutation sites and the property paths requested by the census.
+// Each lane has its own cheap gate; a file with neither obligation pays no scoped traversal.
+// Both lanes share the read side's canonical receiver resolution through `mutations`.
 export function collectMutationPrePass(programPath, adapter, census = null, resolveStaticKey = null) {
   const { mutated, handleSite, finalize } = beginMutationPrePass(
     { resolveStaticKey, rootNode: programPath.node, adapter, census },
   );
-  if (!handleSite) return { mutated };
+  const heldReads = heldPatternReadCollector(census);
+  if (!handleSite && !heldReads) return { mutated };
   programPath.traverse({
-    ...mutationSiteVisitors(handleSite),
+    ...handleSite ? mutationSiteVisitors(handleSite) : {},
+    ...heldReads ? { ObjectPattern: heldReads.ObjectPattern } : {},
     // babel's Optional* dialect twins of the shared member / call sites: without them an
     // optional-chain mutation (`Object?.assign(Array, {...})`) escapes detection and
     // usage-pure substitutes over the user patch
-    OptionalMemberExpression: handleSite,
-    OptionalCallExpression: handleSite,
+    ...handleSite ? { OptionalMemberExpression: handleSite, OptionalCallExpression: handleSite } : {},
     // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this scoped
     // traverse never descends into a constructor parameter-property's legacy decorator and a
     // monkey-patch hidden there escapes detection - usage-pure would then substitute over the
@@ -93,8 +92,8 @@ export function collectMutationPrePass(programPath, adapter, census = null, reso
       for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
     },
   });
-  finalize();
-  return { mutated };
+  finalize?.();
+  return { mutated, heldReads };
 }
 
 // babel's own binding lookup, before any correction the provider applies to it
@@ -107,9 +106,9 @@ function babelScopeBinding(scope, name) {
 // asymmetric by construction and stays so: `getTSImportEqualsNode` exists only on the estree
 // side, because estree-toolkit registers no binding for `import x = require(...)` while babel
 // does - the two answer the SAME question, one through a dedicated lookup, one through its
-// native binding (the provider's consumer branches on the member's presence) per-transform state
-// lives in the instance closure - concurrent transforms each build their own; the argless
-// `babelAdapter` below is the stateless view the entry-detection path shares
+// native binding (the provider's consumer branches on the member's presence). The `getInjector`
+// closure keeps per-transform state out of module globals; concurrent transforms each build their own.
+// The argless `babelAdapter` below is the stateless view the entry-detection path shares
 export function createBabelAdapter(options = {}) {
   const { getInjector = () => null, nestedTSRuntimeDeclarations } = options;
   const getScopeBinding = wrapScopeBindingLookup(babelScopeBinding, nestedTSRuntimeDeclarations);

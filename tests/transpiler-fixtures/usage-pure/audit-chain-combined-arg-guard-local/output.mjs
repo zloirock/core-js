@@ -11,7 +11,7 @@ export function mapped(arr, inner) {
 }
 export function argument(arr, inner) {
   var _ref3, _ref4;
-  return null == (_ref3 = _flatMaybeArray(arr)) ? void 0 : _at(_ref4 = _ref3.call(arr)).call(_ref4, inner == null ? void 0 : _at(inner).call(inner, 0));
+  return null == (_ref3 = _flatMaybeArray(arr)) ? void 0 : (_at(_ref4 = _ref3.call(arr)) || 0).call(_ref4, inner == null ? void 0 : _at(inner).call(inner, 0));
 }
 // the same locality one hop deeper: a guard inside an intermediate HOP's callback
 export function hopCallback(arr, inner) {

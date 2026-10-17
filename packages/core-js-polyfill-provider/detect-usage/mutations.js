@@ -199,7 +199,14 @@ import {
 import { isKnownGlobalName, staticReceiverHint } from './globals.js';
 import { canonicalArrayIndex, dropLeadingThisParam, nodeRangeContains, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { findEnumMember } from '../resolve-node-type/enum-types.js';
-import { bareBuiltInLeft, decidedSelection, defaultDroppedAsDead, readRunsAccessor, walkStaticReceiverChain } from './destructure.js';
+import {
+  bareBuiltInLeft,
+  decidedSelection,
+  defaultDroppedAsDead,
+  destructurePropLeafMeta,
+  readRunsAccessor,
+  walkStaticReceiverChain,
+} from './destructure.js';
 import { bareReceiverGuardRenders } from './members.js';
 
 // --- Stage 1: cheap shape gate ---
@@ -1553,6 +1560,7 @@ function inheritedClassStatic(value, key) {
 // holds that family only in pure; an unknown key needs the whole family in both flavors, and files
 // the name in `unnamedReadNames` too. Constructor rest requires the whole family in each flavor that
 // has a constructor entry.
+// eslint-disable-next-line max-statements -- one receiver census with shared per-query caches
 function collectHeldReceivers({
   programNode,
   memberReceivers,
@@ -1571,6 +1579,8 @@ function collectHeldReceivers({
   restValues,
   keyNames,
   censusKey,
+  isOptedOut,
+  heldPatternReads,
 }) {
   const opaqueFamilies = new WeakMap();
   const receiverFamilies = new WeakMap();
@@ -1655,18 +1665,20 @@ function collectHeldReceivers({
   // pairing marked the read RAW (`rawReads`)
   function holdUnresolvedReadFamilies({
     receiver, root, readKey, guardable, guardsIdentity, keyNamed = true, keepsCallRead = false, rawRead = false,
+    heldNames = heldInSlot,
   }) {
     // the receiver's VALUE: an effect prefix ahead of it runs where the read stands and names nothing
     const target = peelReceiverSequenceTail(receiver);
     const member = isMemberAccessNode(target);
     const callValues = !member && (readKey === null || hasStaticDefinitionKey(readKey))
       ? chainRootValues(aliasInit, root, new Set(), heldState.roots) : [];
-    // Root answers share a source array per binding. Repeated reads of the same key must not
-    // rescan every caller's argument; different keys still carry different family obligations.
+    // Root answers share a source array per binding. Cache the owed names too: positional
+    // obligations have separate sinks, so a cache hit must replay its answer into each one.
     let answeredKeys = retainedReads.get(callValues);
     if (callValues.length && !answeredKeys?.has(readKey)) {
-      if (!answeredKeys) retainedReads.set(callValues, answeredKeys = new Set());
-      answeredKeys.add(readKey);
+      if (!answeredKeys) retainedReads.set(callValues, answeredKeys = new Map());
+      const names = new Set();
+      answeredKeys.set(readKey, names);
       for (const value of callValues) {
         const call = unwrapRuntimeExpr(value);
         const callee = !PASSTHROUGH_CALL_VALUES.get(programNode)?.has(call) && CALL_CALLEES.get(programNode)?.get(call);
@@ -1679,10 +1691,11 @@ function collectHeldReceivers({
             globalOnly.add(name);
             unnamedReadNames.add(name);
           }
-          heldInSlot.add(name);
+          names.add(name);
         }
       }
     }
+    for (const name of answeredKeys?.get(readKey) ?? []) heldNames.add(name);
     if (typeof readKey !== 'string' || !hasNarrowEntryStaticKey(readKey)) return;
     // the chains the read stands for (`readChains`), each walked as the slot it reads
     const chains = member ? readChains(aliasInit, target) : null;
@@ -1695,7 +1708,7 @@ function collectHeldReceivers({
     // key folding to several of its statics reads through the binding pure mints for it
     const realm = member && !values.length ? realmGlobalName(programNode, target) : null;
     if (realm) {
-      if (!keyNamed && hasNarrowEntry(realm) && hasOwnStaticDefinition(realm, readKey)) heldInSlot.add(realm);
+      if ((!keyNamed || rawRead) && hasNarrowEntry(realm) && hasOwnStaticDefinition(realm, readKey)) heldNames.add(realm);
       return;
     }
     const reassigned = [...reached].some(name => guardedAliases.has(name));
@@ -1718,17 +1731,23 @@ function collectHeldReceivers({
     // name holding something beside such a name (`const held = X ?? Object`), which the guard misses
     const guarded = keyNamed && guardsIdentity && reassigned && unwrapRuntimeExpr(target)?.type === 'Identifier'
       && standsForGuardedName(aliasInit, guardedAliases, unwrapRuntimeExpr(target).name) && !someReadsAccessor(known);
+    if (!known.length || served || guarded) return;
     let answered = ambiguousReads.get(values);
-    if (!known.length || served || guarded || answered?.has(readKey)) return;
-    if (!answered) ambiguousReads.set(values, answered = new Set());
-    answered.add(readKey);
-    for (const value of known) {
-      // a bare name IS the one it spells; any other value is asked what it may stand for
-      const leaf = unwrapRuntimeExpr(value);
-      for (const name of leaf?.type === 'Identifier' ? [leaf.name] : familiesFrom(value, null, true, value, reassigned).names) {
-        if (hasNarrowEntry(name) && hasOwnStaticDefinition(name, readKey)) heldInSlot.add(name);
+    if (!answered) ambiguousReads.set(values, answered = new Map());
+    if (!answered.has(readKey)) {
+      const names = new Set();
+      answered.set(readKey, names);
+      for (const value of known) {
+        // a bare name IS the one it spells; any other value is asked what it may stand for
+        const leaf = unwrapRuntimeExpr(value);
+        // An alias initialized under opt-out carries the native constructor as well.
+        if (isOptedOut?.(leaf) && realmGlobalName(programNode, leaf)) continue;
+        for (const name of leaf?.type === 'Identifier' ? [leaf.name] : familiesFrom(value, null, true, value, reassigned).names) {
+          if (hasNarrowEntry(name) && hasOwnStaticDefinition(name, readKey)) names.add(name);
+        }
       }
     }
+    for (const name of answered.get(readKey)) heldNames.add(name);
   }
   // a MEMBER read - one the source spells, or one the census synthesized off a returned value
   // (`keyPathRead`) - stands for every value the slot it reads may hold, and is one value only where
@@ -1860,17 +1879,31 @@ function collectHeldReceivers({
     if (spelledKey !== null || !member?.computed) return [spelledKey];
     return keyNames(member.property) ?? [null];
   }
-  for (const [receiver, slot, spelledKey, opaqueOnly, guardable, guardsIdentity, member, keepsCallRead, rawRead] of memberReceivers) {
+  for (const [
+    receiver, slot, spelledKey, opaqueOnly, guardable, guardsIdentity, member, keepsCallRead, rawRead, read, positional,
+  ] of memberReceivers) {
+    // A disabled receiver still reading the native realm does not consume our constructor.
+    // A retained pattern property can read a receiver substituted outside that property instead.
+    const optedOut = !!isOptedOut?.(read ?? member ?? slot)
+      && !(isOptedOut(receiver) && realmGlobalName(programNode, receiver));
     const readKeys = readKeysOf(spelledKey, member);
     const readKey = readKeys.length === 1 ? readKeys.at(0) : null;
     // the alias question asks what the root's VALUE names: for a sequence that is its tail
     // (`(0, realm).Map` reads through `realm`); the prefix is the emitters' to place
     const root = peelReceiverSequenceTail(runtimeChainRoot(receiver, receiverRoots));
+    // The claim side can resolve one reaching write or a decided arm that this raw census
+    // deliberately unions. Settle only these new positional obligations in the scoped pre-pass.
+    let heldNames = heldInSlot;
+    if (positional && !rawRead && !optedOut) {
+      heldNames = heldPatternReads.get(read) ?? new Set();
+    }
     for (const key of readKeys) {
       holdUnresolvedReadFamilies({
-        receiver, root, readKey: key, guardable, guardsIdentity, keyNamed: readKeys.length === 1, keepsCallRead, rawRead,
+        receiver, root, readKey: key, guardable, guardsIdentity: guardsIdentity && !optedOut,
+        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut, heldNames,
       });
     }
+    if (heldNames !== heldInSlot && heldNames.size) heldPatternReads.set(read, heldNames);
     if (opaqueOnly && !hasOpaqueIteration) continue;
     const selectingRealm = !!getFallbackBranchSlots(peelFallbackReceiver(root))
       && !allProxySelectingInit(root, { adapter: null, injectorState: null, allowEffectfulTest: true })
@@ -2979,10 +3012,40 @@ function stampEscapingLeaves(node, stamps, work, receiverOnly = false, ownStatic
 // closes over is the name sets and nothing else. taken from inside the walk it would capture
 // that scope's context - the escape list, the deferred writes, the alias graph, all of them holding
 // the file's own nodes - and a plugin instance keeping the answer would keep the tree with it
-function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames }) {
+function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames, heldPatternNames }) {
   return {
-    has: (name, held = false) => names.has(name) || (held ? heldInSlot.has(name) : globalOnly.has(name)),
+    has: (name, held = false) => names.has(name)
+      || (held ? heldInSlot.has(name) || heldPatternNames.has(name) : globalOnly.has(name)),
     readsUnnamedStatic: name => unnamedReadNames.has(name),
+  };
+}
+
+// Resolve a positional census approximation through the same scoped claim funnel as emission.
+// The scoped pre-pass collects only requested property paths, gated on these obligations.
+// The long-lived name answer keeps sets alone, and settlement releases every source node/path.
+export function heldPatternReadCollector(census) {
+  if (!census?.heldPatternReads?.size) return null;
+  const { heldPatternReads, heldPatternNames } = census;
+  const paths = new Map();
+  return {
+    ObjectPattern(path) {
+      for (const prop of path.get('properties')) if (heldPatternReads.has(prop.node)) paths.set(prop.node, prop);
+    },
+    settle(adapter, resolvePure) {
+      heldPatternNames.clear();
+      for (const [read, names] of heldPatternReads) {
+        const path = paths.get(read);
+        const { meta } = path ? withReentrantQuestion(() => destructurePropLeafMeta({
+          prop: read, objectPattern: path.parentPath, scope: path.scope, path, adapter, resolvePure,
+          parameterCallSites: adapter.parameterCallSites,
+        }), 'census') : { meta: null };
+        const servedName = meta?.object && meta.placement === 'static' && !meta.fromFallback
+          && resolvePure(meta, path)?.kind === 'static' ? meta.object : null;
+        for (const name of names) if (name !== servedName) heldPatternNames.add(name);
+      }
+      heldPatternReads.clear();
+      paths.clear();
+    },
   };
 }
 
@@ -3012,7 +3075,10 @@ const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 
 // Per-file constructor escapes, resolved after every declaration and alias source is recorded.
 // eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
-export function escapedCtorReferencesReducer() {
+export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
+  const optedOutNodes = isOptedOut ? new WeakSet() : null;
+  const heldPatternReads = new Map();
+  const heldPatternNames = new Set();
   let stamps = null;
   let programNode = null;
   // the NAMES half of the census, handed to the file census so the entry decision reads it without
@@ -4176,11 +4242,12 @@ export function escapedCtorReferencesReducer() {
     const opaqueKeys = [];
     const selections = keepsSelectedReceiver ? null : [];
     const rawReads = new Set();
+    const positionalReads = new Set();
     // ... a static context's `this` reads its class's statics, and its heritage's where the class defines
     // none: the pattern pairs against that heritage, as a member read of `this` does
     const thisClass = source?.type === 'ThisExpression' ? heritageStaticMembers.get(frame?.thisOwner) : null;
     const paired = thisClass ? heritageStaticReceiver(source, null, frame) : source;
-    const slots = patternReceiverSlotNodes(pattern, paired, null, {
+    patternReceiverSlotNodes(pattern, paired, null, {
       includeNestedReceivers: true,
       includeBindings: true,
       preservesBody: true,
@@ -4190,13 +4257,14 @@ export function escapedCtorReferencesReducer() {
       opaqueKeys,
       selectionLevels: selections,
       rawReads,
+      positionalReads,
       belowSource,
     });
-    for (const slot of slots) {
+    for (const [slot, receivers] of levels) for (const receiver of receivers) {
       const key = foldedPropertyKeyName(slot);
-      if (thisClass && levels.get(slot) === paired && key !== null && classStaticSlotMember(thisClass, key)) continue;
+      if (thisClass && receiver === paired && key !== null && classStaticSlotMember(thisClass, key)) continue;
       memberReceivers.push([
-        levels.get(slot) ?? paired,
+        receiver,
         null,
         key,
         true,
@@ -4205,6 +4273,8 @@ export function escapedCtorReferencesReducer() {
         null,
         keepsCallRead,
         rawReads.has(slot),
+        slot,
+        positionalReads.has(slot),
       ]);
     }
     // ... and a SELECTION the host does not keep whole hands the pattern one arm per run: pure mirrors an
@@ -4219,7 +4289,7 @@ export function escapedCtorReferencesReducer() {
       for (const arm of flattenBranchingValueNodes([rhs])) {
         if (!isReceiverShapedNode(arm) && !isCallShape(arm) && arm.type !== 'ObjectExpression' && arm.type !== 'ArrayExpression') continue;
         const armLevels = new Map();
-        const armSlots = patternReceiverSlotNodes(level, arm, null, {
+        patternReceiverSlotNodes(level, arm, null, {
           includeNestedReceivers: true,
           includeBindings: true,
           preservesBody: true,
@@ -4228,8 +4298,8 @@ export function escapedCtorReferencesReducer() {
           selectionLevels: selections,
           opaqueKeys,
         });
-        for (const slot of armSlots) {
-          memberReceivers.push([armLevels.get(slot) ?? arm, null, foldedPropertyKeyName(slot), true, false, false]);
+        for (const [slot, receivers] of armLevels) for (const receiver of receivers) {
+          memberReceivers.push([receiver, null, foldedPropertyKeyName(slot), true, false, false, null, false, false, slot]);
         }
       }
     }
@@ -4344,6 +4414,8 @@ export function escapedCtorReferencesReducer() {
 
   function visit(node, frame) {
     if (!stamps) registerProgramTables(node);
+    // Suppression covers a visitor's entire subtree; writes there still join the same census.
+    if (optedOutNodes && (optedOutNodes.has(frame?.parentNode) || isOptedOut(node))) optedOutNodes.add(node);
     // An identifier contributes only its reference facts; it declares no names or value shapes.
     if (node.type === 'Identifier') {
       recordIdentifierReference(node, frame);
@@ -4992,6 +5064,7 @@ export function escapedCtorReferencesReducer() {
       }
     }
   }
+  // eslint-disable-next-line max-statements -- finalize the shared escape and held-read tables once
   function result() {
     finalize();
     const kept = keptArguments;
@@ -5136,14 +5209,19 @@ export function escapedCtorReferencesReducer() {
       restValues,
       keyNames: censusKeyNames,
       censusKey: censusResolveKey,
+      isOptedOut: optedOutNodes ? node => optedOutNodes.has(node) : null,
+      heldPatternReads,
     });
     for (const value of kept) {
       stampEscapesFrom(programNode, value, { names: heldInSlot, state: heldState, heldInSlot: true, syntheticNames: true });
     }
+    for (const names of heldPatternReads.values()) for (const name of names) heldPatternNames.add(name);
     // read at QUERY time, when every reducer of this census has stamped: ONE answer object rather
     // than two census fields, since the flavor doing the asking is what picks the half
     return {
-      escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames }),
+      escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames, heldPatternNames }),
+      heldPatternReads,
+      heldPatternNames,
     };
   }
   return { visit, result: withContainerProofs(result) };

@@ -94,6 +94,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
+  chainExpression,
   hostSlot,
   nullFirstGuardTest,
   renderBoundRawBranch,
@@ -103,6 +104,7 @@ import {
   renderGuardedChainTail,
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
+  renderMethodCallMember,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
@@ -367,7 +369,7 @@ export default function plugin(api, options) {
       const program = lateEscapeProgram;
       lateEscapeProgram = null;
       const source = escapedCtorNames;
-      const late = collectFileCensus({ ...program }, [escapedCtorReferencesReducer()]).escapedCtorNames;
+      const late = collectFileCensus({ ...program }, [escapedCtorReferencesReducer({ isOptedOut: currentIsDisabled })]).escapedCtorNames;
       escapedCtorNames = {
         has: (name, held) => source?.has(name, held) === true || late.has(name, held),
         readsUnnamedStatic: name => source?.readsUnnamedStatic(name) === true || late.readsUnnamedStatic(name),
@@ -966,10 +968,10 @@ export default function plugin(api, options) {
 
       // runtime ctor guard render: the DECISION (static entry, callee-ness, optional-call
       // bail, ctor comparator) is the shared provider plan; this only builds the AST -
-      // `(M === _Map ? _Map$groupBy : M.groupBy)`, a callee raw branch binding `this` via
-      // `.bind(M)`. the raw branch is skip-marked whole: the re-queued traversal must neither
-      // re-enter this handler nor run the normal static substitution on it (the raw member is
-      // the guard's live fallback - a narrow would corrupt the untaken flow)
+      // `(M === _Map ? _Map$groupBy : M.groupBy)`. A raw callee binds `this`, or its call
+      // stays in the branch when argument timing needs it. The raw branch is skip-marked:
+      // the re-queued traversal must neither re-enter this handler nor substitute the raw static.
+      // The raw member is the guard's live fallback - a narrow would corrupt the untaken flow.
       const guardedNarrowRendered = new WeakSet();
       function emitGuardedStaticNarrow(meta, path) {
         const memberNode = path.node;
@@ -1020,11 +1022,15 @@ export default function plugin(api, options) {
             const optional = raw && !!callPath.node.optional;
             if (!thisArg) return hostSlot({ ...call, callee: estreeToBabel(callee), optional });
             // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
-            const { object, property } = estreeToBabel(callee);
+            const canonicalMember = renderMethodCallMember(callee.object, {
+              optional, args: call.arguments,
+              ctx: { scope: path.scope, path, adapter, injectorState: injector },
+            });
+            const callMember = estreeToBabel(optional ? chainExpression(canonicalMember) : canonicalMember);
             const args = [estreeToBabel(thisArg), ...call.arguments];
             return hostSlot(optional
-              ? t.optionalCallExpression(t.optionalMemberExpression(object, property, false, true), args, false)
-              : t.callExpression(t.memberExpression(object, property), args));
+              ? t.optionalCallExpression(callMember, args, false)
+              : t.callExpression(callMember, args));
           } : undefined,
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
@@ -2189,6 +2195,23 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        const { comments } = path.hub.file.ast;
+        // babel lifts directives into Program.directives, so body[0] is already post-prologue.
+        // `directives === true` signals `disable-file` - collapse both skip sources into one write.
+        // body[0] may be a sibling-plugin-synthesized node WITHOUT `.start` (helper class
+        // declaration, generator helper, etc.); using its undefined start would trip
+        // `parseDisableDirectives`'s "no firstStmtStart -> file-wide disable" branch on any
+        // top-of-file directive comment, producing a false-positive whole-file skip. scan
+        // for the first body node that carries a real `.start` so the boundary check stays
+        // anchored at user code
+        const firstStmtStart = path.node.body.find(n => n?.start !== undefined)?.start;
+        const directives = isInternalCoreJS ? null : parseDisableDirectives({
+          comments, offsetToLine: undefined, firstStmtStart, ast: path.node,
+        });
+        const fileDisabled = directives === true;
+        skipFile = isInternalCoreJS || fileDisabled || isDeclarationFile(path.hub.file.opts.filename);
+        disabledLines = fileDisabled ? null : directives;
+        // Directives precede every census: a retained read on an opted-out subtree is never served.
         // Ask the format owner with the filename and the goal babel actually parsed with. Only
         // a declared SCRIPT speaks there: `module` is babel's default, not a statement about the file.
         // The verdict is not written back onto `path.node.sourceType`: the tree is a foreign
@@ -2220,7 +2243,7 @@ export default function plugin(api, options) {
             memberKeyNamesReducer(),
             ctorAliasShapesReducer(),
             mutationShapesReducer(packages),
-            escapedCtorReferencesReducer(),
+            escapedCtorReferencesReducer({ isOptedOut: disabledLines?.size ? isDisabled : null }),
             restSentinelNamesReducer(),
             proxyWriteOriginsReducer(),
             nestedTSRuntimeDeclarationsReducer(),
@@ -2237,9 +2260,10 @@ export default function plugin(api, options) {
         mutatedStatics = null;
         writtenContainerSlots = null;
         escapedCtorNames = null;
-        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS
+        const mutationPrePass = method === 'usage-pure' && !isInternalCoreJS
           ? collectMutationPrePass(path, adapter, fileCensus,
-            (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath)).mutated : null;
+            (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath)) : null;
+        mutatedStatics = mutationPrePass?.mutated ?? null;
         escapedCtorNames = fileCensus.escapedCtorNames ?? null;
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
@@ -2315,6 +2339,7 @@ export default function plugin(api, options) {
         typeResolvers.reset();
         resetASTHelpers();
         resetClassHelpers();
+        mutationPrePass?.heldReads?.settle(adapter, resolvePure);
         // usage-pure shares one visitor instance (commonVisitorOptions match), reset skips dupe
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
@@ -2328,22 +2353,6 @@ export default function plugin(api, options) {
           debugOutput?.warn('the source mixes ESM and CommonJS, so its output is mixed whatever the injection spells');
         }
         deoptNotedNames = new Set();
-        const { comments } = path.hub.file.ast;
-        // babel lifts directives into Program.directives, so body[0] is already post-prologue.
-        // `directives === true` signals `disable-file` - collapse both skip sources into one write.
-        // body[0] may be a sibling-plugin-synthesized node WITHOUT `.start` (helper class
-        // declaration, generator helper, etc.); using its undefined start would trip
-        // `parseDisableDirectives`'s "no firstStmtStart -> file-wide disable" branch on any
-        // top-of-file directive comment, producing a false-positive whole-file skip. scan
-        // for the first body node that carries a real `.start` so the boundary check stays
-        // anchored at user code
-        const firstStmtStart = path.node.body.find(n => n?.start !== undefined)?.start;
-        const directives = isInternalCoreJS ? null : parseDisableDirectives({
-          comments, offsetToLine: undefined, firstStmtStart, ast: path.node,
-        });
-        const fileDisabled = directives === true;
-        skipFile = isInternalCoreJS || fileDisabled || isDeclarationFile(path.hub.file.opts.filename);
-        disabledLines = fileDisabled ? null : directives;
         // the minifier-sequence split lands before any usage / entry visitor sees the program, and
         // after the directives were read: a `-next-line` over a collapsed statement spans the whole
         // statement the author wrote, so every product stays covered. gated below skipFile so a

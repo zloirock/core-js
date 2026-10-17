@@ -102,6 +102,7 @@ import {
   memberExpression,
   nullFirstGuardTest,
   renderAliasHeldProbeRead,
+  renderMethodCallMember,
   renderDeleteShortCircuitGuard,
   renderNavCollapseLeaf,
   renderKeptSequenceTail,
@@ -1158,17 +1159,19 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode, anchorPath = null }) {
-    const [assign, ref] = memoize(object, scope, anchorNode ?? object, false, anchorPath && {
+    const receiverCtx = anchorPath && {
       scope,
       path: anchorPath,
       adapter: getAdapter?.(),
       injectorState: getInjector(),
-    });
+    };
+    const [assign, ref] = memoize(object, scope, anchorNode ?? object, false, receiverCtx);
     // clone args: originals may belong to a parent being replaced (stale Babel path containers)
     const callArgs = [t.cloneNode(ref), ...args.map(a => t.cloneNode(a))];
-    const callMember = optionalCall
-      ? t.optionalMemberExpression(t.callExpression(id, [assign]), t.identifier('call'), false, true)
-      : t.memberExpression(t.callExpression(id, [assign]), t.identifier('call'));
+    const canonicalMember = renderMethodCallMember(hostSlot(t.callExpression(id, [assign])), {
+      optional: optionalCall, args, ctx: receiverCtx,
+    });
+    const callMember = estreeToBabel(optionalCall ? chainExpression(canonicalMember) : canonicalMember);
     return optionalCall
       ? t.optionalCallExpression(callMember, callArgs, false)
       : t.callExpression(callMember, callArgs);
@@ -2963,14 +2966,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   //     outer `()` is non-optional call on void 0
   //   - arr non-nullish: Reference Type preserves `this=arr` through parens (per ECMAScript
   //     spec on GroupingOperator, verified empirically: `([1,2]?.at)(0) === 1`)
-  // emit `(arr == null ? void 0 : _includes(arr)).call(arr, 1)`:
-  //   - nullish path: `(undefined).call(...)` accesses `.call` on undefined -> TypeError
-  //     (matches native throw shape; "Cannot read properties of undefined" rather than "not
-  //     a function" - both are TypeError, error message differs)
-  //   - success path: `_includes(arr).call(arr, 1)` preserves `this=arr` (matches native)
-  // args eval order: nullish path skips arg evaluation where native evaluates them. minor
-  // divergence acceptable - the throw still fires; literal args (the common case) are
-  // semantically identical
+  // The guarded lookup stays outside the outer call; the render canon makes its nullish
+  // result safe to read `.call` from, so arguments still run before the invocation rejects.
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike({ path, id, skipOptional, sideEffects, receiverEffectCount }) {
@@ -2993,8 +2990,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // crashed the pass - the surviving render is what the source gets
     if (!object) return;
     if (isParenLookupOnly) {
-      // build `(check == null ? void 0 : _id(_ref = obj)).call(_ref, ...args)` so:
-      //   - throw-on-nullish preserved: ternary -> void 0, `.call` access on undefined throws
+      // build the guarded lookup's ordinary call so:
+      //   - throw-on-nullish follows argument evaluation through the render canon
       //   - `this`-binding-on-success preserved: `_ref` captures obj, `.call(_ref, ...)` binds it
       //   - obj evaluated ONCE: deep chains `(arr?.b.includes)(1)` would otherwise re-eval
       //     `arr.b` in callArgs (single-eval matters for receivers with side effects)
@@ -3027,7 +3024,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // it to the whole result would fire it even on the short-circuit. no guard -> SE stays outside
       const wrappedCallee = check ? wrapConditional(check, keyedLookup) : keyedLookup;
       const callArgs = [t.cloneNode(objRef), ...parent.arguments.map(a => t.cloneNode(a))];
-      const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
+      const result = t.callExpression(estreeToBabel(renderMethodCallMember(hostSlot(wrappedCallee), {
+        args: parent.arguments,
+        ctx: { scope: path.scope, path, adapter: getAdapter?.(), injectorState: getInjector() },
+      })), callArgs);
       callerPath.parentPath.replaceWith(result);
       return;
     }

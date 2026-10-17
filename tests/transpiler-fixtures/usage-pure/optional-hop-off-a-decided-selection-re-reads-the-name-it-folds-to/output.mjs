@@ -13,5 +13,5 @@ export const named = null == A ? void 0 : _nameMaybeFunction(A === Array ? _Arra
 export const firsts = [];
 for (const B of [Array]) {
   var _ref;
-  _pushMaybeArray(firsts).call(firsts, null == B ? void 0 : _includesMaybeArray(_ref = _Array$from([3])).call(_ref, 3));
+  (_pushMaybeArray(firsts) || 0).call(firsts, null == B ? void 0 : _includesMaybeArray(_ref = _Array$from([3])).call(_ref, 3));
 }

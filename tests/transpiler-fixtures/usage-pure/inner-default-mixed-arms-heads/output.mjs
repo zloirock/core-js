@@ -23,4 +23,4 @@ for (const [{
   Array: {
     of: _Array$of
   }
-}] of rows) _pushMaybeArray(heads).call(heads, S, of(7));
+}] of rows) (_pushMaybeArray(heads) || 0).call(heads, S, of(7));

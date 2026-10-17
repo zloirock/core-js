@@ -17,7 +17,7 @@ const log = [];
   }) {
     return f;
   }
-  _pushMaybeArray(log).call(log, g() === _Array$from, g({
+  (_pushMaybeArray(log) || 0).call(log, g() === _Array$from, g({
     w: userObj
   })());
 }
