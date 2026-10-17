@@ -16,11 +16,11 @@ function read(flag) {
   }
   const direct = (_ref = realm.Array, _ref === Array ? _Array$of(7) : _ref.of(7));
   const held = realm.Array;
-  const viaHeld = (held, held === Array ? _Array$of(7) : held.of(7));
+  const viaHeld = held === Array ? _Array$of(7) : held.of(7);
   const heldPure = (0, realm).Array;
-  const viaHeldPure = (heldPure, heldPure === Array ? _Array$of(7) : heldPure.of(7));
+  const viaHeldPure = heldPure === Array ? _Array$of(7) : heldPure.of(7);
   const heldEffect = (eff(), realm).Array;
-  const viaHeldEffect = (heldEffect, heldEffect === Array ? _Array$of(7) : heldEffect.of(7));
+  const viaHeldEffect = heldEffect === Array ? _Array$of(7) : heldEffect.of(7);
   const heldMap = realm === _globalThis ? _Map : realm.Map;
   const viaMap = typeof heldMap.groupBy;
   return [direct, viaHeld, viaHeldPure, viaHeldEffect, viaMap];

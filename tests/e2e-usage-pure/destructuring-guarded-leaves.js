@@ -295,3 +295,34 @@ QUnit.test('guarded destructuring: parameter memos belong to each activation', a
   assert.deepEqual(readParameterCapture({ of: undefined }), [9, true]);
   assert.deepEqual(readParameterCapture(globalThis.Array), [[3], true]);
 });
+
+// The exported reader is open: a slot default does not constrain supplied receivers.
+export function readDefaultedIteratedReceiver(external, target, onDefault) {
+  const [{ at } = (onDefault(), [1])] = external;
+  return at.call(target, 0);
+}
+
+QUnit.test('iteration: an open slot keeps its native default and dispatches the selected receiver', assert => {
+  let defaults = 0;
+  function onDefault() { defaults++; }
+  assert.same(readDefaultedIteratedReceiver(['text'], 'ok', onDefault), 'o');
+  assert.same(defaults, 0);
+  assert.same(readDefaultedIteratedReceiver([undefined], [7], onDefault), 7);
+  assert.same(readDefaultedIteratedReceiver([], [8], onDefault), 8);
+  assert.same(defaults, 2);
+  let getters = 0;
+  let calls = 0;
+  const receiver = { get at() {
+    getters++;
+    return function () {
+      calls++;
+      return 'own';
+    };
+  } };
+  assert.same(readDefaultedIteratedReceiver([receiver], null, onDefault), 'own');
+  assert.same(getters, 1);
+  assert.same(calls, 1);
+  assert.same(defaults, 2);
+  assert.throws(() => readDefaultedIteratedReceiver([null], null, onDefault), TypeError);
+  assert.same(defaults, 2);
+});

@@ -133,6 +133,29 @@ for (const parser of adapters) for (const fields of ['of: value = 1, extra', 'ex
   check(`${ parser.name }: value host preserves RHS: ${ fields }`, plan?.hostKind, 'assignment-value');
 }
 
+// A stable source needs no copy; writes anywhere in the original pattern retain its value.
+for (const parser of adapters) for (const [label, extra, statement, captured, target = 'method'] of [
+  ['stable default', '', 'const { from, of: method = 1 } = M;', false],
+  ['known key', "const key = 'of';", 'const { from, [key]: method } = M;', false],
+  ['earlier native default', '', 'const { before = (M = {}, 1), of: method = 1 } = M;', true],
+  ['later default result', 'let first, method;', 'const result = ({ from: first, of: method = (M = {}, 1) } = M);', true],
+  ['reachable writer', 'function change() { M = {}; } expose(change);', 'const { from, of: method = change() } = M;', true],
+  ['source as target', 'let first;', 'const result = ({ from: first, of: M } = M);', true, 'M'],
+]) {
+  const program = parser.parseAndScope(`let M = pickConstructor(); if (!M) M = Array; ${ extra } ${ statement }`);
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    prop => (prop.node.value.left ?? prop.node.value).name === target);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planGuardedDestructureNarrow({
+    propNode: path.node, patternNode: path.parentPath.node, hostNode: path.parentPath.parentPath.node,
+    hostInStatement: false, path, adapter, meta: { key: 'of', guardedAliasHint: 'Array', guardOnly: true },
+    resolvePure: meta => meta.kind === 'property' && meta.object === 'Array' && ['of', 'from'].includes(meta.key)
+      ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
+  });
+  check(`${ parser.name }: receiver reuse: ${ label }: admitted`, !!plan, true);
+  check(`${ parser.name }: receiver reuse: ${ label }: capture`, !!plan?.plan.captureReceiver, captured);
+}
+
 // A scalar default keeps the foreign raw read under its identity guard on later passes.
 // Claims in the user's fallback stay live, and a different comparator proves nothing.
 for (const parser of adapters) for (const [name, expression, pick, expected] of [

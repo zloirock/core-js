@@ -5,13 +5,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // classification the taken branch read NATIVE statics (undefined on targets without them)
 let calls = 0;
 const cond = true;
-const {
-  from
-} = cond ? ((() => {
+(() => {
   calls++;
   return Array;
-})(), {
-  from: _Array$from
-}) : {
-  from: _Array$from
-};
+})();
+const from = _Array$from;

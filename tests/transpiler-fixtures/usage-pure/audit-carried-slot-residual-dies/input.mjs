@@ -10,10 +10,9 @@ let viaAssignCall, viaAssignWrap, viaAssignBodyless;
 ({ y: { at: viaAssignCall } } = { y: arr.flat() });
 ([{ y: { at: viaAssignWrap } }] = [{ y: arr.flat() }]);
 if (1) ({ y: { at: viaAssignBodyless } } = { y: arr.flat() });
-// ... and it stands down wherever a reader SURVIVES the slot - a sibling binding, a second
-// effect-bearing part of the init the dispatch does not spell - where the literal is captured once
-// and the claim reads the slot off the capture; a sibling KEY off the same receiver instead reads
-// the slot's memo, which the claim reads too - the slot still evaluates once
+// A quiet sibling value can follow its claim directly. A second effectful initializer remains
+// evaluated before either slot is read. A sibling key sharing the claimed receiver keeps
+// that receiver available to both reads.
 let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
 ({ y: { at: keptSibling }, o: keptOther } = { y: arr.flat(), o: 1 });
 ({ y: { at: keptKey, length: keptLen } } = { y: arr.flat() });

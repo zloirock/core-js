@@ -1,13 +1,10 @@
-import _JSON$stringify from "@core-js/pure/actual/json/stringify";
-// a SIDE-EFFECTING computed key whose receiver is a proxy-global CHAIN (`globalThis.self.JSON`),
-// behind a diverging ternary. the chain resolves to the constructor exactly like a bare one, so the
-// proxy branch mirrors to a synth literal under the resolved static key while the user branch stays
-// native (no corruption). the effect stays in the residual LHS key and runs exactly once
+import _self from "@core-js/pure/actual/self";
+// The closed false selector makes the user object the only reachable source. The computed key effect
+// stays on the native read and runs once. Unknown proxy-vs-user JSON selection remains covered by
+// `audit-nested-cond-multi-outer-key-mirrors`.
 const userObj = {};
 const cond = false;
 const {
   [(eff(), "stringify")]: stringify
-} = cond ? {
-  "stringify": _JSON$stringify
-} : userObj;
+} = cond ? _self.JSON : userObj;
 typeof stringify;

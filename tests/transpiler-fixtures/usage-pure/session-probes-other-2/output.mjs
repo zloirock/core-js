@@ -35,7 +35,7 @@ function mark(t, v) {
   return v;
 }
 {
-  const a = _at(pick ? [1] : 'x');
+  const a = _atMaybeArray(pick ? [1] : 'x');
 }
 {
   const [_ref] = [getArr(), eff2()];
@@ -94,22 +94,18 @@ function mark(t, v) {
   } : userObj];
 }
 {
-  const [_ref2, _ref3] = [pick ? {
+  const [{
+    from: f
+  }, x] = [pick ? {
     from: _Array$from
   } : _Set, 1];
-  const {
-    from: f
-  } = _ref2;
-  const x = _ref3;
 }
 {
-  const [_ref4, _ref5] = [pick ? {
+  const [{
+    from: f
+  }, z] = [pick ? {
     from: _Array$from
   } : userObj, eff()];
-  const {
-    from: f
-  } = _ref4;
-  const z = _ref5;
 }
 {
   const [{
@@ -125,12 +121,11 @@ function mark(t, v) {
 }
 {
   // The native first slot reads before the second slot's instance extraction.
-  const [_ref6,,] = [pick ? {
+  const [{
+    from: f
+  }] = [pick ? {
     from: _Array$from
   } : userObj, arr];
-  const {
-    from: f
-  } = _ref6;
   const a = _atMaybeArray(arr);
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);
 }
@@ -224,7 +219,7 @@ function mark(t, v) {
 {
   const [{
     from: f
-  }] = [pick ? _globalThis : _Set];
+  }] = [_globalThis];
 }
 {
   const [{
@@ -260,17 +255,17 @@ function mark(t, v) {
   }];
 }
 {
-  const [_ref7] = [{
+  const [_ref2] = [{
     w: (mark(), arr)
   }];
-  const m = _atMaybeArray(_ref7.w);
+  const m = _atMaybeArray(_ref2.w);
   use(m);
 }
 {
-  const [_ref8] = [{
+  const [_ref3] = [{
     w: arr
   }, eff2()];
-  const m = _atMaybeArray(_ref8.w);
+  const m = _atMaybeArray(_ref3.w);
   use(m);
 }
 {
@@ -308,10 +303,10 @@ function mark(t, v) {
   values;
 }
 {
-  const [, _ref9] = [r, 1];
+  const [, _ref4] = [r, 1];
   const values = _values(r.w);
   const at = _at(r.y);
-  const x = _ref9;
+  const x = _ref4;
   [values, at, x];
 }
 {

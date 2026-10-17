@@ -1,6 +1,18 @@
 /* eslint-disable no-sequences, unicorn/no-unreadable-iife -- folded effectful key shapes */
 
 import { receiver, resetReceiver } from './mutation-cases/live-import-receiver.js';
+// eslint-disable-next-line unicorn/no-named-default -- retain the named-default source binding
+import { default as key } from '@core-js/pure/actual/symbol/async-iterator';
+
+QUnit.test('a local computed key shadows an imported symbol', assert => {
+  // eslint-disable-next-line no-shadow -- the local key must shadow the source import
+  const key = 'at';
+  assert.same([7][key](0), 7);
+});
+
+QUnit.test('an imported computed key still reads its symbol slot', assert => {
+  assert.same({ [key]: 23 }[key], 23);
+});
 
 QUnit.test('computed key captures a reassigned receiver before its effect', assert => {
   let arr = [1, [2]];
@@ -108,4 +120,22 @@ QUnit.test('computed optional call evaluates a receiver prefix before its captur
   const result = (log.push('prefix'), arr = ['held'], arr)[(() => (log.push('key'), arr = ['after'], 'at'))()]?.(0);
   assert.same(result, 'held');
   assert.deepEqual(log, ['prefix', 'key']);
+});
+
+QUnit.test('closed literal caller selects its receiver before an arguments slot write', assert => {
+  function read(flag) {
+    // eslint-disable-next-line prefer-rest-params -- retain the arguments slot write
+    const { [(arguments[0] = false, 'at')]: method } = flag ? [1] : 'text';
+    return [method.call([7], 0), flag];
+  }
+  // This module is strict; the Script fixture additionally covers a mapped arguments object.
+  assert.deepEqual(read(true), [7, true]);
+});
+
+QUnit.test('an unknown selection keeps its receiver before a named parameter write', assert => {
+  function read(flag) {
+    const { [(flag = false, 'at')]: method } = flag ? [1] : 'text';
+    return [method.call([7], 0), flag];
+  }
+  assert.deepEqual(read(!!assert), [7, false]);
 });

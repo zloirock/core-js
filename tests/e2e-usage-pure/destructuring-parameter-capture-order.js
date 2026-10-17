@@ -1,6 +1,16 @@
 import { restoreProperty } from '../helpers/restore-property.cjs';
 import './mutation-cases/parameter-capture-late-return-statics.js';
 
+QUnit.test('parameter capture: a default keeps its instance receiver effects', assert => {
+  const events = [];
+  const rows = [3, [1, 2]];
+  function read({ at } = (events.push('default'), rows).flat()) { return at.call([4, 9], -1); }
+  assert.same(read(), 9);
+  assert.deepEqual(events, ['default']);
+  assert.same(read({ at() { return 'own'; } }), 'own');
+  assert.deepEqual(events, ['default'], 'a supplied receiver bypasses the default');
+});
+
 QUnit.test('parameter capture: an inner default retains repeated native siblings', assert => {
   const events = [];
   const realm = Function('return this')();

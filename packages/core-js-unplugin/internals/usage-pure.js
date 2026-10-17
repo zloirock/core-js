@@ -23,6 +23,7 @@ import {
   climbTransparentWrapperPath,
   deleteHostAboveChain,
   isDeoptedGlobalSlotRead,
+  isFunctionParamDestructureParent,
   isReusableReceiver,
   isTaggedTemplateTag,
   mayHaveSideEffects,
@@ -30,6 +31,7 @@ import {
   observableSequenceElements,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
+  patternSlotTarget,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
   staticFallbackSwapRedundant,
@@ -64,6 +66,7 @@ import {
 } from './claim-guards.js';
 import {
   climbToCallerPath,
+  cloneStamped,
   foldPendingReceiverSpineRoot,
   insideMemoClone,
   markSubtreeSkipped,
@@ -635,7 +638,7 @@ export default function createAstUsagePureCallback({
     const consumesCall = entry === 'get-iterator';
     // extracted from its chain, a carrier receiver takes a wrapper of its own for the print
     function receiverClone() {
-      return receiverCarriesOptional(object) ? chainExpression(cloneNode(object)) : cloneNode(object);
+      return receiverCarriesOptional(object) ? chainExpression(cloneStamped(object, typeStampCtx)) : cloneStamped(object, typeStampCtx);
     }
     // a PAREN SEAL between the member and its call (`(arr?.[S])()`): the lookup value is
     // read plainly, so the `?.` produces no guard - a nullish receiver throws through the
@@ -832,13 +835,13 @@ export default function createAstUsagePureCallback({
       meta = { ...meta };
       delete meta.fromFallback;
     }
-    // Prior-pass claims were retired above. Ask the mirror ahead of the routes below: a pattern-valued
-    // claim on that host has no statement slot to extract into, so the iterated ELEMENT is the only
-    // place a rewrite can land. the per-branch dispatch inside the staged bail and the consume gate
-    // in the prop handler each reached such a claim first and dropped it, leaving the head reading
-    // the static raw - the babel binding asks the same plan at the same point in its own dispatch
+    // Prior-pass claims retire above. A nested parameter first asks for an actual receiver capture,
+    // before a fallback mirror changes its source. Other pattern-valued hosts ask the mirror before
+    // the staged bail can decline their extraction, including loop heads that can mirror an element.
     if ((node.type === 'Property' && meta.kind === 'property'
-      && (destructureEmit.tryPatternMirror({ metaPath, meta }) || destructureEmit.capturePatternForExtraction({
+      && (patternSlotTarget(node.value)?.type === 'ObjectPattern'
+        && isFunctionParamDestructureParent(metaPath.parentPath) && destructureEmit.captureParameterInstance(metaPath)
+        || destructureEmit.tryPatternMirror({ metaPath, meta }) || destructureEmit.capturePatternForExtraction({
         metaPath, meta, ...isSourcedSymbolIteratorMeta(meta)
           ? SYMBOL_ITERATOR_PURE_RESULT : resolvePureOrGlobalFallback(meta, metaPath).result ?? { kind: null },
       })))

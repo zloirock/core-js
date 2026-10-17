@@ -41,6 +41,13 @@ const rows = [
   ['defaulted capture', 'const [saved = [1]] = [maybe]; saved.at;', [null]],
   ['shifted capture', 'const [saved] = [...unknown, [1]]; saved.at;', [null]],
   ['written element source', 'const rows = [[1]]; rows[0] = "xy"; const [saved] = rows; saved.at;', [null]],
+  ['source write reaches alias read', 'const rows = [[1]]; const alias = rows; rows[0] = "xy"; alias[0].at;', ['string']],
+  ['alias write reaches source read', 'const rows = [[1]]; const alias = rows; alias[0] = "xy"; rows[0].at;', ['string']],
+  ['source write replaces a string', 'const rows = ["xy"]; const alias = rows; rows[0] = [1]; alias[0].includes;', ['Array']],
+  ['alias write replaces a string', 'const rows = ["xy"]; const alias = rows; alias[0] = [1]; rows[0].includes;', ['Array']],
+  ['alias read before and after a write', 'const rows = [[1]]; const alias = rows; alias[0].at; rows[0] = "xy"; alias[0].includes;', ['Array', 'string']],
+  ['unwritten alias element', 'const rows = [[1]]; const alias = rows; alias[0].at;', ['Array']],
+  ['write to another own alias element', 'const rows = [[1], "xy"]; const alias = rows; rows[1] = [2]; alias[0].at;', ['Array']],
 ];
 
 for (const [name, code, expected] of rows) runBoth(name, code, (adapter, program, label) => {
@@ -58,6 +65,130 @@ for (const [name, code, expected] of rows) runBoth(name, code, (adapter, program
     return type ? type.primitive ? type.type : type.constructor : null;
   });
   checkDeep(label, actual, expected);
+});
+
+for (const [name, source, pristine] of [
+  ['direct returned parameter', '((value) => value)(...[[1]]).at;', 'Array'],
+  ['returned default', '((value = []) => value)(...[undefined]).at;', 'Array'],
+  ['inferred generic', 'function read<T>(value: T): T { return value; } read(...([[1]] as [number[]])).at;', 'Array'],
+  ['known argument directive', 'Object.freeze(...[[1]]).at;', 'Array'],
+]) runBoth(`returned argument iterator provenance/${ name }`, source, (parser, program, label) => {
+  const property = parser.pickPath(program, 'MemberExpression', p => p.node.property?.name === 'at');
+  for (const mutated of [false, true]) {
+    const resolver = parser.makeResolver({ isMutatedStatic: (owner, key) => mutated && owner === 'Array.prototype' && key === 'Symbol.iterator' });
+    const type = resolver.resolveNodeType(property.get('object'));
+    checkDeep(`${ label }/${ mutated }`, type ? type.primitive ? type.type : type.constructor : null, mutated ? null : pristine);
+  }
+});
+
+// The hook models an installed runtime iterator; annotation lanes remain independently trusted.
+for (const [name, source, changed] of [
+  ['binding', 'const [value] = [[1]]; value.at;', null],
+  ['assignment', 'let value; [value] = [[1]]; value.at;', null],
+  ['nested object array binding', 'const { w: [value] } = { w: [[1]] }; value.at;', null],
+  ['loop element', 'for (const value of [[1]]) value.at;', null],
+  ['numeric property', 'const { 0: value } = [[1]]; value.at;', 'Array'],
+  ['nested numeric property', 'const { w: { 0: value } } = { w: [[1]] }; value.at;', 'Array'],
+  ['annotation', 'const [value]: number[][] = [[1]]; value.at;', 'Array'],
+]) runBoth(`iterator projection differs from indexed access/${ name }`, source, (parser, program, label) => {
+  const property = parser.pickPath(program, 'MemberExpression', p => p.node.property?.name === 'at');
+  for (const mutated of [false, true]) {
+    const resolver = parser.makeResolver({ isMutatedStatic: (owner, key) => mutated && owner === 'Array.prototype' && key === 'Symbol.iterator' });
+    const type = resolver.resolveNodeType(property.get('object'));
+    checkDeep(`${ label }/${ mutated }`, type ? type.primitive ? type.type : type.constructor : null, mutated ? changed : 'Array');
+  }
+});
+
+// A changed runtime iterator can yield an unrelated element, so a nested loop slot cannot inherit
+// the source array literal's family.
+runBoth('changed iterator keeps a nested loop slot open',
+  'for (const { value: { at } } of [{ value: [1] }]) {}', (parser, program, label) => {
+    const property = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.key?.name === 'at');
+    const resolver = parser.makeResolver({
+      isMutatedStatic: (owner, key) => owner === 'Array.prototype' && key === 'Symbol.iterator',
+    });
+    checkDeep(label, resolver.resolvePropertyObjectType(property), null);
+  });
+
+runBoth('an unrelated Array iterator write preserves a generic String rest argument',
+  "function first<T>(...values: T[]): T { return values[0]; } first(...'ab').at;", (parser, program, label) => {
+    const property = parser.pickPath(program, 'MemberExpression', p => p.node.property?.name === 'at');
+    for (const mutated of [false, true]) {
+      const resolver = parser.makeResolver({ isMutatedStatic: (owner, key) => mutated && owner === 'Array.prototype' && key === 'Symbol.iterator' });
+      const type = resolver.resolveNodeType(property.get('object'));
+      checkDeep(`${ label }/${ mutated }`, type ? type.primitive ? type.type : type.constructor : null, 'string');
+    }
+  });
+
+for (const [name, source] of [
+  ['direct', 'const Reflect = { apply(value) { return value; } }; Reflect.apply([1]).at;'],
+  ['default', 'const Reflect = { apply(value = [1]) { return value; } }; Reflect.apply(undefined).at;'],
+  ['generic', 'const Reflect = { apply<T>(value: T): T { return value; } }; Reflect.apply([1]).at;'],
+]) runBoth(`local invoker spelling keeps its own arguments/${ name }`, source, (parser, program, label) => {
+  const property = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+  const resolver = parser.makeResolver();
+  checkDeep(label, resolver.resolveNodeType(property.get('object'))?.constructor, 'Array');
+});
+
+// Stored array iteration can select a different literal slot, while retained call paths still
+// need their source call role after an emitter replaces the live callee.
+for (const [name, source, expected, rewire, dropParentStart] of [
+  ['stored custom iterator', `const box = { data: [1] }; const wrap = [box, {}];
+    wrap[Symbol.iterator] = function* () { yield this[1]; yield this[0]; };
+    const [, alias] = wrap; alias.data = "xy"; box.data.includes("xy");`, null],
+  ['spread loses literal position', 'const box = { data: [1] }; const [alias] = [...other, box]; alias.data = "xy"; box.data.at(0);', null],
+  ['reassigned array alias', 'const rows = [[1]]; let alias = rows; alias = other; alias[0] = "xy"; rows[0].at(0);', null],
+  ['retained rewritten call', 'const rows = [[1]]; rows.includes(rows[0]); rows[0].at(0);', 'Array', true, false],
+  ['retained rewritten call without parent start', 'const rows = [[1]]; rows.includes(rows[0]); rows[0].at(0);', 'Array', true, true],
+]) runBoth(`positional child/${ name }`, source, (adapter, program, label) => {
+  if (rewire) {
+    const callMember = adapter.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'includes');
+    if (dropParentStart) delete callMember.parent.start;
+    callMember.parent.callee = { type: 'Identifier', name: 'dispatch' };
+  }
+  const method = name === 'stored custom iterator' ? 'includes' : 'at';
+  const member = adapter.pickPath(program, 'MemberExpression', path => path.node.property?.name === method);
+  const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+  checkDeep(label, type ? type.primitive ? type.type : type.constructor : null, expected);
+});
+
+// A default does not turn an unknown iterated value into the default's family. Presence
+// also needs an ordinary iterator and an unshadowed missing slot; an own undefined wins.
+for (const [name, source, mutation, expected] of [
+  ['iterated binding default', 'const [value = [1]] = []; value.at;', ['Array.prototype', 'Symbol.iterator'], null],
+  ['iterated assignment default', 'let value; [value = [1]] = []; value.at;', ['Array.prototype', 'Symbol.iterator'], null],
+  ['iterated parameter default', 'function read([value = [1]]) { value.at; } read([]);', ['Array.prototype', 'Symbol.iterator'], null],
+  ['numeric property stays indexed', 'const { 0: value = [1] } = {}; value.at;', ['Array.prototype', 'Symbol.iterator'], 'Array'],
+  ['inherited hole', 'const [value = [1]] = [,]; value.at;', ['Array.prototype', '0'], null],
+  ['iterator done precedes inherited slot', 'const [value = [1]] = []; value.at;', ['Array.prototype', '0'], 'Array'],
+  ['own undefined masks inherited index', 'const [value = [1]] = [void 0]; value.at;', ['Array.prototype', '0'], 'Array'],
+  ['inherited object slot', 'const { value = [1] } = {}; value.at;', ['Object.prototype', 'value'], null],
+  ['own undefined masks inherited object slot', 'const { value = [1] } = { value: void 0 }; value.at;', ['Object.prototype', 'value'], 'Array'],
+  ['spread inherits its source index', 'const [, value = [1]] = [...[, ,]]; value.at;', ['Array.prototype', '1'], null],
+  ['spread prefix inherits the source index', 'const [,, value = [1]] = [0, ...[, ,]]; value.at;', ['Array.prototype', '1'], null],
+  ['spread prefix has a different source index', 'const [, value = [1]] = [0, ...[, ,]]; value.at;', ['Array.prototype', '1'], 'Array'],
+  ['typed String element', 'declare const unknown: any; const [value]: [string] = unknown; value.at;', ['Array.prototype', 'Symbol.iterator'], 'string'],
+  ['typed Array element', 'declare const unknown: any; const [value]: [number[]] = unknown; value.at;', ['Array.prototype', 'Symbol.iterator'], 'Array'],
+]) runBoth(`default slot certainty/${ name }`, source, (parser, program, label) => {
+  const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+  const resolver = parser.makeResolver({ isMutatedStatic: (owner, key) => owner === mutation[0] && key === mutation[1] });
+  const answer = resolver.resolveNodeType(member.get('object'));
+  checkDeep(label, answer ? answer.primitive ? answer.type : answer.constructor : null, expected);
+});
+
+// A failed iterative projection cannot retry the same raw literal as an indexed union.
+for (const [name, source, expected] of [
+  ['runtime default', 'const [{ at } = [1]] = [];', null],
+  ['String assertion', 'declare const input: unknown; const [{ at } = "fallback"] = input as [string];', 'string'],
+  ['Array assertion', 'declare const input: unknown; const [{ at } = [1]] = input as [number[]];', 'Array'],
+]) runBoth(`nested default receiver hints/${ name }`, source, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key?.name === 'at');
+  const resolver = parser.makeResolver({ isMutatedStatic: (owner, key) => owner === 'Array.prototype' && key === 'Symbol.iterator' });
+  const hints = resolver.resolvePropertyUnionHints(prop);
+  checkDeep(`${ label }/hints`, hints ? [...hints].sort() : null, null);
+  const answer = resolver.resolvePropertyObjectType(prop);
+  checkDeep(`${ label }/scalar priority`, answer ? answer.primitive ? answer.type : answer.constructor : null, expected);
 });
 
 finish();

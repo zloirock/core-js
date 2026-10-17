@@ -20,22 +20,20 @@ export const [{
 }] = [{
   of: _Array$of
 }];
-const [_ref] = [_self.Math],
+export const [{
+  trunc
+}] = [{
+  trunc: _Math$trunc
+}];
+export const [{
+  from
+}] = [{
+  from: _Array$from
+}];
+const [_ref] = [null == _globalThis.window ? void 0 : _self.Object],
   {
-    trunc: _unused
+    keys: _unused
   } = _ref,
-  trunc = _Math$trunc;
-export { trunc };
-const [_ref2] = [_self.Array],
-  {
-    from: _unused2
-  } = _ref2,
-  from = _Array$from;
-export { from };
-const [_ref3] = [null == _globalThis.window ? void 0 : _self.Object],
-  {
-    keys: _unused3
-  } = _ref3,
   keys = _Object$keys;
 export { keys };
 export const [{

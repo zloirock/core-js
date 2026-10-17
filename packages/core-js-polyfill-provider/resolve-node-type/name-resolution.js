@@ -28,6 +28,7 @@ import {
   STATEMENT_LIST_HOST_TYPES,
   getDirectStatementBody,
   isAmbientTypeDeclaration,
+  isESMMarkerStatement,
   memberContextPath,
   unwrapExportedDeclaration,
 } from '../helpers/ast-patterns.js';
@@ -36,6 +37,7 @@ import {
 // `nodePathInScope` - the union of every node type `isFunctionOrClassDeclaration` /
 // `isAmbientFunctionNode` can leaf-match, so the program-root traversal finds any of them
 const NAMESPACED_DECL_PATH_TYPES = ['FunctionDeclaration', 'ClassDeclaration', ...AMBIENT_FN_OR_CLASS_DECLARATION_TYPES];
+const typeModuleMarker = Symbol('typeModule');
 
 // `declare global { ... }` opens a program-scope augmentation block. @babel/parser@7 flags it
 // with a boolean `decl.global`; @babel/parser@8 dropped that field and only sets `kind: 'global'`
@@ -555,6 +557,22 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   // never observed, accepted as theoretical - the caches reset per file
   let typeDeclCache = new WeakMap();
 
+  // An interface augments a global only in a global script or `declare global`. Keep the
+  // source module fact in the declaration cache: removing erased imports during render does
+  // not turn a module-local type into a global augmentation. reset() starts a new source question.
+  function typeDeclarationShadowsGlobal(declaration, name, scope) {
+    if (!isInterfaceDeclaration(declaration)) return isTypeBearingDeclaration(declaration);
+    const path = findAmbientDeclarationPath(name, scope, isInterfaceDeclaration);
+    if (path?.node !== declaration) return true;
+    let owner = path.parentPath;
+    if (owner?.node?.type === 'ExportNamedDeclaration' || owner?.node?.type === 'ExportDefaultDeclaration') owner = owner.parentPath;
+    if (owner?.node?.type === 'TSModuleBlock') return !isGlobalAugmentation(owner.parentPath?.node ?? {});
+    if (owner?.node?.type !== 'Program') return true;
+    const byName = getOrInitMap(typeDeclCache, owner.scope);
+    if (!byName.has(typeModuleMarker)) byName.set(typeModuleMarker, owner.node.body.some(isESMMarkerStatement));
+    return byName.get(typeModuleMarker);
+  }
+
   function lookupTypeDeclInScope(name, scope) {
     const key = nameCacheKey(name);
     if (key === null) return findFirstDecl({ name, scope, leafMatch: isTypeBearingDeclaration });
@@ -825,6 +843,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
     findEnumDeclaration,
     findAllEnumDeclarations,
     enumIsNearestValue,

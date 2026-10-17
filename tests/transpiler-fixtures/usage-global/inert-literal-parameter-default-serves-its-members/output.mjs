@@ -24,10 +24,9 @@ import "core-js/modules/es.iterator.windows";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// a parameter default spelled as an element of an INERT literal (`[Iterator][0]`, `[[1, 2]][0]`,
-// `({ I: Iterator }).I`) serves the statics and instance members destructured off it, as the direct
-// spelling does. Unknown callers keep instance-family injection conservative; their own argument
-// still destructures natively.
+// Inert literal defaults retain the Iterator and Array family facts of their default paths. A supplied
+// argument remains the actual receiver: pure body-entry dispatch preserves its own properties, while
+// global usage injects the possible families without rewriting the parameter.
 function h1({
   from: s1,
   name: nm1

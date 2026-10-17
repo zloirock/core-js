@@ -123,9 +123,7 @@ export function viaSealedBranchSynth({
   assign: sb1
 } = cond1 ? ((null == _globalThis.window ? void 0 : _self.window).Object, {
   assign: _Object$assign
-}) : {
-  assign: _Object$assign
-}) {
+}) : Object) {
   return sb1;
 }
 export { c5 };
@@ -162,7 +160,7 @@ export function viaSealedLogicalRawBail({
   seal: nb3
 } = ((null == _globalThis.window ? void 0 : _self.window).Object, {
   seal: _Object$seal
-})) {
+}) || {}) {
   return nb3;
 }
 export const [] = (null == _globalThis.window ? void 0 : _self.window).Array;

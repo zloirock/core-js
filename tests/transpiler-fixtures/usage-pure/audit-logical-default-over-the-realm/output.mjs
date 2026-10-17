@@ -3,7 +3,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3;
+var _ref, _ref2;
 // a `??` / `||` over `globalThis` or `self` - the realm object, guaranteed by the language or by its pure
 // entry, never nullish or falsy - always yields its left, so the right side is dead and both channels
 // collapse at any nesting: the static is substituted and typed (no `.name` dispatch on a number). `window`,
@@ -20,7 +20,7 @@ const overProbeWindow = _nameMaybeFunction((_ref = (window ?? {}).Number, _ref =
 const overProbeNav = _nameMaybeFunction((_ref2 = ((null == _globalThis.window ? void 0 : _self) ?? {
   Number
 }).Number, _ref2 === Number ? _Number$MAX_SAFE_INTEGER : _ref2.MAX_SAFE_INTEGER));
-const overConditional = _nameMaybeFunction((_ref3 = (c ? _globalThis : {}).Number, _ref3 === Number ? _Number$MAX_SAFE_INTEGER : _ref3.MAX_SAFE_INTEGER));
+const overConditional = _nameMaybeFunction(_Number$MAX_SAFE_INTEGER);
 // the CTOR claim through the same carrier is a THIRD path: the receiver IS the logical there, where
 // the static's receiver sits one member below it
 const ctorOverRealm = new _Map();

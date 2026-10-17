@@ -265,8 +265,8 @@ for (const viaLater of [{
   [z, viaLaterKeys];
 }
 
-// an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour
-// element that runs lifts as a statement ahead, in source order (the `push` claims are carriers)
+// an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; an effectful
+// neighbour stays in the shared array evaluation ahead of extraction, in source order
 let viaEmptiedObject = _entries(rec.w);
 let viaEmptiedObjectAt = _at(rec.y);
 [viaEmptiedObject, viaEmptiedObjectAt];

@@ -7,7 +7,7 @@ const {
   Array: {
     from
   }
-} = m && {
+} = {
   Array: {
     from: _Array$from
   }

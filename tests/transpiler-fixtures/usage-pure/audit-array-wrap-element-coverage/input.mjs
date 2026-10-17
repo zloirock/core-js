@@ -1,30 +1,30 @@
-// An array wrapper all of whose elements are claimed leaves whole, each extraction repeating its own
-// element's coercion; an element no claim reads, a surviving binding or a rest keeps the wrapper and
-// reads each element once. The untouched first statement keeps this comment at the top of the output.
+// An array wrapper selects each claimed element once in native iteration order before reading its method.
+// An unclaimed element, a surviving binding or a rest element retains its native coercion or collection.
+// The untouched first statement keeps this comment at the top of the output.
 const anchor = [1, 2];
 export { anchor };
 
-// every element claimed: the wrapper binds nothing observable and leaves whole, each extraction
-// repeating the coercion its own element performed
+// Every element is claimed: each source receiver is selected once, then each method is read from
+// the corresponding selected value.
 const [{ at }, { keys }] = [a, b];
 export { at, keys };
 
-// NEGATIVE: an element the claim never touched still COERCES its value (`{}` over a nullish `x`
-// throws), and no extraction repeats that - the wrapper stays
+// NEGATIVE: an element the claim never touched retains its native empty-object coercion, so a
+// nullish `x` throws. Both source receiver expressions are still evaluated once.
 const [{}, { at: at2 }] = [x, arr];
 export { at2 };
 
-// The surviving binding reads before the following extraction. Its emptied trailing element
-// leaves the residual: downstream destructuring lowering can otherwise lose the binding.
+// The surviving binding reads from the first selected value before the following method read.
+// The native residual retains that binding when the claimed trailing element is extracted.
 const [{ other }, { at: at3 }] = [x, arr];
 export { other, at3 };
 
-// a REST element keeps the wrapper whatever the claim takes, so the residual reads the element a
-// second time: a selection that ran once must not re-select, and both legs share one `_ref`
+// A REST element retains the native residual for coercion and rest collection. The conditional
+// source receiver is selected once; the method read and residual use that selected value in order.
 const [{ at: at4 }, ...rest] = [c ? a : x, 1];
 export { at4, rest };
 
-// NEGATIVE: a static reads its slot's constructor, not the element's value, so it replaces no
-// coercion: the wrapper stays and each slot hands over a literal
+// NEGATIVE: a static reads its slot's constructor, not an instance receiver, so native wrapper
+// coercion remains and each slot receives the corresponding constructor value.
 const [{ from }, { of }] = [Array, Array];
 export { from, of };

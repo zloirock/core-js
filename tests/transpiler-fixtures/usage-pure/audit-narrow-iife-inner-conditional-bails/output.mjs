@@ -1,4 +1,4 @@
-import _at from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // inner expression chain inside an IIFE body: `false && (x = "hello")` conditionally
 // guards the assignment. ancestor + sibling checks already validate statement-level
 // reachability inside the IIFE; this fixture asserts the expression chain from the
@@ -8,4 +8,4 @@ let x = [1, 2, 3];
 (() => {
   false && (x = "hello");
 })();
-_at(x).call(x, 0);
+_atMaybeArray(x).call(x, 0);

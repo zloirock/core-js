@@ -26,8 +26,8 @@ import {
 // index unknown). SE-tail peel (`(0, (1, R))` -> `R`) so nested + flat SequenceExpression
 // args classify identically. exported for the IIFE-argument instance clause, which needs the
 // raw argument node ahead of the classifiable-receiver gate this file's own callers apply
-export function detectIifeArgReceiver(wrapperPath, objectPattern) {
-  const arg = findIifeArgForParam(wrapperPath, objectPattern);
+export function detectIifeArgReceiver(wrapperPath, objectPattern, adapter = null) {
+  const arg = findIifeArgForParam(wrapperPath, objectPattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   if (!arg) return arg;
   const callPath = findIifeCallSite(wrapperPath, objectPattern)?.callPath;
   return stampNodeSite(unwrapSafeSequenceTail(arg), callPath && { scope: callPath.scope, path: callPath });
@@ -37,7 +37,7 @@ export function detectIifeArgReceiver(wrapperPath, objectPattern) {
 // build decides (`decidedRunningOperandPath`), its node stamped the same way: the instance clause replaces
 // it with its literal and types the dispatch off its own position
 export function detectIifeArgReceiverPath(wrapperPath, objectPattern, adapter) {
-  const argPath = findIifeArgPath(wrapperPath, objectPattern);
+  const argPath = findIifeArgPath(wrapperPath, objectPattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   const receiverPath = argPath && decidedRunningOperandPath(argPath, adapter);
   if (!receiverPath?.node) return null;
   const callPath = findIifeCallSite(wrapperPath, objectPattern)?.callPath;
@@ -79,7 +79,7 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // contract): a classifiable live arg wins regardless of the wrapper-default's shape -
     // gating on the default first would leave `(({ from } = []) => ...)(Array)` native even
     // though the live receiver is statically known
-    const rawArgReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+    const rawArgReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node, adapter);
     // the arg is classified and resolved WHERE IT EVALUATES - the detector stamped that frame on it -
     // and, where the build decides it, by the operand of it that runs (`decidedRunningOperand`)
     const { scope: argScope, path: argPath } = nodeSite(rawArgReceiver, wrapperPath);
@@ -116,7 +116,7 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
   // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
   // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
   // succeeds, otherwise destructure-emitter falls through to inline-default
-  const rawArgReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
+  const rawArgReceiver = detectIifeArgReceiver(wrapperPath, objectPattern, adapter);
   const site = nodeSite(rawArgReceiver, wrapperPath);
   const argReceiver = rawArgReceiver
     && unwrapSafeSequenceTail(decidedRunningOperand(rawArgReceiver, { scope: site.scope, adapter, path: site.path }));

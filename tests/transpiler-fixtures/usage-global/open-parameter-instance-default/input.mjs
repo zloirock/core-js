@@ -1,5 +1,5 @@
 // A supplied argument can override the array default, and an escaped function has unknown callers.
-// Global injection keeps both families; pure only rewrites the default receiver.
+// The closed String caller narrows; the escaped function dispatches on its actual incoming receiver.
 function f({
   at
 } = [[1, 2]][0]) {

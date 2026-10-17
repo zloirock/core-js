@@ -19,9 +19,9 @@ const {
   Array: {
     from
   }
-} = pick ? {
+} = {
   Array: {
     from: _Array$from
   }
-} : userObj;
+};
 from([1]);

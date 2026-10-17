@@ -1,7 +1,5 @@
-// a REFUSED ctor-alias registration (conditional write / conditional hoisted `var` decl) keeps
-// the value swap, and a member read of a known separate static gets the RUNTIME ctor guard:
-// the taken path reads the pure static, the untaken path falls to the raw read and throws on
-// the undefined binding exactly like untranspiled code; an instance-method key stays raw
+// Closed true callers settle the conditional constructor aliases. Hoisted var declarations
+// and plain writes serve the same direct statics; an instance-method name remains a property read.
 function viaWrite(c) {
   let M;
   if (c) ({ Map: M } = globalThis);
@@ -11,7 +9,7 @@ function viaDecl(c) {
   if (c) { var { Promise: P } = globalThis; }
   return typeof P.try;
 }
-// an INSTANCE-method key stays raw like every other member of a refused alias
+// An instance-method name stays a property read on the selected constructor.
 function viaInstanceKey(c) {
   let S;
   if (c) ({ Set: S } = globalThis);
