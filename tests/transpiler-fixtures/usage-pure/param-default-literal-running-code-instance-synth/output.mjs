@@ -1,35 +1,27 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
+import _at from "@core-js/pure/actual/instance/at";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _padEndMaybeString from "@core-js/pure/actual/string/instance/pad-end";
-// an instance claim destructured off a parameter default or an IIFE argument that is a literal running
-// code (`[eff()]`) is served by the one slot's instance synth like its effect-free twin: the slot spells
-// the literal in place, so it runs once, where the default fires, and claims inside it stay live. two
-// slots would spell it twice, so they keep the native read, as two slots of an invocation do
-export function viaDefault({
-  at
-} = {
-  at: _atMaybeArray([eff()])
-}) {
+// Parameter defaults and caller arguments evaluate their receiver once before instance extraction.
+// Whole receiver defaults stay in the parameter list; inner effectful defaults keep their synth.
+// Several methods share the supplied receiver without evaluating its default again.
+export function viaDefault(_ref = [eff()]) {
+  let at = _at(_ref);
   return at;
 }
-export const viaIifeArg = (({
-  includes
-}) => includes)({
-  includes: _includesMaybeArray([eff(), 2])
-});
-export function viaHopDefault({
-  w: {
-    findLast
-  }
-} = {
-  w: {
-    findLast: _findLastMaybeArray([eff()])
-  }
+export const viaIifeArg = ((_ref2, _unused = void 0) => {
+  let includes = _includesMaybeArray(_ref2);
+  return includes;
+})([eff(), 2]);
+export function viaHopDefault(_ref3 = {
+  w: [eff()]
 }) {
+  let findLast = _findLastMaybeArray(_ref3.w);
   return findLast;
 }
 export function viaInnerDefault({
@@ -41,23 +33,16 @@ export function viaInnerDefault({
 }) {
   return flat;
 }
-export function viaTemplate({
-  padEnd
-} = {
-  padEnd: _padEndMaybeString(`${eff()}`)
-}) {
+export function viaTemplate(_ref4 = `${eff()}`) {
+  let padEnd = _padEndMaybeString(_ref4);
   return padEnd;
 }
-export function viaInnerClaim({
-  fill
-} = {
-  fill: _fillMaybeArray([_Map$groupBy(list, eff)])
-}) {
+export function viaInnerClaim(_ref5 = [_Map$groupBy(list, eff)]) {
+  let fill = _fillMaybeArray(_ref5);
   return fill;
 }
-export function twoSlotsStayNative({
-  toSorted,
-  toReversed
-} = [eff()]) {
+export function viaTwoSlots(_ref6 = [eff()]) {
+  let toSorted = _toSortedMaybeArray(_ref6);
+  let toReversed = _toReversedMaybeArray(_ref6);
   return [toSorted, toReversed];
 }

@@ -15,4 +15,4 @@ other = other === void 0 ? self : other;
 export const viaSelf = (other === globalThis ? _Promise : other.Promise).withResolvers;
 // ... and through a name the realm hop is stored under first
 var AliasedPromise = other.Promise;
-export const viaStoredHop = (AliasedPromise, AliasedPromise === Promise ? _Promise$try : AliasedPromise.try);
+export const viaStoredHop = AliasedPromise === Promise ? _Promise$try : AliasedPromise.try;

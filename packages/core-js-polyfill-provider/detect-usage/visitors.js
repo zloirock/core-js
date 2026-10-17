@@ -253,7 +253,11 @@ export function createUsageHandlerCore({
         if (meta.fromFallback) {
           const descriptor = classifyDestructureLeafHost({ objectPattern: path.parentPath });
           const host = descriptor.pattern ?? destructurePatternHostPath(path);
-          const source = ownRelocatedHeadElement(host) ?? destructureReceiverNode(host);
+          const source = ownRelocatedHeadElement(host) ?? destructureReceiverNode(
+            host,
+            null,
+            adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+          );
           const arm = agreeingTernaryArm(source, host, adapter, { preservesEffects: true });
           if (arm && resolveObjectName({ objectNode: arm, scope: host.scope, adapter, path: host }) === meta.object) {
             meta = { ...meta, fromFallback: false };

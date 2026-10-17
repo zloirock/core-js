@@ -14,5 +14,4 @@ for (item of items) var m = null == rows ? rows[""] : (log(), _flatMaybeArray(ro
 
 // The literal-receiver do-while follows the same ordering on each iteration; a literal is never
 // nullish, so its read takes no nullish test.
-do var _ref = [1, 2, 3],
-  a = (log(), _atMaybeArray(_ref)); while (c);
+do var a = (log(), _atMaybeArray([1, 2, 3])); while (c);

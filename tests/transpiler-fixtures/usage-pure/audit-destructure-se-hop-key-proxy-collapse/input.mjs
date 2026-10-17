@@ -1,8 +1,6 @@
-// A fully-consumed static destructure whose receiver buries an effect in a proxy-hop KEY (`globalThis[(eff(),
-// 'self')].Array`) keeps the effect - exactly once, ahead of the pure root - and reads no hop, `_globalThis.self`
-// being undefined off-browser: in a statement, a for-init sink, behind a sequence, past a static hop, off an
-// alias root, at a pure-ctor leaf and inside a LOGICAL operand whose left the build serves (`.Object`, and
-// `.Number`, a global core-js extends in place), which leaves the key effect alone.
+// Computed keys with effects keep their evaluation order through nested realm navigation.
+// Proxy reads use the backed realm across statements, loop initializers, aliases and static leaves.
+// A served logical left runs its key effects once and leaves its fallback inert.
 let a = 0;
 let b = 0;
 let d = 0;

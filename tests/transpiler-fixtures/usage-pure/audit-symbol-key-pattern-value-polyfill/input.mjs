@@ -1,11 +1,15 @@
 // Well-known-symbol patterns read the selected iterator method and retain nested defaults.
 // Computed sibling keys and effectful receivers keep their order beside static and instance claims.
-const obj = {};
+const obj = {
+  Array: { from: Array.from },
+  [Symbol.iterator]: Array.prototype[Symbol.iterator],
+};
 const { Array: { from }, [Symbol.iterator]: { next = [1].at(0) } } = obj;
 // prop-level default: the helper result is guarded (a memoized `=== void 0` test), so a genuinely
 // non-iterable receiver still takes the user default like a raw undefined read would
 const fb = { done: true };
-const { [Symbol.iterator]: { done } = fb } = obj;
+const nonIterable = {};
+const { [Symbol.iterator]: { done } = fb } = nonIterable;
 const arr = [3];
 const { [Symbol.iterator]: { name, ...restOfMethod } } = arr;
 // all-proxy ternary receiver: the collapse extracts the sibling static AND the symbol pattern
@@ -14,7 +18,15 @@ const { Set: { customQ }, [Symbol.iterator]: { next: n2 } } = globalThis.Set ? g
 const { [Symbol.iterator]: { [Symbol.toPrimitive]: tp } } = [1];
 // A computed key and iterator pattern share one receiver and execute their reads in source order.
 let c = 0;
+const arrayIteratorKey = Symbol.iterator;
+const previousArrayIterator = Object.getOwnPropertyDescriptor(Array, arrayIteratorKey);
+Object.defineProperty(Array, arrayIteratorKey, {
+  configurable: true,
+  value: Array.prototype[Symbol.iterator],
+});
 const { [(c++, 'of')]: of, [Symbol.iterator]: { name: iterName2 } } = Array;
+if (previousArrayIterator) Object.defineProperty(Array, arrayIteratorKey, previousArrayIterator);
+else delete Array[arrayIteratorKey];
 // Each nested iterator pattern reads its receiver once: an array literal, a member,
 // a conditional receiver and a call result. Sibling reads share the selected value.
 const { [Symbol.iterator]: { length: litArity, call: litCall } } = [7];

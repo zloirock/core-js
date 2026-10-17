@@ -28,8 +28,8 @@ const _ref3 = {
 const inc = _includes(_ref3.z);
 const {
   w
-} = _ref3; // assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
-// polyfill overwrite survives
+} = _ref3; // Assignment overwrite keeps the sequence prefix with its receiver. The prefix runs once before
+// the method read, and the selected method is assigned to the target.
 let m;
 ({
   v: (se4(), arr4)

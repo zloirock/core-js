@@ -1,9 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-// a SIDE-EFFECTING inner computed key on a DIVERGING ternary: the proxy branch mirrors to the synth
-// literal carrying the RESOLVED static key, the user-object branch stays native (its legitimate
-// undefined is preserved - a `const from = _polyfill` extraction would bind the polyfill on the user
-// branch too and corrupt it). the key effect stays in the residual LHS and runs exactly once. only an
-// unconditional receiver keeps the sound extraction
+import _globalThis from "@core-js/pure/actual/global-this";
+// The closed false selector makes the user object the only reachable source. Its missing `from` stays
+// missing and the computed key effect runs once. The unknown-selector assignment twin remains covered
+// by `audit-cascade-cond-se-key-mirrors`.
 const userObj = {
   Array: {}
 };
@@ -12,9 +10,5 @@ const {
   Array: {
     [(eff(), "from")]: from
   }
-} = useGlobal ? {
-  Array: {
-    from: _Array$from
-  }
-} : userObj;
+} = useGlobal ? _globalThis : userObj;
 typeof from;

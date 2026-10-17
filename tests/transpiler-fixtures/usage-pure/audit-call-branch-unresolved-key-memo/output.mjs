@@ -4,19 +4,11 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // the argument) and the unresolved key reads the memo instead of re-running the call
 let cond = true;
 let c = 0;
+const from = _Array$from;
 const {
-  from,
   custom
-} = cond ? function (_ref) {
-  return {
-    from: _Array$from,
-    custom: _ref.custom
-  };
-}((() => {
+} = cond ? (() => {
   c++;
   return Array;
-})()) : {
-  from: _Array$from,
-  custom: Array.custom
-};
+})() : Array;
 from([1]);

@@ -151,12 +151,19 @@ runBoth('chain/opaque root keeps leaf siblings', 'const { inner: { [Symbol.itera
   check(lbl, chain?.root?.type, 'CallExpression');
 });
 
-// ... but a HOST-level sibling is a second reader of the root, which only an identifier affords
+// A host sibling reads the root again, so an opaque root needs a capture.
 runBoth('chain/opaque root declines beside a host sibling', 'const { inner: { [Symbol.iterator]: it }, keep } = mk();', (adapter, prog, lbl) => {
   check(lbl, resolveNestedReceiverChain(pickSymbolLeaf(adapter, prog), { soleSlots: true }), null);
 });
-runBoth('chain/identifier root keeps a host sibling', 'const { inner: { [Symbol.iterator]: it }, keep } = obj;', (adapter, prog, lbl) => {
-  check(lbl, resolveNestedReceiverChain(pickSymbolLeaf(adapter, prog), { soleSlots: true })?.root?.name, 'obj');
+runBoth('chain/free identifier root keeps a host sibling', 'const { inner: { [Symbol.iterator]: it }, keep } = obj;', (parser, prog, lbl) => {
+  const leaf = pickSymbolLeaf(parser, prog);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(lbl, resolveNestedReceiverChain(leaf, { soleSlots: true, adapter })?.root?.name, 'obj');
+  check(lbl, resolveNestedReceiverChain(leaf, { soleSlots: true, rootMemoized: true, adapter })?.root?.name, 'obj');
+});
+runBoth('chain/constant identifier root keeps a host sibling', 'const obj = {}; const { inner: { [Symbol.iterator]: it }, keep } = obj;', (parser, prog, lbl) => {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(lbl, resolveNestedReceiverChain(pickSymbolLeaf(parser, prog), { soleSlots: true, adapter })?.root?.name, 'obj');
 });
 
 // ... and without the sole-read contract an opaque root stays out entirely

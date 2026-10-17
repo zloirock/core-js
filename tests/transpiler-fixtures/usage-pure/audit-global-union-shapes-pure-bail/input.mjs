@@ -1,6 +1,7 @@
+// Exported readers retain unknown callers beside the closed example calls below.
 // Ambiguous constructor aliases select statics through runtime identity checks.
 // Each fallback retains the selected receiver and preserves the method call receiver.
-function f(c, d) {
+export function f(c, d) {
   let M0 = Object;
   if (c) M0 = Array;
   let M = M0;

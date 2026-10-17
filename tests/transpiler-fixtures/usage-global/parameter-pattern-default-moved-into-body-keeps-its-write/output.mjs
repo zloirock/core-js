@@ -9,9 +9,8 @@ import "core-js/modules/es.math.trunc";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-// A parameter pattern's rewrite moves the default into the function body, the writes in it with it. A
-// read in a nested key of the pattern still sees the default's write, also once a rewrite elsewhere in
-// the file has every write record read again.
+// A parameter default's write runs before the pattern reads a nested computed key.
+// An earlier rewrite in the same file must preserve that write and its runtime receiver.
 export function first() {
   let list;
   const {

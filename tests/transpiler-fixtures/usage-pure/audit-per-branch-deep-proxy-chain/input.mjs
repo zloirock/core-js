@@ -1,6 +1,6 @@
-// per-branch synth-swap with a deep proxy-global chain `globalThis.self.Array` on one
-// branch. the chain must collapse to `Array` and rewrite as a single polyfill literal;
-// intermediate `globalThis` / `self` identifiers must not race with parallel rewrites
+// The closed true selector gives both defaults their direct Array arm; the deep proxy alternate stays
+// only as the native fallback spelling. Two live deep proxy arms remain covered by
+// `audit-per-branch-synth-deep-proxy-chain`.
 const cond = true;
 function f({ from } = cond ? Array : globalThis.self.Array) {
   return from([1]);

@@ -5,26 +5,39 @@
 // exists), and takes the `isPureImportSource` test bound to the active package via
 // `pureImportSourceTest`. semantics live here so both plugins' dispatchers gate on the
 // same family; the emitters only bind their injector state
-import { entryToGlobalHint, hasOwnStaticDefinition } from '../index.js';
+import { entryToGlobalHint, hasOwnStaticDefinition, resolve as resolveBuiltIn } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './globals.js';
 import { PATTERN_CHAIN_TYPES } from './destructure.js';
-import { MINTED_STATIC_NAME, pureEntryTarget } from './resolve.js';
+import {
+  computedKeyWellKnownSymbolName,
+  MINTED_STATIC_NAME,
+  peelReceiverSequenceTail,
+  pureEntryTarget,
+  symbolKeyFromSource,
+} from './resolve.js';
 import {
   aliasDeclScope,
   bindingDeclaratorNode,
+  bindingDeclarationPath,
+  canonAnswerTable,
+  closestBindingVisibleAtUse,
   patternSlotTarget,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
   blocksUidSlot,
   defaultImportSourcesOf,
   destructureReceiverSlot,
+  destructureReceiverNode,
+  singleReturnBodyExpression,
   foldedPropertyKeyName,
   identifierDeclaratorInit,
   initializerReachesRead,
+  isNullLiteralNode,
   isReassignedBeyondDeclarator,
   kebabToCamel,
   memberKeyName,
+  pathOfNode,
   pureImportEntryOf,
   pureImportSourceEntry,
   provablyPrecedes,
@@ -35,6 +48,8 @@ import {
   tsImportEqualsRequireSource,
   unwrapExportedDeclaration,
   unwrapRuntimeExpr,
+  walkPatternIdentifiers,
+  wrapperLiteralEntries,
 } from '../helpers/ast-patterns.js';
 
 // the full test bag the censuses take, bound to a live injector: the source test plus the
@@ -120,10 +135,19 @@ function pureImportSourceTest(pkg) {
 
 // is `name` bound by a DEFAULT import (or require binding) of the pure package at the
 // program root - the one spelling our own channels write. shared by the overwrite-rebind
-// and substituted-default censuses; the binding table is the program's one index of those
-function pureDefaultImportBinding(path, name, { isPureImportSource, isOwnPassBinding }) {
-  const source = defaultImportSourcesOf(rootProgramOf(path)).get(name) ?? null;
-  return source !== null && !isOwnPassBinding?.(name) && isPureImportSource(source);
+// and substituted-default censuses; the source table indexes declarations, while the
+// visible binding rejects local shadows and reassigned require bindings. Alias followers
+// supply the declaration scope of the value they read, rather than the later use's scope
+// A host without a TS import-equals binding still uses the source table's declaration
+function pureDefaultImportBinding(path, name, { isPureImportSource, isOwnPassBinding }, scope = path.scope) {
+  const root = rootProgramOf(path);
+  const source = defaultImportSourcesOf(root).get(name) ?? null;
+  if (source === null || isOwnPassBinding?.(name) || !isPureImportSource(source)) return false;
+  const binding = closestBindingVisibleAtUse(scope?.getBinding(name), path, {
+    outer: hidden => hidden.scope?.parent?.getBinding(name),
+  });
+  return !binding || (!isReassignedBeyondDeclarator(binding)
+    && aliasDeclScope(binding, scope)?.path?.node === root);
 }
 
 // the SUBSTITUTED DEFAULT a prior pass left in place (`({ [(se, 'k')]: f = _X } = R)` -
@@ -298,15 +322,16 @@ function patternDefaultHoldsPureImport(path, tests) {
 // handler's own gates (`super`, a write target, an entry the targets do not need) answer the
 // same way on every pass, so the fixpoint needs no census there. a PATTERN prop keeps the
 // census: its spelling IS our render
-function computedKeyIsMintedImport(node, path, tests, { readOfIteratorIsNotOurs = false } = {}) {
+function computedKeyIsMintedImport(node, path, tests, { readOfIteratorIsNotOurs = false, packages = null } = {}) {
   if (!node?.computed) return false;
   // a MemberExpression spells its key as `.property`, a destructure Property as `.key` -
   // and an SE-bearing key reads its VALUE from the sequence tail (`[(se, _Symbol$iterator)]`)
   let key = unwrapRuntimeExpr(node.property ?? node.key);
   while (key?.type === 'SequenceExpression') key = unwrapRuntimeExpr(key.expressions.at(-1));
   if (key?.type !== 'Identifier' || !pureDefaultImportBinding(path, key.name, tests)) return false;
+  const source = defaultImportSourcesOf(rootProgramOf(path)).get(key.name);
   return !readOfIteratorIsNotOurs
-    || pureImportSourceEntry(defaultImportSourcesOf(rootProgramOf(path)).get(key.name)) !== 'symbol/iterator';
+    || (pureImportSourceEntry(source) !== 'symbol/iterator' && symbolKeyFromSource(source, packages) !== 'Symbol.iterator');
 }
 
 // the RENDERED GUARD spelling our collapse writes (`null == probe ? void 0 : _x.tail`):
@@ -373,7 +398,7 @@ function navHoldsRenderedGuard(objectNode, path, tests, adapter = null) {
         while (leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
           leaf = unwrapRuntimeExpr(leaf.object);
         }
-        if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests)
+        if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests, scope)
           && (!adapter || adapter.getBinding({ scope, name: leaf.name, path })?.importSource
             === defaultImportSourcesOf(rootProgramOf(path)).get(leaf.name))) return true;
       }
@@ -530,12 +555,15 @@ function overwriteRebindSibling(path, { localName, key, ...tests }) {
 // a sentinel-valued prop a PRIOR pass printed (`{ key: _unusedN }`): ours outright, or an
 // adopted name that still stands beside our extraction of THIS key. both dispatchers ask it
 // ahead of every route
-export function sentinelAlreadyProcessed(path, { node, meta, injector }) {
+export function sentinelAlreadyProcessed(path, { node, meta, injector, adapter = null }) {
   const { value } = node;
   if (value?.type !== 'Identifier' || !injector.hasGeneratedUnusedName(value.name)) return false;
   return !injector.isAdoptedUnusedName(value.name) || restSentinelExtractionSibling(path, {
     key: typeof meta?.key === 'string' ? meta.key : node.key?.name ?? node.key?.value,
-    symbolIterator: !!meta && isSourcedSymbolIteratorMeta(meta),
+    symbolIterator: meta ? isSourcedSymbolIteratorMeta(meta)
+      : !!adapter && node.computed && computedKeyWellKnownSymbolName({
+        keyNode: node.key, scope: path.scope, path, adapter,
+      }) === 'iterator',
     injector,
   });
 }
@@ -544,13 +572,16 @@ export function sentinelAlreadyProcessed(path, { node, meta, injector }) {
 // already imports core-js (a re-parse of our own output, or a user file written against the
 // pure imports) - is ours only where our extraction of THIS KEY stands with it: every rest
 // rebuild leaves the extracted value in the same statement list, as a declarator init or an
-// assignment read through the key's pure-import binding (`at = _atMaybeArray(_ref)`,
+// expression read through the key's pure-import binding, or a terminal return/throw value
+// (`at = _atMaybeArray(_ref)`,
 // `from = _Array$from`, a `for` head's `from = _Array$from, _unused = ...`; a nested proxy key
 // names the NAMESPACE the import hangs off - `Array: _unused` beside `_Array$from`; a symbol
 // iterator key reads through `get-iterator-method`). a user's unread alias in that position has
 // no such sibling and keeps its rewrite - its importers may read it. reached through the census
 // above, which both dispatchers ask ahead of EVERY route: without the skip a pass over our own
-// output re-extracts the sentinel as a live binding and mints a fresh one, growing it per pass
+// output re-extracts the sentinel as a live binding and mints a fresh one, growing it per pass.
+// Import deduplication follows the current flavor; prior-output recognition also reads source
+// imports from another flavor. A shadow, erased import or rewritten require cannot stand in for it.
 function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) {
   let p = path;
   let paramsBody = null;
@@ -569,10 +600,10 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
   const list = paramsBody ?? statementListOf(p?.parentPath?.node);
   if (!Array.isArray(list)) return false;
   function extractsKey(name) {
-    const info = injector.getPureImport(name);
-    if (!info) return false;
-    const segments = info.entry.split('/');
-    if (symbolIterator) return info.entry === 'get-iterator-method';
+    const entry = injector.getPureImport(name)?.entry ?? pureImportEntryOf(path, name);
+    if (!entry) return false;
+    const segments = entry.split('/');
+    if (symbolIterator) return entry === 'get-iterator-method';
     if (typeof key !== 'string') return false;
     // ... and a PROXY GLOBAL key names the REALM every pure import in the list hangs off, not a
     // member of anything: our render of a dropped realm hop keeps that key beside the extraction the
@@ -595,16 +626,34 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
         case 'ConditionalExpression': stack.push(e.test, e.alternate, e.consequent); continue;
         case 'BinaryExpression': stack.push(e.left, e.right); continue;
         case 'AssignmentExpression': stack.push(e.right); continue;
+        case 'UnaryExpression':
+        case 'AwaitExpression':
+        case 'YieldExpression': stack.push(e.argument); continue;
         case 'SequenceExpression': stack.push(...e.expressions); continue;
       }
+      // The iterator helper yields the slot value only when called; statics are values themselves.
+      if (symbolIterator && e.type !== 'CallExpression') continue;
       const callee = e.type === 'CallExpression' ? unwrapRuntimeExpr(e.callee) : e;
-      if (callee?.type === 'Identifier' && extractsKey(callee.name)) return true;
+      if (callee?.type === 'Identifier' && extractsKey(callee.name)) {
+        const source = pathOfNode(p.parentPath, callee);
+        if (!source) continue;
+        const binding = closestBindingVisibleAtUse(source.scope?.getBinding(callee.name), source, {
+          outer: hidden => hidden.scope?.parent?.getBinding(callee.name),
+        });
+        if (binding && (isReassignedBeyondDeclarator(binding)
+          || aliasDeclScope(binding, source.scope)?.path?.node !== rootProgramOf(path))) continue;
+        return true;
+      }
     }
     return false;
   }
   function * inits(stmt) {
     const node = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
     switch (node?.type) {
+      case 'ReturnStatement':
+      case 'ThrowStatement':
+        yield node.argument;
+        break;
       case 'VariableDeclaration':
         for (const d of node.declarations) yield d.init;
         break;
@@ -625,10 +674,9 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
       case 'LabeledStatement':
         yield * inits(node.body);
         break;
-      case 'ExpressionStatement': {
-        const expressions = node.expression?.type === 'SequenceExpression' ? node.expression.expressions : [node.expression];
-        for (const e of expressions) if (e?.type === 'AssignmentExpression') yield e.right;
-      }
+      case 'ExpressionStatement':
+        yield node.expression;
+        break;
     }
   }
   for (const stmt of list) for (const init of inits(stmt)) if (init && readsPureImport(init)) return true;
@@ -768,7 +816,7 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
     }
   }
   return guardedAliasAlternateRead(metaPath)
-    || computedKeyIsMintedImport(node, metaPath, tests, { readOfIteratorIsNotOurs: true })
+    || computedKeyIsMintedImport(node, metaPath, tests, { readOfIteratorIsNotOurs: true, packages: adapter?.packages })
     || adoptedRefReceiverClaim(node, metaPath, tests)
     || ownDefaultedGuardFallbackClaim(metaPath, tests)
     || ownRenderedGuardAlternateClaim(metaPath, tests)
@@ -779,50 +827,115 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
 
 // the MIRROR's own literal read back: that render replaces the receiver with `{ <key>: { <member>:
 // _X } }` and leaves the pattern exactly where it stood, so a later pass meets a leaf whose paired
-// slot ALREADY holds our import - and claiming it again turns the static into an INSTANCE dispatch
-// on the slot and appends an entry per pass (`keys = _keys(_ref2)` beside `_Object$keys`). The
+// slot ALREADY holds our import or instance dispatch result. Claiming it again repeats the read
+// or turns a static into an INSTANCE dispatch on the slot (`keys = _keys(_ref2)` beside `_Object$keys`). The
 // pattern's own key path is what pairs the two, folded structurally so the SE-key spelling our
 // render leaves in place names the slot its dotted twin names. A SELECTING receiver keeps its arms,
 // and one arm holding our import is enough: the other is the user's own value, which no render of
 // ours ever wrote into. A spread anywhere on the path makes the pairing unprovable
-function patternSlotHoldsPureImport(path, tests) {
+// A nullable lazy mirror owns only the whole receiver: its activation returns the original
+// nullish value or an imported dispatcher read through its own captured parameter. A served
+// activation beside a raw selecting arm cannot own that other arm's claim.
+function patternSlotHoldsPureImport(path, tests, adapter) {
   const keys = [];
+  let pattern = path.parentPath.node;
   let cur = path;
   for (; cur?.node; cur = cur.parentPath) {
     const { type } = cur.node;
-    if (type === 'ObjectPattern') continue;
+    if (type === 'ObjectPattern') {
+      pattern = cur.node;
+      continue;
+    }
     if (type !== 'Property' && type !== 'ObjectProperty') break;
     const key = foldedPropertyKeyName(cur.node);
     if (key === null) return false;
     keys.unshift(key);
   }
   const host = cur?.node;
-  const init = host?.type === 'VariableDeclarator' ? host.init
-    : host?.type === 'AssignmentExpression' && host.operator === '=' ? host.right : null;
+  let init = host?.type === 'VariableDeclarator' ? host.init
+    : (host?.type === 'AssignmentExpression' && host.operator === '=' || host?.type === 'AssignmentPattern') ? host.right
+      : destructureReceiverNode(cur, pattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   if (!init || !keys.length) return false;
-  const selecting = unwrapRuntimeExpr(init);
+  let sourcePath = cur;
+  const receiver = peelReceiverSequenceTail(init);
+  // A body-entry capture keeps the original receiver default on its actual parameter binding.
+  // Follow only that direct, unwritten binding; an arbitrary alias names no prior output.
+  if (receiver?.type === 'Identifier') {
+    const binding = path.scope?.getBinding(receiver.name);
+    const declared = bindingDeclarationPath(binding);
+    if (binding?.kind === 'param' && !isReassignedBeyondDeclarator(binding)
+      && declared?.node.type === 'AssignmentPattern' && declared.node.left.type === 'Identifier'
+      && declared.node.left.name === receiver.name) {
+      init = declared.node.right;
+      sourcePath = declared;
+    }
+  }
+  const selecting = peelReceiverSequenceTail(init);
   const arms = selecting?.type === 'LogicalExpression' ? [selecting.left, selecting.right]
     : selecting?.type === 'ConditionalExpression' ? [selecting.consequent, selecting.alternate] : [selecting];
+  const pairings = canonAnswerTable(patternSlotHoldsPureImport, []);
   return arms.some(arm => {
-    let node = unwrapRuntimeExpr(arm);
-    for (const key of keys) {
-      if (node?.type !== 'ObjectExpression' || node.properties.some(prop => prop.type === 'SpreadElement')) return false;
-      const match = node.properties.find(prop => (prop.type === 'Property' || prop.type === 'ObjectProperty')
-        && !prop.computed && foldedPropertyKeyName(prop) === key);
-      if (!match) return false;
-      node = unwrapRuntimeExpr(match.value);
+    let node = peelReceiverSequenceTail(arm);
+    const callee = node?.type === 'CallExpression' && !node.optional && node.arguments.length === 1
+      && node.arguments[0].type !== 'SpreadElement' ? unwrapRuntimeExpr(node.callee) : null;
+    const capture = callee?.type === 'ArrowFunctionExpression' && !callee.async && !callee.generator
+      && callee.params.length === 1 && callee.params[0].type === 'Identifier'
+      && callee.body.type === 'BlockStatement' && callee.body.body.length === 1 && !callee.body.directives?.length
+      ? callee.params[0].name : null;
+    if (capture) {
+      if (arms.length !== 1) return false;
+      const returned = singleReturnBodyExpression(callee.body);
+      const test = returned?.type === 'ConditionalExpression' ? unwrapRuntimeExpr(returned.test) : null;
+      if (test?.type !== 'BinaryExpression' || test.operator !== '==' || test.left.type !== 'Identifier'
+        || test.left.name !== capture || !isNullLiteralNode(test.right)
+        || returned.consequent.type !== 'Identifier' || returned.consequent.name !== capture) return false;
+      node = unwrapRuntimeExpr(returned.alternate);
     }
-    return node?.type === 'Identifier' && pureDefaultImportBinding(path, node.name, tests);
+    for (const [index, key] of keys.entries()) {
+      if (node?.type !== 'ObjectExpression') return false;
+      let slots = pairings?.get(node);
+      if (slots === undefined) {
+        slots = node.properties.some(prop => prop.type === 'SpreadElement' || prop.computed)
+          ? null : new Map(wrapperLiteralEntries(node, { propertyNodes: true }));
+        pairings?.set(node, slots);
+      }
+      const prop = slots?.get(key);
+      const getter = prop?.type === 'ObjectMethod' && prop.kind === 'get' ? prop : prop?.kind === 'get' ? prop.value : null;
+      if (getter) {
+        if (!capture || index !== keys.length - 1 || getter.async || getter.generator || getter.params.length
+          || getter.body.type !== 'BlockStatement' || getter.body.body.length !== 1 || getter.body.directives?.length) return false;
+        node = unwrapRuntimeExpr(singleReturnBodyExpression(getter.body));
+      } else node = peelReceiverSequenceTail(prop?.value);
+    }
+    const dispatch = node?.type === 'CallExpression' && !node.optional && node.callee.type === 'Identifier'
+      && node.arguments.length === 1 && node.arguments[0].type !== 'SpreadElement';
+    if (capture || dispatch) {
+      if (!dispatch) return false;
+      if (capture) {
+        if (node.arguments[0].type !== 'Identifier' || node.arguments[0].name !== capture) return false;
+        const argumentPath = pathOfNode(sourcePath, node.arguments[0]);
+        if (bindingDeclarationPath(argumentPath?.scope?.getBinding(capture))?.node !== callee.params[0]) return false;
+      }
+      const getterPath = pathOfNode(sourcePath, node.callee);
+      const entry = pureImportEntryOf(getterPath, node.callee.name);
+      const builtin = resolveBuiltIn({ kind: 'property', key: keys.at(-1), placement: null });
+      if (builtin?.kind !== 'instance'
+        || Object.values(builtin.desc.pure ?? {}).every(variant => variant?.dependencies?.[0] !== entry)) return false;
+      node = node.callee;
+    }
+    if (node?.type !== 'Identifier') return false;
+    const source = pathOfNode(sourcePath, node) ?? path;
+    return pureDefaultImportBinding(source, node.name, tests);
   });
 }
 
 // the pattern funnel: every destructure-prop census in one gate, ahead of both emitters'
 // destructure routes. `metaPath` is the prop's path
-export function ownEmittedPatternClaim(metaPath, tests) {
+export function ownEmittedPatternClaim(metaPath, tests, adapter = null) {
   if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;
   if (defaultHoldsPureImport(metaPath, tests)
     || patternDefaultHoldsPureImport(metaPath, tests)
-    || patternSlotHoldsPureImport(metaPath, tests)
+    || patternSlotHoldsPureImport(metaPath, tests, adapter)
     || ownNarrowedReceiverArm(metaPath, tests)
     || computedKeyIsMintedImport(metaPath.node, metaPath, tests)) return true;
   const value = metaPath.node?.value;
@@ -843,11 +956,24 @@ export function ownEmittedPatternClaim(metaPath, tests) {
 // sentinel (`adoptUnusedNames`); a user binding in that position that IS read somewhere
 // keeps its rewrite. the assignment-form pair's bare initless `var _unusedN;` id is part
 // of our own spelling, not a disqualifying read
+// Local exports are external reads; neither emitter exports its generated sentinels.
 export function restSentinelNamesReducer() {
   const sentinelCandidates = new Set();
   const sentinelShapedReads = new Map();
   function visit(node, { parentNode, underTypeAnnotation }) {
-    if (node.type === 'ObjectPattern') {
+    if (node.type === 'ExportNamedDeclaration' && node.exportKind !== 'type') {
+      // A count above one marks a binding live, independent of declaration order.
+      if (node.declaration?.type === 'VariableDeclaration') {
+        for (const declarator of node.declaration.declarations) walkPatternIdentifiers(declarator.id, id => {
+          if (UNUSED_NAME_PATTERN.test(id.name)) sentinelShapedReads.set(id.name, 2);
+        });
+      } else if (!node.source) for (const specifier of node.specifiers) {
+        const id = specifier.local;
+        if (specifier.exportKind !== 'type' && id?.type === 'Identifier' && UNUSED_NAME_PATTERN.test(id.name)) {
+          sentinelShapedReads.set(id.name, 2);
+        }
+      }
+    } else if (node.type === 'ObjectPattern') {
       for (const p of node.properties) {
         if ((p.type === 'Property' || p.type === 'ObjectProperty') && !p.shorthand
           && p.value?.type === 'Identifier' && UNUSED_NAME_PATTERN.test(p.value.name)) {

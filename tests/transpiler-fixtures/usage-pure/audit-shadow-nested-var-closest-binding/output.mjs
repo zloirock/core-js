@@ -22,7 +22,7 @@ function viaSymbol() {
 export const s = viaSymbol();
 var G = _globalThis;
 export const outer = _Array$from([1]);
-function viaCtor(flag) {
+export function viaCtor(flag) {
   var _ref;
   if (flag) {
     var G = _globalThis;

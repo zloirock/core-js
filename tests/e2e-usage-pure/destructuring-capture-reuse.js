@@ -1,3 +1,15 @@
+import dispatcher from '@core-js/pure/actual/instance/at';
+import readFrom from '@core-js/pure/actual/array/from';
+import includesDispatcher from '@core-js/pure/actual/array/instance/includes';
+
+// These leaves have no local reader. Their observer lives in another compilation unit.
+export const { at: _unused } = [];
+export const heldDispatcher = dispatcher;
+export const { from: _unused2 } = Array;
+export const heldStatic = readFrom;
+export const { includes: _unused3 } = [];
+export const heldInstance = includesDispatcher([]);
+
 // Exported inputs remain unknown to the caller census, so instance reads use their dispatch.
 export function readRetainedInstancePair(input) {
   const { row: { at, includes } } = { row: input };
@@ -24,6 +36,15 @@ export function readRetainedStringIteratorKey(input) {
   const { ['[@@iterator]']: { other, at } } = input;
   return [other, at];
 }
+
+QUnit.test('destructuring capture: a folded computed data key pairs its literal source', assert => {
+  const list = [3, [1, 2]];
+  let at, after;
+  // eslint-disable-next-line prefer-const, no-useless-computed-key -- the assignment and computed key are the tested shape
+  ({ y: { at }, o: after } = { ['y']: list.flat(), o: 1 });
+  assert.same(at.call([9], 0), 9, 'the nested Array method remains callable');
+  assert.same(after, 1, 'the quiet sibling keeps its source value');
+});
 
 QUnit.test('destructuring capture: a string iterator label retains ordinary getter order', assert => {
   const events = [];
