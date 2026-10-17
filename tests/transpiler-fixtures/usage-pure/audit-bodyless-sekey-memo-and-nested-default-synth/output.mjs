@@ -14,7 +14,7 @@ const cond = true;
 // nullish (a literal, a built-in prototype), converts the computed key, extracts the method, then reads
 // residual siblings in source order.
 export const a1 = (() => {
-  if (cond) var _ref = 1 ? Array.prototype : [],
+  if (cond) var _ref = Array.prototype,
     m = (_pushMaybeArray(log).call(log, 'k'), _findLastMaybeArray(_ref)),
     {
       other
@@ -57,11 +57,8 @@ export const a5 = (() => {
 })();
 // an instance synth slot may spell an OBSERVABLE receiver once - a sole-prop pattern does
 export const b1 = (() => {
-  function f({
-    at
-  } = {
-    at: _atMaybeArray(Array.prototype)
-  }) {
+  function f(_ref5 = Array.prototype) {
+    let at = _atMaybeArray(_ref5);
     return at;
   }
   return typeof f();
@@ -69,23 +66,16 @@ export const b1 = (() => {
 // A re-readable built-in surface serves several default slots; a sole slot over a call receiver
 // evaluates the call once inside the mirror. Supplied arguments keep their own properties.
 export const b2 = (() => {
-  function f({
-    at,
-    flat
-  } = {
-    at: _atMaybeArray(Array.prototype),
-    flat: _flatMaybeArray(Array.prototype)
-  }) {
+  function f(_ref6 = Array.prototype) {
+    let at = _atMaybeArray(_ref6);
+    let flat = _flatMaybeArray(_ref6);
     return [at, flat];
   }
   return f().length;
 })();
 export const b3 = (() => {
-  function f({
-    at
-  } = {
-    at: _at(getArr())
-  }) {
+  function f(_ref7 = getArr()) {
+    let at = _at(_ref7);
     return at;
   }
   return typeof f();
@@ -143,9 +133,9 @@ export const c4 = (() => {
 export const c5 = (() => {
   try {
     throw {};
-  } catch (_ref5) {
-    var _ref6;
-    let at = _at((_ref6 = _ref5.inner) === void 0 ? [1, 2] : _ref6);
+  } catch (_ref8) {
+    var _ref9;
+    let at = _at((_ref9 = _ref8.inner) === void 0 ? [1, 2] : _ref9);
     return typeof at;
   }
 })();

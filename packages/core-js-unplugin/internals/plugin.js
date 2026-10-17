@@ -399,6 +399,7 @@ export default function createPlugin(options) {
     getPackages: () => packages,
     parameterCallSites: (...args) => typeResolvers.parameterCallSites(...args),
     collectBindingReferences: (...args) => typeResolvers.collectBindingReferences(...args),
+    resolveConstantSelection: (...args) => typeResolvers.resolveConstantSelection(...args),
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin

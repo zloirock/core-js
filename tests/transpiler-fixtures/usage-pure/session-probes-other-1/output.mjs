@@ -7,7 +7,6 @@ import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
-import _Set from "@core-js/pure/actual/set/constructor";
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 1:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -113,12 +112,11 @@ function mark(t, v) {
   use(m);
 }
 {
-  const [, _ref3] = [, pick ? {
+  const [, {
+    from: f
+  }] = [, pick ? {
     from: _Array$from
   } : userObj];
-  const {
-    from: f
-  } = _ref3;
 }
 {
   const [, {
@@ -140,12 +138,11 @@ function mark(t, v) {
   }];
 }
 {
-  const [, _ref4] = [eff(), pick ? {
+  const [, {
+    from: f
+  }] = [eff(), pick ? {
     from: _Array$from
   } : userObj];
-  const {
-    from: f
-  } = _ref4;
 }
 {
   eff();
@@ -154,24 +151,24 @@ function mark(t, v) {
   [values, at];
 }
 {
-  const [, _ref5] = [eff(), {
+  const [, _ref3] = [eff(), {
     y: (mark(), getArr())
   }];
-  const ci = _at(_ref5.y);
+  const ci = _at(_ref3.y);
   use(ci);
 }
 {
-  const [, _ref6] = [eff(), {
+  const [, _ref4] = [eff(), {
     y: arr
   }];
-  const ci = _atMaybeArray(_ref6.y);
+  const ci = _atMaybeArray(_ref4.y);
   use(ci);
 }
 {
-  const [, _ref7] = [eff(), {
+  const [, _ref5] = [eff(), {
     y: getArr()
   }];
-  const ci = _at(_ref7.y);
+  const ci = _at(_ref5.y);
   use(ci);
 }
 {
@@ -197,22 +194,22 @@ function mark(t, v) {
     Array: {
       from: f
     }
-  } = {}] = [pick ? {
+  } = {}] = [{
     Array: {
       from: _Array$from
     }
-  } : _Set];
+  }];
 }
 {
   const [{
     Array: {
       from: f
     }
-  }] = [pick ? {
+  }] = [{
     Array: {
       from: _Array$from
     }
-  } : _Set];
+  }];
 }
 {
   const it = _getIteratorMethod([1]);
@@ -247,32 +244,29 @@ function mark(t, v) {
   }] = [, [1, 2]];
 }
 {
-  const [_ref8] = [...rest, [1, 2]];
-  const at = _at(_ref8);
+  const [_ref6] = [...rest, [1, 2]];
+  const at = _at(_ref6);
 }
 {
-  const [_ref9] = [...rest, [1]];
-  const at = _at(_ref9);
+  const [_ref7] = [...rest, [1]];
+  const at = _at(_ref7);
 }
 {
   const at = _atMaybeArray([1, 2]);
 }
 {
-  const [_ref10] = [[1], eff()];
-  const at = _atMaybeArray(_ref10);
+  const [_ref8] = [[1], eff()];
+  const at = _atMaybeArray(_ref8);
 }
 {
-  const [_ref11] = [[eff()], ...rest];
-  const at = _atMaybeArray(_ref11);
+  const [_ref9] = [[eff()], ...rest];
+  const at = _atMaybeArray(_ref9);
 }
 {
-  const [, _ref12] = [arr, pick ? {
-    from: _Array$from
-  } : userObj];
+  const [,,] = [arr, pick ? Array : userObj];
+  const {} = arr;
   const a = _atMaybeArray(arr);
-  const {
-    from: f
-  } = _ref12;
+  const f = _Array$from;
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);
 }
 {

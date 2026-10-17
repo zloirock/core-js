@@ -90,6 +90,7 @@ import {
   decidedRunningPath,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
+import { disableDirectiveKind } from '@core-js/polyfill-provider/helpers/source-scan';
 
 // does the run swallow a hop pure cannot back that reads a KEPT WRITE whose value the collapse
 // cannot serve? a store whose value ends on a hop pure cannot back (`v = globalThis.window`) hands
@@ -166,7 +167,7 @@ export default function createSynthSwapEmitter({
   // coordinates); only the trailing peel is substrate-local - this emitter reads through a
   // sequence tail, the unplugin peels transparent wrappers
   function detectIifeArgPath(wrapper, objectPattern) {
-    const argPath = findIifeArgPath(wrapper, objectPattern.node);
+    const argPath = findIifeArgPath(wrapper, objectPattern.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     return argPath ? unwrapSequenceTail(argPath) : null;
   }
 
@@ -806,6 +807,12 @@ export default function createSynthSwapEmitter({
       // a CARRIED source key is already a node of this dialect - clone it; a respelled one is
       // canonical and converts at the boundary like every other render the canon hands over
       const key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
+      // The retained pattern owns ordinary key comments; native reads retain opt-out anchors.
+      if (spelled.fromSource) for (const field of t.COMMENT_KEYS) {
+        const directives = entry.optedOut ? key[field]?.filter(comment => disableDirectiveKind(comment.value)) : null;
+        if (directives?.length) key[field] = directives;
+        else delete key[field];
+      }
       const { computed } = spelled;
       // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
       // spelling both emitters print for that read anywhere else; a raw

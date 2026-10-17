@@ -6,4 +6,5 @@ var _ref;
 let effects = 0;
 const wrapper = [[1, 2]];
 let at;
-[_ref = {}] = (effects++, wrapper), at = _atMaybeArray(_ref);
+[_ref = {}] = (effects++, wrapper);
+at = _atMaybeArray(_ref);

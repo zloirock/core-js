@@ -1,5 +1,5 @@
-// A conditional realm feeds a nested constructor pattern with a live default.
-// Guarding the constructor read must keep the default's Array.of claim alive.
+// A decided realm alias feeds the constructor pattern directly.
+// Its original leaf default keeps the Array.of claim alive.
 function read(enabled) {
   if (enabled) { var realm = globalThis; }
   const { Promise: { missing = Array.of(7) } } = realm;

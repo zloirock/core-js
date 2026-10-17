@@ -1,4 +1,13 @@
 // Closed receivers keep their family without changing keys, getters or exception flow.
+QUnit.test('receiver precision: a local type alias shadows a built-in container', assert => {
+  type String = number[];
+  const source: String = [0, 2];
+  function read({ at }: String = source) { return at; }
+  assert.isFunction(read, 'the written annotation also serves invisible callers');
+  const method = read();
+  assert.same(method.call(source, -1), 2);
+});
+
 QUnit.test('receiver precision: enum own values and computed keys', assert => {
   enum E { at = 'at' }
   let calls = 0;
@@ -278,4 +287,113 @@ QUnit.test('receiver precision: an unknown data key can replace the receiver fam
   };
   assert.same(box.read(), 'b', 'the written string needs its own at polyfill in a stripped realm');
   assert.same(effects.length, 1);
+});
+
+// These four tests deliberately pass an Array through an untruthful String assertion.
+// The typed helper preserves a foreign own method, but only String needs polyfill coverage.
+QUnit.test('receiver precision: an asserted IIFE String receiver need not cover a foreign Array', assert => {
+  function read(receiver: unknown) { return (({ includes }) => includes)(receiver as string); }
+  const foreignArrayMethod = read([1]);
+  if (typeof foreignArrayMethod === 'function') {
+    assert.false(foreignArrayMethod.call([4], '4'), 'a surviving Array method keeps Array equality');
+  } else {
+    assert.same(foreignArrayMethod, undefined, 'the String assertion does not require Array coverage');
+  }
+  assert.true(read('ab').call([4], '4'), 'the valid String receiver remains covered');
+});
+
+QUnit.test('receiver precision: an asserted named String caller need not cover a foreign Array', assert => {
+  function read({ includes }) { return includes; }
+  const array: unknown = [1];
+  const string: unknown = 'ab';
+  const foreignArrayMethod = read(array as string);
+  if (typeof foreignArrayMethod === 'function') {
+    assert.false(foreignArrayMethod.call([4], '4'), 'a surviving Array method keeps Array equality');
+  } else {
+    assert.same(foreignArrayMethod, undefined, 'the String assertion does not require Array coverage');
+  }
+  assert.true(read(string as string).call([4], '4'), 'the valid String receiver remains covered');
+});
+
+QUnit.test('receiver precision: an asserted String parameter default need not cover a foreign Array', assert => {
+  function read(receiver: unknown) {
+    function defaulted({ includes } = receiver as string) { return includes; }
+    return defaulted();
+  }
+  const foreignArrayMethod = read([1]);
+  if (typeof foreignArrayMethod === 'function') {
+    assert.false(foreignArrayMethod.call([4], '4'), 'a surviving Array method keeps Array equality');
+  } else {
+    assert.same(foreignArrayMethod, undefined, 'the String assertion does not require Array coverage');
+  }
+  assert.true(read('ab').call([4], '4'), 'the valid String receiver remains covered');
+});
+
+QUnit.test('receiver precision: an asserted String inner default need not cover a foreign Array', assert => {
+  function read(receiver: unknown) {
+    function defaulted({ row: { includes } = receiver as string }) { return includes; }
+    return defaulted({});
+  }
+  const foreignArrayMethod = read([1]);
+  if (typeof foreignArrayMethod === 'function') {
+    assert.false(foreignArrayMethod.call([4], '4'), 'a surviving Array method keeps Array equality');
+  } else {
+    assert.same(foreignArrayMethod, undefined, 'the String assertion does not require Array coverage');
+  }
+  assert.true(read('ab').call([4], '4'), 'the valid String receiver remains covered');
+});
+
+QUnit.test('receiver precision: local type synonyms keep their alias bodies', assert => {
+  type PromiseLike<T> = string;
+  type Thenable<T> = string;
+  type IteratorObject<T> = string;
+  type AsyncIteratorObject<T> = string;
+  function promise(value: PromiseLike<number>) { return value.at(0); }
+  function thenable(value: Thenable<number>) { return value.includes('b'); }
+  function iterator(value: IteratorObject<number>) { return value.startsWith('a'); }
+  function asyncIterator(value: AsyncIteratorObject<number>) { return value.endsWith('b'); }
+  assert.same(promise('ab'), 'a');
+  assert.true(thenable('ab'));
+  assert.true(iterator('ab'));
+  assert.true(asyncIterator('ab'));
+});
+
+QUnit.test('receiver precision: constrained synonym parameters keep their constraints', assert => {
+  function promise<PromiseLike extends string>(value: PromiseLike) { return value.at(0); }
+  function iterator<IteratorObject extends string>(value: IteratorObject) { return value.includes('b'); }
+  assert.same(promise('ab'), 'a');
+  assert.true(iterator('ab'));
+});
+
+QUnit.test('receiver precision: local runtime type names keep their class heritage', assert => {
+  class PromiseLike<T> extends String {}
+  class Thenable<T> extends String {}
+  function promise(value: PromiseLike<string>) { return value.at(0); }
+  function thenable(value: Thenable<string>) { return value.includes('b'); }
+  assert.same(promise(new PromiseLike<string>('ab')), 'a');
+  assert.true(thenable(new Thenable<string>('ab')));
+});
+
+QUnit.test('receiver precision: a local interface keeps its declared heritage', assert => {
+  interface PromiseLike<T> extends String {}
+  function read(value: PromiseLike<number>) { return value.at(0); }
+  assert.same(read('ab'), 'a');
+});
+
+QUnit.test('receiver precision: a written caller field retains its string parameter method', assert => {
+  const box: { value: string } = { value: 'ab' };
+  box.value = 'cd';
+  function read({ value: { at } = 'gh' }) { return at; }
+  const at = read(box);
+  assert.same(at.call(box.value, -1), 'd');
+  assert.same(at.call([5, 6], 0), '5', 'the method retains String semantics');
+});
+
+QUnit.test('receiver precision: a written caller field retains its array parameter method', assert => {
+  const box: { value: number[] } = { value: [1] };
+  box.value = [2];
+  function read({ value: { includes } }) { return includes; }
+  const includes = read(box);
+  assert.true(includes.call(box.value, 2));
+  assert.false(includes.call('ab', 'ab'), 'the method retains Array semantics');
 });

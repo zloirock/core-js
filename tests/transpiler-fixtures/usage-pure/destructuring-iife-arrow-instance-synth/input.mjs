@@ -1,9 +1,7 @@
-// an instance method destructured off an IIFE ARGUMENT synths the argument itself - the call is
-// the parameter's only call site, so the replacement is caller-correct and the argument's value is
-// read once, inside the literal. an unresolvable receiver gets the generic dispatcher; a literal
-// receiver refines to the typed variant; a CALL argument runs once, inside the literal.
-// (kept lazy: the bare dispatcher call throws exactly like the native extraction would - see the
-// e2e THROW-parity oracle - and a top-level throw would cut the module's runtime oracle short)
+// An IIFE's sole call supplies its parameter's receiver mirror.
+// Each receiver evaluates once; method reads preserve the parameter's evaluation order.
+// Literal receivers select typed dispatchers; unknown receivers keep the generic dispatcher.
+// The throwing case stays inside an exported function so module evaluation reaches every row.
 export const viaBareCallThrowsLazily = () => (({ includes }) => includes("x"))(arr);
 export const viaLiteralArg = (({ at }) => at)([1, 2]);
 export const viaCallArgRunsOnce = (({ findLast }) => findLast)(mk());
@@ -13,12 +11,12 @@ export const viaSeTailArg = (({ flat }) => flat)((mark(), [3, [4]]));
 
 // an UNCOVERED sibling key re-reads off the receiver value (a fresh literal read matches the
 // native fresh-value semantics); aliased and defaulted props register through the same peel;
-// an optional call still owns the argument; a `.call`-shaped invocation is no IIFE and stays native
+// an optional call keeps its argument; an immediate `.call` invocation uses the closed caller mirror
 export const viaMixedProps = (({ flatMap, other }) => [flatMap, other])([1, 2]);
 export const viaAliasedProp = (({ findLastIndex: fli }) => fli)([1, 2]);
 export const viaDefaultedProp = (({ copyWithin = null }) => copyWithin)([1, 2]);
 export const viaOptionalCall = (({ keys }) => keys)?.([1, 2]);
-export const viaDotCallStaysNative = (({ values }) => values).call(null, [1, 2]);
+export const viaDotCall = (({ values }) => values).call(null, [1, 2]);
 
 // every immediately-invoked host shape reaches the same clause
 void function ({ at: atv }) { use(atv); }([1, 2]);

@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$assign from "@core-js/pure/actual/object/assign";
@@ -100,15 +101,13 @@ const dynamicComputedKey = function ({
 const optionalReceiverHost = {
   arr: [1, 2]
 };
-const optionalReceiverIdentifierKey = function ({
-  at
-} = optionalReceiverHost?.arr) {
+const optionalReceiverIdentifierKey = function (_ref = optionalReceiverHost?.arr) {
+  let at = _atMaybeArray(_ref);
   return at;
 }();
 // eslint-disable-next-line @stylistic/quote-props -- the string spelling of the bail is under test
-const optionalReceiverStringKey = function ({
-  'at': a
-} = optionalReceiverHost?.arr) {
+const optionalReceiverStringKey = function (_ref2 = optionalReceiverHost?.arr) {
+  let a = _atMaybeArray(_ref2);
   return a;
 }();
 export { identifierKey, computedStaticString, computedSequenceKey, plainStringKey, computedConcat, computedTemplate, sideEffectingConcat, selfReferencing, numericKey, dynamicComputedKey, effects, optionalReceiverIdentifierKey, optionalReceiverStringKey };

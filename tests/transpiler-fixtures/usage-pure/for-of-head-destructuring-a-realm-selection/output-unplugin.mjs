@@ -1,11 +1,11 @@
-// A for-of head destructuring a realm selection out of an array literal: unplugin mirrors the realm arm with
-// its static and instance leaves served (the sidecar), while babel keeps the whole head native - its debt,
-// which leaves both leaves unpolyfilled.
+// A nested instance read dispatches on the actual iterated receiver.
+// Unplugin also mirrors the realm arm's static; Babel retains the native `of` read.
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _at from "@core-js/pure/actual/instance/at";
 
-for (const { Array: { prototype: { at }, of } } of [
+for (const _ref2 of [
 	c
 		? {
 			Array: {
@@ -14,4 +14,9 @@ for (const { Array: { prototype: { at }, of } } of [
 			}
 		}
 		: fb
-]) use(at, of);
+]) {
+	const { Array: _ref } = _ref2;
+	const at = _at(_ref.prototype), { of } = _ref;
+
+	use(at, of);
+}

@@ -1,6 +1,7 @@
-// an assignment whose value is read, over a selection of a constructor and a user object: the static off an
-// array wrapper's element takes the identity guard over the captured element, while the same static off an
-// object hop's slot stays native, unserved on an engine that lacks it
+// The local truthy selector decides the Array arm. Both assignment expressions still evaluate and
+// return their original RHS containers, while each `from` binding uses the Array static directly.
+// `mixed-static-instance-selection` covers the live identity guard; `destructure-assignment-retains-result`
+// covers an assignment pattern whose value is observed.
 let pick = 1;
 const userObj = {};
 {

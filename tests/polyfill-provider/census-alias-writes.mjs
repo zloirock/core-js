@@ -5,6 +5,7 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
   collectFileCensus,
+  nodePositionKey,
   ESCAPED_CONTAINER_NAMES,
   ESCAPED_CTOR_REFS,
   CENSUS_STATIC_RECEIVERS,
@@ -427,6 +428,31 @@ for (const parser of adapters) for (const call of [
   const program = parser.parseAndScope(`${ call };`).node;
   const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer()]);
   check(`${ parser.name }/${ call } does not retain a namespace`, escapedCtorNames.has('Map', true), false);
+}
+
+// A mixed selection owns its fresh literal arm. Indexing only its named arm loses a write when the
+// source decision selects the fresh arm, while a namesake's write still belongs to its own binding.
+for (const parser of adapters) for (const [name, init] of [
+  ['named first', 'flag ? listed : { C: Set }'],
+  ['literal first', 'flag ? { C: Set } : listed'],
+  ['opaque first', 'flag ? opaque : { C: Set }'],
+]) {
+  const program = parser.parseAndScope(`const listed = { C: Object }; const either = ${ init }; either.C = Map;`);
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const declaration = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'either');
+  const key = census.containerSlotIndex.owners.get(nodePositionKey(declaration.node) ?? declaration.node);
+  check(`${ parser.name }/${ name } owns its literal`, !!key, true);
+  checkDeep(`${ parser.name }/${ name } retains its slot write`,
+    census.writtenContainerSlots.get(`${ key }.C`)?.map(value => value?.name), ['Map']);
+}
+for (const parser of adapters) {
+  const program = parser.parseAndScope(`const listed = { C: Object }; const either = flag ? listed : { C: Set };
+    function other() { const either = { C: Object }; either.C = Map; } use(either.C);`);
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const declaration = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'either');
+  const key = census.containerSlotIndex.owners.get(nodePositionKey(declaration.node) ?? declaration.node);
+  check(`${ parser.name }/mixed owner exists`, !!key, true);
+  check(`${ parser.name }/a namesake writes its own slot`, census.writtenContainerSlots.has(`${ key }.C`), false);
 }
 
 finish();

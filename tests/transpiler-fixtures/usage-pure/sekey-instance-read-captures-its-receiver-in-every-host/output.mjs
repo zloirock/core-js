@@ -28,7 +28,7 @@ var _ref3 = _Promise.prototype ? [9] : [],
 export const r7 = [typeof ks7, k7];
 let k8 = 0,
   out8 = '';
-for (var _ref4 = 1 ? [6] : [], e8 = (k8++, _entriesMaybeArray(_ref4)), {
+for (var _ref4 = [6], e8 = (k8++, _entriesMaybeArray(_ref4)), {
     other8
   } = _ref4, i8 = 0; i8 < 1; i8++) out8 = typeof e8;
 export const r8 = [out8, k8];

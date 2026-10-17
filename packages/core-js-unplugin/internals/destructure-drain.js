@@ -1228,7 +1228,8 @@ export default function createDestructureDrains(ctx) {
       const running = job.receiverSlot ? job.receiverSlot.owner[job.receiverSlot.key] : job.declarator.init;
       const receiver = unwrapRuntimeExpr(running);
       const discarded = job.discardedSlots?.map(({ owner, key }) => owner[key]);
-      const reuseReceiver = job.keyReadPlan.reuseReceiver && receiver?.type === 'Identifier';
+      const inlineReceiver = job.proven && job.keyReadPlan.inlineReceiver;
+      const reuseReceiver = inlineReceiver || job.keyReadPlan.reuseReceiver && receiver?.type === 'Identifier';
       const receiverRef = reuseReceiver ? receiver.name : discarded ? null : job.receiverName ?? mintRefName();
       const liveKeys = destructureKeyReadPlan({
         node: job.prop,
@@ -1239,7 +1240,7 @@ export default function createDestructureDrains(ctx) {
         receiver: running,
         binding: job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop),
         keys: liveKeys.map(key => cloneNode(key)),
-        read: job.value(receiverRef),
+        read: job.value(inlineReceiver ? null : receiverRef),
         storeReceiver: job.keyReadPlan.exported && !reuseReceiver && !discarded,
         reuseReceiver,
         proven: !!job.proven,
@@ -1400,9 +1401,13 @@ export default function createDestructureDrains(ctx) {
 
   // the extraction a memo job binds, led by its block-`let` guard ref where the host is catch-born
   function memoJobStatements({ job, value, guardRefs, kind, exported }) {
-    const lead = job.catchBorn && guardRefs.has(job)
-      ? [variableDeclaration('let', [variableDeclarator(identifier(guardRefs.get(job)))])] : [];
-    return [...lead, exportWrap(variableDeclaration(kind, [variableDeclarator(memoJobBindingTarget(job), value)]), exported)];
+    const scopedRef = job.value?.leadDecl ?? (job.catchBorn && guardRefs.get(job));
+    const lead = scopedRef ? [variableDeclaration('let', [variableDeclarator(identifier(scopedRef))])] : [];
+    const declarators = [
+      ...job.value?.leadRef ? [variableDeclarator(identifier(job.value.leadRef))] : [],
+      variableDeclarator(memoJobBindingTarget(job), value),
+    ];
+    return [...lead, exportWrap(variableDeclaration(kind, declarators), exported)];
   }
 
   // one extracted binding's VALUE off the whole-init memo. a DEFAULTED prop keeps
@@ -1818,9 +1823,10 @@ export default function createDestructureDrains(ctx) {
       // defaulted guard alike, grouped alike; a partial residual changes what SURVIVES, not what binds
       const extracted = [];
       for (const job of declJobs) {
-        const value = memoJobValue({ job, refName, guardRefs: new Map() });
+        const guardRefs = new Map();
+        const value = memoJobValue({ job, refName, guardRefs });
         extracted.push({
-          job, list: [exportWrap(variableDeclaration(hostNode.kind, [variableDeclarator(memoJobBindingTarget(job), value)]), exported)],
+          job, list: memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }),
         });
         markSubtreeSkipped(skippedNodes, job.prop);
       }
@@ -1862,6 +1868,8 @@ export default function createDestructureDrains(ctx) {
         && peelTransparentExpr(core.expressions.at(-1))?.type === 'AssignmentExpression');
   }
 
+  // for-init: consumed declarators are replaced IN PLACE by the extracted siblings, and an
+  // effect-bearing consumed init stays live as an `_unused` dummy declarator
   // eslint-disable-next-line max-statements -- one loop-header drain preserves receiver, key and residual declaration order
   function drainForInit({ hostNode, jobs }) {
     jobs = withoutCtorHopJobsWithLiveSiblings(jobs);
@@ -1876,7 +1884,7 @@ export default function createDestructureDrains(ctx) {
     }
     // sentinel-kept declarators with an unre-readable init memoize like the block-hosted
     // twin: `var _ref = <init>, { ..._unused } = _ref, f = _flat(_ref), i = 0;`
-    const memoRefs = forInitMemoVerdicts(byDeclarator, mintRefName, { adapter });
+    const memoRefs = forInitMemoVerdicts(byDeclarator, mintRefName, { adapter, injectorState });
     removeConsumedProps(jobs);
     const declarations = [];
     for (const declarator of hostNode.declarations) {
@@ -1917,8 +1925,10 @@ export default function createDestructureDrains(ctx) {
         // residual keeps the init: extracted siblings go ahead of it - except under an
         // SE-KEY sentinel, whose key effect must run before the extraction reads the slot.
         // SEVERAL such keys interleave, each segment ahead of the extraction reading it
-        if (declJobs.length > 1 && declJobs.every(job => job.sentinel && job.seKey)) {
-          declarations.push(...interleavedSeKeySegments(declarator, orderDeclaratorJobs(declJobs), null));
+        if ((declJobs.length > 1 || isReReferenceableAcrossReads(declarator.init,
+          { ...patternFrame(declJobs[0].metaPath), injectorState, path: declJobs[0].metaPath?.parentPath?.parentPath }))
+          && declJobs.every(job => job.sentinel && job.seKey)) {
+          declarations.push(...seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(declJobs), null, adapter));
         } else if (declJobs.some(job => (job.sentinel && job.seKey) || (job.chain?.length && job.readsReceiver))
           || residualRuns(declarator)) {
           // ... and a residual whose init RUNS code leads too: that code could read a binding written ahead
@@ -2056,8 +2066,9 @@ export default function createDestructureDrains(ctx) {
   // EXPORTED host (the export must not carry it); a residual kept by a REST alone takes the split shape -
   // memo, extraction, residual. a declarator memo only ever stands beside sibling declarators: a sole
   // declarator's sentinel claims memoize their receiver themselves
-  function drainSentinelMemoSiblings({ hostNode, body, at, jobs, jobsByDeclarator, memoByDeclarator }) {
+  function drainSentinelMemoSiblings({ hostNode, body, at, jobs, jobsByDeclarator, memoByDeclarator, memoDeclJobs }) {
     if (!memoByDeclarator.size
+      || memoDeclJobs.keys().some(declarator => jobsByDeclarator.has(declarator))
       || jobs.some(job => memoByDeclarator.has(job.declarator) && !job.memoSibling)
       // a HOP-anchored sibling renders its own declarator whole (the flatten's slots), so the
       // comma join would bake this memo into a declaration that emitter is about to replace
@@ -2080,6 +2091,23 @@ export default function createDestructureDrains(ctx) {
     const ahead = [];
     let declarators = [];
     for (const declarator of hostNode.declarations) {
+      const memoJobs = memoDeclJobs.get(declarator);
+      if (memoJobs) {
+        const rendered = [];
+        const emitted = emitMemoDeclarator({ hostNode, declarator, declJobs: memoJobs, statements: rendered, exported });
+        // A single consumed declaration keeps its original comma group. Extra statements
+        // still separate earlier slots from this sibling's memo and reads.
+        if (emitted === 'consumed' && rendered.length === 1
+          && rendered[0].type === 'VariableDeclaration' && rendered[0].kind === hostNode.kind) {
+          declarators.push(...rendered[0].declarations);
+        } else {
+          if (declarators.length) ahead.push(exportWrap(variableDeclaration(hostNode.kind, declarators), exported));
+          declarators = [];
+          ahead.push(...rendered);
+          if (emitted !== 'consumed') ahead.push(exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported));
+        }
+        continue;
+      }
       const declJobs = jobsByDeclarator.get(declarator) ?? [];
       const refName = memoByDeclarator.get(declarator);
       if (refName) {
@@ -2118,7 +2146,8 @@ export default function createDestructureDrains(ctx) {
       if (!emptiedHere && !residualFirst) declarators.push(declarator);
     }
     hostNode.declarations = declarators;
-    if (ahead.length) body.splice(at, 0, ...anchorLeadingStatement({ statements: ahead, hostNode, statementNode: body[at] }));
+    if (ahead.length) body.splice(at, declarators.length ? 0 : 1,
+      ...anchorLeadingStatement({ statements: ahead, hostNode, statementNode: body[at] }));
     markRewrite();
     return true;
   }
@@ -2235,7 +2264,9 @@ export default function createDestructureDrains(ctx) {
     if (realmNav) dropExprs = realmNav.effects;
     else if (pristineInitFacts.get(declarator)?.readWhole) dropExprs = [declarator.init];
     else if (dropMetaPath) {
-      dropExprs = discardRescueNodesWithReads({ node: declarator.init, scope: dropMetaPath.scope, adapter, path: dropMetaPath });
+      // A decided selection owes its running arm's accessor read, like the assignment sink.
+      const frame = patternFrame(dropMetaPath);
+      dropExprs = discardRescueNodesWithReads({ node: decidedRunningPart(declarator.init, frame), ...frame });
     }
     // a value-SELECTING init re-emits WHOLE - an effect buried in an operand (a proxy-hop KEY) has
     // no slot of its own, so the rescue canon answers with the selection itself. the POSITION is the
@@ -2325,8 +2356,9 @@ export default function createDestructureDrains(ctx) {
   // Append extractions beside each surviving residual in source order. A fully consumed host
   // splits its extractions and following declarators into statements; captured siblings keep
   // their shared declaration group until the sibling drain finishes.
-  function drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator, sourceProps }) {
-    if (jobs.every(job => !job.siblingAppend)) return false;
+  function drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator, sourceProps, memoDeclJobs }) {
+    if (jobs.every(job => !job.siblingAppend)
+      || memoDeclJobs.keys().some(declarator => jobsByDeclarator.has(declarator))) return false;
     const appendExported = jobs.some(job => job.exported);
     const appendStatements = [];
     const capturedGroup = hostNode.declarations.some(declarator => capturedSiblingHosts.has(declarator)
@@ -2340,6 +2372,17 @@ export default function createDestructureDrains(ctx) {
       group = [];
     }
     for (const declarator of hostNode.declarations) {
+      const memoJobs = memoDeclJobs.get(declarator);
+      if (memoJobs) {
+        flushGroup();
+        const emitted = emitMemoDeclarator({
+          hostNode, declarator, declJobs: memoJobs, statements: appendStatements, exported: appendExported,
+        });
+        if (emitted !== 'consumed') {
+          appendStatements.push(exportWrap(variableDeclaration(hostNode.kind, [declarator]), appendExported));
+        }
+        continue;
+      }
       const declJobsHere = jobsByDeclarator.get(declarator) ?? [];
       // a slot memo lands at ITS declarator: an in-slot write goes into the residual, a hoisted memo
       // stands as a statement right behind the leading siblings (their inits run first) - the join
@@ -2390,27 +2433,32 @@ export default function createDestructureDrains(ctx) {
       .filter(declarator => declarator.id?.type === 'ObjectPattern')
       .map(declarator => [declarator, [...declarator.id.properties]]));
     removeConsumedProps(jobs.filter(job => job.host !== 'memo-decl'));
-    if (drainSentinelMemoSiblings({ hostNode, body, at, jobs, jobsByDeclarator, memoByDeclarator })) return;
+    if (drainSentinelMemoSiblings({ hostNode, body, at, jobs, jobsByDeclarator, memoByDeclarator, memoDeclJobs })) return;
     if (drainSeKeySentinelSiblings({ hostNode, jobsByDeclarator, memoDeclJobs })) return;
     // sibling-declarator mode: the declaration stays ONE statement, each extraction appended
     // as a declarator after its residual (babel's multi-declarator kept-key shape)
-    if (drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator, sourceProps })) return;
+    if (drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator, sourceProps, memoDeclJobs })) return;
     // statement-per-declarator split, in SOURCE order: each declarator's extractions land
     // ahead of its own residual, and untouched siblings keep their own statements
     const exported = jobs.some(job => job.exported);
     const statements = [];
     let touched = jobsByDeclarator.size > 0;
+    let joinsFollowing = null;
     for (const declarator of hostNode.declarations) {
+      const previous = joinsFollowing;
+      joinsFollowing = null;
       const declMemoJobs = memoDeclJobs.get(declarator);
+      if (previous && declarator.id.type === 'Identifier' && !declMemoJobs && !jobsByDeclarator.has(declarator)) {
+        previous.declarations.push(declarator);
+        joinsFollowing = previous;
+        continue;
+      }
       if (declMemoJobs) {
         const sourceOrder = sourceProps.get(declarator) ?? [];
-        // an ordinary claim that dispatches on the receiver reads it off the route's memo, in the place
-        // the source wrote it: the route takes the init into that memo, so a claim spelling the receiver
-        // on its own would read it a second time - or not at all where its receiver memo names the init
-        // the route took (`const { keys, data: { at } } = o.p` bound `keys = _keys()`)
+        // Ordinary claims share the memo route in source order. Dispatches read its receiver;
+        // receiverless statics still need their own binding beside those reads.
         const otherJobs = orderDeclaratorJobs(jobsByDeclarator.get(declarator) ?? []);
-        const readers = declMemoJobs.some(job => job.kind === 'instance')
-          ? otherJobs.filter(job => job.readsReceiver && !job.sentinel && !job.value?.leadDecl) : [];
+        const readers = otherJobs.filter(job => !job.sentinel);
         const routeJobs = [...declMemoJobs, ...readers]
           .sort((left, right) => sourceOrder.indexOf(jobOuterProp(left)) - sourceOrder.indexOf(jobOuterProp(right)));
         const emitted = emitMemoDeclarator({ hostNode, declarator, declJobs: routeJobs, statements, exported });
@@ -2556,6 +2604,11 @@ export default function createDestructureDrains(ctx) {
         );
         if (declJobsHere.length && !containerPrefix.length) {
           rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements, insertAt: emptiedAt });
+        }
+        // Only a sole defaulted consume retains the untouched tail of this source host.
+        if (jobs.length === 1 && jobsHere[0]?.defaulted && extractedHere.length === 1
+          && extractedHere[0].type === 'VariableDeclaration' && extractedHere[0].kind === hostNode.kind) {
+          [joinsFollowing] = extractedHere;
         }
       }
     }

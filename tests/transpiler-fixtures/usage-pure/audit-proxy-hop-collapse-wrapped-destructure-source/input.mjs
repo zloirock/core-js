@@ -1,9 +1,7 @@
-// A proxy-global chain that is a destructure SOURCE - wrapped in ANY value carrier (a leading side-
-// effect sequence, a conditional, or a TS cast) - is owned by the destructure path, which feeds its
-// props into a synth literal (`{ from: _Array$from }`). the expression-level proxy-hop collapse must NOT
-// also fire there: it climbs every value carrier to the binding context and skips on the pattern target.
-// were it to fire, the consumed-and-dropped receiver would leak a dead `_globalThis` import. NO
-// `_globalThis` is expected - every prop resolves to a pure static and the receiver is fully consumed.
+// Wrapped proxy-global destructure sources stay owned by the destructure path. The sequence default
+// keeps its effect, the local truthy conditional decides Object, and the TS cast resolves Object
+// directly; no dead proxy-root import may leak. An unknown container selection remains covered by
+// `container-chosen-by-undecided-selection-mirrors-under-a-pattern`.
 function eff() {}
 function seSource({ from, of } = (eff(), globalThis.window.self.Array)) {
   return from([1]) + of(2, 3);

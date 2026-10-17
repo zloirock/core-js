@@ -633,17 +633,15 @@ function isSlotlessValue(node) {
     || (isQuietLiteralOperand(node) && node.type !== 'RegExpLiteral' && !node.regex);
 }
 
-// the container literals the arms of a selection spell where every other arm holds no slot a write could land
-// on (`c ? { C: Map } : { C: Object }`, `{ C: Map } || { C: Object }`, `c ? [Array] : [Set]`, `c ? { C: Map } :
-// null`, `c && { C: Map }`), else none: a slotless arm (`isSlotlessValue`), and an `&&`'s left, which is the
-// value only where it is falsy (`andRightOnly`) - an unknown arm may be an object the write lands on instead
+// The literal arms of a selection remain containers even beside a named or opaque arm. Writes through
+// the selected binding reach their slots; the other arms keep their existing alias and escape routes.
+// An `&&` contributes only its right: its left is selected only where it is slotless (`andRightOnly`).
 function containerSelectionLiterals(value) {
   const core = unwrapRuntimeExpr(value);
   if (core?.type !== 'ConditionalExpression' && core?.type !== 'LogicalExpression') return [];
   const arms = flattenBranchingValueNodes([core], { andRightOnly: true })
     .map(arm => literalRootedContainer(arm) ?? unwrapRuntimeExpr(arm));
-  const containers = arms.filter(arm => arm?.type === 'ObjectExpression' || arm?.type === 'ArrayExpression');
-  return containers.length && arms.every(arm => containers.includes(arm) || isSlotlessValue(arm)) ? containers : [];
+  return arms.filter(arm => arm?.type === 'ObjectExpression' || arm?.type === 'ArrayExpression');
 }
 
 // the chains a write target lands on, each the root and the keys (`staticMemberKeyName`) it spells: a
@@ -2643,15 +2641,21 @@ function chainSlotValues(aliases, node, state, written, selectedKeys = null, rec
   // span, so its own node is never a stable name for it - this pair is. an IDENTIFIER root is named
   // by its binding, not its position: two reads of one binding are one question, while namesakes
   // in separate functions must keep separate answers. The leading NUL keeps a binding key out
-  // of the positions' number space.
+  // of the positions' number space. A generated root without a span keeps its identity plus
+  // the key path: a synthesized member is fresh on every visit, but its root is not.
   const binding = root?.type === 'Identifier' ? aliasBindingKey(aliases, root.name, aliasReferenceScopes(aliases, root)) : null;
   const rootKey = binding === null ? nodePositionKey(root) : `\u0000${ binding }`;
-  const slotKey = rootKey === null ? node : `${ rootKey }${ JSON.stringify(keys) }`;
-  const memo = state.slots.get(slotKey);
+  let slotMemo = state.slots;
+  if (rootKey === null) {
+    if (!slotMemo.has(root)) slotMemo.set(root, new Map());
+    slotMemo = slotMemo.get(root);
+  }
+  const slotKey = rootKey === null ? JSON.stringify(keys) : `${ rootKey }${ JSON.stringify(keys) }`;
+  const memo = slotMemo.get(slotKey);
   if (memo) return memo;
   // Publish before following local returns: recursive calls can revisit the same selection.
   const answer = { expanded: false, outside: false, absent: false, values: [], reached: seen };
-  state.slots.set(slotKey, answer);
+  slotMemo.set(slotKey, answer);
   let level = chainRootValues(aliases, root, seen, state.roots);
   // the ROOT level is filtered where its values are already cached - by BINDING. one binding is read
   // through many key paths, and its expansion is the wide one; every level below it is narrow
@@ -5763,6 +5767,7 @@ function buildContainerIndex(declared, containerDeclarations, unrootedKeys) {
   const containers = new Map();
   const containerSlotIndex = {
     owners: new Map(), byName: new Map(), writes: new Map(), aliasedWrites: new WeakSet(), escapes: new Map(),
+    nonIterationEscapes: new Set(),
     unrootedKeys,
   };
   for (const declaration of containerDeclarations) {
@@ -7400,6 +7405,7 @@ export function mutationShapesReducer(packages = null) {
         let escapes = containerSlotIndex.escapes.get(slotKey);
         if (!escapes) containerSlotIndex.escapes.set(slotKey, escapes = []);
         escapes.push(escape);
+        if (!escape?.iteration) containerSlotIndex.nonIterationEscapes.add(slotKey);
       }
       if (write) {
         let writes = containerSlotIndex.writes.get(slotKey);
@@ -8216,6 +8222,7 @@ export function createDetectionAdapter({
   getMutationRoots = () => null,
   parameterCallSites = null,
   collectBindingReferences = null,
+  resolveConstantSelection = null,
 }, buildHostMembers) {
   const callWriteSummaries = new WeakMap();
   const callReadSummaries = new WeakMap();
@@ -8325,6 +8332,8 @@ export function createDetectionAdapter({
     // binding names a global) and walking it to the name it holds can re-enter here through the alias pre-pass
     // (`var P = P || Legacy`), and a re-entered ask answers by the presence test alone
     decidedSelection(node, ctx) {
+      const constant = resolveConstantSelection?.(node, ctx.path);
+      if (constant) return constant;
       const left = node?.type === 'LogicalExpression' && node.operator !== '&&' ? unwrapRuntimeExpr(node.left) : null;
       const root = left && runtimeChainRoot(left);
       if (root?.type === 'Identifier') {
@@ -8397,6 +8406,10 @@ export function createDetectionAdapter({
       return containerSlotRecordWritten({ slots, unrootedKeys: index?.unrootedKeys }, containerKeys(object, ownerNode), keyPath, {
         wildcard(key, prefix) {
           const escapes = index?.escapes.get(`${ prefix }.*`);
+          // The protocol read precedes iteration; an iteration-only record is not its writer.
+          // Summarized at publication so many loop reads never re-scan the same escape list.
+          if (keyPath.length === 1 && keyPath[0] === 'Symbol.iterator' && escapes?.length
+            && index.nonIterationEscapes && !index.nonIterationEscapes.has(`${ prefix }.*`)) return true;
           const binding = usagePath && adapter.getBinding({ scope: usagePath.scope, name: object, path: usagePath });
           const calls = escapes?.map(escape => escape?.call);
           // A later handout cannot change a value already read from this container.
@@ -8960,9 +8973,10 @@ function resolveMutationSite({
     const yielded = callYieldedContainer({ node: callNode, readNode: callNode, seen: new Set(), ctx: { scope, adapter, path } },
       { rejectConditional: true, allowUninitializedCallee: true });
     const values = [];
+    if (yielded?.argsUnknown) return values;
     for (const [keyPath, index] of yielded?.slots ?? []) {
       if (keyPath.length !== keys.length || keyPath.some((key, at) => String(key) !== String(keys[at]))) continue;
-      const argument = resolveCallArgument(yielded.args, index);
+      const argument = resolveCallArgument(yielded.args, index, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
       if (argument) values.push(argument);
     }
     return values;

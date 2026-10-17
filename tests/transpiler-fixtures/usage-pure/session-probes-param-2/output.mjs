@@ -86,27 +86,25 @@ function mark(t, v) {
   });
 }
 {
+  var _ref;
   const r = (({
     a: {
       [_Symbol$iterator]: it,
       at
     }
   }) => [it, at])({
-    a: {
-      [_Symbol$iterator]: _getIteratorMethod([1]),
-      at: _atMaybeArray([1])
-    }
+    a: (_ref = [1], {
+      [_Symbol$iterator]: _getIteratorMethod(_ref),
+      at: _atMaybeArray(_ref)
+    })
   });
 }
 {
-  const r = (({
-    a: {
-      at
-    }
-  }) => at)({
-    a: {
-      at: _atMaybeArray([1, 2])
-    }
+  const r = ((_ref2, _unused = void 0) => {
+    let at = _atMaybeArray(_ref2.a);
+    return at;
+  })({
+    a: [1, 2]
   });
 }
 {
@@ -208,39 +206,34 @@ function mark(t, v) {
   });
 }
 {
-  const r = (({
-    at
-  }) => at)((0, {
-    at: _atMaybeArray([1, 2])
-  }));
+  const r = ((_ref3, _unused2 = void 0) => {
+    let at = _atMaybeArray(_ref3);
+    return at;
+  })((0, [1, 2]));
 }
 {
-  const r = (({
-    at
-  }) => at)((log(), {
-    at: _atMaybeArray([1, 2])
-  }));
+  const r = ((_ref4, _unused3 = void 0) => {
+    let at = _atMaybeArray(_ref4);
+    return at;
+  })((log(), [1, 2]));
 }
 {
-  const r = (({
-    at
-  }) => at)(...[{
-    at: _atMaybeArray([1, 2])
-  }]);
+  const r = ((_ref5, _unused4 = void 0) => {
+    let at = _atMaybeArray(_ref5);
+    return at;
+  })(...[[1, 2]]);
 }
 {
-  const r = (({
-    at
-  }) => at)({
-    at: _atMaybeArray([1, 2])
-  });
+  const r = ((_ref6, _unused5 = void 0) => {
+    let at = _atMaybeArray(_ref6);
+    return at;
+  })([1, 2]);
 }
 {
-  const r = (({
-    at
-  }, x) => at)(...[{
-    at: _atMaybeArray([1, 2])
-  }, 0]);
+  const r = ((_ref7, x, _unused6 = void 0) => {
+    let at = _atMaybeArray(_ref7);
+    return at;
+  })(...[[1, 2], 0]);
 }
 {
   const r = (({
@@ -375,36 +368,32 @@ function mark(t, v) {
   });
 }
 {
-  const v = (({
-    at
-  }) => at)(...[{
-    at: _atMaybeArray(mark('e', [0]))
-  }]);
+  const v = ((_ref8, _unused7 = void 0) => {
+    let at = _atMaybeArray(_ref8);
+    return at;
+  })(...[mark('e', [0])]);
 }
 {
-  const v = (({
-    at
-  }) => at)({
-    at: _atMaybeArray(mark('e', [0]))
-  });
+  const v = ((_ref9, _unused8 = void 0) => {
+    let at = _atMaybeArray(_ref9);
+    return at;
+  })(mark('e', [0]));
 }
 {
-  const v = (({
-    at
-  }, x) => at)({
-    at: _atMaybeArray(mark('e', [0]))
-  }, 1);
+  const v = ((_ref10, x, _unused9 = void 0) => {
+    let at = _atMaybeArray(_ref10);
+    return at;
+  })(mark('e', [0]), 1);
 }
 {
   const v = _Promise$resolve(...[[1, 2]]);
   v.then(a => _at(a).call(a, 0));
 }
 {
-  const viaIife = (({
-    at
-  }, x) => [at.call([8, 9], -1), x])(...[{
-    at: _atMaybeArray(mark('e', [0]))
-  }, mark('f', 1)]);
+  const viaIife = ((_ref11, x, _unused10 = void 0) => {
+    let at = _atMaybeArray(_ref11);
+    return [at.call([8, 9], -1), x];
+  })(...[mark('e', [0]), mark('f', 1)]);
 }
 {
   function f() {

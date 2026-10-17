@@ -1,7 +1,6 @@
-// an instance method a parameter default or an IIFE argument mirrors dispatches on its receiver with every
-// selection the build decides inside it read by its live operand, as that receiver spelled without it: a
-// computed key, an element, a member object, a hop slot, the argument itself and a `||` left. a selection
-// the build leaves open in a computed key keeps the read native, as any unproven key does
+// Each build-decided selection dispatches on its live operand after folding its dead arm. The final
+// computed selection stays open and dispatches on the runtime receiver, preserving any own `with`.
+// Unknown parameter-driven family selection remains covered by `mixed-static-instance-selection`.
 export function key({ at } = o[typeof Symbol != 'undefined' ? 'a' : 'b']) {
   return at;
 }

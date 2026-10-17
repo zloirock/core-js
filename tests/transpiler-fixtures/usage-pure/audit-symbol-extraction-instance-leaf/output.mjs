@@ -2,6 +2,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
+import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // A symbol-iterator value keeps the claims nested beneath its pattern.
@@ -22,6 +24,12 @@ const {
 } = _getIteratorMethod(_globalThis);
 const plain = _getIteratorMethod(_globalThis); // a non-proxy receiver reaches the synth through the emitters' own symbol route rather than the
 // plan - it asks the SAME shared helper, so the leaf resolves there too, with or without a sibling
+const arrayIteratorKey = _Symbol$iterator;
+const previousArrayIterator = _Object$getOwnPropertyDescriptor(Array, arrayIteratorKey);
+_Object$defineProperty(Array, arrayIteratorKey, {
+  configurable: true,
+  value: _getIteratorMethod(Array.prototype)
+});
 const viaCtor = _nameMaybeFunction(_getIteratorMethod(Array));
 const _ref = {
     of: _Array$of,
@@ -29,12 +37,9 @@ const _ref = {
   },
   {
     of
-  } = _ref,
-  {
-    [_Symbol$iterator]: {
-      name: viaSiblingCtor
-    }
   } = _ref;
+const viaSiblingCtor = _nameMaybeFunction(_getIteratorMethod(_ref));
+if (previousArrayIterator) _Object$defineProperty(Array, arrayIteratorKey, previousArrayIterator);else delete Array[arrayIteratorKey];
 // NEGATIVE: a DEFAULTED leaf keeps the destructure - binding the dispatcher result directly would
 // drop the user's default, and guarding it is the instance-default channel's own shape
 const {

@@ -1,5 +1,5 @@
 // Nested claims beside constructor statics retain one evaluation of each user getter receiver.
-// A proven class getter narrows its prototype to Array; unresolved sibling routes stay conservative.
+// A proven class getter narrows its prototype to Array and preserves its sibling statics.
 class KE {
   static get A() { log(); return Array; }
   static get I() { log(); return Iterator; }

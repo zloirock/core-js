@@ -4,6 +4,7 @@
 // per-branch viability (`isViableBranchForKey`), branch enumeration for usage-global
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { matchEntrySubpath } from './entries.js';
 import {
   CENSUS_CONTAINER_TYPES,
@@ -28,6 +29,9 @@ import {
   collectFoldedReceiverSideEffects,
   computedKeyHasSideEffects,
   createInstanceNodeCache,
+  ancestorChainDetached,
+  isNonReferencePosition,
+  writtenNames,
   trustedIdentifierAliasWrite,
   destructureReceiverNode,
   destructureReceiverSlot,
@@ -44,8 +48,8 @@ import {
   forOfHeadDeclarationOf,
   FUNCTION_LIKE_NODE_TYPES,
   functionScopeBindsVarOrFunction,
-  getFallbackBranchSlots,
   hasObjectRestAncestor,
+  getFallbackBranchSlots,
   identifierDeclaratorInit,
   isBareUndefinedIdentifier,
   isChainAssignment,
@@ -66,6 +70,7 @@ import {
   isReassignedBeyondDeclarator,
   isReceiverShapedNode,
   isReplayableSynthKey,
+  isSloppyAtPath,
   isMirrorablePatternValue,
   isPropertyNode,
   patternFullyConsumed,
@@ -90,9 +95,12 @@ import {
   objectPropertyReadValue,
   pairedArrayWrapInitElement,
   paramListReadsName,
+  stmtRebindNames,
+  paramListRunsWork,
   patternBindingCount,
   patternHasRestReadBeforeNestedBinding,
   patternKeepsEffectfulKey,
+  patternHasAnyDefault,
   orderBoundPatternProps,
   patternLiteralKeyPath,
   patternPropReadsBindings,
@@ -144,6 +152,7 @@ import {
   privateNameSpelling,
   noteRenderRetiredWrites,
   pathOfNode,
+  pathContainedBy,
   propertyKeyName,
   CLASS_NODE_TYPES,
   unwrapSafeSequenceTail,
@@ -167,7 +176,7 @@ import {
   withCanonQuestion,
   SELECTION_TEST_FIELDS,
 } from '../helpers/ast-patterns.js';
-import { canonicalArrayIndex, PATTERN_WRAPPERS } from '../resolve-node-type/base.js';
+import { canonicalArrayIndex, literalNodeValue, PATTERN_WRAPPERS, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { ORPHAN_REF_PATTERN } from '../injector-base.js';
 import {
   findNamespaceMemberValue,
@@ -197,7 +206,6 @@ import {
   moduleDefaultSource,
   navShortCircuitSource,
   navValueCanShortCircuit,
-  navHasUnresolvableProxyHop,
   peelRealmLogicalDefault,
   peelReceiverSequenceTail,
   proxyGlobalMemberCtorPure,
@@ -230,13 +238,18 @@ import {
   assignmentExpression,
   callExpression,
   cloneNode,
+  conditionalExpression,
   identifier,
+  logicalExpression,
   memberExpression,
   memberFromKeyName,
+  nullGuardTest,
   arrayExpression,
   objectExpression,
+  objectGetter,
   objectPattern as renderObjectPattern,
   objectProperty,
+  renderMemoActivation,
   sequenceExpression,
   synthEntryKey,
 } from '../render.js';
@@ -250,6 +263,7 @@ import {
 } from '../index.js';
 import {
   KNOWN_NAMESPACE_GLOBALS,
+  implementsPrototypeMethod,
   isKnownGlobalName,
   NATIVE_STATIC_OWNERS,
   staticReceiverHint,
@@ -393,7 +407,7 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
   if (meta?.placement !== 'static' || !meta.object || POSSIBLE_GLOBAL_OBJECTS.has(meta.object)) return meta;
   if (objectPattern) {
     const walked = destructureHostThroughWrappers(objectPattern, adapter);
-    node = walked && destructureReceiverNode(walked.host);
+    node = walked && destructureReceiverNode(walked.host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     if (!node || !walked.hops) return meta;
     walkPath = walked.hops.map(hop => hop.key ?? String(hop.index));
     path = walked.host;
@@ -504,7 +518,7 @@ function buildDestructuringInitMetaCore({
       // : Iterator)()`. recurse on the IIFE's return expression so per-branch enumeration
       // sees the conditional/logical inside. args-bearing calls preserve their semantics
       // (peel returns null, switch falls through to the `object: null` default)
-      const iifeInner = peelZeroArgIifeReturn(unwrapped);
+      const iifeInner = peelZeroArgIifeReturn(unwrapped, { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic });
       if (iifeInner) return buildDestructuringInitMeta({ initNode: iifeInner, key, scope, adapter, path, unionSink, resolveStaticKey });
       // an inline-resolvable call init (`(() => { c++; return Promise; })()`): classify through
       // resolveObjectName's call inlining, same as the direct flatten path. without this, the
@@ -668,8 +682,12 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
     }) ?? {})?.kind === 'static'
     && !decidesForLeft();
   if (primaryMeta?.object && !sharedStaticFallback && (primaryPure || branchingProxySurfacePrimary(primaryMeta, adapter))) {
-    // the left is the unconditional value only while it cannot be nullish: an undefinable
-    // probe nav (`globalThis.window?.Array ?? {}`) selects the FALLBACK exactly off-env, so
+    if (node.operator === '||' && !selectionLeftAlwaysTruthy({ node: node.left, scope, adapter, path }) && !decidesForLeft()) {
+      const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey });
+      return fallbackDestructureMeta(primaryMeta, fallbackMeta, adapter);
+    }
+    // The left must satisfy the operator's selector: truthy for OR, non-nullish for nullish coalescing.
+    // An undefinable probe nav (`globalThis.window?.Array ?? {}`) selects the FALLBACK exactly off-env, so
     // the runtime value depends on the environment like a differing-branch `&&` - flag it
     // for the per-branch machinery instead of binding the polyfill to the left, and so does a selection
     // the user opted out of, which decides nothing (`isOptedOut`). usage-global, which
@@ -777,7 +795,7 @@ export function seKeyStaticOwesTheMirror({ propPath, meta, kind, adapter, resolv
   const hostType = walked?.host?.node?.type;
   if (typeof hopKey !== 'string' || (hostType !== 'VariableDeclarator' && hostType !== 'AssignmentExpression')) return false;
   if (!resolvePure({ kind: 'global', name: hopKey }, null)) return false;
-  const receiver = destructureReceiverNode(walked.host);
+  const receiver = destructureReceiverNode(walked.host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   return !!receiver && !destructureReceiverOwesAThrow(receiver,
     { scope: propPath.scope, adapter, path: propPath });
 }
@@ -820,6 +838,8 @@ function resolveConditionalDestructureMeta({ node, key, scope, adapter, path, re
 function fallbackDestructureMeta(resolved, other, adapter) {
   const { key } = resolved;
   const instance = { kind: 'property', object: null, key, placement: null };
+  // A generic instance claim reads the selected receiver, including an unknown primary arm.
+  if (!resolved.placement && resolveBuiltIn(resolved)?.kind === 'instance') return instance;
   if (resolved.placement === 'prototype' && other?.object !== resolved.object) return instance;
   if (resolved.placement === 'static' && other?.placement !== 'static') {
     const pure = resolveBuiltIn(resolved);
@@ -926,8 +946,8 @@ export function undefinedArmEffectiveReceiver({ branch, paramDefaultNode }) {
 
 // Injection-only view of a logical assignment: either retained value or installed RHS
 // can supply the receiver. This synthetic view never drives a pure rewrite.
-function peelUnionReceiver(node) {
-  const peeled = peelFallbackReceiver(node);
+function peelUnionReceiver(node, staticIsMutated) {
+  const peeled = peelFallbackReceiver(node, staticIsMutated);
   return peeled?.type === 'AssignmentExpression' && peeled.operator !== '=' && VALUE_FLOW_ASSIGN_OPS.has(peeled.operator)
     ? { ...peeled, type: 'LogicalExpression', operator: peeled.operator.slice(0, -1) } : peeled;
 }
@@ -956,7 +976,9 @@ export function flattenFallbackBranches(options) {
 function flattenFallbackLevel({
   node, key, scope, adapter, path, followAliasLeaves = false, includeUnresolved = false, seen = new Set(), followed,
 }) {
-  const peeled = adapter.method === 'usage-global' ? peelUnionReceiver(node) : peelFallbackReceiver(node);
+  const peeled = adapter.method === 'usage-global'
+    ? peelUnionReceiver(node, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic)
+    : peelFallbackReceiver(node, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   const branchSlots = getFallbackBranchSlots(peeled);
   if (branchSlots) {
     // fork-before-recurse: each sibling branch walks its own copy of the cycle guard, so a name
@@ -1075,7 +1097,10 @@ function resolveIndirectBranchingReceiver({ node, seen = new Set(), ctx, binding
       scope = ret.ctx.scope;
       seen = ret.seen;
     } else return null;
-    if (getFallbackBranchSlots(peelUnionReceiver(cur))) return { node: cur, readNode: readSite, seen, ctx: { ...ctx, scope } };
+    if (getFallbackBranchSlots(peelUnionReceiver(
+      cur,
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+    ))) return { node: cur, readNode: readSite, seen, ctx: { ...ctx, scope } };
   }
   return null;
 }
@@ -1170,7 +1195,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     // usable fallback receiver (a classifiable single receiver OR a conditional / logical enumerated
     // per-branch); a non-receiver arg (notably `undefined`, which makes the runtime apply the default)
     // keeps the default. shared `isUsableFallbackReceiverArg` matches each plugin's usage-pure detect
-    const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode);
+    const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     receiverNode = chooseFallbackReceiverNode({
       argNode: desc?.rhsNode, defaultNode: wrapperNode.right, objectPattern, scope: path.scope, adapter, path, resolvePure,
       argScope: desc?.callPath?.scope ?? path.scope, argPath: desc?.callPath ?? path,
@@ -1181,7 +1206,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     }
   } else if (wrapperNode && objectPattern) {
     // The same receiver canon handles wrapper defaults, loop elements and IIFE arguments.
-    const desc = resolveFallbackReceiver(wrapperPath, objectPattern);
+    const desc = resolveFallbackReceiver(wrapperPath, objectPattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     receiverNode = desc?.rhsNode ?? null;
     if (desc?.callPath && receiverNode) {
       receiverScope = desc.callPath.scope;
@@ -1428,7 +1453,7 @@ export function collectMemberUnionCandidates(options) {
   // caller-arg supersede (a real IIFE arg wins over the branching default) - and structurally
   // re-enumerating the raw node would resurrect the dead branch it excluded
   if (objectNode && primaryObject === null) {
-    const branching = getFallbackBranchSlots(peelUnionReceiver(objectNode))
+    const branching = getFallbackBranchSlots(peelUnionReceiver(objectNode, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic))
       ? { node: objectNode, ctx: { scope, adapter, path } }
       : resolveIndirectBranchingReceiver({ node: objectNode, ctx: { scope, adapter, path } });
     if (branching) {
@@ -1694,7 +1719,7 @@ export function prepareDestructureUnion({
   // ... and a flat host reads what the classifier reads: a for-of head carries no init, its element does
   const nestedHost = host?.type === 'Property' || host?.type === 'ObjectProperty' || host?.type === 'ArrayPattern';
   let hostInitNode = host?.type === 'VariableDeclarator' || host?.type === 'AssignmentExpression'
-    ? ownRelocatedHeadElement(hostPath) ?? destructureReceiverNode(hostPath)
+    ? ownRelocatedHeadElement(hostPath) ?? destructureReceiverNode(hostPath, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic)
     : nestedHost ? resolveNestedReceiverNode(path, { adapter, allowInitCarriedEffects: true }) : null;
   // an AssignmentPattern host routes through the SAME receiver selection as the per-branch
   // synth (`resolveFallbackReceiver` + caller-arg-wins): for an IIFE param-default the LIVE
@@ -1703,7 +1728,7 @@ export function prepareDestructureUnion({
   let unionScope = scope;
   let unionPath = path;
   if (host?.type === 'AssignmentPattern') {
-    const desc = resolveFallbackReceiver(hostPath.parentPath, host);
+    const desc = resolveFallbackReceiver(hostPath.parentPath, host, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     hostInitNode = chooseFallbackReceiverNode({
       argNode: desc?.rhsNode, defaultNode: host.right, objectPattern: path.parentPath?.node,
       scope, adapter, path, resolvePure,
@@ -1719,7 +1744,7 @@ export function prepareDestructureUnion({
     // plain IIFE `(function ({ [cond ? "from" : "of"]: v }) {})(Array)` - the destructure param
     // binds from the caller-arg, resolved at the call site. the AssignmentPattern arm above covers
     // the with-default form; the flat init reads cover declarator / assignment hosts
-    const desc = resolveFallbackReceiver(hostPath, path.parentPath?.node);
+    const desc = resolveFallbackReceiver(hostPath, path.parentPath?.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     if (desc?.rhsNode) {
       hostInitNode = desc.rhsNode;
       if (desc.callPath) {
@@ -1898,7 +1923,9 @@ export function chooseFallbackReceiverNode({
 // that prefix out of the accounting
 // ... and a value the build decides performs what the part of it that runs does (`decidedRunningOperand`):
 // its test is a plain read and its dead part never runs, at the init and down to the receiver's slot
-export function receiverPerformsEveryInitEffect(initNode, receiverNode, ctx = null) {
+// A movement proof can pass `isQuiet` for untouched siblings, including their implicit conversions;
+// ordinary callers retain the effect-only answer.
+export function receiverPerformsEveryInitEffect(initNode, receiverNode, ctx = null, isQuiet = null) {
   if (!initNode || !receiverNode) return false;
   if (initNode === receiverNode) return true;
   function running(node) {
@@ -1922,7 +1949,7 @@ export function receiverPerformsEveryInitEffect(initNode, receiverNode, ctx = nu
   const isObject = init.type === 'ObjectExpression';
   if (!isObject && init.type !== 'ArrayExpression') return false;
   if (isObject && init.properties.some(prop => prop.type !== 'SpreadElement'
-    && prop.computed && mayHaveSideEffects(prop.key, ctx))) return false;
+    && prop.computed && (mayHaveSideEffects(prop.key, ctx) || isQuiet && foldedPropertyKeyName(prop) === null))) return false;
   // a SPREAD stays WHOLE here: what it reads is the source's own enumerable keys, so the effect is
   // the spread itself and not the binding it names - mapping it to its argument read `...spread` as
   // inert and let a receiver that carries none of that pass for one that carries all of it
@@ -1932,13 +1959,13 @@ export function receiverPerformsEveryInitEffect(initNode, receiverNode, ctx = nu
   let holder = null;
   for (const part of parts) {
     if (!part) continue;
-    if (unwrapRuntimeExpr(part) === receiver || receiverPerformsEveryInitEffect(part, receiver, ctx)) {
+    if (unwrapRuntimeExpr(part) === receiver || receiverPerformsEveryInitEffect(part, receiver, ctx, isQuiet)) {
       if (holder) return false;
       holder = part;
       continue;
     }
     // a sibling slot reading a getter performs work the receiver does not (the scoped predicate)
-    if (mayHaveSideEffects(part, ctx)) return false;
+    if (isQuiet ? !isQuiet(part) : mayHaveSideEffects(part, ctx)) return false;
   }
   return !!holder;
 }
@@ -2088,26 +2115,161 @@ export function conditionalDestructureLeftUntouchedWarning(key) {
   return `conditional destructure with polyfill candidate left untouched ("${ key }" on fallback branch) - runtime availability depends on the selected branch`;
 }
 
-// A body extraction needs a direct parameter binding, a block body and no parameter-scope
-// reads or body redeclaration of that binding. The caller separately proves that every call
-// uses the parameter default; rejected shapes remain native rather than gaining leaf defaults.
-export function qualifiesForParamBodyExtract({ propPath, localId }) {
+// A body extraction needs a parameter binding and no parameter-scope reads or body
+// redeclaration of that binding. A whole receiver capture can also wrap a concise arrow body.
+// Receiver-less static extraction separately proves that every call uses the parameter default;
+// whole-receiver extraction checks all moved names together before asking this binding-local gate.
+export function qualifiesForParamBodyExtract({ propPath, localId, receiverCapture = false }) {
   const patternParentType = propPath.parentPath?.parentPath?.node?.type;
-  if (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
-    || patternParentType === 'ArrayPattern') return null;
+  if (!receiverCapture && (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
+    || patternParentType === 'ArrayPattern')) return null;
   const existingBinding = propPath.scope.getBinding(localId.name);
   if (existingBinding && (existingBinding.identifier ?? existingBinding.identifierPath?.node) !== localId) return null;
   const fnPath = findEnclosingFunctionLikePath(propPath);
-  if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return null;
+  if (!fnPath || fnPath.node.body?.type !== 'BlockStatement'
+    && !(receiverCapture && fnPath.node.type === 'ArrowFunctionExpression' && fnPath.node.body)) return null;
   let top = propPath.parentPath;
   while (top?.parentPath && PATTERN_WRAPPERS.has(top.parentPath.node?.type)) top = top.parentPath;
   if (top?.parentPath?.node !== fnPath.node) return null;
-  const site = top.node.type === 'AssignmentPattern' ? findIifeCallSite(fnPath, top.node) : null;
+  const site = !receiverCapture && top.node.type === 'AssignmentPattern' ? findIifeCallSite(fnPath, top.node) : null;
   if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
     () => !!site.callPath.scope?.getBinding?.('undefined'))) return null;
-  if (paramListReadsName(fnPath.node.params, localId.name)) return null;
+  if (!receiverCapture && paramListReadsName(fnPath.node.params, localId.name)) return null;
   if (functionScopeBindsVarOrFunction(fnPath, localId.name)) return null;
   return { fnPath };
+}
+
+const parameterExtractionBarriers = createInstanceNodeCache();
+
+// A parameter needs its actual receiver, rather than a caller-side mirror or a default-only
+// substitution. Object-pattern levels can move together to the body entry; their inner defaults
+// must be literals, since a moved expression would resolve body declarations in a different scope.
+// Leaf defaults and other parameter work keep their original timing. A whole receiver default stays.
+// eslint-disable-next-line max-statements -- nested pattern admission shares the parameter timing and binding proof
+export function planParameterInstanceExtraction({
+  propPath, adapter, resolvePure, isDisabledProp, parameterCallSites = null, isClaimedProp = null,
+}) {
+  const patternPath = destructureHostThroughWrappers(propPath.parentPath, adapter, true)?.hostPatternPath;
+  if (patternPath?.node.type !== 'ObjectPattern') return null;
+  const rootPath = patternPath.parentPath?.node.type === 'AssignmentPattern'
+    && patternPath.parentPath.node.left === patternPath.node ? patternPath.parentPath : patternPath;
+  const fnPath = rootPath.parentPath;
+  const fn = fnPath?.node;
+  const paramIndex = fn?.params?.indexOf(rootPath.node) ?? -1;
+  if (adapter.method !== 'usage-pure' || !fn || fn.generator || fn.async
+    || !['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'].includes(fn.type)
+    || paramIndex < 0
+    || fn.params.some((param, index) => param !== rootPath.node && param.type !== 'Identifier'
+      && !(index < paramIndex && param.type === 'AssignmentPattern' && param.left.type === 'Identifier'))) return null;
+  // A refusal keeps its live parameter-expression witness, never a permission to extract.
+  // A rewrite or scope rebuild can retire that dependency while retaining this pattern and adapter.
+  const blocked = parameterExtractionBarriers.get(adapter, patternPath.node);
+  if (blocked && blocked.fn === fn && blocked.fnScope === fnPath.scope
+    && blocked.root === rootPath.node && blocked.paramIndex === paramIndex
+    && fn.params[blocked.sourceIndex] === blocked.sourceRoot && pathContainedBy(blocked.path, blocked.sourceRoot)
+    && (blocked.moved ? blocked.declarationPath.node === blocked.declaration
+      && !ancestorChainDetached(blocked.declarationPath)
+      && pathContainedBy(blocked.declarationPath, patternPath.node) : fn.params[blocked.index] === blocked.declaration)
+    && blocked.path.node === blocked.node
+    && blocked.node.type === 'Identifier' && blocked.node.name === blocked.name
+    && !ancestorChainDetached(blocked.path)
+    && !isNonReferencePosition(blocked.path.parentPath?.node, blocked.node)) {
+    const raw = blocked.path.scope?.getBinding(blocked.name);
+    if (bindingLoopAnchor(raw).decl === blocked.declaration) return null;
+  }
+  parameterExtractionBarriers.delete(adapter, patternPath.node);
+  const properties = [];
+  const patterns = [patternPath];
+  for (const pattern of patterns) {
+    if (!pattern.node.properties.length) return null;
+    for (const prop of pattern.get('properties')) {
+      if (!isPropertyNode(prop.node) || prop.node.computed || isDisabledProp?.(prop.node)) return null;
+      let target = prop.get('value');
+      if (target.node.type === 'Identifier') properties.push(prop);
+      else {
+        if (target.node.type === 'AssignmentPattern') {
+          if (!isConstantLiteralNode(unwrapRuntimeExpr(target.node.right))) return null;
+          target = target.get('left');
+        }
+        if (target.node.type !== 'ObjectPattern') return null;
+        patterns.push(target);
+      }
+    }
+    if (!patternComputedKeysSynthSafe({
+      objectPatternNode: pattern.node, scope: pattern.scope, adapter, path: pattern, distinctReads: true,
+    })) return null;
+  }
+  // A delayed property read crosses later bare parameter bindings too. A parameter closure
+  // can observe their TDZ when the original getter runs, before those bindings initialize.
+  const observed = [
+    ...properties.map((prop, index) => ({ path: prop.get('value'), index, moved: true })),
+    ...fnPath.get('params').slice(paramIndex + 1).map((path, index) => ({ path, index: paramIndex + index + 1, moved: false })),
+  ];
+  const observedNames = new Set(observed.map(({ path }) => path.node.name));
+  if (paramListReadsName(fn.params, observedNames)) {
+    for (const { path: read, index, moved } of observed) {
+      const raw = read.scope.getBinding(read.node.name);
+      const references = adapter.collectBindingReferences?.(read, read.node.name);
+      const binding = adapter.getBinding({ scope: read.scope, name: read.node.name, path: read, read: read.node });
+      if (!raw || bindingLoopAnchor(raw).decl !== read.node || !references || !binding) return null;
+      for (const [paths, write] of [[references, false], [binding.constantViolations ?? [], true]]) {
+        for (const reference of paths) {
+          const at = reference.node ? reference : pathOfNode(read, reference);
+          if (!at) return null;
+          if (pathContainedBy(at, fn.body) || ancestorChainDetached(at)) continue;
+          const { name } = read.node;
+          const target = write && at.node.type !== 'Identifier'
+            ? writtenNames(at.node, { identifierNodes: true }).find(id => id.name === name) : at.node;
+          if (!target || target.name !== name) continue;
+          const witness = target === at.node ? at : pathOfNode(at, target);
+          if (!witness || target.type !== 'Identifier') return null;
+          if (isNonReferencePosition(witness.parentPath?.node, target)) continue;
+          const sourceBinding = witness.scope?.getBinding(name);
+          if (!sourceBinding) return null;
+          if (bindingLoopAnchor(sourceBinding).decl !== read.node) continue;
+          const sourceIndex = fn.params.findIndex(param => pathContainedBy(witness, param));
+          if (sourceIndex === -1) return null;
+          parameterExtractionBarriers.set(adapter, patternPath.node, {
+            fn, fnScope: fnPath.scope, root: rootPath.node, paramIndex, path: witness, node: target,
+            declaration: read.node, declarationPath: read, name, index, moved,
+            sourceIndex, sourceRoot: fn.params[sourceIndex],
+          });
+          return null;
+        }
+      }
+    }
+  }
+  if (identifierReferencedInSubtree(fn, 'eval')) return null;
+  const bodyBindings = new Set();
+  for (const statement of fn.body.type === 'BlockStatement' ? fn.body.body : []) {
+    for (const name of stmtRebindNames(statement, [])) bodyBindings.add(name);
+  }
+  if (properties.some(prop => bodyBindings.has(prop.node.value.name))) return null;
+  return withCanonQuestion(() => {
+    let claim = false;
+    const claimedProperties = [];
+    for (const prop of properties) {
+      if (isClaimedProp?.(prop)) {
+        claimedProperties.push(prop.node);
+        continue;
+      }
+      const sourceMeta = buildDestructureLeafMeta({
+        descriptor: classifyDestructureLeafHost({ objectPattern: prop.parentPath }),
+        key: propertyKeyName(prop.node), adapter, resolvePure, parameterCallSites,
+      });
+      const sourceKind = sourceMeta && resolveBuiltIn(sourceMeta)?.kind;
+      // A static/global arm needs its existing mirror or identity guard, not a generic instance read.
+      if (!sourceMeta || sourceMeta.guardedAliasHint || sourceKind === 'static' || sourceKind === 'global') return null;
+      if (!qualifiesForParamBodyExtract({ propPath: prop, localId: prop.node.value, receiverCapture: true })) return null;
+      const instance = resolvePure({ kind: 'property', object: null, key: propertyKeyName(prop.node), placement: null }, prop)
+        ?.kind === 'instance';
+      claim ||= instance;
+    }
+    return claim ? {
+      fnPath, rootPath, pattern: patternPath.node, root: rootPath.node, claimedProperties, bindingProperties: properties,
+      paddingRequired: fn.params.every(param => param.type !== 'AssignmentPattern'),
+    } : null;
+  });
 }
 
 // the pure entry an instance synth reads its RECEIVER through, or null for a receiver it spells as
@@ -2197,7 +2359,11 @@ export function claimUnderSharedHopSlot({ top, receivers, prop, scope, adapter, 
           if (!element || element.type === 'RestElement') return;
           walk(element, paired.map(value => {
             const { literal } = levelLiteralThroughIife(value, keyCtx);
-            return literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, index) : null;
+            return literal?.type === 'ArrayExpression' ? resolveCallArgument(
+              literal.elements,
+              index,
+              adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+            ) : null;
           }).filter(Boolean), shared);
         });
         return;
@@ -2219,11 +2385,12 @@ export function claimUnderSharedHopSlot({ top, receivers, prop, scope, adapter, 
   return claims.shared.has(prop);
 }
 
-// a receiver an instance synth slot spells whole, in place: an invocation, or a literal - whose parts may
-// run code (`[eff()]`, `` `${x}` ``). one slot evaluates it once, as the source does, and its parts keep
-// their own claims
+// A receiver an instance synth slot spells whole: an invocation, a plain store or a literal.
+// One slot evaluates it once; store targets keep their value and every evaluated part keeps
+// its own claims, including a computed assignment target.
 export function instanceSynthSpellsReceiver(node) {
-  return !!invocationNode(node) || REFERENCEABLE_LITERAL_TYPES.has(node?.type) || node?.type === 'TemplateLiteral';
+  return !!invocationNode(node) || isChainAssignment(peelNestedSequenceExpressions(node).tail)
+    || REFERENCEABLE_LITERAL_TYPES.has(node?.type) || node?.type === 'TemplateLiteral';
 }
 
 // Qualify an instance synth for a parameter default: supplied arguments still destructure natively.
@@ -2384,7 +2551,7 @@ export function isReReferenceableReceiver(node) {
 // pattern, each dispatch reading a property off the receiver: a NAME is spelled again there only where
 // no function can rebind it, since a getter writing it hands every later reader another object than the
 // one the source read once (`get at() { arr = other }`) - retained captures keep the user's getter
-// order. a binding written only in its own frame is out of every getter's reach. Free names
+// order. A binding written only in its own frame is out of every getter's reach. Free names
 // follow ordinary identifier reuse; a source-visible global write still needs a capture.
 export function isReReferenceableAcrossReads(node, ctx) {
   if (!isReReferenceableReceiver(node)) return false;
@@ -2765,7 +2932,7 @@ export function provenRealmCallName(node, { scope, adapter, path },
     : resolveObjectName({ objectNode: root, ...ctx, usageNode: root });
 }
 
-// the FACTS of a nested leaf's receiver as a MEMBER CHAIN: the re-referenceable root
+// the FACTS of a nested leaf's receiver as a MEMBER CHAIN: the root
 // identifier the declarator init spells plus the plain hop keys the pattern descends
 // (`{ inner: { [S]: it } } = obj` -> { root: obj, keys: ['inner'] }). where
 // `resolveNestedReceiverNode` descends LITERAL inits to a node, this walk answers for the
@@ -2777,7 +2944,8 @@ export function provenRealmCallName(node, { scope, adapter, path },
 // renders it in its own dialect
 // `siblingLevels`: a level ABOVE the leaf may keep siblings beside the hop (no rest): the caller
 // splits the hop out of that level into a twin of its own, and the level goes on reading the root
-// for its siblings - sound only for an IDENTIFIER root, which re-reads for free. the answer carries
+// for its siblings - sound only for a root proved reusable across those reads, or one the caller
+// captures (`rootMemoized`). the answer carries
 // `climbed`, leaf-first: every pattern level the walk climbed with the prop that holds the way down
 // `allowAssignmentHost` is for read-only ownership preflight: an assignment carries the same
 // receiver facts, but its extraction must still use its own binding/return-value machinery.
@@ -2851,7 +3019,7 @@ export function resolveNestedReceiverChain(leafPath, {
       // init is then the root WHOLE: an opaque root below, spelled by a sole reader that performs
       // the prefix where the source does (`{ y: { at } } = (n++, box)` reads `(n++, box).y`)
       const prefixes = [];
-      const init = destructureReceiverNode(owner);
+      const init = destructureReceiverNode(owner, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
       const rawRoot = adapter
         ? decidedRunningValue(init, { scope: leafPath.scope, adapter, path: leafPath }, prefixes)
         : unwrapCollectingSePrefixes(init, prefixes);
@@ -2866,8 +3034,8 @@ export function resolveNestedReceiverChain(leafPath, {
         || provenRealmCallRoot(rawRoot, leafPath, adapter, { allowEffects: true }))) return null;
       // a call the inline canon proves to yield a proxy global reads as that global (its spelling too)
       const root = prefixes.length ? unwrapRuntimeExpr(init) : provenRealmCallRoot(rawRoot, leafPath, adapter) ?? rawRoot;
-      // an IDENTIFIER root is free to read twice, which is what lets a host-level sibling keep its
-      // own read of it beside the extraction. a root the source COMPUTES - a call, a `new`, a member
+      // A reusable identifier lets a host-level sibling keep its own read beside the extraction.
+      // A root the source COMPUTES - a call, a `new`, a member
       // off the user's own object - it evaluates exactly once, so the extraction may spell it only
       // where it is the root's ONLY reader: the host level sole, the declarator dying whole with the
       // claim (`{ data: { at } } = mk()` reads `mk().data` once, as the source does). and only such
@@ -2875,10 +3043,12 @@ export function resolveNestedReceiverChain(leafPath, {
       // a nav into the built-in namespace is the flatten's, which lands it on the ponyfill
       // ... unless the caller MEMOIZES the root: the memo is then its one evaluation, and a host
       // sibling reads the memo the way it would read an identifier (`{ data: { at }, keys } = mk()`)
-      // ... and a level with SIBLINGS above the leaf reads the root again for them: an identifier, or
-      // a nav into the built-in namespace (`_globalThis.Array`, the collapsed proxy hop) - free either way
+      // ... and a level with SIBLINGS above the leaf reads the root again for them: a reusable
+      // identifier or a nav into the built-in namespace (`_globalThis.Array`, the collapsed proxy hop)
       const siblingLevelKept = climbed.some(level => level.pattern !== leafPattern.node
         && level.pattern.properties.length > 1);
+      if (!rootMemoized && root.type === 'Identifier' && pattern.node.properties.length > 1
+        && !isReReferenceableAcrossReads(root, { scope: leafPath.scope, adapter, path: leafPath })) return null;
       let unfolded = null;
       if (root.type !== 'Identifier') {
         const builtInNav = isReReadableSurfaceNav(root, null, { ctx: { scope: leafPath.scope, adapter, path: leafPath } });
@@ -2913,8 +3083,8 @@ export function resolveNestedReceiverChain(leafPath, {
     // is the value the leaf reads through, and the element must be a bare identifier for the
     // dispatch to spell it (`[{ y: { flat: m } }] = [nb]` reads `nb.y`, exactly what the source
     // reads). a SOLE wrapper is discarded whole; one with NEIGHBOURS keeps the literal alive for
-    // their coercion, and there the residual re-reads only the ELEMENT - free for an identifier -
-    // because the emptied hop prop prunes out of it and leaves the positional `{}` behind
+    // their coercion. The wrapper plan owns any capture the element needs before it is reused;
+    // the emptied hop prop prunes out of the residual and leaves the positional `{}` behind.
     if (ownerType === 'ArrayPattern') {
       // wrappers NEST (`[[{ y: { flat } }]] = [[nb]]`), and every level asks the same pairing: the
       // pattern's slot picks the literal's element at that level. collect the slot chain up to the
@@ -2962,7 +3132,11 @@ export function resolveNestedReceiverChain(leafPath, {
           if (literal?.type !== 'ArrayExpression') return null;
           levels.push({ node: literal, index: step.index });
           literal = unwrapCollectingSePrefixes(allowInlineSpread
-            ? resolveCallArgument(literal.elements, step.index) : literal.elements[step.index], prefixes);
+            ? resolveCallArgument(
+              literal.elements,
+              step.index,
+              adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+            ) : literal.elements[step.index], prefixes);
           continue;
         }
         if (literal?.type !== 'ObjectExpression') return null;
@@ -3128,15 +3302,16 @@ export function typedNavClaimChain(leafPath, options = undefined) {
 }
 
 // the chain the WHOLE-INIT memo route reads on both legs: a nested leaf whose root the source
-// COMPUTES (a call, a selection) beside a host sibling - the memo is what gives the sibling's read
-// and the claim's one identity (`{ data: { at }, keys } = mk()` -> `const _ref = mk(); const at =
-// _at(_ref.data);`). null where no memo is owed: an IDENTIFIER root reads twice for free, and a
+// COMPUTES (a call, a selection), or a name it cannot safely re-read, beside a host sibling - the
+// memo gives the sibling's read and the claim's one identity (`{ data: { at }, keys } = mk()` ->
+// `const _ref = mk(); const at = _at(_ref.data);`). null where no memo is owed: a root proved reusable needs none, and a
 // WRAPPED host pairs with an element of its literal - the wrapper family's routes (the capture)
 // own that element, and a memo of the whole literal would bind every later slot ahead of the
 // claim's read (`[{ y: { at } }, { z }] = [mk(), box]` read `z` before `y`)
 export function computedRootMemoChain(leafPath, adapter = null) {
   const chain = typedNavClaimChain(leafPath, { rootMemoized: true, adapter });
-  return chain?.root && chain.root.type !== 'Identifier' && !chain.wrapper ? chain : null;
+  return chain?.root && !chain.wrapper && (chain.root.type !== 'Identifier'
+    || !isReReferenceableAcrossReads(chain.root, { scope: leafPath.scope, adapter, path: leafPath })) ? chain : null;
 }
 
 // the declaration a REST-bearing host hangs off, and the value that host pulls from: the
@@ -3259,7 +3434,9 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
     // is the rest-host route's own shape one branch down - not this one's
     if (!isClaimLevel && props.some(isRestProperty)) return null;
     levels.unshift(isClaimLevel ? { claim: true } : { before: props.slice(0, at), after: props.slice(at + 1) });
-    const owner = pattern.parentPath;
+    let owner = pattern.parentPath;
+    if (owner?.node?.type === 'AssignmentPattern' && owner.node.left === pattern.node
+      && owner.parentPath?.node?.type === 'ArrayPattern') owner = owner.parentPath;
     const ownerType = owner?.node?.type;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
       const key = consumableHopSlotName(owner.node, adapter ? { scope: owner.scope ?? leafPath.scope, adapter, path: owner } : null);
@@ -3285,9 +3462,9 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
       pattern = owner.parentPath;
       continue;
     }
-    // the element itself: an `= default` between the slot and the array changes what the rename
-    // would bind (the default fires on a missing element), so only a bare slot renames
-    if (ownerType === 'ArrayPattern' && owner.node.elements.includes(pattern.node)) {
+    // A slot default stays on the native element binding; only its nested object
+    // pattern takes the captured receiver after iteration.
+    if (ownerType === 'ArrayPattern' && owner.node.elements.some(item => patternSlotTarget(item) === pattern.node)) {
       // ... and the host is a DECLARATION reached through patterns alone: the minted name needs a
       // binding site, which only a declarator gives it. an assignment host has none - climbing past
       // it would hand the rename to whatever declaration encloses the statement
@@ -3366,7 +3543,7 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
 // eslint-disable-next-line max-statements -- the walk: one arm per slot shape and per caller promise
 export function resolveNestedReceiverNode(leafPath,
   { allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
-    allowSePeeledFragment = false, allowNavSegments = false, adapter = null, slot = null,
+    allowSePeeledFragment = false, allowNavSegments = false, adapter = null, injectorState = null, slot = null,
     throughNamedDefaults = false } = {}) {
   const elidedPrefixes = [];
   // how many of them stand ABOVE the deepest paired slot (the rest are that slot's own)
@@ -3433,7 +3610,7 @@ export function resolveNestedReceiverNode(leafPath,
     // reads the iterated element there exactly as it reads it one level down from a head declarator
     const forXHead = isForXStatement(owner?.node) && owner.node.left === slotNode;
     const rhs = ownerType === 'VariableDeclarator' || ownerType === 'AssignmentExpression' || paramOwner || forXHead
-      ? destructureReceiverNode(owner, slotNode) : null;
+      ? destructureReceiverNode(owner, slotNode, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic) : null;
     if (!rhs) return null;
     // a kept WRITE is a prefix like any other for a caller that keeps it: the residual still performs
     // it (the overwrite hosts) or the render lifts it (the extraction hosts), and the value it stores
@@ -3531,7 +3708,8 @@ export function resolveNestedReceiverNode(leafPath,
       // its render reads that nav ONCE - every other caller keeps the literal-only walk, where the
       // null is what tells it to take another channel
       if (allowNavSegments && ((allowSeFreeSingleRead || !adapter ? isReReferenceableReceiver(node)
-        : isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, path: leafPath })) || isSeFreeMemberReceiver(node))) {
+        : isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, injectorState, path: leafPath }))
+        || isSeFreeMemberReceiver(node))) {
         if (!allowSePeeledFragment && elidedObservable()) return null;
         // a nav proves no value: a live default below it may fire
         if (segs.slice(segs.indexOf(seg)).some(rest => rest.liveDefault)) return null;
@@ -3555,7 +3733,7 @@ export function resolveNestedReceiverNode(leafPath,
       }
       if (!allowSePeeledFragment) return null;
     }
-    if (adapter ? isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, path: leafPath })
+    if (adapter ? isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, injectorState, path: leafPath })
       : isReReferenceableReceiver(node)) return node;
     // a side-effect-free member (`Array.prototype`, `obj.props`), branching (`c ? [7] : []`, `a || b`),
     // or member-nesting literal (`[holder.p]`) receiver is sound for a single-read extraction: its
@@ -3582,7 +3760,8 @@ function hostKeepsSiblingBinding(leafPath) {
   let top = leafPath;
   while (top.parentPath && top.parentPath.node !== hostPattern) top = top.parentPath;
   if (!top.parentPath) return false;
-  return patternBindingCount(hostPattern) > patternBindingCount(top.node?.value ?? top.node);
+  // A sibling below the outer hop still survives beside the leaf's own binding.
+  return patternBindingCount(hostPattern) > patternBindingCount(leafPath.node?.value);
 }
 
 // what a nested INSTANCE claim dispatches on where no literal holds its slot: the nested walk spells
@@ -3652,7 +3831,7 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
 // in the dispatch), where the plain read already answers, or under an ARRAY slot
 // (the wrapper family's), or where no statement slot holds the hoisted memo and the extraction that
 // reads it - beside a SIBLING declarator, or in a FOR-INIT header
-export function nestedSlotMemoPlan(leafPath, { adapter = null } = {}) {
+export function nestedSlotMemoPlan(leafPath, { adapter = null, injectorState = null } = {}) {
   const host = destructurePatternHostPath(leafPath);
   if (host?.node?.type !== 'VariableDeclarator' || !host.node.init) return null;
   const declaration = host.parentPath;
@@ -3661,14 +3840,14 @@ export function nestedSlotMemoPlan(leafPath, { adapter = null } = {}) {
   if (!declaration?.node?.declarations
     || (forHead?.type === 'ForStatement' && forHead.init === declaration.node)) return null;
   if (patternBindingCount(host.node.id) <= patternBindingCount(leafPath.node.value)) return null;
-  if (resolveNestedReceiverNode(leafPath, { adapter })) return null;
+  if (resolveNestedReceiverNode(leafPath, { adapter, injectorState })) return null;
   const slot = {};
   // the leaf may NAVIGATE on from the slot (`{ w: { Array: { prototype: { at } } } } = { w: (hit(),
   // globalThis) }`): the walk spells those segments off the slot's value, and the memo carries them as
   // `navKeys` - the dispatch reads `_ref.Array.prototype`, never the slot itself. the sink fills as
   // the walk descends, so a walk that DIED below the slot leaves one that is not the receiver
   const carried = resolveNestedReceiverNode(leafPath,
-    { adapter, allowInitCarriedEffects: true, allowNavSegments: true, allowSePeeledFragment: true, slot });
+    { adapter, injectorState, allowInitCarriedEffects: true, allowNavSegments: true, allowSePeeledFragment: true, slot });
   if (!carried || !slot.node || !slot.prop) return null;
   // ... a slot an earlier leaf's memo already WROTE (`w: _ref = (hit(), globalThis)`) names its value
   // through that write: the walk peels the assignment, and the same write serves this leaf too
@@ -3686,7 +3865,7 @@ export function nestedSlotMemoPlan(leafPath, { adapter = null } = {}) {
   // ... only a nav INTO a built-in surface: a user object's hop (`{ w: { y: { at } } } = { w: box }`)
   // would be read by the residual a second time, and both legs keep that claim native - a capitalised
   // one too, the slot's value naming no surface (`{ w: { Y: { prototype: { at } } } }`)
-  const slotCtx = { scope: leafPath.scope, adapter, path: leafPath };
+  const slotCtx = { scope: leafPath.scope, adapter, injectorState, path: leafPath };
   if (navKeys.length && !isInstanceSurfaceNav(carried, { ctx: slotCtx })) return null;
   // a slot the level CAN spell twice needs no memo, whatever the leaf navigates from it (`{ w:
   // globalThis }` under `{ w: { Array: { prototype: { map } } } }` reads the surface off the slot);
@@ -3735,7 +3914,7 @@ function literalHoldsClass(node) {
 // whole-init memo. `staticMemo` prevents that value from carrying a constructor alias.
 export function resolveDestructureReceiverPlan(leafPath, {
   allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
-  adapter = null, resolvePureGlobal = null, patternSize = null, memoizedName = null,
+  adapter = null, injectorState = null, resolvePureGlobal = null, patternSize = null, memoizedName = null,
 } = {}) {
   const patternPath = leafPath.parentPath;
   const host = patternPath?.parentPath;
@@ -3745,14 +3924,24 @@ export function resolveDestructureReceiverPlan(leafPath, {
   if (!initKey) {
     // with the adapter: it is what folds a BOUND hop key (`{ [k]: { at } }` with `const k = 'w'`) to
     // the slot it names - without it the walk stops at the computed key and the claim ships native
-    const node = resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead, allowInitCarriedEffects, adapter });
-    if (node && isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, path: leafPath })) {
+    const node = resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead, allowInitCarriedEffects, adapter, injectorState });
+    if (node && isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, injectorState, path: leafPath })) {
       return { channel: 'resolved', node };
     }
+    // A sole nested claim can consume a plain user navigation once only when replacing the host
+    // drops no initializer work. A surviving sibling keeps the source read and takes the memo below.
+    const hostInit = destructureHostInitNode(leafPath);
+    const soleNav = allowSeFreeSingleRead && !hostKeepsSiblingBinding(leafPath)
+      && hostInit?.type === 'ObjectExpression' && !objectLiteralHoldsObservable(hostInit, null, {
+        scope: leafPath.scope, adapter, path: leafPath,
+      }) ? resolveNestedReceiverNode(leafPath, {
+        allowSeFreeSingleRead: true, allowNavSegments: true, adapter, injectorState,
+      }) : null;
+    if (soleNav) return { channel: 'resolved', node: soleNav };
     // ... and an object slot the plain walk cannot spell twice - an effectful value, or a RELAXED
     // single read (a member, a selection) beside a residual that would read it a second time -
     // takes the slot memo where its level stays whole
-    const slotMemo = nestedSlotMemoPlan(leafPath, { adapter });
+    const slotMemo = nestedSlotMemoPlan(leafPath, { adapter, injectorState });
     return slotMemo ? { channel: 'object-slot-memo', ...slotMemo } : { channel: 'resolved', node };
   }
   const objectNode = host.node[initKey];
@@ -3767,12 +3956,15 @@ export function resolveDestructureReceiverPlan(leafPath, {
   const peeled = unwrapCollectingSePrefixes(objectNode, elided);
   if (peeled?.type === 'Identifier'
     && elided.every(expression => !mayHaveSideEffects(expression, adapter && { scope: leafPath.scope, adapter, path: leafPath }))
-    && isReReferenceableAcrossReads(peeled, { scope: leafPath.scope, adapter, path: leafPath })) {
+    && isReReferenceableAcrossReads(peeled, { scope: leafPath.scope, adapter, injectorState, path: leafPath })) {
     return memoizedName?.(peeled.name) ? { channel: 'whole-init-memo', node: objectNode, staticMemo: true }
       : { channel: 'raw', node: peeled };
   }
   const proxyCtor = globalProxyMemberName({
-    node: peelProxyGlobalObject(objectNode), scope: leafPath.scope, adapter, path: leafPath,
+    node: peelProxyGlobalObject(
+      objectNode,
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+    ), scope: leafPath.scope, adapter, path: leafPath,
   });
   // a SLOT-mutated ctor member (`globalThis.Map = Shim`) keeps the RAW member as the synth
   // receiver: `globalProxyMemberName` already returns null for a mutated leaf or hop, so a
@@ -3844,6 +4036,33 @@ export function destructureKeyReadPlan(leafPath, ctx = null) {
   const host = leafPath.parentPath?.parentPath?.node;
   const running = ctx && host?.init ? decidedRunningOperand(host.init, ctx) : host?.init;
   const receiver = unwrapRuntimeExpr(running);
+  // A sole read may spell a quiet receiver after its key only when every source read
+  // remains available and stable. Null rejection is still the host's separate proof.
+  function canDelay(node) {
+    const value = unwrapRuntimeExpr(node);
+    const branches = getFallbackBranchSlots(value);
+    if (branches) {
+      const test = SELECTION_TEST_FIELDS[value.type];
+      return (!test || branches.includes(test) || canDelay(value[test]))
+        && branches.every(key => canDelay(value[key]));
+    }
+    if (isConstantLiteralNode(value, null, part => {
+      const core = unwrapRuntimeExpr(part);
+      return core?.type === 'UnaryExpression' && typeof literalNodeValue(unwrapRuntimeExpr(core.argument)) !== 'number'
+        ? null : core;
+    })) return true;
+    if (isInstanceSurfaceNav(value) && isReReadableSurfaceNav(value, null, { ctx })
+      && NATIVE_STATIC_OWNERS.has(resolveObjectName({ objectNode: value.object, ...ctx }))) return true;
+    if (inertPairedLiteralRead(value, ctx)) return true;
+    if (value?.type !== 'Identifier' || !isReReferenceableAcrossReads(value, ctx)) return false;
+    const binding = ctx.adapter.getBinding({ scope: ctx.scope, name: value.name, path: ctx.path, read: value });
+    const owner = bindingDeclarationPath(binding)?.parentPath;
+    // A sloppy parameter can change through mapped arguments without a named write.
+    return binding?.kind === 'param' && FUNCTION_LIKE_NODE_TYPES.has(owner?.node?.type)
+      && !isSloppyAtPath(owner) && pathContainedBy(ctx.path, owner.node.body);
+  }
+  const sole = pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
+    && host?.type === 'VariableDeclarator' && host.id === pattern && !!host.init;
   return {
     receiver: running,
     keys: keys.flatMap(key => {
@@ -3854,9 +4073,9 @@ export function destructureKeyReadPlan(leafPath, ctx = null) {
     consumeKey: pattern?.type === 'ObjectPattern' && host?.type === 'VariableDeclarator' && host.id === pattern
       && !!host.init && leafPath.node.value?.type === 'AssignmentPattern'
       && pattern.properties.every(prop => prop.type !== 'RestElement'),
-    sole: pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
-      && host?.type === 'VariableDeclarator' && host.id === pattern && !!host.init,
+    sole,
     reuseReceiver: receiver?.type === 'Identifier' && isReReferenceableAcrossReads(receiver, ctx),
+    inlineReceiver: sole && !!ctx && receiver?.type !== 'Identifier' && canDelay(running),
   };
 }
 
@@ -4083,7 +4302,7 @@ function walkAlternativesIntoSink({ hop, walk, values, walkPath = walk.walkPath,
 // receiver. a selection spelled in place offers its arms as guard candidates alone.
 function walkBranchArms(node, { hop, walk }) {
   const { method } = hop.ctx.adapter;
-  const branching = peelFallbackReceiver(node);
+  const branching = peelFallbackReceiver(node, hop.ctx.adapter.isMutatedStaticSlot ?? hop.ctx.adapter.isMutatedStatic);
   // usage-pure needs ONE name, so it takes only the arms that are each the WHOLE yielded value: a
   // ternary's. a `&&` yields its falsy LEFT where this walk named the right, and a `||` / `??`
   // yields a left the walk named by its constructor rather than proved truthy - both keep the
@@ -4135,7 +4354,7 @@ function agreedBranchArmName({ hop, walk }, arms, candidatesOnly = false) {
   const names = [];
   let partial = candidatesOnly;
   for (const arm of arms) {
-    const { literal } = levelLiteralThroughIife(arm);
+    const { literal } = levelLiteralThroughIife(arm, hop.ctx);
     const resolved = walkStaticReceiverStep({ ...hop, node: literal, seen: new Set(hop.seen) },
       { ...walk, depth: walk.depth + 1, unionSink: null });
     if (!resolved && walk.selectionSink && !isUndefinedNode(literal) && !isNullLiteralNode(literal)) {
@@ -4470,7 +4689,7 @@ export function staticContainerReceiverName({
   // A reaching write may capture a member instead.
   if (!keys.length && !isDestructurePattern(declaratorNode.id) && aliasInit?.type !== 'Identifier'
     && !memberNavFold(aliasInit, { scope, adapter, path })
-    && !getFallbackBranchSlots(peelFallbackReceiver(aliasInit))) {
+    && !getFallbackBranchSlots(peelFallbackReceiver(aliasInit, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic))) {
     if (!isReassignedBeyondDeclarator(binding)) return null;
     const reaching = reachingReassignmentValueNode({
       binding, usagePath: path, usageNode: node, ctx: { scope, adapter, path, resolveKey: sharedResolveKey },
@@ -5041,7 +5260,10 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   if (live && live !== current) return walkStaticReceiverStep({ ...hop, node: live }, { ...walk, depth: walk.depth + 1 });
   const branchArms = walkBranchArms(current, { hop, walk });
   if (branchArms && (adapter.method === 'usage-pure' || walk.resolveLeaf)) {
-    return selectionArmsName({ hop, walk }, branchArms, peelFallbackReceiver(current)?.type === 'LogicalExpression');
+    return selectionArmsName({ hop, walk }, branchArms, peelFallbackReceiver(
+      current,
+      hop.ctx.adapter.isMutatedStaticSlot ?? hop.ctx.adapter.isMutatedStatic,
+    )?.type === 'LogicalExpression');
   }
   if (branchArms) collectBranchArmStatics({ hop, walk, branchArms });
   if (walkPath.length === 0) return walkStaticReceiverLeaf({ hop, walk });
@@ -5150,7 +5372,8 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   const value = slotWritten ? rescueSlotAccessor({ hop, walk })
     : current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression' || current?.type === 'ObjectExpression'
       ? literalSlotValue({ hop, walk, candidates, getters })
-      : (canHoldBuiltIn(arraySlot) || walkBranchArms(arraySlot, { hop, walk }) ? arraySlot : null);
+      : (canHoldBuiltIn(arraySlot && decidedSelectionValue(arraySlot, hop.ctx))
+        || walkBranchArms(arraySlot, { hop, walk }) ? arraySlot : null);
   // An ambiguous slot names no single receiver in pure, but its enumerable candidates can still
   // feed an identity guard. Keep those separate from the primary answer: the unknown key or spread
   // may replace the named value, and only the runtime receiver decides which branch applies. A
@@ -5173,7 +5396,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // consult above: global keeps resolving and over-injects, the safe direction there
   // ... a bare proxy-global NAME (or an alias to one) is the realm spelling that collapses, exactly
   // as the flat destructure of `window` reads it - only a nav, or an alias holding one, is a probe
-  const slotValue = unwrapTransparentSeq(slotHop?.node);
+  const slotValue = unwrapTransparentSeq(slotHop && decidedSelectionValue(slotHop.node, slotHop.ctx));
   if (slotHop && adapter.method === 'usage-pure'
     && !(slotValue?.type === 'Identifier' && proxyGlobalRootName({ node: slotValue, ...slotHop.ctx }))
     && proxyReceiverValueCanBeUndefined(slotValue, ({ name }) => resolveBuiltIn({ kind: 'global', name }), slotHop.ctx)) return null;
@@ -5397,7 +5620,7 @@ export function outerDestructureReceiver(leafPattern, scope = null, adapter = nu
   const walked = destructureHostThroughWrappers(leafPattern);
   if (!walked) return null;
   const { indices, host } = walked;
-  const receiverNode = destructureReceiverNode(host);
+  const receiverNode = destructureReceiverNode(host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   if (!receiverNode) return null;
   const descended = indices.length
     ? descendArrayWrapperInit({ node: receiverNode, ctx: { scope, adapter, path: host, resolveKey: sharedResolveKey } }, indices)?.node
@@ -5547,7 +5770,10 @@ function descendArrayWrapperInit(hop, indices, { maybe = false, unionSink = null
 // union walks each through the indices and keys left (`walkPath`), as the object walk does a selection it
 // stands on. null - no one element pairs there
 function selectionLevelIntoSink({ hop, walkPath, unionSink }) {
-  if (hop.ctx.adapter?.method === 'usage-global' && getFallbackBranchSlots(peelFallbackReceiver(hop.node))) {
+  if (hop.ctx.adapter?.method === 'usage-global' && getFallbackBranchSlots(peelFallbackReceiver(
+    hop.node,
+    hop.ctx.adapter.isMutatedStaticSlot ?? hop.ctx.adapter.isMutatedStatic,
+  ))) {
     walkAlternativesIntoSink({ hop, walk: { walkPath, depth: 0, unionSink }, values: [hop.node] });
   }
   return null;
@@ -5592,7 +5818,7 @@ function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
   if (innerDefaultHost?.node?.type !== 'AssignmentPattern') return null;
   const { parent: host, indices } = peelDestructureWrappers(innerDefaultHost);
   if (indices.length === 0) return null;
-  const receiverNode = destructureReceiverNode(host);
+  const receiverNode = destructureReceiverNode(host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   if (!receiverNode) return null;
   const slotNode = descendArrayWrapperInit(
     { node: receiverNode, ctx: { scope: host.scope, adapter, path: host, resolveKey: sharedResolveKey } }, indices,
@@ -5755,7 +5981,11 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter, unionSink
   // / arrow-body position and a parameter DEFAULT (AssignmentPattern) all carry a real receiver
   // that usage-global must inject for. the pure flatten re-checks its own narrow host shape at
   // emit - identification gated on the EMIT predicate dropped the import
-  const slotNode = element ?? ownRelocatedHeadElement(host) ?? relocatedHeadElement(host) ?? destructureReceiverNode(host);
+  const slotNode = element ?? ownRelocatedHeadElement(host) ?? relocatedHeadElement(host) ?? destructureReceiverNode(
+    host,
+    null,
+    adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+  );
   if (!slotNode) return null;
   // classification feeds usage-global injection AND the pure flatten extraction: only the former
   // may lean on a spread-shifted MAYBE pair (pure substituting a value the runtime may not hold
@@ -5806,13 +6036,17 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter, unionSink
 //   - a sequence default keeps its effect PREFIX (re-emitted ahead of the literal); the
 //     receiver tail itself must be effect-free since the literal replaces it
 //   - rest needs the whole constructor index when one exists; other rest sources stay native
-// host node -> the plan verdict, INCLUDING the un-mirrorable outcomes: `buildMirrorTargets` has
+// instance and mirrored pattern -> the plan verdict, INCLUDING the un-mirrorable outcomes: `buildMirrorTargets` has
 // already run `collectValueLeaves` plus a `mirrorPattern` per reachable value leaf (one resolver
 // lookup per pattern key) by the time it declines, and every sibling prop of the same pattern asks
 // the same question - memoizing only the success made a mixed pattern pay that walk per prop.
 // Emitters may prune consumed properties between queries. Cached declines can miss a later
 // opportunity, but cannot authorize a rewrite that the original pattern rejected.
-const nestedParamSynthPlan = new WeakMap();
+const nestedParamSynthPlan = createInstanceNodeCache();
+// One source argument node and the identical array pattern own both ordered windows used below:
+// the quiet source suffix, computed at the first eligible leaf, and the consecutive prefix the
+// renderer has already materialized as data. The latter is an output ledger, never a predicted mirror.
+const instanceArgumentWindows = createInstanceNodeCache();
 
 // may the host walk stop at `cur`'s direct parent (a param default / declarator / cascade)? always when
 // `cur` is ABOVE the trigger leaf's own pattern; at the leaf pattern itself ONLY when it is MIXED (a
@@ -5845,11 +6079,11 @@ function selfHostAllowed(cur, leafPatternPath) {
 // stays in the UNTOUCHED LHS and runs exactly once, so a side-effecting key is accepted while a
 // runtime-unresolvable one is not. Quoted names keep their literal spelling, and a key folded from
 // the REAL Symbol has no static string slot the literal could carry
-export function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) {
+export function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys, instance = false }) {
   if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
   const key = prop.computed
     ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, bailOnSideEffectKey: false, keepsKeyNode: true })
-    : prop.key?.name ?? prop.key?.value;
+    : instance ? plainSynthKeyName(prop.key) : prop.key?.name ?? prop.key?.value;
   if (typeof key !== 'string') return null;
   if (prop.computed && symbolSourcedFoldedKey({ key, keyNode: prop.key, scope, adapter, path })) return null;
   // a key the pattern names TWICE is ONE slot, so the literal carries one property for both readers.
@@ -5940,11 +6174,17 @@ function levelLiteralThroughIife(node, ctx = null) {
   const selection = ctx && unwrapExpressionChain(node);
   const live = ctx ? decidedRunningOperand(selection, ctx) : selection;
   if (live !== selection) {
-    const peeled = levelLiteralThroughIife(live);
+    const peeled = levelLiteralThroughIife(live, ctx);
     if (peeled.literal?.type === 'ObjectExpression' || peeled.literal?.type === 'ArrayExpression') return peeled;
   }
   let tail = unwrapExpressionChain(peelNestedSequenceExpressions(node).tail);
-  for (let inlined = peelZeroArgIifeReturn(tail); inlined; inlined = peelZeroArgIifeReturn(tail)) {
+  for (let inlined = peelZeroArgIifeReturn(
+    tail,
+    { staticIsMutated: ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic },
+  ); inlined; inlined = peelZeroArgIifeReturn(
+      tail,
+      { staticIsMutated: ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic },
+    )) {
     node = inlined;
     tail = unwrapExpressionChain(peelNestedSequenceExpressions(node).tail);
   }
@@ -5958,7 +6198,7 @@ function containerSelectionArms(node, ctx) {
   if (node?.type !== 'ConditionalExpression' || decidedSelection(node, ctx)) return null;
   const arms = [node.consequent, node.alternate];
   return arms.every(arm => {
-    const { literal } = levelLiteralThroughIife(arm);
+    const { literal } = levelLiteralThroughIife(arm, ctx);
     return literal?.type === 'ObjectExpression' || !!containerSelectionArms(literal, ctx);
   }) ? arms : null;
 }
@@ -6200,7 +6440,7 @@ export function constructorRestIndex({ name, patternNode, resolveGlobalPolyfill,
 //   - a param-level AssignmentPattern (default slot)
 //   - a VariableDeclarator (init slot), or the LOOP of a for-x head declarator, which holds none
 //   - an AssignmentExpression cascade (`({ Array: { from } } = receiver)` - receiver in `.right`)
-function mirrorPlanHost(leafPatternPath, constructorRest = false) {
+function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDefault = false, staticIsMutated = null) {
   let cur = leafPatternPath;
   for (let depth = 0; depth < STATIC_WALK_DEPTH && cur?.node; depth++) {
     const parent = cur.parentPath;
@@ -6217,7 +6457,8 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false) {
     // globalThis }`) is a LEVEL the wrapper walk records, not a host: the value-bearing host stands
     // above it, and the descent reads the default where the slot it pairs with leaves it live
     if (parentType === 'AssignmentPattern' && parent.node.left === cur.node
-      && (selfHostAllowed(cur, leafPatternPath) || constructorRest && cur.node.type === 'ObjectPattern'
+      && (selfHostAllowed(cur, leafPatternPath) || flatInstanceDefault && cur === leafPatternPath
+        || constructorRest && cur.node.type === 'ObjectPattern'
         && cur.node.properties.some(isRestProperty))
       && !isInnerDestructureDefault(parent) && FUNCTION_LIKE_NODE_TYPES.has(parent.parentPath?.node?.type)) {
       return { host: parent, slot: 'right', node: parent.node.right };
@@ -6226,7 +6467,7 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false) {
     // the value the pattern reads - the call is the host, the argument slot its `arguments.<i>`
     if (FN_NODE_TYPES.has(parentType) && parent.node.params?.includes(cur.node) && selfHostAllowed(cur, leafPatternPath)) {
       const site = findIifeCallSite(parent, cur.node);
-      const node = site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) : null;
+      const node = site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex, staticIsMutated) : null;
       return node ? { host: site.callPath, slot: `arguments.${ site.paramIndex }`, node } : null;
     }
     // ... and the same head with NO declaration at all (`for ([{ from }] of [[Array]])`): the pattern
@@ -6270,7 +6511,7 @@ const innerDefaultArmsCache = createInstanceNodeCache();
 function nearestInnerDefaultArms(leafPatternPath, adapter) {
   if (leafPatternPath?.node?.type !== 'ObjectPattern') return null;
   if (innerDefaultArmsCache.has(adapter, leafPatternPath.node)) return innerDefaultArmsCache.get(adapter, leafPatternPath.node);
-  const planHost = mirrorPlanHost(leafPatternPath);
+  const planHost = mirrorPlanHost(leafPatternPath, false, false, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   const walked = planHost?.host && planHost.node ? destructureHostThroughWrappers(leafPatternPath, adapter, true) : null;
   const arms = walked?.hops ? mirrorReceiverNodes({
     receiverSources: planHost.headElements ?? [planHost.node],
@@ -6287,16 +6528,18 @@ function nearestInnerDefaultArms(leafPatternPath, adapter) {
 // A caller argument consumed only by a parameter pattern can use the same mirror as its default.
 // Enumerate callers through the existing closed caller census, and mirror each source independently:
 // the pattern's keys keep their parameter scope, while each receiver resolves at its own call site.
-function parameterArgumentSources(leafPatternPath, adapter, parameterCallSites, includeGuardedSources = false) {
+function parameterArgumentSources(
+  leafPatternPath, adapter, parameterCallSites, includeGuardedSources = false, includeFlatInstance = false,
+) {
   if (!parameterCallSites) return null;
   const walked = destructureHostThroughWrappers(leafPatternPath, adapter, true);
   const paramPath = walked?.host?.node?.type === 'AssignmentPattern' ? walked.host : walked?.hostPatternPath;
   const fnPath = paramPath?.parentPath;
   if (!FUNCTION_LIKE_NODE_TYPES.has(fnPath?.node?.type) || !fnPath.node.params?.includes(paramPath.node)
     || referencesArgumentsObject(fnPath.node)) return null;
-  // The flat IIFE already has a caller-aware synth channel, including its guard/probe rendering.
-  // A mixed static/instance read mirrors the static branch before that instance synth runs.
-  if (!includeGuardedSources && !walked.hops?.length && findIifeCallSite(fnPath, paramPath.node)) return null;
+  // Flat IIFE statics retain their caller-aware synth channel, including guard/probe rendering.
+  // Instance claims opt into the shared mirror so their reads remain at parameter consumption.
+  if (!includeGuardedSources && !includeFlatInstance && !walked.hops?.length && findIifeCallSite(fnPath, paramPath.node)) return null;
   const sites = parameterCallSites(paramPath, {
     staticIsMutated: adapter.isMutatedStatic,
     // Pending imports already have scoped binding metadata before the injector flushes them.
@@ -6305,14 +6548,34 @@ function parameterArgumentSources(leafPatternPath, adapter, parameterCallSites, 
       return binding?.constantViolations?.length ? null : pureImportSourceEntry(binding?.importSource);
     },
   });
-  const sources = includeGuardedSources && paramPath.node.type === 'AssignmentPattern'
+  const instanceDefaultOpen = includeFlatInstance && paramPath.node.type === 'AssignmentPattern'
+    && sites?.some(({ pairing, callPath, argIndex }) => {
+      if (pairing.argsUnknown) return true;
+      const node = resolveCallArgument(pairing.args ?? [], argIndex, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
+      const ctx = { scope: callPath.scope, adapter, path: callPath };
+      return pairedDefaultArm(node, ctx) !== 'dead' && (!node || !receiverValueNeverNullish(node, ctx));
+    });
+  const sources = (includeGuardedSources || instanceDefaultOpen) && paramPath.node.type === 'AssignmentPattern'
     ? [{ host: paramPath, slot: 'right', node: paramPath.node.right, hops: walked.hops }] : [];
   if (!sites && !sources.length) return null;
   // `complete`: every caller handed a source - one the census could not pair (spread arguments, an
   // omitted slot) may still pass the slot `undefined`, so no verdict about the default arm closes
   let complete = !!sites;
   for (const { pairing, callPath, argIndex } of sites ?? []) {
-    const node = pairing.argsUnknown ? null : resolveCallArgument(pairing.args ?? [], argIndex);
+    // An omitted or explicitly undefined slot is already served by the default source above.
+    // Leave that argument native and keep the completed caller plan from wrapping its default again.
+    if (instanceDefaultOpen && !pairing.argsUnknown && !argumentOverridesSlot(
+      pairing.args ?? [],
+      argIndex,
+
+      () => adapter.hasBinding({ scope: callPath.scope, name: 'undefined', path: callPath }),
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+    )) continue;
+    const node = pairing.argsUnknown ? null : resolveCallArgument(
+      pairing.args ?? [],
+      argIndex,
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+    );
     if (!node) {
       complete = false;
       continue;
@@ -6336,8 +6599,11 @@ export function buildParameterArgumentSynthPlan({
   isDisabledProp = null,
   retainNativeReads = false,
 }) {
-  if ((!meta?.object && !meta?.guardedAliasHint) || meta.placement !== 'static') return null;
-  const argumentSources = parameterArgumentSources(leafPatternPath, adapter, parameterCallSites, !!meta.guardedAliasHint);
+  if (!meta) return null;
+  const staticClaim = (meta.object || meta.guardedAliasHint) && meta.placement === 'static';
+  const instanceClaim = !staticClaim && resolvePure?.(meta)?.kind === 'instance';
+  if (!staticClaim && !instanceClaim) return null;
+  const argumentSources = parameterArgumentSources(leafPatternPath, adapter, parameterCallSites, !!meta.guardedAliasHint, instanceClaim);
   if (!argumentSources) return null;
   const targets = [];
   const targetNodes = new Set();
@@ -6365,7 +6631,10 @@ export function buildParameterArgumentSynthPlan({
       targetNodes.add(target.node);
       targets.push(target.host ? target : { ...target, host: callSite.host, slot: callSite.slot });
     }
-    if (plan?.defaultArm !== 'mirrored' && plan?.defaultArm !== 'dead') settled = false;
+    // A caller-only instance leaf has no inner default to settle. Once its receiver
+    // was mirrored, another instance synth would wrap that synthetic object again.
+    if (plan?.defaultArm !== 'mirrored' && plan?.defaultArm !== 'dead'
+      && !(instanceClaim && plan?.defaultArm === null && plan.targets?.length)) settled = false;
   }
   return targets.length || settled ? {
     targets,
@@ -6402,7 +6671,8 @@ function parameterArgumentStaticMeta(source, { key, adapter, unionSink = null })
 function parameterArgumentDestructureMeta(objectPattern, { key, adapter, parameterCallSites, resolvePure, unionSink = null }) {
   if (!key || adapter.method === 'usage-pure' && !resolvePure) return null;
   let primary = null;
-  for (const source of parameterArgumentSources(objectPattern, adapter, parameterCallSites)?.sources ?? []) {
+  const sources = parameterArgumentSources(objectPattern, adapter, parameterCallSites)?.sources ?? [];
+  for (const source of sources) {
     if (!source.hops) continue;
     const candidates = adapter.method === 'usage-global' ? [] : null;
     const selected = parameterArgumentStaticMeta(source, { key, adapter, unionSink: candidates });
@@ -6429,7 +6699,23 @@ function parameterArgumentDestructureMeta(objectPattern, { key, adapter, paramet
     const pure = resolvePure(meta);
     if (pure && pure.kind !== 'instance') return meta;
   }
+  if (!primary && adapter.method === 'usage-pure' && sources.length) {
+    const instance = { kind: 'property', object: null, key, placement: null, parameterArgumentsOnly: true };
+    if (resolvePure(instance)?.kind === 'instance') return instance;
+  }
   return primary;
+}
+
+// Intrinsic primitive globals are values, not constructors. Prove their scoped source
+// before using the registry, including an alias of a pristine realm property.
+function primitiveGlobalReceiver(node, name, ctx) {
+  const family = PRIMITIVE_WRAPPERS[knownBuiltInReturnTypes.globalProperties[name]?.type];
+  if (!family) return null;
+  const source = followConstIdentifierInit({ node, readNode: node, ctx });
+  const origin = unwrapRuntimeExpr(source.node);
+  const global = origin?.type === 'Identifier' && !ctx.adapter.hasBinding({ ...source.ctx, name: origin.name, read: origin })
+    ? origin.name : globalProxyMemberName({ node: origin, ...source.ctx });
+  return global === name ? { kind: 'instance', name: family } : null;
 }
 
 // the ROOT a mirror stands on for one receiver leaf, as the plan classifies it: the pristine realm
@@ -6440,7 +6726,7 @@ function parameterArgumentDestructureMeta(objectPattern, { key, adapter, paramet
 // assignment host). the plan's mirror and the truthiness of every selection operand read this
 // ... a STORE stands on the value it stores (`peelChainRootValue`): the mirror keeps the store running
 // as the prefix of the literal that stands in for that value (`(B = mk()) || { C: Object }`)
-function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, resolvePure = null, rescuesReceiverRead = false }) {
+function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, rescuesReceiverRead = false }) {
   const node = isChainAssignment(leaf) ? peelChainRootValue(leaf) : leaf;
   // Caller leaves are resolved at the argument's capture point. Inline object branches
   // retain their selector; a call yielding a container is the container it returns (the call arm
@@ -6456,7 +6742,8 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
       path,
     });
     if (supplied && isKnownGlobalName(supplied)) return isPristineProxyGlobal(adapter, supplied)
-      ? { kind: 'proxy' } : { kind: 'ctor', name: supplied, builtin: true };
+      ? { kind: 'proxy' } : primitiveGlobalReceiver(node, supplied, { scope, adapter, path })
+        ?? { kind: 'ctor', name: supplied, builtin: true };
   }
   let n = node;
   // a proxy hop is walked through only while it still stands for the pristine surface: a slot the
@@ -6476,6 +6763,8 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
   const resolved = resolveObjectName({ objectNode: n, scope, adapter, path })
     ?? provenRealmCallName(n, { scope, adapter, path }, { allowEffects: true });
   if (resolved && isPristineProxyGlobal(adapter, resolved, path && { node: n, path })) return { kind: 'proxy' };
+  const primitive = resolved && primitiveGlobalReceiver(node, resolved, { scope, adapter, path });
+  if (primitive) return primitive;
   // a const-bound static-object wrapper (`const w = { a: Array }; ... = w`): each pattern key resolves
   // through the object literal to its constructor (`w.a` -> Array) via the SAME walkStaticReceiverChain
   // the declarator static path uses. distinct from a bare ctor by its ObjectExpression init - carry the
@@ -6525,7 +6814,7 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
   // PROBE, and its read is the one the source may fail on - a literal standing in for it binds the
   // ponyfill where native throws, and the throw is the answer the consuming position owes
   if (resolved && isKnownGlobalName(resolved)
-    && !navHasUnresolvableProxyHop(node, resolvePure)) return { kind: 'ctor', name: resolved, builtin: true };
+    && !destructureReceiverOwesAThrow(node, { scope, adapter, path })) return { kind: 'ctor', name: resolved, builtin: true };
   // ... and a receiver written IN PLACE (`({ w: Array }).w`, `[Array][0]`) is a CONTAINER, which the
   // name resolver above declines by contract - it walks proxy chains. the meta reads it through the
   // container canon, so the mirror was refusing a receiver its own detection had already named
@@ -6546,15 +6835,19 @@ export function buildNestedParamSynthPlan({
   callSite = null,
   isDisabledProp = null,
   retainNativeReads = false,
+  allowFlatInstanceDefault = false,
 }) {
-  if (!resolvePure || (!meta?.object && !meta?.guardedAliasHint) || meta.placement !== 'static') return null;
+  if (!resolvePure || !meta) return null;
+  const staticClaim = (meta.object || meta.guardedAliasHint) && meta.placement === 'static';
+  const instanceClaim = !staticClaim && resolvePure(meta)?.kind === 'instance';
+  if (!staticClaim && !instanceClaim) return null;
   if (leafPatternPath?.node?.type !== 'ObjectPattern') return null;
   function resolveGlobalPolyfill(name) {
     return resolvePure({ kind: 'global', name });
   }
   const planHost = callSite ?? mirrorPlanHost(leafPatternPath, !!constructorRestIndex({
     name: meta.object, patternNode: leafPatternPath.node, resolveGlobalPolyfill, isDisabledProp,
-  }));
+  }), allowFlatInstanceDefault && instanceClaim, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   const receiverPath = callSite?.host ?? leafPatternPath;
   const headElements = planHost?.headElements ?? null;
   // no host spells the slot the leaf's inner default pairs with - a catch parameter binds the
@@ -6564,6 +6857,11 @@ export function buildNestedParamSynthPlan({
   const hostless = !planHost?.host || !planHost.node;
   const host = hostless ? null : planHost.host;
   const slot = hostless ? null : planHost.slot;
+  // Instance-only mirrors serve the closed caller's argument or the parameter's own
+  // default. Other hosts keep their existing capture and extraction routes.
+  const parameterInstance = !!callSite || host?.node.type === 'AssignmentPattern'
+    && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type);
+  if (instanceClaim && !parameterInstance) return null;
   // A consumed assignment yields its original receiver, so replacing that receiver with a mirror
   // changes the expression's result. Leave it to a retaining route; a discarded assignment or
   // parameter default has no independent result identity to preserve.
@@ -6577,6 +6875,13 @@ export function buildNestedParamSynthPlan({
   // slot holds `undefined`
   const walked = destructureHostThroughWrappers(leafPatternPath, adapter, true);
   if (!walked) return null;
+  // The exact IIFE's former instance synth already admits stable names and one-use
+  // invocations. Keep that admission while moving its reads to the parameter's turn.
+  const paramPath = walked.host?.node.type === 'AssignmentPattern' ? walked.host : walked.hostPatternPath;
+  const instanceIife = instanceClaim && paramPath && findIifeCallSite(paramPath.parentPath, paramPath.node);
+  const claimPath = instanceIife && leafPatternPath.get('properties').find(prop => resolveSynthKeys({
+    node: prop.node, scope: prop.scope, adapter, path: prop,
+  }).lookupKey === meta.key);
   // a for-x head hands the mirror one receiver PER ELEMENT of the iterated literal: the same pattern
   // destructures each of them on its own pass, so each is mirrored where it is written and no pass
   // reads a value another one installed. every other host holds exactly one receiver
@@ -6602,10 +6907,11 @@ export function buildNestedParamSynthPlan({
   // of that pattern share it, while a leaf under another hop of the same host (`{ a: { hasOwn },
   // b: { is } }`) mirrors its own slot. keyed on the host, the second hop read the first one's
   // "done" and stayed raw
-  // ... a CALLER's plan is keyed on its own argument: the receivers it descends to may include the
-  // pattern's default, which every caller whose slot leaves it live shares
-  const planKey = callSite ? callSite.node : mirrored.patternNode ?? walked.pattern;
-  if (!retainNativeReads && nestedParamSynthPlan.has(planKey)) return nestedParamSynthPlan.get(planKey);
+  // A caller owns a verdict per descended pattern. Sibling patterns can mirror distinct
+  // elements of one argument, while each caller separately decides the same default arm.
+  const planOwner = callSite?.node ?? adapter;
+  const planKey = mirrored.patternNode ?? walked.pattern;
+  if (!retainNativeReads && nestedParamSynthPlan.has(planOwner, planKey)) return nestedParamSynthPlan.get(planOwner, planKey);
   const keyCtx = { scope: leafPatternPath.scope, adapter, path: leafPatternPath };
   const receiverCtx = { scope: receiverPath.scope, adapter, path: receiverPath };
   // a fallback-logical root collapses LEFT (`globalThis || self` - the left short-circuits
@@ -6624,6 +6930,8 @@ export function buildNestedParamSynthPlan({
   // selecting leaf the classification proves truthy (a call yielding a builtin constructor) decides
   // nothing the literal could flip
   const valueSelectingLeaves = new Set();
+  // Only a logical OR consumes truthiness. A ternary or nullish selection can yield a falsy receiver.
+  const truthySelectingLeaves = new Set();
   // the `||` / `??` selections whose right the walk never reaches: a literal replacing a leaf of the
   // left is always defined, so each gives way to that left
   const deadRights = [];
@@ -6639,6 +6947,7 @@ export function buildNestedParamSynthPlan({
       selects,
       peelIife: !callSite,
       rootContext,
+      staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
       nullable: tail => {
         if (fallbackValueCanBeNullish(tail, receiverCtx)) nullableLeaves.add(tail);
         else if (unservedConstructorLeaf(tail, receiverCtx, rootContext)) realmNullableLeaves.add(tail);
@@ -6646,10 +6955,15 @@ export function buildNestedParamSynthPlan({
         return true;
       },
       headYields: leaf => forOfHeadLeftAlwaysYields(leaf, receiverCtx),
-      onLeaf: (leaf, selecting, falsy) => {
+      onLeaf: (leaf, selecting, falsy, truthySelecting) => {
         targetLeaves.push(leaf);
         if (selecting && falsy) valueSelectingLeaves.add(leaf);
+        if (truthySelecting && falsy) truthySelectingLeaves.add(leaf);
       },
+      wholeValue: selection => parameterInstance && (!!rootContext(selection)?.decidedReceiver
+        || selection.type === 'ConditionalExpression' && !!rootContext(selection)?.pairedInstanceReceiver
+        || selection.operator === '&&' && !leftAlwaysYields(selection.left, receiverCtx)
+        && !!rootContext(selection)?.selectedReceiver),
       onDeadRight: selection => deadRights.push(selection),
       optedOut: selection => !!adapter.isOptedOut?.(selection),
     });
@@ -6689,7 +7003,93 @@ export function buildNestedParamSynthPlan({
 
   function rootContext(node) {
     if (rootContextByNode.has(node)) return rootContextByNode.get(node);
-    const ctx = resolveRootContext(node);
+    let ctx = resolveRootContext(node);
+    const running = parameterInstance && decidedRunningOperand(node, receiverCtx);
+    if (running && running !== node) {
+      const selected = rootContext(unwrapRuntimeExpr(running));
+      if (selected?.kind === 'instance') ctx = { ...selected, selectedReceiver: true, decidedReceiver: true };
+    }
+    // Classify a write by its installed value; the argument memo still evaluates the whole write.
+    const installed = parameterInstance && installedWriteValue(node);
+    if (installed && installed !== node) {
+      const instance = rootContext(installed);
+      if (instance?.kind === 'instance') ctx = { ...instance, sourceInstance: true };
+    }
+    const bindingInstance = (instanceClaim || meta.guardedAliasHint) && node.type === 'Identifier'
+      && (mirrored.patterns.get(node) ?? mirrored.patternNode ?? walked.pattern) === leafPatternPath.node
+      && adapter.hasBinding({ ...receiverCtx, name: node.name, read: node });
+    // A conditional whose arms are both instances keeps the selection as one receiver.
+    // Different families retain generic instance dispatch.
+    if (parameterInstance && node.type === 'ConditionalExpression' && !ctx?.decidedReceiver) {
+      const consequentContext = rootContext(peelNestedSequenceExpressions(node.consequent).tail);
+      const alternateContext = rootContext(peelNestedSequenceExpressions(node.alternate).tail);
+      if (consequentContext?.kind === 'instance' && alternateContext?.kind === 'instance') ctx = {
+        kind: 'instance',
+        name: consequentContext.name === alternateContext.name ? consequentContext.name : null,
+        selectedReceiver: true,
+        pairedInstanceReceiver: true,
+      };
+    }
+    // An AND can yield its falsy left instance. Mirror the selected value after the
+    // selection, since making that operand an object would run the wrong branch.
+    if (parameterInstance && node.type === 'LogicalExpression' && !ctx?.decidedReceiver) {
+      const left = peelNestedSequenceExpressions(node.left).tail;
+      const leftContext = rootContext(left);
+      const rightContext = rootContext(peelNestedSequenceExpressions(node.right).tail);
+      const value = literalNodeValue(unwrapRuntimeExpr(left));
+      const takesLeft = value !== undefined && (node.operator === '&&' ? !value
+        : node.operator === '||' ? !!value : value !== null);
+      if (leftContext?.kind === 'instance' && takesLeft) ctx = { ...leftContext, selectedReceiver: true };
+      else if (!ctx && leftContext?.kind === 'instance' && rightContext?.kind === 'instance') ctx = {
+        kind: 'instance', name: leftContext.name === rightContext.name ? leftContext.name : null, selectedReceiver: true,
+      };
+    }
+    if (!ctx && parameterInstance) {
+      const surface = isMemberAccessNode(node) && staticMemberKeyName(node) === 'prototype'
+        && isBuiltInSurfaceNav(node, { ctx: receiverCtx })
+        ? resolveObjectName({ objectNode: node.object, ...receiverCtx }) : null;
+      const name = surface ?? (node.type === 'ArrayExpression' ? 'Array' : adapter.isStringLiteral?.(node) ? 'String' : null);
+      if (name) ctx = { kind: 'instance', name };
+    }
+    if (parameterInstance && (!ctx || ctx.kind === 'ctor' && !ctx.builtin || ctx.kind === 'static' && bindingInstance)) {
+      const suppliedBinding = bindingInstance || ctx?.kind === 'ctor' && node.type === 'Identifier'
+        && adapter.hasBinding({ ...receiverCtx, name: node.name, read: node });
+      const source = followConstIdentifierInit({ node, readNode: node, ctx: receiverCtx });
+      const value = unwrapRuntimeExpr(decidedRunningOperand(source.node, source.ctx));
+      const globalPrimitive = value?.type === 'Identifier' && !adapter.hasBinding({ ...source.ctx, name: value.name, read: value })
+        && PRIMITIVE_WRAPPERS[knownBuiltInReturnTypes.globalProperties[value.name]?.type];
+      const constructorPath = value?.type === 'NewExpression' ? pathOfNode(receiverPath, value.callee) : null;
+      const constructorName = constructorPath && resolveObjectName({
+        objectNode: value.callee, ...source.ctx, path: constructorPath, usageNode: value.callee,
+      });
+      const constructedFamily = constructorName
+        && !isMutatedGlobalSlot(adapter, constructorName, { node: value.callee, path: constructorPath })
+        && knownBuiltInReturnTypes.constructors[constructorName]?.new?.type;
+      const name = value?.type === 'ArrayExpression' ? 'Array'
+        : PRIMITIVE_WRAPPERS[typeof literalNodeValue(value)] || globalPrimitive || constructedFamily || null;
+      // Closed caller bindings use the default's receiver admission too. Unbound names
+      // and call results retain their existing boundary.
+      const suppliedInstance = !isNullLiteralNode(value) && (!invocationNode(value) || value.type === 'NewExpression')
+        && (suppliedBinding || globalPrimitive || instanceSynthSpellsReceiver(value)
+          || isConstantLiteralNode(value, bindingName => !!pureImportSourceEntry(
+            adapter.getBinding({ ...source.ctx, name: bindingName })?.importSource,
+          ))
+          || isMemberAccessNode(value)
+          || !!instanceSynthReceiverPure(value, { ...source.ctx, resolvePure }))
+        && paramDefaultInstanceSynthAllowed({
+          objectPatternNode: leafPatternPath.node, receiverNode: node,
+          ...receiverCtx, path: claimPath || receiverPath, resolvePure,
+        });
+      if (suppliedInstance) ctx = { kind: 'instance', name: name ?? null, sourceInstance: true };
+    }
+    if (instanceIife && (!ctx || ctx.kind === 'static')
+      && (!isBareUndefinedIdentifier(node) || adapter.hasBinding({ ...receiverCtx, name: node.name, read: node }))
+      && (mirrored.patterns.get(node) ?? mirrored.patternNode ?? walked.pattern) === leafPatternPath.node
+      && paramDefaultInstanceSynthAllowed({
+        objectPatternNode: leafPatternPath.node, receiverNode: node,
+        ...receiverCtx, path: claimPath,
+        resolvePure,
+      })) ctx = { kind: 'instance', name: null, legacyIife: true };
     if (ctx?.kind === 'ctor') {
       ctx.receiverNode = node;
       ctx.walkPath = [];
@@ -6771,9 +7171,24 @@ export function buildNestedParamSynthPlan({
     return { kind: 'array', elements };
   }
 
+  // Proven instance slots dispatch by their receiver family. A quiet sole read may
+  // use a data slot; intervening argument or parameter work keeps it lazy.
+  function mirrorInstanceEntry(prop, key, name, deferred = true) {
+    const instanceMeta = { kind: 'property', object: name, key, placement: 'prototype' };
+    const pure = !(name && adapter.isMutatedStatic?.(`${ name }.prototype`, key))
+      && (name ? resolvePure(instanceMeta, null) : resolvePure(instanceMeta));
+    return pure?.kind === 'instance' && propBindingIdentifier(prop.value)
+      ? { key, deferred, child: { kind: 'instance', entry: pure.entry, hintName: pure.hintName, prop } }
+      : { key, deferred, child: { kind: 'passthrough', prop } };
+  }
+
+  // eslint-disable-next-line max-statements -- one ordered property walk shared by all mirror receiver kinds
   function mirrorPattern(patternNode, ctx) {
-    if (patternNode?.type !== 'ObjectPattern' || !ctx) return patternNode?.type === 'ArrayPattern' && ctx?.kind === 'static'
+    if (patternNode?.type !== 'ObjectPattern' || !ctx || ctx.kind === 'instance'
+      && !patternComputedKeysSynthSafe({ objectPatternNode: patternNode, ...keyCtx, distinctReads: true })) {
+      return patternNode?.type === 'ArrayPattern' && ctx?.kind === 'static'
       ? mirrorArrayPattern(patternNode, ctx) : null;
+    }
     // A constructor index carries every property that object rest can read. Keep the
     // pattern intact, including defaults and key effects, instead of mirroring its leaves.
     const restIndex = ctx.kind === 'ctor'
@@ -6781,11 +7196,21 @@ export function buildNestedParamSynthPlan({
     if (restIndex) return { ...restIndex, kind: 'polyfill', readProperties: patternNode.properties.filter(isPropertyNode) };
     const entries = [];
     const seenKeys = new Map();
+    let defaultSeen = false;
+    let effectfulKeySeen = false;
     for (const prop of patternNode.properties) {
+      // A computed-key effect runs before this slot's read. A default runs after its own
+      // read. Both keep every following read at the pattern site.
+      const earlierDefault = defaultSeen;
+      const effectfulKey = isPropertyNode(prop) && prop.computed && computedKeyHasSideEffects(prop, keyCtx);
+      const eagerInstance = ctx.eagerInstance && !earlierDefault && !effectfulKeySeen && !effectfulKey;
+      defaultSeen ||= patternHasAnyDefault(prop.value);
+      effectfulKeySeen ||= effectfulKey;
+      const eagerNestedInstance = eagerInstance && prop.value?.type !== 'AssignmentPattern';
       // A whole-level replacement must not supply a ponyfill to a disabled sibling.
       // Its untouched subtree stays on the ordinary per-property extraction route.
       if (isDisabledProp?.(prop)) return null;
-      const key = mirrorAcceptedKey({ prop, ...keyCtx, seenKeys });
+      const key = mirrorAcceptedKey({ prop, ...keyCtx, seenKeys, instance: ctx.kind === 'instance' });
       if (key === null) {
         // A well-known symbol has no string slot, but its stable imported key can carry the
         // receiver's own value beside the mirrored statics. Unknown or effectful keys still bail.
@@ -6794,7 +7219,8 @@ export function buildNestedParamSynthPlan({
         const symbolKey = symbolName && resolvePure({ kind: 'property', object: 'Symbol', key: symbolName, placement: 'static' });
         if (!symbolKey || symbolKey.kind !== 'static') return null;
         if (entries.every(entry => entry.symbolKey?.entry !== symbolKey.entry)) {
-          entries.push({ symbolKey, prop, readPure: symbolName === 'iterator' ? SYMBOL_ITERATOR_PURE_RESULT : null,
+          entries.push({ symbolKey, prop, ...ctx.kind === 'instance' ? { deferred: !eagerInstance } : {},
+            readPure: symbolName === 'iterator' ? SYMBOL_ITERATOR_PURE_RESULT : null,
             child: { kind: 'passthrough' } });
         }
         continue;
@@ -6803,6 +7229,18 @@ export function buildNestedParamSynthPlan({
       // property for it would be the duplicate an ES5-strict parser refuses
       if (entries.some(entry => entry.key === key)) continue;
       const inner = patternSlotTarget(prop.value);
+      if (ctx.kind === 'instance') {
+        const entry = mirrorInstanceEntry(prop, key, ctx.name, !eagerInstance);
+        // A matching method dispatcher supplies a defined value on the pristine prototype.
+        // Its leaf default cannot run in this mirror arm; supplied receivers keep that default.
+        if (ctx.pristinePrototype && prop.value?.type === 'AssignmentPattern' && entry.child.kind === 'instance'
+          && implementsPrototypeMethod(ctx.name, key, 'dispatched')
+          && Object.hasOwn(knownBuiltInReturnTypes.instanceMethods[ctx.name] ?? {}, key)) {
+          defaultSeen = earlierDefault;
+        }
+        entries.push(entry);
+        continue;
+      }
       if (ctx.kind === 'proxy') {
         // a non-pattern value (`{ Array }` shorthand / `{ Array: x }` rename) or a child that cannot be
         // mirrored (a wholly non-polyfillable subtree) is PASSED THROUGH - the synth literal reads that
@@ -6812,7 +7250,8 @@ export function buildNestedParamSynthPlan({
         if (inner?.type === 'ObjectPattern') {
           // the key is read where the pattern stands, ahead of a write of its slot or not
           const child = mirrorPattern(inner, isPristineProxyGlobal(adapter, key, { node: prop, path: leafPatternPath })
-            ? ctx : { kind: 'ctor', name: key });
+            ? { ...ctx, eagerInstance: eagerNestedInstance }
+            : { kind: 'ctor', name: key, eagerInstance: eagerNestedInstance });
           // Keep native subtree reads in the pattern, after preceding binding writes.
           // A valid claim-free subtree does not veto its sibling's constructor mirror.
           const metrics = child && treeInjectionMetrics(child);
@@ -6850,15 +7289,24 @@ export function buildNestedParamSynthPlan({
           receiverNode: ctx.receiverNode, walkPath: [...ctx.walkPath, key], scope: receiverPath.scope, adapter, path: receiverPath,
         });
         const childCtx = resolved
-          ? isPristineProxyGlobal(adapter, resolved) ? { kind: 'proxy' }
-            : { kind: 'ctor', name: resolved, receiverNode: ctx.receiverNode, walkPath: [...ctx.walkPath, key] }
-          : { kind: 'static', receiverNode: ctx.receiverNode, walkPath: [...ctx.walkPath, key] };
+          ? isPristineProxyGlobal(adapter, resolved) ? { kind: 'proxy', eagerInstance: eagerNestedInstance }
+            : { kind: 'ctor', name: resolved, receiverNode: ctx.receiverNode,
+              walkPath: [...ctx.walkPath, key], eagerInstance: eagerNestedInstance }
+          : { kind: 'static', receiverNode: ctx.receiverNode,
+            walkPath: [...ctx.walkPath, key], eagerInstance: eagerNestedInstance };
         // ... and an array pattern under the key descends the same way (`{ k: [{ from }] }` off
         // `const w = { k: [Array] }`, off a call yielding it): the static arm of `mirrorPattern`
         // spells its slots, the constructor arm has no array to spell and passes through
         const child = inner?.type === 'ObjectPattern' || inner?.type === 'ArrayPattern' ? mirrorPattern(inner, childCtx) : null;
         entries.push({ key, child: child ?? { kind: 'passthrough' } });
       } else {
+        if (parameterInstance && key === 'prototype' && inner?.type === 'ObjectPattern'
+          && isKnownGlobalName(ctx.name) && !isMutatedGlobalSlot(adapter, ctx.name)) {
+          entries.push({ key, child: mirrorPattern(inner, {
+            kind: 'instance', name: ctx.name, eagerInstance: eagerNestedInstance, pristinePrototype: true,
+          }) ?? { kind: 'passthrough' } });
+          continue;
+        }
         let readMeta = {
           kind: 'property', object: ctx.name, key, placement: 'static', receiverHint: meta.receiverHint,
         };
@@ -6920,7 +7368,7 @@ export function buildNestedParamSynthPlan({
       }
     }
     if (!retainNativeReads) {
-      const native = entries.filter(({ child }) => child.kind === 'passthrough' && !child.injects);
+      const native = entries.filter(({ child, deferred }) => child.kind === 'passthrough' && !child.injects && !deferred);
       if (native.length) {
         const nativeKeys = new Set(native.map(entry => entry.key));
         const nativeSymbols = new Set(native.filter(entry => entry.symbolKey).map(entry => entry.prop));
@@ -6932,6 +7380,170 @@ export function buildNestedParamSynthPlan({
       }
     }
     return entries.length ? { kind: 'object', entries } : null;
+  }
+
+  // Moving a method read also crosses implicit conversions, which the general effect walk
+  // does not classify. Reuse the literal-tree proof without treating a stable object as primitive.
+  function quietWindowValue(node, ctx = receiverCtx) {
+    const value = unwrapRuntimeExpr(node);
+    return !mayHaveSideEffects(value, ctx) && (isReusableReceiver(value, { ctx })
+      || isReReadableSurfaceNav(value, null, { ctx })
+      || isConstantLiteralNode(value, (_name, read) => isReusableReceiver(read, { ctx }), part => {
+        const core = unwrapRuntimeExpr(part);
+        return core?.type === 'UnaryExpression' && typeof literalNodeValue(unwrapRuntimeExpr(core.argument)) !== 'number'
+          ? null : core;
+      }));
+  }
+
+  // A prior array slot whose complete plain pattern has ALREADY been served by a data
+  // mirror performs its reads in the argument. Do not predict a future mirror here: a later
+  // receiver prefix may keep that prior read deferred too.
+  function earlierSlotAlreadyServedByData(item, receiver) {
+    const priorPattern = patternSlotTarget(item?.value ?? item);
+    if (priorPattern?.type !== 'ObjectPattern' || !receiver
+      || patternHasAnyDefault(priorPattern) || patternKeepsEffectfulKey(priorPattern, keyCtx)
+      || priorPattern.properties.some(prop => !propBindingIdentifier(prop.value))
+      || receiver.type !== 'ObjectExpression') return false;
+    return priorPattern.properties.every(prop => {
+      const key = plainSynthKeyName(prop.key);
+      const paired = key === null ? null : objectLevelPairedProperty(receiver, key);
+      return paired && paired.match.kind !== 'get' && paired.match.kind !== 'set' && !paired.match.method;
+    });
+  }
+
+  function instanceArgumentWindow(argument, hop, sourceArgument = argument) {
+    // This shared window is deliberately flat: every reading slot has only plain bindings and
+    // every inert slot reads nothing. The original source argument owns the quiet suffix even
+    // when an inline spread needs a fresh flattened view. The current view still supplies the
+    // materialized data prefix, and pattern identity prevents another caller shape from replaying it.
+    if (argument?.type !== 'ArrayExpression' || hop?.level?.type !== 'ArrayPattern') return null;
+    let state = instanceArgumentWindows.get(adapter, sourceArgument);
+    if (state?.pattern === hop.level) return state.eligible ? state : null;
+    if (hop.level.elements.some(item => {
+      if (!slotReadsWhenBound(item?.value ?? item)) return false;
+      const pattern = patternSlotTarget(item?.value ?? item);
+      return pattern?.type !== 'ObjectPattern' || patternHasAnyDefault(pattern)
+        || patternKeepsEffectfulKey(pattern, keyCtx)
+        || pattern.properties.some(prop => !propBindingIdentifier(prop.value));
+    })) {
+      instanceArgumentWindows.set(adapter, sourceArgument, { pattern: hop.level, eligible: false });
+      return null;
+    }
+    const quietSuffix = Array(argument.elements.length + 1).fill(false);
+    quietSuffix[argument.elements.length] = true;
+    for (let index = argument.elements.length - 1; index >= 0; index--) {
+      const item = argument.elements[index];
+      quietSuffix[index] = quietSuffix[index + 1] && (!item || quietWindowValue(item));
+    }
+    state = { pattern: hop.level, eligible: true, dataPrefix: 0, quietSuffix };
+    instanceArgumentWindows.set(adapter, sourceArgument, state);
+    return state;
+  }
+
+  function precedingArrayReadsAlreadyServed(argument, hop, prefix, sourceArgument = argument) {
+    const state = instanceArgumentWindow(argument, hop, sourceArgument);
+    if (!state) return hop.level.elements.slice(0, prefix)
+      .every(item => !slotReadsWhenBound(item?.value ?? item));
+    // A completed data ObjectExpression is the renderer's final representation for this slot.
+    // Advancing over that immutable output records what already happened; a raw slot is retried.
+    while (state.dataPrefix < prefix) {
+      const index = state.dataPrefix;
+      const item = hop.level.elements[index];
+      if (slotReadsWhenBound(item?.value ?? item)
+        && !earlierSlotAlreadyServedByData(item, pairedArrayWrapInitElement(argument.elements, index))) return false;
+      state.dataPrefix++;
+    }
+    return true;
+  }
+
+  function patternWorkPrecedesInstanceRead(argument = null, sourceArgument = argument) {
+    if (walked.hops?.length === 1 && argument?.type === 'ArrayExpression') {
+      const [hop] = walked.hops;
+      if (hop.index !== undefined) return !precedingArrayReadsAlreadyServed(argument, hop, hop.index, sourceArgument);
+    }
+    return walked.hops?.some(hop => {
+      const slots = hop.index === undefined ? hop.level.properties : hop.level.elements;
+      const prefix = hop.index ?? slots.findIndex(prop => patternSlotTarget(prop.value) === hop.pattern);
+      return prefix === -1 || slots.slice(0, prefix).some(item => slotReadsWhenBound(item?.value ?? item));
+    });
+  }
+
+  function argumentPerformsReceiverInOrder(argument, leaf, sourceArgument = argument) {
+    if (walked.hops?.length === 1 && argument?.type === 'ArrayExpression') {
+      const [hop] = walked.hops;
+      const window = hop.index === undefined ? null : instanceArgumentWindow(argument, hop, sourceArgument);
+      if (!window) return receiverPerformsEveryInitEffect(argument, leaf, receiverCtx, quietWindowValue);
+      const receiver = pairedArrayWrapInitElement(argument.elements, hop.index);
+      return !!receiver && receiverPerformsEveryInitEffect(receiver, leaf, receiverCtx, quietWindowValue)
+        && window.quietSuffix[hop.index + 1];
+    }
+    return receiverPerformsEveryInitEffect(argument, leaf, receiverCtx, quietWindowValue);
+  }
+
+  // An instance read may run in the argument when no other source work intervenes.
+  // The receiver itself may run code: its dispatch consumes that expression once.
+  // Literal wrappers use the existing pristine iterator pairing; visible mutations keep its boundary.
+  function instanceReadsCanBeEager(leaf, patternNode) {
+    const fn = paramPath?.parentPath?.node;
+    if (!FUNCTION_LIKE_NODE_TYPES.has(fn?.type) || !patternNode?.properties?.length) return false;
+    if (host?.node.type === 'AssignmentPattern' && patternNode === paramPath.node.left) {
+      const index = fn.params.indexOf(paramPath.node);
+      const earlier = fn.params.slice(0, index);
+      if (index === -1 || mayHaveSideEffects(paramPath.node.right, keyCtx)
+        || paramListRunsWork(earlier, keyCtx)
+        || earlier.some(param => param.type === 'AssignmentPattern' && !quietWindowValue(param.right, keyCtx))) return false;
+    }
+    if (patternNode.properties.length !== 1 && host?.node.type === 'AssignmentPattern'
+      && patternNode === paramPath.node.left && !walked.hops?.length) {
+      if (patternHasAnyDefault(patternNode)
+        || patternNode.properties.some(prop => !propBindingIdentifier(prop.value))
+        || !quietWindowValue(leaf)
+        || !quietWindowValue(paramPath.node.right)) return false;
+      const index = fn.params.indexOf(paramPath.node);
+      const earlier = fn.params.slice(0, index);
+      return index !== -1 && !paramListRunsWork(earlier, keyCtx)
+        && earlier.every(param => param.type !== 'AssignmentPattern' || quietWindowValue(param.right, keyCtx));
+    }
+    if (patternNode.properties.length !== 1 && callSite
+      && (callSite.node.type === 'LogicalExpression' || callSite.node.type === 'ConditionalExpression')) return false;
+    const value = peelNestedSequenceExpressions(leaf).tail;
+    const quietSource = !reEvaluationObservable(value) || isReReadableSurfaceNav(value, null, { ctx: receiverCtx })
+      || (patternBindingCount(patternNode) === 1 && receiverValueNeverNullish(value, receiverCtx));
+    if (!quietSource && patternBindingCount(patternNode) !== 1
+      && (callSite?.node.type === 'LogicalExpression' || callSite?.node.type === 'ConditionalExpression'
+        || soleReceiver?.type === 'LogicalExpression' || soleReceiver?.type === 'ConditionalExpression'
+        || valueSelectingLeaves.has(leaf) || truthySelectingLeaves.has(leaf)
+        || rootContext(leaf)?.selectedReceiver)) return false;
+    if (defaultLeaves.has(leaf) || host?.node.type === 'AssignmentPattern' || !callSite) {
+      const defaultSource = paramPath.node.type === 'AssignmentPattern' ? paramPath.node.right : null;
+      return quietSource || patternBindingCount(patternNode) === 1 && !!defaultSource
+        && receiverPerformsEveryInitEffect(defaultSource, leaf, receiverCtx, quietWindowValue)
+        && !patternWorkPrecedesInstanceRead();
+    }
+    const call = callSite.host.node;
+    if (fn.async || !isCallShape(call)) return false;
+    const index = fn.params.indexOf(paramPath.node);
+    const earlier = fn.params.slice(0, index);
+    if (index === -1 || paramListRunsWork(earlier, keyCtx)
+      || earlier.some(param => param.type === 'AssignmentPattern' && !quietWindowValue(param.right, keyCtx))) return false;
+    const args = [...call.arguments];
+    if (adapter.isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
+      && (walked.indices.length || args.some(arg => arg.type === 'SpreadElement'))) return false;
+    flattenInlineArraySpreads(args);
+    const at = args.findIndex(arg => arg && subtreeContainsNode(arg, planHost.node));
+    // The selected argument arm keeps its prefix ahead of the mirror, like a direct sequence.
+    const argument = at === -1 ? null : peelNestedSequenceExpressions(args[at]).tail;
+    const runningArgument = argument === leaf ? argument
+      : argument && peelNestedSequenceExpressions(decidedRunningOperand(argument, receiverCtx)).tail;
+    const inlineSpread = runningArgument?.type === 'ArrayExpression'
+      && runningArgument.elements.some(element => element?.type === 'SpreadElement');
+    const effectArgument = inlineSpread
+      ? { ...runningArgument, elements: [...runningArgument.elements] }
+      : runningArgument;
+    if (inlineSpread) flattenInlineArraySpreads(effectArgument.elements);
+    if (!effectArgument || !argumentPerformsReceiverInOrder(effectArgument, leaf, runningArgument)
+      || args.slice(at + 1).some(arg => !quietWindowValue(arg))) return false;
+    return !patternWorkPrecedesInstanceRead(effectArgument, runningArgument);
   }
 
   // the census's leaves under each dead right, kept: an outer selection's left holds the inner ones
@@ -6976,13 +7588,15 @@ export function buildNestedParamSynthPlan({
     const out = [];
     for (const leaf of targetLeaves) {
       if (!leaf) continue;
+      const selectedReceiver = !!rootContext(leaf)?.selectedReceiver;
       // A caller mirror replaces only a quiet, non-optional value leaf. Selection tests
       // and sequence prefixes remain outside that leaf, in their original argument slot.
       // ... a CALL argument whose returned literal the call canon proves is the one effectful leaf
       // it takes: the call keeps its turn ahead of the literal, in the argument slot where the
       // source evaluates it, and the destructure's own throw with it - the declarator's shape
-      const callArgument = !!callSite && isCallShape(leaf) && rootContext(leaf)?.kind === 'static';
-      if (callSite && !callArgument && !defaultLeaves.has(leaf) && (mayHaveSideEffects(leaf, receiverCtx)
+      const callArgument = !!callSite && (rootContext(leaf)?.sourceInstance || isCallShape(leaf)
+        && (rootContext(leaf)?.kind === 'static' || rootContext(leaf)?.legacyIife));
+      if (callSite && !callArgument && !selectedReceiver && !defaultLeaves.has(leaf) && (mayHaveSideEffects(leaf, receiverCtx)
         || navValueCanShortCircuit(leaf, resolvePure, { scope: receiverPath.scope, adapter, path: receiverPath })
         || chainSealsAShortCircuit(leaf, resolvePure, { scope: receiverPath.scope, adapter, path: receiverPath }))) continue;
       // a for-x head has NO statement slot: the declaration twin leaves an effectful receiver standing
@@ -6999,12 +7613,25 @@ export function buildNestedParamSynthPlan({
         && inCallerCorrectFallbackSlot(receiverPath, leaf);
       const defaultCall = defaultLeaves.has(leaf) && !!invocationNode(leaf);
       const canKeepPrefix = ((!!headElements || host?.node.type === 'VariableDeclarator' || host?.node.type === 'AssignmentExpression'
-        || fallbackCall || callArgument) && !defaultLeaves.has(leaf) || defaultCall) && !valueSelectingLeaves.has(leaf);
+        || fallbackCall || callArgument) && !defaultLeaves.has(leaf) || defaultCall || selectedReceiver) && !valueSelectingLeaves.has(leaf);
+      const leafContext = rootContext(leaf);
+      const selectedReceiverNode = leafContext?.decidedReceiver ? decidedRunningOperand(leaf, receiverCtx) : leaf;
+      const liveReceiver = leafContext?.decidedReceiver
+        ? followConstIdentifierInit({ node: selectedReceiverNode, readNode: selectedReceiverNode, ctx: receiverCtx })
+        : { node: leaf, ctx: receiverCtx };
+      // An admitted IIFE receiver can still be nullish. Return that value unchanged so
+      // the native parameter rejects it after all arguments and before any computed key.
+      // A source-known selection has already proved which operand supplies the value. Ask nullishness
+      // of that operand, so a quiet non-nullish sole read can stay eager instead of gaining a getter.
+      const preserveNullishReceiver = (leafContext?.legacyIife || leafContext?.sourceInstance || selectedReceiver)
+        && !receiverValueNeverNullish(unwrapRuntimeExpr(liveReceiver.node), liveReceiver.ctx);
+      const preserveFalsyReceiver = leafContext?.kind === 'instance' && truthySelectingLeaves.has(leaf);
       // Evaluating a short-circuiting source as a prefix preserves its effects, but the
       // replacement literal would erase the pattern's own nullish-receiver rejection.
       // ... which the fallback slot does not reproduce (its doctrine below): the literal is always defined
-      const coerceReceiver = canKeepPrefix && !fallbackCall && destructureReceiverOwesAThrow(leaf,
-        { scope: receiverPath.scope, adapter, path: receiverPath });
+      const coerceReceiver = canKeepPrefix && !fallbackCall && !preserveNullishReceiver && !preserveFalsyReceiver
+        && destructureReceiverOwesAThrow(leaf,
+          { scope: receiverPath.scope, adapter, path: receiverPath });
       // a getter read counts as the leaf's work (the scoped predicate): the literal replacing the leaf keeps it
       // as a prefix where it can, and the leaf stays where it cannot, like any other effect
       const keepPrefix = coerceReceiver || mayHaveSideEffects(leaf, receiverCtx) && canKeepPrefix;
@@ -7037,6 +7664,7 @@ export function buildNestedParamSynthPlan({
       // reproducing the absent-host throw. the arms of a TERNARY reach this gate now, which is what
       // makes the exception load-bearing instead of accidental
       if (!probeArm && !ternaryProbeArm && valueSelectingLeaves.has(leaf)
+        && !preserveNullishReceiver && !preserveFalsyReceiver
         && fallbackValueCanBeNullish(leaf, { scope: receiverPath.scope, adapter, path: receiverPath })
         && !inCallerCorrectFallbackSlot(receiverPath, leaf)) continue;
       // a whole-collapse target is the full logical - its context is the operand the selection always
@@ -7044,8 +7672,16 @@ export function buildNestedParamSynthPlan({
       // value leaf. the leftmost of a realm selection may be a probe pure cannot back, and a slot the
       // literal cannot spell then re-reads that name BARE (`window.Promise.race`, undefined off-browser)
       let ctxNode = realmSelectionCollapseOperand(leaf, { adapter, scope: receiverPath.scope, path: receiverPath }) ?? leaf;
-      while (ctxNode?.type === 'LogicalExpression') ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;
-      const tree = mirrorPattern(leafPatterns.get(leaf) ?? patternNode, rootContext(ctxNode));
+      while (ctxNode?.type === 'LogicalExpression' && !rootContext(ctxNode)?.selectedReceiver) {
+        ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;
+      }
+      const targetPattern = leafPatterns.get(leaf) ?? patternNode;
+      const context = rootContext(ctxNode);
+      // Dispatch itself rejects a plain parameter's nullish receiver. A selection or
+      // parameter default must first receive that original value to choose its own arm.
+      const tree = mirrorPattern(targetPattern, context && { ...context,
+        eagerInstance: !preserveFalsyReceiver && !(preserveNullishReceiver && valueSelectingLeaves.has(leaf))
+          && instanceReadsCanBeEager(leaf, targetPattern) });
       // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
       const metrics = tree && treeInjectionMetrics(tree);
       if (!metrics?.hasPolyfill) continue;
@@ -7063,8 +7699,15 @@ export function buildNestedParamSynthPlan({
       // A sole native slot can consume a call directly. The mirror's other slots only read imports;
       // the existing key-order admission has already rejected effects preceding that native slot.
       // Several native slots share one capture, so the call still runs once before their reads.
-      const callReceiver = !descriptor.receiverName && metrics.hasPassthrough && canKeepPrefix && isCallShape(leaf);
-      const receiverNode = callReceiver && !retainNativeReads && !coerceReceiver && metrics.passthroughCount === 1 ? leaf : null;
+      // Deferred getters outlive construction of this literal. Their receiver belongs
+      // to this evaluation, even when a key effect reassigns a source-visible name.
+      const callReceiver = metrics.hasDeferred || !descriptor.receiverName && metrics.hasPassthrough
+        && (canKeepPrefix && isCallShape(leaf) || parameterInstance && metrics.hasInstance);
+      const reusableSurfaceReceiver = targetPattern?.properties?.length > 1
+        && targetPattern === paramPath.node.left && !walked.hops?.length && metrics.hasInstance
+        && isReReadableSurfaceNav(leaf, null, { ctx: receiverCtx });
+      const receiverNode = callReceiver && !metrics.hasDeferred && !retainNativeReads
+        && !coerceReceiver && (reusableSurfaceReceiver || metrics.passthroughCount === 1) ? leaf : null;
       const memo = callReceiver && !receiverNode;
       if (!descriptor.receiverName && metrics.hasPassthrough && !callReceiver) continue;
       // ... an EFFECT keeps a selection from collapsing whole, never its dead right: each one this leaf
@@ -7091,6 +7734,9 @@ export function buildNestedParamSynthPlan({
         ...receiverNode ? { receiverNode } : {},
         ...!receiverNode && (keepPrefix || memo) ? { keepPrefix: true } : {},
         ...memo ? { memo: true } : {},
+        ...metrics.hasDeferred ? { localMemo: true } : {},
+        ...preserveNullishReceiver ? { preserveNullishReceiver: true } : {},
+        ...preserveFalsyReceiver ? { preserveFalsyReceiver: true } : {},
         ...coerceReceiver ? { coerceReceiver: true } : {},
         ...defaultLeaves.has(leaf) ? { host: walked.hostPatternPath, slot: null } : {},
         ...deadFallbacks.length ? { deadFallbacks } : {},
@@ -7110,6 +7756,7 @@ export function buildNestedParamSynthPlan({
       selectionValueCanBeFalsy(receiverNode, {
         peelIife: !callSite,
         rootContext,
+        staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
         nullable: tail => nullableLeaves.has(tail) || (realmNullableLeaves.has(tail) && !swapped.has(tail)),
         headYields: leaf => forOfHeadLeftAlwaysYields(leaf, receiverCtx),
         onDeadRight: selection => {
@@ -7166,13 +7813,16 @@ export function buildNestedParamSynthPlan({
     // sibling: nothing names the call twice) is the host's other routes' to render - and so is a
     // STATIC container whose slot under the pattern's hops proves the claim (below): only the RENDER
     // declined there, so the fallback that fires on an absent native is sound
-    const declined = mirrored.foreign || receiverNodes.every(node => destructureValueBranchesAllProxy(node)
+    const declined = mirrored.foreign || receiverNodes.every(node => destructureValueBranchesAllProxy(
+      node,
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+    )
       || allDestructureValueBranches(node, leaf => {
         const context = rootContext(leaf);
         return (context?.kind === 'ctor' && context.builtin && context.name === meta.object)
           || (context?.kind === 'static' && staticSlotProvesClaim({ leaf, hops: walked.hops, meta, adapter, path: receiverPath }));
-      })) ? null : { bail: true, defaultArm };
-    if (!retainNativeReads) nestedParamSynthPlan.set(planKey, declined);
+      }, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic)) ? null : { bail: true, defaultArm };
+    if (!retainNativeReads) nestedParamSynthPlan.set(planOwner, planKey, declined);
     return declined;
   }
   // Quarantine only leaves covered on every reachable branch; user passthroughs stay live.
@@ -7190,9 +7840,10 @@ export function buildNestedParamSynthPlan({
     const defaultPath = pathOfNode(leafPatternPath, node);
     return !!defaultPath && defaultDroppedAsDead(defaultPath, { adapter, resolvePure });
   });
-  if (!retainNativeReads) nestedParamSynthPlan.set(planKey, { done: true, defaultArm, readProperties });
+  if (!retainNativeReads) nestedParamSynthPlan.set(planOwner, planKey, { done: true, defaultArm, readProperties });
   return {
     host, slot, targets, claimedProperties, readProperties, staticBindings, defaultArm, deadDefaults, patternHost: walked.hostPatternPath,
+    ...parameterInstance && !callSite ? { claimsAlwaysDefined: false } : {},
   };
 }
 
@@ -7238,7 +7889,7 @@ export function fallbackInitWhollyDiscardable(initNode, rescueReachable, ctx) {
       // existing discard-rescue harvest, but a guard inside the return keeps its falsy path,
       // and an effectful ARGUMENT (`(g => g)((c++, globalThis))`) is not harvested - the
       // mirror keeps the call and swaps the leaf inside the argument instead
-      const inlined = peelZeroArgIifeReturn(tail);
+      const inlined = peelZeroArgIifeReturn(tail, { staticIsMutated: ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic });
       if (!inlined) return true;
       if ((tail.arguments ?? []).some(arg => mayHaveSideEffects(arg, ctx))) return false;
       initNode = inlined;
@@ -7266,16 +7917,26 @@ export function fallbackInitWhollyDiscardable(initNode, rescueReachable, ctx) {
 // emitter suppress later rewrites. A root `receiverPrefix` preserves the discarded receiver's
 // effects, with an empty-pattern coercion when `coerceReceiver` requires its native throw.
 export function renderSynthTree(tree, ctx, keyPath = []) {
+  if (!keyPath.length && ctx.memoActivation) {
+    const { memoActivation, memoArguments, ...inner } = ctx;
+    return renderMemoActivation(renderSynthTree(tree, inner), memoActivation, memoArguments);
+  }
   if (!keyPath.length && ctx.receiverPrefix) {
-    const { receiverPrefix, coerceReceiver, ...inner } = ctx;
+    const { receiverPrefix, coerceReceiver, preserveNullishReceiver, preserveFalsyReceiver, ...inner } = ctx;
+    const value = renderSynthTree(tree, inner);
     // Empty destructuring performs precisely the discarded receiver's nullish check,
     // before any key or binding in the surviving source pattern is evaluated.
     return sequenceExpression([
       coerceReceiver ? assignmentExpression('=', renderObjectPattern([]), receiverPrefix) : receiverPrefix,
-      renderSynthTree(tree, inner),
+      preserveFalsyReceiver ? logicalExpression('&&', identifier(ctx.receiverName), value) : preserveNullishReceiver
+        ? conditionalExpression(nullGuardTest(identifier(ctx.receiverName)), identifier(ctx.receiverName), value) : value,
     ]);
   }
   if (tree.kind === 'polyfill') return identifier(ctx.injectImport(tree.entry, tree.hintName));
+  if (tree.kind === 'instance') {
+    const receiver = renderSynthTree({ kind: 'passthrough' }, ctx, keyPath.slice(0, -1));
+    return callExpression(identifier(ctx.injectImport(tree.entry, tree.hintName)), [receiver]);
+  }
   if (tree.kind === 'passthrough') {
     if (ctx.receiverNode) {
       const read = keyPath.reduce(memberFromKeyName, ctx.receiverNode);
@@ -7299,16 +7960,17 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
     return arrayExpression(tree.elements.map((child, index) => child ? renderSynthTree(child, ctx, [...keyPath, String(index)]) : null));
   }
   // Quoted names change only the key spelling; every mirror level uses the same data slots.
-  return objectExpression(tree.entries.map(({ key, child, symbolKey, readPure }) => {
+  return objectExpression(tree.entries.map(({ key, child, symbolKey, readPure, deferred }) => {
     if (!symbolKey) {
       const spelled = synthEntryKey({ lookupKey: key }, { resolvedSpelling: true });
-      return objectProperty(spelled.key, renderSynthTree(child, ctx, [...keyPath, key]), { computed: spelled.computed });
+      return (deferred ? objectGetter : objectProperty)(spelled.key,
+        renderSynthTree(child, ctx, [...keyPath, key]), { computed: spelled.computed });
     }
     const keyName = ctx.injectImport(symbolKey.entry, symbolKey.hintName);
     const receiver = renderSynthTree(child, ctx, keyPath);
     const value = readPure ? callExpression(identifier(ctx.injectImport(readPure.entry, readPure.hintName)), [receiver])
       : memberExpression(receiver, identifier(keyName), { computed: true });
-    return objectProperty(identifier(keyName), value, { computed: true });
+    return (deferred ? objectGetter : objectProperty)(identifier(keyName), value, { computed: true });
   }));
 }
 
@@ -7317,6 +7979,13 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
 // polyfill and whether its retained reads need a nameable receiver.
 function collectTreeInjectionFlags(tree, m) {
   switch (tree.kind) {
+    case 'instance':
+      m.instance = true;
+      m.real = true;
+      m.passthrough = true;
+      m.passthroughCount += 1;
+      m.claimedProperties.push(tree.prop);
+      break;
     case 'polyfill':
       m.real = true;
       if (tree.readProperties) m.readProperties.push(...tree.readProperties);
@@ -7351,7 +8020,8 @@ function collectTreeInjectionFlags(tree, m) {
       }
       break;
     case 'object':
-      for (const { child, symbolKey, prop, levelDefault } of tree.entries) {
+      for (const { child, symbolKey, prop, levelDefault, deferred } of tree.entries) {
+        m.deferred ||= !!deferred;
         if (symbolKey) m.readProperties.push(prop);
         if (levelDefault) m.levelDefaults.push(levelDefault);
         collectTreeInjectionFlags(child, m);
@@ -7374,6 +8044,8 @@ function treeInjectionMetrics(tree) {
       passthrough: false,
       passthroughCount: 0,
       descended: false,
+      instance: false,
+      deferred: false,
       claimedProperties: [],
       readProperties: [],
       nativeReadProperties: [],
@@ -7384,6 +8056,8 @@ function treeInjectionMetrics(tree) {
   // alone cannot own that pattern. Without a bail, the constructor itself earns the mirror.
   return {
     hasPolyfill: m.bailed ? m.real : m.real || m.injecting,
+    hasInstance: m.instance,
+    hasDeferred: m.deferred,
     hasDescendedClaim: m.descended,
     hasBailedSubtree: m.bailed,
     nativeReadProperties: m.nativeReadProperties,
@@ -7462,8 +8136,26 @@ export function receiverValueNeverNullish(node, { scope, adapter, path }) {
     return !adapter.getBinding?.({ scope, name: core.name, path, read: core })?.constantViolations?.length
       && !!boundStaticContainer({ node: core, scope, adapter, path });
   }
-  if ((core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression')
-    || core.optional || memberKeyName(core) !== 'prototype') return false;
+  if ((core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') || core.optional) return false;
+  const key = memberKeyName(core);
+  const container = unwrapRuntimeExpr(core.object);
+  let stored = null;
+  if (container?.type === 'ArrayExpression') {
+    const index = canonicalArrayIndex(key);
+    if (index !== null && container.elements.slice(0, index + 1).every(item => item?.type !== 'SpreadElement')) {
+      stored = container.elements[index] ?? null;
+    }
+  } else if (container?.type === 'ObjectExpression' && key !== null) {
+    const paired = objectLevelPairedProperty(container, key,
+      prop => consumableHopSlotName(prop, { scope, adapter, path }));
+    const kind = paired?.match.type === 'ObjectMethod' ? paired.match.kind
+      : paired?.match.method ? 'method' : paired?.match.kind;
+    if (kind !== 'get' && kind !== 'set' && kind !== 'method') stored = paired?.read ?? null;
+  }
+  const storedCore = unwrapRuntimeExpr(peelReceiverSequenceTail(stored));
+  if (ALWAYS_TRUTHY_OBJECT_NODES.has(storedCore?.type) || storedCore?.type === 'TemplateLiteral'
+    || (PRIMITIVE_LITERAL_TYPES.has(storedCore?.type) && !isNullLiteralNode(storedCore))) return true;
+  if (key !== 'prototype') return false;
   const ctor = resolveObjectName({ objectNode: core.object, scope, adapter, path });
   return !!ctor && isKnownStaticGlobal(ctor, adapter) && !KNOWN_NAMESPACE_GLOBALS.has(ctor) && !POSSIBLE_GLOBAL_OBJECTS.has(ctor)
     && !isMutatedGlobalSlot(adapter, ctor);
@@ -7491,17 +8183,21 @@ function selectionValueCanBeFalsy(node, {
   rootContext,
   nullable,
   headYields,
+  staticIsMutated = null,
   onLeaf = null,
+  wholeValue = null,
   onDeadRight = null,
   peelIife = true,
   selects = false,
+  truthySelects = false,
   answers = null,
   optedOut = null,
 }) {
   const kept = onLeaf || onDeadRight ? null : answers;
-  function walk(branch, selecting) {
+  function walk(branch, selecting, truthySelecting = truthySelects) {
     return selectionValueCanBeFalsy(branch, {
-      rootContext, nullable, headYields, onLeaf, onDeadRight, peelIife, selects: selecting, answers: kept, optedOut,
+      rootContext, nullable, headYields, staticIsMutated, onLeaf, wholeValue, onDeadRight, peelIife,
+      selects: selecting, truthySelects: truthySelecting, answers: kept, optedOut,
     });
   }
   function verdict() {
@@ -7509,28 +8205,28 @@ function selectionValueCanBeFalsy(node, {
     while (true) {
       const { tail } = peelNestedSequenceExpressions(current);
       if (peelIife && (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression')) {
-        const inlined = peelZeroArgIifeReturn(tail);
+        const inlined = peelZeroArgIifeReturn(tail, { staticIsMutated });
         if (inlined) {
           current = inlined;
           continue;
         }
       }
-      if (tail?.type === 'ConditionalExpression') {
+      if (tail?.type === 'ConditionalExpression' && !wholeValue?.(tail)) {
         const consequentFalsy = walk(tail.consequent, true);
         return walk(tail.alternate, true) || consequentFalsy;
       }
-      if (tail?.type !== 'LogicalExpression') {
+      if (tail?.type !== 'LogicalExpression' || wholeValue?.(tail)) {
         const context = rootContext(tail);
         const falsy = (!(context?.kind === 'proxy' || context?.kind === 'static' || (context?.kind === 'ctor' && context.builtin))
           && !headYields(tail)) || nullable(tail);
-        onLeaf?.(tail, selects, falsy);
+        onLeaf?.(tail, selects, falsy, truthySelects);
         return falsy;
       }
       if (tail.operator === '&&') {
         walk(tail.right, selects);
         return true;
       }
-      if (walk(tail.left, true) || optedOut?.(tail)) return walk(tail.right, selects);
+      if (walk(tail.left, true, truthySelects || tail.operator === '||') || optedOut?.(tail)) return walk(tail.right, selects);
       onDeadRight?.(tail);
       return false;
     }
@@ -7556,11 +8252,14 @@ export function selectionLeftAlwaysTruthy({
   node, scope, adapter, path, resolvePure = noPureResolution, rescuesReceiverRead = false, throughChainAssign = false,
 }) {
   if (adapter?.isOptedOut?.(node)) return false;
+  const literal = literalNodeValue(unwrapRuntimeExpr(peelReceiverSequenceTail(node)));
+  if (literal !== undefined) return !!literal;
   function rootContext(leaf) {
     return mirrorRootContext({ node: leaf, scope, adapter, path, resolvePure, rescuesReceiverRead });
   }
   return !selectionValueCanBeFalsy(node, {
     rootContext,
+    staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
     nullable: leaf => fallbackValueCanBeNullish(leaf, { scope, adapter, path }, { throughChainAssign })
       || unservedConstructorLeaf(leaf, { scope, adapter, path }, rootContext),
     headYields: leaf => forOfHeadLeftAlwaysYields(leaf, { scope, adapter, path }),
@@ -7794,6 +8493,8 @@ export function decidedRunningOperandPath(path, adapter) {
 function fallbackRunningLeft(node, ctx) {
   const core = unwrapRuntimeExpr(node);
   if (core?.type !== 'LogicalExpression' || core.operator === '&&' || ctx.adapter?.isOptedOut?.(core)) return null;
+  const live = decidedLiveOperand(core, ctx);
+  if (live === core.left) return live;
   return decidingFallbackLeft(core, ctx);
 }
 
@@ -8235,8 +8936,13 @@ export function applyNestedParamSynthPlan({
       receiverRead: memoRef ? null : target.receiverRead,
       receiverNode: target.receiverNode ? embed(target.receiverNode) : null,
       receiverPrefix: target.keepPrefix
-        ? memoRef ? assignmentExpression('=', identifier(memoRef), embed(node)) : embed(node) : null,
+        ? memoRef
+          ? target.localMemo ? identifier(memoRef) : assignmentExpression('=', identifier(memoRef), embed(node))
+          : embed(node) : null,
       coerceReceiver: target.coerceReceiver,
+      preserveNullishReceiver: target.preserveNullishReceiver,
+      preserveFalsyReceiver: target.preserveFalsyReceiver,
+      ...target.localMemo ? { memoActivation: [memoRef], memoArguments: [embed(node)] } : {},
     }), target)) continue;
     // a null-test re-spelling KEEPS two of the source's own nodes - the probe it tests and the arm it
     // falls back to - so the skip would silence the visitor over reads that are still in the tree and
@@ -8262,7 +8968,11 @@ export function applyNestedParamSynthPlan({
       replaceTarget(node, node.left, { host: plan.patternHost, slot: null });
     }
   }
-  if (replaced === plan.targets.length && plan.claimedProperties?.length) claimProperties?.(plan.claimedProperties);
+  if (replaced === plan.targets.length && plan.claimedProperties?.length) {
+    // A parameter default serves its own receiver; a supplied object can still leave
+    // the method undefined and execute the source's leaf default.
+    claimProperties?.(plan.claimedProperties, plan.claimsAlwaysDefined !== false);
+  }
   if (replaced === plan.targets.length && plan.staticBindings?.length) claimStaticBindings?.(plan.staticBindings);
   // A copied symbol read can still yield undefined. Its extraction is served, but its user's
   // default remains live and must receive its own rewrites.
@@ -8380,6 +9090,12 @@ export function resolveNestedDestructureReceiver(outerProp, adapter, unionSink =
 export function resolveBranchProxyName({ branchNode, scope, adapter, path, eitherLogicalOperand = false }) {
   let branch = unwrapExpressionChain(branchNode);
   while (branch) {
+    // A decided guard contributes its yielded operand, never its dead proxy arm.
+    const live = decidedSelectionValue(branch, { scope, adapter, path });
+    if (live !== branch) {
+      branch = unwrapExpressionChain(live);
+      continue;
+    }
     // a chain assignment evaluates to its RHS - DETECTION follows the value so the leaf is
     // marked (usage-global injects; the pure mirror substitutes the raw global in place,
     // keeping the assignment). the EMIT plan must NOT see through it: its flatten discards
@@ -8438,11 +9154,11 @@ export function pruneHopFromLevels({ hopProp, chain }) {
 // is a guard), `||` / `??` either operand, a conditional both arms, a chain assignment its RHS value,
 // a transparent IIFE its return; parens / sequences are peeled (babel uses `extra.parenthesized` so
 // unwrapTransparentSeq is a no-op there - it only makes the oxc ParenthesizedExpression node match babel)
-function allDestructureValueBranches(node, isLeaf) {
+function allDestructureValueBranches(node, isLeaf, staticIsMutated = null) {
   while (true) {
     const { tail } = peelNestedSequenceExpressions(unwrapTransparentSeq(node));
     if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
-      const inlined = peelZeroArgIifeReturn(tail);
+      const inlined = peelZeroArgIifeReturn(tail, { staticIsMutated });
       if (inlined) {
         node = inlined;
         continue;
@@ -8453,12 +9169,20 @@ function allDestructureValueBranches(node, isLeaf) {
       continue;
     }
     if (tail?.type === 'ConditionalExpression') {
-      return allDestructureValueBranches(tail.consequent, isLeaf) && allDestructureValueBranches(tail.alternate, isLeaf);
+      return allDestructureValueBranches(tail.consequent, isLeaf, staticIsMutated) && allDestructureValueBranches(
+        tail.alternate,
+        isLeaf,
+        staticIsMutated,
+      );
     }
     if (tail?.type === 'LogicalExpression') {
       return tail.operator === '&&'
-        ? allDestructureValueBranches(tail.right, isLeaf)
-        : allDestructureValueBranches(tail.left, isLeaf) && allDestructureValueBranches(tail.right, isLeaf);
+        ? allDestructureValueBranches(tail.right, isLeaf, staticIsMutated)
+        : allDestructureValueBranches(
+          tail.left,
+          isLeaf,
+          staticIsMutated,
+        ) && allDestructureValueBranches(tail.right, isLeaf, staticIsMutated);
     }
     return isLeaf(tail);
   }
@@ -8475,8 +9199,8 @@ function isProxyGlobalLeaf(tail) {
 
 // do ALL reachable value branches resolve to a global proxy? a non-proxy branch means a `= _polyfill`
 // default could fire on its legitimate `undefined`, so an un-mirrorable pattern must bail there
-export function destructureValueBranchesAllProxy(node) {
-  return allDestructureValueBranches(node, isProxyGlobalLeaf);
+export function destructureValueBranchesAllProxy(node, staticIsMutated = null) {
+  return allDestructureValueBranches(node, isProxyGlobalLeaf, staticIsMutated);
 }
 
 // is a destructure init a selection of the realm that no single realm operand stands for
@@ -8485,7 +9209,10 @@ export function destructureValueBranchesAllProxy(node) {
 // nested claim under it keeps the init's one read as written, through the ordered capture
 export function guardedRealmSelection(init, ctx) {
   const value = unwrapExpressionChain(peelChainAssignment(init).value);
-  return !!getFallbackBranchSlots(value) && destructureValueBranchesAllProxy(value)
+  return !!getFallbackBranchSlots(value) && destructureValueBranchesAllProxy(
+    value,
+    ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic,
+  )
     && !realmSelectionCollapseOperand(value, ctx);
 }
 
@@ -8551,7 +9278,11 @@ function computeNestedDestructureReceiver(outerProp, adapter, {
     const hostScope = hostPath?.scope ?? parent?.scope;
     // the name channel reads a relocated head through to its element (the emit routes key on the
     // init as written and are not handed it)
-    const slotNode = element ?? relocatedHeadElement(parent) ?? destructureReceiverNode(parent, paramPattern.node);
+    const slotNode = element ?? relocatedHeadElement(parent) ?? destructureReceiverNode(
+      parent,
+      paramPattern.node,
+      adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+    );
     // descend the init through each ArrayPattern wrapper at its recorded element index
     // (`[, { from }]` descends index 1, not a blind 0). thread scope/adapter/path so a const-bound
     // array-literal wrapper (`const wrapper = [{ a: Array }]; const [{ a: { from } }] = wrapper`)
@@ -8606,7 +9337,7 @@ function computeNestedDestructureReceiver(outerProp, adapter, {
           init = unwrapExpressionChain(live);
           continue;
         }
-        const inlined = peelZeroArgIifeReturn(init);
+        const inlined = peelZeroArgIifeReturn(init, { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic });
         if (inlined) {
           init = unwrapExpressionChain(inlined);
           continue;
@@ -8785,7 +9516,11 @@ export function descendReceiverPathByKeys(path, hops, adapter) {
     cur = decidedRunningOperandPath(cur, adapter);
     const node = cur?.node;
     if (hop.index !== undefined) {
-      cur = node?.type === 'ArrayExpression' ? positionalElementPath(cur, hop.index) : null;
+      cur = node?.type === 'ArrayExpression' ? positionalElementPath(
+        cur,
+        hop.index,
+        adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+      ) : null;
       if (!cur) return null;
     } else {
       if (node?.type !== 'ObjectExpression') return null;
@@ -8937,16 +9672,26 @@ function pairedBindingLeafMeta(objectPattern, { key, adapter, unionSink, resolve
   const leaf = objectPattern ? cachedContainerPaths(objectPattern, 'properties')[0] : null;
   // Preserve a selection before asking for a settled receiver: one named arm cannot
   // stand for every branch. The mirror keeps the whole level, including later spreads or keys.
-  const paired = (objectPattern ? selectingMirrorPair(objectPattern) : null)
-    ?? (leaf ? resolveNestedReceiverNode(leaf, { adapter, allowInitCarriedEffects: true }) : null);
+  const selecting = objectPattern ? selectingMirrorPair(objectPattern) : null;
+  const paired = selecting ?? (leaf ? resolveNestedReceiverNode(leaf, { adapter, allowInitCarriedEffects: true }) : null);
   if (!paired) {
     return heldSelectionSlotGuardMeta(objectPattern, { key, adapter })
       ?? parameterArgumentDestructureMeta(objectPattern, { key, adapter, parameterCallSites, resolvePure })
       ?? { kind: 'property', object: null, key, placement: null };
   }
-  return buildDestructuringInitMeta({
+  const meta = buildDestructuringInitMeta({
     initNode: paired, key, scope: objectPattern.scope, adapter, path: objectPattern, unionSink, resolveStaticKey,
   });
+  // A selected arm names its value, not the winning container slot. Only the full slot proof
+  // can replace that read; a later spread/key or a nullish arm retains its existing branch mirror.
+  if (selecting && adapter.method === 'usage-pure' && meta?.object && meta.placement === 'static' && !meta.fromFallback) {
+    const walked = destructureHostThroughWrappers(objectPattern, adapter, true);
+    const receiver = walked && destructureReceiverNode(walked.host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
+    if (!receiver || !staticSlotProvesClaim({ leaf: receiver, hops: walked.hops, meta, adapter, path: walked.host })) {
+      return { ...meta, fromFallback: true };
+    }
+  }
+  return meta;
 }
 
 // the constructors a selection's arms name that the identity guard over it tests: those core-js leaves
@@ -8963,7 +9708,7 @@ export function guardableSelectionArms(arms, adapter) {
 // nested capture holds. usage-pure only
 function heldSelectionSlotGuardMeta(objectPattern, { key, adapter }) {
   if (adapter.method !== 'usage-pure' || !objectPattern) return null;
-  const planHost = mirrorPlanHost(objectPattern);
+  const planHost = mirrorPlanHost(objectPattern, false, false, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   const walked = destructureHostThroughWrappers(objectPattern, adapter, true);
   if (!planHost?.node || !walked?.hops?.length || walked.hops.some(hop => typeof hop.key !== 'string')) return null;
   const selectionArms = [];
@@ -8998,7 +9743,7 @@ function heldSelectionSlotGuardMeta(objectPattern, { key, adapter }) {
 // meta would end it
 function selectedContainerSlotMeta(objectPattern, { key, adapter, resolveStaticKey }) {
   if (adapter.method !== 'usage-pure') return null;
-  const planHost = mirrorPlanHost(objectPattern);
+  const planHost = mirrorPlanHost(objectPattern, false, false, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
   if (planHost?.headElements) return null;
   const hostless = !planHost?.host || !planHost.node;
   const host = hostless ? objectPattern : planHost.host;
@@ -9056,9 +9801,11 @@ export function buildDestructureLeafMeta({
     && (patternHasRestReadBeforeNestedBinding(objectPattern.node, adapter)
       || hasObjectRestAncestor(objectPattern, pattern => patternHasRestReadBeforeNestedBinding(pattern, adapter)))) return null;
   // A replaced iterator may select a value unrelated to the array's stored slot.
-  // Keep every leaf of that native selection outside both extraction and mirrors.
+  // Pure keeps that selection native; global still owes generic instance imports.
   if (objectPattern && adapter.isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
-    && destructureHostThroughWrappers(objectPattern, adapter, true)?.indices.length) return null;
+    && destructureHostThroughWrappers(objectPattern, adapter, true)?.indices.length) {
+    return adapter.method === 'usage-global' && key ? { kind: 'property', object: null, key, placement: null } : null;
+  }
   // A selected constructor is only one possible receiver; retain the other arm's instance claims.
   if ((descriptor.host === 'nested' || descriptor.host === 'array') && selectingMirrorPair(objectPattern)) {
     return pairedBindingLeafMeta(objectPattern, { key, adapter, unionSink, resolveStaticKey, parameterCallSites, resolvePure });
@@ -9073,9 +9820,9 @@ export function buildDestructureLeafMeta({
     case 'parameter': {
       const meta = argumentMeta
         ?? parameterArgumentDestructureMeta(descriptor.objectPattern, { key, adapter, parameterCallSites, resolvePure });
-      // the callers name statics only: usage-global owes any other key off a parameter as off a receiver it
-      // cannot type, while usage-pure leaves a parameter's leaves to the caller-side mirrors
-      if (meta || adapter.method !== 'usage-global') return meta;
+      // A receiver with no complete caller census still owes an instance dispatch. Pure may
+      // capture that whole receiver at function entry; other shapes keep their native parameter.
+      if (meta) return meta;
     }
     // break omitted
     case 'opaque':
@@ -9105,7 +9852,7 @@ export function buildDestructureLeafMeta({
       // keeps the default. the winning call-arg evaluates AT THE CALL SITE - resolve it
       // against the call-site scope and path, or a param shadowing the arg's name would
       // swallow the receiver
-      const site = resolveFallbackReceiver(pattern, pattern.node);
+      const site = resolveFallbackReceiver(pattern, pattern.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
       const argNode = site?.callPath ? unwrapSafeSequenceTail(site.rhsNode) : null;
       const receiverNode = chooseFallbackReceiverNode({
         argNode,
@@ -9216,7 +9963,11 @@ export function buildDestructureLeafMeta({
     }
     case 'iife': {
       if (!key) return null;
-      const initNode = resolveCallArgument(descriptor.callPath.node.arguments ?? [], descriptor.paramIndex) ?? null;
+      const initNode = resolveCallArgument(
+        descriptor.callPath.node.arguments ?? [],
+        descriptor.paramIndex,
+        adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+      ) ?? null;
       return buildDestructuringInitMeta({ initNode, key, scope: descriptor.callPath.scope, adapter, path: descriptor.callPath, unionSink });
     }
   }
@@ -9230,6 +9981,17 @@ export function destructureKeyRunsCode(item, ctx = null) {
   if (computedKeyHasSideEffects(item, ctx)) return true;
   if (item.value?.type === 'AssignmentPattern' && mayHaveSideEffects(item.value.right, ctx)) return true;
   return patternSlotTarget(item.value)?.type !== 'Identifier';
+}
+
+// Delaying a paired read requires stable identity and the initializer-reach canon's no-TDZ proof.
+function inertPairedLiteralRead(value, ctx) {
+  const node = unwrapRuntimeExpr(value);
+  if (node?.type !== 'Identifier') return node?.type !== 'ThisExpression'
+    && isReusableReceiver(node, { interveningEffects: true, ctx });
+  const binding = ctx?.adapter?.getBinding?.({ scope: ctx.scope, name: node.name, path: ctx.path, read: node });
+  const declaration = bindingDeclarationPath(binding)?.node;
+  return declaration?.type === 'VariableDeclarator' && isReReferenceableAcrossReads(node, ctx)
+    && initializerReachesRead({ adapter: ctx.adapter, binding, declaratorNode: declaration, usagePath: ctx.path, usageNode: node });
 }
 
 // Split an object-pattern hop chain at its innermost binding when a computed key must stay
@@ -9261,8 +10023,10 @@ export function destructureKeyRunsCode(item, ctx = null) {
 // other stays a sibling read of it. An ordered leaf write (`leafKeyRuns`, `holdsReceiver`) can select its
 // own distinct hop, retaining every other hop as a native sibling around it.
 // A claim kind admits only its own leaf: instance or effectful static. Anchored iterator slots keep their raw key read.
-// A forced ordinary singleton leaf can pass its receiver directly to the final ordered read;
+// An ordinary singleton leaf can pass its receiver directly to the final ordered read;
 // defaults, computed keys and symbol or sibling reads keep their captured receiver.
+// The ordinary instance consumer keeps kind unset for its existing hop selection and supplies
+// entry/plansLeaf after rejecting statics. Other untyped callers supply no entry.
 export function planNestedKeyedPatternCapture({
   pattern,
   init,
@@ -9339,10 +10103,35 @@ export function planNestedKeyedPatternCapture({
         .every(prop => !computedKeyHasSideEffects(prop, ctx))
       && !(leafKeyRuns && inner.properties.some(prop => destructureKeyRunsCode(prop, ctx))))) return null;
   if (kind !== null && !inner.properties.includes(claim)) return null;
-  const inlineLeaf = force && plansLeaf && splitCapture && kind === 'instance' && !!entry && entry !== 'get-iterator-method'
+  const inlineLeaf = plansLeaf && splitCapture && (kind === 'instance' || !force && kind === null)
+    && !!entry && entry !== 'get-iterator-method'
     && inner.properties.length === 1 && leaf === claim && !leaf.computed && leaf.value.type === 'Identifier'
     && !rest && ancestors.every(level => !level.defaultValue && !level.prop.computed);
-  return { pattern, init, ancestors, leafPattern: inner, leaf, rest, splitCapture, inlineLeaf, hostRest, ctx };
+  let pairedRoot = null;
+  let pairedInit = init;
+  for (const level of inlineLeaf ? ancestors : []) {
+    const root = unwrapRuntimeExpr(pairedInit);
+    if (root?.type !== 'ObjectExpression' || level.pattern.properties[0] !== level.prop
+      || patternHasAnyDefault(level.pattern)
+      || root.properties.length !== level.pattern.properties.length
+      || root.properties.some(item => !isPropertyNode(item)
+        || item.computed && (computedKeyHasSideEffects(item, ctx) || foldedPropertyKeyName(item) === null)
+        || objectPropertyReadValue(item) !== item.value
+        || foldedPropertyKeyName(item) === '__proto__' && !item.computed && !item.shorthand)
+      || level.pattern.properties.some(item => !isPropertyNode(item) || item.computed)
+      || new Set(root.properties.map(foldedPropertyKeyName)).size !== root.properties.length
+      || new Set(level.pattern.properties.map(foldedPropertyKeyName)).size !== level.pattern.properties.length) break;
+    const pairs = new Map(level.pattern.properties.map(item => [item,
+      objectLevelPairedProperty(root, foldedPropertyKeyName(item))?.read]));
+    const selected = pairs.get(level.prop);
+    if (!selected || !receiverPerformsEveryInitEffect(pairedInit, selected, ctx)
+      || [...pairs].some(([item, value]) => !value || (item !== level.prop
+        && !inertPairedLiteralRead(value, ctx)))) break;
+    pairedRoot ??= new Map();
+    for (const [prop, value] of pairs) pairedRoot.set(prop, value);
+    pairedInit = selected;
+  }
+  return { pattern, init, ancestors, leafPattern: inner, leaf, rest, splitCapture, inlineLeaf, hostRest, ctx, pairedRoot };
 }
 
 // The ordered capture a nested claim takes (`planRetainedObjectCapture` renders it), or null: a static
@@ -9410,25 +10199,47 @@ export function orderedClaimCapture({
   // A store in the init (`= kw = box`, behind a prefix too) keeps the value it installs; the hop is read
   // off it after the store. A stored global keeps its own channels, and an assignment's overwrite
   // re-spells a paired slot it can read twice behind the statement.
-  const store = peelChainAssignment(peelNestedSequenceExpressions(init).tail).outer;
+  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  const store = peelChainAssignment(tail).outer;
   const storeLeafPath = store && assignment && adapter && hostPath ? pathOfNode(hostPath, prop) : null;
   // A sole leaf cannot leave an effectful initializer behind its receiver read. Split patterns
   // already keep their ordered slots; a receiver carrying every init effect needs no capture.
   const effectInit = hostPath && soleChainToProp(pattern, prop) && mayHaveSideEffects(init, ctx)
-    ? unwrapRuntimeExpr(peelNestedSequenceExpressions(init).tail) : null;
-  const effectLeaf = effectInit?.type === 'ObjectExpression' ? pathOfNode(hostPath, prop) : null;
+    ? unwrapRuntimeExpr(tail) : null;
+  // Ordinary statement hosts carry a sole receiver prefix through their flat extraction.
+  // Assignments and loop initializers retain the capture needed to serve a nested user receiver.
+  const effectLeaf = effectInit && (effectInit.type === 'ObjectExpression'
+    || prefix.length && !isSeFreeMemberReceiver(effectInit)
+      && (assignment || isForInitDeclaration(hostPath.parentPath?.parentPath?.node, hostPath.parentPath?.node)))
+    ? pathOfNode(hostPath, prop) : null;
   const effectReceiver = effectLeaf && resolveNestedReceiverNode(effectLeaf,
     { allowSeFreeSingleRead: true, allowInitCarriedEffects: true, adapter });
-  // Ordinary declarations can already share a literal memo or repeat a source name. A for
-  // initializer needs its receiver in the same declarator; an effectful read always stays there.
-  const retainsInit = !!effectLeaf && (!isReReferenceableReceiver(effectReceiver)
+  // Ordinary declarations can share a literal memo or repeat a source name. A prefix must
+  // run before the capture, and a for initializer keeps the receiver in its own declarator.
+  const retainsInit = !!effectLeaf && (prefix.length > 0 || !isReReferenceableReceiver(effectReceiver)
     || isForInitDeclaration(hostPath.parentPath?.parentPath?.node, hostPath.parentPath?.node))
     && !receiverPerformsEveryInitEffect(init, effectReceiver, ctx);
+  // A mirrored iterator slot still owns its function leaf. Capture its single read before
+  // the ordinary symbol route dispatches on it; defaults and several leaves keep that route's boundary.
+  const symbolReceiver = !assignment && pattern.properties.length > 1 && prop.value?.type === 'Identifier'
+    && pattern.properties.some(item => item.computed && item.value?.type === 'ObjectPattern'
+      && item.value.properties.length === 1 && item.value.properties[0] === prop
+      && computedKeyWellKnownSymbolName({ keyNode: item.key, ...ctx }) === 'iterator');
+  // Keep this capture's untyped hop admission; the instance consumer supplies its final read.
+  // An allocator-owned receiver already holds the root. Its branching declaration still splits
+  // before a plain nested binding; defaults and quiet singleton chains keep their ordinary extraction.
   let capture = planNestedKeyedPatternCapture({
     pattern,
     init,
     prop,
-    holdsReceiver: retainsResult || retainsInit,
+    entry,
+    plansLeaf: true,
+    holdsReceiver: retainsResult || retainsInit || symbolReceiver
+      || !assignment && sharedLeaf && prop.value?.type === 'Identifier' && init?.type === 'Identifier'
+        && injectorState?.isOwnPassGeneratedName?.(init.name) && !soleChainToProp(pattern, prop)
+      || assignment && pattern.properties.length > 1
+      && (prefix.length > 0 || unwrapRuntimeExpr(tail)?.type !== 'ObjectExpression'
+        || patternHasAnyDefault(pattern) || patternKeepsEffectfulKey(pattern, ctx)),
     sharedLeaf,
     storedValue: !!store && !!hostPath && !resolveObjectName({ objectNode: installedWriteValue(store), ...ctx })
       && !(storeLeafPath && isReReferenceableAcrossReads(resolveNestedReceiverNode(storeLeafPath,
@@ -9446,7 +10257,26 @@ export function orderedClaimCapture({
       && (resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead: true, allowSePeeledFragment: true, adapter })
         ?? (consumedAssignmentSlotLevels(leafPath).levels.slice(1).some(level => level.props > 1)
           ? resolveNestedReceiverNode(leafPath, { allowSePeeledFragment: true, allowInitCarriedEffects: true, adapter }) : null));
-    const hops = receiver && !isReReferenceableAcrossReads(receiver, ctx)
+    const root = unwrapRuntimeExpr(init);
+    // An earlier queued claim already performs its paired source read. If every other
+    // literal value is inert, the later claim does not need to retain the wrapper for it.
+    const paired = isClaimedProp && root?.type === 'ObjectExpression'
+      && root.properties.length === pattern.properties.length
+      && root.properties.every((item, index) => isPropertyNode(item) && !item.computed
+        && objectPropertyReadValue(item) === item.value && foldedPropertyKeyName(item) !== '__proto__'
+        && isPropertyNode(pattern.properties[index]) && !pattern.properties[index].computed
+        && foldedPropertyKeyName(item) === foldedPropertyKeyName(pattern.properties[index]))
+      && new Set(root.properties.map(foldedPropertyKeyName)).size === root.properties.length;
+    const reads = paired ? root.properties.filter(item => !inertPairedLiteralRead(item.value, ctx)) : [];
+    const prior = reads.length === 1 ? root.properties.indexOf(reads[0]) : -1;
+    const queuedRead = prior >= 0 && prior < pattern.properties.findIndex(item => subtreeContainsNode(item, prop))
+      && patternFullyConsumed(pattern.properties[prior].value, isClaimedProp, ctx) ? reads[0] : null;
+    const retainsRead = root?.type === 'ObjectExpression' && (root.properties.some(item => {
+      const node = unwrapRuntimeExpr(item.value);
+      return (node?.type === 'Identifier' || node?.type === 'ThisExpression')
+        && item !== queuedRead && node !== receiver && !inertPairedLiteralRead(node, ctx);
+    }) || !receiverPerformsEveryInitEffect(init, receiver, ctx));
+    const hops = receiver && (!isReReferenceableAcrossReads(receiver, ctx) || retainsRead)
       ? destructureHostThroughWrappers(leafPath.parentPath, adapter)?.hops : null;
     if (hops?.length && hops.every(hop => hop.level.type === 'ObjectPattern' && !hop.defaultNode)) {
       capture = planNestedKeyedPatternCapture({
@@ -9627,7 +10457,11 @@ export function destructurePropLeafMeta({
     const owner = walked?.host;
     const top = walked?.hostPatternPath?.node;
     const receivers = forOfHeadIterableElements(owner)
-      ?? [(owner?.node?.type === 'VariableDeclarator' ? ownRelocatedHeadElement(owner) : null) ?? destructureReceiverNode(owner, top)];
+      ?? [(owner?.node?.type === 'VariableDeclarator' ? ownRelocatedHeadElement(owner) : null) ?? destructureReceiverNode(
+        owner,
+        top,
+        adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+      )];
     if (top && claimUnderSharedHopSlot({ top, receivers, prop, scope, adapter, path })) return { descriptor: host, meta: null };
   }
   if (adapter.method === 'usage-pure' && claimWriteOrderBound({ prop, objectPattern, walked, adapter, resolvePure, resolveStaticKey })) {

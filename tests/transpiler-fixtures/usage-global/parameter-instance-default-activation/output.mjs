@@ -1,0 +1,16 @@
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.flat";
+import "core-js/modules/es.array.species";
+import "core-js/modules/es.array.unscopables.flat";
+// A caller mirror inside a parameter default owns the captured receiver in that activation.
+// Native sibling getters close over that capture after the literal has been constructed.
+function methods({
+  at,
+  flat,
+  length
+}) {
+  return [at, flat, length];
+}
+export function read(result = methods([1, [2]])) {
+  return result;
+}

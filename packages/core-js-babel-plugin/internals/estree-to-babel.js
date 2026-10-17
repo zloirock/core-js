@@ -148,6 +148,8 @@ function build(node) {
       return node.node;
     case 'Identifier':
       return { type: 'Identifier', name: node.name };
+    case 'AssignmentPattern':
+      return { type: 'AssignmentPattern', left: convert(node.left), right: convert(node.right) };
     case 'Literal':
       return convertLiteral(node);
     case 'ExpressionStatement':
@@ -222,6 +224,16 @@ function build(node) {
     case 'ArrayExpression':
       return { type: node.type, elements: node.elements.map(element => element ? convert(element) : null) };
     case 'Property':
+      if (node.kind === 'get') return {
+        type: 'ObjectMethod',
+        kind: 'get',
+        key: convert(node.key),
+        computed: !!node.computed,
+        params: [],
+        body: convert(node.value.body),
+        generator: false,
+        async: false,
+      };
       return {
         type: 'ObjectProperty',
         key: convert(node.key),

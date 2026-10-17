@@ -110,6 +110,7 @@ import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/help
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   disableDirectiveAnchors,
+  directiveCoveredLine,
   isNextLineDisableDirective,
   mergeVisitors,
   parseDisableDirectives,
@@ -168,7 +169,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
-import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
+import { NARROW_ENTRY, resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
   rangePreservingTypes,
@@ -209,16 +210,18 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // set, the claims and the honoured opt-outs are the same on every pass
 function splitMinifierSequence(programPath, t, census) {
   for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot, census })) {
-    const converted = products.map(product => estreeToBabel(product));
+    const converted = products.map(product => t.inheritsComments(t.removeComments(estreeToBabel(product)), product));
+    t.inheritLeadingComments(converted[0], statement);
     // The operand is now a statement. Transfer its outer comments to that host so
     // replacing the operand later cannot discard a comment between sequence products.
     for (const product of converted) {
       t.inheritLeadingComments(product, product.expression);
       t.inheritTrailingComments(product, product.expression);
+      product.leadingComments?.sort((a, b) => a.start - b.start);
+      product.trailingComments?.sort((a, b) => a.start - b.start);
       product.expression.leadingComments = null;
       product.expression.trailingComments = null;
     }
-    t.inheritLeadingComments(converted[0], statement);
     t.inheritTrailingComments(converted[converted.length - 1], statement);
     if (statements) statements.splice(statements.indexOf(statement), 1, ...converted);
     else host[key] = t.blockStatement(converted);
@@ -230,6 +233,13 @@ export default function plugin(api, options) {
   // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
   const { types: babelTypes, caller } = api;
   const t = rangePreservingTypes(babelTypes);
+
+  // Babel prints the value of a shorthand default, skipping comments on its key.
+  // Share those comment objects with the value before the final generator runs.
+  function inheritShorthandDefaultComments({ node }) {
+    if (node.shorthand && node.value?.type === 'AssignmentPattern') t.inheritsComments(node.value.left, node.key);
+  }
+
   // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
   // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
   const pathsKeepParent = Number.parseInt(api.version, 10) >= 8;
@@ -347,6 +357,32 @@ export default function plugin(api, options) {
   // the census's escape half, by NAME. Its sets also key AST-bearing escape-walk caches,
   // so the answer must be released with the rest of the census after each file.
   let escapedCtorNames = null;
+  let lateEscapeProgram = null;
+
+  // Siblings can introduce a constructor after the source census. Refresh only when a late
+  // entry question asks for escapes, before that traversal substitutes the new references.
+  // A shallow Program owns the new census: the source tree keeps its pristine flow tables.
+  function refreshLateCtorEscapes() {
+    if (lateEscapeProgram) {
+      const program = lateEscapeProgram;
+      lateEscapeProgram = null;
+      const source = escapedCtorNames;
+      const late = collectFileCensus({ ...program }, [escapedCtorReferencesReducer()]).escapedCtorNames;
+      escapedCtorNames = {
+        has: (name, held) => source?.has(name, held) === true || late.has(name, held),
+        readsUnnamedStatic: name => source?.readsUnnamedStatic(name) === true || late.readsUnnamedStatic(name),
+      };
+      // Earlier source reads already share one minted binding. Widen its entry in place,
+      // rather than mint a second constructor binding for a sibling's newly opaque use.
+      for (const [sourcePath, name] of injector.pureImports) {
+        const entry = sourcePath.slice(mode.length + 1);
+        if (!NARROW_ENTRY.test(entry)) continue;
+        const info = injector.getBindingInfo(name);
+        const result = resolvePure({ kind: 'global', name: info.hint }, null);
+        if (result && result.entry !== entry) injector.promotePureImport(entry, result.entry);
+      }
+    }
+  }
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead - save a read
@@ -448,6 +484,7 @@ export default function plugin(api, options) {
     getPackages: () => packages,
     parameterCallSites: typeResolvers.parameterCallSites,
     collectBindingReferences: typeResolvers.collectBindingReferences,
+    resolveConstantSelection: typeResolvers.resolveConstantSelection,
   });
 
   // forward references into `createClassHelpers` below: assigned once, right after that call and
@@ -499,6 +536,7 @@ export default function plugin(api, options) {
       // did a claim stand where its value is discarded? its render may then leave as a fold's answer does
       let discardedClaims = false;
       let originalBodyNodes = new WeakSet();
+      let sourceGlobalUses = new WeakMap();
       // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
       // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
       // that pass at all (pre bailed on a destroyed Program, and with it `programExit`) still takes
@@ -535,7 +573,11 @@ export default function plugin(api, options) {
         if (!disabledLines || !programNode) return;
         function isLed(node) {
           const run = node.leadingComments;
-          return !!run?.length && isNextLineDisableDirective(run[run.length - 1].value);
+          const comment = run?.at(-1);
+          if (!comment || !isNextLineDisableDirective(comment.value)) return false;
+          // A moved directive keeps its source gap; attached text alone does not prove coverage.
+          const covered = directiveCoveredLine(comment);
+          return covered === null || covered === node.loc?.start.line;
         }
         for (const node of disableDirectiveAnchors({ ast: programNode, disabledLines, isLed })) {
           (node.leadingComments ??= []).push({ type: 'CommentLine', value: ` ${ DISABLE_NEXT_LINE_DIRECTIVE }` });
@@ -706,6 +748,8 @@ export default function plugin(api, options) {
           if (cur.parentPath.removed) return true;
           const parentNode = cur.parentPath.node;
           if (!parentNode) return true;
+          // A shared node can occupy the new slot while this path still writes its retired container.
+          if (!cur.listKey && cur.container !== parentNode) return true;
           const slot = cur.listKey ? parentNode[cur.listKey]?.[cur.key] : parentNode[cur.key];
           if (slot !== cur.node) {
             // a stale LIST index is NOT an orphan: a sibling insert (e.g. a memoize `var _ref;`
@@ -1218,7 +1262,7 @@ export default function plugin(api, options) {
         // guard read through `?.`, whose `?.` the first pass deliberately kept)
         if ((path.isMemberExpression() || path.isOptionalMemberExpression())
           && ownEmittedNavClaim(path.node, path, ownOutputTests(injector), adapter, meta)) return;
-        if (path.isObjectProperty() && (ownEmittedPatternClaim(path, ownOutputTests(injector))
+        if (path.isObjectProperty() && (ownEmittedPatternClaim(path, ownOutputTests(injector), adapter)
           || sentinelAlreadyProcessed(path, { node: path.node, meta, injector }))) return;
 
         if (meta.guardedAliasHint && (path.isObjectProperty()
@@ -2009,7 +2053,16 @@ export default function plugin(api, options) {
       }
 
       const isPure = method === 'usage-pure';
-      const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
+      function usageCallback(meta, path) {
+        const global = meta.kind === 'global' ? meta.name : meta.object;
+        if (isKnownGlobalName(global)) {
+          // A source reference that usage-global leaves raw is no late introduction. Keep its
+          // name too: a sibling can replace a marker's spelling without replacing the node.
+          if (lateEscapeProgram && sourceGlobalUses.get(path.node) !== global) refreshLateCtorEscapes();
+          else if (!lateEscapeProgram) sourceGlobalUses.set(path.node, global);
+        }
+        return isPure ? usagePureCallback(meta, path) : usageGlobalCallback(meta, path);
+      }
       const commonVisitorOptions = {
         adapter,
         parameterCallSites: typeResolvers.parameterCallSites,
@@ -2323,8 +2376,10 @@ export default function plugin(api, options) {
           // a re-parse of our own pure output carries rest/SE-key sentinels already in place -
           // adopt the census' sentinel-position names so the dispatcher skip re-arms, exactly
           // as unplugin's post pass does (the sentinel names co-occur with pure imports; a
-          // file with none has nothing to adopt from)
-          if (method === 'usage-pure' && injector.existingPureImports.size && fileCensus?.restSentinelNames?.size) {
+          // file with none has nothing to adopt from). Prior output can use another flavor;
+          // the current flavor's dedup targets do not enumerate all recognizable source imports.
+          if (method === 'usage-pure' && fileCensus?.restSentinelNames?.size
+            && ownOutputTests(injector).programMayHoldOwnOutput(path.node)) {
             injector.adoptUnusedNames(fileCensus.restSentinelNames);
           }
           if (removed.size) {
@@ -2734,6 +2789,7 @@ export default function plugin(api, options) {
         // synth-swap entries against an unflushed receiver map, and flush imports the
         // user explicitly suppressed. exit clean so no polyfill leaks into a disabled file
         if (skipFile) return;
+        lateEscapeProgram = path.node;
         reTraverseHelperBodies(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.pruneEmptiedHostDeclarators();
@@ -2805,6 +2861,7 @@ export default function plugin(api, options) {
         // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
         // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
         // emitters do. its derived slots go with it - they are read only during traversal
+        lateEscapeProgram = sourceGlobalUses = null;
         fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = memberKeyNames = null;
       }
 
@@ -2820,6 +2877,8 @@ export default function plugin(api, options) {
         entryDirectiveCandidates = [];
         importStyle = format = null;
         originalBodyNodes = null;
+        sourceGlobalUses = new WeakMap();
+        lateEscapeProgram = null;
         parensPending = true;
         skippedNodes = new WeakSet();
         deadSelections = new Map();
@@ -2897,7 +2956,7 @@ export default function plugin(api, options) {
             // pass would re-walk the whole file it just finished walking
             originalBodyNodes = new WeakSet(this.file.path.node.body);
           }),
-          visitor: {},
+          visitor: { ObjectProperty: inheritShorthandDefaultComments },
           post: withBrand(function entryGlobalPost() {
             // the twin of `postHook`'s first line, for the same reasons spelled out there: last
             // reachable point, and ahead of every bail because a skipped file is reprinted too
@@ -2928,7 +2987,7 @@ export default function plugin(api, options) {
           pre: withBrand(function usageGlobalPre() {
             preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors));
           }),
-          visitor: { Program: { exit: withBrand(programExit) } },
+          visitor: { ObjectProperty: inheritShorthandDefaultComments, Program: { exit: withBrand(programExit) } },
           post: withBrand(postHook),
         };
       }
@@ -2937,7 +2996,7 @@ export default function plugin(api, options) {
         pre: withBrand(function usagePurePre() {
           preTraverse(this.file.path, usageWalkVisitors);
         }),
-        visitor: { Program: { exit: withBrand(programExit) } },
+        visitor: { ObjectProperty: inheritShorthandDefaultComments, Program: { exit: withBrand(programExit) } },
         post: withBrand(postHook),
       };
     })(),

@@ -3,7 +3,9 @@ import { entryToGlobalHint, hasNarrowEntry } from './index.js';
 import {
   peelSkippableWrapperPath,
   allProxySelectingInit,
+  argumentOverridesSlot,
   cachedContainerPaths,
+  collectParamBindingNames,
   containerSlotWritten,
   findVarOwnerDeclaring,
   forOfHeadElements,
@@ -13,6 +15,8 @@ import {
   hoistedDeclarationInScope,
   hopAnchorStart,
   isDestructurePattern,
+  isSloppyAtPath,
+  initializerReachesRead,
   isNullLiteralNode,
   isTypeAnnotationWrapper,
   isVoidExpression,
@@ -20,12 +24,15 @@ import {
   objectLevelPairedProperty,
   ownerWritePathIndex,
   patternSlotCertainDefault,
+  pathOfNode,
   positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
   peelZeroArgIifeReturn,
   proxySelectingBranchKey,
+  referencesArgumentsObject,
+  resolveCallArgument,
   singleReturnBodyExpression,
   singleQuasiString,
   SELECTION_TEST_FIELDS,
@@ -229,6 +236,7 @@ function createResolveNodeType(babelNodeType, t, {
   // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
   getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations);
   const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic);
+
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
   // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
@@ -482,7 +490,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
     if (argPath?.node?.type === 'ArrayExpression') {
       const index = canonicalArrayIndex(key);
-      return index === null ? null : positionalElementPath(argPath, index);
+      return index === null ? null : positionalElementPath(argPath, index, isMutatedStatic);
     }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
     // A getter names the value path through its single returned expression.
@@ -538,7 +546,68 @@ function createResolveNodeType(babelNodeType, t, {
     return memberResolveCluster.enumSlotExternallyWritten(path, [objectName], memberName) ? null : name;
   }
 
-  function resolveComputedKeyName(key, scope, literalValue = literalKeyValue, enumDeclarations = true) {
+  // Initial literal arguments are facts of the complete caller set. An in-flight null also
+  // refuses recursive source queries. Mapped-arguments spellings are indexed once per function;
+  // each read still asks the existing write-order canon whether they can precede that read.
+  const parameterLiteralValues = new WeakMap();
+  const parameterReadFacts = new WeakMap();
+
+  function resolveParameterLiteralValue(parameter, readNode, readPath) {
+    const fn = parameter.parentPath;
+    const parameterRead = pathOfNode(readPath, readNode);
+    if (!parameterRead) return null;
+    let facts = parameterReadFacts.get(fn.node);
+    if (!facts) {
+      const names = collectParamBindingNames(fn.node.params);
+      let closed = fn.node.params.every(param => param.type === 'Identifier')
+        && names?.size === fn.node.params.length;
+      const argumentsReads = [];
+      if (closed && isSloppyAtPath(fn)) {
+        referencesArgumentsObject(fn.node, argumentsReads);
+        // A numeric slot can affect the mapped binding at its read position. Any
+        // other arguments use may expose callers (callee, handouts, descriptors).
+        closed = !writesPastCeiling(argumentsReads) && argumentsReads.every(read => {
+          const member = peelParenAndTSParentPath(pathOfNode(fn, read))?.node;
+          return unwrapRuntimeExpr(member?.object) === read
+            && canonicalArrayIndex(getMemberProperty(member)) !== null;
+        });
+      }
+      parameterReadFacts.set(fn.node, facts = { closed, argumentsReads });
+    }
+    if (!facts.closed || !noReassignmentReachesUsage({
+      reassignmentNodes: facts.argumentsReads, usagePath: parameterRead, usageNode: readNode, bindingScopeNode: fn.node,
+    })) return null;
+    if (parameterLiteralValues.has(parameter.node)) return parameterLiteralValues.get(parameter.node);
+    parameterLiteralValues.set(parameter.node, null);
+    if (!parameterCallerSites.has(parameter.node)) parameterCallerSites.set(parameter.node,
+      patternBindingsCluster.parameterCallSites(parameter, {
+        staticIsMutated: isMutatedStatic,
+        getBindingEntry: (scope, name, path, sourceRead) => getPolyfillBindingEntry(scope, name,
+          hopAnchorStart({ node: sourceRead, ctx: { path } }), useBindingThunk({ scope, name, path, read: sourceRead })),
+      }));
+    const sites = parameterCallerSites.get(parameter.node);
+    if (!sites?.length) return null;
+    let value = null;
+    for (const { pairing, callPath, argIndex } of sites) {
+      if (pairing.argsUnknown || (callPath.node.type === 'TaggedTemplateExpression' && argIndex === 0)) return null;
+      const argument = resolveCallArgument(pairing.args ?? [], argIndex, isMutatedStatic);
+      const argumentPath = argument && pathOfNode(callPath, argument);
+      if (!argumentPath) return null;
+      // Positional pairing can flatten inline spreads; their iterator may change
+      // the scalar the call supplies. Retain the ordinary undecided selection there.
+      for (let cur = argumentPath; cur && cur.node !== callPath.node; cur = cur.parentPath) {
+        if (cur.node.type === 'SpreadElement') return null;
+      }
+      const argumentValue = resolveComputedKeyName(argument, anchorPathScope(argumentPath).scope,
+        literalExactValue, false, argumentPath);
+      if (argumentValue === null || (value !== null && !Object.is(value, argumentValue))) return null;
+      value = argumentValue;
+    }
+    parameterLiteralValues.set(parameter.node, value);
+    return value;
+  }
+
+  function resolveComputedKeyName(key, scope, literalValue = literalKeyValue, enumDeclarations = true, readPath = null) {
     // follow const-binding chains by looping instead of recursing - the Identifier branch
     // re-drives the whole resolution on the binding's init at an incremented depth
     let depth = 0;
@@ -550,7 +619,7 @@ function createResolveNodeType(babelNodeType, t, {
       // re-drive. read-only classification keeps the node in place, so peeling a SE-bearing IIFE is
       // still sound (the correct runtime key). the Identifier branch reaches an IIFE-valued alias init
       // through this same top on its next loop turn
-      const iifeRet = peelZeroArgIifeReturn(key);
+      const iifeRet = peelZeroArgIifeReturn(key, { staticIsMutated: isMutatedStatic });
       if (iifeRet) {
         key = iifeRet;
         depth += 1;
@@ -586,17 +655,29 @@ function createResolveNodeType(babelNodeType, t, {
         // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
         // does not surface here for a use outside its block; no use-path at this site, so the
         // estree hook drops the twin conservatively (generic dispatch) rather than mis-resolving
-        const binding = getScopeBinding({ scope, name: key.name });
+        const binding = getScopeBinding({ scope, name: key.name, path: readPath });
         if (!binding || binding.constantViolations?.length) return null;
         const decl = binding.path;
+        const fn = decl.parentPath;
+        if (readPath && literalValue === literalExactValue && decl.node.type === 'Identifier'
+          && t.isFunction(fn?.node) && fn.node.params.includes(decl.node)) {
+          return resolveParameterLiteralValue(decl, key, readPath);
+        }
         if (!t.isVariableDeclarator(decl.node)) return null;
+        if (readPath && !initializerReachesRead({
+          adapter: getDecisionAdapter(), binding, declaratorNode: decl.node, usagePath: readPath, usageNode: key,
+        })) return null;
         if (!decl.node.init) {
+          // A type-only or uninitialised declaration provides no runtime value for a selection.
+          // Existing computed-key callers have no read anchor and keep their annotation lookup.
+          if (readPath) return null;
           // no value init: a binding typed by a string-literal type (`declare const k: 'len'`) still
           // names a static key - TS only permits a literal-typed (or unique-symbol) binding as a
           // computed key, so read the literal off the id's type annotation. non-literal types bail
           return indexedAccessKey(decl.node.id?.typeAnnotation?.typeAnnotation, literalValue);
         }
         scope = decl.scope ?? scope;
+        if (readPath) readPath = decl;
         // peel `as const` / `satisfies` / parens so `const k = 'len' as const` folds to its literal
         key = unwrapRuntimeExpr(decl.node.init);
         depth += 1;
@@ -660,6 +741,7 @@ function createResolveNodeType(babelNodeType, t, {
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
     findAllEnumDeclarations,
     enumIsNearestValue,
     findAllTypeDeclarations,
@@ -695,6 +777,29 @@ function createResolveNodeType(babelNodeType, t, {
   function decidedOperandPath(path) {
     const key = decidedLiveKey(path.node, path);
     return key ? path.get(key) : null;
+  }
+
+  // A source literal, or a stable binding chain to one, decides a selection independently of
+  // polyfill presence. Keep this answer in the type resolver's value canon: both emitters ask it
+  // through their shared adapter, and every existing selection consumer then sees the same arm.
+  function resolveConstantSelection(node, path) {
+    const testKey = SELECTION_TEST_FIELDS[node?.type];
+    if (!testKey || !path) return null;
+    const adapter = getDecisionAdapter();
+    if (adapter?.isOptedOut?.(node)) return null;
+    const test = unwrapRuntimeExpr(node[testKey]);
+    // This decision can drive a pure fold, so only a direct literal/read may stand in the test slot.
+    // Effects inside an alias initializer have already run at its declaration and remain in the tree.
+    if (test?.type !== 'Identifier' && literalExactValue(test) === null) return null;
+    const anchored = anchorPathScope(path);
+    const value = resolveComputedKeyName(test, anchored.scope, literalExactValue, false, anchored);
+    if (value === null) return null;
+    const truthy = !!value;
+    if (node.type !== 'LogicalExpression') {
+      return { skip: truthy ? 'alternate' : 'consequent', fold: truthy ? 'consequent' : 'alternate', substituted: false };
+    }
+    const runsRight = node.operator === '&&' ? truthy : node.operator === '||' && !truthy;
+    return { skip: runsRight ? null : 'right', fold: runsRight ? 'right' : 'left', substituted: false };
   }
 
   // ... the key that part stands at (`decidedLiveOperandKey`); a node that selects nothing has none
@@ -1143,6 +1248,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolvePath,
     resolveInnerType,
+    resolveRuntimeIterableElement: (...args) => patternBindingsCluster.resolveRuntimeIterableElement(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     generatorTypeParams,
@@ -1164,6 +1270,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectMemberPath: (...args) => resolveObjectMemberPath(...args),
     walkObjectLiteralPropertyPath,
     decidedLiveKey,
+    isMutatedStatic,
   });
   const { resolveReturnType, resolveReturnUnionHints, resolveBodyReturnType, collectReturnPaths } = returnTypeCluster;
 
@@ -1253,17 +1360,15 @@ function createResolveNodeType(babelNodeType, t, {
   function followKeyPathInRhs(rhsPath, keyPath) {
     if (!keyPath?.length || pathSlotWritten(rhsPath, keyPath)) return null;
     let cur = resolveRuntimeExpression(rhsPath);
-    // no numeric-string fold here, unlike the twin `resolveObjectMemberPath`: the sole producer of
-    // this key-path is `findPatternKeyPath`, whose object-pattern namer hands a numeric key over as
-    // a NUMBER, so a string step over an array host cannot arrive. the twin serves producers that
-    // do not normalise, which is why the fold lives there and not here
+    // Array-pattern steps are iterator positions; object keys, including numeric keys, are strings.
+    // The type companion also serves indexed property reads and owns their numeric-string fold.
     for (const [at, step] of keyPath.entries()) {
       let next;
       if (typeof step === 'number') {
         // -1 marks rest-element ("whole tail" slice) - no single Path to surface
         if (step < 0) return null;
-        if (!t.isArrayExpression(cur.node)) return null;
-        next = positionalElementPath(cur, step);
+        if (!t.isArrayExpression(cur.node) || isMutatedStatic('Array.prototype', 'Symbol.iterator')) return null;
+        next = positionalElementPath(cur, step, isMutatedStatic);
         if (!next) return null;
       } else {
         if (!t.isObjectExpression(cur.node)) return null;
@@ -1515,8 +1620,9 @@ function createResolveNodeType(babelNodeType, t, {
     const loop = forXHeadLoopPath(bindingPath);
     const literal = unwrapRuntimeExpr(loop?.node?.right);
     const literalPath = literal ? walkPathToNode(loop.get('right'), literal) : null;
-    if (!literalPath) return null;
-    const first = positionalElementPath(literalPath, 0);
+    if (!literalPath || isMutatedStatic('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(loop.get('right'), ['Symbol.iterator'])) return null;
+    const first = positionalElementPath(literalPath, 0, isMutatedStatic);
     if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') {
       // an element reading its own head back (`for (const Y of [Y])`) names no value: the head is
       // asked again while its element resolves
@@ -1676,6 +1782,7 @@ function createResolveNodeType(babelNodeType, t, {
     getScopeBinding,
     resolveComputedKeyName,
     resolveRuntimeExpression,
+    getDecisionAdapter,
     bindingAdapter: slotCensusAdapter,
     walkObjectLiteralPropertyPath,
     scannedMethodInstall: (...args) => classFieldsCluster.scannedMethodInstall(...args),
@@ -2091,6 +2198,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveNodeType` / `substituteTypeParams` thunked
   const patternBindingsCluster = createPatternBindings({
     t,
+    isMutatedStatic,
     getScopeBinding,
     violationToAssignment: (...args) => callResolutionCluster.violationToAssignment(...args),
     getDecisionAdapter,
@@ -2293,6 +2401,8 @@ function createResolveNodeType(babelNodeType, t, {
     typeRefName,
     findTypeParameter,
     findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
+    getScopeBinding,
     collectQualifiedSegments,
     unwrapTypeAnnotation,
     safeInnerType,
@@ -2445,6 +2555,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveInnerType,
     collectBindingReferences,
+    computeObjectAliasClosure,
+    objectBindingName,
     resolveThisObject,
     resolveObjectFieldFlow,
     walkObjectLiteralPropertyPath,
@@ -2510,6 +2622,9 @@ function createResolveNodeType(babelNodeType, t, {
     resolveUserDefinedType,
     resolveNamedType,
     findTypeParameter,
+    findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
+    getScopeBinding,
     isNullableOrNever,
     safeInnerType,
     tupleAsArrayType,
@@ -2801,7 +2916,7 @@ function createResolveNodeType(babelNodeType, t, {
       const [step] = keys;
       const node = receiver?.node;
       if (node?.type === 'ArrayExpression' && typeof step === 'number' && step >= 0) {
-        const element = positionalElementPath(receiver, step);
+        const element = positionalElementPath(receiver, step, isMutatedStatic);
         if (!element) return null;
         receiver = resolveRuntimeExpression(element);
       } else if (node?.type === 'ObjectExpression' && typeof step === 'string') {
@@ -2826,13 +2941,23 @@ function createResolveNodeType(babelNodeType, t, {
     return { receiver, keys };
   }
 
-  function resolveGlobalSurfaceKeyPath(initPath, keyPath, projectValues = true) {
-    if (keyPath.at(-1) !== 'prototype') return null;
+  function resolveGlobalSurfaceKeyPath(initPath, keyPath, projectValues = true, verdict = null,
+    { unionHints = false, depth = 0 } = {}) {
+    if (depth > MAX_DEPTH) return null;
+    if (keyPath.length && keyPath.at(-1) !== 'prototype') return null;
     const init = resolveRuntimeExpression(initPath);
     const descended = descendLiteralKeyPrefix(realmSelectingBranch(init) ?? init, keyPath);
-    if (!descended) return null;
+    if (!descended || descended.keys.at(-1) !== 'prototype') return null;
     const { receiver: inner, keys } = descended;
     const resolved = realmSelectingBranch(inner) ?? inner;
+    // Project each constructor arm at its own read. The source selection and its effects stay intact.
+    if (resolved?.node?.type === 'ConditionalExpression') {
+      const arms = [resolved.get('consequent'), resolved.get('alternate')];
+      return unionHints
+        ? mergeArmHints(arms, 0, () => null, arm => resolveGlobalSurfaceKeyPath(arm, keys, projectValues, verdict,
+          { unionHints: true, depth: depth + 1 }))
+        : foldUnionTypes(arms, arm => resolveGlobalSurfaceKeyPath(arm, keys, projectValues, verdict, { depth: depth + 1 }));
+    }
     // a MEMO the emitter planted mid-render stands where the source wrote the nav, and what it holds
     // is the alias it was registered under - the name a claim asking AFTER that memo landed reads
     // ... and a root the value canon proves to BE the global object without naming it - a call
@@ -2846,11 +2971,14 @@ function createResolveNodeType(babelNodeType, t, {
       ?? (isGlobalProxy(resolved) ? 'globalThis' : null);
     // The same projection serves member and pattern spellings of a mutable container.
     // Its own leaf fallback asks only for a pristine surface, so cycles stay in that walk.
-    if (!rootName) return projectValues ? resolveObjectMemberPath(resolved, keys, resolved, false, { projectValues: true }) : null;
+    if (!rootName) return projectValues ? resolveObjectMemberPath(resolved, keys, resolved, unionHints, { projectValues: true }) : null;
     const aliased = resolved?.node?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(rootName)
       && !resolveKnownConstructor(rootName)
       ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null;
     const root = aliased ?? rootName;
+    // A recognized surface whose slot was replaced is an unknown answer, not permission
+    // to retry the less restrictive member walk and infer the original constructor again.
+    if (verdict && (POSSIBLE_GLOBAL_OBJECTS.has(root) || resolveKnownConstructor(root))) verdict.knownSurface = true;
     const hops = keys.slice(0, -1);
     // the constructor is the last hop the pattern names, or the init itself where the hops carry
     // none - a collapsed proxy nav leaves the ctor there (`{ prototype: { at } } = _globalThis.Array`).
@@ -2872,7 +3000,8 @@ function createResolveNodeType(babelNodeType, t, {
     // where the ctor comes from the KEY PATH, everything ahead of it walks the global object
     if (hops.length && (!POSSIBLE_GLOBAL_OBJECTS.has(root) || !hops.slice(0, -1).every(proxyStep))) return null;
     if (typeof ctorName !== 'string' || babelBindingAdapter.isMutatedStatic('globalThis', ctorName)) return null;
-    return resolvePrototypeInstance(ctorName);
+    const instance = resolvePrototypeInstance(ctorName);
+    return unionHints ? mergeArmHints([resolved], 0, () => instance, () => null) : instance;
   }
 
   // resolve the type of the object from which a property is accessed:
@@ -2968,6 +3097,8 @@ function createResolveNodeType(babelNodeType, t, {
   function forOfElementSlotType(forOfPath, keyPath, slotDefault) {
     if (!keyPath?.length) return NO_SLOT_ANSWER;
     const iterated = resolveRuntimeExpression(forOfPath.get('right'));
+    if (t.isArrayExpression(iterated?.node) && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(forOfPath.get('right'), ['Symbol.iterator']))) return null;
     const elements = iterated?.node?.type === 'ArrayExpression'
       ? cachedContainerPaths(iterated, 'elements') : [];
     const values = elements.map(element => resolveRuntimeExpression(element));
@@ -3013,6 +3144,138 @@ function createResolveNodeType(babelNodeType, t, {
     });
   }
 
+  // A closed parameter has one source receiver per proven invocation. Keep that source
+  // fact before pure mirrors replace arguments; both the scalar and family queries read it.
+  // Defaults select undefined alone, and nested defaults change the remaining member path.
+  const parameterReceiverFacts = new WeakMap();
+  const parameterCallerSites = new WeakMap();
+  const primedParameterFunctions = new WeakSet();
+  function resolveParameterReceiver(objectPattern) {
+    if (parameterReceiverFacts.has(objectPattern.node)) return parameterReceiverFacts.get(objectPattern.node);
+    let parameter = objectPattern;
+    const defaults = [];
+    while (PATTERN_WRAPPERS.has(babelNodeType(parameter.parentPath?.node))) {
+      parameter = parameter.parentPath;
+      if (parameter.node.type === 'AssignmentPattern') defaults.unshift(parameter);
+    }
+    const fn = parameter.parentPath;
+    if (!t.isFunction(fn?.node) || !fn.node.params.includes(parameter.node)) return null;
+    parameterReceiverFacts.set(objectPattern.node, null);
+    const parameterAnnotation = findBindingAnnotation(parameter);
+    if (!parameterAnnotation && referencesArgumentsObject(fn.node)) return null;
+    if (!parameterCallerSites.has(parameter.node)) {
+      parameterCallerSites.set(parameter.node, patternBindingsCluster.parameterCallSites(parameter, {
+        staticIsMutated: isMutatedStatic,
+        getBindingEntry: (scope, name, path, readNode) => getPolyfillBindingEntry(scope, name,
+          hopAnchorStart({ node: readNode, ctx: { path } }), useBindingThunk({ scope, name, path, read: readNode })),
+      }));
+    }
+    const sites = parameterCallerSites.get(parameter.node);
+    const keyPath = collectPatternKeyPath(objectPattern);
+    if (!keyPath) return null;
+    const levels = defaults.map(path => ({ path, depth: collectPatternKeyPath(path.get('left')).length }));
+    const rootDefault = !sites?.length && levels.find(level => level.depth === 0)?.path.get('right');
+    const rootDefaultInfo = rootDefault?.node ? findExpressionAnnotation(rootDefault) : null;
+    const rootDefaultType = rootDefaultInfo && (keyPath.length
+      ? resolveAnnotatedMemberPath(rootDefaultInfo.annotation, keyPath, rootDefaultInfo.scope)
+      : resolveTypeAnnotation(rootDefaultInfo.annotation, rootDefaultInfo.scope));
+    // An open parameter has no runtime caller census. A written receiver annotation still
+    // describes the supplied TypeScript arguments, while the peeled default source remains
+    // a distinct runtime arm. Opaque / cross-family annotations keep the conservative answer.
+    if (!sites?.length && !rootDefaultType && !parameterAnnotation) return null;
+    function read(source, keys, unionHints = false, supplied = false) {
+      // A supplied value follows the parameter's written annotation in its declaration scope.
+      // Runtime defaults keep their own source arm; an opaque annotation proves no family.
+      if (supplied && parameterAnnotation && (keys.length || source === parameter)) {
+        const type = keys.length ? resolveAnnotatedMemberPath(parameterAnnotation, keys, parameter.scope)
+          : resolveTypeAnnotation(parameterAnnotation, parameter.scope);
+        if (!unionHints) return type;
+        const projected = unwrapTypeAnnotation(annotationAtKeyPath(parameterAnnotation, keys, parameter.scope));
+        return isUnionType(projected) ? annotationUnionHints(projected, parameter.scope)
+          : type && mergeArmHints([source], 0, () => type);
+      }
+      if (!source?.node) return keys.length ? null : unionHints ? new Set() : new $Primitive('undefined');
+      // A slot write does not erase the caller's explicit annotation; runtime values still use the field walk below.
+      if (keys.length && pathSlotWritten(source, keys) && !findExpressionAnnotation(source)) return null;
+      const verdict = {};
+      const surface = resolveGlobalSurfaceKeyPath(source, keys, false, verdict);
+      if (verdict.knownSurface) return unionHints ? surface && mergeArmHints([source], 0, () => surface) : surface;
+      if (!keys.length) {
+        if (unionHints) return mergeArmHints([source], 0);
+        const peeled = peelSkippableWrapperPath(source);
+        const runtime = resolveNodeType(peeled);
+        if (runtime || peeled.node === source.node) return runtime;
+        // A transparent assertion can hide a runtime union whose scalar fold is null. Preserve
+        // that union before using the assertion as a fallback; direct sources avoid this query.
+        return mergeArmHints([source], 0)?.size ? null : resolveNodeType(source);
+      }
+      const runtime = resolveObjectMemberPath(resolveRuntimeExpression(source), keys, source, unionHints);
+      if (runtime || unionHints) return runtime;
+      const info = findExpressionAnnotation(source);
+      return info ? resolveAnnotatedMemberPath(info.annotation, keys, info.scope) : null;
+    }
+    function project(source, offset = 0, at = 0, supplied = false) {
+      for (; at < levels.length; at++) {
+        const { path, depth } = levels[at];
+        const keys = keyPath.slice(offset, depth);
+        const type = read(source, keys, false, supplied);
+        if (type?.primitive && type.type === 'undefined'
+          || source?.node && keys.length && slotDefaultFiresCertainly(source, keys, path)) {
+          source = path.get('right');
+          offset = depth;
+          supplied = false;
+        } else if (!type) return [null];
+        else if (type.mayBeNullish && !isNullableOrNever(type)) {
+          return [...project(source, offset, at + 1, supplied), ...project(path.get('right'), depth, at + 1)];
+        }
+      }
+      const keys = keyPath.slice(offset);
+      return [{ source, keys, supplied, type: read(source, keys, false, supplied) }];
+    }
+    const receivers = sites?.length ? sites.flatMap(({ pairing, callPath, argIndex }) => {
+      if (pairing.argsUnknown) return [null];
+      const argument = resolveCallArgument(pairing.args ?? [], argIndex, isMutatedStatic);
+      if (!argument && argumentOverridesSlot(pairing.args ?? [], argIndex,
+        () => !!getScopeBinding({ scope: callPath.scope, name: 'undefined', path: callPath }), isMutatedStatic)) return [null];
+      const source = argument ? pathOfNode(callPath, argument) : null;
+      return argument && !source?.node ? [null] : project(source, 0, 0, true);
+    }) : parameterAnnotation ? [
+      ...project(parameter, 0, levels[0]?.depth === 0 ? 1 : 0, true),
+      ...levels[0]?.depth === 0 ? project(null) : [],
+    ] : [...project(null), { source: rootDefault, keys: keyPath, type: rootDefaultType }];
+    let hints = new Set();
+    for (const receiver of receivers) {
+      const type = receiver?.type;
+      if (type) {
+        if (isNullableOrNever(type)) continue;
+        const hint = toHint(type);
+        if (hint && TYPE_HINTS.has(hint)) hints.add(hint);
+      } else {
+        const inner = receiver && read(receiver.source, receiver.keys, true, receiver.supplied);
+        if (!inner) {
+          hints = null;
+          break;
+        }
+        for (const hint of inner) hints.add(hint);
+      }
+    }
+    const fact = { type: foldUnionTypes(receivers, receiver => receiver?.type ?? null), hints };
+    parameterReceiverFacts.set(objectPattern.node, fact);
+    // One mirror can replace a whole caller container. Prime its sibling patterns from
+    // the same source tree now, even when that sibling's first query comes after rendering.
+    if (!primedParameterFunctions.has(fn.node)) {
+      primedParameterFunctions.add(fn.node);
+      for (const node of fn.node.params) walkAstNodes({ root: node, visit: child => {
+        if (child.type === 'ObjectPattern' && child !== objectPattern.node) {
+          const path = pathOfNode(fn, child);
+          if (path?.node) resolveParameterReceiver(path);
+        }
+        return !t.isFunction(child);
+      } });
+    }
+    return fact;
+  }
+
   function resolvePropertyObjectTypeUncached(path, verdict = {}) {
     if (isMemberLike(path)) {
       // A declared enum's own value slot is not an instance-method lookup. Keep visiting
@@ -3034,6 +3297,11 @@ function createResolveNodeType(babelNodeType, t, {
     if (objectPattern.node.typeAnnotation) {
       return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
     }
+    const parameter = resolveParameterReceiver(objectPattern);
+    if (parameter) {
+      verdict.perIteration = false;
+      return parameter.type;
+    }
     const parent = objectPattern.parentPath;
     // a DEFAULT between this pattern and its slot makes the receiver a two-armed value: the slot's
     // own type when it is defined, the default's when it is not. picking the slot's alone injects
@@ -3042,7 +3310,10 @@ function createResolveNodeType(babelNodeType, t, {
     const slotDefault = parent?.node?.type === 'AssignmentPattern' && parent.node.left === objectPattern.node
       ? parent.get('right') : null;
     if (slotDefault?.node && t.isFunction(parent.parentPath?.node)
-      && patternBindingsCluster.defaultParamNeverOverridden(parent)) return resolveNodeType(slotDefault);
+      && patternBindingsCluster.defaultParamNeverOverridden(parent)) {
+      verdict.perIteration = false;
+      return resolveNodeType(slotDefault);
+    }
     function foldDefault(type) {
       if (!slotDefault?.node) return type;
       if (type?.inheritedPresent) return type;
@@ -3140,6 +3411,8 @@ function createResolveNodeType(babelNodeType, t, {
         const annotation = unwrapTypeAnnotation(objectPattern.node.typeAnnotation);
         if (isUnionType(annotation)) hints = annotationUnionHints(annotation, objectPattern.scope);
       } else {
+        const parameter = resolveParameterReceiver(objectPattern);
+        if (parameter) return parameter.hints?.size ? parameter.hints : null;
         const initPath = getPatternInit(objectPattern.parentPath);
         if (initPath?.node) hints = unionReceiverHints(resolveRuntimeExpression(initPath), 0);
         else hints = nestedReceiverUnionHints(objectPattern, path);
@@ -3161,11 +3434,14 @@ function createResolveNodeType(babelNodeType, t, {
     }
     const initPath = keyPath?.length ? getPatternInit(ancestor) : null;
     if (!initPath?.node) return null;
-    const fields = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath, true, { projectValues: true });
+    const fields = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath, true, { projectValues: true })
+      ?? resolveGlobalSurfaceKeyPath(initPath, keyPath, true, null, { unionHints: true });
     // An empty field census alone proves no family, not absence: a spread can still supply the slot.
     if (ownDefault && fields?.size === 0) return null;
     const index = keyPath.length === 1 ? canonicalArrayIndex(keyPath[0]) : null;
-    const arms = fields || index === null ? null : literalElementUnionPaths(initPath, index, anchorPath);
+    const iterated = typeof keyPath[0] === 'number';
+    const arms = fields || index === null || iterated && (isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(initPath, ['Symbol.iterator'])) ? null : literalElementUnionPaths(initPath, index, anchorPath);
     const hints = fields ?? (arms ? mergeArmHints(arms, 0) : null);
     if (!ownDefault || !hints) return hints;
     const fallback = mergeArmHints([ownDefault.get('right')], 0);
@@ -3241,6 +3517,11 @@ function createResolveNodeType(babelNodeType, t, {
     // key is unknown
     if (!isMemberLike(path)) return null;
     const key = resolveMemberPropertyName(path);
+    if (key === 'prototype') {
+      // Mutable user values belong to the member walk below; this fallback proves only a realm surface.
+      const surface = resolveGlobalSurfaceKeyPath(path.get('object'), ['prototype'], false, null, { unionHints: true });
+      if (surface) return surface;
+    }
     const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
     if (key !== null && key !== undefined) {
       const fields = memberResolveCluster.resolveMemberOfObjectPath(path.get('object'), key, null, true);
@@ -3268,6 +3549,8 @@ function createResolveNodeType(babelNodeType, t, {
     // a `const` for-of HEAD holds each element of the literal it iterates, one per pass
     if (!declarator.init) {
       const loop = forXHeadLoopPath(declaratorPath);
+      if (t.isForOfStatement(loop?.node) && t.isArrayExpression(resolveRuntimeExpression(loop.get('right')).node)
+        && (isMutatedStatic('Array.prototype', 'Symbol.iterator') || pathSlotWritten(loop.get('right'), ['Symbol.iterator']))) return null;
       const elements = t.isForOfStatement(loop?.node) && binding.kind === 'const'
         ? literalElementUnionPaths(loop.get('right'), null, path) : null;
       return elements?.length ? mergeArmHints(elements, depth) : null;
@@ -3437,6 +3720,7 @@ function createResolveNodeType(babelNodeType, t, {
     reset,
     resolveClaimableComputedKeyName,
     resolveComputedKeyName,
+    resolveConstantSelection,
     resolveGuardHints,
     resolveNodeType,
     resolvePropertyObjectType,

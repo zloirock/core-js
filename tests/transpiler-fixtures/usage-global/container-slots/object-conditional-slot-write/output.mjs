@@ -1,4 +1,3 @@
-import "core-js/modules/es.object.entries";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.map.constructor";
@@ -7,7 +6,7 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// A conditional slot write leaves both runtime constructor candidates possible at the read.
+// The closed truthy caller makes the slot write replace Object with Map before the read.
 const conditionalSlotWrite = function (flag) {
   const maybe = {
     k: Object

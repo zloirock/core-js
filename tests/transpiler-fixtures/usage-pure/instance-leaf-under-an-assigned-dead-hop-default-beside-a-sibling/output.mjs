@@ -1,22 +1,22 @@
-// An instance leaf under a hop default the assigned literal proves dead, beside a sibling: unplugin extracts
-// it off the literal's slot (the sidecar), while babel keeps the read native - its debt. The declaration form
-// keeps it native in both emitters.
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+var _ref, _ref2, _ref3;
+// An assigned literal supplies the live nested instance receiver beside an outer sibling.
+// The captured slot supplies the instance helper; the dead hop default never runs.
 let fl, zw;
 const holder = {
   list: [1, 2]
 };
-({
-  w: {
-    y: {
-      flat: fl
-    }
-  } = {
-    y: [1]
-  },
-  zw
-} = {
+_ref = {
   w: {
     y: holder.list
   },
   zw: 1
-});
+}, {
+  w: _ref2 = {
+    y: [1]
+  }
+} = _ref, {
+  y: _ref3
+} = _ref2, fl = _flatMaybeArray(_ref3), {
+  zw
+} = _ref;

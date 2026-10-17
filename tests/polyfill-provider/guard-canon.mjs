@@ -761,4 +761,22 @@ for (const literal of ['{ p0 }', '[p0]']) {
   });
 }
 
+for (const [label, source, captured] of [
+  ['stable local', 'const Ctor = choose(); Ctor.of(1);', false],
+  ['reachable writer', 'let Ctor = choose(); function change() { Ctor = Array; } expose(change); Ctor.of(1);', true],
+  ['quiet free name', 'Ctor.of(1);', false],
+]) runBoth(`guard receiver reuse/${ label }`, source, (parser, program, name) => {
+  const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'of');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath.node, path, adapter,
+    meta: { key: 'of', guardedAliasHint: 'Array', captureGuardReceiver: true },
+    resolvePure: meta => meta.kind === 'property' && meta.object === 'Array' && meta.key === 'of'
+      ? { kind: 'static', entry: 'array/of', hintName: 'of' } : null,
+  });
+  checkTruthy(`${ name }/admitted`, plan && !plan.bail);
+  check(`${ name }/capture`, !!plan.captureReceiver, captured);
+  check(`${ name }/callee stays in its branch`, plan.callInBranches, true);
+});
+
 finish();

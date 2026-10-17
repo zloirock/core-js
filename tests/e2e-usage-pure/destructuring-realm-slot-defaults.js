@@ -159,3 +159,22 @@ QUnit.test('realm slot defaults: an unfilled built-in slot under a proxy hop fal
   }));
 });
 /* eslint-enable es/no-weakrefs -- end of the unfilled-slot forms */
+
+QUnit.test('a decided falsy realm arm keeps the declaration fallback', assert => {
+  const zero = 0;
+  let calls = 0;
+  // The fallback prefix must run once.
+  const { Array: { from } } = (zero && globalThis) || (calls++, (() => globalThis)());
+  assert.deepEqual(from('ab'), ['a', 'b']);
+  assert.same(calls, 1);
+});
+
+QUnit.test('a decided falsy realm default keeps the supplied receiver bypass', assert => {
+  const zero = 0;
+  let calls = 0;
+  // The receiver default prefix belongs to the absent arm.
+  function read({ Array: { from } } = (zero && globalThis) || (calls++, globalThis)) { return from('ab'); }
+  assert.deepEqual(read(), ['a', 'b']);
+  assert.deepEqual(read({ Array: { from: () => ['own'] } }), ['own']);
+  assert.same(calls, 1);
+});

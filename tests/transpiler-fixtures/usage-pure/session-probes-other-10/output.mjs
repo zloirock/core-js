@@ -264,14 +264,8 @@ function mark(t, v) {
 }
 {
   let v, a;
-  ({
-    w: {
-      values: v
-    },
-    y: {
-      at: a
-    }
-  } = r);
+  v = _values(r.w);
+  a = _at(r.y);
   [v, a];
 }
 {

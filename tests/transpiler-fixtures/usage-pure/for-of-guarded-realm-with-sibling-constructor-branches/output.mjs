@@ -1,17 +1,18 @@
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-// A guarded realm element supplies sibling constructor branches and an opaque key.
-// Pure support on this rare loop host stops at existing routes: Babel keeps of native,
-// while unplugin extracts it (the sidecar). The opaque read and false-arm throw remain.
+import _Object$keys from "@core-js/pure/actual/object/keys";
+// The local true guard makes the realm element the only reachable loop value. Pure extraction serves
+// Array.of and Object.keys while the opaque key still reads the actual Array object. The unknown guard
+// remains explicit in `for-of-head-destructuring-a-realm-selection`: Babel native, unplugin mirrored.
 let enabled = true;
 const key = String(Math.random() > 2);
-for (const {
-  Array: {
-    of,
-    [key]: extra
-  },
-  Object: {
-    keys
-  }
-} of [enabled && _globalThis]) {
+for (const _ref of [enabled && _globalThis]) {
+  const of = _Array$of;
+  const keys = _Object$keys;
+  const {
+    Array: {
+      [key]: extra
+    }
+  } = _ref;
   use(of, keys, extra);
 }

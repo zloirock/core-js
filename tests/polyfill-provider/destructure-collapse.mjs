@@ -7,22 +7,44 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { buildNestedDestructurePlan, planCatchClauseExtraction, resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
+  computedRootMemoChain,
+  decidedSelection,
   destructurePropLeafMeta,
   isReReferenceableAcrossReads,
   residualInitRunsEffects,
+  resolveNestedReceiverChain,
   resolvePositionalElementSlot,
   seKeyStaticOwesTheMirror,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
+import { restSentinelNamesReducer, sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { HOST_SLOT, hostSlot, renderProxyReceiverPlan, callExpression, identifier } from '../../packages/core-js-polyfill-provider/render.js';
 import {
   planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderArrayDestructurePlan,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { isPropertyNode, patternFullyConsumed, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus, isPropertyNode, patternFullyConsumed, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
+
+// Plain deep proxy navigation uses the receiver's throw proof; live guards and a
+// shadowed host still need the source's runtime selection.
+for (const [name, source, folded] of [
+  ['deep effect-key namespace', 'let count = 0; const { getOwnPropertyNames } = globalThis.self[(count++, "window")].Object || Object;', true],
+  ['live window guard', 'let count = 0; const { getOwnPropertyNames } = globalThis.window?.self[(count++, "window")].Object || Object;', false],
+  ['missing optional namespace', 'const { getOwnPropertyNames } = globalThis.window?.Object || Object;', false],
+  ['shadowed host', 'function read(globalThis) { let count = 0; const { getOwnPropertyNames } = globalThis.self[(count++, "window")].Object || Object; }', false],
+]) runBoth(`logical namespace collapse/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'LogicalExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', isEntryAvailable: () => true,
+  });
+  const original = JSON.stringify(path.node);
+  const decision = decidedSelection(path.node, { scope: path.scope, adapter, path });
+  check(`${ label }/dead right`, decision?.skip ?? null, folded ? 'right' : null);
+  check(`${ label }/running value`, decision?.fold ?? null, folded ? 'left' : null);
+  check(`${ label }/source remains live`, JSON.stringify(path.node), original);
+});
 
 for (const [name, source, expected, mutations = []] of [
   ['free source identifier', 'const [{ at, keys }] = [arr];', true],
@@ -38,6 +60,20 @@ for (const [name, source, expected, mutations = []] of [
     method: 'usage-pure', getMutatedStatics: () => new Set(mutations),
   });
   check(label, isReReferenceableAcrossReads(path.node.init.elements[0], { path, scope: path.scope, adapter }), expected);
+});
+
+for (const [name, declaration, reusable] of [
+  ['free name', '', true],
+  ['ambient name', 'declare const box: { includes: unknown, y: { at: unknown } };', true],
+  ['live import', 'import box from "other";', false],
+  ['constant binding', 'const box = {};', true],
+  ['completed frame write', 'let box = {}; box = other;', true],
+]) runBoth(`nested receiver root/${ name }`, `${ declaration } const { includes, y: { at } } = box;`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label } shared source requires a reusable root`, !!resolveNestedReceiverChain(prop, { soleSlots: true, adapter }), reusable);
+  checkTruthy(`${ label } explicit root capture retains the claim`, resolveNestedReceiverChain(prop, { soleSlots: true, rootMemoized: true, adapter }));
+  check(`${ label } shared memo owns an unstable root`, !!computedRootMemoChain(prop, adapter), !reusable);
 });
 
 // Mirror ownership depends on the key's scoped effects, the constructor hop and the root's throw.
@@ -2016,6 +2052,301 @@ for (const [source, unused, positions, reused] of [
   }
   check(`${ label } only required receiver snapshots mint bindings`, minted, positions - Number(unused) - reused);
   check(`${ label } original host unchanged`, JSON.stringify(host.node), original);
+});
+
+for (const [name, source, accepted] of [
+  ['closed keyed alias', 'const row = [[], 0]; const { w: [{ at: method }, tail] } = { w: row };', true],
+  ['defaulted claim', 'const row = [[], 0]; const { w: [{ at: method = fallback }, tail] } = { w: row };', false],
+  ['computed claim', 'const row = [[], 0]; const { w: [{ [key]: method }, tail] } = { w: row };', false],
+  ['third slot', 'const row = [[], 0, 1]; const { w: [{ at: method }, tail, third] } = { w: row };', false],
+  ['pattern sibling', 'const row = [[], 0]; const { w: [{ at: method }, tail], other } = { w: row };', false],
+  ['source sibling', 'const row = [[], 0]; const { w: [{ at: method }, tail] } = { w: row, other: 1 };', false],
+  ['prototype setter source', 'const row = [[], 0]; const { __proto__: [{ at: method }, tail] } = { __proto__: row };', false],
+  ['multi declarator', 'const row = [[], 0], { w: [{ at: method }, tail] } = { w: row };', false],
+  ['export', 'const row = [[], 0]; export const { w: [{ at: method }, tail] } = { w: row };', false],
+]) runBoth(`array plan/interleaved instance yield/${ name }`, source, (parser, program, label) => {
+  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = buildNestedDestructurePlan({
+    arrayPath,
+    adapter,
+    resolvePure: meta => meta.key === 'at'
+      ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null,
+  });
+  check(`${ label }/closed route`, !!plan?.array.interleavedIterator, accepted);
+  if (!accepted) return;
+  const imports = [];
+  let minted = 0;
+  const output = renderArrayDestructurePlan(plan, {
+    kind: 'const', embed: node => node, retain: node => node,
+    injectImport(entry) { imports.push(entry); return entry.replaceAll('/', '$'); },
+    read: (extraction, receiver) => callExpression(identifier('readAt'), [receiver]),
+    mintRef: () => `held${ ++minted }`,
+  });
+  const [iterator, first, claim, tail] = output.map(statement => statement.declarations[0]);
+  checkDeep(`${ label }/control imports`, imports, ['get-iterator', 'iterator/map']);
+  check(`${ label }/one mapped source`, iterator.init.callee.name, 'iterator$map');
+  check(`${ label }/mapper materializes the claimed read`,
+    iterator.init.arguments[1].body.consequent.properties[0].kind, 'init');
+  check(`${ label }/first step precedes claim binding`, first.init.callee.object, iterator.id);
+  check(`${ label }/original claim pattern owns binding`, claim.id, arrayPath.node.id.properties[0].value.elements[0]);
+  check(`${ label }/tail continues the same iterator`, tail.init, iterator.id);
+});
+
+// Host planners run before property metadata exists. Recover iterator provenance
+// through the scoped key canon, while a user key or shadow stays unclaimed.
+for (const [name, prefix, pattern, suffix, expected] of [
+  ['imported key', 'import iteratorKey from "@core-js/pure/actual/symbol/iterator";', '[iteratorKey]', '', true],
+  ['required key', 'const iteratorKey = require("@core-js/pure/actual/symbol/iterator");', '[iteratorKey]', '', true],
+  ['bare symbol', '', '[Symbol.iterator]', '', true],
+  ['bound symbol', 'const iteratorKey = Symbol.iterator;', '[iteratorKey]', '', true],
+  ['computed user key', 'const iteratorKey = "custom";', '[iteratorKey]', '', false],
+  ['other symbol', '', '[Symbol.toStringTag]', '', false],
+  ['string data key', '', '["Symbol.iterator"]', '', false],
+  ['shadowed imported key', 'import iteratorKey from "@core-js/pure/actual/symbol/iterator"; function read(iteratorKey) {', '[iteratorKey]', '}', false],
+  ['shadowed Symbol', 'function read(Symbol) {', '[Symbol.iterator]', '}', false],
+  ['shadowed require', 'function read(require) { const iteratorKey = require("@core-js/pure/actual/symbol/iterator");', '[iteratorKey]', '}', false],
+  ['reassigned key', 'let iteratorKey = Symbol.iterator; iteratorKey = "custom";', '[iteratorKey]', '', false],
+]) runBoth(`sentinel/meta-free iterator/${ name }`,
+  `${ prefix } const { ${ pattern }: _unused } = source; const method = _getIteratorMethod(source); ${ suffix }`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const injector = injectorFor({
+      generated: ['_unused'], adopted: ['_unused'],
+      pureImports: { _getIteratorMethod: { entry: 'get-iterator-method' } },
+    });
+    check(label, sentinelAlreadyProcessed(path, { node: path.node, meta: null, injector, adapter }), expected);
+    check(`${ label }/missing sibling`, sentinelAlreadyProcessed(path, {
+      node: path.node, meta: null, adapter, injector: injectorFor({ generated: ['_unused'], adopted: ['_unused'] }),
+    }), false);
+  });
+
+// Prior output can come from another flavor, outside this pass's import registry.
+// Recognition still needs a runtime binding for the same key, in the same scope.
+// The type-only negative deliberately uses an erased binding, which TypeScript rejects.
+for (const [name, prefix, params, key, expression, expected] of [
+  ['actual iterator', 'import method from "@core-js/pure/actual/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
+  ['full iterator', 'import method from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
+  ['named default', 'import {default as method} from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
+  ['required iterator', 'const method=require("@core-js/pure/stable/get-iterator-method");', '', '[Symbol.iterator]', 'method(globalThis)', true],
+  ['aliased package', 'import method from "@vendor/pure/features/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
+  ['static', 'import method from "@core-js/pure/es/array/from";', '', 'from', 'method', true],
+  ['namespace', 'import method from "@core-js/pure/full/array/from";', '', 'Array', 'method', true],
+  ['realm', 'import method from "@core-js/pure/actual/array/from";', '', 'window', 'method', true],
+  ['wrong key', 'import method from "@core-js/pure/full/array/from";', '', 'of', 'method', false],
+  ['uncalled iterator', 'import method from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method', false],
+  ['shadow', 'import method from "@core-js/pure/full/get-iterator-method";', 'method', '[Symbol.iterator]', 'method(globalThis)', false],
+  ['reassigned', 'let method=require("@core-js/pure/actual/get-iterator-method");method=custom;', '', '[Symbol.iterator]', 'method(globalThis)', false],
+  ['type only', 'import type method from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', false],
+]) runBoth(`sentinel/source import/${ name }`,
+  `${ prefix } function read(${ params }){const{${ key }:_unused}=globalThis;return ${ expression };}`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type, item => item.node.value?.name === '_unused');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const original = JSON.stringify(program.node);
+    check(label, sentinelAlreadyProcessed(path, {
+      node: path.node, meta: null, adapter, injector: injectorFor({ generated: ['_unused'], adopted: ['_unused'] }),
+    }), expected);
+    check(`${ label }/read only`, JSON.stringify(program.node), original);
+  });
+
+// The extraction can be the terminal value rather than an intermediate declaration.
+// Import aliases still name the same entry; a local shadow or live pattern binding does not.
+const iteratorHelperImport = 'import readIterator from "@core-js/pure/actual/get-iterator-method";';
+for (const [name, prefix, params, terminal, expected, parameter = false, readable = false] of [
+  ['return', iteratorHelperImport, 'extra', 'return readIterator(globalThis);', true],
+  ['throw', iteratorHelperImport, 'extra', 'throw readIterator(globalThis);', true],
+  ['required alias', 'const readIterator=require("@core-js/pure/actual/get-iterator-method");', 'extra', 'return readIterator(globalThis);', true],
+  ['parameter return', iteratorHelperImport, '', 'return readIterator(globalThis);', true, true],
+  ['parameter body shadow', iteratorHelperImport, '', 'var readIterator=custom;return readIterator(globalThis);', false, true],
+  ['helper shadow', iteratorHelperImport, 'extra,readIterator', 'return readIterator(globalThis);', false],
+  ['helper shadow declaration', iteratorHelperImport, 'extra,readIterator', 'const held=readIterator(globalThis);return held;', false],
+  ['written require', 'let readIterator=require("@core-js/pure/actual/get-iterator-method");readIterator=custom;', 'extra', 'return readIterator(globalThis);', false],
+  ['helper value return', iteratorHelperImport, 'extra', 'return readIterator;', false],
+  ['helper value throw', iteratorHelperImport, 'extra', 'throw readIterator;', false],
+  ['helper value declaration', iteratorHelperImport, 'extra', 'const held=readIterator;return held;', false],
+  // The injector can know a staged import before the native scope registers it.
+  ['staged helper', '', 'extra', 'return readIterator(globalThis);', true],
+  ['no helper', '', 'extra', 'return 7;', false],
+  ['ordinary call', '', 'extra', 'return custom(globalThis);', false],
+  ['empty return', '', 'extra', 'return;', false],
+  ['ordinary throw', '', 'extra', 'throw 7;', false],
+  ['nested helper', iteratorHelperImport, 'extra', 'function nested(){return readIterator(globalThis)}return nested;', false],
+  ['live sentinel', iteratorHelperImport, 'extra', 'return[_unused,readIterator(globalThis)];', false, false, true],
+]) runBoth(`sentinel/terminal sibling/${ name }`,
+  `${ prefix } function read(${ parameter ? '{[Symbol.iterator]:_unused}=globalThis' : params }){`
+    + `${ parameter ? '' : 'const{w:{[Symbol.iterator]:_unused}}={...extra,w:globalThis};' }${ terminal }}`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type, item => item.node.value?.name === '_unused');
+    const original = JSON.stringify(program.node);
+    const { restSentinelNames } = collectFileCensus(program.node, [restSentinelNamesReducer()]);
+    check(`${ label }/read census`, restSentinelNames.has('_unused'), !readable);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const injector = injectorFor({
+      generated: [...restSentinelNames], adopted: [...restSentinelNames],
+      pureImports: { readIterator: { entry: 'get-iterator-method' } },
+    });
+    for (const meta of [null, { symbolSourced: true, key: 'Symbol.iterator' }]) {
+      check(`${ label }/${ meta ? 'metadata' : 'host preflight' }`, sentinelAlreadyProcessed(path, {
+        node: path.node, meta, injector, adapter,
+      }), expected);
+    }
+    check(`${ label }/question leaves source intact`, JSON.stringify(program.node), original);
+  });
+
+// An explicit expression read is the same extraction sibling as an init or terminal value.
+// Suspension and unary operators keep their argument; a lookup helper value is not its call.
+for (const [name, kind, expression, expected, params = 'extra', readable = false] of [
+  ['effect', 'function', 'readIterator(globalThis);', true],
+  ['void call', 'function', 'void readIterator(globalThis);', true],
+  ['await call', 'async function', 'await readIterator(globalThis);', true],
+  ['yield call', 'function*', 'yield readIterator(globalThis);', true],
+  ['sequence call', 'function', '0,readIterator(globalThis);', true],
+  ['assigned call', 'function', 'held=readIterator(globalThis);', true],
+  ['conditional call', 'function', 'flag?readIterator(globalThis):other;', true],
+  ['binary call', 'function', 'readIterator(globalThis)===other;', true],
+  ['helper value', 'function', 'readIterator;', false],
+  ['void helper value', 'function', 'void readIterator;', false],
+  ['await helper value', 'async function', 'await readIterator;', false],
+  ['yield helper value', 'function*', 'yield readIterator;', false],
+  ['empty yield', 'function*', 'yield;', false],
+  ['ordinary call', 'function', 'custom(globalThis);', false],
+  ['uninvoked helper', 'function', '(()=>readIterator(globalThis));', false],
+  ['shadowed helper', 'function', 'readIterator(globalThis);', false, 'extra,readIterator'],
+  ['live sentinel', 'function', 'readIterator(globalThis);use(_unused);', false, 'extra', true],
+]) runBoth(`sentinel/expression sibling/${ name }`,
+  `${ iteratorHelperImport } ${ kind } read(${ params }){const{w:{[Symbol.iterator]:_unused}}={...extra,w:globalThis};${ expression }}`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type, item => item.node.value?.name === '_unused');
+    const original = JSON.stringify(program.node);
+    const { restSentinelNames } = collectFileCensus(program.node, [restSentinelNamesReducer()]);
+    check(`${ label }/read census`, restSentinelNames.has('_unused'), !readable);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const injector = injectorFor({
+      generated: [...restSentinelNames], adopted: [...restSentinelNames],
+      pureImports: { readIterator: { entry: 'get-iterator-method' } },
+    });
+    for (const meta of [null, { symbolSourced: true, key: 'Symbol.iterator' }]) {
+      check(`${ label }/${ meta ? 'metadata' : 'host preflight' }`, sentinelAlreadyProcessed(path, {
+        node: path.node, meta, injector, adapter,
+      }), expected);
+    }
+    check(`${ label }/source intact`, JSON.stringify(program.node), original);
+  });
+
+for (const [kind, expression] of [
+  ['function', 'readFrom;'],
+  ['function', 'void readFrom;'],
+  ['async function', 'await readFrom;'],
+  ['function*', 'yield readFrom;'],
+]) runBoth(`sentinel/expression static value/${ expression }`,
+  `import readFrom from "@core-js/pure/actual/array/from";${ kind } read(){const{from:_unused}=source;${ expression }}`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type);
+    check(label, sentinelAlreadyProcessed(path, {
+      node: path.node, meta: { key: 'from' },
+      injector: injectorFor({ generated: ['_unused'], adopted: ['_unused'], pureImports: { readFrom: { entry: 'actual/array/from' } } }),
+    }), true);
+  });
+
+// A direct export reads its declared leaves outside the file, even with no local reference.
+// Exporting a function or class leaves that declaration's local patterns private.
+for (const [name, source, unread] of [
+  ['exported factory value', 'export const{at:_unused}=[];export const held=dispatch;', false],
+  ['exported factory call', 'export const{at:_unused}=[];export const held=dispatch([]);', false],
+  ['exported static value', 'export const{from:_unused}=Array;export const held=method;', false],
+  ['nested exported leaf', 'export let{w:{at:_unused}}={w:[]};', false],
+  ['export specifier', 'const{at:_unused}=[];export{_unused};', false],
+  ['foreign re-export', 'const{at:_unused}=[];const held=dispatch([]);export{_unused}from"external";', true],
+  ['type-only export', 'const{at:_unused}=[];const held=dispatch([]);export type{_unused};', true],
+  ['type-only specifier', 'const{at:_unused}=[];const held=dispatch([]);export{type _unused};', true],
+  ['exported key is not its binding', 'const{at:_unused}=[];const held=dispatch([]);export const{_unused:published}={_unused:1};', true],
+  ['exported function local', 'export function read(){const{at:_unused}=[];return dispatch([]);}', true],
+  ['exported class local', 'export class Read{method(){const{at:_unused}=[];return dispatch([]);}}', true],
+]) runBoth(`sentinel/export reader/${ name }`,
+  `import dispatch from "@core-js/pure/actual/instance/at";import method from "@core-js/pure/actual/array/from";${ source }`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type, item => item.node.value?.name === '_unused');
+    const original = JSON.stringify(program.node);
+    const { restSentinelNames } = collectFileCensus(program.node, [restSentinelNamesReducer()]);
+    check(`${ label }/external read census`, restSentinelNames.has('_unused'), unread);
+    if (unread) {
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      check(`${ label }/private extraction remains adopted`, sentinelAlreadyProcessed(path, {
+        node: path.node, meta: { key: 'at' }, adapter,
+        injector: injectorFor({ generated: [...restSentinelNames], adopted: [...restSentinelNames],
+          pureImports: { dispatch: { entry: 'instance/at' } } }),
+      }), true);
+    }
+    check(`${ label }/source intact`, JSON.stringify(program.node), original);
+  });
+
+// A moved or foreign callee without source identity cannot borrow the sentinel's scope.
+runBoth('sentinel/terminal source path',
+  'import readIterator from "@core-js/pure/actual/get-iterator-method";function read({[Symbol.iterator]:_unused}=globalThis){return readIterator(globalThis);}',
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type);
+    const injector = injectorFor({ generated: ['_unused'], adopted: ['_unused'], pureImports: { readIterator: { entry: 'get-iterator-method' } } });
+    const meta = { symbolSourced: true, key: 'Symbol.iterator' };
+    check(`${ label }/source callee`, sentinelAlreadyProcessed(path, { node: path.node, meta, injector }), true);
+    const { callee } = parser.pickPath(program, 'CallExpression').node;
+    delete callee.start;
+    delete callee.end;
+    check(`${ label }/absent callee span`, sentinelAlreadyProcessed(path, { node: path.node, meta, injector }), false);
+  });
+
+// Unlike the iterator lookup helper, a static import itself is the extracted slot value.
+for (const terminal of ['return readFrom;', 'throw readFrom;']) runBoth('sentinel/terminal static value',
+  `import readFrom from "@core-js/pure/actual/array/from";function read(){const{from:_unused}=source;${ terminal }}`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+    const path = parser.pickPath(program, type);
+    check(`${ label }/${ terminal }`, sentinelAlreadyProcessed(path, {
+      node: path.node, meta: { key: 'from' },
+      injector: injectorFor({ generated: ['_unused'], adopted: ['_unused'], pureImports: { readFrom: { entry: 'actual/array/from' } } }),
+    }), true);
+  });
+
+// A slot default remains inside native iteration while its object pattern captures the
+// selected receiver. A method's own default still belongs to the guarded leaf route.
+for (const [name, source, names, positions] of [
+  ['declaration', 'const [{ at } = fallback()] = source;', ['at'], [[0]]],
+  ['assignment', 'let at; ([{ at } = fallback()] = source);', ['at'], [[0]]],
+  ['nested array', 'const [[{ at } = fallback()]] = source;', ['at'], [[0, 0]]],
+  ['preceding claim waits for default', 'const [{ at: first }, { at: second } = fallback()] = source;', ['second'], [[1]]],
+  ['later default remains a reader', 'const [{ at } = fallback(), tail = effect()] = source;', [], []],
+  ['leaf default remains guarded', 'const [{ at = fallback() } = sourceDefault()] = source;', [], []],
+]) runBoth(`array plan/native slot default/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, source.startsWith('let') ? 'AssignmentExpression' : 'VariableDeclarator');
+  const original = JSON.stringify(path.node);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)();
+  const plan = buildNestedDestructurePlan({
+    arrayPath: path,
+    adapter,
+    resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
+  });
+  checkDeep(`${ label } reads`, plan?.extractions.map(item => item.localName) ?? [], names);
+  checkDeep(`${ label } positions`, plan?.array.capture.elements.map(item => item.path) ?? [], positions);
+  if (names.length && plan) {
+    const captured = plan.array.capture.elements.at(-1);
+    check(`${ label } carries source default`, captured.defaultValue?.type, 'CallExpression');
+    let next = 0;
+    const rendered = renderArrayWrapperCapture(plan.array.capture, { mintRef: () => `slot${ next++ }` });
+    let target = rendered.capture.id;
+    for (const index of positions.at(-1)) target = target.elements[index];
+    check(`${ label } captures the defaulted binding`, target.type, 'AssignmentPattern');
+    check(`${ label } preserves default identity`, target.right, captured.defaultValue);
+    check(`${ label } renames only the object pattern`, target.left.type, 'Identifier');
+  }
+  check(`${ label } source unchanged`, JSON.stringify(path.node), original);
 });
 
 finish();

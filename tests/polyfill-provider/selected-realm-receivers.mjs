@@ -7,6 +7,7 @@ import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packa
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { ownEmittedNavClaim, ownEmittedPatternClaim, ownOutputTests } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
+import { wrapperLiteralEntries } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
 const { check, finish } = createChecker('selected-realm-receivers');
@@ -169,19 +170,52 @@ for (const parser of adapters) for (const prior of [false, true]) {
 // A member read keyed by a prior pass's `symbol/iterator` import is a lowered pattern key, so the
 // nav census lets it through to the iterator handler; every other minted key - another well-known
 // symbol, or the same key on a PATTERN prop - stays this plugin's own output
-for (const parser of adapters) for (const [name, source, funnel, pick, expected] of [
+for (const parser of adapters) for (const [prefix, suffix] of [
+  ['@core-js/pure/actual', ''],
+  ['@core-js/pure', ''],
+  ['core-js-pure', ''],
+  ['@core-js/pure/full', '.js'],
+  ['@core-js/pure/actual', '/index.js'],
+  ['pony', ''],
+  ['prior-alias/actual', ''],
+]) for (const binder of ['default', 'named', 'require', 'import-equals']) for (const [name, source, funnel, pick, expected] of [
   ['iterator key on a read', 'symbol/iterator', 'nav', 'MemberExpression', false],
   ['async-iterator key on a read', 'symbol/async-iterator', 'nav', 'MemberExpression', true],
   ['iterator key on a pattern prop', 'symbol/iterator', 'pattern', 'Property', true],
 ]) {
+  const specifier = `${ prefix }/${ source }${ suffix }`;
+  const declaration = binder === 'default' ? `import key from '${ specifier }';`
+    : binder === 'named' ? `import { default as key } from '${ specifier }';`
+      : binder === 'require' ? `const key = require('${ specifier }');`
+        : `import key = require('${ specifier }');`;
   const program = parser.parseAndScope(`
-    import key from '@core-js/pure/actual/${ source }';
+    ${ declaration }
     function read(o) { const { [key]: it } = o; return [it, o[key]]; }
   `);
   const path = parser.pickPath(program, pick === 'Property' ? 'ObjectProperty' : pick) ?? parser.pickPath(program, pick);
+  const adapter = parser.name === 'babel'
+    ? createBabelAdapter({ method: 'usage-pure', getPackages: () => ['pony'] })
+    : createEstreeAdapter({ method: 'usage-pure', getPackages: () => ['pony'] });
+  const tests = { isPureImportSource: s => s === specifier, isOwnPassBinding: () => false };
+  check(`${ parser.name }: minted key census: ${ prefix }${ suffix }/${ binder }: ${ name }`,
+    funnel === 'nav' ? ownEmittedNavClaim(path.node, path, tests, adapter) : ownEmittedPatternClaim(path, tests, adapter), expected);
+}
+
+// The program source index does not grant ownership to a local shadow or a changed require.
+// A default parameter cannot see a body declaration, so that read still denotes the import.
+for (const parser of adapters) for (const [name, source, expected] of [
+  ['outer binding', 'function read() { return [7][key]; }', true],
+  ['local declaration', "function read() { const key = 'at'; return [7][key]; }", false],
+  ['parameter', 'function read(key) { return [7][key]; }', false],
+  ['block declaration', "{ const key = 'at'; [7][key]; }", false],
+  ['catch binding', 'try {} catch (key) { [7][key]; }', false],
+  ['parameter before body shadow', "function read(value = [7][key]) { const key = 'at'; return value; }", true],
+  ['reassigned require', "key = 'at'; [7][key];", false],
+]) {
+  const program = parser.parseAndScope(`const key = require('@core-js/pure/actual/symbol/async-iterator'); ${ source }`);
+  const path = parser.pickPath(program, 'MemberExpression');
   const tests = { isPureImportSource: s => s.startsWith('@core-js/pure/'), isOwnPassBinding: () => false };
-  check(`${ parser.name }: minted key census: ${ name }`,
-    funnel === 'nav' ? ownEmittedNavClaim(path.node, path, tests) : ownEmittedPatternClaim(path, tests), expected);
+  check(`${ parser.name }: prior key binding: ${ name }`, ownEmittedNavClaim(path.node, path, tests), expected);
 }
 
 // Lowering can hide an owned guard behind captures. Only unique values written before
@@ -278,4 +312,130 @@ for (const parser of adapters) for (const [name, minted, priorSource, priorName,
   check(`${ parser.name }: captured guard source ownership: ${ name }`,
     ownEmittedNavClaim(path.node, path, ownOutputTests(injector), adapter), expected);
 }
+
+// Import provenance follows a retained receiver default across body-entry capture. It is an
+// ownership answer, not a type assertion about supplied callers. Shadows and writes stay live.
+for (const parser of adapters) for (const [name, code, expected] of [
+  ['parameter literal', 'export function read({ keys } = { keys: Keys }) {}', true],
+  ['parameter sequence', 'export function read({ keys } = (probe(), { keys: Keys })) {}', true],
+  ['body receiver default', 'export function read(receiver = { keys: Keys }) { const { keys } = receiver; }', true],
+  ['body default sequence', 'export function read(receiver = (probe(), { keys: Keys })) { const { keys } = receiver; }', true],
+  ['body var shadow', 'export function read(receiver = { keys: Keys }) { var Keys = other; const { keys } = receiver; }', true],
+  ['parameter shadow', 'export function read(Keys, receiver = { keys: Keys }) { const { keys } = receiver; }', false],
+  ['receiver rebound', 'export function read(receiver = { keys: Keys }) { receiver = other; const { keys } = receiver; }', false],
+  ['arbitrary alias', 'export function read(receiver = { keys: Keys }) { const copied = receiver; const { keys } = copied; }', false],
+  ['bare ref name', 'export function read(_ref) { const { keys } = _ref; }', false],
+  ['spread', 'export function read({ keys } = { keys: Keys, ...other }) {}', false],
+  ['unknown computed', 'export function read({ keys } = { keys: Keys, [key]: other }) {}', false],
+  ['last custom value', 'export function read({ keys } = { keys: Keys, keys: other }) {}', false],
+  ['last imported value', 'export function read({ keys } = { keys: other, keys: Keys }) {}', true],
+]) for (const style of ['import', 'require']) for (const current of [false, true]) {
+  const declaration = style === 'import' ? "import Keys from '@core-js/pure/actual/object/keys';"
+    : "var Keys = require('@core-js/pure/actual/object/keys');";
+  const program = parser.parseAndScope(`${ declaration } ${ code }`);
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.parentPath.node.type === 'ObjectPattern');
+  const tests = { isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => current };
+  check(`${ parser.name }: retained default ownership/${ name }/${ style }/current ${ current }`, ownEmittedPatternClaim(prop, tests), expected && !current);
+}
+
+// Nullable receiver mirrors keep the native coercion path and perform their member read lazily.
+// A later pass adopts only that exact imported dispatcher, in the getter's actual scope.
+for (const parser of adapters) for (const [name, code, expected] of [
+  ['declaration', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); } }; })(input);', true],
+  ['direct argument', '(({ at: out }) => out)((r => { return r == null ? r : { get at() { return At(r); } }; })(input));', true],
+  ['effect key', '(({ [(effect(), "at")]: out }) => out)((r => { return r == null ? r : { get at() { return At(r); } }; })(input));', true],
+  ['preceding callee helper shadow', '((At, { at: out }) => out)(other, (r => { return r == null ? r : { get at() { return At(r); } }; })(input));', true],
+  ['callee helper shadow', '(({ at: out }, At) => out)((r => { return r == null ? r : { get at() { return At(r); } }; })(input), other);', true],
+  ['callee capture shadow', '(({ at: out }, r) => out)((r => { return r == null ? r : { get at() { return At(r); } }; })(input), other);', true],
+  ['renamed capture', 'const { at: out } = (held => { return held == null ? held : { get at() { return At(held); } }; })(input);', true],
+  ['caller helper shadow', 'function read(At) { (({ at: out }) => out)((r => { return r == null ? r : { get at() { return At(r); } }; })(input)); }', false],
+  ['helper captured as parameter', 'const { at: out } = (At => { return At == null ? At : { get at() { return At(At); } }; })(input);', false],
+  ['user getter', 'const { at: out } = { get at() { return At(input); } };', false],
+  ['user method', 'const { at: out } = (r => { return r == null ? r : { at() { return At(r); } }; })(input);', false],
+  ['async activation', 'const { at: out } = (async r => { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['activation default', 'const { at: out } = ((r = other) => { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['activation rest', 'const { at: out } = ((...r) => { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['multiple parameters', 'const { at: out } = ((r, extra) => { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['spread argument', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); } }; })(...input);', false],
+  ['ordinary function', 'const { at: out } = (function(r) { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['multiple returns', 'const { at: out } = (r => { if (flag) return r; return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['activation effect', 'const { at: out } = (r => { effect(); return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['getter effect', 'const { at: out } = (r => { return r == null ? r : { get at() { effect(); return At(r); } }; })(input);', false],
+  ['getter return effect', 'const { at: out } = (r => { return r == null ? r : { get at() { return (effect(), At(r)); } }; })(input);', false],
+  ['captured argument changed', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r = other); } }; })(input);', false],
+  ['different argument', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(other); } }; })(input);', false],
+  ['different dispatcher', 'const { includes: out } = (r => { return r == null ? r : { get includes() { return At(r); } }; })(input);', false],
+  ['different pure helper', 'const { at: out } = (r => { return r == null ? r : { get at() { return Keys(r); } }; })(input);', false],
+  ['regex guard', 'const { at: out } = (r => { return r == /x/ ? r : { get at() { return At(r); } }; })(input);', false],
+  ['non-null guard', 'const { at: out } = (r => { return r === null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['different retained value', 'const { at: out } = (r => { return r == null ? other : { get at() { return At(r); } }; })(input);', false],
+  ['spread mirror', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); }, ...other }; })(input);', false],
+  ['unknown mirror key', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); }, [key]: other }; })(input);', false],
+  ['computed pattern key', 'const { [key]: out } = (r => { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+  ['prototype getter is not own', 'const { at: out } = (r => { return r == null ? r : { __proto__: { get at() { return At(r); } } }; })(input);', false],
+  ['data wins getter', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); }, at: other }; })(input);', false],
+  ['custom getter wins data', 'const { at: out } = (r => { return r == null ? r : { at: At, get at() { return other; } }; })(input);', false],
+  ['setter beside getter', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); }, set at(value) {} }; })(input);', false],
+  ['last served getter', 'const { at: out } = (r => { return r == null ? r : { get at() { return other; }, get at() { return At(r); } }; })(input);', true],
+  ['live raw conditional arm', 'const { at: out } = flag ? (r => { return r == null ? r : { get at() { return At(r); } }; })(input) : raw;', false],
+  ['live raw fallback arm', 'const { at: out } = (r => { return r == null ? r : { get at() { return At(r); } }; })(input) || raw;', false],
+  ['mutated caller', 'let wrap = r => { return r == null ? r : { get at() { return At(r); } }; }; wrap = other; const { at: out } = wrap(input);', false],
+  ['rebound import', 'At = other; const { at: out } = (r => { return r == null ? r : { get at() { return At(r); } }; })(input);', false],
+]) for (const style of ['import', 'require']) for (const current of [false, true]) {
+  const declaration = style === 'import' ? "import At from '@core-js/pure/actual/instance/at';"
+    : "var At = require('@core-js/pure/actual/instance/at');";
+  const program = parser.parseAndScope(`${ declaration } import Keys from '@core-js/pure/actual/object/keys'; ${ code }`);
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.parentPath.node.type === 'ObjectPattern');
+  const tests = { isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => current };
+  check(`${ parser.name }: nullable getter ownership/${ name }/${ style }/current ${ current }`, ownEmittedPatternClaim(prop, tests), expected && !current);
+}
+
+// Descriptor projection shares the literal-entry key owner and leaves ordinary value callers intact.
+for (const parser of adapters) {
+  const program = parser.parseAndScope('const literal = { at: first, get at() { return last; }, [key]: value, ...spread }; const list = [first, , ...spread];');
+  const literal = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'literal').node.init;
+  const list = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'list').node.init;
+  const values = wrapperLiteralEntries(literal);
+  const descriptors = wrapperLiteralEntries(literal, { propertyNodes: true });
+  check(`${ parser.name }: entry projection/key pairing`, JSON.stringify(descriptors.map(([key]) => key)), JSON.stringify(values.map(([key]) => key)));
+  check(`${ parser.name }: entry projection/property identity`, descriptors.every(([, prop], index) => prop === literal.properties[index]), true);
+  check(`${ parser.name }: entry projection/default values`, values.every(([, value], index) => value === literal.properties[index].value), true);
+  check(`${ parser.name }: entry projection/array values`, JSON.stringify(wrapperLiteralEntries(list, { propertyNodes: true })), JSON.stringify(wrapperLiteralEntries(list)));
+}
+
+// A prior mirror owns the argument's slot only when that argument actually reaches the pattern.
+for (const [name, argument, changed] of [
+  ['spread', '...[mirror]', false],
+  ['known prefix', 'mirror, ...[]', true],
+  ['direct', 'mirror', true],
+]) for (const parser of adapters) {
+  const receiver = argument.replace('mirror', '(r => { return r == null ? r : { get at() { return At(r); } }; })([1])');
+  const input = `import At from '@core-js/pure/actual/array/instance/at'; (({ at }) => at)(${ receiver });`;
+  const program = parser.parseAndScope(input);
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', p => p.parentPath.node.type === 'ObjectPattern');
+  const tests = { isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => false };
+  check(`${ parser.name }/${ name }/pristine`, ownEmittedPatternClaim(prop, tests), true);
+  check(`${ parser.name }/${ name }/changed iterator`, ownEmittedPatternClaim(prop, tests, { isMutatedStaticSlot: () => true }), changed);
+}
+
+// A data-slot mirror retains the same imported instance dispatch as its lazy getter twin.
+// It is prior output only; the helper's actual scope, entry and one receiver argument must match.
+for (const parser of adapters) for (const [name, code, expected] of [
+  ['data slot', 'const { at: out } = { at: At(input) };', true],
+  ['nested parameter', 'export function read({ row: { at: out } } = flag ? { row: { at: At(input) } } : raw) {}', true],
+  ['body helper shadow', 'export function read({ row: { at: out } } = { row: { at: At(input) } }) { var At = other; }', true],
+  ['parameter helper shadow', 'export function read(At, { at: out } = { at: At(input) }) {}', false],
+  ['different dispatcher', 'const { includes: out } = { includes: At(input) };', false],
+  ['extra argument', 'const { at: out } = { at: At(input, effect()) };', false],
+  ['optional call', 'const { at: out } = { at: At?.(input) };', false],
+  ['spread argument', 'const { at: out } = { at: At(...input) };', false],
+]) for (const current of [false, true]) {
+  const program = parser.parseAndScope(`import At from '@core-js/pure/actual/instance/at'; ${ code }`);
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.parentPath.node.type === 'ObjectPattern' && path.node.value?.name === 'out');
+  const tests = { isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => current };
+  check(`${ parser.name }: data-slot dispatch ownership/${ name }/current ${ current }`,
+    ownEmittedPatternClaim(prop, tests), expected && !current);
+}
+
 finish();

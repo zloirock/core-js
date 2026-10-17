@@ -1,6 +1,5 @@
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
@@ -10,28 +9,16 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 // every proxy navigation shape resolves to the same pure ctor: a direct member (`globalThis.Map`), a
 // deeper proxy hop (`globalThis.self.Promise`), and a call-rooted IIFE (`(() => globalThis)().Promise`).
 const cond = true;
+const groupBy = _Map$groupBy;
 const {
-  groupBy,
   foo
-} = cond ? {
-  groupBy: _Map$groupBy,
-  foo: _Map.foo
-} : {
-  groupBy: _Object$groupBy,
-  foo: Object.foo
-};
+} = cond ? _Map : Object;
+const allSettled = _Promise$allSettled;
 const {
-  allSettled,
   bar
-} = cond ? {
-  allSettled: _Promise$allSettled,
-  bar: _Promise.bar
-} : Object;
+} = cond ? _Promise : Object;
+const any = _Promise$any;
 const {
-  any,
   baz
-} = cond ? {
-  any: _Promise$any,
-  baz: _Promise.baz
-} : Object;
+} = cond ? _Promise : Object;
 export { groupBy, foo, allSettled, bar, any, baz };

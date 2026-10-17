@@ -1,4 +1,4 @@
-import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 // an assignment-cascade host whose RHS is a `&&`-guarded proxy. the proxy operand is mirrored to
 // a synth literal that binds the polyfill UNCONDITIONALLY (so a present-but-buggy native Array.from
 // is still replaced, not just a missing one), while the `&&` guard is kept verbatim: a falsy guard
@@ -9,8 +9,4 @@ let guard = 0;
   Array: {
     from
   }
-} = guard && {
-  Array: {
-    from: _Array$from
-  }
-});
+} = guard && _globalThis);

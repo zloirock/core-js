@@ -3,15 +3,18 @@
 // (`enumerateFallbackDestructureBranches`). both run through both parsers - a decision that differs
 // between them is a regression whichever side is wrong
 import {
+  buildParameterArgumentSynthPlan,
   enumerateFallbackDestructureBranches,
   fallbackBranchSwapKeepsSelection,
   instanceSynthReceiverPure,
   isViableBranchForKey,
   selectionLeftAlwaysTruthy,
+  resolveBranchProxyName,
   paramDefaultInstanceSynthAllowed,
   planSynthReceiverGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { createDetectionAdapter } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('fallback-branches');
@@ -227,6 +230,13 @@ for (const [label, source, selection, guarded, viable, mutated = false] of [
 // returning it, throws before the right could run; a call the inline canon cannot see through decides nothing
 const SERVES_ALL = { served: () => ({ substituted: false }) };
 for (const [name, source, expected, build = null] of [
+  ['empty string', "const { at } = '' || [1];", false],
+  ['nonempty string', "const { at } = 'text' || [1];", true],
+  ['zero', 'const { at } = 0 || [1];', false],
+  ['nonzero number', 'const { at } = 1 || [1];', true],
+  ['false', 'const { at } = false || [1];', false],
+  ['true', 'const { at } = true || [1];', true],
+  ['null', 'const { at } = null || [1];', false],
   ['static container', 'const b = { Array }; const { Array: { of } } = b || globalThis;', true],
   ['iife over a static alias', 'const b = { Array }; const { Array: { of } } = (() => b)() || globalThis;', true],
   ['named call yielding the realm', 'function realm() { return globalThis; } const { Array: { of } } = realm() || globalThis;', true],
@@ -255,5 +265,206 @@ for (const [name, source, expected, build = null] of [
     }), expected);
   });
 }
+
+// A literal value held by a stable source binding decides a selection through the same shared
+// adapter both emitters use. The decision names the operand whose exact VALUE the expression yields:
+// a dead right folds to the left node, including a falsy or negative-zero left.
+const CONSTANT_SELECTION_VALUES = [
+  ['empty', "''", false],
+  ['zero', '0', false],
+  ['falseValue', 'false', false],
+  ['negativeZero', '-0', false],
+  ['one', '1', true],
+  ['text', "'a'", true],
+  ['big', '1n', true],
+];
+const constantSelectionExpressions = CONSTANT_SELECTION_VALUES.flatMap(([name]) => [
+  `${ name } && rhs`,
+  `${ name } || rhs`,
+  `${ name } ?? rhs`,
+]).concat(['yes ? Map : Object', 'no ? Object : Map']);
+const constantSelectionSource = `${ CONSTANT_SELECTION_VALUES.map(([name, literal]) => `const ${ name } = ${ literal };`).join('\n') }
+const yes = true;
+const no = false;
+use(${ constantSelectionExpressions.join(', ') });`;
+
+function constantSelectionBridge(parser, method = 'usage-pure') {
+  const adapter = createDetectionAdapter({
+    method,
+    resolveConstantSelection: (...args) => resolver.resolveConstantSelection(...args),
+  }, () => pluginAdapter(parser, method));
+  const resolver = parser.makeResolver({ getDecisionAdapter: () => adapter });
+  return { adapter, resolver };
+}
+
+for (const [name, source] of [
+  ['literal', "const result = (function ({ includes } = '' && [2]) { return includes; })();"],
+  ['stable alias', "const empty = ''; const result = (function ({ includes } = empty && [2]) { return includes; })();"],
+]) runBoth(`constant selection/decided non-nullish ${ name } default keeps its sole instance read eager`,
+  source, (parser, program, label) => {
+    const { adapter, resolver } = constantSelectionBridge(parser);
+    const plan = buildParameterArgumentSynthPlan({
+      leafPatternPath: parser.pickPath(program, 'ObjectPattern'),
+      adapter,
+      parameterCallSites: resolver.parameterCallSites,
+      meta: { kind: 'property', object: 'String', key: 'includes', placement: 'prototype' },
+      resolvePure: meta => meta.key === 'includes'
+        ? { kind: 'instance', entry: 'string/instance/includes', hintName: 'includesMaybeString' } : null,
+    });
+    const target = plan?.targets?.[0];
+    check(`${ label } planned`, !!target, true);
+    check(`${ label } no nullish wrapper`, target?.preserveNullishReceiver, undefined);
+    check(`${ label } data property`, target?.tree?.entries?.[0]?.deferred, false);
+  });
+
+for (const [name, source] of [
+  ['mutated alias', "let empty = ''; empty = getValue(); const result = (function ({ includes } = empty && [2]) { return includes; })();"],
+  ['opaque alias', 'const empty = getValue(); const result = (function ({ includes } = empty && [2]) { return includes; })();'],
+]) runBoth(`constant selection/undecided ${ name } default preserves its receiver`, source, (parser, program, label) => {
+  const { adapter, resolver } = constantSelectionBridge(parser);
+  const plan = buildParameterArgumentSynthPlan({
+    leafPatternPath: parser.pickPath(program, 'ObjectPattern'),
+    adapter,
+    parameterCallSites: resolver.parameterCallSites,
+    meta: { kind: 'property', object: 'String', key: 'includes', placement: 'prototype' },
+    resolvePure: meta => meta.key === 'includes'
+      ? { kind: 'instance', entry: 'string/instance/includes', hintName: 'includesMaybeString' } : null,
+  });
+  const target = plan?.targets?.[0];
+  check(`${ label } planned`, !!target, true);
+  check(`${ label } keeps the whole logical source`, target?.node.type, 'LogicalExpression');
+  check(`${ label } keeps the AND selection`, target?.node.operator, '&&');
+  check(`${ label } dispatches on that selected receiver`, target?.receiverNode, target?.node);
+  check(`${ label } nullish wrapper`, target?.preserveNullishReceiver, true);
+  // The receiver guard runs first. With no preceding pattern work, its sole instance read
+  // belongs in a data slot at the source read position.
+  check(`${ label } data property after receiver guard`, target?.tree?.entries?.[0]?.deferred, false);
+});
+
+runBoth('constant selection/all exact source values', constantSelectionSource, (parser, program, label) => {
+  const { adapter } = constantSelectionBridge(parser);
+  const paths = [
+    ...parser.collectPaths(program, 'LogicalExpression'),
+    ...parser.collectPaths(program, 'ConditionalExpression'),
+  ].sort((a, b) => a.node.start - b.node.start);
+  for (const [index, path] of paths.entries()) {
+    const expression = constantSelectionExpressions[index];
+    const conditional = expression.includes('?') && !expression.includes('??');
+    let fold;
+    if (conditional) fold = expression.startsWith('yes') ? 'consequent' : 'alternate';
+    else {
+      const [name, operator] = expression.split(' ', 2);
+      const { 2: truthy } = CONSTANT_SELECTION_VALUES.find(entry => entry[0] === name);
+      fold = operator === '&&' ? truthy ? 'right' : 'left'
+        : operator === '||' ? truthy ? 'left' : 'right' : 'left';
+    }
+    checkDeep(`${ label }/${ expression }`, adapter.decidedSelection(path.node, {
+      scope: path.scope, adapter, path,
+    }), {
+      skip: fold === 'left' ? 'right' : fold === 'consequent' ? 'alternate'
+        : fold === 'alternate' ? 'consequent' : null,
+      fold,
+      substituted: false,
+    });
+  }
+});
+
+// The source must provide a runtime initializer which reaches the read. Type-only ambient values,
+// uninitialised declarations, forward reads, loop bindings, visible writes and effectful tests retain
+// their selection. A stable module const remains decidable inside a deferred function.
+for (const [name, source, expected] of [
+  ['stable alias chain', 'const base = true; const flag = base; use(flag ? Array : String);', 'consequent'],
+  ['stable deferred read', 'const flag = true; function read() { return flag ? Array : String; }', 'consequent'],
+  ['mutated binding', 'let flag = true; flag = false; use(flag ? Array : String);', null],
+  ['opaque parameter', 'function read(flag) { return flag ? Array : String; }', null],
+  ['deferred read after mutation', 'let flag = true; function read() { return flag ? Array : String; } flag = false;', null],
+  ['forward TDZ read', 'use(flag ? Array : String); const flag = true;', null],
+  ['effectful test', 'use((hit(), true) ? Array : String);', null],
+  ['loop binding', 'for (const flag of flags) use(flag ? Array : String);', null],
+  ['uninitialised let', 'let flag; use(flag ? Array : String);', null],
+  ['uninitialised var loop head', 'for (var flag; flag; ) use(flag ? Array : String);', null],
+  ['ambient literal type', 'declare const flag: true; use(flag ? Array : String);', null],
+]) runBoth(`constant selection/control ${ name }`, source, (parser, program, label) => {
+  const { adapter } = constantSelectionBridge(parser);
+  const path = parser.pickPath(program, 'ConditionalExpression');
+  check(`${ label }/fold`, adapter.decidedSelection(path.node, { scope: path.scope, adapter, path })?.fold ?? null, expected);
+});
+
+// The new read anchor is opt-in. Existing computed-key resolution still reads a literal type
+// annotation when no runtime selection asks it to replace the ambient binding's GetValue.
+runBoth('constant selection/legacy computed key keeps ambient annotation',
+  "declare const key: 'at'; receiver[key];", (parser, program, label) => {
+    const { resolver } = constantSelectionBridge(parser);
+    const key = parser.pickPath(program, 'Identifier', path => path.node.name === 'key' && path.parent?.computed);
+    check(label, resolver.resolveComputedKeyName(key.node, key.scope), 'at');
+  });
+
+// A complete literal caller set proves the parameter's initial value, not its value after
+// a sloppy mapped-arguments access. Ask at the actual test even through an outer claim path:
+// a destructuring RHS runs before its earlier-spelled computed key.
+for (const [name, source, expected, sourceType = 'script'] of [
+  ['true caller', 'function read(flag) { return flag ? Array : String; } read(true);', ['consequent']],
+  ['false caller', 'function read(flag) { return flag ? Array : String; } read(false);', ['alternate']],
+  ['nullish caller before effectful key',
+    "function read(flag) { const { [(key(), 'at')]: method } = flag ? [1] : null; return method; } read(false);",
+    ['alternate']],
+  ['empty caller', "function read(flag) { return flag ? Array : String; } read('');", ['alternate']],
+  ['bound literal caller', 'const yes = true; function read(flag) { return flag ? Array : String; } read(yes);', ['consequent']],
+  ['call pairing', 'function read(flag) { return flag ? Array : String; } read.call(null, true);', ['consequent']],
+  ['apply pairing', 'function read(flag) { return flag ? Array : String; } read.apply(null, [false]);', ['alternate']],
+  ['spread caller', 'function read(flag) { return flag ? Array : String; } read(...[true]);', [null]],
+  ['apply spread caller', 'function read(flag) { return flag ? Array : String; } read.apply(null, [...[true]]);', [null]],
+  ['reflect apply spread caller', 'function read(flag) { return flag ? Array : String; } Reflect.apply(read, null, [...[true]]);', [null]],
+  ['tag strings array', 'function read(flag) { return flag ? Array : String; } read``;', [null]],
+  ['matching callers', 'function read(flag) { return flag ? Array : String; } read(true); read(true);', ['consequent']],
+  ['mixed callers', 'function read(flag) { return flag ? Array : String; } read(true); read(false);', [null]],
+  ['opaque caller', 'function read(flag) { return flag ? Array : String; } read(input);', [null]],
+  ['recursive caller', 'function read(flag) { if (flag) read(flag); return flag ? Array : String; } read(true);', [null]],
+  ['handed out binding', 'function read(flag) { return flag ? Array : String; } use(read); read(true);', [null]],
+  ['named write', 'function read(flag) { flag = false; return flag ? Array : String; } read(true);', [null]],
+  ['mapped prior write', 'function read(flag) { arguments[0] = false; return flag ? Array : String; } read(true);', [null]],
+  ['mapped key and later read',
+    "function read(flag) { const { [(arguments[0] = false, 'at')]: method } = flag ? [1] : 'text'; return flag ? Array : String; } read(true);",
+    ['consequent', null]],
+  ['late hidden callee', 'function read(flag) { const result = flag ? Array : String; if (flag) arguments.callee(false); return result; } read(true);', [null]],
+  ['late arguments escape', 'function read(flag) { const result = flag ? Array : String; use(arguments); return result; } read(true);', [null]],
+  ['duplicate parameters', 'function read(flag, flag) { return flag ? Array : String; } read(false, true);', [null]],
+  ['arguments escape', 'function read(flag) { use(arguments); return flag ? Array : String; } read(true);', [null]],
+  ['mapped read ceiling', `function read(flag) { const result = flag ? Array : String; ${ 'arguments[0];'.repeat(65) } return result; } read(true);`, [null]],
+  ['loop after mapped write', 'function read(flag) { while (again) { use(flag ? Array : String); arguments[0] = false; } } read(true);', [null]],
+  ['strict mapped prior write', "function read(flag) { 'use strict'; arguments[0] = false; return flag ? Array : String; } read(true);", ['consequent']],
+  ['module mapped prior write', 'function read(flag) { arguments[0] = false; return flag ? Array : String; } read(true);', ['consequent'], 'module'],
+]) runBoth(`constant selection/closed parameter ${ name }`, source, (parser, program, label) => {
+  const { adapter } = constantSelectionBridge(parser);
+  const paths = parser.collectPaths(program, 'ConditionalExpression');
+  checkDeep(`${ label }/at test`, paths.map(path => adapter.decidedSelection(path.node, {
+    scope: path.scope, adapter, path,
+  })?.fold ?? null), expected);
+  // A consuming claim commonly asks from the declarator or return, rather than the selection.
+  checkDeep(`${ label }/from host`, paths.map(path => adapter.decidedSelection(path.node, {
+    scope: path.scope, adapter, path: path.parentPath,
+  })?.fold ?? null), expected);
+}, undefined, sourceType);
+
+// Proxy classification must agree with the selection the build already decided. Otherwise
+// a dead && realm arm steals an outer fallback, which the nested receiver walk then loses.
+for (const method of ['usage-global', 'usage-pure']) for (const [name, source, expected] of [
+  ['false guard', 'const flag = false; use(flag && globalThis);', [null, null]],
+  ['zero guard', 'let flag = 0; use(flag && globalThis);', [null, null]],
+  ['empty guard', "const flag = ''; use(flag && globalThis);", [null, null]],
+  ['truthy guard', 'const flag = 1; use(flag && globalThis);', ['globalThis', 'globalThis']],
+  ['outer fallback', 'const flag = 0; use((flag && globalThis) || globalThis);', [null, 'globalThis']],
+  ['conditional false arm', 'const flag = false; use(flag ? globalThis : other);', [null, null]],
+  ['conditional true arm', 'const flag = true; use(flag ? globalThis : other);', ['globalThis', 'globalThis']],
+  ['unknown guard keeps candidates', 'use(flag && globalThis);', ['globalThis', 'globalThis']],
+  ['written guard keeps candidates', 'let flag = 0; flag = input; use(flag && globalThis);', ['globalThis', 'globalThis']],
+  ['shadowed realm', 'const globalThis = {}; use(true && globalThis);', [null, null]],
+]) runBoth(`decided proxy arm/${ method }/${ name }`, source, (parser, program, label) => {
+  const { adapter } = constantSelectionBridge(parser, method);
+  const use = parser.pickPath(program, 'CallExpression', path => path.node.callee?.name === 'use');
+  checkDeep(label, [false, true].map(eitherLogicalOperand => resolveBranchProxyName({
+    branchNode: use.node.arguments[0], scope: use.scope, adapter, path: use, eitherLogicalOperand,
+  })), expected);
+});
 
 finish();

@@ -29,7 +29,7 @@ namespace M {
   namespace s {
     export const x = 1;
   }
-  use((t, t === Array ? _Array$of(1) : t.of(1)));
+  use(t === Array ? _Array$of(1) : t.of(1));
 }
 const wrapper = {
   a: _Iterator

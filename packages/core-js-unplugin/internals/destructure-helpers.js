@@ -15,6 +15,7 @@ import {
   paramDefaultInstanceSynthAllowed,
   patternHopKeysToHost,
   receiverPerformsEveryInitEffect,
+  resolveDestructureReceiverPlan,
   resolveNestedReceiverNode,
   synthPropDedupKey,
   decidedRunningOperand,
@@ -114,8 +115,8 @@ export const SELECTING_INIT_TYPES = new Set(['ConditionalExpression', 'LogicalEx
 // our own output): nothing routes it again, ahead of EVERY route in the claim funnel -
 // through the shared sibling proof. `symbolIterator`
 // derives from the meta - the funnel runs before any entry resolution
-export function overwriteRebindEmitted({ metaPath, injectorState }) {
-  return ownEmittedPatternClaim(metaPath, ownOutputTests(injectorState));
+export function overwriteRebindEmitted({ metaPath, injectorState, adapter }) {
+  return ownEmittedPatternClaim(metaPath, ownOutputTests(injectorState), adapter);
 }
 
 // a STATIC nested DEFAULTED sole leaf over a discardable receiver extracts as the overwrite
@@ -818,7 +819,7 @@ export function chainThroughNamedDefaults(chain) {
 // through the `_ref` memo (the memo is the single source read - getter fires once)
 // the residual is DEAD when this extraction takes every binding of a single-declarator
 // declaration - the shared plan's `soleBindingInDeclaration`
-export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, declaration, pureNav, adapter = null }) {
+export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null }) {
   const patternCtx = { ...nodeSite(prop, metaPath), adapter };
   const declaratorConsumedWhole = patternBindingCount(declarator.id) === patternBindingCount(prop.value);
   const soleBinding = declaration.declarations.length === 1 && declaratorConsumedWhole;
@@ -827,7 +828,12 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   let carriedLive = null;
   const throughNamedDefaults = chainThroughNamedDefaults(chain);
   if (!pureNav && chain.length > 0) {
-    literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
+    const receiverPlan = declaratorConsumedWhole && !sentinel && !throughNamedDefaults
+      && resolveDestructureReceiverPlan(metaPath, {
+        allowSeFreeSingleRead: true, adapter,
+      });
+    literalReceiver = receiverPlan?.channel === 'resolved' ? receiverPlan.node
+      : resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
     if (!literalReceiver) {
       const relaxed = resolveNestedReceiverNode(metaPath, {
         allowSeFreeSingleRead: true, adapter, throughNamedDefaults,
@@ -880,7 +886,11 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
     literalReceiver = slotMemo.node;
     relaxedReceiver = true;
   }
-  return { soleBinding, declaratorConsumedWhole, literalReceiver, relaxedReceiver, carriedLive, slotMemo };
+  const receiverConsumesInit = forInit && declaratorConsumedWhole && !sentinel && !!literalReceiver
+    && receiverPerformsEveryInitEffect(declarator.init, literalReceiver,
+      adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null);
+  return { soleBinding, declaratorConsumedWhole, literalReceiver, relaxedReceiver, carriedLive,
+    receiverConsumesInit, slotMemo };
 }
 
 // A rendered default guard keeps the dispatch whose receiver accepts an initializer prefix.
@@ -888,12 +898,18 @@ const instanceDefaultReads = new WeakMap();
 
 // The binding adapter gives a moved default its own source/comment span. Its receiver's later
 // offsets must not flush annotations out of that subtree, including after the default is rewritten.
+// A transparent owner survives replacing the expression inside it before the print transfers its span.
 export function buildInstanceDefaultGuard({ defaultValue, defaultPattern = null, ...options }) {
   const start = defaultPattern?.defaultCommentsAt ?? unwrapParens(defaultValue).start;
   const end = defaultPattern?.end ?? defaultValue.end;
   const value = renderInstanceDefaultGuard({
     ...options,
-    defaultValue: stampReplacementSpan({ ...defaultValue, ownedCommentsAt: start, ownedCommentsEnd: end }, { start, end }),
+    defaultValue: stampReplacementSpan({
+      type: 'ParenthesizedExpression',
+      expression: defaultValue,
+      ownedCommentsAt: start,
+      ownedCommentsEnd: end,
+    }, { start, end }),
   });
   instanceDefaultReads.set(value, options.call);
   return value;
@@ -2034,7 +2050,8 @@ export function forInitMemoVerdicts(byDeclarator, mintRefName, ctx = null) {
     const init = declarator?.init;
     const [{ metaPath }] = declJobs;
     const reusableInit = init?.type === 'ThisExpression' || init?.type === 'Identifier'
-      && isReReferenceableAcrossReads(init, { scope: metaPath?.scope, path: metaPath, adapter: ctx?.adapter });
+      && isReReferenceableAcrossReads(init, { scope: metaPath?.scope, path: metaPath?.parentPath?.parentPath, adapter: ctx?.adapter,
+        injectorState: ctx?.injectorState });
     if (!init || reusableInit || declJobs.some(job => job.chain?.length)) continue;
     const readers = declJobs.filter(job => job.readsReceiver).length;
     const consumed = declJobs.reduce((total, job) => total + patternBindingCount(job.prop.value), 0);

@@ -4,9 +4,10 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
+// Exported readers retain unknown callers beside the closed example calls below.
 // Ambiguous constructor aliases select statics through runtime identity checks.
 // Each fallback retains the selected receiver and preserves the method call receiver.
-function f(c, d) {
+export function f(c, d) {
   let M0 = Object;
   if (c) M0 = Array;
   let M = M0;

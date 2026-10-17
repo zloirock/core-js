@@ -1,7 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-// an assignment-cascade host whose RHS is a ternary with DIVERGING branches: a global proxy vs a
-// user object. each branch is mirrored independently - the proxy branch becomes a synth literal
-// binding the polyfill, the user-object branch stays verbatim, the assignment structure preserved
+import _globalThis from "@core-js/pure/actual/global-this";
+// The closed false selector makes the user object the only reachable assignment value, so its own
+// `from` stays native and no Array static is substituted. An unknown assignment selector with an
+// effectful key remains covered by `audit-cascade-cond-se-key-mirrors`.
 let from;
 let pick = false;
 const userObj = {
@@ -15,8 +15,4 @@ const userObj = {
   Array: {
     from
   }
-} = pick ? {
-  Array: {
-    from: _Array$from
-  }
-} : userObj);
+} = pick ? _globalThis : userObj);

@@ -1,5 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
@@ -11,12 +12,6 @@ const seen = [];
 const pick = 1;
 const at = _atMaybeArray(_globalThis.Array.prototype);
 const includes = _includesMaybeArray(_self.Array.prototype);
-const {
-  Array: {
-    prototype: {
-      map
-    }
-  }
-} = pick && _globalThis;
+const map = _mapMaybeArray(_globalThis.Array.prototype);
 _pushMaybeArray(seen).call(seen, at, includes, map);
 export { seen };

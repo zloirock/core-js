@@ -19,7 +19,7 @@ const [_ref3, _ref4] = [opaque(), eff('t2')];
 const a2 = _at(_ref3.Array.prototype);
 const t2 = _ref4;
 const [_ref5, _ref6] = [c ? _globalThis : realm(), eff('t3')];
-const a3 = _at(_ref5.Array.prototype);
+const a3 = _atMaybeArray(_ref5.Array.prototype);
 const t3 = _ref6;
 const [_ref7, _ref8] = [null == _globalThis.window ? void 0 : _self, eff('t4')];
 const a4 = _atMaybeArray(_ref7.Array.prototype);

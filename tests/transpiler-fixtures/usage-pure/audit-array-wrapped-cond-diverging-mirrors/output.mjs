@@ -1,4 +1,4 @@
-import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 // a multi-element ArrayPattern wrapper whose consumed element is a DIVERGING ternary
 // (`[0, useGlobal ? globalThis : userObj]`). the receiver-aware mirror descends the array wrapper to
 // the element and swaps only the proxy branch INSIDE it - the user-object branch stays native (its
@@ -14,9 +14,5 @@ const [, {
   Array: {
     from
   }
-}] = [0, useGlobal ? {
-  Array: {
-    from: _Array$from
-  }
-} : userObj];
+}] = [0, useGlobal ? _globalThis : userObj];
 typeof from;

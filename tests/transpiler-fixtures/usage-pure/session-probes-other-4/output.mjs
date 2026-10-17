@@ -196,13 +196,7 @@ function mark(t, v) {
   v.from([]);
 }
 {
-  const {
-    '0': {
-      from: f
-    }
-  } = [pick ? {
-    from: _Array$from
-  } : userObj];
+  const f = _Array$from;
 }
 {
   const {
@@ -215,13 +209,7 @@ function mark(t, v) {
   const f = _Array$from;
 }
 {
-  const {
-    0: {
-      from: f
-    }
-  } = [pick ? {
-    from: _Array$from
-  } : userObj];
+  const f = _Array$from;
 }
 {
   const {
@@ -231,13 +219,7 @@ function mark(t, v) {
   } = [...x, pick ? Array : userObj];
 }
 {
-  const {
-    1: {
-      from: f
-    }
-  } = [0, pick ? {
-    from: _Array$from
-  } : userObj];
+  const f = _Array$from;
 }
 {
   const {

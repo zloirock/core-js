@@ -1,5 +1,6 @@
-// a registry-known non-mutating method keeps the per-element precision - the read stays
-// on the array family alone (the string leg must NOT appear)
+// Registry-known non-mutating calls keep the resolver's element-family precision.
+// Value flow through library callbacks is an accepted model boundary: a callback can
+// retype this array through its third argument. This row locks the current Array-only inference.
 const scanned = [[1], [2]];
 scanned.forEach(f);
 export const viaSafeCall = scanned[0].at(1);

@@ -3114,7 +3114,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       replacePath: callerPath.parentPath,
       // wrap with the caller's accumulated side effects (e.g. computed-key SE from
       // detect-usage) so they don't drop when the original call is fully replaced
-      result: withSideEffects(t.callExpression(id, [t.cloneNode(recvNode)]), hoistedSE),
+      result: withSideEffects(t.callExpression(id, [cloneReceiverForEmit({
+        t, collapse: collapseKeptNavValueNode, node: recvNode, path, types: resolvedType,
+      })]), hoistedSE),
       check,
     });
   }

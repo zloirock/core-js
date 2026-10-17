@@ -13,7 +13,7 @@ function viaSymbol() {
 export const s = viaSymbol();
 var G = globalThis;
 export const outer = G.Array.from([1]);
-function viaCtor(flag) {
+export function viaCtor(flag) {
   if (flag) { var G = globalThis; }
   return G.Array.from([2]);
 }

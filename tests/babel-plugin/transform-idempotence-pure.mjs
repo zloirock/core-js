@@ -3,7 +3,8 @@
 // re-hangs) must survive a second pass byte-for-byte in CONTENT - a re-render would double
 // guards or re-probe an already-probed claim; a dropped import would strand the render
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 
@@ -35,6 +36,15 @@ const CASES = [
   ['sealed claim with throw probe', 'export const r = (globalThis.window?.self).Array.of(6).at(0);'],
   ['sealed destructure probe', 'export const { of: r } = (globalThis.window?.self).Array;'],
   ['sealed synth default probe', 'export function f({ keys: r } = (globalThis.window?.self).Object) { return r; }'],
+  ['owned parameter default beside an escaped instance',
+    "import Keys from '@core-js/pure/actual/object/keys'; export function f({keys,at}={keys:Keys}){return[keys,at];}",
+    null, ['@core-js/pure/actual/instance/at', '@core-js/pure/actual/object/keys']],
+  ['owned parameter default before a body shadow',
+    "import Keys from '@core-js/pure/actual/object/keys'; export function f({keys,at}={keys:Keys}){var Keys=99;return[keys,at,Keys];}",
+    null, ['@core-js/pure/actual/instance/at', '@core-js/pure/actual/object/keys']],
+  ['unowned parameter shadow remains an instance claim',
+    "import Keys from '@core-js/pure/actual/object/keys'; export function f(Keys,{keys,at}={keys:Keys}){return[keys,at];}",
+    null, ['@core-js/pure/actual/instance/at', '@core-js/pure/actual/instance/keys', '@core-js/pure/actual/object/keys']],
   ['sealed proto swap probe', 'export const r = (globalThis.window?.self).Map.prototype.has.call(new Map(), 1);'],
   ['delete through probe', 'export const r = delete globalThis.window?.self.customProp;'],
   // the LOGICAL-assignment patch: its detect is the operator's own read, which no node spells, so the
@@ -48,6 +58,10 @@ const CASES = [
   // pattern where it stood, so a second pass meets a leaf whose paired slot already holds our
   // import - and claiming it again turns the static into an INSTANCE dispatch on that slot and
   // appends an entry per pass. a single-pass fixture cannot see it: pass one is correct
+  ['nullable parameter mirror stays lazy',
+    'const events = []; const receiver = JSON.parse("null");\n'
+      + 'try { (({ [(events.push("key"), "at")]: at }, other) => [at, other])(receiver, events.push("argument")); }'
+      + '\ncatch (error) {} export { events };'],
   ['branch mirror literal',
     "const src = { O: Object };\nlet gate = 1, se = 0, keys;\n({ [(se += 1, 'O')]: { keys } } = gate && src);\nexport const r = [typeof keys, se];"],
   // the RECEIVER a prior pass narrowed onto its own ponyfill (`realm === _globalThis ? _Promise :
@@ -184,6 +198,10 @@ const CASES = [
   // a proxy-key sentinel a PRIOR pass printed under a wrapper a spread keeps alive: the pattern
   // binds nothing but the sentinel, and the unconditional hop trigger that consumes the residual
   // without asking the census extracts it as a live binding and mints one more on every pass
+  ['nested iterator sentinel under a spread wrapper',
+    'const { w: { [Symbol.iterator]: it } } = { ...extra, w: globalThis };\nuse(it);'],
+  ['nested iterator sentinel beside a native sibling under a spread wrapper',
+    'const { w: { [Symbol.iterator]: it, plain } } = { ...extra, w: globalThis };\nuse(it, plain);'],
   ['nested proxy-key sentinel under a spread wrapper', 'const { w: { Map: m } } = { ...extra, w: globalThis };\nuse(m);'],
   ['two-level proxy-key sentinel under a spread wrapper', 'const { w: { Array: { from: f } } } = { ...extra, w: globalThis };\nuse(f);'],
   // an identity guard compared through the realm entry - the build carries no safe raw name for an
@@ -205,11 +223,150 @@ for (const importStyle of ['import', 'require']) {
   const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle };
   const config = { configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]], filename: 'input.mjs' };
 
-  for (const [label, source, extra = null] of CASES) {
+  for (const [label, source, extra = null, expectedImports = null] of CASES) {
     const caseConfig = extra ? { ...config, plugins: [[babelPlugin, { ...OPTIONS, ...extra }]] } : config;
     const first = (await transformAsync(source, caseConfig)).code;
     const second = (await transformAsync(first, caseConfig)).code;
     check(`pure re-transform is stable: ${ label } (${ importStyle })`, second, first);
+    if (expectedImports) {
+      const imports = new Set();
+      for (const { groups } of first.matchAll(/["'](?<entry>@core-js\/pure\/[^"']+)["']/gu)) imports.add(groups.entry);
+      check(`pure re-transform retains the exact entries: ${ label } (${ importStyle })`,
+        JSON.stringify([...imports].sort()), JSON.stringify(expectedImports));
+    }
+  }
+}
+
+// A prior iterator sentinel has already been paired with its explicit terminal read.
+// First-pass read counts matter too: later-pass byte stability alone hides one added getter.
+for (const [label, source] of [
+  ['return', 'import readIterator from "@core-js/pure/actual/get-iterator-method";\n'
+    + 'export function read(extra){const{w:{[Symbol.iterator]:_unused}}={...extra,w:globalThis};return readIterator(globalThis);}'],
+  ['throw', 'import readIterator from "@core-js/pure/actual/get-iterator-method";\n'
+    + 'export function read(extra){const{w:{[Symbol.iterator]:_unused}}={...extra,w:globalThis};throw readIterator(globalThis);}'],
+  ['require alias', 'const iteratorKey=require("@core-js/pure/actual/symbol/iterator");\n'
+    + 'const readIterator=require("@core-js/pure/actual/get-iterator-method");\n'
+    + 'function read(extra){const{w:{[iteratorKey]:_unused}}={...extra,w:globalThis};return readIterator(globalThis);}module.exports=read;'],
+]) {
+  const config = { configFile: false, babelrc: false, filename: label === 'require alias' ? 'input.cjs' : 'input.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]] };
+  let output = source;
+  for (let pass = 1; pass <= 3; pass++) {
+    output = (await transformAsync(output, config)).code;
+    check(`terminal sentinel/${ label }/pass ${ pass }/only the source helper call`,
+      output.matchAll(/\breadIterator\(/gu).toArray().length, 1);
+    check(`terminal sentinel/${ label }/pass ${ pass }/no fresh sentinel name`, /_unused\d/u.test(output), false);
+  }
+}
+
+// Expression and suspension hosts retain the already extracted iterator on their first pass.
+for (const [label, kind, expression] of [
+  ['effect', 'function', 'readIterator(globalThis);'],
+  ['void', 'function', 'void readIterator(globalThis);'],
+  ['yield', 'function*', 'yield readIterator(globalThis);'],
+  ['await', 'async function', 'await readIterator(globalThis);'],
+]) {
+  const config = { configFile: false, babelrc: false, filename: 'input.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]] };
+  let output = 'import readIterator from "@core-js/pure/actual/get-iterator-method";\n'
+    + `export ${ kind } read(extra){const{w:{[Symbol.iterator]:_unused}}={...extra,w:globalThis};${ expression }}`;
+  for (let pass = 1; pass <= 3; pass++) {
+    output = (await transformAsync(output, config)).code;
+    check(`expression sentinel/${ label }/pass ${ pass }/only the source helper call`,
+      output.matchAll(/\breadIterator\(/gu).toArray().length, 1);
+    check(`expression sentinel/${ label }/pass ${ pass }/no fresh sentinel name`, /_unused\d/u.test(output), false);
+  }
+}
+
+// Exporting a source binding keeps it live beside a factory value or call.
+for (const held of ['dispatch', 'dispatch([])']) for (const entry of ['instance/at', 'array/instance/at']) {
+  const config = { configFile: false, babelrc: false, filename: 'input.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]] };
+  let output = `import dispatch from "@core-js/pure/actual/${ entry }";export const{at:_unused}=[];export const held=${ held };`;
+  for (let pass = 1; pass <= 3; pass++) {
+    output = (await transformAsync(output, config)).code;
+    check(`factory sentinel/${ entry }/${ held }/pass ${ pass }/exported value reads its receiver`,
+      /^export const _unused = [\w$]+\(\[\]\);$/mu.test(output), true);
+    check(`factory sentinel/${ entry }/${ held }/pass ${ pass }/factory binding remains a value`,
+      output.includes(`export const held = ${ held };`), true);
+  }
+}
+
+// A ready static import beside the source pattern does not make its exported binding unread.
+{
+  const config = { configFile: false, babelrc: false, filename: 'input.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]] };
+  let output = 'import method from "@core-js/pure/actual/array/from";export const{from:_unused}=Array;export const held=method;';
+  for (let pass = 1; pass <= 3; pass++) {
+    output = (await transformAsync(output, config)).code;
+    check(`static sentinel/pass ${ pass }/exported binding receives the static`, output.includes('export const _unused = method;'), true);
+    check(`static sentinel/pass ${ pass }/source alias remains`, output.includes('export const held = method;'), true);
+  }
+}
+
+// Import deduplication is flavor-specific; a prior sentinel is recognizable across flavors.
+// Exercise real sibling lowering as well as the source pass, with a receiver local to the VM.
+{
+  const e2e = requireBabel('../../scripts/bundle-tests/webpack.usage-pure-babel.config.js').module.rules[0].use.options;
+  const runtimeRequire = createRequire(import.meta.url);
+  const hosts = [
+    ['returned', 'function', 'return readIterator(globalThis);'],
+    ['thrown', 'function', 'throw readIterator(globalThis);'],
+    ['effect', 'function', 'readIterator(globalThis);'],
+    ['voided', 'function', 'void readIterator(globalThis);'],
+    ['yielded', 'function*', 'yield readIterator(globalThis);'],
+    ['awaited', 'async function', 'return await readIterator(globalThis);'],
+  ];
+  const flavors = [['actual', 'actual'], ['actual', 'full'], ['full', 'actual'], ['full', 'full']];
+  const configurations = flavors.flatMap(([sourceMode, mode]) => [false, true].flatMap(lowered => ['default', 'named'].map(binder => ({
+    sourceMode, mode, lowered, binder,
+  }))));
+  for (const { sourceMode, mode, lowered, binder } of configurations) {
+    const bodies = hosts.map(([name, kind, expression], i) => `export ${ kind } ${ name }(extra){
+      const{w:{[iteratorKey]:_unused${ i ? i + 1 : '' }}}={...extra,w:globalThis};${ expression }}`).join('\n');
+    const source = `import ${ binder === 'named' ? '{default as iteratorKey}' : 'iteratorKey' } from '@core-js/pure/${ sourceMode }/symbol/iterator';
+      import ${ binder === 'named' ? '{default as readIterator}' : 'readIterator' } from '@core-js/pure/${ sourceMode }/get-iterator-method';${ bodies }`;
+    const loweringPlugins = lowered ? e2e.plugins.slice(1).map(([name, ...options]) => [
+      requireBabel.resolve(name.replace(/^@babel\/(?!plugin-)/u, '@babel/plugin-')), ...options,
+    ]) : [requireBabel.resolve('@babel/plugin-transform-modules-commonjs')];
+    const { code } = await transformAsync(source, {
+      ...lowered ? e2e : {},
+      configFile: false,
+      babelrc: false,
+      filename: fileURLToPath(new URL('../e2e-usage-pure/destructuring-single-getter.js', import.meta.url)),
+      plugins: [[babelPlugin, { method: 'usage-pure', mode, version: '4.0', targets: { ie: 11 } }], ...loweringPlugins],
+    });
+    for (const [name] of hosts) {
+      const events = [];
+      const receiver = {};
+      function method() { return 23; }
+      Object.defineProperty(receiver, Symbol.iterator, {
+        get() {
+          events.push('iterator');
+          return method;
+        },
+      });
+      const context = { exports: {}, require: specifier => specifier.endsWith('/global-this') ? receiver : runtimeRequire(specifier) };
+      runInNewContext(code, context);
+      const extra = {
+        get marker() { events.push('spread'); return 1; },
+      };
+      let value;
+      if (name === 'thrown') {
+        try {
+          context.exports[name](extra);
+        } catch (error) {
+          value = error;
+        }
+      } else {
+        value = context.exports[name](extra);
+        if (name === 'yielded') value = value.next().value;
+        else if (name === 'awaited') value = await value;
+      }
+      const label = `sentinel/${ sourceMode }->${ mode }/${ binder }/${ lowered ? 'lowered' : 'source' }/${ name }`;
+      check(`${ label }/source read order`, events.join(','), 'spread,iterator,iterator');
+      check(`${ label }/result`, value, name === 'effect' || name === 'voided' ? undefined : method);
+    }
   }
 }
 

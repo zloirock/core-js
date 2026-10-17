@@ -15,7 +15,7 @@ import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 var _ref6;
 // Nested claims beside constructor statics retain one evaluation of each user getter receiver.
-// A proven class getter narrows its prototype to Array; unresolved sibling routes stay conservative.
+// A proven class getter narrows its prototype to Array and preserves its sibling statics.
 class KE {
   static get A() {
     log();
@@ -74,7 +74,9 @@ const {
   isArray: a7
 } = Array;
 let m8, a8;
-_ref6 = KE.A, m8 = _toReversedMaybeArray(_ref6.prototype), a8 = _Array$of;
+_ref6 = KE.A;
+m8 = _toReversedMaybeArray(_ref6.prototype);
+a8 = _Array$of;
 const _ref7 = KE.P,
   a9 = _Promise$try,
   {

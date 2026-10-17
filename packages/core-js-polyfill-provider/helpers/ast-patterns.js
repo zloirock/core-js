@@ -1101,7 +1101,17 @@ export function isReusableReceiver(node, { interveningEffects = false, directCal
   // A direct optional callee still needs one GetValue for its guard and call.
   const ambient = isAmbientBindingShape(binding?.node ?? declaration?.node, declaration?.parentPath?.node)
     || nonEmittedExpressionAncestor(declaration);
-  if ((!binding || ambient) && ctx.adapter?.isMutatedStaticSlot?.('globalThis', inner.name)) return false;
+  if (!binding || ambient) {
+    if (ctx.adapter?.isMutatedStaticSlot?.('globalThis', inner.name)) return false;
+    // The built-in mutation census omits unknown lowercase slots. The cached lexical write
+    // index still knows their source writers and excludes writes to shadowed bindings.
+    const owner = rootPathOf(ctx.path);
+    if (owner?.node?.type === 'Program' && collectScopeReassignmentNodes(owner, inner.name).some(
+      write => !writeNeverRuns({ write, usagePath: ctx.path, adapter: ctx.adapter })
+      && (nestedWriteOwners.has(write) || interveningEffects
+        && !provablyPrecedes(write, ctx.path?.node) && !provablyPrecedes(ctx.path?.node, write)),
+    )) return false;
+  }
   if (ambient) {
     if (directCallee) return false;
     if (!cleanDestructureAliasWrites(binding).length) return true;
@@ -3249,16 +3259,19 @@ export function buildScopeReassignmentIndex(ownerNode, sloppy = false) {
 // spell around it (`a! = v`, `(a as any) = v`, `(a)++`) - neither native tracker records those as
 // writes, and this scan is their only recorder - a pattern's leaves, or a for-of / for-in head: a
 // bare-Identifier / destructuring-pattern target (`for (name of ...)`, `for ([name] of ...)`) or a
-// `var` head (`for (var name in ...)`)
-function writtenNames(node) {
+// `var` head (`for (var name in ...)`). The identifier projection keeps those same source targets.
+export function writtenNames(node, { identifierNodes = false } = {}) {
   const names = [];
+  function add(id) {
+    names.push(identifierNodes ? id : id.name);
+  }
   const target = node.type === 'AssignmentExpression' ? unwrapRuntimeExpr(node.left)
     : node.type === 'UpdateExpression' ? unwrapRuntimeExpr(node.argument) : null;
-  if (target?.type === 'Identifier') names.push(target.name);
-  else if (target && isDestructurePattern(target)) walkPatternIdentifiers(target, id => names.push(id.name));
+  if (target?.type === 'Identifier') add(target);
+  else if (target && isDestructurePattern(target)) walkPatternIdentifiers(target, add);
   else if (isForXStatement(node) && node.left?.type === 'VariableDeclaration') {
-    for (const d of node.left.declarations) walkPatternIdentifiers(d.id, id => names.push(id.name));
-  } else if (isForXStatement(node) && node.left) walkPatternIdentifiers(node.left, id => names.push(id.name));
+    for (const d of node.left.declarations) walkPatternIdentifiers(d.id, add);
+  } else if (isForXStatement(node) && node.left) walkPatternIdentifiers(node.left, add);
   return names;
 }
 
@@ -5339,19 +5352,21 @@ export function prototypeChainMayLend(key, ctx, owners) {
 // it) - provably leaves the slot undefined: an object
 // literal naming every key it spells (no spread, no key the pairing cannot fold, no `__proto__` that
 // could lend the key) without this one - and no prototype could lend it either - or with it `void`,
-// an array literal without a spread whose slot is past its end, `void`, or a hole no written
+// an array literal with its ordinary iterator and no spread whose slot is past its end,
+// `void`, or a hole no written
 // prototype key could fill. a bare `undefined`
 // names a binding a scope may shadow, a parameter of the callee a call's literal comes from included
 export function patternSlotCertainDefault(pattern, rhs, name, ctx = null) {
   if (ctx?.held) return null;
   rhs = installedWriteValue(rhs);
-  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
+  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs, ctx.adapter?.isMutatedStaticSlot ?? ctx.adapter?.isMutatedStatic);
   function ownDefault(slot) {
     if (typeof name != 'string') return slot === name;
     return slot?.type === 'AssignmentPattern' && slot.left?.type === 'Identifier' && slot.left.name === name;
   }
   let slot = null;
   if (pattern?.type === 'ArrayPattern' && rhs?.type === 'ArrayExpression') {
+    if (prototypeChainMayLend('Symbol.iterator', ctx, ['Array'])) return null;
     const index = pattern.elements.findIndex(ownDefault);
     if (index === -1 || rhs.elements.some(element => element?.type === 'SpreadElement')) return null;
     if (rhs.elements[index] && !isVoidExpression(unwrapRuntimeExpr(rhs.elements[index]))) return null;
@@ -6685,15 +6700,27 @@ export function collectOwnReturns(body) {
 
 // any `arguments` spelling under this function, its nested functions included: a nested one binds its
 // OWN, so the answer is a superset - and the superset direction here is the escape that was there
-export function referencesArgumentsObject(callee) {
+// An optional sink retains that same conservative set for read-position queries.
+export function referencesArgumentsObject(callee, into = null) {
+  const answers = into ? null : canonAnswerTable(referencesArgumentsObject, []);
+  if (answers?.has(callee)) return answers.get(callee);
+  let found = false;
   const work = [callee.body, ...callee.params ?? []];
   while (work.length) {
     const current = work.pop();
     if (typeof current?.type !== 'string') continue;
-    if (current.type === 'Identifier' && current.name === 'arguments') return true;
+    if (current.type === 'Identifier' && current.name === 'arguments') {
+      if (!into) {
+        answers?.set(callee, true);
+        return true;
+      }
+      into.push(current);
+      found = true;
+    }
     walkAstChildren(current, child => work.push(child));
   }
-  return false;
+  answers?.set(callee, found);
+  return found;
 }
 
 // One static receiver supplied by every known invocation. Missing, shifted, opaque and mixed
@@ -6713,14 +6740,18 @@ export function parameterStaticSource(sites, paramIndex, resolveSource) {
 }
 
 // the slots of a wrapper literal, each `[key, value]`: a property's readable key - null for one no canon
-// folds, and for a spread - or an element's index, up to the first element spread, which shifts the rest
-export function wrapperLiteralEntries(literal) {
+// folds, and for a spread - or an element's index, up to the first element spread, which shifts the rest.
+// Descriptor readers project object property nodes through the same key pairing.
+export function wrapperLiteralEntries(literal, { propertyNodes = false } = {}) {
   if (literal?.type === 'ArrayExpression') {
     const spread = literal.elements.findIndex(element => element?.type === 'SpreadElement');
     return (spread === -1 ? literal.elements : literal.elements.slice(0, spread)).map((element, index) => [String(index), element]);
   }
   if (literal?.type !== 'ObjectExpression') return [];
-  return literal.properties.map(prop => [prop.type === 'SpreadElement' ? null : foldedPropertyKeyName(prop), prop.value]);
+  return literal.properties.map(prop => [
+    prop.type === 'SpreadElement' ? null : foldedPropertyKeyName(prop),
+    propertyNodes ? prop : prop.value,
+  ]);
 }
 
 // ... and those that hold a container by NAME: `[keyPath, name, node]` - a nested literal's slots under the
@@ -6952,7 +6983,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   // peel comes first: a paren (an oxc NODE), a TS cast, a sequence or a plain write all hand the same
   // runtime value, and judging the raw spelling split the legs on `([[globalThis]])`
   rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
-  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
+  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs, ctx.adapter?.isMutatedStaticSlot ?? ctx.adapter?.isMutatedStatic);
   const sources = pairerSources(rhs, ctx);
   if (sources) {
     return sources.flatMap(({ source, filled, scope, argumentScope }) => {
@@ -7061,7 +7092,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   // values enumerated through a followed / peeled rhs with completeness judged on the raw spelling
   // would read a lone candidate as certain while an alias or a paren hides the shift
   rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
-  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
+  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs, ctx.adapter?.isMutatedStaticSlot ?? ctx.adapter?.isMutatedStatic);
   // ... and the same expansion of a source the pairer cannot index into the containers it names
   const sources = pairerSources(rhs, ctx);
   if (sources) return sources.some(({ source }) => patternSlotSpreadShifted(pattern, source, name, ctx));
@@ -7075,13 +7106,21 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
       const key = patternPropKey(prop, ctx, pattern);
       // a key spelling an ARRAY index reads the slot under the positional contract, shift included
       const arrayIndex = key !== null && rhs?.type === 'ArrayExpression' ? canonicalArrayIndex(key) : null;
-      if (arrayIndex !== null && !resolveCallArgumentCoords(rhs.elements, arrayIndex)
+      if (arrayIndex !== null && !resolveCallArgumentCoords(
+        rhs.elements,
+        arrayIndex,
+        ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic,
+      )
         && spreadAtOrBefore(rhs.elements, arrayIndex)) return true;
       // last matching key wins, but a trailing spread could override it -> pairs nothing (canon).
       // only a NESTED slot can be shifted inside its paired value, and the key lookup scans the
       // whole literal: a leaf slot skips it, or N reads of one literal cost N scans of it
       if (isDestructurePattern(slot)) {
-        const paired = arrayIndex !== null ? resolveCallArgument(rhs.elements, arrayIndex)
+        const paired = arrayIndex !== null ? resolveCallArgument(
+          rhs.elements,
+          arrayIndex,
+          ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic,
+        )
           : key !== null && rhs?.type === 'ObjectExpression'
             ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key)) : null;
         if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
@@ -7095,10 +7134,14 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   for (let i = 0; i < pattern.elements.length; i++) {
     const element = pattern.elements[i];
     if (!element || !patternBindsName(element, name)) continue;
-    const coords = rhs?.type === 'ArrayExpression' ? resolveCallArgumentCoords(rhs.elements, i) : null;
+    const coords = rhs?.type === 'ArrayExpression' ? resolveCallArgumentCoords(
+      rhs.elements,
+      i,
+      ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic,
+    ) : null;
     if (rhs?.type === 'ArrayExpression' && !coords && spreadAtOrBefore(rhs.elements, i)) return true;
     const slot = patternSlotTarget(element);
-    const paired = coords ? resolveCallArgument(rhs.elements, i) : null;
+    const paired = coords ? resolveCallArgument(rhs.elements, i, ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic) : null;
     if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
     if (element.type === 'AssignmentPattern'
       && patternSlotSpreadShifted(slot, element.right, name, ctx)) return true;
@@ -7583,12 +7626,13 @@ export function bindingWrittenBeyondItsFrame(binding, ctx = null, { closedCalls 
     const sourceWrite = write.type === 'Identifier' ? enclosingValueFlowAssignment(write, frame) : write;
     // Find live source writes by their path before building an index of the whole owner.
     // A cached path can locate a re-emitted copy within its still-live source frame.
-    // Missing local copies fall back to the binding owner's unique source-position index.
+    // Missing local copies use the statement holding their span before the owner index,
+    // so a replaced nested write never forces scans of unrelated function bodies.
     const sourcePath = ownerPath && pathOfNode(ownerPath, sourceWrite);
     const sourceOwner = sourcePath && findNearestVarScopeOwner(sourcePath);
     const path = sourcePath?.node === sourceWrite && !ancestorChainDetached(sourcePath) ? sourcePath
       : sourceOwner && !ancestorChainDetached(sourceOwner) && ownerSourceWritePath(sourceOwner, sourceWrite)
-        || ownerPath && ownerSourceWritePath(ownerPath, sourceWrite);
+        || ownerPath && ownerSourceWritePath(statementPathHolding(ownerPath, sourceWrite), sourceWrite);
     if (path && !ancestorChainDetached(path)) {
       return pathCanReenter(path);
     }
@@ -8396,7 +8440,7 @@ export function namespaceScopedBindingBlock(binding) {
 // Locate a runtime position through inline-array spreads. Coordinates are the raw index at
 // each nested list, from the outer argument/element list to the selected value. An opaque
 // spread blocks positions at or after it; earlier positions remain exact. Holes occupy a slot.
-export function resolveCallArgumentCoords(args, index) {
+export function resolveCallArgumentCoords(args, index, staticIsMutated = null) {
   const stack = [{ list: args, next: 0 }];
   const coords = [];
   let effective = 0;
@@ -8410,6 +8454,7 @@ export function resolveCallArgumentCoords(args, index) {
     const slot = frame.next++;
     const arg = frame.list[slot];
     if (arg?.type === 'SpreadElement') {
+      if (staticIsMutated?.('Array.prototype', 'Symbol.iterator')) return null;
       const spread = unwrapRuntimeExpr(arg.argument);
       if (spread?.type !== 'ArrayExpression') return null;
       coords.push(slot);
@@ -8420,8 +8465,8 @@ export function resolveCallArgumentCoords(args, index) {
 }
 
 // Resolve the node at a runtime position with the same coordinates as path consumers.
-export function resolveCallArgument(args, index) {
-  const coords = resolveCallArgumentCoords(args, index);
+export function resolveCallArgument(args, index, staticIsMutated = null) {
+  const coords = resolveCallArgumentCoords(args, index, staticIsMutated);
   if (!coords) return null;
   let node = args[coords[0]];
   for (const slot of coords.slice(1)) node = unwrapRuntimeExpr(node.argument).elements[slot];
@@ -8429,13 +8474,14 @@ export function resolveCallArgument(args, index) {
 }
 
 // Count the whole expanded list. Unlike a positional read, any opaque spread prevents an answer.
-export function effectiveArgsLength(args) {
+export function effectiveArgsLength(args, staticIsMutated = null) {
   let length = 0;
   for (const arg of args) {
     if (arg?.type === 'SpreadElement') {
+      if (staticIsMutated?.('Array.prototype', 'Symbol.iterator')) return null;
       const spread = unwrapRuntimeExpr(arg.argument);
       if (spread?.type !== 'ArrayExpression') return null;
-      const nested = effectiveArgsLength(spread.elements);
+      const nested = effectiveArgsLength(spread.elements, staticIsMutated);
       if (nested === null) return null;
       length += nested;
     } else length++;
@@ -8451,9 +8497,9 @@ export function peelToBareExpr(node) {
 
 // Read a spread array as a complete positional list. Opaque spreads make that list unknown,
 // even when individual positions before them could still be resolved.
-function inlineArrayElements(node) {
+function inlineArrayElements(node, staticIsMutated = null) {
   const array = unwrapRuntimeExpr(node);
-  return array?.type === 'ArrayExpression' ? positionalElements(array.elements) : null;
+  return array?.type === 'ArrayExpression' ? positionalElements(array.elements, staticIsMutated) : null;
 }
 
 // a pairing whose arguments come out of an ARRAY the call spreads - `f.apply(t, a)` and
@@ -8461,8 +8507,12 @@ function inlineArrayElements(node) {
 // the same fact as an empty one: a consumer recording what a call installs owes nothing either way,
 // but one PROVING that no argument reaches a slot must refuse an undecided list, and the list alone
 // cannot tell them apart
-function spreadArrayPairing(callee, arrayNode, thisArg) {
-  const elements = inlineArrayElements(arrayNode);
+function spreadArrayPairing(callee, arrayNode, thisArg, staticIsMutated) {
+  const array = unwrapRuntimeExpr(arrayNode);
+  // Keep source positions when ES spread cannot be expanded. A positional reader may
+  // still prove an earlier slot; an opaque array-like has no source list at all.
+  const elements = array?.type === 'ArrayExpression' && staticIsMutated?.('Array.prototype', 'Symbol.iterator')
+    ? array.elements : inlineArrayElements(arrayNode);
   return { callee: peelToBareExpr(callee), args: elements ?? [], argsUnknown: elements === null, thisArg };
 }
 
@@ -8484,6 +8534,8 @@ function invocationEntryOf(bound, programNode, getCalleeEntry) {
 // the CALLEE comes back peeled to the bare expression it invokes, so an identity compare against a
 // candidate node answers alike whichever wrapper - a paren, a TS cast, a sequence whose tail is the
 // function - the source spelled around it.
+// With a changed Array iterator, an inline apply array keeps its raw ES spreads.
+// Positional readers use the same callback and can still answer before a spread.
 // `argsUnknown` marks the pairings whose ARGUMENT LIST is not statically decidable: an unreadable
 // spread array, and a receiver slot holding a SPREAD - dropping the receiver by position cannot
 // know how many arguments that spread put ahead of it. `nameIsShadowed` is the scope question the
@@ -8523,7 +8575,10 @@ function composedInvocation({ callee, args, argsUnknown, thisArg }, staticIsMuta
   if (key === 'call' && !staticIsMutated?.('Function.prototype', 'call')) {
     return { callee: peelToBareExpr(thisArg), args: args.slice(1), argsUnknown: args[0]?.type === 'SpreadElement', thisArg: args[0] };
   }
-  return key === 'apply' && !staticIsMutated?.('Function.prototype', 'apply') ? spreadArrayPairing(thisArg, args[1], args[0]) : null;
+  return key === 'apply' && !staticIsMutated?.(
+    'Function.prototype',
+    'apply',
+  ) ? spreadArrayPairing(thisArg, args[1], args[0], staticIsMutated) : null;
 }
 
 function directCallPairing(node, programNode, { nameIsShadowed = null, staticIsMutated = null, getCalleeEntry = null }) {
@@ -8533,23 +8588,30 @@ function directCallPairing(node, programNode, { nameIsShadowed = null, staticIsM
   if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression' && node.type !== 'NewExpression') return null;
   const args = node.arguments ?? [];
   const callee = peelToBareExpr(node.callee);
-  if (invocationEntryOf(callee, programNode, getCalleeEntry) === 'reflect/apply') return spreadArrayPairing(args[0], args[2], args[1]);
+  if (invocationEntryOf(
+    callee,
+    programNode,
+    getCalleeEntry,
+  ) === 'reflect/apply') return spreadArrayPairing(args[0], args[2], args[1], staticIsMutated);
   if (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') {
     const key = memberKeyName(callee);
     const target = peelToBareExpr(callee.object);
     if (key === 'apply' && target?.type === 'Identifier' && target.name === 'Reflect' && !nameIsShadowed?.('Reflect', target)
       && !staticIsMutated?.('Reflect', 'apply')) {
-      return spreadArrayPairing(args[0], args[2], args[1]);
+      return spreadArrayPairing(args[0], args[2], args[1], staticIsMutated);
     }
     if (key === 'apply' && invocationEntryOf(target, programNode, getCalleeEntry) === 'reflect') {
-      return spreadArrayPairing(args[0], args[2], args[1]);
+      return spreadArrayPairing(args[0], args[2], args[1], staticIsMutated);
     }
     if (key === 'call' && !staticIsMutated?.('Function.prototype', 'call')) {
       return {
         callee: peelToBareExpr(callee.object), args: args.slice(1), argsUnknown: args[0]?.type === 'SpreadElement', thisArg: args[0],
       };
     }
-    if (key === 'apply' && !staticIsMutated?.('Function.prototype', 'apply')) return spreadArrayPairing(callee.object, args[1], args[0]);
+    if (key === 'apply' && !staticIsMutated?.(
+      'Function.prototype',
+      'apply',
+    )) return spreadArrayPairing(callee.object, args[1], args[0], staticIsMutated);
   }
   return { callee, args };
 }
@@ -8564,11 +8626,10 @@ function directCallPairing(node, programNode, { nameIsShadowed = null, staticIsM
 // paramHasOverridingArg. `undefinedShadowed` answers whether a binding hides the global `undefined`
 // at the call - a shadowed name is a real value. one answer for the type resolver's call-site scan
 // and the destructure dispatches' caller-lossiness gate
-export function argumentOverridesSlot(args, argIndex, undefinedShadowed) {
-  const length = effectiveArgsLength(args);
-  if (length === null) return true;
-  const arg = argIndex < length ? resolveCallArgument(args, argIndex) : null;
-  if (!arg) return false;
+export function argumentOverridesSlot(args, argIndex, undefinedShadowed, staticIsMutated = null) {
+  const arg = resolveCallArgument(args, argIndex, staticIsMutated);
+  if (!arg) return effectiveArgsLength(args, staticIsMutated) === null
+    && !resolveCallArgumentCoords(args, argIndex, staticIsMutated);
   const value = unwrapRuntimeExpr(arg);
   if (isVoidExpression(value)) return false;
   return !(isBareUndefinedIdentifier(value) && !undefinedShadowed(value));
@@ -8602,13 +8663,13 @@ export function findIifeCallSite(fnParentPath, paramNode) {
 // an absent / `undefined` / `void` slot runs the default, which is then the receiver the pattern
 // reads (`(({ Array: { of } } = globalThis) => ...)(undefined)` reads `globalThis.Array.of`) - the
 // shared slot rule, so every lifter of the argument answers as the call-site scans do
-export function findIifeArgForParam(fnParentPath, paramNode) {
+export function findIifeArgForParam(fnParentPath, paramNode, staticIsMutated = null) {
   const site = findIifeCallSite(fnParentPath, paramNode);
   if (!site) return null;
   const args = site.callPath.node.arguments ?? [];
   if (paramNode.type === 'AssignmentPattern'
-    && !argumentOverridesSlot(args, site.paramIndex, () => !!site.callPath.scope?.getBinding?.('undefined'))) return null;
-  return resolveCallArgument(args, site.paramIndex);
+    && !argumentOverridesSlot(args, site.paramIndex, () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
+  return resolveCallArgument(args, site.paramIndex, staticIsMutated);
 }
 
 // the argument PATH a `resolveCallArgumentCoords` coordinate names among a call's argument paths:
@@ -8627,12 +8688,13 @@ export function callArgumentPathAt(argPaths, coords) {
 
 // a positional list read WHOLE at its runtime positions (inline-array spreads expanded, a hole
 // null), or null where no static length exists - the list twin of `resolveCallArgument`
-export function positionalElements(list) {
+export function positionalElements(list, staticIsMutated = null) {
   const elements = [];
   for (const element of list) {
     if (element?.type !== 'SpreadElement') elements.push(element);
     else {
-      const nested = inlineArrayElements(element.argument);
+      if (staticIsMutated?.('Array.prototype', 'Symbol.iterator')) return null;
+      const nested = inlineArrayElements(element.argument, staticIsMutated);
       if (!nested) return null;
       elements.push(...nested);
     }
@@ -8644,15 +8706,15 @@ export function positionalElements(list) {
 // elements), the coordinate read the way every positional list is read (`resolveCallArgumentCoords`):
 // null for a hole, a position past the static length, or a shift no static position survives (a
 // spread of a binding at or before it)
-export function positionalPathAt(paths, index) {
-  const coords = resolveCallArgumentCoords(paths.map(path => path.node), index);
+export function positionalPathAt(paths, index, staticIsMutated = null) {
+  const coords = resolveCallArgumentCoords(paths.map(path => path.node), index, staticIsMutated);
   const path = coords && callArgumentPathAt(paths, coords);
   return path?.node ? path : null;
 }
 
 // the same read off an array-literal PATH
-export function positionalElementPath(arrayPath, index) {
-  return positionalPathAt(cachedContainerPaths(arrayPath, 'elements'), index);
+export function positionalElementPath(arrayPath, index, staticIsMutated = null) {
+  return positionalPathAt(cachedContainerPaths(arrayPath, 'elements'), index, staticIsMutated);
 }
 
 // the argument PATH a bare-ObjectPattern IIFE param resolves to: the call site plus the
@@ -8660,10 +8722,10 @@ export function positionalElementPath(arrayPath, index) {
 // both emitters use - a consumer that re-derives the position by an identity scan over the
 // arguments diverges from the node form exactly where the two peel differently (a wrapped spread
 // array), and silently loses the receiver this resolver found
-export function findIifeArgPath(fnParentPath, paramNode) {
+export function findIifeArgPath(fnParentPath, paramNode, staticIsMutated = null) {
   const site = findIifeCallSite(fnParentPath, paramNode);
   if (!site) return null;
-  const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
+  const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex, staticIsMutated);
   return coords ? callArgumentPathAt(site.callPath.get('arguments'), coords) : null;
 }
 
@@ -9030,8 +9092,8 @@ export function forOfHeadDeclarationOf(name, { scope, adapter, path }, read = nu
 // where the host is the function itself). every consumer that reads a host's receiver asks through
 // here, so a head or a call argument is a receiver-bearing host everywhere at once rather than in
 // whichever walk was taught about it
-export function destructureReceiverNode(host, patternNode = null) {
-  const iifeArgument = iifeParameterArgument(host, patternNode);
+export function destructureReceiverNode(host, patternNode = null, staticIsMutated = null) {
+  const iifeArgument = iifeParameterArgument(host, patternNode, staticIsMutated);
   if (iifeArgument) return iifeArgument;
   // ... and a head that declares NOTHING holds its pattern in the loop's own `left`: no slot exists
   // there either, and what the pattern reads is still the element the iterated literal spells
@@ -9039,16 +9101,21 @@ export function destructureReceiverNode(host, patternNode = null) {
     return patternNode && host.node.left !== patternNode
       ? null : forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
   }
+  if (host?.node?.type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type)) {
+    const site = findIifeCallSite(host.parentPath, host.node);
+    if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
+      () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
+  }
   const slot = destructureReceiverSlot(host?.node);
   if (!slot) return null;
   return host.node[slot] ?? forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
 }
 
-function iifeParameterArgument(host, patternNode) {
+function iifeParameterArgument(host, patternNode, staticIsMutated = null) {
   const type = host?.node?.type;
   const fn = type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type) ? host.parentPath
     : FUNCTION_LIKE_NODE_TYPES.has(type) && patternNode && host.node.params?.includes(patternNode) ? host : null;
-  return fn ? findIifeArgForParam(fn, type === 'AssignmentPattern' ? host.node : patternNode) : null;
+  return fn ? findIifeArgForParam(fn, type === 'AssignmentPattern' ? host.node : patternNode, staticIsMutated) : null;
 }
 
 // walk a (possibly nested) Object / Array pattern to find the keyPath leading to a leaf Identifier
@@ -9110,7 +9177,7 @@ export function arrayWrapSlotBindsName(slot, name, ctx = null) {
 // wrapper or sole inline loop element. Return `{ rhsNode, slot, callPath, paramIndex }`;
 // wrapped/loop answers add `hostPath` and `descend` for live path recovery.
 // Null means no supported source; the caller decides whether to warn or try another route.
-export function resolveFallbackReceiver(wrapperPath, paramNode) {
+export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated = null) {
   const wrapperNode = wrapperPath?.node;
   if (!wrapperNode) return null;
   // a WRAPPED pattern names no slot of its own: the host's literal pairs its element with the
@@ -9121,7 +9188,7 @@ export function resolveFallbackReceiver(wrapperPath, paramNode) {
   if (wrapperNode.type === 'ArrayPattern' || isPatternPropertyOf(wrapperNode, paramNode)
     || (wrapperNode.type === 'AssignmentPattern' && wrapperNode.left === paramNode
       && (wrapperPath.parentPath?.node?.type === 'ArrayPattern' || isPatternPropertyOf(wrapperPath.parentPath?.node, wrapperNode)))) {
-    return resolveWrappedFallbackReceiver(wrapperPath, paramNode);
+    return resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated);
   }
   // an AssignmentPattern that is a function PARAM (`(({p} = D) => body)(R)`) carries the DEFAULT in
   // its `right` slot, but the live call-arg R is the real receiver (the default applies only when no
@@ -9130,8 +9197,10 @@ export function resolveFallbackReceiver(wrapperPath, paramNode) {
   // default only when there is no call site. detect-usage passes the function itself and skips this arm
   if (wrapperNode.type === 'AssignmentPattern' && FN_NODE_TYPES.has(wrapperPath.parentPath?.node?.type)) {
     const site = findIifeCallSite(wrapperPath.parentPath, wrapperNode);
-    const rhsNode = site ? findIifeArgForParam(wrapperPath.parentPath, wrapperNode) : null;
+    const rhsNode = site ? findIifeArgForParam(wrapperPath.parentPath, wrapperNode, staticIsMutated) : null;
     if (rhsNode) return { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex };
+    if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
+      () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
     return { rhsNode: wrapperNode.right, slot: 'right', callPath: null, paramIndex: -1 };
   }
   const slot = destructureReceiverSlot(wrapperNode);
@@ -9149,7 +9218,7 @@ export function resolveFallbackReceiver(wrapperPath, paramNode) {
   }
   if (slot && wrapperNode[slot]) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
   const site = findIifeCallSite(wrapperPath, paramNode);
-  const rhsNode = site ? findIifeArgForParam(wrapperPath, paramNode) : null;
+  const rhsNode = site ? findIifeArgForParam(wrapperPath, paramNode, staticIsMutated) : null;
   return rhsNode ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
 }
 
@@ -9183,7 +9252,7 @@ function isPatternPropertyOf(node, valueNode) {
 // there, or a slot no literal spells (a spread, a computed key, a getter, an opaque host) - so the
 // default is the receiver wherever the pairing fails: rewriting a default's own arms is sound whatever
 // the host holds (a present slot never runs it, an outer level read as `undefined` throws before it)
-function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
+function resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated = null) {
   const steps = [];
   let cur = wrapperPath;
   let slotNode = paramNode;
@@ -9214,7 +9283,7 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
     slotNode = node;
     cur = cur.parentPath;
   }
-  const host = steps.length ? resolveFallbackReceiver(cur, slotNode) : null;
+  const host = steps.length ? resolveFallbackReceiver(cur, slotNode, staticIsMutated) : null;
   const unpaired = ownDefault
     ? { rhsNode: ownDefault.node.right, slot: 'right', callPath: null, paramIndex: -1, hostPath: ownDefault } : null;
   // a host with no receiver of its own (a for-x HEAD, whose elements the iterated literal holds)
@@ -9236,9 +9305,9 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
       // off the array, exactly as the language does): the one canonical index read, an INLINE-array
       // spread expanded through the same coordinates as call arguments.
       const index = step.key === undefined ? step.index : canonicalArrayIndex(step.key);
-      const coords = index === null ? null : resolveCallArgumentCoords(literal.elements, index);
+      const coords = index === null ? null : resolveCallArgumentCoords(literal.elements, index, staticIsMutated);
       if (!coords) return unpaired;
-      rhsNode = resolveCallArgument(literal.elements, index);
+      rhsNode = resolveCallArgument(literal.elements, index, staticIsMutated);
       if (!rhsNode || isUndefinedNode(unwrapRuntimeExpr(rhsNode))) return unpaired;
       descend.push({ container: 'elements', coords });
     } else if (step.key === undefined || literal?.type !== 'ObjectExpression') {
@@ -9259,10 +9328,10 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
 // path-form companion of `resolveFallbackReceiver` for AST-mutation callers (babel's
 // synth-swap registers via NodePath). adapter-agnostic - both babel NodePath and
 // estree-toolkit Path expose `.get(key)` / `.get('arguments')[index]`
-export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
-  const desc = resolveFallbackReceiver(wrapperPath, paramNode);
+export function resolveFallbackReceiverPath(wrapperPath, paramNode, staticIsMutated = null) {
+  const desc = resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated);
   if (!desc) return null;
-  const hostReceiverPath = desc.slot ? (desc.hostPath ?? wrapperPath).get(desc.slot) : fallbackCallArgumentPath(desc);
+  const hostReceiverPath = desc.slot ? (desc.hostPath ?? wrapperPath).get(desc.slot) : fallbackCallArgumentPath(desc, staticIsMutated);
   let path = hostReceiverPath;
   // a wrapped descriptor pairs level by level; the wrappers a level wears are stepped into on the
   // way (the node form peeled them), so the path lands on the value the pair names - an array's
@@ -9280,8 +9349,8 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
 // the descriptor's paramIndex counts EXPANDED positions - the inline-array spread expansion is
 // `resolveCallArgumentCoords` (the canonical semantics) and the path is the coordinate's;
 // raw `arguments[paramIndex]` indexed past the single SpreadElement and bailed
-function fallbackCallArgumentPath(desc) {
-  const coords = resolveCallArgumentCoords(desc.callPath.node.arguments, desc.paramIndex);
+function fallbackCallArgumentPath(desc, staticIsMutated = null) {
+  const coords = resolveCallArgumentCoords(desc.callPath.node.arguments, desc.paramIndex, staticIsMutated);
   return coords ? callArgumentPathAt(desc.callPath.get('arguments'), coords) : null;
 }
 
@@ -9852,7 +9921,8 @@ export function prototypeWriteHostPath(ref) {
 // `__proto__ = null` installs no dispatcher. the literal-side twin is `objectLiteralPrototypeValue`.
 // the CALLEE's identity is not decidable from the raw AST (`Object` can be shadowed, and usage-pure
 // rewrites the call to its own injected binding), so the caller supplies `protoSetterCalleeArms`, truthy
-// for a callee that may install, and gets the callee PATH to resolve
+// for a callee that may install, 'unknown' where its body supplies no proven value, and gets the
+// callee PATH to resolve
 export function installedPrototypeValueAt(ref, protoSetterCalleeArms, undefinedShadowed = false) {
   // the reference may sit under transparent wrappers or be the VALUE of a sequence
   // (`Object.setPrototypeOf((eff(), o), P)`) - the install still lands on it, so climb to the node
@@ -9870,7 +9940,8 @@ export function installedPrototypeValueAt(ref, protoSetterCalleeArms, undefinedS
     || parent.arguments?.[0] !== host.node) return null;
   // the PROTO slot argument of a resolved setter call. a missing one (`setPrototypeOf(o)`) throws at
   // runtime, so nothing can be read off it - report the install without a value
-  return protoSetterCalleeArms?.(host.parentPath.get('callee')) ? parent.arguments[1] ?? NO_PROTOTYPE_VALUE : null;
+  const arms = protoSetterCalleeArms?.(host.parentPath.get('callee'));
+  return arms === 'unknown' ? NO_PROTOTYPE_VALUE : arms ? parent.arguments[1] ?? NO_PROTOTYPE_VALUE : null;
 }
 
 // an install whose prototype VALUE cannot be pointed at: the channel fired, but a consumer reading
@@ -10565,7 +10636,7 @@ export function isDeoptedGlobalSlotRead(meta, adapter, path = null) {
 // test asks from its owner, the member an optional chain guards. an INSTANCE meta passes unfiltered: after a write
 // replacing the prototype method (`Array.prototype.at = f`) pure still dispatches `[1].at(0)` to core-js's - debt
 export function isDeoptedStaticRead({ meta, adapter, path = null, read = path && { node: path.node, path } }) {
-  return meta?.kind === 'property' && !!meta.object && !!meta.key
+  return meta?.kind === 'property' && meta.placement === 'static' && !!meta.object && !!meta.key
     && !!adapter?.isMutatedStatic?.(meta.object, meta.key, read);
 }
 
@@ -10575,11 +10646,12 @@ export function mutatedSlotLeftNativeWarning(name) {
   return `\`${ name }\` is written in this file (slot mutation) - the name is left native`;
 }
 
-// a node-keyed memo scoped to the plugin INSTANCE that asked. the verdicts cached behind it are
-// method- and resolver-dependent, so a plain node key lets two instances over ONE tree replay each
+// A node-keyed memo scoped to its owning instance or native traversal context. Adapter verdicts
+// are method- and resolver-dependent, so a plain node key lets two instances over ONE tree replay each
 // other's answers - and the replay direction that matters is the unsafe one: usage-global resolves
 // under "inject if it MIGHT be needed", which usage-pure must never inherit for a rewrite it can
-// only make on certainty. keyed by the adapter, the one per-instance object carrying both
+// only make on certainty. The adapter is that use's owner; native path caches use the context
+// that owns their paths and scopes instead.
 export function createInstanceNodeCache() {
   const perAdapter = new WeakMap();
   function forAdapter(adapter) {
@@ -11483,11 +11555,16 @@ export function rootProgramOf(path) {
 // without spans is reached through them (`descendToNode`). a descent ahead of the traversal is not
 // free: on the estree side the paths it materializes inside a function not yet visited move a later
 // verdict that reads them (a receiver's caller-escape snapshot did), so ask only where the frame counts
-const PATHS_OF_NODES = new WeakMap();
+// Exact child identity precedes spans: shorthand keys and values can share both offsets.
+// Native traversal contexts own paths and scopes: ESTree exposes `ctx`, Babel files `hub`.
+// Bare traversals without either reuse their native paths in place. Keep that shared fallback,
+// while a fresh context over retained source nodes gets its own existing instance-node cache.
+const PATHS_OF_NODES = createInstanceNodeCache();
 const NON_CHILD_KEYS = new Set(['leadingComments', 'trailingComments', 'innerComments', 'comments', 'extra', 'loc', 'range']);
 export function pathOfNode(anchorPath, node) {
   if (typeof node?.start !== 'number' || typeof node.end !== 'number') return null;
-  const known = PATHS_OF_NODES.get(node);
+  const context = anchorPath?.ctx ?? anchorPath?.hub ?? PATHS_OF_NODES;
+  const known = liveCachedNodePath(context, node);
   if (known) return known;
   let start = anchorPath;
   while (start?.parentPath?.node && !nodeRangeContains(start.node, node)) start = start.parentPath;
@@ -11497,38 +11574,50 @@ export function pathOfNode(anchorPath, node) {
     while (root.parentPath?.node) root = root.parentPath;
     found = descendToNode(root, node);
   }
-  if (found) PATHS_OF_NODES.set(node, found);
+  if (found) PATHS_OF_NODES.set(context, node, found);
   return found;
+}
+
+// A retained native path can outlive the slot a rewrite moved. Every cache reader
+// validates that same physical ancestry before using its scope or placement.
+function liveCachedNodePath(context, node) {
+  const known = PATHS_OF_NODES.get(context, node);
+  return known?.node === node && !ancestorChainDetached(known) ? known : null;
 }
 
 // ... one level at a time: a list's item through its span index, a single child through its own span - and where no
 // child's span holds the node, through the children a render built with no span at all, which may hold it moved
 // there (the rule `descendsBySpanTo` searches by)
 function descendToNode(from, node) {
-  let cur = from;
-  while (cur?.node && cur.node !== node) {
-    let next = null;
-    for (const [key, value] of Object.entries(cur.node)) {
-      if (NON_CHILD_KEYS.has(key)) continue;
-      if (Array.isArray(value)) {
-        const at = childSpanOwnerIndex(value, node);
-        if (at === -1) continue;
-        next = PATHS_OF_NODES.get(value[at]);
-        if (!next) {
-          // The container cache holds siblings without refreshing the whole list per descent.
-          next = cachedContainerPaths(cur, key)[at];
-          if (next?.node === value[at]) PATHS_OF_NODES.set(value[at], next);
-        }
-      } else if (isASTNode(value) && nodeRangeContains(value, node)) {
-        next = PATHS_OF_NODES.get(value);
-        if (!next) PATHS_OF_NODES.set(value, next = cur.get(key));
-      } else continue;
-      break;
+  return withCanonQuestion(() => {
+    const context = from?.ctx ?? from?.hub ?? PATHS_OF_NODES;
+    let cur = from;
+    while (cur?.node && cur.node !== node) {
+      const direct = Object.keys(cur.node).find(key => !NON_CHILD_KEYS.has(key) && cur.node[key] === node);
+      if (direct) return cur.get(direct);
+      let next = null;
+      for (const [key, value] of Object.entries(cur.node)) {
+        if (NON_CHILD_KEYS.has(key)) continue;
+        if (Array.isArray(value)) {
+          const at = childSpanOwnerIndex(value, node);
+          if (at === -1) continue;
+          next = liveCachedNodePath(context, value[at]);
+          if (!next) {
+            // The container cache holds siblings without refreshing the whole list per descent.
+            next = cachedContainerPaths(cur, key)[at];
+            if (next?.node === value[at]) PATHS_OF_NODES.set(context, value[at], next);
+          }
+        } else if (isASTNode(value) && nodeRangeContains(value, node)) {
+          next = liveCachedNodePath(context, value);
+          if (!next) PATHS_OF_NODES.set(context, value, next = cur.get(key));
+        } else continue;
+        break;
+      }
+      if (!next) return descendThroughSpanless(cur, node);
+      cur = next;
     }
-    if (!next) return descendThroughSpanless(cur, node);
-    cur = next;
-  }
-  return cur?.node === node ? cur : null;
+    return cur?.node === node ? cur : null;
+  });
 }
 
 // ... the children of `path` a render built with no span, each searched below in turn
@@ -11572,7 +11661,8 @@ const STATEMENT_NESTING_TYPES = new Set([
 // ancestor that nests no statement (a declarator, an operand of a selection) has no container between it and
 // the read, and is the anchor itself. no expression is descended through: a deep selection costs nothing
 function statementPathHolding(path, read) {
-  const known = PATHS_OF_NODES.get(read);
+  const context = path?.ctx ?? path?.hub ?? PATHS_OF_NODES;
+  const known = liveCachedNodePath(context, read);
   if (known) return known;
   let cur = path;
   while (cur.parentPath?.node && !nodeRangeContains(cur.node, read)) cur = cur.parentPath;
@@ -11622,7 +11712,7 @@ function childSpanOwnerIndex(items, node) {
 }
 
 // name -> the module source of the first top-level declaration binding it, in body order: a
-// DEFAULT import specifier, a TS `import x = require(...)`, or a `var`-style require declarator in
+// runtime default binding (including `import { default as x }`), a TS `import x = require(...)`, or a `var`-style require declarator in
 // any spelling the require canon peels - none of the latter when an in-file `require` binding
 // shadows the CJS import, every such alias staying opaque. ONE table per program, built on the first ask and kept on the root: the coarse
 // census asks this for every call with a bare-name callee and the own-output censuses per name, and
@@ -11642,8 +11732,9 @@ export function defaultImportSourcesOf(root) {
     // binding holds, so the table reads the declaration the way the resolution canon does
     const decl = unwrapExportedDeclaration(stmt);
     if (decl?.type === 'ImportDeclaration') {
+      if (isTypeOnlyImportKind(decl.importKind)) continue;
       for (const sp of decl.specifiers ?? []) {
-        if (sp.type === 'ImportDefaultSpecifier' && sp.local?.name && !sources.has(sp.local.name)) {
+        if (bindsModuleDefault(sp) && !isTypeOnlyImportKind(sp.importKind) && sp.local?.name && !sources.has(sp.local.name)) {
           sources.set(sp.local.name, decl.source?.value ?? null);
         }
       }
@@ -11988,7 +12079,7 @@ function * ancestorPathSteps(path) {
 // every step adds the current node, re-visiting any prior bails the walk - which is why the
 // sequence peel steps over a tail's own wrappers itself (`(0, (cond ? A : B))`, oxc keeping the
 // parens, a TS cast alike): the tail it records would otherwise end the walk on the wrapper
-export function peelFallbackReceiver(node) {
+export function peelFallbackReceiver(node, staticIsMutated = null) {
   const visited = new Set();
   for (let prev; node !== prev;) {
     if (visited.has(node)) return node;
@@ -12004,7 +12095,7 @@ export function peelFallbackReceiver(node) {
     // re-entry; don't pre-add `iifeInner` here or we short-circuit before iterating through
     // a legitimate nested-IIFE peel chain (`(() => (() => expr)())()` -> outer peeled to
     // inner CallExpression on this iter, then iter+1 peels inner to expr)
-    const iifeInner = peelZeroArgIifeReturn(node);
+    const iifeInner = peelZeroArgIifeReturn(node, { staticIsMutated });
     if (iifeInner) node = iifeInner;
   }
   return node;
@@ -12365,12 +12456,14 @@ export function collectFoldedReceiverSideEffects(node, {
 //     any param; the IIFE is a no-shadow pass-through (args evaluated for side-effect,
 //     return value is the body verbatim). factory wrappers `(arg => { setup(arg); return
 //     arg; })(X)` also fit here when intermediates don't rebind a param
-// returns null for non-IIFE callees, async/generator functions, spread args, destructure
-// params, bodies with control flow / non-ExpressionStatement intermediates / prefix
+// returns null for non-IIFE callees, async/generator functions, undecidable positional
+// arguments, destructure params, bodies with control flow / non-ExpressionStatement intermediates / prefix
 // reassignments to params, or bodies whose free variables overlap params without
 // matching the identity shape. `preservesBody` admits the retained-body grammar: callers using it
 // keep the original call and only inspect the identity returned from its own scope.
-export function peelZeroArgIifeReturn(node, { preservesBody = false } = {}) {
+// Inline-array spreads are positional only while the scoped mutation callback proves their
+// iterator pristine; a census without that callback keeps its source-shape over-approximation.
+export function peelZeroArgIifeReturn(node, { preservesBody = false, staticIsMutated = null } = {}) {
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
   // peel paren / TS-wrappers + SequenceExpression tail off the callee. `unwrapRuntimeExpr`
   // stops at SE; `(0, () => Array)()` (comma-sequence prefix on the callee) is a common
@@ -12380,10 +12473,8 @@ export function peelZeroArgIifeReturn(node, { preservesBody = false } = {}) {
   if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return null;
   if (callee.async || callee.generator) return null;
   const args = node.arguments ?? [];
-  // non-inline-array spread bails - positional arg-to-param matching is undecidable when
-  // a `...arr` carries unknown length. inline-array spread (`...[a, b]`) is fine; both
-  // `effectiveArgsLength` (counting) and `resolveCallArgument` (lifting) apply the same
-  // expansion so counts can't drift
+  // Preserve the syntactic inline-list admission. Scoped positional lifting below also
+  // requires the selected argument to precede every undecidable runtime spread.
   const effectiveLength = effectiveArgsLength(args);
   if (effectiveLength === null) return null;
   const params = callee.params ?? [];
@@ -12399,7 +12490,7 @@ export function peelZeroArgIifeReturn(node, { preservesBody = false } = {}) {
   if (body.type === 'Identifier' && paramNames.has(body.name) && effectiveLength === params.length) {
     const i = params.findIndex(p => p?.type === 'Identifier' && p.name === body.name);
     if (i !== -1) {
-      const lifted = resolveCallArgument(args, i);
+      const lifted = resolveCallArgument(args, i, staticIsMutated);
       if (lifted) return lifted;
     }
   }
@@ -12414,9 +12505,9 @@ export function peelZeroArgIifeReturn(node, { preservesBody = false } = {}) {
 // alias-init lookup so the wrapper resolves identically on every path into container / global
 // resolution (an inline extends-IIFE, one bound to a const alias, and any depth of nesting).
 // each peel consumes one IIFE layer off a finite AST, so the loop always terminates
-export function peelIifeReturnTarget(node) {
+export function peelIifeReturnTarget(node, staticIsMutated = null) {
   while (node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression') {
-    const ret = peelZeroArgIifeReturn(node);
+    const ret = peelZeroArgIifeReturn(node, { staticIsMutated });
     if (!ret) break;
     node = unwrapRuntimeExpr(ret);
   }
@@ -15073,12 +15164,31 @@ export function nodeHoldsChild(parent, child) {
 // write's cached chain walking edges that left the tree). both emitters' adapters ask it before
 // judging a write's placement over such a chain
 export function ancestorChainDetached(path) {
+  // One read-only question can validate many siblings below the same deep ancestry.
+  // Share its already checked suffix; a later question or rewrite validates it anew.
+  const answers = canonAnswerTable(ancestorChainDetached, []);
+  const pending = answers ? [] : null;
+  let detached = false;
   for (let cur = path?.parentPath, child = path; cur; child = cur, cur = cur.parentPath) {
-    if (cur.node === null || cur.node === undefined) return true;
-    if (!nodeHoldsChild(cur.node, child.node)) return true;
-    if (cur.node.type === 'Program') return false;
+    const known = answers?.get(child);
+    if (known !== undefined) {
+      detached = known;
+      break;
+    }
+    pending?.push(child);
+    if (cur.node === null || cur.node === undefined) {
+      detached = true;
+      break;
+    }
+    const held = child.listKey ? cur.node[child.listKey]?.[child.key] : cur.node[child.key];
+    if (held !== child.node && !nodeHoldsChild(cur.node, child.node)) {
+      detached = true;
+      break;
+    }
+    if (cur.node.type === 'Program') break;
   }
-  return false;
+  if (pending) for (const step of pending) answers.set(step, detached);
+  return detached;
 }
 
 // the LIVE ancestry of `targetNode` under `rootNode`, as a minimal path-shaped chain
@@ -15268,16 +15378,16 @@ export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNo
 }
 
 // non-IIFE callees (`getGlobal().Array`) return unchanged and keep generic dispatch.
-// `peelZeroArgIifeReturn` already bails on async / generator / spread / control-flow bodies,
+// `peelZeroArgIifeReturn` already bails on async / generator / undecidable positional arguments / control-flow bodies,
 // so only sound pass-through wrappers peel
-export function peelProxyGlobalObject(node) {
+export function peelProxyGlobalObject(node, staticIsMutated = null) {
   node = unwrapRuntimeExpr(node);
   // SE tails peel for CLASSIFICATION only (`(eff(), globalThis).Array` - the prefix stays in
   // the source and runs at evaluation), mirroring the detect-usage chain walks; without the
   // peel an SE-buried extends target dropped its super statics
   node = peelSequenceTail(node, { step: unwrapRuntimeExpr });
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
-  const ret = peelZeroArgIifeReturn(node);
+  const ret = peelZeroArgIifeReturn(node, { staticIsMutated });
   return ret ? unwrapRuntimeExpr(ret) : node;
 }
 

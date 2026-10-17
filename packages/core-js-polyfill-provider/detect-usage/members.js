@@ -615,10 +615,13 @@ export function planGuardedDestructureNarrow({
     if (item.defaultValue) item.plan.destructureDefault = { value: item.defaultValue, name: item.name };
   }
   // A default or a binding target can rebind the source before the next read or the RHS result.
-  // Capture once for those scalar forms, including an edge guard in a value-position assignment.
+  // Capture once unless the whole host proves the source reusable, including later defaults and targets.
   const scalarExtension = defaultValue || propNode.computed
     || splitProps.some(item => item.value?.type === 'AssignmentPattern' || item.computed);
-  if (!nested && (isSoleAssignment && (split || detach || !hostInStatement) && patternBindsName(patternNode, plan.recvIdent.name)
+  if (!nested && !(adapter && path && isReusableReceiver(receiverNode, {
+    interveningEffects: true, ctx: { ...ctx, path: path.parentPath.parentPath },
+  }))
+    && (isSoleAssignment && (split || detach || !hostInStatement) && patternBindsName(patternNode, plan.recvIdent.name)
     || (detach ? propNode.computed || patternHasAnyDefault(patternNode) || isSoleAssignment && !hostInStatement
       : scalarExtension && split || isSoleAssignment && !hostInStatement && (scalarExtension || split)))) {
     plan.captureReceiver = receiverNode;
@@ -1295,7 +1298,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
       // Map } : { C: Object }`), on the terms of a selection read directly; a bare alias has its own guard
       : selectionArms.length && isMemberAccessNode(unwrapRuntimeExpr(classifyTarget))
         ? guardableSelectionArms(selectionArms, adapter)
-      : getFallbackBranchSlots(peelFallbackReceiver(classifyTarget))
+      : getFallbackBranchSlots(peelFallbackReceiver(classifyTarget, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic))
         ? guardableSelectionArms(flattenFallbackBranches({ node: classifyTarget, key, scope, adapter, path })
           .map(branch => branch.object), adapter)
         : [];
@@ -1318,7 +1321,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     const slotRead = path && { node: path.node, path };
     if (!objectName && !guardedRealms.length && !keyEffects.length && resolvePure
       && !isMutatedGlobalSlot(adapter, key, slotRead) && resolveBuiltIn({ kind: 'global', name: key })
-      && getFallbackBranchSlots(peelFallbackReceiver(classifyTarget))) {
+      && getFallbackBranchSlots(peelFallbackReceiver(classifyTarget, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic))) {
       const realm = flattenFallbackBranches({ node: classifyTarget, key, scope, adapter, path })
         .find(branch => isPristineProxyGlobal(adapter, branch.object, slotRead)
           && resolvePure({ kind: 'global', name: branch.object }, null));
@@ -1648,7 +1651,9 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     hoistInsideCapture: Boolean(hoisted && captureReceiver && !receiverHop),
     receiverHop,
     recvIdent,
-    captureReceiver,
+    captureReceiver: !hoisted && adapter && path && isReusableReceiver(captureReceiver, {
+      interveningEffects: true, ctx: { scope: path.scope, adapter, path },
+    }) ? null : captureReceiver,
     // the decided selection the left stands in for, where the receiver was re-spelled
     decidedSelection: receiver === memberNode.object ? null : peelReceiverSequenceTail(memberNode.object),
     seqPrefix: captureReceiver ? [] : seqPrefix,

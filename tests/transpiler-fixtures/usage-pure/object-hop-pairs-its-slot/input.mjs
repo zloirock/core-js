@@ -136,11 +136,10 @@ var shadowed = outerSrc;
   var shadowed = outerSrc;
 }
 const { w: { Map: noClaimBehindBlockShadow } } = { w: shadowed };
-// the hop on the hosts that MIRROR their receiver - a parameter default, a for-of head element, an
-// IIFE argument: a literal container in the slot pairs the hop key with its slot value, and the
-// mirror lands IN that slot (the container stays as written), for a ctor, a static and an instance
-// leaf alike - the flat parameter's synth one level down. an own-pass mirror is never re-mirrored:
-// a pattern-valued leaf under a mirrored static receives the ponyfill VALUE
+// A literal container pairs the hop key with its slot on parameter defaults, loop elements and
+// IIFE arguments. Constructors and statics can mirror that slot; a plain instance parameter
+// dispatches on the actual supplied receiver. A completed mirror is never mirrored again:
+// a pattern-valued leaf under a mirrored static receives the ponyfill value.
 function paramHop({ w: { Map: viaParamCtor } } = { w: globalThis }) {
   return viaParamCtor;
 }

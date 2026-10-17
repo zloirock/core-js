@@ -86,18 +86,10 @@ function mark(t, v) {
   } = id(Array);
 }
 {
-  const {
-    from: f
-  } = pick ? {
-    from: _Array$from
-  } : _Set;
+  const f = _Array$from;
 }
 {
-  const {
-    from: f
-  } = pick ? {
-    from: _Array$from
-  } : userObj;
+  const f = _Array$from;
 }
 {
   const {

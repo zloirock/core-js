@@ -40,6 +40,7 @@ import {
 } from './ast-shapes.js';
 import {
   getTypeArgs,
+  IMPORT_SPECIFIER_TYPES,
   propertyKeyName,
   singleQuasiString,
   withTypeArgParams,
@@ -112,7 +113,9 @@ export function createTypeAnnotationResolve({
   typeRefSegmentsEqual,
   typeRefName,
   findTypeParameter,
+  getScopeBinding,
   findTypeDeclaration,
+  typeDeclarationShadowsGlobal,
   collectQualifiedSegments,
   unwrapTypeAnnotation,
   safeInnerType,
@@ -288,6 +291,7 @@ export function createTypeAnnotationResolve({
     return resolveKnownContainerType({ name, base: callResult, node: path.node, innerResolver: p => resolveTypeAnnotation(p, path.scope) });
   }
 
+  // eslint-disable-next-line max-statements -- keep the shared named-type lookup facts in one scope
   function resolveNamedType({ name, node, scope, depth, typeParamMap, seen }) {
     // a type-PARAMETER in scope outranks a same-named global: in `function f<Set>(x: Set)` the
     // annotation names the parameter, and resolving it as the container would hand a Set-specific
@@ -304,23 +308,27 @@ export function createTypeAnnotationResolve({
     // computed at most once. it is asked for EVERY unqualified name, not only for one the tables
     // claim - and that is deliberate: a file's names are mostly DISTINCT, so a lazy spelling behind
     // the two readers below buys lookups no memo can serve and pays for the extra closure.
-    // containers stay on the type-PARAMETER half alone, matching the member-side twin - an
-    // `interface Array<T>` augmentation must not stop `Array` being an Array
+    // A local type declaration or import also shadows a same-named container. A global
+    // `interface Array<T>` augmentation keeps `Array` on its built-in container lane.
     // read on the SOURCE spelling too, before the alias folding below rewrites `name`. only an
     // UNQUALIFIED name can be shadowed: `NS.Partial` names a namespace member that no bare
     // parameter or top-level declaration competes with - and asking the declaration lookup with a
     // dotted string as ONE segment collides in its cache with the real `['NS', 'Partial']` walk,
     // answering the later lookup with this one's miss. the lookup is memoized per (scope, name)
-    const shadowedUtilityName = !name.includes('.')
-      && (shadowedByTypeParam || Boolean(findTypeDeclaration([name], scope)));
+    const unqualified = !name.includes('.');
+    const localTypeDeclaration = unqualified ? findTypeDeclaration([name], scope) : null;
+    const imported = unqualified && IMPORT_SPECIFIER_TYPES.has(getScopeBinding({ scope, name })?.path?.node?.type);
+    const shadowedUtilityName = shadowedByTypeParam || Boolean(localTypeDeclaration) || imported;
+    const shadowedContainerName = shadowedByTypeParam || typeDeclarationShadowsGlobal(localTypeDeclaration, name, scope) || imported;
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
-    if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
-    if (hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
+    // A local alias, type parameter or import keeps its source spelling for user lookup.
+    if (!shadowedContainerName && PROMISE_SYNONYMS.has(name)) name = 'Promise';
+    if (!shadowedContainerName && hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
     function resolveArgInner(arg) {
       return resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
     }
-    const known = shadowedByTypeParam ? null
+    const known = shadowedContainerName ? null
       : resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner, scope, typeParamMap });
     if (known) return known;
     function firstArg() {
