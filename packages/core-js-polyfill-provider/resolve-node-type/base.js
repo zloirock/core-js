@@ -1,6 +1,6 @@
 // shared primitives for resolve-node-type: type classes + hint sets. hoisted out to keep
 // the factory file focused on the resolver itself
-const { assign, create, entries, getPrototypeOf, keys } = Object;
+const { assign, create, entries, getPrototypeOf, hasOwn, keys } = Object;
 
 // shared recursion budget for all resolvers - alias chains, runtime walks, guard traversals.
 // 64 is comfortably above realistic TS type / alias chain depth (typical: 5-10; pathological
@@ -60,6 +60,23 @@ export const RESOLUTION_DIRECTIVES = assign(create(null), {
   'argument-return': 'call',
   inherit: 'receiver',
 });
+
+// the directives a hint names, wherever the grammar lets one stand in for a type name: the hint's own
+// `type`, its inner (`element` / `resolved`), a union member
+export function directivesOf(hint, found = []) {
+  if (typeof hint === 'string') {
+    // a directive is what the VOCABULARY carries, and its side is data too: neither is a spelling
+    // of the name, so a call-side directive named otherwise cannot slip past
+    if (hasOwn(RESOLUTION_DIRECTIVES, hint)) found.push(hint);
+  } else if (Array.isArray(hint)) {
+    for (const member of hint) directivesOf(member, found);
+  } else if (hint && typeof hint === 'object') {
+    directivesOf(hint.type, found);
+    if (hint.element !== undefined) directivesOf(hint.element, found);
+    if (hint.resolved !== undefined) directivesOf(hint.resolved, found);
+  }
+  return found;
+}
 
 export const TYPE_HINTS = new Set([
   ...PRIMITIVE_HINTS,
@@ -441,8 +458,6 @@ export function literalNodeValue(literal) {
   }
   return undefined;
 }
-
-const { hasOwn } = Object;
 
 // pure helpers extracted from the resolver factory - no closure deps, depend only
 // on the shared Type-object shape ($Primitive / $Object). kept here so the factory
