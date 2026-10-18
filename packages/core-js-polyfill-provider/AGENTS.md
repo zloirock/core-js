@@ -77,7 +77,7 @@ Each is a limit of the model, not a license to weaken the proofs above; its owne
 - Known builtin arguments alone do not require constructor namespaces (`builtin-*-static-read` fixtures); `call`, `apply`, `Reflect.apply`, an immediately invoked `bind` and tags invoke through `callPairing`.
 - `Symbol.iterator in x` is an is-iterable test (`helpers/in-expression.js`).
 - core-js wins a self-guarded patch (`readFeedsOwnSlotWrite`, `slotReadPrecedesItsWrites`, `readDecidesWrite`): a patch the build never runs is no write (`settleCensusWrites`), and a read after a patch that may run is the user's.
-- Value flow past library callbacks or the composite-depth budget can keep pure substitution over a user write; a parameter holds only its own default in both censuses.
+- Value flow past library callbacks or the composite-depth budget can keep pure substitution or a field narrow over a user write - a `JSON.stringify` replacer runs with the holder as `this`, unseen (the registry header lists those callbacks); a parameter holds only its own default in both censuses.
 - An unnamed receiver (a catch parameter, an opaque host) cannot prove a static.
 - A read deferred into a function body or default is taken as initialized (`initializerMayRunBeforeUsage`).
 - Partial assignment state after a throw can differ from native.

@@ -57,3 +57,4 @@ import './mutation-cases/unknown-member-key.js';
 import './mutation-cases/logical-member-install.js';
 import './mutation-cases/global-member-target.js';
 import './mutation-cases/a-write-through-a-call-keyed-hop-lands-on-the-read-constructor.js';
+import './mutation-cases/a-replaced-static-may-write-the-holder-it-is-handed.js';

@@ -20,7 +20,7 @@ const { checkTruthy, finish } = createChecker('holder-position-domain');
 //   consumes  - evaluated here and unreachable afterwards, so the field narrow stands
 //   forwards  - the value flows ON from here, and the position it lands in decides
 //   hands-out - a reference (or a copy of the own properties) reaches code the scan cannot see
-//   inspects  - the callee is known and only reads the value, which the slot table decides per callee
+//   inspects  - the callee is a known static, and what it does with the slot is the registry's answer
 // a position missing from this table is the finding: it means the walks answer for it by default,
 // with nobody having said what the right answer is
 const DOMAIN = new Map(Object.entries({
