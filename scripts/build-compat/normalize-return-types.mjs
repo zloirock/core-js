@@ -26,7 +26,16 @@ const { hasOwn } = Object;
 // normalizer is the only writer of the generated artifact, so a key it does not handle
 // disappears before the schema gate ever sees it - a typo (`mutatesArgumnt`) silently loses the
 // annotation it was meant to declare
-const VALID_HINT_KEYS = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'mutatesElements', 'nullable']);
+const VALID_HINT_KEYS = new Set([
+  'type',
+  'element',
+  'resolved',
+  'mutatesArgument',
+  'exposesArgument',
+  'inert',
+  'mutatesElements',
+  'nullable',
+]);
 
 // the constructor table takes its own keys, so it needs its own refusal: `call` absent means
 // "same as `new`", which makes a typo there silently FLIP the callee type rather than merely
@@ -51,6 +60,13 @@ export function normalizeHint(hint) {
   // mutatesArgument: list of zero-based arg indices a static method mutates in place
   // (e.g. Object.assign -> [0] target). passed through unchanged - no inner hint
   if (hint.mutatesArgument !== undefined) result.mutatesArgument = hint.mutatesArgument;
+  // exposesArgument: list of zero-based arg indices a static method hands on - into another
+  // argument (`Reflect.set` value), as a callback's `this` (`Array.from` thisArg) or through a
+  // result its type does not show (`Object.getOwnPropertyDescriptor`). passed through unchanged
+  if (hint.exposesArgument !== undefined) result.exposesArgument = hint.exposesArgument;
+  // inert: a static method that runs no code of its arguments - no coercion, iteration, accessor
+  // or callback (`Object.keys`, `Array.isArray`). passed through unchanged
+  if (hint.inert !== undefined) result.inert = hint.inert;
   // mutatesElements: an instance method that writes the receiver's elements in place
   // (`push` / `fill` / `sort` / TypedArray `set` / ...). the resolver invalidates
   // element-type precision across such calls. passed through unchanged - no inner hint
