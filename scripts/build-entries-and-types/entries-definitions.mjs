@@ -2371,6 +2371,7 @@ export const features = {
     namespace: 'Promise',
     name: 'try',
     arity: 1,
+    rest: true,
   },
   'promise/with-resolvers': {
     modules: ['es.promise.with-resolvers'],
