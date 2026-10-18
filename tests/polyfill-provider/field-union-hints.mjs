@@ -142,6 +142,17 @@ for (const [name, code, expected] of [
   ['identity of holder', 'box.change = foreign; box === box;', 'array,string'],
   ['type-only holder', 'box.change = foreign; type Held = typeof box;', 'array,string'],
   ['key observation', 'box.change = foreign; Object.keys(box);', 'array,string'],
+  ['identity observation', 'box.change = foreign; Object.is(box, other);', 'array,string'],
+  ['identity observation, parenthesized', 'box.change = foreign; Object.is((box), other);', 'array,string'],
+  ['identity observation through an optional call', 'box.change = foreign; Object.is?.(box, other);', 'array,string'],
+  // a known static storing the holder into another argument lets code nobody read write it there
+  ['stored by a known static', 'Reflect.set(target, "k", box);', null],
+  ['stored by a known static, cast', 'Reflect.set(target, "k", box as any);', null],
+  ['coerced as a key by a known static, cast', 'Reflect.set(target, box as any, 1);', 'array,string'],
+  ['coercion by a known static', 'box.valueOf = foreign; Math.max(box);', null],
+  // whether a static runs argument code is recorded per static, and `Reflect.has` coerces its key - so
+  // its target slot counts as running code too
+  ['target of a key-coercing static', 'box.change = foreign; Reflect.has(box, "data");', null],
   ['numeric coercion', 'box.valueOf = foreign; +box;', null],
   // eslint-disable-next-line no-template-curly-in-string -- scenario source, not interpolation here
   ['string coercion', 'box.toString = foreign; `${box}`;', null],

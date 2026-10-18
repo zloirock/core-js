@@ -113,6 +113,28 @@ const CHANNELS = [
     `const h = { rows: [1, 2], ${ READ } };\nfn.call(h);\nexport const r = h.read();`, 'escapes'],
   ['handed to a callback slot as `thisArg`',
     `const h = { rows: [1, 2], ${ READ } };\n[1].forEach(cb, h);\nexport const r = h.read();`, 'escapes'],
+  [
+    'handed to a known static callback slot as `thisArg`',
+    `const h = { rows: [1, 2], ${ READ } };\nArray.from([1], cb, h);\nexport const r = h.read();`,
+    'escapes',
+  ],
+  [
+    'handed to a known static callback slot as `thisArg`, parenthesized',
+    `const h = { rows: [1, 2], ${ READ } };\nArray.from([1], cb, (h));\nexport const r = h.read();`,
+    'escapes',
+  ],
+  [
+    'installed as a prototype through an optional static call',
+    `const h = { rows: [1, 2], ${ READ } };\nObject.setPrototypeOf?.(target, h);\nexport const r = h.read();`,
+    'escapes',
+  ],
+  // a replacer runs with the holder as `this` too, but only through the serializer's own walk - a
+  // callback reaching the receiver that way is an accepted boundary
+  [
+    'serialized through a replacer',
+    `const h = { rows: [1, 2], ${ READ } };\nJSON.stringify(h, replacer);\nexport const r = h.read();`,
+    'local',
+  ],
   // (3) accessor receiver - the getter body runs with the object
   ['own getter hands `this` out',
     `const h = { rows: [1, 2], get peek() { sink(this); return 1; }, ${ READ } };\n`

@@ -1,7 +1,7 @@
 import { deepEqual, fail, ok, throws } from 'node:assert/strict';
 
 import { buildReturnTypesArtifact, normalizeConstructors, normalizeHint } from '../../scripts/build-compat/normalize-return-types.mjs';
-import { RESOLUTION_DIRECTIVES } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
+import { RESOLUTION_DIRECTIVES, directivesOf } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 
 const knownBuiltInReturnTypes = await fs.readJson('packages/core-js-compat/known-built-in-return-types.json');
 
@@ -56,11 +56,6 @@ const VALID_TYPES = new Set([
   'WeakSet',
 ]);
 
-// the resolution directives, ONE family: `inherit` names the receiver's own inner, the `argument`
-// trio names the call's. a directive carries no inner of its own and may sit wherever a type name
-// may - as the hint's `type` when it IS the answer, or as an inner when the answer contains it.
-// the vocabulary is READ from the resolver that owns it, not restated: a gate carrying its own copy
-// accepts a directive the resolver never heard of, the one drift direction nothing else catches
 // FIRST, before a single assertion reads it: the file on disk is generated and gitignored, so it
 // can be older than the source it came from - and every check below would then be describing a
 // past version of the contract while reporting success. the writer only writes what this builder
@@ -68,6 +63,11 @@ const VALID_TYPES = new Set([
 deepEqual(knownBuiltInReturnTypes, buildReturnTypesArtifact(),
   'the generated artifact is what the source builds - rebuild it with `npm run prepare`');
 
+// the resolution directives, ONE family: `inherit` names the receiver's own inner, the `argument`
+// trio names the call's. a directive carries no inner of its own and may sit wherever a type name
+// may - as the hint's `type` when it IS the answer, or as an inner when the answer contains it.
+// the vocabulary is READ from the resolver that owns it, not restated: a gate carrying its own copy
+// accepts a directive the resolver never heard of, the one drift direction nothing else catches
 const directives = RESOLUTION_DIRECTIVES;
 // the contract itself, locked: a directive added to the grammar with nothing here to place it, or
 // dropped while the data still writes it, shows up as this row rather than as a silent answer
@@ -82,9 +82,15 @@ function isDirectiveName(name) {
   return typeof name === 'string' && hasOwn(directives, name);
 }
 
+// an argument qualifier names call slots: a non-empty list of zero-based indices
+function isArgumentIndexList(list) {
+  return Array.isArray(list) && list.length > 0 && list.every(i => Number.isInteger(i) && i >= 0);
+}
+
 function isValidHint(hint) {
   if (isDirectiveName(hint)) return true;
-  // normalized hint: always { type, element?, resolved?, mutatesArgument?, mutatesElements?, nullable? }
+  // normalized hint: always { type, element?, resolved?, mutatesArgument?, exposesArgument?, inert?,
+  // mutatesElements?, nullable? }
   if (typeof hint !== 'object' || hint === null) return false;
   // a directive may be wrapped in object form to carry qualifiers (`{ type: 'inherit',
   // nullable: true }` - `find` / `at` / `pop` return element | undefined per spec);
@@ -92,18 +98,25 @@ function isValidHint(hint) {
   const isDirective = isDirectiveName(hint.type);
   if (isDirective && (hint.element !== undefined || hint.resolved !== undefined)) return false;
   if (!isDirective && !VALID_TYPES.has(hint.type)) return false;
-  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'mutatesElements', 'nullable']);
+  const validKeys = new Set([
+    'type',
+    'element',
+    'resolved',
+    'mutatesArgument',
+    'exposesArgument',
+    'inert',
+    'mutatesElements',
+    'nullable',
+  ]);
   for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
   // nullable: the spec return admits undefined / null; only the `true` form is emitted
   if ('nullable' in hint && hint.nullable !== true) return false;
-  // mutatesArgument: list of zero-based arg indices a method mutates in place
-  // (e.g. Object.assign -> [0] target). only meaningful for staticMethods entries
-  if ('mutatesArgument' in hint) {
-    if (!Array.isArray(hint.mutatesArgument) || hint.mutatesArgument.length === 0) return false;
-    for (const i of hint.mutatesArgument) {
-      if (!Number.isInteger(i) || i < 0) return false;
-    }
-  }
+  // mutatesArgument: the arg indices a method mutates in place (`Object.assign` -> [0] target);
+  // exposesArgument: the arg indices it hands on (`Reflect.set` -> [2] value)
+  if ('mutatesArgument' in hint && !isArgumentIndexList(hint.mutatesArgument)) return false;
+  if ('exposesArgument' in hint && !isArgumentIndexList(hint.exposesArgument)) return false;
+  // inert: the method runs no code of its arguments; only the `true` form is emitted
+  if ('inert' in hint && hint.inert !== true) return false;
   // mutatesElements: an instance method that writes the receiver's elements in place;
   // only the `true` form is emitted
   if ('mutatesElements' in hint && hint.mutatesElements !== true) return false;
@@ -130,24 +143,6 @@ const LANES_SUPPLYING = {
   receiver: new Set(['instanceMethods', 'instanceProperties']),
 };
 
-function directivesOf(hint, found = []) {
-  if (typeof hint === 'string') {
-    // a directive is what the VOCABULARY carries, and its side is data too: neither is a spelling
-    // of the name, so a call-side directive named otherwise cannot slip past
-    if (isDirectiveName(hint)) found.push(hint);
-    return found;
-  }
-  if (!hint || typeof hint !== 'object') return found;
-  if (Array.isArray(hint)) {
-    for (const member of hint) directivesOf(member, found);
-    return found;
-  }
-  directivesOf(hint.type, found);
-  if (hint.element !== undefined) directivesOf(hint.element, found);
-  if (hint.resolved !== undefined) directivesOf(hint.resolved, found);
-  return found;
-}
-
 function checkLane(label, kind, hint) {
   for (const name of directivesOf(hint)) {
     const side = directives[name];
@@ -168,9 +163,31 @@ checkLane('control', 'instanceProperties', { type: 'inherit', nullable: true });
 checkLane('control', 'staticMethods', { type: 'Promise', resolved: 'argument' });
 checkLane('control', 'constructors', { type: 'Array', element: { type: 'number' } });
 
+// the argument qualifiers describe what a CALL does with the values it is handed, and the resolver
+// reads them only off a callee it resolved to a static - in any other lane they annotate nothing.
+// an inert method runs no code of its arguments, which a callback directive contradicts:
+// `argument-return` says the call runs the callback its first argument holds
+const ARGUMENT_QUALIFIERS = ['mutatesArgument', 'exposesArgument', 'inert'];
+
+function checkArgumentQualifiers(label, kind, hint) {
+  if (!hint || typeof hint !== 'object' || Array.isArray(hint)) return;
+  for (const key of ARGUMENT_QUALIFIERS) {
+    if (key in hint && kind !== 'staticMethods') fail(`${ label }: argument qualifier '${ key }' sits outside the static lane`);
+  }
+  if (hint.inert && directivesOf(hint).includes('argument-return')) fail(`${ label }: an inert method runs a callback`);
+}
+
+throws(() => checkArgumentQualifiers('probe', 'instanceMethods', { type: 'number', mutatesArgument: [0] }), /outside the static lane/);
+throws(() => checkArgumentQualifiers('probe', 'globalMethods', { type: 'boolean', inert: true }), /outside the static lane/);
+throws(() => checkArgumentQualifiers('probe', 'staticMethods', { type: 'Promise', resolved: 'argument-return', inert: true }),
+  /an inert method runs a callback/);
+checkArgumentQualifiers('control', 'staticMethods', { type: 'boolean', mutatesArgument: [0, 3], exposesArgument: [2] });
+checkArgumentQualifiers('control', 'staticMethods', { type: 'argument', exposesArgument: [1], inert: true });
+
 function checkHint(label, kind, hint) {
   ok(isValidHint(hint), `${ label }: hint '${ JSON.stringify(hint) }' is valid`);
   checkLane(label, kind, hint);
+  checkArgumentQualifiers(label, kind, hint);
 }
 
 for (const kind of ['globalMethods', 'globalProperties']) {
@@ -212,19 +229,22 @@ deepEqual(knownBuiltInReturnTypes.globalMethods.fetch, { type: 'Promise' });
 deepEqual(knownBuiltInReturnTypes.globalProperties.undefined, { type: 'undefined' });
 deepEqual(knownBuiltInReturnTypes.staticProperties.Symbol.iterator, { type: 'symbol' });
 // element hint
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, { type: 'Array', element: { type: 'string' } });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, { type: 'Array', element: { type: 'string' }, inert: true });
+// an inert call that still hands a slot on: the prototype it installs
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.setPrototypeOf, { type: 'argument', exposesArgument: [1], inert: true });
 // union element hint - the members are normalized individually
 deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.ownKeys, {
   type: 'Array',
   element: [{ type: 'string' }, { type: 'symbol' }],
+  inert: true,
 });
 // resolved hint carrying an ARGUMENT directive: what the call settles to lives in the call, not in
-// the method, and `Promise.all` / `Array.fromAsync` say it with the SAME hint - which is the truth
-// a name-keyed registry in the resolver used to hide
+// the method, and `Promise.all` / `Array.fromAsync` say it with the SAME type hint - which is the
+// truth a name-keyed registry in the resolver used to hide. only `Array.fromAsync` takes a thisArg
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all,
   { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync,
-  { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } });
+  { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' }, exposesArgument: [2] });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.resolve, { type: 'Promise', resolved: 'argument' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.race, { type: 'Promise', resolved: 'argument-element' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.try, { type: 'Promise', resolved: 'argument-return' });
@@ -239,10 +259,12 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.reject, { type: 'Promise
 for (const [label, hint] of [
   ['a misspelled qualifier', { type: 'Object', mutatesArguments: [0] }],
   ['the retired returnsArgument', { type: 'Object', returnsArgument: 0 }],
+  ['a misspelled exposure', { type: 'boolean', exposesArguments: [2] }],
 ]) {
   throws(() => normalizeHint(hint), /unknown hint key/, `${ label } is refused by the normalizer`);
 }
 deepEqual(normalizeHint({ type: 'Object', mutatesArgument: [0] }), { type: 'Object', mutatesArgument: [0] });
+deepEqual(normalizeHint({ type: 'argument', exposesArgument: [1], inert: true }), { type: 'argument', exposesArgument: [1], inert: true });
 deepEqual(normalizeHint('argument'), 'argument');
 deepEqual(normalizeHint({ type: 'Array', element: 'inherit' }), { type: 'Array', element: 'inherit' });
 // the constructor table carries its own keys, and a wrong one there FLIPS rather than drops: with
@@ -284,6 +306,11 @@ for (const [label, hint] of [
   ['mutatesArgument empty', { type: 'Object', mutatesArgument: [] }],
   ['mutatesArgument with a negative index', { type: 'Object', mutatesArgument: [-1] }],
   ['mutatesArgument with a fractional index', { type: 'Object', mutatesArgument: [1.5] }],
+  ['exposesArgument that is not a list', { type: 'boolean', exposesArgument: 2 }],
+  ['exposesArgument empty', { type: 'boolean', exposesArgument: [] }],
+  ['exposesArgument with a negative index', { type: 'boolean', exposesArgument: [-1] }],
+  ['inert spelled false', { type: 'boolean', inert: false }],
+  ['inert spelled as anything else', { type: 'boolean', inert: 1 }],
   ['mutatesElements spelled false', { type: 'Array', mutatesElements: false }],
   ['a one-member union', { type: 'Array', element: [{ type: 'string' }] }],
   ['a union member that is itself a union', { type: 'Array', element: [[{ type: 'string' }], { type: 'symbol' }] }],
@@ -297,6 +324,8 @@ for (const [label, hint] of [
 for (const [label, hint] of [
   ['nullable spelled true', { type: 'Object', nullable: true }],
   ['mutatesElements spelled true', { type: 'Array', mutatesElements: true }],
+  ['exposesArgument as an index list', { type: 'boolean', exposesArgument: [2] }],
+  ['inert spelled true', { type: 'boolean', inert: true }],
   ['a two-member union', { type: 'Array', element: [{ type: 'string' }, { type: 'symbol' }] }],
   ['a directive with a qualifier but no inner', { type: 'inherit', nullable: true }],
 ]) {
@@ -322,14 +351,15 @@ for (const [label, hint] of [
 }
 
 // the identity statics say it with the SAME directive, in the slot that means "this IS the answer"
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.freeze, { type: 'argument' });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.freeze, { type: 'argument', inert: true });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.catch, { type: 'Promise' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.allSettled, { type: 'Promise', resolved: { type: 'Array' } });
 // nullable 'inherit' directive (spec return is element | undefined); a bare top-level
 // 'inherit' does not occur - every element-returning method admits undefined per spec
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.at, { type: 'inherit', nullable: true });
 // nullable typed hint (spec return admits undefined / null)
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertyDescriptor, { type: 'Object', nullable: true });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertyDescriptor,
+  { type: 'Object', nullable: true, exposesArgument: [0] });
 deepEqual(knownBuiltInReturnTypes.instanceProperties.Element.firstElementChild, { type: 'Element', nullable: true });
 // 'inherit' directive
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.filter, { type: 'Array', element: 'inherit' });
@@ -352,7 +382,8 @@ deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
 // mutatesArgument annotation beside the `argument` directive: assign returns its target AND writes it
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'argument', mutatesArgument: [0] });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.set, { type: 'boolean', mutatesArgument: [0, 3] });
+// and beside `exposesArgument`: `Reflect.set` writes its target and receiver and stores its value there
+deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.set, { type: 'boolean', mutatesArgument: [0, 3], exposesArgument: [2] });
 // mutatesElements annotation (in-place element mutators)
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.push, { type: 'number', mutatesElements: true });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.sort, { type: 'Array', element: 'inherit', mutatesElements: true });
@@ -417,6 +448,12 @@ ok(isValidConstructorHint({ type: 'Array', element: 'argument' }), 'the forbidde
 deepEqual(directivesOf({ type: 'Array', element: 'argument' }), ['argument']);
 deepEqual(directivesOf({ type: 'Array', element: 'inherit' }), ['inherit']);
 deepEqual(directivesOf({ type: 'Array', element: { type: 'string' } }), []);
+// ... and every other place the grammar lets a directive stand: a bare string, the hint's own type,
+// the settled value, a union member
+deepEqual(directivesOf('argument'), ['argument']);
+deepEqual(directivesOf({ type: 'argument-return', nullable: true }), ['argument-return']);
+deepEqual(directivesOf({ type: 'Promise', resolved: 'argument-return' }), ['argument-return']);
+deepEqual(directivesOf({ type: 'Array', element: ['inherit', 'undefined'] }), ['inherit']);
 
 // constructors — spot-checks: one per distinct constructor shape
 // simple (new === call)

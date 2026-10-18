@@ -21,6 +21,29 @@
 // enforces that, and the resolver decodes the directives generically: a new row here starts working
 // without touching the plugins. The four names themselves belong to the resolver, which declares
 // them in its `resolve-node-type/base.js` - a fifth is a change there, not a row here.
+//
+// A static method's hint also says what the CALL does with the values it is handed - the escape
+// analysis reads it to decide whether an object passed in can still be changed behind its back:
+//
+//   mutatesArgument: [i]  - the call writes into argument i: `Object.assign` -> [0], the target
+//   exposesArgument: [i]  - the call hands argument i, or values read off it, to something other than
+//                           that argument: stores it into another one (`Reflect.set` -> [2]), installs
+//                           it as a prototype (`Object.setPrototypeOf` -> [1]), runs a callback with it
+//                           as `this` (`Array.from` -> [2]), or returns an object made of its values
+//                           (`Object.getOwnPropertyDescriptor` -> [0])
+//   inert: true           - the call runs no code of its arguments: it never coerces, iterates or calls
+//                           them, nor reads them through an accessor (`Object.keys`, `Array.isArray`) -
+//                           in the engine's implementation and in core-js's alike
+//
+// A missing `mutatesArgument` or `exposesArgument` is a claim, not a default: a static listed here
+// is taken to write nothing and hand nothing on, so a new row is written with both in mind. A
+// missing `inert` is the safe answer. Two hand-outs are derived and never written: a writing call
+// puts the members of its other arguments on the one it writes (`Object.assign` copies a source's
+// methods onto its target), and a call running its argument-0 callback (`argument-return`) passes
+// that callback the other arguments (`Promise.try(fn, ...args)`). A value that reaches a callback
+// only through the call's own work - a `JSON.stringify` replacer, the elements an `Array.from` map
+// function or a `groupBy` callback receives, a rejection reason on its way to an
+// `unhandledrejection` handler - is an accepted boundary of the model.
 
 export const globalProxies = [
   'global',
@@ -682,16 +705,16 @@ export const instanceMethods = {
 // known return types for built-in static methods
 export const staticMethods = {
   AggregateError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   Array: {
-    from: 'Array',
-    fromAsync: { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } },
-    isArray: 'boolean',
+    from: { type: 'Array', exposesArgument: [2] },
+    fromAsync: { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' }, exposesArgument: [2] },
+    isArray: { type: 'boolean', inert: true },
     of: 'Array',
   },
   ArrayBuffer: {
-    isView: 'boolean',
+    isView: { type: 'boolean', inert: true },
   },
   AsyncIterator: {
     from: 'AsyncIterator',
@@ -716,11 +739,11 @@ export const staticMethods = {
     asUintN: 'bigint',
   },
   BigInt64Array: {
-    from: { type: 'TypedArray', element: 'bigint' },
+    from: { type: 'TypedArray', element: 'bigint', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'bigint' },
   },
   BigUint64Array: {
-    from: { type: 'TypedArray', element: 'bigint' },
+    from: { type: 'TypedArray', element: 'bigint', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'bigint' },
   },
   Date: {
@@ -729,33 +752,33 @@ export const staticMethods = {
     UTC: 'number',
   },
   Error: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   EvalError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   Float16Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Float32Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Float64Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Int16Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Int32Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Int8Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Iterator: {
@@ -767,7 +790,7 @@ export const staticMethods = {
     zipKeyed: { type: 'Iterator', element: 'Object' },
   },
   JSON: {
-    isRawJSON: 'boolean',
+    isRawJSON: { type: 'boolean', inert: true },
     rawJSON: 'Object',
     // only `string` - acceptable assumption
     stringify: 'string',
@@ -815,10 +838,10 @@ export const staticMethods = {
     trunc: 'number',
   },
   Number: {
-    isFinite: 'boolean',
-    isInteger: 'boolean',
-    isNaN: 'boolean',
-    isSafeInteger: 'boolean',
+    isFinite: { type: 'boolean', inert: true },
+    isInteger: { type: 'boolean', inert: true },
+    isNaN: { type: 'boolean', inert: true },
+    isSafeInteger: { type: 'boolean', inert: true },
     parseFloat: 'number',
     parseInt: 'number',
   },
@@ -833,24 +856,24 @@ export const staticMethods = {
     defineProperties: { type: 'argument', mutatesArgument: [0] },
     defineProperty: { type: 'argument', mutatesArgument: [0] },
     entries: { type: 'Array', element: 'Array' },
-    freeze: { type: 'argument' },
-    fromEntries: 'Object',
-    getOwnPropertyDescriptor: { type: 'Object', nullable: true },
-    getOwnPropertyDescriptors: 'Object',
-    getOwnPropertyNames: { type: 'Array', element: 'string' },
-    getOwnPropertySymbols: { type: 'Array', element: 'symbol' },
-    getPrototypeOf: { type: 'Object', nullable: true },
-    groupBy: 'Object',
+    freeze: { type: 'argument', inert: true },
+    fromEntries: { type: 'Object', exposesArgument: [0] },
+    getOwnPropertyDescriptor: { type: 'Object', nullable: true, exposesArgument: [0] },
+    getOwnPropertyDescriptors: { type: 'Object', exposesArgument: [0] },
+    getOwnPropertyNames: { type: 'Array', element: 'string', inert: true },
+    getOwnPropertySymbols: { type: 'Array', element: 'symbol', inert: true },
+    getPrototypeOf: { type: 'Object', nullable: true, inert: true },
+    groupBy: { type: 'Object', exposesArgument: [0] },
     hasOwn: 'boolean',
-    is: 'boolean',
-    isExtensible: 'boolean',
-    isFrozen: 'boolean',
-    isSealed: 'boolean',
-    keys: { type: 'Array', element: 'string' },
-    keysLength: 'number',
-    preventExtensions: { type: 'argument' },
-    seal: { type: 'argument' },
-    setPrototypeOf: { type: 'argument' },
+    is: { type: 'boolean', inert: true },
+    isExtensible: { type: 'boolean', inert: true },
+    isFrozen: { type: 'boolean', inert: true },
+    isSealed: { type: 'boolean', inert: true },
+    keys: { type: 'Array', element: 'string', inert: true },
+    keysLength: { type: 'number', inert: true },
+    preventExtensions: { type: 'argument', inert: true },
+    seal: { type: 'argument', inert: true },
+    setPrototypeOf: { type: 'argument', exposesArgument: [1], inert: true },
     values: 'Array',
   },
   Promise: {
@@ -871,27 +894,27 @@ export const staticMethods = {
     withResolvers: 'Object',
   },
   RangeError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   ReferenceError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   Reflect: {
     defineProperty: { type: 'boolean', mutatesArgument: [0] },
     deleteProperty: { type: 'boolean', mutatesArgument: [0] },
     // only `Object` - acceptable assumption
-    getOwnPropertyDescriptor: { type: 'Object', nullable: true },
-    getPrototypeOf: { type: 'Object', nullable: true },
+    getOwnPropertyDescriptor: { type: 'Object', nullable: true, exposesArgument: [0] },
+    getPrototypeOf: { type: 'Object', nullable: true, inert: true },
     has: 'boolean',
-    isExtensible: 'boolean',
-    ownKeys: { type: 'Array', element: ['string', 'symbol'] },
-    preventExtensions: 'boolean',
+    isExtensible: { type: 'boolean', inert: true },
+    ownKeys: { type: 'Array', element: ['string', 'symbol'], inert: true },
+    preventExtensions: { type: 'boolean', inert: true },
     // 3-arg form mutates target (index 0); 4-arg `Reflect.set(t, k, v, receiver)` routes
     // the write through `target.[[Set]]` and lands on receiver (index 3). flag both - sound
     // over-bail for 3-arg of position-3 (no such arg) and for 4-arg of position-0 (target
     // searched but not written when receiver provided)
-    set: { type: 'boolean', mutatesArgument: [0, 3] },
-    setPrototypeOf: 'boolean',
+    set: { type: 'boolean', mutatesArgument: [0, 3], exposesArgument: [2] },
+    setPrototypeOf: { type: 'boolean', exposesArgument: [1], inert: true },
   },
   RegExp: {
     escape: 'string',
@@ -904,22 +927,23 @@ export const staticMethods = {
     raw: 'string',
   },
   SuppressedError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   Symbol: {
     for: 'symbol',
-    isRegisteredSymbol: 'boolean',
-    isWellKnownSymbol: 'boolean',
+    isRegisteredSymbol: { type: 'boolean', inert: true },
+    isWellKnownSymbol: { type: 'boolean', inert: true },
+    // not `inert`: core-js's implementation coerces a non-symbol argument into its error message
     keyFor: 'string',
   },
   SyntaxError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   TypeError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   URIError: {
-    isError: 'boolean',
+    isError: { type: 'boolean', inert: true },
   },
   URL: {
     canParse: 'boolean',
@@ -927,21 +951,21 @@ export const staticMethods = {
     parse: 'URL',
   },
   Uint16Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Uint32Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
   Uint8Array: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     fromBase64: { type: 'TypedArray', element: 'number' },
     fromHex: { type: 'TypedArray', element: 'number' },
     of: { type: 'TypedArray', element: 'number' },
   },
   Uint8ClampedArray: {
-    from: { type: 'TypedArray', element: 'number' },
+    from: { type: 'TypedArray', element: 'number', exposesArgument: [2] },
     of: { type: 'TypedArray', element: 'number' },
   },
 };
