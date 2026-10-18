@@ -74,7 +74,7 @@ export const POSITIONS = [
   ['assign-member', 'target.slot = @;', 'escapes'],
   // a held read of an own-this METHOD hands out a function whose `this` rebinds at its call
   ['member-read-method', 'sink((@).read);', 'escapes'],
-  // call positions: only a known callee at a slot that merely inspects the value keeps it local
+  // call positions: only a known static at a slot it neither writes nor hands on keeps the value local
   ['call-arg-unknown', 'sink(@);', 'escapes'],
   ['optional-call-arg', 'sink?.(@);', 'escapes'],
   ['dynamic-import-options', 'import(spec, @);', 'escapes'],

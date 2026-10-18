@@ -189,3 +189,54 @@ QUnit.test(
     assert.true(Box.data.includes('02'));
   },
 );
+
+QUnit.test(
+  'field unions: a known static stores the holder into another argument',
+  assert => {
+    const target = {};
+    const holder = { data: [10, 20] };
+    Reflect.set(target, 'holder', holder);
+    target.holder.data = '1020';
+    assert.true(holder.data.includes('02'));
+  },
+);
+
+QUnit.test(
+  'field unions: a known static installs the holder as a prototype',
+  assert => {
+    const target = {};
+    const holder = { data: [10, 20] };
+    Object.setPrototypeOf(target, holder);
+    Object.getPrototypeOf(target).data = '1020';
+    assert.true(holder.data.includes('02'));
+  },
+);
+
+QUnit.test(
+  'field unions: the reflective prototype install hands the holder on too',
+  assert => {
+    const target = {};
+    const holder = { data: [10, 20] };
+    Reflect.setPrototypeOf(target, holder);
+    Reflect.getPrototypeOf(target).data = '1020';
+    assert.true(holder.data.includes('02'));
+  },
+);
+
+QUnit.test(
+  'field unions: a known static runs its callback with the holder as `this`',
+  assert => {
+    const holder = { data: [10, 20] };
+    Array.from([1], function () { this.data = '1020'; }, holder);
+    assert.true(holder.data.includes('02'));
+  },
+);
+
+QUnit.test(
+  'field unions: a known static passes the holder to its callback',
+  assert => {
+    const holder = { data: [10, 20] };
+    Promise.try(value => { value.data = '1020'; }, holder);
+    assert.true(holder.data.includes('02'));
+  },
+);

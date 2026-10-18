@@ -2,9 +2,10 @@
 // is the one position whose answer depends on the callee rather than the syntax, so the position
 // suite next door can only cover it by example - this one walks the whole callee domain instead:
 // every known static, at the slots a value can occupy, with the result discarded and held. the two
-// walks must agree on each, and the set they call safe must be the set the slot table describes.
-// probes share one file so the whole domain costs two transforms: the emitted helper NAME is
-// file-global, but WHICH helper a given probe body uses is per-probe, and each probe owns its field
+// walks must agree on each, and the set they call safe must be the set the registry's argument
+// qualifiers describe. probes share one file so each shape of the domain costs one transform: the
+// emitted helper NAME is file-global, but WHICH helper a given probe body uses is per-probe, and each
+// probe owns its field
 import { createRequire } from 'node:module';
 import { createChecker } from './harness.mjs';
 import plugin from '../../packages/core-js-babel-plugin/index.js';
@@ -16,110 +17,58 @@ const knownReturnTypes = createRequire(import.meta.url)('@core-js/compat/known-b
 
 const { check, checkTruthy, finish } = createChecker('holder-call-slot-domain');
 
-// a static that only INSPECTS the value at this slot: it reads keys, symbols, the prototype or a
-// serialisation, none of which hands a method out to be re-bound. written from what the callees DO,
-// so a slot table that grows an entry nobody can justify shows up here as a mismatch
-const INSPECTS_SLOT_0 = new Set([
-  'JSON.stringify',
-  'Object.freeze',
-  'Object.getOwnPropertyNames',
-  'Object.getOwnPropertySymbols',
-  'Object.getPrototypeOf',
-  'Object.keys',
-  'Object.preventExtensions',
-  'Object.seal',
-  'Reflect.getPrototypeOf',
-  'Reflect.has',
-  'Reflect.ownKeys',
+// what each static does with the values it is handed, written from the callees' own behaviour rather
+// than read off the registry, so a registry row that claims too little or too much shows up here as a
+// mismatch. a static that writes an argument puts the members of its other arguments on the one it
+// writes (`Object.assign` copies a source's methods onto its target), so none of its slots keeps a
+// method; each of these writes its first argument
+const WRITES_AN_ARGUMENT = new Set([
+  'Object.assign',
+  'Object.defineProperties',
+  'Object.defineProperty',
+  'Reflect.defineProperty',
+  'Reflect.deleteProperty',
+  'Reflect.set',
 ]);
-// the `setPrototypeOf` pair is deliberately absent. neither hands the value out, so the slot table
-// keeps them - but they INSTALL a prototype, and the holder then owns inherited bodies nobody read.
-// the shapes below hand them a dispatching second argument, so every row is an escape; installing a
-// NON-dispatching value (`null`) is the case the fixtures next door lock
-// the second slot is a value slot for only two of them - `JSON.stringify(v, replacer)` and
-// `Reflect.has(target, key)` - everywhere else it means something the object cannot safely be
-const INSPECTS_SLOT_1 = new Set(['JSON.stringify', 'Reflect.has']);
-// callees that RETURN their argument alias it back out through the call's own value, so an inspected
-// slot stops being enough once the result is held. `Reflect.setPrototypeOf` returns a boolean and
-// `Reflect.getPrototypeOf` / `Object.getPrototypeOf` return the prototype, not the argument
-const RETURNS_ITS_ARGUMENT = new Set([
-  'Object.freeze',
-  'Object.preventExtensions',
-  'Object.seal',
-  'Object.setPrototypeOf',
-]);
-
-const IDENTIFIER = /^[$a-z_][\w$]*$/i;
-const STATICS = [];
-for (const [constructor, methods] of Object.entries(knownReturnTypes.staticMethods)) {
-  if (!IDENTIFIER.test(constructor)) continue;
-  for (const method of Object.keys(methods)) {
-    if (IDENTIFIER.test(method)) STATICS.push(`${ constructor }.${ method }`);
-  }
-}
-
-// `at` is one of the two instance methods with both an array and a string pure variant, so the
-// helper a probe body calls reports whether the field narrow survived that probe's call
-function literalFor(index) {
-  return `{ rows${ index }: [1, 2], read() { return this.rows${ index }.at(0); } }`;
-}
-
-const SHAPES = [
-  ['slot 0, result discarded', (call, arg) => `${ call }(${ arg }, other);`, pair => INSPECTS_SLOT_0.has(pair)],
-  ['slot 1, result discarded', (call, arg) => `${ call }(other, ${ arg });`, pair => INSPECTS_SLOT_1.has(pair)],
-  // the second argument stays present so the shape differs from the first row in ONE thing - the
-  // result being held. a callee whose verdict depends on that argument would otherwise answer a
-  // different question here than it does above
-  ['slot 0, result held', (call, arg) => `sink(${ call }(${ arg }, other));`,
-    pair => INSPECTS_SLOT_0.has(pair) && !RETURNS_ITS_ARGUMENT.has(pair)],
+const TYPED_ARRAYS = [
+  'BigInt64Array',
+  'BigUint64Array',
+  'Float16Array',
+  'Float32Array',
+  'Float64Array',
+  'Int8Array',
+  'Int16Array',
+  'Int32Array',
+  'Uint8Array',
+  'Uint8ClampedArray',
+  'Uint16Array',
+  'Uint32Array',
 ];
-
-function buildSource(shape, inline) {
-  return STATICS.map((pair, index) => {
-    const literal = literalFor(index);
-    const declaration = inline ? '' : `const holder = ${ literal }; `;
-    return `export function probe${ index }() { ${ declaration }${ shape(pair, inline ? literal : 'holder') } }`;
-  }).join('\n');
-}
-
-async function verdicts(source) {
-  const { code } = await transformAsync(source, {
-    configFile: false,
-    babelrc: false,
-    filename: 'holders.mjs',
-    sourceType: 'module',
-    plugins: [[plugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
-  });
-  const byIndex = new Map();
-  for (const probe of code.matchAll(/function probe(?<index>\d+)\(\)\s*\{(?<body>[\S\s]*?)\n\}/g)) {
-    const { body, index } = probe.groups;
-    byIndex.set(Number(index), /_atMaybeArray/.test(body) ? 'local' : /_at\b/.test(body) ? 'escapes' : 'no-polyfill');
-  }
-  return byIndex;
-}
-
-checkTruthy('the static registry yields a callee domain', STATICS.length >= 150,
-  `expected at least 150 known statics, found ${ STATICS.length }`);
-
-for (const [label, shape, inspects] of SHAPES) {
-  const named = await verdicts(buildSource(shape, false));
-  const inline = await verdicts(buildSource(shape, true));
-  // a probe whose body the matcher never found would silently pass every comparison below
-  checkTruthy(`${ label }: every probe reports a verdict`,
-    named.size === STATICS.length && inline.size === STATICS.length,
-    `matched ${ named.size } named and ${ inline.size } inline probes of ${ STATICS.length }`);
-  for (const [index, pair] of STATICS.entries()) {
-    const expected = inspects(pair) ? 'local' : 'escapes';
-    check(`${ pair } (${ label }, bound to a name)`, named.get(index), expected);
-    check(`${ pair } (${ label }, written inline)`, inline.get(index), expected);
-  }
-}
-
-// second walk over the same domain, with a holder that carries NO own-`this` methods. the rows above
-// can never reach the layer below the method-safety check - a value carrying methods escapes there
-// first - so the callees that expose it through the call's RESULT are only visible here. two ways
-// that happens, and both are read off the callee rather than the syntax: the result IS the argument
-// (`Object.freeze(v)`), or it is a container the argument was put into (`Array.of(v)`)
+// per slot, the statics that hand the value there on whatever it carries: into another argument
+// (`Reflect.set` stores its value), as an installed prototype (`setPrototypeOf`), as a callback's
+// `this` (the thisArg of `Array.from` and the typed-array `from`s), as a callback's own argument
+// (`Promise.try(fn, ...args)`), or in a result made of the value's members (a descriptor read, an
+// object built from entries or groups). a callback that sees values only through the call's own work
+// - a `JSON.stringify` replacer, a map function, a `groupBy` callback - is an accepted boundary, so
+// those slots stay put
+const HANDS_ON = [
+  new Set([
+    'Object.fromEntries',
+    'Object.getOwnPropertyDescriptor',
+    'Object.getOwnPropertyDescriptors',
+    'Object.groupBy',
+    'Reflect.getOwnPropertyDescriptor',
+  ]),
+  new Set(['Object.setPrototypeOf', 'Promise.try', 'Reflect.setPrototypeOf']),
+  new Set(['Array.from', 'Array.fromAsync', 'Promise.try', 'Reflect.set', ...TYPED_ARRAYS.map(name => `${ name }.from`)]),
+];
+// the `setPrototypeOf` pair also INSTALLS a prototype on its first argument, and the holder then owns
+// inherited bodies nobody read. the shapes below hand them a dispatching second argument, so every
+// slot-0 row of theirs is an escape; installing a NON-dispatching value (`null`) is the case the
+// fixtures next door lock
+const INSTALLS_A_PROTOTYPE = new Set(['Object.setPrototypeOf', 'Reflect.setPrototypeOf']);
+// callees whose RESULT carries the argument, so a held result re-exposes it: the result IS the
+// argument (`Object.freeze(v)`), or it is a container the argument was put into (`Array.of(v)`)
 const RESULT_CARRIES_ARGUMENT = new Set([
   'Array.from',
   'Array.fromAsync',
@@ -152,30 +101,120 @@ const RESULT_CARRIES_ARGUMENT = new Set([
 // result's element type, not whether the arguments went into it, so the two are indistinguishable
 // here and the coarse answer is the safe one: it widens where it need not, and widening only costs
 // the generic polyfill
-// callees that write through the slot itself never reached the retention question - the mutation
-// profile answers first
-const MUTATES_SLOT_0 = new Set([
-  'Object.assign',
-  'Object.defineProperties',
-  'Object.defineProperty',
-  'Reflect.defineProperty',
-  'Reflect.deleteProperty',
-  'Reflect.set',
-]);
 
-function buildRetentionSource() {
+// does a method of the holder leave through this slot?
+function methodsLeave(pair, slot) {
+  return WRITES_AN_ARGUMENT.has(pair) || HANDS_ON[slot].has(pair);
+}
+
+const IDENTIFIER = /^[$a-z_][\w$]*$/i;
+const STATICS = [];
+for (const [constructor, methods] of Object.entries(knownReturnTypes.staticMethods)) {
+  if (!IDENTIFIER.test(constructor)) continue;
+  for (const method of Object.keys(methods)) {
+    if (IDENTIFIER.test(method)) STATICS.push(`${ constructor }.${ method }`);
+  }
+}
+
+// `at` is one of the two instance methods with both an array and a string pure variant, so the
+// helper a probe body calls reports whether the field narrow survived that probe's call
+function literalFor(index) {
+  return `{ rows${ index }: [1, 2], read() { return this.rows${ index }.at(0); } }`;
+}
+
+// the slot-0 rows keep the second argument, so the two differ in ONE thing - the result being held.
+// a callee whose verdict depends on that argument would otherwise answer a different question in each
+const SHAPES = [
+  [
+    'slot 0, result discarded',
+    (call, arg) => `${ call }(${ arg }, other);`,
+    pair => !methodsLeave(pair, 0) && !INSTALLS_A_PROTOTYPE.has(pair),
+  ],
+  ['slot 1, result discarded', (call, arg) => `${ call }(other, ${ arg });`, pair => !methodsLeave(pair, 1)],
+  ['slot 2, result discarded', (call, arg) => `${ call }(other, other, ${ arg });`, pair => !methodsLeave(pair, 2)],
+  [
+    'slot 0, result held',
+    (call, arg) => `sink(${ call }(${ arg }, other));`,
+    pair => !methodsLeave(pair, 0) && !INSTALLS_A_PROTOTYPE.has(pair) && !RESULT_CARRIES_ARGUMENT.has(pair),
+  ],
+];
+
+function buildSource(shape, inline) {
+  return STATICS.map((pair, index) => {
+    const literal = literalFor(index);
+    const declaration = inline ? '' : `const holder = ${ literal }; `;
+    return `export function probe${ index }() { ${ declaration }${ shape(pair, inline ? literal : 'holder') } }`;
+  }).join('\n');
+}
+
+async function verdicts(source) {
+  const { code } = await transformAsync(source, {
+    configFile: false,
+    babelrc: false,
+    filename: 'holders.mjs',
+    sourceType: 'module',
+    plugins: [[plugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const byIndex = new Map();
+  for (const probe of code.matchAll(/function probe(?<index>\d+)\(\)\s*\{(?<body>[\S\s]*?)\n\}/g)) {
+    const { body, index } = probe.groups;
+    byIndex.set(Number(index), /_atMaybeArray/.test(body) ? 'local' : /_at\b/.test(body) ? 'escapes' : 'no-polyfill');
+  }
+  return byIndex;
+}
+
+checkTruthy('the static registry yields a callee domain', STATICS.length >= 150,
+  `expected at least 150 known statics, found ${ STATICS.length }`);
+
+for (const [label, shape, staysLocal] of SHAPES) {
+  const named = await verdicts(buildSource(shape, false));
+  const inline = await verdicts(buildSource(shape, true));
+  // a probe whose body the matcher never found would silently pass every comparison below
+  checkTruthy(`${ label }: every probe reports a verdict`,
+    named.size === STATICS.length && inline.size === STATICS.length,
+    `matched ${ named.size } named and ${ inline.size } inline probes of ${ STATICS.length }`);
+  for (const [index, pair] of STATICS.entries()) {
+    const expected = staysLocal(pair) ? 'local' : 'escapes';
+    check(`${ pair } (${ label }, bound to a name)`, named.get(index), expected);
+    check(`${ pair } (${ label }, written inline)`, inline.get(index), expected);
+  }
+}
+
+// second walk over the same domain, with a holder that carries NO own-`this` methods. the rows above
+// can never reach the layer below the method-safety check - a value carrying methods escapes there
+// first - so what only this layer decides is visible here alone: a write nobody sees is all that can
+// retype the holder's field, so the slots a static writes or hands on, and a held result carrying the
+// argument, let it go. the other arguments of a writing static receive copies of its values, never
+// the holder itself
+const PLAIN_SHAPES = [
+  [
+    'slot 0, result discarded',
+    pair => `${ pair }(holder, other);`,
+    pair => WRITES_AN_ARGUMENT.has(pair) || HANDS_ON[0].has(pair),
+  ],
+  [
+    'slot 0, result held',
+    pair => `sink(${ pair }(holder, other));`,
+    pair => WRITES_AN_ARGUMENT.has(pair) || HANDS_ON[0].has(pair) || RESULT_CARRIES_ARGUMENT.has(pair),
+  ],
+  ['slot 1, result discarded', pair => `${ pair }(other, holder);`, pair => HANDS_ON[1].has(pair)],
+  ['slot 2, result discarded', pair => `${ pair }(other, other, holder);`, pair => HANDS_ON[2].has(pair)],
+];
+
+function buildPlainSource(shape) {
   return STATICS.map((pair, index) => `export function probe${ index }() { `
     + `const holder = { rows${ index }: [1, 2] }; `
-    + `sink(${ pair }(holder, other)); `
+    + `${ shape(pair) } `
     + `return holder.rows${ index }.at(0); }`).join('\n');
 }
 
-const retention = await verdicts(buildRetentionSource());
-checkTruthy('no own-`this` holder: every probe reports a verdict', retention.size === STATICS.length,
-  `matched ${ retention.size } probes of ${ STATICS.length }`);
-for (const [index, pair] of STATICS.entries()) {
-  const expected = RESULT_CARRIES_ARGUMENT.has(pair) || MUTATES_SLOT_0.has(pair) ? 'escapes' : 'local';
-  check(`${ pair } (no own-\`this\` holder, slot 0, result held)`, retention.get(index), expected);
+for (const [label, shape, escapes] of PLAIN_SHAPES) {
+  const observed = await verdicts(buildPlainSource(shape));
+  checkTruthy(`no own-\`this\` holder, ${ label }: every probe reports a verdict`, observed.size === STATICS.length,
+    `matched ${ observed.size } probes of ${ STATICS.length }`);
+  for (const [index, pair] of STATICS.entries()) {
+    check(`${ pair } (no own-\`this\` holder, ${ label })`, observed.get(index), escapes(pair) ? 'escapes' : 'local');
+  }
 }
 
 // A local parameter reader has the same boundary for named and inline holders. Reading a

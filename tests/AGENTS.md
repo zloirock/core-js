@@ -19,7 +19,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `transpiler-integration/` | `npm run test-transpiler-integration` | real bundlers x methods x phases, runtime-verified |
 | `transpiler-perf/` | `npm run test-transpiler-perf`, `test-transpiler-perf-smoke` | transpiler perf gates and complexity-class discriminators |
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
-| `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; and the query API |
+| `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; the query API; and the return-type registry - its shape, and what it says a static does with its arguments, held to the engine's implementation and to core-js's |
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |
 | `type-definitions/` | `npm run test-type-definitions`, `-all`, `npm run types-coverage` | `.d.ts` behavior and coverage |
 | `builder/` | `npm run test-builder` | `@core-js/builder` |
