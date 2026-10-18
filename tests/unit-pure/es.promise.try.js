@@ -19,6 +19,12 @@ QUnit.test('Promise.try, resolved, with args', assert => {
   });
 });
 
+QUnit.test('Promise.try entry, resolved, with args', assert => {
+  return $try((a, b) => Promise.resolve(a + b), 1, 2).then(it => {
+    assert.same(it, 3, 'the entry passes the arguments after the callback on');
+  });
+});
+
 QUnit.test('Promise.try, rejected', assert => {
   return Promise.try(() => {
     throw new Error();
