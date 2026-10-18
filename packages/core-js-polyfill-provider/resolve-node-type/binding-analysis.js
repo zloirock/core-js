@@ -35,7 +35,7 @@
 // `staticPairFromPolyfillEntry`, `resolveGlobalMember`, `globalNamedThroughOwnImport`,
 // `staticPairFromDestructure`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the Babel/ESTree type
 // adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
-import { MAX_DEPTH, PRIMITIVES } from './base.js';
+import { MAX_DEPTH, PRIMITIVES, directivesOf } from './base.js';
 import { resolveInlineCalleeFunction } from '../detect-usage/resolve.js';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
@@ -302,15 +302,18 @@ export function createBindingAnalysis({
   }
 
   // resolve a callee node to its (constructor, method) pair if it's a known-static call.
-  // covers four shapes:
+  // covers four shapes, read under the callee's transparent wrappers - `(Object.keys)(o)` or a cast
+  // names the same function with the same receiver, and only the ESTree parser keeps the
+  // parentheses as a node:
   //   1. bare member access `Object.assign(...)` - object is a no-local-shadow Identifier
   //   2. proxy-global wrap `globalThis.Object.assign(...)` / `self.Object.assign(...)` -
   //      outer is a proxy-global, peel it and treat inner property as the constructor name
   //   3. post-rewrite polyfill alias `_Object$assign` - identifier resolves through the
   //      injector's binding hint via `staticPairFromPolyfillEntry`
   //   4. Reflect.construct etc - handled identically by the same shapes
-  // every other spelling goes to the canon where the hop stands on the callee's own path
-  // (`canonicalCalleePair`) and bails without one. returns `{ constructor, method }` or null.
+  // every other spelling goes to the canon where the hop - as it was handed, wrappers and all -
+  // stands on the callee's own path (`canonicalCalleePair`) and bails without one. returns
+  // `{ constructor, method }` or null.
   // callers add their own table lookup (`KNOWN_STATIC_METHOD_RETURN_TYPES`)
   // or pair match (Reflect.construct) on top of the resolved pair
   // `method`, when given, is the only method name the caller can accept. a member-spelled callee
@@ -324,8 +327,8 @@ export function createBindingAnalysis({
   // span-disciplined, and a null anchor is refused outright - the nearest positioned ancestor
   // still sits inside every hosting span (`hopAnchorStart`)
   function resolveStaticCalleePair(hop, { method = null } = {}) {
-    const { node: callee, ctx } = hop;
-    const { scope } = ctx;
+    const callee = unwrapRuntimeExpr(hop.node);
+    const { scope } = hop.ctx;
     if (!callee) return null;
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       if (callee.computed) return null;
@@ -390,11 +393,14 @@ export function createBindingAnalysis({
   }
 
   // resolve callee to the entry from `KNOWN_STATIC_METHOD_RETURN_TYPES` (mutation profile,
-  // return-type hint, ...). null when callee is not a known static or the (constructor,
-  // method) pair has no registered entry
+  // return-type hint, ...). null when callee is not a known static, the (constructor, method)
+  // pair has no registered entry, or the module may replace that static - the entry describes the
+  // built-in, a replacement does whatever it does with its arguments, and the return-type tables
+  // drop a patched static by the same census
   function resolveKnownStaticEntry(callee, refPath) {
     const pair = resolveStaticCalleePair({ node: callee, ctx: { scope: refPath?.scope, path: refPath } });
-    return pair ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
+    return pair && !bindingAdapter.isMutatedStatic(pair.constructor, pair.method)
+      ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
   }
 
   // is `callee` a (non-shadowed) reference to `Reflect.construct`? same shape coverage as
@@ -404,12 +410,16 @@ export function createBindingAnalysis({
     return resolveStaticCalleePair({ node: callee, ctx: { scope } }, { method: 'construct' })?.constructor === 'Reflect';
   }
 
-  // is `refNode` at a non-mutating slot of a known call? SpreadElement is unwrapped first:
+  // is `refNode` at a slot of a known call through which nothing can write it? the entry names
+  // the slots the call writes (`mutatesArgument`) and the ones it hands on (`exposesArgument`:
+  // stored into another argument, a callback's `this`, a result built from its values), and a
+  // call running the callback its first argument holds hands that callback every other argument
+  // (`Promise.try(fn, ...args)`). SpreadElement is unwrapped first:
   // `f(...o)` re-targets argIndex computation to the spread node within `f`'s arg list,
   // `[...o]` / `{...o}` shortcut to true since the value-source containers have no callee
   // that could mutate `o`. leading SpreadElement before the slot perturbs the runtime index
   // (`f(...rest, o)` - o lands at unknown position), so we bail. for spread refs we widen
-  // the mutation check to "any annotated index >= argIndex" since spread expands into
+  // the slot checks to "any annotated index >= argIndex" since spread expands into
   // runtime positions [argIndex, argIndex+1, ...] (covers Reflect.set's [0,3] receiver-slot
   // mutation reachable via `Reflect.set(t, k, ...o)`). resolveKnownStaticEntry handles both
   // pre-rewrite member (`Object.assign`) and post-rewrite alias (`_Object$assign`)
@@ -422,9 +432,9 @@ export function createBindingAnalysis({
     }
     // NewExpression with a known-static MemberExpression callee (`new Reflect.X(o)`,
     // `new Object.create(o)`-style) routes through the same resolveKnownStaticEntry as
-    // a regular call - the entry's `mutatesArgument` profile applies identically. bare
+    // a regular call - what the entry says of each slot applies identically. bare
     // constructor callees (`new Set(o)`) need their entries in the registry to benefit;
-    // without them the resolver returns null and the call falls through to leak as before
+    // without them the resolver returns null and the call falls through to leak
     if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression'
       && parent?.type !== 'NewExpression') return false;
     const argIndex = parent.arguments?.indexOf(refNode) ?? -1;
@@ -432,11 +442,16 @@ export function createBindingAnalysis({
     for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return false;
     const entry = resolveKnownStaticEntry(parent.callee, refPath);
     if (entry === null) return !!localCallMemberRead(parent, refNode, refPath);
-    const mutates = entry.mutatesArgument;
-    if (!Array.isArray(mutates)) return true;
-    return refNode.type === 'SpreadElement'
-      ? mutates.every(idx => idx < argIndex)
-      : !mutates.includes(argIndex);
+    const spread = refNode.type === 'SpreadElement';
+    if (slotListReaches(entry.mutatesArgument, argIndex, spread) || slotListReaches(entry.exposesArgument, argIndex, spread)) return false;
+    // a call answering with its callback's return (`argument-return`) runs that callback - which is
+    // called, not handed on
+    return !((spread || argIndex > 0) && directivesOf(entry).includes('argument-return'));
+  }
+
+  // does a list of argument slots name `argIndex` - or, for a spread argument, any position it fills?
+  function slotListReaches(slots, argIndex, spread) {
+    return Array.isArray(slots) && (spread ? slots.some(idx => idx >= argIndex) : slots.includes(argIndex));
   }
 
   // Pair a local reader's parameter with THIS invocation's argument. Callee resolution shares
@@ -696,12 +711,12 @@ export function createBindingAnalysis({
   // does handing a value to this call at this argument slot EXPOSE it? the single decision both walks
   // ask - the named-holder classifier and the anonymous-object one - so an object written inline at the
   // argument reads exactly like one bound to a name first. Three layers: own-`this` methods need a
-  // method-safe slot or a proven read that cannot extract one, the callee must not mutate that slot,
-  // and a callee whose result retains the value must not have that result held
+  // method-safe slot or a proven read that cannot extract one, the callee must neither write nor
+  // hand on that slot, and a callee whose result retains the value must not have that result held
   // (the result aliases the value back out).
   function callArgumentEscapes({ callNode, argNode, argPath, methodInfo = null, valueRead = false }) {
     if (referenceInstallsUnreadBody(callNode, argNode, argPath, null)) return true;
-    if (methodInfo && !methodSafeCallArgSlot(callNode, argNode, argPath?.scope)) {
+    if (methodInfo && !methodSafeCallArgSlot(callNode, argPath)) {
       const read = localCallMemberRead(callNode, argNode, argPath);
       if (!read || methodReadLeaks(read, null, methodInfo, valueRead)) return true;
     }
@@ -812,10 +827,10 @@ export function createBindingAnalysis({
     if (disposition === POSITION_FORWARDS && (parent?.type === 'ArrayExpression'
       || parent?.type === 'ObjectProperty' || parent?.type === 'Property'
       || parent?.type === 'ConditionalExpression' || parent?.type === 'LogicalExpression')) return 'carrier';
-    // pass-through to a known-built-in static at a non-mutating arg slot doesn't escape:
-    // `JSON.stringify(obj)`, `Object.keys(obj)`, `Object.assign(target, obj)`, `f(...obj)`,
+    // pass-through to a known-built-in static at a slot it neither writes nor hands on doesn't
+    // escape: `JSON.stringify(obj)`, `Object.keys(obj)`, `Object.assign(target, obj)`, `f(...obj)`,
     // `[...obj]`, `{...obj}` - all routed through the helper which unwraps SpreadElement
-    // and consults the callee's mutatesArgument profile
+    // and consults the callee's mutatesArgument / exposesArgument profile
     if (isKnownNonMutatingCallSite(parent, refNode, refPath)) {
       // some of those callees alias the argument through the call RESULT - by returning it
       // (`Object.freeze(o)`) or by boxing it (`Array.of(o)`). a held result re-exposes the object
@@ -917,17 +932,14 @@ export function createBindingAnalysis({
       && (outer.key === 'callee' || unwrapRuntimeExpr(ctx.callee) === memberPath?.node);
   }
   // Can this use run a body on the holder? Slot reads and non-coercing observations cannot;
-  // calls, iteration and coercion can. A carrier stays conservative across nested closures.
+  // calls, iteration and coercion can - save a call to a static the registry marks `inert`.
+  // A carrier stays conservative across nested closures.
   function referenceMayInvokeBody(parent, refNode, refPath) {
     if (isMemberRefReceiver(parent, refNode)) return memberUseIsDirectCall(refPath.parentPath);
     if (isTypePositionParent(parent?.type) || isTSTypeOnlyIdentifierPath(refPath)) return false;
     const pattern = destructuringPatternOver(parent, refNode) ?? wrapperDestructureReadsSlot(parent, refNode, refPath);
     if (pattern?.type === 'ObjectPattern') return false;
-    if (methodSafeCallArgSlot(parent, refNode, refPath.scope)) {
-      const pair = resolveStaticCalleePair({ node: parent.callee, ctx: { scope: refPath.scope } });
-      if (pair.constructor !== 'JSON' && !(pair.constructor === 'Reflect' && pair.method === 'has'
-        && unwrapRuntimeExpr(parent.arguments[1]) === unwrapRuntimeExpr(refNode))) return false;
-    }
+    if (inertStaticCallArgument(parent, refNode, refPath)) return false;
     return !valueIsDroppedAt(refPath);
   }
 
@@ -951,46 +963,23 @@ export function createBindingAnalysis({
     if (ctx?.type === 'UnaryExpression' && ctx.operator === 'void') return false;
     return true;
   }
-  // callee -> argument indices at which an object's function-valued properties can neither
-  // escape nor be reached through the call: pure key / flag readers, string serialization
-  // (functions are skipped; `toJSON` runs with the object itself as `this`), and prototype
-  // surgery TARGET slots. positions matter: `Object.setPrototypeOf(x, o)` with o as the PROTO
-  // arg makes x inherit o's methods (`x.read()` rebinds `this`), so only the target slot is
-  // safe. any other callee / slot a method-bearing object reaches may hand a method out
-  // (`Object.values` exposes property values, `Object.assign` copies them onto the target, a
-  // descriptor read exposes accessor functions) - the base's non-mutating trivial is
-  // overridden in the bias-safe direction
-  // the `setPrototypeOf` pair sits here because neither hands the value OUT - which is what this
-  // table answers - but both INSTALL a prototype on it, and an installed prototype brings inherited
-  // bodies nobody read. that second property is decided per CALL, on the argument, just below
-  const METHOD_SAFE_STATIC_CALLEE_SLOTS = new Map([
-    // value / replacer / space: functions are skipped, a replacer array is read as key strings
-    ['JSON.stringify', [0, 1, 2]],
-    ['Object.freeze', [0]],
-    ['Object.getOwnPropertyNames', [0]],
-    ['Object.getOwnPropertySymbols', [0]],
-    ['Object.getPrototypeOf', [0]],
-    ['Object.keys', [0]],
-    ['Object.preventExtensions', [0]],
-    ['Object.seal', [0]],
-    ['Object.setPrototypeOf', [0]],
-    ['Reflect.getPrototypeOf', [0]],
-    ['Reflect.has', [0, 1]],
-    ['Reflect.ownKeys', [0]],
-    ['Reflect.setPrototypeOf', [0]],
-  ]);
+  // does this call slot keep the value's methods in place? only a known static's can, and a writing
+  // one's never does: it puts the members of its other arguments on the one it writes
+  // (`Object.assign` copies a source's methods onto its target, where they run with the target as
+  // `this`). what a known static writes or hands on is the mutation gate's question, asked next for
+  // every value, methods or not
+  function methodSafeCallArgSlot(callNode, argPath) {
+    const entry = resolveKnownStaticEntry(callNode.callee, argPath);
+    return !!entry && !entry.mutatesArgument;
+  }
 
-  // does `argNode` sit in a slot of `callNode` that the table above declares method-safe for the
-  // resolved static callee? a preceding spread shifts the positions, so no slot is provable past it
-  function methodSafeCallArgSlot(callNode, argNode, scope) {
-    const pair = resolveStaticCalleePair({ node: callNode.callee, ctx: { scope } });
-    const safeSlots = pair && METHOD_SAFE_STATIC_CALLEE_SLOTS.get(`${ pair.constructor }.${ pair.method }`);
-    if (!safeSlots) return false;
-    const argIndex = callNode.arguments.findIndex(a => unwrapRuntimeExpr(a) === argNode || a === argNode);
-    if (argIndex === -1 || !safeSlots.includes(argIndex)) return false;
-    // a preceding spread shifts runtime positions - the slot cannot be proven safe
-    for (let i = 0; i < argIndex; i++) if (callNode.arguments[i]?.type === 'SpreadElement') return false;
-    return true;
+  // is this reference an argument of a call to a static that runs no code of its arguments? such a
+  // call reads keys, flags, the prototype or identity, and never coerces, iterates or calls what it
+  // is handed (the registry's `inert`). the reference arrives climbed past its transparent wrappers,
+  // so it is the argument node itself
+  function inertStaticCallArgument(parent, refNode, refPath) {
+    return (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
+      && parent.arguments.includes(refNode) && resolveKnownStaticEntry(parent.callee, refPath)?.inert === true;
   }
 
   function invokesOwnIterator(parent, refNode, refPath) {
@@ -1140,7 +1129,7 @@ export function createBindingAnalysis({
   // breaks and the closure must die. gated channels: a held method read (dotted / static-computed /
   // dynamic), a top-level destructure of a method key or rest, an object-spread copy (`{ ...o }`
   // shares the method bodies with a foreign receiver - array / call spread only ITERATES, which
-  // cannot reach named methods), and call / new argument positions outside the method-safe table.
+  // cannot reach named methods), and call / new argument positions a known static cannot vouch for.
   // `valueRead` asks whether the holder SLOT can change, not whether an extracted method
   // can rebind its own `this`. Only method reads are exempt; writes and opaque handouts remain gates.
   // An unread ordinary store returns `unread-body` for the closure to pair with possible calls.

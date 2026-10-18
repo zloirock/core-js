@@ -19244,6 +19244,240 @@ function * generateParameterBindingDependencies() {
   }
 }
 
+// A source import and a local key share a spelling, but only the visible binding owns the read.
+function * generateImportedKeyShadows() {
+  for (const binder of ['default', 'named']) for (const [name, expression] of [
+    ['local', "function read() { const key = 'at'; log.push('read'); return [7][key](0); }"],
+    ['block', "function read() { { const key = 'at'; log.push('read'); return [7][key](0); } }"],
+    ['literal control', "function read() { log.push('read'); return [7]['at'](0); }"],
+  ]) {
+    yield {
+      name: `imported-key-shadow/${ binder }/${ name }`,
+      code: `import ${ binder === 'named' ? '{ default as key }' : 'key' } from '@core-js/pure/actual/symbol/async-iterator';
+        const log = [];
+        ${ expression }
+        export const r = [read(), { [key]: 23 }[key]];
+        export const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
+// Prior output keeps its native sentinel beside the explicit read, across import flavors.
+// Each host is a separate extraction route; the getter log observes an extra source read.
+function * generatePriorIteratorFlavors() {
+  for (const flavor of ['actual', 'full']) for (const binder of ['default', 'named']) for (const [name, kind, expression, invoke, hasValue] of [
+    ['return', 'function', 'return method(globalThis);', 'read(extra)', true],
+    ['throw', 'function', 'throw method(globalThis);', '(() => { try { read(extra); } catch (value) { return value; } })()', true],
+    ['effect', 'function', 'method(globalThis);', 'read(extra)', false],
+    ['void', 'function', 'void method(globalThis);', 'read(extra)', false],
+    ['yield', 'function*', 'yield method(globalThis);', 'read(extra).next().value', true],
+    ['await', 'async function', 'return await method(globalThis);', 'await read(extra)', true],
+  ]) {
+    yield {
+      name: `prior-iterator-flavor/${ flavor }/${ binder }/${ name }`,
+      code: `${ RESTORE_IMPORT }
+        import ${ binder === 'named' ? '{default as iteratorKey}' : 'iteratorKey' } from '@core-js/pure/${ flavor }/symbol/iterator';
+        import ${ binder === 'named' ? '{default as method}' : 'method' } from '@core-js/pure/${ flavor }/get-iterator-method';
+        const log = [];
+        function selected() { return 23; }
+        const prior = Object.getOwnPropertyDescriptor(globalThis, iteratorKey);
+        Object.defineProperty(globalThis, iteratorKey, {
+          configurable: true, get() { log.push('iterator'); return selected; }
+        });
+        ${ kind } read(extra) {
+          const { w: { [iteratorKey]: _unused } } = { ...extra, w: globalThis };
+          ${ expression }
+        }
+        let r;
+        try {
+          const extra = { get marker() { log.push('spread'); return 1; } };
+          r = (${ invoke }) === ${ hasValue ? 'selected' : 'undefined' };
+        } finally { restoreProperty(globalThis, iteratorKey, prior); }
+        export { r };
+        export const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
+// Source positions and iterator-produced values answer different questions.
+function * generateRuntimeIteratorPositions() {
+  for (const [name, invoke] of [
+    ['direct', 'read(...[], true)'],
+    ['apply', 'read.apply(null, [...[], true])'],
+    ['reflect', 'Reflect.apply(read, null, [...[], true])'],
+  ]) {
+    const row = snippet(`runtime-iterator-position/selection/${ name }`, `(() => {
+      const prior = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+      try {
+        Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield false; };
+        function read(flag) { return (flag ? [1] : 'text').at(0); }
+        return ${ invoke };
+      } finally { restoreProperty(Array.prototype, Symbol.iterator, prior); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+  for (const [name, expression] of [
+    ['identity', '((value) => value)(...[[1]]).at(0)'],
+    ['default', "(({ at } = [1]) => at.call('ok', 0))(...[])"],
+    ['binding', '(() => { const [value] = [[1]]; return value.at(0); })()'],
+    ['assignment', '(() => { let value; [value] = [[1]]; return value.at(0); })()'],
+    ['for-of', '(() => { let result; for (const value of [[1]]) result = value.at(0); return result; })()'],
+    ['property', '(() => { const { 0: value } = [[1]]; return value.at(0); })()'],
+  ]) {
+    const row = snippet(`runtime-iterator-position/value/${ name }`, `(() => {
+      const prior = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+      try {
+        Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield 'text'; };
+        return ${ expression };
+      } finally { restoreProperty(Array.prototype, Symbol.iterator, prior); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+  // Slot absence is a runtime protocol/property fact; defaults never override inherited values.
+  for (const [name, owner, key, setup, pattern, expression] of [
+    [
+      'replaced iterator',
+      'Array',
+      'Symbol.iterator',
+      "Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield 'xy'; };",
+      'const [value = [1]] = [];',
+      "value.includes('xy')",
+    ],
+    ['inherited hole', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [,];', "value.includes('xy')"],
+    ['iterator done', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [];', 'value.includes(1)'],
+    ['own undefined', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [void 0];', 'value.includes(1)'],
+    ['numeric property', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const { 0: value = [1] } = [];', "value.includes('xy')"],
+    [
+      'inherited object slot',
+      'Object',
+      "'typedDefaultValue'",
+      "Object.prototype.typedDefaultValue = 'xy';",
+      'const { typedDefaultValue: value = [1] } = {};',
+      "value.includes('xy')",
+    ],
+  ]) {
+    const row = snippet(`default-slot-presence/${ name }`, `(() => {
+      const prior = Object.getOwnPropertyDescriptor(${ owner }.prototype, ${ key });
+      try { ${ setup } ${ pattern } return ${ expression }; }
+      finally { restoreProperty(${ owner }.prototype, ${ key }, prior); }
+    })()`);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+  // An open iterated receiver keeps its slot default without constraining supplied values.
+  for (const [name, expression] of [
+    ['provided String', "readOpenDefaultedSlot(['text'], 'ok')"],
+    ['missing and undefined', '[(readOpenDefaultedSlot([], [7])), readOpenDefaultedSlot([void 0], [8])]'],
+  ]) {
+    const row = snippet(`defaulted-iterated-open/${ name }`, expression);
+    yield {
+      ...row,
+      code: `export function readOpenDefaultedSlot(external, target) {
+        const [{ at } = (log.push('default'), [1])] = external;
+        return at.call(target, 0);
+      }\n${ row.code }`,
+      strip: true,
+    };
+  }
+}
+
+// Nested object parameters use the same receiver dispatch as their flat bindings.
+function * generateNestedParameterInstances() {
+  for (const [family, type, initial, written, key, argument] of [
+    ['string', 'string', "'ab'", "'cd'", 'at', '-1'],
+    ['array', 'number[]', '[1]', '[2]', 'includes', '2'],
+  ]) for (const fallback of [false, true]) for (const form of ['closed', 'exported', 'arrow']) {
+    for (const absent of fallback ? [false, true] : [false]) {
+      const pattern = `{ value: { ${ key } }${ fallback ? ` = ${ written }` : '' } }`;
+      const declaration = form === 'arrow'
+        ? `const read = (${ pattern }) => ${ key };`
+        : `${ form === 'exported' ? 'export ' : '' }function read(${ pattern }) { return ${ key }; }`;
+      yield {
+        name: `nested-parameter-instance/${ family }/${ fallback ? 'default' : 'plain' }/${ form }/${ absent ? 'absent' : 'written' }`,
+        code: `const log = [];
+          const box: { value: ${ type } } = { value: ${ initial } };
+          box.value = ${ written };
+          ${ declaration }
+          export const r = read(${ absent ? '{}' : 'box' }).call(box.value, ${ argument });
+          export const effects = log;`,
+        ts: true,
+        strip: true,
+      };
+    }
+  }
+}
+
+// Argument evaluation survives a rejected dispatch, including effects inside allocated values.
+function * generateMethodArgumentEffects() {
+  for (const [argument, expression] of [
+    ['object', '{ value: effect() }'],
+    ['sequence', '(effect(), 0)'],
+    ['conditional', 'value ? effect() : 0'],
+    // eslint-disable-next-line no-template-curly-in-string -- the interpolation belongs to generated source
+    ['template', '`value:${value}`'],
+  ]) for (const [host, call, before = '', key = 'at'] of [
+    ['ordinary', 'receiver.at(ARG)'],
+    ['optional receiver', 'receiver?.at(ARG)'],
+    ['optional method', 'receiver.at?.(ARG)'],
+    ['sealed', '(receiver?.at)(ARG)'],
+    ['selected static', 'Ctor.from(ARG)', 'const Ctor = value ? receiver : Array;', 'from'],
+    ['selected instance fallback', 'Ctor.entries(ARG)', 'const Ctor = value ? receiver : Object;', 'entries'],
+  ]) for (const absent of [false, true]) {
+    yield {
+      name: `method-argument-effects/${ argument }/${ host }/${ absent ? 'absent' : 'callable' }`,
+      code: `const log = [];
+        export function read(receiver, value, effect) { ${ before }return ${ call.replace('ARG', expression) }; }
+        const value = { toString() { log.push('coercion'); return '7'; } };
+        const receiver = { get ${ key }() { log.push('lookup'); return ${ absent ? 'undefined' : `function (argument) {
+          log.push(this === receiver ? 'this' : 'lost receiver'); return typeof argument;
+        }` }; } };
+        let r;
+        try { r = read(receiver, value, () => { log.push('argument'); return 7; }); }
+        catch (error) { r = error.name; }
+        export { r };
+        export const effects = log;`,
+      // An own method tests dispatch timing; removing native methods does not arm this family.
+      strip: false,
+    };
+  }
+}
+
+// --- a known STATIC that hands the holder on ---
+// the registry says what a static does with each argument it is handed, and a static that stores the
+// holder into another argument, installs it as a prototype or runs a callback with it as `this` lets
+// code the module never reads rewrite the holder's field. the holder kinds are answered by different
+// walks - a plain literal, one with an own-`this` method, a class instance with and without one, a
+// class's own static - and the controls hand it to slots the same statics only read: the key
+// `Reflect.set` coerces, the source `Array.from` iterates. only the stripped realm separates a stale
+// array narrow from the generic helper
+const SH_CHANNELS = [
+  ['reflect-set-value', 'Reflect.set(t, "k", h); t.k.rows = "xy";'],
+  ['object-set-prototype-of', 'Object.setPrototypeOf(t, h); Object.getPrototypeOf(t).rows = "xy";'],
+  ['reflect-set-prototype-of', 'Reflect.setPrototypeOf(t, h); Reflect.getPrototypeOf(t).rows = "xy";'],
+  ['array-from-this-arg', 'Array.from([1], function () { this.rows = "xy"; }, h);'],
+  ['typed-array-from-this-arg', 'Uint8Array.from([1], function () { this.rows = "xy"; return 1; }, h);'],
+  ['reflect-set-key', 'Reflect.set(t, h, 1);'],
+  ['array-from-source', 'Array.from(h);'],
+];
+const SH_HOLDERS = [
+  ['plain', 'const h = { rows: ["p", "q"] };', 'String(h.rows.at(0))'],
+  ['own-method', 'const h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } };', 'h.read()'],
+  ['instance', 'class C { rows = ["p", "q"]; } const h = new C();', 'String(h.rows.at(0))'],
+  ['instance-method', 'class C { rows = ["p", "q"]; read() { return String(this.rows.at(0)); } } const h = new C();', 'h.read()'],
+  ['class-static', 'class h { static rows = ["p", "q"]; }', 'String(h.rows.at(0))'],
+];
+function * generateStaticHandOuts() {
+  for (const [channel, call] of SH_CHANNELS) {
+    for (const [holder, setup, read] of SH_HOLDERS) {
+      yield {
+        ...snippet(`static-hand-outs/${ channel }/${ holder }`, `(() => { const t = {}; ${ setup } ${ call } return ${ read }; })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -19600,191 +19834,5 @@ export function * generate() {
   yield * generateImportedKeyShadows();
   yield * generateNestedParameterInstances();
   yield * generateMethodArgumentEffects();
-}
-
-// A source import and a local key share a spelling, but only the visible binding owns the read.
-function * generateImportedKeyShadows() {
-  for (const binder of ['default', 'named']) for (const [name, expression] of [
-    ['local', "function read() { const key = 'at'; log.push('read'); return [7][key](0); }"],
-    ['block', "function read() { { const key = 'at'; log.push('read'); return [7][key](0); } }"],
-    ['literal control', "function read() { log.push('read'); return [7]['at'](0); }"],
-  ]) {
-    yield {
-      name: `imported-key-shadow/${ binder }/${ name }`,
-      code: `import ${ binder === 'named' ? '{ default as key }' : 'key' } from '@core-js/pure/actual/symbol/async-iterator';
-        const log = [];
-        ${ expression }
-        export const r = [read(), { [key]: 23 }[key]];
-        export const effects = log;`,
-      strip: true,
-    };
-  }
-}
-
-// Prior output keeps its native sentinel beside the explicit read, across import flavors.
-// Each host is a separate extraction route; the getter log observes an extra source read.
-function * generatePriorIteratorFlavors() {
-  for (const flavor of ['actual', 'full']) for (const binder of ['default', 'named']) for (const [name, kind, expression, invoke, hasValue] of [
-    ['return', 'function', 'return method(globalThis);', 'read(extra)', true],
-    ['throw', 'function', 'throw method(globalThis);', '(() => { try { read(extra); } catch (value) { return value; } })()', true],
-    ['effect', 'function', 'method(globalThis);', 'read(extra)', false],
-    ['void', 'function', 'void method(globalThis);', 'read(extra)', false],
-    ['yield', 'function*', 'yield method(globalThis);', 'read(extra).next().value', true],
-    ['await', 'async function', 'return await method(globalThis);', 'await read(extra)', true],
-  ]) {
-    yield {
-      name: `prior-iterator-flavor/${ flavor }/${ binder }/${ name }`,
-      code: `${ RESTORE_IMPORT }
-        import ${ binder === 'named' ? '{default as iteratorKey}' : 'iteratorKey' } from '@core-js/pure/${ flavor }/symbol/iterator';
-        import ${ binder === 'named' ? '{default as method}' : 'method' } from '@core-js/pure/${ flavor }/get-iterator-method';
-        const log = [];
-        function selected() { return 23; }
-        const prior = Object.getOwnPropertyDescriptor(globalThis, iteratorKey);
-        Object.defineProperty(globalThis, iteratorKey, {
-          configurable: true, get() { log.push('iterator'); return selected; }
-        });
-        ${ kind } read(extra) {
-          const { w: { [iteratorKey]: _unused } } = { ...extra, w: globalThis };
-          ${ expression }
-        }
-        let r;
-        try {
-          const extra = { get marker() { log.push('spread'); return 1; } };
-          r = (${ invoke }) === ${ hasValue ? 'selected' : 'undefined' };
-        } finally { restoreProperty(globalThis, iteratorKey, prior); }
-        export { r };
-        export const effects = log;`,
-      strip: true,
-    };
-  }
-}
-
-// Source positions and iterator-produced values answer different questions.
-function * generateRuntimeIteratorPositions() {
-  for (const [name, invoke] of [
-    ['direct', 'read(...[], true)'],
-    ['apply', 'read.apply(null, [...[], true])'],
-    ['reflect', 'Reflect.apply(read, null, [...[], true])'],
-  ]) {
-    const row = snippet(`runtime-iterator-position/selection/${ name }`, `(() => {
-      const prior = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
-      try {
-        Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield false; };
-        function read(flag) { return (flag ? [1] : 'text').at(0); }
-        return ${ invoke };
-      } finally { restoreProperty(Array.prototype, Symbol.iterator, prior); }
-    })()`);
-    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
-  }
-  for (const [name, expression] of [
-    ['identity', '((value) => value)(...[[1]]).at(0)'],
-    ['default', "(({ at } = [1]) => at.call('ok', 0))(...[])"],
-    ['binding', '(() => { const [value] = [[1]]; return value.at(0); })()'],
-    ['assignment', '(() => { let value; [value] = [[1]]; return value.at(0); })()'],
-    ['for-of', '(() => { let result; for (const value of [[1]]) result = value.at(0); return result; })()'],
-    ['property', '(() => { const { 0: value } = [[1]]; return value.at(0); })()'],
-  ]) {
-    const row = snippet(`runtime-iterator-position/value/${ name }`, `(() => {
-      const prior = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
-      try {
-        Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield 'text'; };
-        return ${ expression };
-      } finally { restoreProperty(Array.prototype, Symbol.iterator, prior); }
-    })()`);
-    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
-  }
-  // Slot absence is a runtime protocol/property fact; defaults never override inherited values.
-  for (const [name, owner, key, setup, pattern, expression] of [
-    ['replaced iterator', 'Array', 'Symbol.iterator',
-      "Array.prototype[Symbol.iterator] = function* () { log.push('iterator'); yield 'xy'; };", 'const [value = [1]] = [];', "value.includes('xy')"],
-    ['inherited hole', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [,];', "value.includes('xy')"],
-    ['iterator done', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [];', 'value.includes(1)'],
-    ['own undefined', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const [value = [1]] = [void 0];', 'value.includes(1)'],
-    ['numeric property', 'Array', "'0'", "Array.prototype[0] = 'xy';", 'const { 0: value = [1] } = [];', "value.includes('xy')"],
-    ['inherited object slot', 'Object', "'typedDefaultValue'", "Object.prototype.typedDefaultValue = 'xy';",
-      'const { typedDefaultValue: value = [1] } = {};', "value.includes('xy')"],
-  ]) {
-    const row = snippet(`default-slot-presence/${ name }`, `(() => {
-      const prior = Object.getOwnPropertyDescriptor(${ owner }.prototype, ${ key });
-      try { ${ setup } ${ pattern } return ${ expression }; }
-      finally { restoreProperty(${ owner }.prototype, ${ key }, prior); }
-    })()`);
-    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
-  }
-  // An open iterated receiver keeps its slot default without constraining supplied values.
-  for (const [name, expression] of [
-    ['provided String', "readOpenDefaultedSlot(['text'], 'ok')"],
-    ['missing and undefined', '[(readOpenDefaultedSlot([], [7])), readOpenDefaultedSlot([void 0], [8])]'],
-  ]) {
-    const row = snippet(`defaulted-iterated-open/${ name }`, expression);
-    yield {
-      ...row,
-      code: `export function readOpenDefaultedSlot(external, target) {
-        const [{ at } = (log.push('default'), [1])] = external;
-        return at.call(target, 0);
-      }\n${ row.code }`,
-      strip: true,
-    };
-  }
-}
-
-// Nested object parameters use the same receiver dispatch as their flat bindings.
-function * generateNestedParameterInstances() {
-  for (const [family, type, initial, written, key, argument] of [
-    ['string', 'string', "'ab'", "'cd'", 'at', '-1'],
-    ['array', 'number[]', '[1]', '[2]', 'includes', '2'],
-  ]) for (const fallback of [false, true]) for (const form of ['closed', 'exported', 'arrow']) {
-    for (const absent of fallback ? [false, true] : [false]) {
-      const pattern = `{ value: { ${ key } }${ fallback ? ` = ${ written }` : '' } }`;
-      const declaration = form === 'arrow'
-        ? `const read = (${ pattern }) => ${ key };`
-        : `${ form === 'exported' ? 'export ' : '' }function read(${ pattern }) { return ${ key }; }`;
-      yield {
-        name: `nested-parameter-instance/${ family }/${ fallback ? 'default' : 'plain' }/${ form }/${ absent ? 'absent' : 'written' }`,
-        code: `const log = [];
-          const box: { value: ${ type } } = { value: ${ initial } };
-          box.value = ${ written };
-          ${ declaration }
-          export const r = read(${ absent ? '{}' : 'box' }).call(box.value, ${ argument });
-          export const effects = log;`,
-        ts: true,
-        strip: true,
-      };
-    }
-  }
-}
-
-// Argument evaluation survives a rejected dispatch, including effects inside allocated values.
-function * generateMethodArgumentEffects() {
-  for (const [argument, expression] of [
-    ['object', '{ value: effect() }'],
-    ['sequence', '(effect(), 0)'],
-    ['conditional', 'value ? effect() : 0'],
-    // eslint-disable-next-line no-template-curly-in-string -- the interpolation belongs to generated source
-    ['template', '`value:${value}`'],
-  ]) for (const [host, call, before = '', key = 'at'] of [
-    ['ordinary', 'receiver.at(ARG)'],
-    ['optional receiver', 'receiver?.at(ARG)'],
-    ['optional method', 'receiver.at?.(ARG)'],
-    ['sealed', '(receiver?.at)(ARG)'],
-    ['selected static', 'Ctor.from(ARG)', 'const Ctor = value ? receiver : Array;', 'from'],
-    ['selected instance fallback', 'Ctor.entries(ARG)', 'const Ctor = value ? receiver : Object;', 'entries'],
-  ]) for (const absent of [false, true]) {
-    yield {
-      name: `method-argument-effects/${ argument }/${ host }/${ absent ? 'absent' : 'callable' }`,
-      code: `const log = [];
-        export function read(receiver, value, effect) { ${ before }return ${ call.replace('ARG', expression) }; }
-        const value = { toString() { log.push('coercion'); return '7'; } };
-        const receiver = { get ${ key }() { log.push('lookup'); return ${ absent ? 'undefined' : `function (argument) {
-          log.push(this === receiver ? 'this' : 'lost receiver'); return typeof argument;
-        }` }; } };
-        let r;
-        try { r = read(receiver, value, () => { log.push('argument'); return 7; }); }
-        catch (error) { r = error.name; }
-        export { r };
-        export const effects = log;`,
-      // An own method tests dispatch timing; removing native methods does not arm this family.
-      strip: false,
-    };
-  }
+  yield * generateStaticHandOuts();
 }

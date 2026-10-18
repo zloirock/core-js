@@ -385,7 +385,7 @@ QUnit.test('syntax: spread of bound array into mutating Object.assign', assert =
 });
 
 QUnit.test('syntax: spread of bound array into non-mutating Math.max', assert => {
-  // spread arity unknown statically; Math.max has no mutatesArgument so spread is read-only
+  // spread arity unknown statically; Math.max neither writes nor hands on any argument, so the spread is read-only
   const nums = [3, 1, 4, 1, 5];
   assert.same(Math.max(...nums), 5);
   assert.deepEqual(nums, [3, 1, 4, 1, 5], 'source unchanged');

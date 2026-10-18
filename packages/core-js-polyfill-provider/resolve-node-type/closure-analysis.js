@@ -498,8 +498,7 @@ export function createClosureAnalysis({
         // every position this walk has no mechanics of its own for is answered by the shared
         // enumeration - the same one the named-holder classifier asks. FORWARDS never reaches here
         // (a carrier was taken above), so the tag is CONSUMES, HANDS_OUT, or an argument slot whose
-        // callee decides: a known one that neither mutates the slot nor hands the value back through
-        // an identity-returning result keeps it local
+        // callee decides, through the call-slot decision both walks share (`callArgumentEscapes`)
         default: {
           const disposition = positionDisposition(parent, valuePath.node, parentPath);
           if (disposition !== POSITION_INSPECTS) return disposition === POSITION_CONSUMES ? local() : null;
