@@ -238,9 +238,14 @@ export const $static = p => ({
   `,
 });
 
+// the wrapper declares the method's own `length` in parameters and passes them on. a method whose rest
+// parameter lies past that `length` (`Promise.try(fn, ...args)`) says so in its definition (`rest`), and only
+// its wrapper forwards whatever else a call carries - dropping that tail would change the call, and checking
+// for it would cost every other wrapper on every call
 export const $staticWithContext = p => {
   const arity = globalThis?.[p.namespace]?.[p.name]?.length ?? p.arity;
   const args = Array(arity).fill().map((_, i) => `arg${ i }`).join(', ');
+  const context = `isCallable(this) ? this : getBuiltIn('${ p.namespace }')`;
   return {
     entry: dedent`
       ${ importModules(p) }
@@ -248,12 +253,12 @@ export const $staticWithContext = p => {
       var getBuiltIn = ${ importInternal('get-built-in', p.level) }
       var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
       var isCallable = ${ importInternal('is-callable', p.level) }
-      var call = ${ importInternal('function-call', p.level) }
+      var call = ${ importInternal('function-call', p.level) }${ p.rest ? `\nvar apply = ${ importInternal('function-apply', p.level) }` : '' }
     
       var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
     
       module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }(${ args }) {
-        return call(method, isCallable(this) ? this : getBuiltIn('${ p.namespace }')${ arity ? `, ${ args }` : '' });
+        return ${ p.rest ? `arguments.length > ${ arity } ? apply(method, ${ context }, arguments) : ` : '' }call(method, ${ context }${ arity ? `, ${ args }` : '' });
       };
     `,
     types: dedent`
