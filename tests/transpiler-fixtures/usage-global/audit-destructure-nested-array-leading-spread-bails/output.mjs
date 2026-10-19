@@ -18,5 +18,6 @@ import "core-js/modules/web.dom-collections.iterator";
 declare const spread: number[];
 const [[, b]] = [[...spread, 'x']];
 const c = 42;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 b.at(-1);
 c.toFixed(2);

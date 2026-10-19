@@ -12,12 +12,14 @@ declare const m: Mixed;
 export const a = _at(m).call(m, 0);
 interface Opaque extends Unresolvable {}
 declare const o: Opaque;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const b = _includes(o).call(o, 0);
 class Plain {
   value = 1;
 }
 class Known extends Plain {}
 declare const k: Known;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const c = k.at(0);
 class Real extends Array<number> {}
 declare const real: Real;

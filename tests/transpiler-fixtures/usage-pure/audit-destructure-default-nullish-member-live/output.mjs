@@ -18,4 +18,5 @@ const {
 } = {
   b: 'hello'
 };
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 export const viaPresentMember = _includesMaybeString(b).call(b, 'h');

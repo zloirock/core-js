@@ -4,5 +4,6 @@ namespace N {
     at = "at"
   }
 }
+// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test
 N.E.at = other;
 use(N.E.at);

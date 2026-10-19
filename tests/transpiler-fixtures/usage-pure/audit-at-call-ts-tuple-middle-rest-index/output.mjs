@@ -5,4 +5,5 @@ var _ref;
 // so the type is ambiguous and `m[2].at(0)` emits the generic instance polyfill.
 type Mixed = [number, ...string[], boolean];
 declare const m: Mixed;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = m[2]).call(_ref, 0);

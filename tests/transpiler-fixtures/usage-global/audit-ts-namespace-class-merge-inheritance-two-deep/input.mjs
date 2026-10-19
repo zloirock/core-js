@@ -11,4 +11,5 @@ namespace Base {
 class Mid extends Base {}
 class Sub extends Mid {}
 
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 Sub.build().at(0);

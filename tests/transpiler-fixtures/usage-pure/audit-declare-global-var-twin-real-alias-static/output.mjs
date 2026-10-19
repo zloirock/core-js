@@ -8,3 +8,4 @@ declare global {
   var A: any;
 }
 _Array$from([1]);
+export {};

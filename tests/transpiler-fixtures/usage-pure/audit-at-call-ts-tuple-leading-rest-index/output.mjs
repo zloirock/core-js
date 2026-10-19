@@ -7,4 +7,5 @@ var _ref;
 // generic instance dispatch is the safe widening for any rest-before-index case
 type Path = [...string[], number];
 declare const p: Path;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = p[1]).call(_ref, 0);

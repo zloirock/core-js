@@ -18,7 +18,7 @@ export const a = checkUnion.at(0);
 
 type OuterExtend<T> = "c" extends Inner<T> ? string : number[];
 declare const extendUnion: OuterExtend<unknown>;
-export const b = extendUnion.includes("x");
+export const b = extendUnion.includes(1);
 
 type OuterWide<T> = string extends Inner<T> ? string : number[];
 declare const wide: OuterWide<unknown>;

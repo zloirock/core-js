@@ -10,6 +10,7 @@ declare const userNs: {
 let dropped, kept, sibling, wrapped, computed, other, z;
 ({ Array: { prototype: { copyWithin: dropped } } } = globalThis);
 ({ Array: { prototype: { flat: kept } } } = userNs);
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 ({ Array: { prototype: { at: sibling } }, z } = globalThis);
 let rest;
 ({ Array: { prototype: { fill: other } }, ...rest } = globalThis);

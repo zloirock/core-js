@@ -7,4 +7,5 @@
 type Foo<T> = T extends Date ? string[] : number;
 declare function probe<T>(): Foo<T>;
 const r = probe<Array<number>>();
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.at(0);

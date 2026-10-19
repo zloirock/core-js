@@ -7,5 +7,6 @@ type Shape = { kind: 'a'; data: string } | { kind: 'b'; data: number[] };
 declare const init: Shape;
 declare const fragment: Partial<Shape>;
 let w: Shape = init;
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 w = { kind: 'a', data: 'hi', ...fragment };
 w.data.at(0);

@@ -7,6 +7,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 async function deep() {
   type Inner = Promise<Promise<number[]> | string[]>;
   type Result = Awaited<Inner>;
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const v: Result;
   return _atMaybeArray(v).call(v, 0);
 }

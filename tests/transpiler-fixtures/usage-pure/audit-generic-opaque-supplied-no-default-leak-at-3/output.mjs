@@ -11,4 +11,5 @@ declare const opaque: Opaque;
 function makeTransitive<T = number[], U = T>(x: T): U {
   return x as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = makeTransitive(opaque)).call(_ref, 0);

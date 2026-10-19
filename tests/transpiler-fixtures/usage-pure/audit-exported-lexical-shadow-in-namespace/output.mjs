@@ -4,6 +4,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // static folds - the export wrapper is transparent to the shadow census
 export function f() {
   var X = Array;
+  // @ts-expect-error a namespace below the top level is the shape under test
   namespace N {
     export let X;
     X = 1;

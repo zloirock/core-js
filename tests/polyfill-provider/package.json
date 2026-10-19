@@ -1,5 +1,8 @@
 {
   "name": "tests/polyfill-provider",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
 }

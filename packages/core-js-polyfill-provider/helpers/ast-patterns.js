@@ -536,6 +536,36 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TypeCastExpression',
 ]);
 
+// hosts that carry type arguments of their own, each mapped to the slot holding their callee or tag:
+// an instantiation filling that slot hands its arguments to the host (`(f<T>)(a)` is `f<T>(a)`), and
+// one anywhere else is a type-only wrapper of its operand - the substitution of a claim under it
+// takes it along, as it takes a cast
+const TYPE_ARGUMENT_HOST_SLOTS = new Map([
+  ['CallExpression', 'callee'],
+  ['NewExpression', 'callee'],
+  ['OptionalCallExpression', 'callee'],
+  ['TaggedTemplateExpression', 'tag'],
+]);
+
+// the node `path` answers to, plus the child filling that node's slot. where a parser keeps the source
+// parens as nodes (oxc, babel under `createParenthesizedExpressions`) the host sits one or more paren
+// layers up instead of directly overhead, and every question asked of it would read the paren as the
+// host. paren layers ONLY: a TS cast in between is a different shape, not a transparent layer
+export function parenLayerHost(path) {
+  let child = path;
+  while (child.parentPath?.node?.type === 'ParenthesizedExpression') child = child.parentPath;
+  const host = child.parentPath?.node;
+  return host ? { host, childNode: child.node } : null;
+}
+
+// the host whose callee or tag slot the instantiation at `path` fills (`TYPE_ARGUMENT_HOST_SLOTS`),
+// or null where it wraps its operand for the type layer alone
+export function typeArgumentHostOf(path) {
+  const above = parenLayerHost(path);
+  const slot = above && TYPE_ARGUMENT_HOST_SLOTS.get(above.host.type);
+  return slot && above.host[slot] === above.childNode ? above.host : null;
+}
+
 // AST parent shapes where an Identifier child is a SOURCE-TEXT name (method/property key,
 // member tail, label, import/export specifier name), NOT a runtime reference. used by
 // any walker that catalogues references - naive shape-only matches would otherwise count
@@ -9836,6 +9866,19 @@ export function foldedPropertyKeyName(prop) {
   return prop.computed ? computedKeyStaticName(prop.key) : propertyKeyName(prop);
 }
 
+// the static key each of `properties` names - an object literal's properties, a type's members - in
+// order; null when one names none statically (a spread, an index or call signature, a computed or
+// numeric key): the whole key set is unknowable then
+export function staticKeyNames(properties) {
+  const keys = [];
+  for (const property of properties) {
+    const key = property.type === 'SpreadElement' ? null : foldedPropertyKeyName(property);
+    if (key === null || key === undefined) return null;
+    keys.push(key);
+  }
+  return keys;
+}
+
 // `void <expr>` - the operator always evaluates to `undefined` whatever its operand, so the VALUE is
 // undefined even when the operand has effects (callers that also care about dropping the operand test
 // its effects separately). the narrower `void 0` spelling and the effect-free variant live with their
@@ -13907,6 +13950,15 @@ export const getHeritageTypeArgs = node => getSuperTypeArgs(node) ?? heritageCla
 // the parent expression PATH for the same runtime / ambient heritage pair
 export function classSuperPath(classPath) {
   return heritageClause(classPath.node) ? classPath.get('extends')[0].get('id') : classPath.get('superClass');
+}
+
+// the function a class runs at `new C(x)`. babel keeps the parameters on the constructor member,
+// ESTree on the FunctionExpression that member wraps - one read, so the two parsers cannot answer
+// differently about the same class
+export function classConstructorFunction(classNode) {
+  const ctor = (classNode.body?.body ?? []).find(member => member?.kind === 'constructor');
+  if (!ctor) return null;
+  return ctor.params ? ctor : ctor.value ?? null;
 }
 
 // `export const X = ...` / `export default function X() {}` bind `X` in the module scope

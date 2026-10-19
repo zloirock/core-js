@@ -4,6 +4,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 let pick = 1;
 const userObj = {};
 {
+  // @ts-expect-error a spread argument tsc cannot place is the shape under test
   const r = (({
     from: f
   }) => f)(...([pick ? {

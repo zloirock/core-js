@@ -10,3 +10,4 @@ const {
   name: string;
 }, 'name'> = config;
 name.at(0);
+export {};

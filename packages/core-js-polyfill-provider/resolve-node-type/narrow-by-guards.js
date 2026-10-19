@@ -31,7 +31,8 @@ import {
   OPEN_KEYWORD_ANNOTATION_TYPES,
   violationInCapturedFunction,
 } from './ast-shapes.js';
-import { isLoopStatement } from './exit-analysis.js';
+import { bodyRunsWhileTestHolds, isLoopStatement } from './exit-analysis.js';
+import { guardProves } from './guard-shapes.js';
 import {
   $Object,
   $Primitive,
@@ -47,7 +48,7 @@ export function createNarrowByGuards({
   isNullableOrNever,
   foldUnionTypes,
   resolveKnownConstructor,
-  findBindingAnnotation,
+  findNameAnnotation,
   followTypeAliasChain,
   applyAliasSubstDeep,
   findEnclosingTypeGuards,
@@ -90,12 +91,11 @@ export function createNarrowByGuards({
     return null;
   }
 
-  // a guard filters a candidate iff `matchesGuard === guard.positive`. an `optionalCall`
-  // predicate guard (`obj.isStr?.(x)`) may short-circuit without testing x, so it is trusted
-  // only in the positive direction: in the complement branch (positive === false) it does
-  // not filter, leaving the candidate in the union
+  // a guard filters a candidate iff `matchesGuard === guard.positive`. a false answer that proves
+  // nothing (`guardProves`: a `?.` call that may have short-circuited, a predicate true for only
+  // part of its type) does not filter, leaving the candidate in the union
   function guardKeeps(resolved, guard) {
-    if (guard.optionalCall && !guard.positive) return true;
+    if (!guardProves(guard)) return true;
     // an annotation-kind guard carries a structural target that nominal $-Type matching
     // cannot test - neutral for union filtering in both directions
     if (guard.kind === 'annotation') return true;
@@ -172,6 +172,30 @@ export function createNarrowByGuards({
     };
   }
 
+  // the back edges a climb from a use crosses, level by level. back-edge soundness is shared with the
+  // value-flow walk: a reassignment that re-executes on a loop's back edge before the next-iteration use
+  // stales every guard outside the loop, and the canonical `loopReExecRegionHasViolation` decides it - it
+  // keeps the for-header binding exemption sound (a C-style `for (let x = init; ;)` header carries
+  // across; a for-of var / body block does not). a read in the once-only `for`-init slot runs before the
+  // first body write, and a use in the BODY stays under the loop's own test, asked again before every
+  // run: that back edge stales only the levels above the loop
+  function loopBackEdgeClimb(binding) {
+    const violationNodes = binding.constantViolations.map(v => v.node);
+    const anchor = bindingLoopAnchor(binding);
+    let crossed = false;
+    let above = false;
+    function step(parent, current) {
+      crossed ||= above;
+      const inOnceOnlyInit = parent.node.type === 'ForStatement' && current.node === parent.node.init;
+      const backEdge = !inOnceOnlyInit && isLoopStatement(parent.node)
+        && loopReExecRegionHasViolation(parent.node, violationNodes, anchor);
+      above = backEdge && current.key === 'body';
+      crossed ||= backEdge && !above;
+      return crossed;
+    }
+    return step;
+  }
+
   // check whether any reassignment of binding could execute between a guard check and usagePath.
   // soundness rule: if the guard checked a value, the runtime branch that follows must observe
   // THAT same value. three reachability paths beyond plain "mutation descendant of current":
@@ -193,14 +217,15 @@ export function createNarrowByGuards({
     const MUTATED = { mutated: true, staleBoundaryHost: null };
     const { constantViolations } = binding;
     const { violatesBefore, violatesInsideNode, violatesBetweenHosts } = createViolationProbes(constantViolations, usagePath);
-    // (a) test slot of conditional/logical guard host. for IfStatement/Conditional the host's
-    // `test` is the guard expression; for LogicalExpression where guards came from LHS, RHS
-    // mutations live in `current` (the right operand) and `violatesBefore(current)` covers them
+    // (a) test slot of conditional/logical guard host. for IfStatement/Conditional and a loop over its
+    // body the host's `test` is the guard expression; for LogicalExpression where guards came from LHS,
+    // RHS mutations live in `current` (the right operand) and `violatesBefore(current)` covers them
     function conditionalTestNode(current) {
       const parent = current.parentPath;
       if (!parent) return null;
       const pnode = parent.node;
       if (t.isIfStatement(pnode) || t.isConditionalExpression(pnode)) return pnode.test;
+      if (bodyRunsWhileTestHolds(pnode) && current.key === 'body') return pnode.test;
       if (t.isLogicalExpression(pnode)) return pnode.left;
       return null;
     }
@@ -260,7 +285,7 @@ export function createNarrowByGuards({
     // a reassignment anywhere inside a loop body re-executes before the use on the next iteration, so
     // once we cross such a loop a guard OUTSIDE it no longer holds at the use
     // (`if (typeof x !== 'string') return; while (c) { x.at(0); x = readAnything() }`)
-    let crossedBackEdgeLoop = false;
+    const crossBackEdges = loopBackEdgeClimb(binding);
     // a write in a case TEST the switch evaluates before the use's own case body runs. NOT a position:
     // a `default` clause is reached after the tests written BELOW it too, so its body's own guards
     // stand textually before a test that ran first. the level tells them apart instead
@@ -271,13 +296,6 @@ export function createNarrowByGuards({
     // narrow survives - the stale outer guards are dropped through the boundary below instead of
     // being intersected back in
     let staleOuterGuard = false;
-    // back-edge soundness shared with the value-flow walk: a reassignment that re-executes on the loop
-    // back-edge before the next-iteration use makes a guard outside the loop stale. delegate to the
-    // canonical `loopReExecRegionHasViolation` instead of an inline `violatesInsideNode(loop)` - the
-    // canonical excludes the once-only for-init slot AND keeps the for-header binding exemption sound
-    // (a C-style `for (let x = init; ;)` header carries across; a for-of var / body block does not)
-    const loopViolationNodes = constantViolations.map(v => v.node);
-    const loopBindingAnchor = bindingLoopAnchor(binding);
     // has everything the guards at this level rest on already run by the time the use does? two
     // sources, and they are ordered differently: a suspension the body parks on orders by POSITION
     // (both sit in one body), while the case tests a `default` is reached through order by LEVEL - a
@@ -298,11 +316,7 @@ export function createNarrowByGuards({
     // the climb stops where the collector stops - at a deferred context, through an immediately
     // invoked body - so both walk the same levels
     for (let current = usagePath, parent; (parent = current.parentPath) && !readStepIsDeferred(parent, current); current = parent) {
-      // the once-only `for`-init slot is not behind the back edge: a read there runs before the first
-      // body write, the same exclusion the value-flow walk makes
-      const inOnceOnlyInit = parent.node.type === 'ForStatement' && current.node === parent.node.init;
-      if (!inOnceOnlyInit && isLoopStatement(parent.node)
-        && loopReExecRegionHasViolation(parent.node, loopViolationNodes, loopBindingAnchor)) crossedBackEdgeLoop = true;
+      const crossedBackEdgeLoop = crossBackEdges(parent, current);
       const caseEvalHere = t.isSwitchCase(parent.node) && caseEvaluationViolates(current);
       if (caseEvalHere) crossedCaseEvaluation = true;
       // the three lanes, asked once per level
@@ -425,7 +439,7 @@ export function createNarrowByGuards({
   //   'open'   - unknown / any / object / mixed / open-utility; guards may refine to concrete
   //   'closed' - any other annotation; guards can't meaningfully refine it
   function classifyGuardAnnotation(binding) {
-    const annotation = findBindingAnnotation(binding.path);
+    const annotation = findNameAnnotation(binding.path);
     if (!annotation) return { kind: 'none' };
     const { scope } = binding.path;
     const { node: resolved, subst } = followTypeAliasChain(annotation, scope);

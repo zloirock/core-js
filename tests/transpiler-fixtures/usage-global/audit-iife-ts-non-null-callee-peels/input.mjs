@@ -4,6 +4,7 @@
 // callees consistently. without the peel, x.at(-1) over-injects array.at.
 let x = [];
 ((() => {
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   x = 'hello';
 })!)();
 x.at(-1);

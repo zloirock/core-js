@@ -15,6 +15,7 @@ export class C<WeakMap> {
 export type F<Symbol> = (v: Symbol) => Symbol;
 export type Picked<T> = T extends Array<infer Promise> ? Promise : never;
 export type Fallen<T> = T extends Array<infer SuppressedError> ? 1 : SuppressedError;
+// @ts-expect-error the global namespace named as a type is the shape under test
 export interface Plain {
   v: Reflect;
 }

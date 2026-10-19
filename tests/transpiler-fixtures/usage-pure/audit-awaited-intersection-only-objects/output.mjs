@@ -9,6 +9,7 @@ async function objs() {
   } & {
     tags: string[];
   };
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const r: Awaited<T>;
   _atMaybeArray(_ref = r.items).call(_ref, 0);
   _includesMaybeArray(_ref2 = r.tags).call(_ref2, 'x');

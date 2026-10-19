@@ -4,6 +4,7 @@ import _at from "@core-js/pure/actual/instance/at";
 // force at the call: reading the declaration as a refutation of the `number` header picked the arm
 // behind it, which is wrong wherever the argument was narrowed. nothing discriminates the set here,
 // so it stays undiscriminated and the generic helper dispatches
+// @ts-expect-error overload signatures tsc refuses are the shape under test
 function isStr(x: number): boolean;
 function isStr(x: unknown): asserts x is string;
 function isStr(x: unknown) {}

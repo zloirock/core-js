@@ -5,6 +5,7 @@ import _at from "@core-js/pure/actual/instance/at";
 // gets the generic polyfill.
 class C {
   items = [1, 2, 3];
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   setIt(src: {
     v: string;
   }) {

@@ -16,6 +16,7 @@ type Box = {
 };
 function probe(box: Box) {
   if ((box as Box).kind === 'a') {
+    // @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
     box.v.repeat(2);
   }
   if ((box as Box).kind === 'b') {
@@ -25,6 +26,7 @@ function probe(box: Box) {
     box.v.padEnd(8, '.');
   }
   if ((box satisfies Box).kind === 'b') {
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     box.v.includes(2);
   }
 }

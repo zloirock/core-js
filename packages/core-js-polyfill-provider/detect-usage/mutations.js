@@ -36,6 +36,7 @@ import {
   CLASS_NODE_TYPES,
   CLASS_DATA_FIELD_TYPES,
   CLASS_FIELD_TYPES,
+  classConstructorFunction,
   classReachesItselfUnnamed,
   classStaticCallSlot,
   classStaticsCallable,
@@ -7968,15 +7969,6 @@ function addReceiverDeopt(record, name, recordUnplaced) {
     return;
   }
   record(mutatedStaticKey(name, MUTATED_MEMBERS_UNKNOWN));
-}
-
-// the function a class runs at `new C(x)`. babel keeps the parameters on the constructor member,
-// ESTree on the FunctionExpression that member wraps - one read, so the two parsers cannot answer
-// differently about the same class
-function classConstructorFunction(classNode) {
-  const ctor = (classNode.body?.body ?? []).find(member => member?.kind === 'constructor');
-  if (!ctor) return null;
-  return ctor.params ? ctor : ctor.value ?? null;
 }
 
 // the values a PARAMETER holds that its own function spells: the DEFAULT, taken whenever a call

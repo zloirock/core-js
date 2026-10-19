@@ -24,7 +24,9 @@ import "core-js/modules/web.dom-collections.iterator";
 class Boxed {
   constructor(@inject(new Map())
   private Map: any, private WeakMap: any) {
+    // @ts-expect-error dynamic JS adds a member the declared type lacks
     this.first = new Map();
+    // @ts-expect-error dynamic JS adds a member the declared type lacks
     this.second = new WeakMap();
   }
   reach() {

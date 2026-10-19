@@ -9,6 +9,7 @@ async function wrappedIterable() {
   paren.at(0);
   const cast = (await Promise.all(['ab', 'cd'] as any))[0];
   cast.includes('a');
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const dynamic: any;
   const opaque = (await Promise.all((dynamic)))[0];
   opaque.indexOf('a');

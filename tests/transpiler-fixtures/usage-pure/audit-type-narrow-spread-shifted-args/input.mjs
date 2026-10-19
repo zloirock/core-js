@@ -4,6 +4,7 @@
 function pick<T>(first: unknown, second: T): T { return second; }
 declare const words: string[];
 declare const nums: number[];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 export const shifted = pick(...words, nums).at(0);
 // a tuple spread shifts by a known amount, but the pairing still leaves the phase's positional
 // assumption behind - it degrades the same way

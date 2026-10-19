@@ -4,6 +4,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // polyfill (the adjacent decorator does not break the binding).
 class C {
   s: string = "hi";
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   @decorator
   foo() {
     var _ref;

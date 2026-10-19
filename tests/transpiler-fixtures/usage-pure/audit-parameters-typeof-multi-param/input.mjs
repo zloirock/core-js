@@ -5,4 +5,5 @@
 // literal index `T[N]` still picks the exact N-th via findTupleElement
 function fn(x: string, y: number) { return x; }
 declare const args: Parameters<typeof fn>;
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 args.at(0)?.at(-1);

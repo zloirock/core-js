@@ -11,6 +11,7 @@ function f(x: string[] | number) {
         break;
     }
   }
+  // @ts-expect-error a union whose other arm lacks the member is the shape under test
   return _atMaybeArray(x).call(x, 0);
 }
 export { f };

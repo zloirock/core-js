@@ -2,6 +2,7 @@
 // `class C implements Map<K, V>` - oxc wraps in an implements clause node, babel in an
 // extends-clause type-args node. neither should trigger es.map polyfill from the
 // implements slot; only `.flat()` runtime usage emits its polyfill
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class C implements Map<string, number> {
   get items() { return [1, [2, 3]].flat(); }
 }

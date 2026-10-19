@@ -101,6 +101,11 @@ import './escape-walk-memo-domain.mjs';
 // is read off compat rather than off each other - a static both flavors drop agrees with itself
 import './flavor-entry-coverage.mjs';
 
+// every scenario source the suites above ran, and every TypeScript input of the transpiler fixtures,
+// held to `tsc`. imported here rather than beside them: a suite's top-level await does not hold back
+// the imports after it, and only this body runs once every one of them has finished
+await import('./tsc-validity.mjs');
+
 // everything in this directory is either imported above or a shared helper
 const HELPERS = new Set(['index.mjs', 'harness.mjs', 'debug-report.mjs']);
 const here = path.dirname(fileURLToPath(import.meta.url));

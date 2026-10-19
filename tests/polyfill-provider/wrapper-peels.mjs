@@ -338,8 +338,20 @@ const FOLD_READER_FORMS = [
   // the `?.` TESTING the hop refuses the fold - and stands behind whatever the source wrote
   ['tested hop, bare reader', 'globalThis.self.window?.deleteBox;', false, false],
   ['tested hop, cast between them', '(globalThis.self.window as any)?.deleteBox;', false, false],
-  ['tested hop, non-null between them', 'globalThis.self.window!?.deleteBox;', false, false],
-  ['tested hop, satisfies between them', '(globalThis.self.window satisfies any)?.deleteBox;', false, false],
+  [
+    'tested hop, non-null between them',
+    '// @ts-expect-error a realm member the lib does not declare stands for any global the user adds\n'
+    + 'globalThis.self.window!?.deleteBox;',
+    false,
+    false,
+  ],
+  [
+    'tested hop, satisfies between them',
+    '// @ts-expect-error a realm member the lib does not declare stands for any global the user adds\n'
+    + '(globalThis.self.window satisfies any)?.deleteBox;',
+    false,
+    false,
+  ],
   ['tested hop, two casts between them', '((globalThis.self.window as any) as any)?.deleteBox;', false, false],
   // NEGATIVES: nothing TESTS the hop - the run folds onto the ponyfill below it either way
   ['no reader above the hop', 'globalThis.self.window.deleteBox;', true, false],
@@ -354,7 +366,7 @@ const FOLD_READER_FORMS = [
   // the DELETED flavor stops at the operator, which the same wrappers hide from a fixed parent step
   ['deleted slot, bare', 'delete globalThis.self.window;', false, true],
   ['deleted slot, sealed', 'delete (globalThis.self.window);', false, true],
-  ['deleted slot, cast', 'delete (globalThis.self.window as any);', false, true],
+  ['deleted slot, cast', '// @ts-expect-error deleting through a cast is the shape under test\ndelete (globalThis.self.window as any);', false, true],
   // NEGATIVE: a hop the delete NAVIGATES rather than names still folds under the operator
   ['deleted slot one hop up', 'delete globalThis.self.window.deleteBox;', true, true],
 ];

@@ -19,7 +19,7 @@ declare const checkUnion: OuterCheck<unknown>;
 export const a = _at(checkUnion).call(checkUnion, 0);
 type OuterExtend<T> = "c" extends Inner<T> ? string : number[];
 declare const extendUnion: OuterExtend<unknown>;
-export const b = _includesMaybeArray(extendUnion).call(extendUnion, "x");
+export const b = _includesMaybeArray(extendUnion).call(extendUnion, 1);
 type OuterWide<T> = string extends Inner<T> ? string : number[];
 declare const wide: OuterWide<unknown>;
 export const c = _flatMaybeArray(wide).call(wide);

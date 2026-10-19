@@ -6,5 +6,6 @@ interface LooseC {
 }
 export function viaParam<T extends LooseC>(o: T, k: keyof T) {
   var _ref;
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return _includes(_ref = o[k]).call(_ref, 3);
 }

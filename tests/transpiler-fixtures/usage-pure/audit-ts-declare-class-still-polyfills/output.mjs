@@ -6,3 +6,4 @@ declare class Map<K, V> {
   foo(): void;
 }
 const m = new _Map<string, number>();
+export {};

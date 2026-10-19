@@ -12,5 +12,6 @@ declare const contained: Contained<string>;
 declare const wide: Wide<string>;
 matched.at(0);
 mismatched.includes("a");
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 contained.find(x => x);
 wide.join("-");

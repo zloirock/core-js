@@ -3,7 +3,9 @@
 // manual decorator walk must then SKIP these nodes or it double-rewrites the same span and crashes.
 // (the abstract-FIELD shape `@dec abstract x` is babel@8-parser-rejected, so it lives in a unit test)
 abstract class C {
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   @(Array.from([1])) accessor a = 1;
 
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   @(Array.of(2)) abstract accessor b: number;
 }

@@ -10,6 +10,7 @@ let overNamespace: NS.Reflect;
 
 let overRealm: globalThis.Set<number>;
 
+// @ts-expect-error a qualified type through a non-namespace is the shape under test
 let overMidChain: globalThis.Array.Map<string, number>;
 
 export { self, overShadowedRealm, overNamespace, overRealm, overMidChain };

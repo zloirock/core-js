@@ -11,5 +11,5 @@ export function hopOptional(value: number[] | string) {
 }
 export function hopPlain(value: number[] | string) {
   if (window.Array.isArray(value)) return null;
-  return value.includes(1);
+  return value.includes('1');
 }

@@ -8,7 +8,7 @@ import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { ownEmittedNavClaim, ownEmittedPatternClaim, ownOutputTests } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { wrapperLiteralEntries } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, expectError } from './harness.mjs';
 
 const { check, finish } = createChecker('selected-realm-receivers');
 
@@ -74,15 +74,23 @@ const guardedRows = [
   ['excluded first comparator', 'flag ? (count++, globalThis.self) : other ? globalThis : other', 'globalThis', '', 'self'],
   ['excluded comparator over realm arms', 'flag ? (count++, globalThis.self) : globalThis', null, '', 'self'],
   ['computed key effect', 'flag ? globalThis : other', null, '', '', '(count++, "Map")'],
-  ['wrapped selection', '(flag ? held = globalThis : other) as unknown', 'globalThis'],
+  [
+    'wrapped selection',
+    '(flag ? held = globalThis : other) as unknown',
+    'globalThis',
+    '',
+    '',
+    '',
+    'a member read through a cast to unknown is the shape under test',
+  ],
   ['outer sequence', '(count++, flag ? held = globalThis : other)', 'globalThis'],
   ['nested selection', 'flag ? (other ? globalThis : other) : other', 'globalThis'],
 ];
 let guardedChecked = 0;
-for (const parser of adapters) for (const [name, expression, expected, parameter = '', excluded = '', computed = ''] of guardedRows) {
+for (const parser of adapters) for (const [name, expression, expected, parameter = '', excluded = '', computed = '', rejected] of guardedRows) {
   const program = parser.parseAndScope(`function inspect(${ parameter }) {
     let held, count = 0;
-    const result = (${ expression })${ computed ? `[${ computed }]` : '.Map' };
+    ${ expectError(rejected) }const result = (${ expression })${ computed ? `[${ computed }]` : '.Map' };
   }`);
   const declaration = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'result');
   const usage = declaration.get('init');

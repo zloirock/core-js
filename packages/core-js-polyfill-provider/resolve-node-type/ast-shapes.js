@@ -195,6 +195,17 @@ export function applyMemberModifierDelta(members, delta) {
   return members.map(m => m.optional === delta.optional ? m : { ...m, optional: delta.optional });
 }
 
+// a subtype may add any key its type does not name, so the value an OPEN type parameter holds at a
+// `keyof` key is bounded by its constraint only through a `string` index signature: named members
+// alone bound nothing, the extra key of a subtype reads whatever it holds
+export function hasStringIndexSignature(members) {
+  return members.some(member => {
+    if (member.type !== 'TSIndexSignature') return false;
+    const key = member.parameters?.[0]?.typeAnnotation;
+    return peelTSParenthesized(isTypeAnnotationWrapper(key) ? key.typeAnnotation : key)?.type === 'TSStringKeyword';
+  });
+}
+
 // the MUTABLE collection name a type node denotes: `T[]` / `Array<T>` -> 'Array', `Set<T>` -> 'Set',
 // `Map<K, V>` -> 'Map'. else null (readonly forms return null - they are not the mutable collection).
 // paired with `readonlyCollectionBase`: a readonly check is not assignable to the mutable form of the
@@ -341,6 +352,18 @@ export function synthInterfaceExtendsRef(parent) {
 export const TS_UNKNOWN_TYPE = Object.freeze({ type: 'TSUnknownKeyword' });
 export const TS_NUMBER_TYPE = Object.freeze({ type: 'TSNumberKeyword' });
 
+// a type parameter nothing binds, spelled as a type argument: its constraint (Flow: bound), all a use
+// that binds nothing knows of it - `unknown` without one
+export function openTypeArg(param) {
+  return param.constraint ?? param.bound?.typeAnnotation ?? TS_UNKNOWN_TYPE;
+}
+
+// the type of `as const` / `<const>`: a reference named `const`, which keeps the expression's own
+// literal type where any other asserted type replaces it
+export function isConstAssertionType(node) {
+  return node?.type === 'TSTypeReference' && node.typeName?.type === 'Identifier' && node.typeName.name === 'const';
+}
+
 // a synthesized TSTypeReference handed to an identity-keyed memo (`getTypeMembers`, whose cache is
 // `WeakMap<objectType, WeakMap<scope, members>>`) must be ONE node per (typeName, type-args): the
 // factory invariant keys those caches on node identity, which silently assumes the key node came
@@ -370,6 +393,11 @@ export function internedTypeRef(typeName, params = null) {
 // so callers that want to treat `typeof import(...)` as opaque must look one level in
 export function isTypeQueryOverImportType(node) {
   return node?.type === 'TSTypeQuery' && node.exprName?.type === 'TSImportType';
+}
+
+// `typeof <exprName>.<key>`: the query a member read off `typeof <exprName>` reads
+export function memberTypeQuery(exprName, key) {
+  return { type: 'TSTypeQuery', exprName: { type: 'TSQualifiedName', left: exprName, right: { type: 'Identifier', name: key } } };
 }
 
 // wide-open keyword annotations: `any` / `unknown` / `object` / Flow `any` / `mixed`.

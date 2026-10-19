@@ -8,4 +8,5 @@ declare const opaque: Opaque;
 // an opaque arg through the same chain stays generic
 type Wrap<T> = { v: T; };
 function wrapOpaque<T = string>(x: T | null): Wrap<T> { return { v: x } as any; }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 wrapOpaque(opaque).v.at(0);

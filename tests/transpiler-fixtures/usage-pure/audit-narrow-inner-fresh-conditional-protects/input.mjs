@@ -5,6 +5,7 @@
 let x: string | number[] = "hi";
 if (typeof x === "string" && (x = [1, 2, 3], true)) {
   if (typeof x === "string") {
+    // @ts-expect-error the write in the test leaves tsc a never type under the fresh guard, and the read there is the probe
     x.includes(1);
   }
 }

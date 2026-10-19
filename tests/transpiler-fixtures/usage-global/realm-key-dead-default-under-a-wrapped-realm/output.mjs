@@ -42,17 +42,20 @@ import "core-js/modules/web.self";
 // A realm a pattern reads through a wrapper - a `window` read, a for-of over an array holding it, a sequence
 // prefix, a TS assertion, a `self` hop above the key - still fills the key's slot, so a default on the key is dead
 // all the same: no usage in usage-global, and in usage-pure it leaves with the level's mirror, its import too.
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const {
   Map: {
     groupBy
   } = Set,
   JSON: J
 } = window;
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 for (const {
   Promise: {
     allSettled
   } = WeakSet
 } of [globalThis]) use(allSettled);
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const {
   Iterator: {
     concat
@@ -63,6 +66,7 @@ const {
     entries
   } = DataView
 } = globalThis as any;
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const {
   self: {
     Reflect: {

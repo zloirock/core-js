@@ -30,6 +30,7 @@ import {
   isReadonlyArrayType,
   isTypeAlias,
   isUnionType,
+  memberTypeQuery,
   modifierWrapperDelta,
   synthInterfaceExtendsRef,
   typeAliasBody,
@@ -39,7 +40,7 @@ import {
   unionAnnotationOf,
   withMemberModifiers,
 } from './ast-shapes.js';
-import { getHeritageTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
+import { getHeritageTypeArgs, getTypeArgs, staticKeyNames } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
   memoize,
@@ -69,6 +70,8 @@ export function createTypeMembers({
   isUnconstrainedTypeShape,
   pickConditionalBranchVia,
   resolveTypeQueryBinding,
+  typeofSource,
+  declaredTypeofTarget,
   resolveIndexedAccessMemberAnnotationAST,
   buildCallSiteSubst,
   resolveTypeAnnotation,
@@ -87,6 +90,28 @@ export function createTypeMembers({
     if (!parentName) return null;
     const parent = findTypeDeclaration(parentName, scope);
     return isClassLikeDeclaration(parent) ? parent : null;
+  }
+
+  // `typeof X`: the members of the type X is declared or asserted with, or of the literal it holds
+  function typeofMembers(query, scope, depth, visited) {
+    const source = typeofSource(query, scope);
+    if (source?.annotation) return getTypeMembers({ objectType: source.annotation, scope: source.scope, depth: depth + 1, visited });
+    return source?.literal ? typeofLiteralMembers(query.exprName, source.literal) : null;
+  }
+
+  // an object literal's own properties as the members of `typeof X`, each typed `typeof X.key` so a
+  // member resolves exactly as the qualified query does. null when a key is not static: `keyof` would
+  // name keys this list cannot
+  function typeofLiteralMembers(exprName, literalPath) {
+    return staticKeyNames(literalPath.node.properties)?.map(key => {
+      const query = memberTypeQuery(exprName, key);
+      return {
+        type: 'TSPropertySignature',
+        key: query.exprName.right,
+        computed: false,
+        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: query },
+      };
+    }) ?? null;
   }
 
   // `Cfg['items']` / chained `Cfg['items']['data']` - resolve the indexed access to its
@@ -215,6 +240,7 @@ export function createTypeMembers({
       for (const part of objectType.types) pushIntersectionPart(part);
       return all.length ? all : null;
     }
+    if (objectType.type === 'TSTypeQuery') return typeofMembers(objectType, scope, depth, visited);
     // handle dotted refs (`NS.Data`) by passing the segment path through
     const segments = typeRefSegments(objectType);
     if (!segments) return null;
@@ -254,8 +280,10 @@ export function createTypeMembers({
       && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
       // peeled like the type-annotation-resolve twin: oxc keeps `ReturnType<(typeof f)>`
       // arg as TSParenthesizedType where babel strips it
-      const arg = peelTSParenthesized(getTypeArgs(objectType)?.params?.[0]);
-      if (!arg) return null;
+      const spelled = peelTSParenthesized(getTypeArgs(objectType)?.params?.[0]);
+      if (!spelled) return null;
+      // a query whose path spells a type stands for that type (`const f: Fn`, `X as typeof Y`)
+      const { node: arg, scope: argScope } = declaredTypeofTarget(spelled, scope);
       // `ReturnType<Fn>.x` where `Fn = () => T` (alias to function type, no typeof) -
       // follow the alias chain, extract return annotation, fold accumulated subst.
       // mirrors `resolveNamedType`'s ReturnType branch. `InstanceType<>` always needs
@@ -263,11 +291,12 @@ export function createTypeMembers({
       if (segments[0] === 'ReturnType' && arg.type !== 'TSTypeQuery') {
         // extract + shadow the signature-local `<T>` + fold the alias subst (shared with the `ReturnType`
         // case in type-annotation-resolve), then enumerate the resolved return's members
-        const target = shadowedAliasReturnAnnotation(arg, scope);
-        return target ? getTypeMembers({ objectType: unwrapTypeAnnotation(target), scope, depth: depth + 1, visited }) : null;
+        const target = shadowedAliasReturnAnnotation(arg, argScope);
+        return target
+          ? getTypeMembers({ objectType: unwrapTypeAnnotation(target), scope: argScope, depth: depth + 1, visited }) : null;
       }
       if (arg.type !== 'TSTypeQuery') return null;
-      const resolved = resolveTypeQueryBinding(arg, scope);
+      const resolved = resolveTypeQueryBinding(arg, argScope);
       if (!resolved?.node) return null;
       const target = unwrapTypeAnnotation(segments[0] === 'InstanceType'
         ? internedTypeRef(resolved.node.id)
@@ -278,8 +307,8 @@ export function createTypeMembers({
       // the concrete `typeof Cls` (otherwise raw T fails the typeof-only gate on the
       // recursive InstanceType branch). InstanceType's synthesized class reference has no
       // type-param to substitute - subst is a no-op there
-      const subst = buildCallSiteSubst(resolved.node, arg, scope);
-      return getTypeMembers({ objectType: applySubst(target, subst), scope, depth: depth + 1, visited });
+      const subst = buildCallSiteSubst(resolved.node, arg, argScope);
+      return getTypeMembers({ objectType: applySubst(target, subst), scope: argScope, depth: depth + 1, visited });
     }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);

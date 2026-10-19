@@ -395,7 +395,8 @@ for (const imported of [false, true]) {
 // names is read at the argument position one lower - reading the raw index hands back the NEXT
 // argument, which is a different value with the same shape
 for (const [source, proven] of [
-  ['(function (this: unknown, value) { return value; })(source, other);', 'source'],
+  ['// @ts-expect-error the extra argument is the value a raw slot index would read, the trap the row sets\n'
+    + '(function (this: unknown, value) { return value; })(source, other);', 'source'],
   ['(function (this: unknown, first, value) { return value; })(first, source);', 'source'],
   ['(function (first, value) { return value; })(first, source);', 'source'],
 ]) runBoth(`this-parameter slot/${ source }`, source, (adapter, program, label) => {

@@ -8,6 +8,7 @@ export function viaElseExit(x: unknown) {
   if (typeof x === 'string') {
     x = 5;
   } else throw 0;
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return x.at(0);
 }
 export function viaConsequentExit(x: string | number[], arr: number[]) {
@@ -16,7 +17,7 @@ export function viaConsequentExit(x: string | number[], arr: number[]) {
   } else {
     x = arr;
   }
-  return _includesMaybeArray(x).call(x, 'a');
+  return _includesMaybeArray(x).call(x, 1);
 }
 
 // a reassign-free fall-through keeps the guard narrow

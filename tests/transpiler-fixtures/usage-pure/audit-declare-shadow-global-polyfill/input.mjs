@@ -5,3 +5,4 @@
 declare const Set: { new<T>(): { size: number; has(v: T): boolean } };
 const s = new Set<number>();
 s.has(1);
+export {};

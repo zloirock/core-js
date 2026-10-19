@@ -4,5 +4,6 @@
 namespace Map.Y {
   export const z = 1;
 }
+// @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
 const a = new Map();
 export { a };

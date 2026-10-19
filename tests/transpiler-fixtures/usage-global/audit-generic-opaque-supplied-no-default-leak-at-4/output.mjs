@@ -11,4 +11,5 @@ declare const opaque: Opaque;
 function pickInferred<T, U = string[]>(t: T, u: U): U {
   return u;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 pickInferred('a', opaque).at(0);

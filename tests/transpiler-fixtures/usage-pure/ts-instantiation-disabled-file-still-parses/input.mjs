@@ -5,7 +5,11 @@
 declare const mk: any;
 declare const f: any;
 declare const o: any;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const viaMemberTail = (mk<number>).nothing;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const viaFusingCast = ((f as any)<string>);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const viaOptionalCall = ((o.m)<never>)?.(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const viaTaggedTag = ((o.tag)<never>)`t`;
