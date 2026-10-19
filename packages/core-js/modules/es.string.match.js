@@ -24,7 +24,7 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
       var matcher = isObject(regexp) ? getMethod(regexp, MATCH) : undefined;
       if (matcher) return call(matcher, regexp, O);
       var S = toString(O);
-      return new RegExp(regexp)[MATCH](S);
+      return new RegExp(regexp === undefined ? '' : toString(regexp))[MATCH](S);
     },
     // `RegExp.prototype[@@match]` method
     // https://tc39.es/ecma262/#sec-regexp.prototype-@@match

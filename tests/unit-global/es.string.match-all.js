@@ -127,6 +127,11 @@ QUnit.test('String#matchAll', assert => {
     assert.notThrows(() => ''.matchAll(target), `Not throws on ${ target } as the first argument`);
   }
 
+  // a regex-like argument without `@@matchAll` is converted to a string, not read as a regex
+  const regExpLike = { flags: 'g', source: 'b', toString() { return 'a'; } };
+  regExpLike[Symbol.match] = true;
+  assert.deepEqual(Array.from(matchAll.call('ab', regExpLike), match => match[0]), ['a'], 'regex-like argument');
+
   if (DESCRIPTORS && typeof Symbol == 'function' && !Symbol.sham) {
     const symbol = Symbol('matchAll test');
     assert.throws(() => matchAll.call(symbol, /./), 'throws on symbol context');
