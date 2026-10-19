@@ -1,6 +1,6 @@
 # Changelog
 ### Unreleased
-- Nothing
+- Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol in old FF
 
 ### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
 - Changes [v3.50.0...v3.51.0](https://github.com/zloirock/core-js/compare/v3.50.0...v3.51.0) (62 commits)

@@ -93,7 +93,7 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
       if (matcher) return call(matcher, regexp, O);
     } else if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll(O, regexp);
     S = toString(O);
-    rx = new RegExp(regexp, 'g');
+    rx = new RegExp(regexp === undefined ? '' : toString(regexp), 'g');
     return IS_PURE ? call($matchAll, rx, S) : rx[MATCH_ALL](S);
   }
 });
