@@ -6,3 +6,4 @@ interface Config {
 declare function getConfig(): Config;
 const { name }: Config = getConfig();
 name.at(0);
+export {};

@@ -7,4 +7,6 @@ async function probe(): Promise<DeepOuter<number[]>> {
   return Promise.resolve([1, 2, 3]);
 }
 const result = await probe();
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 result.includes('foo');
+export {};

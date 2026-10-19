@@ -4,3 +4,4 @@
 type Pick<T> = T extends Array<infer U extends number> ? string[] : Date;
 declare const r: Pick<Array<number>>;
 r.at(0);
+export {};

@@ -5,3 +5,4 @@ declare class Map<K, V> {
   foo(): void;
 }
 const m = new Map<string, number>();
+export {};

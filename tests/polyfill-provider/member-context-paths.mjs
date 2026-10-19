@@ -13,10 +13,13 @@ import {
   withTraversalCaches,
   withVarScopeOwners,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, expectError } from './harness.mjs';
 
 const { check, checkTruthy, finish } = createChecker('member-context-paths');
 const nav = `globalThis${ '.self'.repeat(16) }.Map`;
+// the marker lines a generated row puts above the line `tsc` rejects on purpose
+const COMPUTED_KEY = expectError('a computed key tsc refuses is the shape under test');
+const ABSENT_RUN = expectError('a member run the value does not have is the shape under test');
 
 // These are syntax-position questions, including type keys that TS rejects on type grounds.
 // The parser accepts them; an erased interface key must not become a runtime reference.
@@ -24,12 +27,12 @@ const rows = [
   ['program', `${ nav };`, false, false, 'Program'],
   ['body', `function f() { enum Map { A } return ${ nav }; }`, false, true, 'FunctionDeclaration'],
   ['parameter', `function f(x = ${ nav }) { enum Map { A } }`, false, false, 'FunctionDeclaration'],
-  ['computed field', `class C { [${ nav }] = 1; }`, false, false, 'Program'],
-  ['interface', `interface I { [${ nav }]: number }`, true, false, 'Program'],
-  ['type literal', `type T = { [${ nav }]: number };`, true, false, 'Program'],
+  ['computed field', `${ COMPUTED_KEY }class C { [${ nav }] = 1; }`, false, false, 'Program'],
+  ['interface', `${ COMPUTED_KEY }interface I { [${ nav }]: number }`, true, false, 'Program'],
+  ['type literal', `${ COMPUTED_KEY }type T = { [${ nav }]: number };`, true, false, 'Program'],
   ['static block', `class C { static { enum Map { A } ${ nav }; } }`, false, true, 'StaticBlock'],
-  ['method key', `class C { [${ nav }]() { enum Map { A } } }`, false, false],
-  ['object key', `const o = { [${ nav }]() { enum Map { A } } };`, false, false],
+  ['method key', `${ COMPUTED_KEY }class C { [${ nav }]() { enum Map { A } } }`, false, false],
+  ['object key', `${ COMPUTED_KEY }const o = { [${ nav }]() { enum Map { A } } };`, false, false],
   ['method decorator', `class C { @dec(${ nav }) m() { enum Map { A } } }`, false, false],
   ['parameter property', `class C { constructor(private Map: number) { ${ nav }; } }`, false, true],
   ['computed function', `host[(() => { enum Map { A } return ${ nav }; })()].tail;`, false, true, 'ArrowFunctionExpression'],
@@ -54,10 +57,10 @@ for (const parser of adapters) {
 
   // Declaration erasure and for-x dispatch must keep looking above the shared run.
   for (const [name, source, erased] of [
-    ['runtime class', `class C { [${ nav }] = 1; }`, false],
-    ['ambient class', `declare class C { [${ nav }]: number; }`, true],
-    ['abstract field', `abstract class C { abstract [${ nav }]: number; }`, true],
-    ['declared field', `class C { declare [${ nav }]: number; }`, true],
+    ['runtime class', `${ COMPUTED_KEY }class C { [${ nav }] = 1; }`, false],
+    ['ambient class', `${ COMPUTED_KEY }declare class C { [${ nav }]: number; }`, true],
+    ['abstract field', `${ COMPUTED_KEY }abstract class C { abstract [${ nav }]: number; }`, true],
+    ['declared field', `${ COMPUTED_KEY }class C { declare [${ nav }]: number; }`, true],
   ]) {
     const program = parser.parseAndScope(source);
     for (const path of parser.collectPaths(program, 'MemberExpression')) {
@@ -247,8 +250,8 @@ for (const parser of adapters) {
     ['constructor default', `import value from 'outer'; class C { constructor(public value: any = []) { ${ access }; } }`, 'default'],
     ['computed member key', `const value = 'outer'; class C { constructor(public value: any) { host[${ access }].tail; } }`, 'property'],
     ['ordinary parameter', `const value = 'outer'; class C { constructor(public value: any) { function read(value) { ${ access }; } } }`, 'parameter'],
-    ['nearest lexical', `const value = 'outer'; class C { constructor(public value: any) { { const value = []; ${ access }; } } }`, 'lexical'],
-    ['method key', `const value = 'outer'; class C { [${ access }]() {} constructor(public value: any) {} }`, 'outer'],
+    ['nearest lexical', `${ ABSENT_RUN }const value = 'outer'; class C { constructor(public value: any) { { const value = []; ${ access }; } } }`, 'lexical'],
+    ['method key', `${ ABSENT_RUN }const value = 'outer'; class C { [${ access }]() {} constructor(public value: any) {} }`, 'outer'],
     ['parameter decorator', `import value from 'outer'; class C { constructor(@dec(${ access }) public value: any) {} }`, 'import'],
     ['explicit outer lookup', `const value = 'outer'; class C { constructor(public value: any) { ${ access }; } }`, 'outer', true],
   ]) {

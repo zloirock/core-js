@@ -2,6 +2,7 @@
 // numeric key -> number signature, string key -> string signature. each access resolves
 // to the matching signature so the polyfill choice tracks the actual element type
 interface M {
+  // @ts-expect-error an index signature tsc refuses is the shape under test
   [k: number]: number;
   [k: string]: number[];
 }

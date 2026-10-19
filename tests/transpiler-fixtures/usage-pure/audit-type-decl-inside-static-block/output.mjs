@@ -6,6 +6,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 class Holder {
   static {
     type Items = string[];
+    // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
     declare const r: Items;
     _atMaybeArray(r).call(r, 0);
   }

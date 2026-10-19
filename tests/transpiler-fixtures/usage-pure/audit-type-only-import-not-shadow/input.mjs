@@ -5,8 +5,11 @@ import type Map from 'some-module';
 import type { Set } from 'some-module';
 import { type Promise } from 'some-module';
 
+// @ts-expect-error a type-only import read as a value is the shape under test
 const m = new Map();
+// @ts-expect-error a type-only import read as a value is the shape under test
 const s = new Set();
+// @ts-expect-error a type-only import read as a value is the shape under test
 const p = new Promise(() => {});
 m.has(1);
 s.add(2);

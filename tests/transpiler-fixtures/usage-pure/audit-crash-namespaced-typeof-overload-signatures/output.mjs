@@ -4,6 +4,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // resolution must collect the ambient signatures and recover each to a real NodePath (a synthetic
 // shape would abort the transform). `at`/`includes` exist on both Array and String, so the
 // array-specific imports confirm `ReturnType<typeof NS.fn>` resolved to `number[]`. regression lock
+// @ts-expect-error an overload head without its implementation is the shape under test
 namespace NS {
   export function fn(x: number): number[];
   export function fn(x: string): number[];

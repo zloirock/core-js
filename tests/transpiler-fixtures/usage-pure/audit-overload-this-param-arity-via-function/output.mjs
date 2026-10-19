@@ -5,4 +5,5 @@ var _ref;
 // arg-matches like its unannotated twin instead of being skipped or mismatched
 declare function g(this: Window, x: string): number[];
 declare function g(x: number): string;
+// @ts-expect-error a call no overload admits is the shape under test
 export const viaFunction = _atMaybeArray(_ref = g('a')).call(_ref, 0);

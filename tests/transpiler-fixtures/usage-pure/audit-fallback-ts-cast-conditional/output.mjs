@@ -14,9 +14,11 @@ export const {
 } : {
   from: _Iterator$from
 }) as any;
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const {
   values
 } = Array!;
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const {
   isInteger
 } = (_globalThis.WeakRef || {

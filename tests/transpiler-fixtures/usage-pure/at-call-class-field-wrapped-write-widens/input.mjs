@@ -6,6 +6,7 @@
 class C {
   field = [1];
   m(s: string) {
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     this.field! = s;
     return this.field.at(0);
   }

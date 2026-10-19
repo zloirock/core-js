@@ -12,3 +12,4 @@ class Box {
 declare const b: Box;
 const arr = await b;
 _atMaybeArray(arr).call(arr, 0);
+export {};

@@ -10,7 +10,9 @@ let sink = {},
     a: {}
   },
   alt: any = {};
+// @ts-expect-error dynamic JS adds a member the declared type lacks
 sink.f = _Array$from;
+// @ts-expect-error dynamic JS adds a member the declared type lacks
 deep.a.f = _Array$of;
 (alt as any).g = _Array$fromAsync;
 alt![k()] = _Set;

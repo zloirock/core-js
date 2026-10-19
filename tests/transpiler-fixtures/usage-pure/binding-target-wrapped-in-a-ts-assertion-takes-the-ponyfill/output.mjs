@@ -16,6 +16,7 @@ var _ref, _ref2, _unused, _unused2;
 let a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, j: any, k: any, m: any, x: any, rest: any;
 declare const arr: any[];
 (a as any) = _Math$trunc;
+// @ts-expect-error a static the constructor lacks is the read under test
 b! = _Array$of;
 ({
   custom: c
@@ -45,6 +46,7 @@ for ({
   fromEntries: _Object$fromEntries
 }]);
 (h as any) = _Object$groupBy;
+// @ts-expect-error a pattern reading a member its source lacks is the shape under test
 ({} = arr), (j as any) = _atMaybeArray(arr), {
   custom: c
 } = arr;

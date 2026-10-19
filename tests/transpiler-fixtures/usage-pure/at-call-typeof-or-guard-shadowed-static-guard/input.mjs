@@ -16,6 +16,7 @@ export function plain(x) {
   return null;
 }
 export function unshadowed(x: string | number[]) {
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   if (typeof x === 'string' || globalThis.Number.isFinite(x as any)) return x.includes('a');
   return null;
 }

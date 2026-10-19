@@ -4,4 +4,5 @@ var _ref;
 // Element resolution must bail so dispatch falls back to the generic instance polyfill.
 type MidRest = [boolean, ...string[], number];
 declare const t: MidRest;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = t[1]).call(_ref, 0);

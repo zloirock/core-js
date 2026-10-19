@@ -9,3 +9,4 @@ declare global {
   }
 }
 _atMaybeArray(_ref = GBox.make<string>()).call(_ref, 0);
+export {};

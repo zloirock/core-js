@@ -5,6 +5,7 @@ class Base {
   static make(): number[] { return [1]; }
   static m() { return this.make().at(0); }
 }
+// @ts-expect-error a heritage tsc refuses is the shape under test
 class Sub extends Base {}
 namespace Sub {
   export function make(): string { return 's'; }

@@ -21,5 +21,7 @@ import "core-js/modules/web.dom-collections.iterator";
 function tag(strings) {
   return strings;
 }
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const r = tag<Set<number>>`x`;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const s = tag<Map<string, number>>`y`;

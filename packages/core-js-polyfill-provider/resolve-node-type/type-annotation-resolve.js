@@ -27,8 +27,10 @@ import {
   isTypeObject,
 } from './base.js';
 import {
+  hasStringIndexSignature,
   isMethodShapeMember,
-  isOpenKeywordAnnotation,
+  isObjectTypeLiteral,
+  isTypeReferenceNode,
   isUnionType,
   keywordPrimitiveKind,
   literalTypeValueNode,
@@ -133,6 +135,8 @@ export function createTypeAnnotationResolve({
   resolveAwaitedAnnotation,
   resolveReturnTypeFromTypeQuery,
   resolveTypeQueryBinding,
+  declaredTypeofTarget,
+  spelledTypeArgsOf,
   resolveTypeQuery,
   unwrapPromise,
   resolveTypeofFromSegments,
@@ -337,22 +341,30 @@ export function createTypeAnnotationResolve({
       // consumers below must see the inner shape on both parsers
       return peelTSParenthesized(getTypeArgs(node)?.params?.[0]);
     }
-    function resolveArg(arg, fallback) {
-      return arg
-        ? resolveArgInner(arg) ?? fallback
-        : null;
+    function resolveArg(arg) {
+      return arg ? resolveArgInner(arg) : null;
+    }
+    // an object type literal, or a union / intersection of them - through aliases and the argument a
+    // parameter of the instantiation spelled
+    function spellsClosedObject(arg, hops = 0) {
+      const spelled = isTypeReferenceNode(arg) ? spelledTypeArgsOf(typeParamMap)?.get(typeRefName(arg)) : null;
+      const target = peelTSParenthesized(followTypeAliasChain(spelled ?? arg, scope).node);
+      if (isObjectTypeLiteral(target)) return true;
+      return (isUnionType(target) || target?.type === 'TSIntersectionType') && hops < MAX_DEPTH
+        && target.types.every(part => spellsClosedObject(part, hops + 1));
     }
     // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
     // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners.
-    // a wide-open keyword arg (`NoInfer<unknown>`, `Partial<any>`) stays NULL like the bare
-    // keyword: the value can be anything (array / primitive / function), so the Object
-    // fallback would suppress generic-instance emission instead of routing through it
+    // any other arg resolving to null - a wide-open keyword (`NoInfer<unknown>`, `Partial<any>`), a
+    // reference nothing resolves (an import, an open parameter), an indexed access nothing reads -
+    // stays NULL like the bare one: the value can be anything (array / primitive / function), so the
+    // Object fallback would suppress generic-instance emission instead of routing through it
     // a USER declaration of the same name outranks the built-in wrapper, exactly as a type PARAMETER
     // does above: `interface Pick<T> { picked: number[] }` is not the global `Pick`, and resolving it
     // as one hands back the type ARGUMENT (`string`) in place of the declared shape
     if (STRUCTURE_PRESERVING_WRAPPERS.has(name) && !shadowedUtilityName) {
       const arg = firstArg();
-      const resolved = resolveArg(arg, isOpenKeywordAnnotation(arg) ? null : new $Object('Object'));
+      const resolved = arg ? resolveArg(arg) ?? (spellsClosedObject(arg) ? new $Object('Object') : null) : null;
       // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
       // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
       // the collection is behind a type-param (`Readonly<T>`), so key off the resolved constructor here.
@@ -414,19 +426,21 @@ export function createTypeAnnotationResolve({
       case 'Lowercase':
       case 'Capitalize':
       case 'Uncapitalize':
-        return intrinsicStringTransform(name, resolveArg(firstArg(), null));
+        return intrinsicStringTransform(name, resolveArg(firstArg()));
       // Flow: $Keys
       case '$Keys':
         return new $Primitive('string');
       // ThisParameterType<typeof fn> peels fn's `this` pseudo-param type, so a method on the
       // receiver resolves precisely (`function f(this: number[])` -> `number[]` -> array `.at`).
       // NO explicit `this` -> Object: TS yields `unknown` / the ambient global-this there, neither a
-      // polyfillable receiver. an explicit `this` that does NOT resolve is a different answer - null,
-      // the generic dispatch - because an Object masquerade over an unknown receiver SUPPRESSES the
-      // generic polyfill instead of routing through it. OmitThisParameter<F> -> callable Function
-      // (Function.prototype methods are stable across supported targets, so precision adds no path)
+      // polyfillable receiver. an explicit `this` that does NOT resolve, and a subject not found, are a
+      // different answer - null, the generic dispatch - because an Object masquerade over an unknown
+      // receiver SUPPRESSES the generic polyfill instead of routing through it. OmitThisParameter<F> ->
+      // callable Function (Function.prototype methods are stable across supported targets, so precision
+      // adds no path)
       case 'ThisParameterType': {
         const thisAnn = resolveThisParamAnnotation(node, scope);
+        if (thisAnn === undefined) return null;
         return thisAnn ? resolveArgInner(thisAnn) : new $Object('Object');
       }
       case 'OmitThisParameter':
@@ -439,7 +453,7 @@ export function createTypeAnnotationResolve({
       // the TS transparent wrappers (`NoInfer` et al.) never reach this switch - the
       // structure-preserving branch above owns them
       case '$Exact':
-        return resolveArg(firstArg(), null);
+        return resolveArg(firstArg());
       // resolve type parameter, strip nullable/never. Flow: $NonMaybeType
       case 'NonNullable':
       case '$NonMaybeType': {
@@ -474,8 +488,10 @@ export function createTypeAnnotationResolve({
         return target ? resolveAnnotationInContext({ node: target, scope, depth, typeParamMap, seen }) : null;
       }
       case 'InstanceType': {
+        // a query whose path spells a class's type (`X as typeof Y`) instantiates THAT class
         const arg = firstArg();
-        const resolved = arg ? resolveTypeQueryBinding(arg, scope) : null;
+        const target = arg ? declaredTypeofTarget(arg, scope) : null;
+        const resolved = target ? resolveTypeQueryBinding(target.node, target.scope) : null;
         if (!(t.isClass(resolved?.node) || isAmbientClassNode(resolved?.node))) return null;
         // base-less -> Object; unknowable super -> null (generic). no `|| $Object('Object')` re-suppression
         return resolveClassInheritance(resolved);
@@ -585,6 +601,15 @@ export function createTypeAnnotationResolve({
       && typeRefSegmentsEqual(param.constraint.typeAnnotation, target);
   }
 
+  // the members a `keyof` fold reads off a type PARAMETER, which has none of its own: its
+  // constraint's, and only when they carry a `string` index signature - the one bound a constraint
+  // puts on the keys a subtype adds, the keys it names saying nothing of the rest. null otherwise
+  function typeParamKeyofMembers(param) {
+    if (!param.constraint) return null;
+    const members = getTypeMembers({ objectType: unwrapTypeAnnotation(param.constraint), scope: param.scope });
+    return members && hasStringIndexSignature(members) ? members : null;
+  }
+
   // `InstanceType<A | B>` IS `InstanceType<A> | InstanceType<B>`, but the union hides INSIDE the
   // utility, so the object-side distribution below never sees it and the whole access falls into
   // `getTypeMembers`, which has no union branch. surfacing it as a real union node lets the one
@@ -611,15 +636,19 @@ export function createTypeAnnotationResolve({
 
   // TS indexed access type: Config["items"], [string, number[]][1], Items[number], Dict[string]
   // `T[keyof T]` shape: fold each property's value annotation into a union (mirrors TS
-  // evaluation). returns resolved Type / null on hit, undefined when shape doesn't match.
+  // evaluation) - an OPEN type parameter's through `typeParamKeyofMembers`, read in the scope that
+  // declares it. returns resolved Type / null on hit, undefined when shape doesn't match.
   // `objectType` is the caller's already-paren-peeled operand: the `isKeyofTargeting` self-match
   // compares the keyof operand against it, so an unpeeled `(T)` wrapper would fail the match.
   // takes the peeled INDEX rather than the access node it came off: the node's own `objectType`
   // is the unpeeled twin of the operand passed alongside, and nothing here ever read it
   function resolveKeyofSelfValueUnion(indexType, objectType, scope, depth) {
     if (!isKeyofTargeting(indexType, objectType, scope)) return undefined;
-    const members = getTypeMembers({ objectType, scope });
+    // the parameter outranks a declaration of the same name, the one `getTypeMembers` would read
+    const param = objectType.type === 'TSTypeReference' ? findTypeParameter(typeRefName(objectType), scope) : null;
+    const members = param ? typeParamKeyofMembers(param) : getTypeMembers({ objectType, scope });
     if (!members) return null;
+    const memberScope = param?.scope ?? scope;
     const valueAnnotations = [];
     for (const m of members) {
       // a setter arm skips only when a PAIRED reader (getter / data member on the same key)
@@ -655,7 +684,7 @@ export function createTypeAnnotationResolve({
       valueAnnotations.push(withMemberModifiers(annotation, { optional: Boolean(m.optional) }));
     }
     if (!valueAnnotations.length) return null;
-    return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, scope, depth + 1));
+    return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, memberScope, depth + 1));
   }
 
   function resolveIndexedAccessType(node, scope, depth) {

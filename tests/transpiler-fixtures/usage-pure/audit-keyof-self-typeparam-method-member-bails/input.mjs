@@ -3,6 +3,7 @@
 // dispatched onto a function value, so the resolver bails to the generic instance helper. a getter
 // or data property (whose access yields a readable value) would keep the precise narrow.
 function pick<T extends { m(): number[] }>(obj: T, k: keyof T) {
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return obj[k].at(0);
 }
 export const r = pick({ m: () => [1, 2] }, 'm');

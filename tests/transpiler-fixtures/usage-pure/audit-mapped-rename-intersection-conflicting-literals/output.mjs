@@ -9,5 +9,7 @@ declare const r: Conflict<{
   items: number[];
   nums: number[];
 }>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = r.items).call(_ref, 0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref2 = r.nums).call(_ref2, 1);

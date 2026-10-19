@@ -7,4 +7,4 @@ declare class K {
   static rows: string[];
 }
 declare const v: typeof K.rows;
-_includesMaybeArray(v).call(v, 1);
+_includesMaybeArray(v).call(v, '1');

@@ -2,4 +2,5 @@
 // should still dispatch `.at` to the array instance polyfill
 const arr = [1, 2, 3];
 const k = 'at';
+// @ts-expect-error a key read through a cast is the shape under test
 arr[(k) as any](0);

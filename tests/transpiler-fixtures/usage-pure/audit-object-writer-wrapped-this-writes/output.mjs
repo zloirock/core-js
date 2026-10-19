@@ -27,6 +27,8 @@ const silent = {
   } as any
 };
 export const viaSilent = _atMaybeArray(_ref3 = silent.keep as any).call(_ref3, 1);
+
+// @ts-expect-error a read off a null or undefined type is the probe
 const arrowOnly = {
   outer: [5],
   m: (() => {

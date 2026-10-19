@@ -9,6 +9,7 @@ namespace Base {
     return '';
   }
 }
+// @ts-expect-error a heritage tsc refuses is the shape under test
 class Sub extends Base {}
 namespace Sub {
   export function build() {

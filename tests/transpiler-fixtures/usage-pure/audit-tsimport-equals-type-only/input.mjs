@@ -4,5 +4,6 @@
 // legacy targets get the runtime constructor. value-mode `import X = require(...)` is the
 // shadowing form; the type modifier flips that off
 import type Map = require("./types");
+// @ts-expect-error a type-only import read as a value is the shape under test
 const m = new Map();
 export { m };

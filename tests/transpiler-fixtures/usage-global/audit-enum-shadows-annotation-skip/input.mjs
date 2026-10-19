@@ -4,3 +4,4 @@
 // Declaration) so the enum properly shadows the Map polyfill in `let x: Map`
 enum Map { A }
 let x: Map;
+export {};

@@ -4,5 +4,6 @@
 function assertString(x: unknown): asserts x is string {}
 function probe(x: unknown) {
   assertString(x as any);
+  // @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
   return x.at(0);
 }

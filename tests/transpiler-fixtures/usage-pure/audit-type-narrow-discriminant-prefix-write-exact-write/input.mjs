@@ -6,7 +6,9 @@ type Multi = { m: { k: 'a'; }; val: string; other: number; } | { m: { k: 'b'; };
 // not what makes a write irrelevant, landing off the discriminant path is
 export function exactWrite(u: Multi) {
   if (u.m.k === 'a') {
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     u.m.k = 'b';
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     return u.val.includes('x');
   }
   return undefined;

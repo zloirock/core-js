@@ -168,7 +168,7 @@ for (const [name, setup, call, expected] of [
   ['pattern argument alias leaf', 'const box = {}; box.fn = ({ rows: items } = { rows: [1] }) => items;', 'box.fn({ rows: flag ? [1] : "ab" })', 'array,string'],
   [
     'pattern argument wrapped',
-    'const box = {}; box.fn = ({ rows } = { rows: [1] }) => rows;',
+    '// @ts-expect-error dynamic JS adds a member the literal type lacks\nconst box = {}; box.fn = ({ rows } = { rows: [1] }) => rows;',
     'box.fn(({ rows: flag ? [1] : "ab" } as { rows: number[] | string }))',
     'array,string',
   ],
@@ -202,7 +202,7 @@ for (const [name, setup, call, expected] of [
   ['recursive return', 'const box = { fn() { return flag ? [1] : this.fn(); } };', 'box.fn()', null],
   ['opaque spread', 'const box = {}; box.fn = (value = [1]) => value;', 'box.fn(...foreign)', null],
 ]) for (const hintsFirst of [false, true]) runBoth(`return hints ${ name }/${ hintsFirst }`,
-  `${ setup } ${ call }.includes(1);`,
+  `${ setup } ${ call }.includes("ab");`,
   (adapter, program, label) => {
     const path = adapter.pickPath(program, 'MemberExpression', p => p.node.property?.name === 'includes')
       ?? (adapter.name === 'babel' ? adapter.pickPath(program, 'OptionalMemberExpression', p => p.node.property?.name === 'includes') : null);

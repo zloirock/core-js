@@ -12,13 +12,15 @@
 //   resolveTypeQuery(node, scope)              - TSTypeQuery -> resolved Type
 //   resolveTypeofFromSegments(segs, scope)     - shared dispatch for bare/qualified forms
 //   resolveTypeQueryBinding(param, scope)      - TSTypeQuery -> runtime/ambient path
+//   typeofSource(param, scope)                 - TSTypeQuery -> { annotation, scope } | { literal } | null
+//   declaredTypeofTarget(node, scope)          - a query spelling a type -> { node: that type, scope }
 //   resolveReturnTypeFromTypeQuery(param, scope) - `ReturnType<typeof fn>` resolution
 //
 // Service object is heavy (~20 entries) but the deps are pure factory function decls
 // (hoisted) and upstream cluster outputs; no late binding needed
-import { STATEMENT_LIST_HOST_TYPES } from '../helpers/ast-patterns.js';
-import { $Object } from './base.js';
-import { collectQualifiedSegments } from './ast-shapes.js';
+import { STATEMENT_LIST_HOST_TYPES, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
+import { $Object, MAX_DEPTH } from './base.js';
+import { TS_UNKNOWN_TYPE, collectQualifiedSegments, isConstAssertionType } from './ast-shapes.js';
 import { isAmbientClassNode, isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-resolution.js';
 
 // nearest ancestor holding `path` in a statement LIST - the unit an overload set lives in.
@@ -59,11 +61,13 @@ export function createTypeQuery({
   resolveClassMember,
   resolveObjectMemberPath,
   resolveAnnotatedMemberPath,
+  annotationAtKeyPath,
+  bindingDestructuringPattern,
   resolveReturnType,
   unwrapTypeAnnotation,
   applyAliasSubstDeep,
   buildCallSiteSubst,
-  functionTypeReturnAnnotation,
+  shadowedAliasReturnAnnotation,
   foldUnionArmTypes,
 }) {
   // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation.
@@ -71,26 +75,19 @@ export function createTypeQuery({
   // annotates (`declare const a: typeof a`), and the only bound on that loop is the budget the
   // annotation lane carries - restarting it at 0 here made the recursion unbounded
   function resolveTypeofBinding(name, scope, depth = 0) {
-    const bindingPath = constantBindingPath(name, scope);
     // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
     // TSEnumDeclaration has no typeAnnotation slot, so treat it as $Object('Object') for
     // downstream member inference - but only when a nearer value binding doesn't shadow it. the
     // shadow test needs the binding SCOPE only, so use the const-agnostic lookup (a reassigned
-    // `let Enum` shadows too); `bindingPath` below stays const-only for the DECLARED-type reads.
-    // hoisted for both readers, as the qualified twin below already does with its own
-    const declPath = bindingDeclaratorPath(name, scope);
-    if (enumIsNearestValue(name, scope, declPath)) return new $Object('Object');
-    if (!bindingPath) {
-      // a reassigned (non-const) annotated declarator still has a stable DECLARED type for `typeof`
-      // (TS reads the annotation, not the narrowed value) - constantBindingPath bails on the
-      // reassignment, so look the declarator up regardless of const-ness and resolve its EXPLICIT
-      // annotation only (the init is not the type once the binding is reassigned)
-      const reassignedAnnotation = t.isVariableDeclarator(declPath?.node) ? declPath.node.id?.typeAnnotation : null;
-      return reassignedAnnotation ? resolveTypeAnnotation(reassignedAnnotation, scope, depth + 1) : null;
-    }
+    // `let Enum` shadows too)
+    if (enumIsNearestValue(name, scope, bindingDeclaratorPath(name, scope))) return new $Object('Object');
+    // a declared or asserted type is the one `typeof` names, a reassigned binding's included - the
+    // value it holds is read only where nothing spells one
+    const source = bindingTypeofSource(name, scope);
+    if (source?.annotation) return resolveTypeAnnotation(source.annotation, source.scope, depth + 1);
+    const bindingPath = constantBindingPath(name, scope);
+    if (!bindingPath) return null;
     if (t.isVariableDeclarator(bindingPath.node)) {
-      const annotation = bindingPath.node.id?.typeAnnotation;
-      if (annotation) return resolveTypeAnnotation(annotation, scope, depth + 1);
       const init = bindingPath.get('init');
       if (init.node) return resolveNodeType(init);
     } else {
@@ -133,6 +130,12 @@ export function createTypeQuery({
         ? resolveClassMember({ classPath: ambientClass, name: memberPath[0], isStatic: true })
         : null;
     }
+    // a step declared or asserted with a type is read through that type, not the value it holds
+    const source = typeofPathSource([objectName, ...memberPath], scope);
+    if (source?.annotation) {
+      return source.keys.length ? resolveAnnotatedMemberPath(source.annotation, source.keys, source.scope, depth)
+        : resolveTypeAnnotation(source.annotation, source.scope, depth + 1);
+    }
     // the init is the binding's value only while nothing reassigns it - `let o = { x: [1] };
     // o = { x: 's' }` would otherwise read `typeof o.x` off the FIRST init and hand a runtime
     // string an array-specific helper. mirrors `resolveTypeofBinding`'s split: const-only for
@@ -146,7 +149,9 @@ export function createTypeQuery({
         ? resolveRuntimeExpression(initPath) : initPath;
       // class static: `class K {static x...}; typeof K.x` or aliased `const C = K; typeof C.x` -
       // class members aren't ObjectProperties, dispatch through the class-aware resolver.
-      // single-level only (`typeof K.x.y` would need recursive class-member-init descent)
+      // single-level only (`typeof K.x.y` would need recursive class-member-init descent). an
+      // unannotated field is typed by the value it holds: one asserted to a wider union keeps its own
+      // family (an accepted boundary, as an unannotated function's return)
       if (t.isClass(resolved.node) && memberPath.length === 1) {
         const result = resolveClassMember({ classPath: resolved, name: memberPath[0], isStatic: true });
         if (result) return result;
@@ -228,10 +233,78 @@ export function createTypeQuery({
     return null;
   }
 
+  // what a `typeof` query is read from: the source its path spells, `{ annotation, scope }` with the
+  // annotation read at the full path - `unknown` where the declared type names no such member
+  function typeofSource(param, scope) {
+    const source = typeofPathSource(collectQualifiedSegments(param.exprName), scope);
+    if (!source?.keys?.length) return source;
+    const annotation = unwrapTypeAnnotation(annotationAtKeyPath(source.annotation, source.keys, source.scope));
+    return { annotation: annotation ?? TS_UNKNOWN_TYPE, keys: [], scope: source.scope };
+  }
+
+  // the node a `typeof` query names once each query whose path spells a type gives way to that type -
+  // through queries naming queries (`const K: typeof Base`, `X as typeof Y`) - with the scope to read
+  // it in. a query naming a value comes back as it is, for the runtime lane
+  function declaredTypeofTarget(node, scope) {
+    let target = { node, scope };
+    for (let hops = 0; target.node?.type === 'TSTypeQuery' && hops < MAX_DEPTH; hops++) {
+      const source = typeofSource(target.node, target.scope);
+      if (!source?.annotation) break;
+      target = { node: source.annotation, scope: source.scope };
+    }
+    return target;
+  }
+
+  // `typeof X.k1...kn` walks what its source spells, in the precedence `resolveTypeofBinding` reads a
+  // binding with: TS reads a declared type, not the value. the first step declared or asserted with a
+  // type answers for the rest of the path - `{ annotation, keys, scope }`, `keys` the members still to
+  // read off it. a path ending on an object literal is `{ literal }`; null where the path spells no type
+  // (an enum, a function or class, a method or accessor step, any other value), whose own type is then
+  // the one the query names - an accessor's the value it returns, as an unannotated function's is
+  function typeofPathSource(segments, scope) {
+    let source = segments?.length ? bindingTypeofSource(segments[0], scope) : null;
+    let step = 1;
+    while (source?.literal && step < segments.length) {
+      const property = findObjectMember(source.literal, segments[step++]);
+      source = t.isObjectProperty(property?.node) ? expressionTypeofSource(property.get('value')) : null;
+    }
+    return source?.annotation ? { ...source, keys: segments.slice(step) } : source;
+  }
+
+  // a binding's declared annotation, else its initializer's - either is the type whether or not the
+  // binding is reassigned, as every write must conform to it. a destructured name is `unknown` here: its
+  // declaration types and initializes the whole pattern, which must not answer for the name
+  function bindingTypeofSource(name, scope, depth = 0) {
+    const declPath = bindingDeclaratorPath(name, scope);
+    if (!declPath || enumIsNearestValue(name, scope, declPath)) return null;
+    if (bindingDestructuringPattern(declPath.node)) return { annotation: TS_UNKNOWN_TYPE, scope: declPath.scope };
+    if (!t.isVariableDeclarator(declPath.node)) return null;
+    const annotation = declPath.node.id?.typeAnnotation;
+    if (annotation) return { annotation: unwrapTypeAnnotation(annotation), scope: declPath.scope };
+    return expressionTypeofSource(declPath.get('init'), depth);
+  }
+
+  // an expression's: an assertion's type unless it is `as const`, an object literal's own properties, or
+  // the source of the binding an identifier names - `const a = b; const b = a` names itself, which the
+  // depth bound ends. parens, `!` and an instantiation keep the type of what they wrap, and `satisfies`
+  // checks it against one without taking it
+  function expressionTypeofSource(path, depth = 0) {
+    let init = path;
+    while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(init.node?.type)) {
+      const asserted = init.node.type === 'TSSatisfiesExpression' ? null : unwrapTypeAnnotation(init.node.typeAnnotation);
+      if (asserted && !isConstAssertionType(asserted)) return { annotation: asserted, scope: init.scope };
+      init = init.get('expression');
+    }
+    if (t.isObjectExpression(init.node)) return { literal: init };
+    return t.isIdentifier(init.node) && depth < MAX_DEPTH
+      ? bindingTypeofSource(init.node.name, init.scope, depth + 1) : null;
+  }
+
   function resolveTypeQueryBinding(param, scope) {
     if (param.type !== 'TSTypeQuery') return null;
     const segments = collectQualifiedSegments(param.exprName);
-    if (!segments?.length) return null;
+    // a path spelling a type names THAT type, which no runtime value stands for
+    if (!segments?.length || typeofPathSource(segments, scope)?.annotation) return null;
     const [rootName, ...path] = segments;
     if (path.length === 0) return resolveBareTypeQueryBinding(rootName, scope);
     // 2-segment runtime member access: `const obj = {fn:...}; typeof obj.fn`. deeper paths
@@ -265,7 +338,7 @@ export function createTypeQuery({
     if (!binding) return null;
     // class binding direct lookup: `typeof X.method` where X is a class declaration walks
     // the class body for a static member instead of an annotation walk, so the full
-    // TSDeclareMethod / ClassMethod node reaches `functionTypeReturnAnnotation` with its
+    // TSDeclareMethod / ClassMethod node reaches the return extraction with its
     // return-type slot intact. without this, the annotation fallback below finds no binding
     // annotation on the class and returns null, costing return-type narrowing for
     // `ReturnType<typeof X.method>`
@@ -328,7 +401,10 @@ export function createTypeQuery({
   // and bails to generic instead of recursing forever - the return-type resolution chain
   // would otherwise reset depth to 0 on every hop
   function resolveReturnTypeFromTypeQuery(param, scope, depth = 0) {
-    const resolved = pickLastAmbientOverload(resolveTypeQueryBinding(param, scope), param, scope);
+    // a query whose path spells a type returns what that type does
+    const { node: query, scope: queryScope } = declaredTypeofTarget(param, scope);
+    if (query !== param && query.type !== 'TSTypeQuery') return foldSignatureReturns(query, queryScope, depth);
+    const resolved = pickLastAmbientOverload(resolveTypeQueryBinding(query, queryScope), query, queryScope);
     if (isFunctionLike(resolved?.node)) {
       // TS 4.7+ instantiation expression `typeof fn<Args>` carries explicit type-args on
       // the TSTypeQuery itself. when present, fold them into the function's return-type
@@ -336,27 +412,33 @@ export function createTypeQuery({
       // `buildCallSiteSubst` zips fn.typeParameters with param.typeParameters - returns null
       // when either side is empty / missing, in which case we fall back to body inference
       const ret = resolved.node.returnType ?? resolved.node.typeAnnotation;
-      const subst = ret && buildCallSiteSubst(resolved.node, param, scope);
+      const subst = ret && buildCallSiteSubst(resolved.node, query, queryScope);
       // anchor the return-type resolution at the resolved (possibly in-namespace) fn path: a
       // `typeof NS.fn` whose declared return references an IN-NAMESPACE type alias (`(): Local`
       // where `Local` is a sibling in NS) needs NS's module body as the lookup anchor - the
       // recovered path's scope chain doesn't reach it on estree, so `Local` would bail to generic
       if (subst) {
         const substituted = applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst);
-        return withLookupPath(resolved, () => resolveTypeAnnotation(substituted, scope, depth + 1));
+        return withLookupPath(resolved, () => resolveTypeAnnotation(substituted, queryScope, depth + 1));
       }
+      // an unannotated function is typed by the values it returns: a concrete one asserted to a wider
+      // union keeps its own family (an accepted boundary - such a return type is annotated instead)
       return withLookupPath(resolved, () => resolveReturnType(resolved, undefined, undefined, depth));
     }
-    if (param?.type !== 'TSTypeQuery') return null;
-    // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
-    // the annotation-only path which also handles qualified names (`typeof NS.fn`)
-    const fnType = findTypeQueryFunctionType(param.exprName, scope);
-    if (!fnType) return null;
-    // a union of signatures is one value with several shapes - same alternatives fold the call
-    // lane uses, so `ReturnType<typeof f>` and `f()` answer alike
-    return foldUnionArmTypes(fnType.type, arm => {
-      const ret = functionTypeReturnAnnotation(arm);
-      return ret ? resolveTypeAnnotation(ret, fnType.scope, depth + 1) : null;
+    if (query?.type !== 'TSTypeQuery') return null;
+    // no runtime value stands for the query: the annotation-only path reads what a parameter or an
+    // ambient declaration is declared with, qualified names (`typeof NS.fn`) included
+    const fnType = findTypeQueryFunctionType(query.exprName, queryScope);
+    return fnType ? foldSignatureReturns(fnType.type, fnType.scope, depth) : null;
+  }
+
+  // a union of signatures is one value with several shapes - same alternatives fold the call
+  // lane uses, so `ReturnType<typeof f>` and `f()` answer alike. each arm returns what
+  // `ReturnType<arm>` does, an alias to a signature included
+  function foldSignatureReturns(signature, scope, depth) {
+    return foldUnionArmTypes(signature, arm => {
+      const ret = shadowedAliasReturnAnnotation(arm, scope);
+      return ret ? resolveTypeAnnotation(ret, scope, depth + 1) : null;
     });
   }
 
@@ -364,6 +446,8 @@ export function createTypeQuery({
     resolveTypeQuery,
     resolveTypeofFromSegments,
     resolveTypeQueryBinding,
+    typeofSource,
+    declaredTypeofTarget,
     pickLastAmbientOverload,
     resolveReturnTypeFromTypeQuery,
   };

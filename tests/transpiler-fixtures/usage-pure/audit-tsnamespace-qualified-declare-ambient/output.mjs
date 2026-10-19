@@ -5,5 +5,6 @@ import _Map from "@core-js/pure/actual/map/constructor";
 declare namespace Map.Y {
   const z: number;
 }
+// @ts-expect-error the ambient declaration types the read for tsc alone, and the runtime reads the global
 const a = new _Map();
 export { a };

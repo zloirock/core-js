@@ -14,6 +14,7 @@ function seSource({
   from: _Array$from,
   of: _Array$of
 })) {
+  // @ts-expect-error arithmetic tsc refuses is the shape under test
   return from([1]) + of(2, 3);
 }
 const useGlobal = 1;

@@ -5,3 +5,4 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 type Pick<T> = T extends Array<infer U extends string> ? string : number[];
 declare const r: Pick<Array<number>>;
 _atMaybeArray(r).call(r, 0);
+export {};

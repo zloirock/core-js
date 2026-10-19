@@ -3,8 +3,14 @@
 // whether the parens survive into the tree, which is why the climb to the write host goes through
 // paren, chain and TS wrappers rather than matching a bare member shape
 declare const xs: string[];
+
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 xs.at = 1;
+
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 xs.at = 1;
+
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 xs.at = 1;
 (xs.at as any) = 1;
 export const a = xs;

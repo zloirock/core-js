@@ -15,6 +15,7 @@ export const viaSubclass = _at(s).call(s, 0);
 class Plain {}
 class PlainSub extends Plain {}
 declare const p: PlainSub;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const viaPlainSubclass = p.at(0);
 
 // a base that resolves to a known container (Array) keeps the array-specific polyfill down the chain

@@ -6,16 +6,22 @@ declare const f: any;
 declare const mk: any;
 let q: any;
 export async function keptFusingCast(p: Promise<unknown>) {
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return ((await p) as any)<string>;
 }
 export async function keptMemberTail(p: Promise<unknown>) {
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return ((await p)<string>).x;
 }
 export async function keptFusingUpdate() {
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return (q++)<string>;
 }
 export async function keptConditionalTest(p: Promise<unknown>) {
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return (q = await p)<string> ? 1 : 2;
 }
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const keptComputedTail = (f<string>)[0];
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const keptBareMemberTail = (mk<number>).nothing;

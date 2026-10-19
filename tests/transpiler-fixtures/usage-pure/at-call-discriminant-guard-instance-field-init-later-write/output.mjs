@@ -21,7 +21,9 @@ export function fieldWrite(o: A | B) {
         return _at(_ref = o.v).call(_ref, 0);
       })();
     }
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     o.kind = 'b';
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     o.v = [1, 2];
     return new K();
   }
@@ -29,6 +31,7 @@ export function fieldWrite(o: A | B) {
 }
 export function identityWrite(o: A | B) {
   if (o.kind === 'a') {
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     class K {
       p = (() => {
         var _ref2;

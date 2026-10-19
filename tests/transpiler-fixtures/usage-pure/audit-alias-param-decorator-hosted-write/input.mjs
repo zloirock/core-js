@@ -9,6 +9,7 @@ function dec(v) {
 }
 let M;
 class C {
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   constructor(@dec(({ Map: M } = globalThis)) private x) {}
 }
 export const viaParamProperty = () => M.groupBy([1, 2], y => y % 2);

@@ -3,3 +3,4 @@ async function fetchItems<T>(item: T): Promise<T[]> {
 }
 const [first] = await fetchItems('hello');
 first.at(0);
+export {};

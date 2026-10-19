@@ -9,4 +9,5 @@ declare const required: Required<I>;
 declare const nonNullable: NonNullable<I['tags']>;
 const viaRequired = required.items;
 (viaRequired ?? 'fallback').at(0);
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 (nonNullable ?? 'fallback').includes(1);

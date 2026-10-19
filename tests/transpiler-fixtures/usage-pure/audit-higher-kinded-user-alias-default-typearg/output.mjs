@@ -5,6 +5,8 @@ var _ref;
 type Boxed<T> = {
   val: T;
 };
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type Wrap<F, X = string[]> = F<X>;
+// @ts-expect-error a generic named without its type arguments is the shape under test
 declare const x: Wrap<Boxed>;
 _atMaybeArray(_ref = x.val).call(_ref, 0);

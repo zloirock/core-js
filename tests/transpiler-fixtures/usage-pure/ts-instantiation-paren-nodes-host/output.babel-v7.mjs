@@ -11,11 +11,18 @@ const o: any = {
   m: f
 };
 let q: any;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostCall = ((f || g))<string>(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostOptionalCall = ((o.m))<string>?.(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostNew = new ((f || g))<string>();
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostTaggedTag = ((f || g))<string>`t`;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostMember = _nameMaybeFunction(((f || g)<string>));
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostConditionalTest = ((q = f)<string>) ? 1 : 2;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const tailFusingCast = ((f as any)<string>);
 export const r = [hostCall, hostOptionalCall, hostNew, hostTaggedTag, hostMember, hostConditionalTest, tailFusingCast, _flatMaybeArray(_ref = [1, [2]]).call(_ref)];

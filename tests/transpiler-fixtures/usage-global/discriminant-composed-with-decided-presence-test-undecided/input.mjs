@@ -4,5 +4,6 @@
 type Box = { kind: 'text'; data: string } | { kind: 'list'; data: number[] };
 declare const flag: boolean;
 export function undecided(box: Box) {
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   if (flag || box.kind === 'text') return box.data.flat();
 }

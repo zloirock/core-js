@@ -1,4 +1,4 @@
-function eff() { return Object; }
+function eff(key) { return Object; }
 {
 const { [(eff('k'), 'w')]: { at: a } } = { w: src } as any;
 }

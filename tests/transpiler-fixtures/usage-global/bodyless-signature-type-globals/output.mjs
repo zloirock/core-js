@@ -22,6 +22,7 @@ import "core-js/modules/web.dom-collections.iterator";
 // bodyless function-signature types name globals in their params without any function body to
 // drive the param-type walk, so usage-global must sweep them directly. distinct globals per
 // signature shape make it clear which line drives which polyfill
+// @ts-expect-error a generic named without its type arguments is the shape under test
 interface Reader {
   read(a: Map<number>): void;
 }

@@ -5,6 +5,7 @@ type Wrap = { meta: { kind: "a"; data: string[] } | { kind: "b"; data: number } 
 function f(w: Wrap, src: any) {
   if (w.meta.kind === "a") {
     [w.meta] = src;
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     return w.meta.data.at(0);
   }
 }

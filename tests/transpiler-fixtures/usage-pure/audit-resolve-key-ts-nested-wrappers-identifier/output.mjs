@@ -4,4 +4,5 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // `k`, then follows its const binding to 'at' and polyfills Array.prototype.at accordingly
 const arr = [1, 2, 3];
 const k = 'at';
+// @ts-expect-error a computed key tsc refuses is the shape under test
 _atMaybeArray(arr).call(arr, 0);

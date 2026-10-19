@@ -4,3 +4,4 @@
 declare function probe(): Promise<string[]> | null;
 const r = await probe()!;
 r.at(0);
+export {};

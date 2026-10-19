@@ -3,7 +3,9 @@
 // not bleed forward and poison the trailing concrete parent's resolution (else Tree drops
 // to Object and loses the array narrow). with each parent isolated, the concrete parent
 // still resolves Tree to Array, so `.includes` keeps the array narrow.
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 interface A extends A {}
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 interface B extends B {}
 interface Arr extends Array<string> {}
 interface Tree extends A, B, Arr {}

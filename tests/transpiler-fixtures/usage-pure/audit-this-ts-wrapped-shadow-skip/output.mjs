@@ -10,6 +10,6 @@ class C extends Array {
     return (this as any).at(0);
   }
   bar() {
-    return this!.at(1);
+    return this!.at();
   }
 }

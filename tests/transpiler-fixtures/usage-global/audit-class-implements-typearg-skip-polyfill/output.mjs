@@ -6,6 +6,7 @@
 interface Foo<T> {
   x: T;
 }
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class X implements Foo<Map<string, number>> {
   m() {
     return 1;

@@ -9,6 +9,7 @@ import "core-js/modules/es.string.includes";
 // the precise family; a rest-armed divergent set injects both families (widen)
 declare function g(this: Window, x: string): number[];
 declare function g(x: number): string;
+// @ts-expect-error a call no overload admits is the shape under test
 export const viaThisParam = g('a').at(0);
 declare namespace NS {
   function q(x: number): number[];
@@ -18,4 +19,4 @@ declare const f: typeof NS.q;
 export const viaQualified = f(5).findLast(v => v > 0);
 declare function ra(...xs: string[]): number[];
 declare function ra(x: number): string;
-export const viaRestWiden = ra(5).includes(1);
+export const viaRestWiden = ra(5).includes('1');

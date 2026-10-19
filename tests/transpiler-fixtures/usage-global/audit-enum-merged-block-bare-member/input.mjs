@@ -6,5 +6,6 @@ enum Labelled { Name = "core" }
 enum Labelled { Next }
 const restarted: Labelled = Labelled.Next;
 const known: Labelled = Labelled.Name;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 restarted.at(0);
 known.includes("c");

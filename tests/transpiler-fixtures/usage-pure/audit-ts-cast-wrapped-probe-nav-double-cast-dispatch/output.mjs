@@ -12,4 +12,5 @@ _globalThis.tsBox = {
   },
   list: ['ab', 'cd']
 };
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 export const doubleCastDispatch = null == (_ref = ((null == _globalThis.window ? void 0 : _self.tsBox) as any).list as any[]) ? void 0 : _atMaybeArray(_ref).call(_ref, 0);

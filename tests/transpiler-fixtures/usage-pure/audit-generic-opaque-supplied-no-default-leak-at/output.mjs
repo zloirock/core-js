@@ -10,4 +10,5 @@ type Opaque = {
 function makeExplicit<T = number[]>(): T {
   return [] as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = makeExplicit<Opaque>()).call(_ref, 0);

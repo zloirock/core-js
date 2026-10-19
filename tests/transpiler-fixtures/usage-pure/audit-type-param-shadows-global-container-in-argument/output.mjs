@@ -6,5 +6,6 @@ type Boxed<T> = {
 };
 function inArgument<Array>(x: Boxed<Array>) {
   var _ref;
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return _joinMaybeArray(_ref = x.inner).call(_ref, "-");
 }

@@ -9,3 +9,4 @@ import "core-js/modules/es.string.iterator";
 namespace require {
   const enum E {}
 }
+// @ts-expect-error the declaration emits nothing, so it types the read for tsc alone, and the runtime reads the global

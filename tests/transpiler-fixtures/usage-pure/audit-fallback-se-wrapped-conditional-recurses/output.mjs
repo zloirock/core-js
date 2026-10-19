@@ -12,4 +12,5 @@ const {
 } : {
   from: _Iterator$from
 });
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 from([1, 2, 3]);

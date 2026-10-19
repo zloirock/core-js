@@ -20,7 +20,12 @@ const rows = [
   ['unbound argument', 'const C = []; C.push(a.b, a.b); C.x.y;', []],
   ['computed navigation', 'const C = []; C.push(a["b"], a["b"]); C.x.y;', []],
   ['optional navigation', 'const C = []; C.push(a?.b, a?.b); C.x.y;', []],
-  ['wrapped navigation', 'const C = []; C.push((a.b as any), (a.b as any)); C.x.y;', []],
+  [
+    'wrapped navigation',
+    '// @ts-expect-error a read of a member the array lacks is the shape under test\n'
+    + 'const C = []; C.push((a.b as any), (a.b as any)); C.x.y;',
+    [],
+  ],
   ['nested navigation', 'const C = []; C.push(a.b.c, a.b.c); C.x.y;', []],
   ['bound argument', 'function f(a) { const C = []; C.push(a.b, a.b); return C.x.y; }', []],
   ['known member value', 'const a = { b: Map }; const C = []; C.push(a.b, a.b); C[0].y;', ['Map']],

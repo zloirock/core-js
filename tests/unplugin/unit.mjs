@@ -44,7 +44,7 @@ import createDestructureDrains from '../../packages/core-js-unplugin/internals/d
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
-import { commentSignature, strip } from './structural.mjs';
+import { commentPlacements, commentSignature, strip } from './structural.mjs';
 import {
   KNOWN_BUNDLERS,
   hasCoreJSImport,
@@ -4499,6 +4499,111 @@ function checkAstPrintQuirks() {
   }
 }
 checkAstPrintQuirks();
+
+// --- ast-print: list tails ---
+
+// a comment after the last member of a list, or inside an empty one, is the list's own: the print
+// closes the list after it. one shape per host whose closing token the printer writes itself; the
+// placement is the roundtrip gate's identity, so a tail flushed past the closing token reads as a move
+function checkAstPrintListTails() {
+  for (const [label, source] of [
+    ['call, own line', 'f(\n  a,\n  // c\n);\nnext();'],
+    ['call, two own-line comments', 'f(\n  a,\n  // b\n  // c\n);\nnext();'],
+    ['call, same line then own line', 'f(a, // x\n  /* y */\n);\nnext();'],
+    ['empty call, own line', 'f(\n  // c\n);\nnext();'],
+    ['empty call, same line', 'f(/* c */);\nnext();'],
+    ['optional call', 'f?.(\n  a,\n  // c\n);\nnext();'],
+    ['new', 'new F(\n  a,\n  // c\n);\nnext();'],
+    ['empty new', 'new F(\n  // c\n);\nnext();'],
+    ['super call', 'class S extends B { constructor() { super(\n  a,\n  // c\n); } }\nnext();'],
+    ['decorator call', '@d(\n  a,\n  // c\n)\nclass D {}\nnext();'],
+    ['nested call', 'g(f(\n  a,\n  // c\n), b);\nnext();'],
+    ['import call', 'import(\n  a,\n  // c\n);\nnext();'],
+    ['switch, after the last case', 'switch (a) {\n  case 1:\n    b();\n    // c\n}\nnext();'],
+    ['switch, under an empty default', 'switch (a) {\n  default:\n    // c\n}\nnext();'],
+    ['empty switch', 'switch (a) {\n  // c\n}\nnext();'],
+    // eslint-disable-next-line no-template-curly-in-string -- template literal source
+    ['template substitution', 'x = `${\n  a\n  // c\n}`;\nnext();'],
+    ['type arguments', 'f<\n  A,\n  // c\n>(a);\nnext();'],
+  ]) {
+    const printed = astPrint(source).code;
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const original = parseSync('input.ts', source, { sourceType: 'module' });
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const reparsed = parseSync('input.ts', printed, { sourceType: 'module' });
+    check(`list tail/${ label }/output parses`, reparsed.errors.length, 0);
+    checkDeep(`list tail/${ label }/structure`, strip(reparsed.program), strip(original.program));
+    checkDeep(`list tail/${ label }/placement`, commentPlacements(reparsed.program, printed, reparsed.comments),
+      commentPlacements(original.program, source, original.comments));
+    check(`list tail/${ label }/fixed point`, astPrint(printed).code, printed);
+  }
+  // the transform prints the whole file, the untouched call included: a `-next-line` closing its
+  // argument list must not come to lead the statement below, whose claim a later pass would then skip
+  for (const method of ['usage-global', 'usage-pure']) {
+    const source = 'use(\n  z.flat(),\n  // core-js-disable-next-line\n);\nexport const k = q.at(1);\n';
+    const { code } = createPlugin({ method, version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const { program, comments } = parseSync('p.mjs', code, { sourceType: 'module' });
+    const directive = comments.find(({ value }) => value.includes('core-js-disable-next-line'));
+    const host = program.body.find(({ start, end }) => start <= directive.start && directive.end <= end);
+    check(`list tail/${ method }/the directive stays in its call`, host?.expression?.callee?.name, 'use');
+  }
+}
+checkAstPrintListTails();
+
+// --- ast-print: comments trailing a node ---
+
+// a comment opening on the line a node closes on, ahead of the next token, prints right after that
+// node, where the babel leg prints it too. the reparse places it between the same two nodes either
+// way, so the spelling is what holds the token the comment precedes
+function checkAstPrintTrailingComments() {
+  for (const [label, source, spelling] of [
+    ['call', 'f /* c */ (x);', 'f /* c */(x);'],
+    ['optional call', 'f /* c */ ?.(x);', 'f /* c */?.(x);'],
+    ['after the optional token', 'f?./* c */(x);', 'f?. /* c */(x);'],
+    ['type arguments', 'f<T> /* c */ (x);', 'f<T> /* c */(x);'],
+    ['new', 'new F /* c */ (x);', 'new F /* c */(x);'],
+    ['member', 'a /* c */ .b;', 'a /* c */.b;'],
+    ['optional member', 'a /* c */ ?.b;', 'a /* c */?.b;'],
+    ['computed member', 'a /* c */ [b];', 'a /* c */[b];'],
+    ['conditional', 'x = a ? b /* c */ : d;', 'x = a ? b /* c */ : d;'],
+    ['assignment', 'x /* c */ = 1;', 'x /* c */ = 1;'],
+    ['declarator', 'let y /* c */ = 1;', 'let y /* c */ = 1;'],
+    ['binary', 'x = a /* c */ + b;', 'x = a /* c */ + b;'],
+    ['two comments', 'x = a /* c1 */ /* c2 */ + b;', 'x = a /* c1 */ /* c2 */ + b;'],
+    ['line comment', 'x = a // c\n  + b;', 'x = a // c\n'],
+    ['paren group', 'x = (a || b) /* c */ + 1;', 'x = (a || b /* c */) + 1;'],
+    ['else', 'if (a) b(); /* c */ else d();', 'b(); /* c */ else'],
+    ['property key', 'x = { a /* c */ : 1 };', 'a /* c */: 1'],
+    ['heritage', 'class K /* c */ extends B {}', 'class K /* c */ extends B'],
+    ['cast', 'x = a /* c */ as any;', 'x = a /* c */ as any;'],
+    ['parameter default', 'function p(a /* c */ = 1) {}', 'p(a /* c */ = 1)'],
+    ['statement terminator', 'f(x) /* c */;', 'f(x) /* c */;'],
+    // esrap writes these names without visiting them
+    ['default import', 'import a /* c */ from "m";', 'import a /* c */ from "m";'],
+    ['namespace import', 'import * as n /* c */ from "m";', 'import * as n /* c */ from "m";'],
+    // ... and a template's quasi, whose span ends past the `${`: no visit writes the comment there, so
+    // it goes back to the cursor and the file prints again
+    // eslint-disable-next-line no-template-curly-in-string -- template literal source
+    ['after a template opener', 'x = `a${ /* c */ b }d`;', '${/* c */ b}'],
+  ]) {
+    const printed = astPrint(source).code;
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const original = parseSync('input.ts', source, { sourceType: 'module' });
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const reparsed = parseSync('input.ts', printed, { sourceType: 'module' });
+    check(`trailing comment/${ label }/spelling`, printed.includes(spelling), true);
+    checkDeep(`trailing comment/${ label }/structure`, strip(reparsed.program), strip(original.program));
+    checkDeep(`trailing comment/${ label }/comments`, commentSignature(reparsed.comments), commentSignature(original.comments));
+    check(`trailing comment/${ label }/fixed point`, astPrint(printed).code, printed);
+  }
+  // the fold that moves an optional call's type arguments behind its `?.` leaves the source parens in
+  // place, so a comment the author put between them and the `?.` still trails the callee
+  const { code } = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform('export const r = ((g || Promise.try)<any>) /* c */ ?.(g);\n', '/p.ts');
+  check('trailing comment/folded optional call keeps it ahead of the `?.`', code.includes('(g || _Promise$try /* c */)?.<any>(g)'), true);
+}
+checkAstPrintTrailingComments();
 
 // Babel rejects legacy decorators on rest parameters, so the shared fixture runner
 // cannot carry this syntax. Drive every unplugin phase directly and force a reprint.

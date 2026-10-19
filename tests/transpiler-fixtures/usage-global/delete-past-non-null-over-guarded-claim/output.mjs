@@ -12,4 +12,5 @@ declare const boxes: {
 }[] | null;
 delete boxes?.at(-1)!.k;
 delete boxes?.findLast(Boolean)!!.j!.k;
+// @ts-expect-error a delete tsc refuses is the shape under test
 delete (boxes?.toReversed())!.k;

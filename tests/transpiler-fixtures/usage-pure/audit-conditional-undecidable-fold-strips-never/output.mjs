@@ -9,3 +9,4 @@ type Pick<K> = K extends string ? {
 declare const p: Pick<'x'>;
 _atMaybeArray(_ref = p.v).call(_ref, 0);
 _flatMaybeArray(_ref2 = p.v).call(_ref2);
+export {};

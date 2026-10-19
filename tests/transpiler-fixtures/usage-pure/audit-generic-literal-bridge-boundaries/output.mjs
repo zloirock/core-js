@@ -17,9 +17,11 @@ function w<T = number[]>(x: T): Wrap<T> {
     v: x
   } as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = w({
   a: 1
 }).v).call(_ref, 0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _includes(_ref2 = w(() => 1).v).call(_ref2, 1);
 _atMaybeString(_ref3 = w(`a${n}b`).v).call(_ref3, 0);
 _includesMaybeString(_ref4 = w<string>('abc' as any).v).call(_ref4, 'c');

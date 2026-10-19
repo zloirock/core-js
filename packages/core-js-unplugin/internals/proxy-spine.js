@@ -73,6 +73,7 @@ import {
   stepOverChainWrappers,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
+  typeArgumentHostOf,
   unwrapRuntimeExpr,
   subtreeContainsNode,
   peelChainAssignment,
@@ -2279,9 +2280,11 @@ export default function createProxySpineChannel(ctx) {
     let target = metaPath;
     for (let up = target.parentPath; up?.node; up = target.parentPath) {
       const upType = up.node.type;
-      // NOT `TSInstantiationExpression`: its type args are value-adjacent source text babel
-      // keeps on the substituted binding (`new (Map<string, number>)()` -> `new _Map<string, number>()`)
-      if (upType === 'TSInstantiationExpression') break;
+      // an instantiation filling a call's, a `new`'s or a tag's slot hands its type arguments to that
+      // host, which keeps them on the substituted binding (`new (Map<string, number>)()` ->
+      // `new _Map<string, number>()`); anywhere else it wraps the claim for the type layer alone and
+      // goes with it like a cast (`(Map.groupBy<T>)` -> `_Map$groupBy`)
+      if (upType === 'TSInstantiationExpression' && typeArgumentHostOf(up)) break;
       // the estree CHAIN marker between the claim and the wrapper above it is not a layer the source
       // wrote - the other dialect has no node there at all, so stopping on it left the wrapper standing
       // over a substituted binding the reference emitter consumes it with (`(nav?.self as any)?.X`).

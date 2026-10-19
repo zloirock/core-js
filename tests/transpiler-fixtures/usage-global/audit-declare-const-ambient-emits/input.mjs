@@ -4,5 +4,6 @@
 // falsy via the `parent.declare === true` gate in the ambient binding filter so the polyfill
 // emission survives for the downstream type annotation
 declare const Map: any;
+// @ts-expect-error a generic named without its type arguments is the shape under test
 let x: Map<string>;
 export { x };

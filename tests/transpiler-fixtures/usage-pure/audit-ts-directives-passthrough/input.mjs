@@ -6,7 +6,7 @@ const a: number[] = [1, 2, 3];
 a.at(-1);
 
 // @ts-expect-error something
-const b: string[] = ['x'];
+const b: string[] = [1];
 b.at(0);
 
 new Map();

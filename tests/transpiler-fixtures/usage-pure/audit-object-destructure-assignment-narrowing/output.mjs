@@ -16,6 +16,7 @@ function take(init: {
       data: ['y']
     }
   });
+  // @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
   return _atMaybeArray(_ref = f.data).call(_ref, 0);
 }
 export { take };

@@ -181,7 +181,7 @@ jobs:
         with:
           bun-version: latest
       - run: npm run prepare-monorepo
-      - run: npx run-s test-polyfill-provider test-babel-plugin test-babel-plugin-unit test-babel-plugin-v7 test-babel-plugin-unit-v7 test-unplugin test-unplugin-unit test-unplugin-roundtrip test-e2e-usage-pure test-transpiler-integration
+      - run: npx run-s build-types test-polyfill-provider test-babel-plugin test-babel-plugin-unit test-babel-plugin-v7 test-babel-plugin-unit-v7 test-unplugin test-unplugin-unit test-unplugin-roundtrip test-e2e-usage-pure test-transpiler-integration
 
   transpiler-differential:
     if: *not-duplicate

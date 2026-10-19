@@ -4,6 +4,7 @@ var _ref;
 // (`type X = Self`), the substitution recurses T -> T[] -> T[][] - cyclic. The depth
 // cap stops the recursion; the member type still resolves through the partial
 // substitution, so the polyfill picks the array-specific dispatch
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Self<T = T[]> = {
   x: T;
 };

@@ -7,7 +7,9 @@ type C = {
   kind: 'c';
   data: string[];
 };
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type B = A;
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type A = B | C;
 declare const x: A;
 if (x.kind === 'c') {

@@ -5,6 +5,7 @@
 declare function deco<T>(x: any): (target: T) => T;
 class C {
   s: string = "hi";
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   @deco(this.s.at(0))
   foo() {}
 }

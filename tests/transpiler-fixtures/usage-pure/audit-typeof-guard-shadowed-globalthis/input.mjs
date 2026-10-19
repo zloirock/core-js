@@ -5,6 +5,7 @@
 // goes undetected and the Array narrow fires incorrectly, picking the array-specific dispatch
 function pick(x: unknown, globalThis: { Array: any }) {
   if (x instanceof globalThis.Array) {
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     return x.at(0);
   }
   return null;

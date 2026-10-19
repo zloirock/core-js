@@ -8,6 +8,7 @@ class C {
       Foo,
       Bar
     }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     captured = new Map.Foo();
   }
 }

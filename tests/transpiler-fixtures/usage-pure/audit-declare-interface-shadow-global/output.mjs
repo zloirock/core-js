@@ -9,3 +9,4 @@ interface Map {
 }
 const m = new _Map();
 m.has(1);
+export {};

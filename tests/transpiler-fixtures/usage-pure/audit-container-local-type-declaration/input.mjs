@@ -16,6 +16,7 @@ namespace NS {
 switch (k) {
   case 1:
     interface Cased { items: number[]; }
+    // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
     declare const local: Cased;
     cased = local.items.flat().length;
 }

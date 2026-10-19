@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
+import _Object$getOwnPropertyDescriptors from "@core-js/pure/actual/object/get-own-property-descriptors";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
@@ -64,11 +64,11 @@ for (const {
 }]!) _pushMaybeArray(out).call(out, viaNonNull);
 for (const {
   w: {
-    defineProperties: viaSatisfies
+    getOwnPropertyDescriptors: viaSatisfies
   }
 } of [{
   w: {
-    defineProperties: _Object$defineProperties
+    getOwnPropertyDescriptors: _Object$getOwnPropertyDescriptors
   }
 }] satisfies unknown) _pushMaybeArray(out).call(out, viaSatisfies);
 for (const item of [{
@@ -76,13 +76,6 @@ for (const item of [{
 }] as any) {
   const viaAsAnyMember = _Object$fromEntries;
   _pushMaybeArray(out).call(out, viaAsAnyMember);
-}
-for (const item of [{
-  w: Object
-}]) {
-  item.w = Array;
-  const viaParenWrittenSlot = item.w.assign;
-  _pushMaybeArray(out).call(out, viaParenWrittenSlot);
 }
 for (const _ref of [{
   w: e('a')

@@ -3,5 +3,6 @@
 // and a write to the discriminant after it drops the narrow as it would after the bare check.
 type Box = { kind: 'text'; data: string } | { kind: 'list'; data: number[] };
 export function alwaysTrue(box: Box) {
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   if (typeof Promise != 'undefined' || box.kind === 'text') return box.data.concat('d');
 }

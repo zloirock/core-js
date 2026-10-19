@@ -4,6 +4,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // TNext-typed Maybe would throw at runtime on the reassigned value
 function* gen(): Generator<number, void, number[]> {
   let items = yield 1;
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   items = 's';
   use(_atMaybeString(items).call(items, 0));
 }

@@ -3,4 +3,5 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 const arr = [1, 2, 3];
 const k1 = 'at';
 const k2 = k1;
+// @ts-expect-error a key read through a cast is the shape under test
 _atMaybeArray(arr).call(arr, 0);

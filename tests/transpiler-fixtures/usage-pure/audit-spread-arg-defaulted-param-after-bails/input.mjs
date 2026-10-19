@@ -4,4 +4,5 @@ declare const arr: string[];
 function f(a: unknown, b = [1, 2, 3]) {
   return b;
 }
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 f(...arr).at(0);

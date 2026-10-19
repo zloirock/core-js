@@ -11,5 +11,7 @@ function never(this: Window, x = [1, 2]) {
 function over(this: Window, y = [1, 2]) {
   return y.includes(1);
 }
+// @ts-expect-error a call that does not supply the declared this is the shape under test
 never();
+// @ts-expect-error a call that does not supply the declared this is the shape under test
 over("s");

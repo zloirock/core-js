@@ -6,6 +6,7 @@ declare function ambientFunction({ a, ...rest }: O): void;
 declare const { b, ...ambientBinding }: O;
 declare class AmbientClass { m({ c, ...rest }: O): void; }
 declare namespace AmbientNamespace { function f({ d, ...rest }: O): void; }
+// @ts-expect-error an ambient module declared from a module file is the shape under test
 declare module "ambient-module" { export function f({ e, ...rest }: O): void; }
 interface AmbientInterface { m({ f, ...rest }: O): void }
 type AmbientAlias = { m({ g, ...rest }: O): void };

@@ -21,6 +21,7 @@ export function after(val: unknown, rest: any[]) {
   return val.at(0);
 }
 export function before(val: unknown, rest: any[]) {
+  // @ts-expect-error a spread argument tsc cannot place is the shape under test
   assertOpts(...rest, val);
   return val.includes('a');
 }

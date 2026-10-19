@@ -972,9 +972,16 @@ export default function createPlugin(options) {
             const instantiation = optionalCallInstantiationCallee(path.node);
             if (!instantiation) return;
             // the decision applied as node surgery: the instantiation dissolves into
-            // the call's own type arguments and its operand becomes the callee
+            // the call's own type arguments and its operand takes its slot. the source parens
+            // around it stay - a comment the author wrote after them still has their span to trail
+            let holder = path.node;
+            let key = 'callee';
+            while (holder[key] !== instantiation) {
+              holder = holder[key];
+              key = 'expression';
+            }
             path.node.typeArguments = instantiation.typeArguments ?? instantiation.typeParameters;
-            path.node.callee = instantiation.expression;
+            holder[key] = instantiation.expression;
             astNormalized = true;
           },
         });

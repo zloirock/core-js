@@ -8,3 +8,4 @@ const {
   name
 }: Config = getConfig();
 name.at(0);
+export {};

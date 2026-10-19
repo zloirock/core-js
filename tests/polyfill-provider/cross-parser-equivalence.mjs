@@ -6,9 +6,13 @@
 // "two parsers picked different polyfill sets on the same source"
 import { transformAsync } from '@babel/core';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { createChecker } from './harness.mjs';
+import { createChecker, expectError, scenarioSource } from './harness.mjs';
 
 const { fail, finish, pass } = createChecker('cross-parser-equivalence');
+
+// what a generated row hands `expectError` for the line `tsc` rejects on purpose
+const ABSENT_MEMBER = 'the member read is the probe, and the right answer is a type without it';
+const REFUSED_MEMBER = 'an enum member tsc refuses is the shape under test';
 
 // extract sorted set of core-js polyfill paths from emitted code. matches any quoted
 // `core-js/...`, `core-js-pure/...`, or `@core-js/<scope>/...` literal regardless of
@@ -63,6 +67,7 @@ async function runEquivalence(label, source, pluginOptions, {
   parserOpts = {},
 } = {}) {
   const testId = inferTestId(parserPlugins);
+  scenarioSource(source, { extraPlugins: parserPlugins, label });
   // babel side: full pipeline with `@core-js/babel-plugin`. TS parser plugin enabled
   // by default since most parser-sensitive cases involve TS shapes
   const babelOptions = {
@@ -259,7 +264,8 @@ await runEquivalence('paren generic-container infer arg',
   'type Elem<T> = T extends Array<(infer U)> ? U[] : never; declare const a: Elem<number[][]>; a.at(0).at(0);',
   USAGE_PURE);
 await runEquivalence('paren keyof source must NOT defeat the passthrough capture guard',
-  'interface Src { t1: string } interface Other { t1: unknown; onlyInU: number[] } '
+  '// @ts-expect-error a mapped key indexing a type it may not key, and a member outside the key set, are the shape under test\n'
+    + 'interface Src { t1: string } interface Other { t1: unknown; onlyInU: number[] } '
     + 'type Cross<T, U> = { [K in keyof (T)]: U[K] }; declare const r: Cross<Src, Other>; r.onlyInU.at(0);',
   USAGE_PURE);
 await runEquivalence('paren index-signature key type',
@@ -502,19 +508,35 @@ await runEquivalence('deferred static + rest sibling keeps native slots',
 // initialised one, `merged` the bare member opening a second block, `direct` the member itself
 // the parenthesised forms matter for parser agreement specifically: oxc keeps the wrapper node
 // that babel strips at parse, so an unwrap missing on one side would diverge here and nowhere else
-const ENUM_INITIALISERS = ['1', '"x"', '1n', '1 + 2', '-1', '"a" + "b"', '1 > 2', '`t`', '(1 + 2)', '("x")'];
-for (const init of ENUM_INITIALISERS) {
+// `refused` - a bigint or boolean initialiser, which tsc refuses outright
+const ENUM_INITIALISERS = [
+  ['1', 'number'],
+  ['"x"', 'string'],
+  ['1n', 'refused'],
+  ['1 + 2', 'number'],
+  ['-1', 'number'],
+  ['"a" + "b"', 'string'],
+  ['1 > 2', 'refused'],
+  ['`t`', 'string'],
+  ['(1 + 2)', 'number'],
+  ['("x")', 'string'],
+];
+for (const [init, kind] of ENUM_INITIALISERS) {
+  // a bare member after a string one has no number to count on from, and only a string member has
+  // an `at` to read
+  const head = expectError(kind === 'refused' && REFUSED_MEMBER);
+  const read = expectError(kind !== 'string' && ABSENT_MEMBER);
   for (const [shape, source] of [
-    ['bare successor', `enum E { A = ${ init }, B }\nconst v = E.B;\nv.at(0);`],
-    ['bare opening a merged block', `enum E { A = ${ init } }\nenum E { B }\nconst v = E.B;\nv.at(0);`],
-    ['the initialised member itself', `enum E { A = ${ init } }\nconst v = E.A;\nv.at(0);`],
+    ['bare successor', `${ expectError(kind !== 'number' && REFUSED_MEMBER) }enum E { A = ${ init }, B }\nconst v = E.B;\n${ expectError(ABSENT_MEMBER) }v.at(0);`],
+    ['bare opening a merged block', `${ head }enum E { A = ${ init } }\nenum E { B }\nconst v = E.B;\n${ expectError(ABSENT_MEMBER) }v.at(0);`],
+    ['the initialised member itself', `${ head }enum E { A = ${ init } }\nconst v = E.A;\n${ read }v.at(0);`],
     // a QUOTED member name is an id shape only one parser reports as a string literal
-    ['a quoted member name', `enum E { "A" = ${ init } }\nconst v = E.A;\nv.at(0);`],
+    ['a quoted member name', `${ head }enum E { "A" = ${ init } }\nconst v = E.A;\n${ read }v.at(0);`],
   ]) {
     for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
       // A merged block starts at zero; numeric members cannot have an at method. Invalid
       // TS initializers are deliberately admitted here to compare conservative parser behavior.
-      const numeric = ['1', '1 + 2', '-1', '(1 + 2)'].includes(init);
+      const numeric = kind === 'number';
       const expectEmpty = shape === 'bare opening a merged block' || numeric
         || (init === '1n' && shape !== 'bare successor');
       await runEquivalence(`enum member kind: ${ init } -> ${ shape } [${ options.method }]`, source, options, { expectEmpty });
@@ -549,7 +571,10 @@ for (const [prelude, guard, union] of GUARD_FOLDS) {
 // own inferred return instead of the last head's
 for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
   await runEquivalence(`exported overload heads retarget the implementation [${ options.method }]`,
-    'export declare function fn(x: number): string;\nexport declare function fn(x: string): number[];\n'
+    '// @ts-expect-error ambient overload heads over a live implementation are the shape under test\n'
+    + 'export declare function fn(x: number): string;\n'
+    + '// @ts-expect-error ambient overload heads over a live implementation are the shape under test\n'
+    + 'export declare function fn(x: string): number[];\n'
     + 'export function fn(x: any) { return x; }\ndeclare const r: ReturnType<typeof fn>;\nr.at(0);', options);
 }
 

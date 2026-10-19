@@ -4,4 +4,5 @@ import "core-js/modules/es.error.cause";
 // call-shape filters to the static-method call's arguments - otherwise the injection flips on the
 // static method's arg count. A single-argument call must inject the same base constructor module.
 declare const o: object;
+// @ts-expect-error an engine static the lib does not declare is the read under test
 Error.captureStackTrace(o);

@@ -5,6 +5,7 @@
 export function viaRecoveredWrite(mk) {
   let x = [1, 2, 3];
   switch (mk(() => {
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     x = 'hello';
   })) {
     case 1: {

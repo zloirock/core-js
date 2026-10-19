@@ -3,6 +3,7 @@
 // the standard scope analyses do not expose. Covers the second TS-runtime form
 // (namespace, alongside the enum case in `audit-post-sweep-ts-enum-shadow`)
 function f() {
+  // @ts-expect-error a namespace below the top level is the shape under test
   namespace Map {
     export const x = 1;
   }

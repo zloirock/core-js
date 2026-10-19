@@ -6,6 +6,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function probe() {
   {
     type LocalArr = number[];
+    // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
     declare const x: LocalArr;
     _atMaybeArray(x).call(x, 0);
   }

@@ -7,6 +7,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 
 import type Map = require("./types");
 
+// @ts-expect-error a type-only import read as a value is the shape under test
 const m = new _Map();
 
 export { m };

@@ -8,6 +8,7 @@ class C {
   field = [1];
   m(s: string) {
     var _ref;
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     this.field! = s;
     return _at(_ref = this.field).call(_ref, 0);
   }

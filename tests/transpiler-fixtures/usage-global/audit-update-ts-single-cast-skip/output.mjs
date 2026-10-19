@@ -26,6 +26,8 @@ import "core-js/modules/web.dom-collections.iterator";
 if (false) {
   Map as any++;
   --Set as any;
+  // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
   Promise!++;
+  // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
   --WeakMap!;
 }

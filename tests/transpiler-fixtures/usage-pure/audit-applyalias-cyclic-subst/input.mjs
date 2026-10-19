@@ -1,5 +1,6 @@
 // `Self<T = T[]>` has a default that references its own type-param, forming a cycle.
 // Substitution must short-circuit on revisit, otherwise depth-bound recursion alone wastes work.
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Self<T = T[]> = { items: T };
 declare const r: Self;
 r.items.at(0);

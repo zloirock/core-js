@@ -9,6 +9,7 @@ function f(cond: boolean) {
       return null;
     };
   }
+  // @ts-expect-error a generic named without its type arguments is the shape under test
   let s: Set;
   return s;
 }

@@ -23,5 +23,5 @@ interface Promise {
 export type { Map };
 export { Promise, type Symbol };
 export const table = new globalThis.Map();
-export const pending = new globalThis.Promise(resolve => resolve());
+export const pending = new globalThis.Promise(resolve => resolve(undefined));
 export const tag = globalThis.Symbol('tag');

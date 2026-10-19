@@ -4,3 +4,4 @@ class Map {
 }
 let x: Map = new Map();
 x.get('k');
+export {};

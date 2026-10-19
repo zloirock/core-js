@@ -8,6 +8,7 @@ export function viaReassignedBackToArray() {
   {
     var restored = strSrc;
   }
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   restored = arrSrc;
   {
     return restored.at(0);
@@ -18,6 +19,7 @@ export function viaReassignedAfterBlock() {
   {
     var reassigned = arrSrc;
   }
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   reassigned = strSrc;
   {
     return reassigned.includes("x");

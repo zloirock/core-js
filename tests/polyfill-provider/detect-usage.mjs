@@ -126,7 +126,7 @@ import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js
 import { parse as babelParse } from '@babel/parser';
 import * as babelTypes from '@babel/types';
 import { types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
-import { babelAdapter, createChecker, findTypeNode } from './harness.mjs';
+import { babelAdapter, createChecker, expectError, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
 
@@ -774,7 +774,7 @@ runBoth('walkTypeAnnotationGlobals/typeof all-proxy chain surfaces every link',
 // property of the non-proxy `Array`, NOT the global Map - intentionally more precise than babel-plugin's
 // ReferencedIdentifier (which over-surfaces every segment). surfaces globalThis + Array, never Map
 runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy',
-  'let x: typeof globalThis.Array.Map;', (adapter, prog, lbl) => {
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nlet x: typeof globalThis.Array.Map;', (adapter, prog, lbl) => {
     const found = annotationGlobals(prog, 'TSTypeQuery');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
@@ -802,7 +802,7 @@ runBoth('walkTypeAnnotationGlobals/qualified type-only namespace stays silent',
 // the chain breaks at the non-proxy `Array`, so `Map` is its property type - surface globalThis + Array
 // but never the global Map (same precision as the typeof variant, on a type annotation)
 runBoth('walkTypeAnnotationGlobals/qualified non-proxy mid-chain stops at non-proxy',
-  'let x: globalThis.Array.Map<string, number>;', (adapter, prog, lbl) => {
+  '// @ts-expect-error a qualified type through a non-namespace is the shape under test\nlet x: globalThis.Array.Map<string, number>;', (adapter, prog, lbl) => {
     const found = annotationGlobals(prog, 'TSTypeReference');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
@@ -810,16 +810,17 @@ runBoth('walkTypeAnnotationGlobals/qualified non-proxy mid-chain stops at non-pr
 
 // a LOCAL binding named like a proxy global owns the qualified chain: `const self = {...}` makes
 // `self.Reflect` a member of the user's object, so no segment of it is a global. the sink's own
-// per-name filter cannot answer this - it is handed the promoted segment with no chain to judge
+// per-name filter cannot answer this - it is handed the promoted segment with no chain to judge.
+// a module, where the local `self` shadows the window's rather than colliding with it
 runBoth('walkTypeAnnotationGlobals/shadowed proxy root surfaces nothing',
-  'const self = { Reflect: 1 };\nlet x: self.Reflect;', (adapter, prog, lbl) => {
+  'export {};\nconst self = { Reflect: 1 };\nlet x: self.Reflect;', (adapter, prog, lbl) => {
     checkDeep(lbl, annotationGlobals(prog, 'TSTypeReference'), []);
   });
 
 // ... and the same shadow answers for a `typeof` query, whose root is a runtime binding: the
 // promotion is off, so only the root reaches the sink (which drops it as bound)
 runBoth('walkTypeAnnotationGlobals/shadowed proxy root in typeof surfaces only the root',
-  'const self = { Reflect: 1 };\nlet x: typeof self.Reflect;', (adapter, prog, lbl) => {
+  'export {};\nconst self = { Reflect: 1 };\nlet x: typeof self.Reflect;', (adapter, prog, lbl) => {
     checkDeep(lbl, annotationGlobals(prog, 'TSTypeQuery'), ['self']);
   });
 
@@ -2380,20 +2381,26 @@ function sealReadPure(name) {
   return name === 'globalThis' || name === 'self'
     ? { entry: `actual/${ name === 'self' ? 'self' : 'global-this' }`, hintName: name, kind: 'global' } : null;
 }
-for (const [variant, code, expected, parserPlugins] of [
+for (const [variant, code, expected, parserPlugins, rejected] of [
   ['seal below a plain read', '(globalThis.window?.self).self.box;', true],
   ['seal directly below the read', '(globalThis.window?.self).box;', true],
   ['seal below an OPTIONAL read', '(globalThis.window?.self)?.box;', false],
   ['seal over an always-defined value', '(q = globalThis).window?.self.box;', false],
   ['no seal at all', 'globalThis.window?.self.box;', false],
   ['cast-sealed plain read', '(globalThis.window?.self as any).self.box;', true, ['typescript']],
-  ['bare non-null keeps the chain open', 'globalThis.window?.self!.box;', false, ['typescript']],
+  [
+    'bare non-null keeps the chain open',
+    'globalThis.window?.self!.box;',
+    false,
+    ['typescript'],
+    'a realm member the lib does not declare stands for any global the user adds',
+  ],
   // the write hands its value on, so the seal observes exactly what the nav produced - the value
   // question reads THROUGH the assignment. the routing verdict deliberately does not: flipping it
   // globally strands a raw root in a guard memo, so the through-write reading is opt-in
   ['chain-assign under the `?.`', '((q = globalThis.window)?.self).self.box;', true],
 ]) {
-  runBoth(`chainReadsThroughSeal/${ variant }`, `let q; ${ code }`, (adapter, prog, lbl) => {
+  runBoth(`chainReadsThroughSeal/${ variant }`, `${ expectError(rejected) }let q; ${ code }`, (adapter, prog, lbl) => {
     function isBoxRead(p) {
       return p.node.property?.name === 'box';
     }
@@ -2861,7 +2868,12 @@ for (const [variant, code, expected] of [
 for (const [variant, code, expected] of [
   ['enum in a block', 'const M = Map; { enum M { groupBy = 1 } M.groupBy; }', null],
   ['enum in a function', 'const M = Map; function f() { enum M { groupBy = 1 } return M.groupBy; }', null],
-  ['namespace in a block', 'const M = Map; { namespace M { export const groupBy = 1; } M.groupBy; }', null],
+  [
+    'namespace in a block',
+    '// @ts-expect-error a namespace below the top level is the shape under test\n'
+    + 'const M = Map; { namespace M { export const groupBy = 1; } M.groupBy; }',
+    null,
+  ],
   ['a read outside the block', 'const M = Map; { enum M { A = 1 } } M.groupBy;', 'VariableDeclarator'],
 ]) runBoth(`nestedTSRuntimeShadow/${ variant }`, code, (adapter, prog, lbl) => {
   check(lbl, wrappedDeclarationType(adapter, prog, 'M', 'groupBy'), expected);
@@ -2997,7 +3009,9 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
   }
   // babel spells a class method `ClassMethod`, oxc `MethodDefinition` over a FunctionExpression -
   // the annotated parameter list is the same node either way
-  runBoth('checkTypeAnnotations/parameter property', 'class C { constructor(public m: Map<number>) {} }',
+  runBoth('checkTypeAnnotations/parameter property',
+    '// @ts-expect-error a generic named without its type arguments is the shape under test\n'
+    + 'class C { constructor(public m: Map<number>) {} }',
     (adapter, prog, lbl) => {
       checkDeep(lbl, slotGlobals(adapter, prog, adapter.name === 'babel' ? 'ClassMethod' : 'FunctionExpression'), ['Map']);
     });
@@ -3006,7 +3020,7 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
       checkDeep(lbl, slotGlobals(adapter, prog, 'TSDeclareFunction'), ['Set']);
     });
   runBoth('checkTypeAnnotations/return type and type parameters',
-    'declare function h<T extends Promise<number>>(): Reflect;', (adapter, prog, lbl) => {
+    '// @ts-expect-error the global namespace named as a type is the shape under test\ndeclare function h<T extends Promise<number>>(): Reflect;', (adapter, prog, lbl) => {
       checkDeep(lbl, slotGlobals(adapter, prog, 'TSDeclareFunction'), ['Promise', 'Reflect']);
     });
 }
@@ -3040,7 +3054,7 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
       const method = adapter.pickPath(prog, adapter.name === 'babel' ? 'ClassMethod' : 'FunctionExpression');
       check(lbl, annotationNameIsGlobal({ ...annotationWalkCtx(prog), path: method, name: 'WeakMap', hostType: 'TSTypeReference' }), false);
     });
-  runBoth('annotationNameIsGlobal/no parameter, the global', 'interface Plain { v: Reflect }',
+  runBoth('annotationNameIsGlobal/no parameter, the global', '// @ts-expect-error the global namespace named as a type is the shape under test\ninterface Plain { v: Reflect }',
     (adapter, prog, lbl) => {
       const host = adapter.pickPath(prog, 'TSInterfaceDeclaration');
       check(lbl, annotationNameIsGlobal({ ...annotationWalkCtx(prog), path: host, name: 'Reflect', hostType: 'TSTypeReference' }), true);

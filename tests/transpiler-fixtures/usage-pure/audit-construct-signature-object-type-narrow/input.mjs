@@ -14,4 +14,5 @@ export const b = new makeString().includes("x");
 
 type CallOnly = { (): number[] };
 declare const callOnly: CallOnly;
+// @ts-expect-error a function called with new is the shape under test
 export const c = new callOnly().flat();

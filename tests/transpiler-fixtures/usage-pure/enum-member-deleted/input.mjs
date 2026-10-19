@@ -2,6 +2,7 @@
 enum E {
   at = "at"
 }
+// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test
 delete E.at;
 E.__proto__ = Array.prototype;
 use(E.at);

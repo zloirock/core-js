@@ -13,4 +13,5 @@ const blockBody = (c: boolean) => {
 _flatMaybeArray(_ref2 = blockBody(true)).call(_ref2);
 // conflicting non-nullable branches still bail to the generic dispatcher
 const conflict = (c: boolean) => c ? arr : 's';
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 _includesMaybeArray(_ref3 = conflict(true)).call(_ref3, 1);

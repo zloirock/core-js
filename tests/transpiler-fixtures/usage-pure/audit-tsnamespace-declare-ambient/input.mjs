@@ -4,5 +4,6 @@
 declare namespace Promise {
   const X: number;
 }
+// @ts-expect-error the ambient declaration types the read for tsc alone, and the runtime reads the global
 const p = Promise.resolve(1);
 export { p };

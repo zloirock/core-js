@@ -4,4 +4,5 @@
 type Filter<T> = { [K in keyof T as K extends `abc` ? K : never]: T[K] };
 declare const r: Filter<{ abc: number[]; abcdef: string[] }>;
 r.abc.at(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.abcdef.includes('a');

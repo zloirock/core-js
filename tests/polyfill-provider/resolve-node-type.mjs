@@ -2,7 +2,7 @@
 // Cross-parser via shared harness: every snippet runs through BOTH babel (used by
 // babel-plugin) AND oxc (used by unplugin), so dispatch-shape regressions in either
 // adapter surface immediately
-import { adapters, createChecker, findNode } from './harness.mjs';
+import { adapters, createChecker, expectError, findNode } from './harness.mjs';
 import { transformSync as babelTransform } from '@babel/core';
 import { parseSync as parseSyncOxc } from 'oxc-parser';
 import {
@@ -186,6 +186,16 @@ import { symbolKeyToEntry } from '../../packages/core-js-polyfill-provider/detec
 
 const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree, throwsWith } = createChecker('resolve-node-type');
 
+// what a generated row hands `expectError` for the line `tsc` rejects on purpose
+const ABSENT_MEMBER = 'the member read is the probe, and the right answer is a type without it';
+const BARE_GENERIC = 'a generic named without its type arguments is the shape under test';
+const CROSSING_WRITE = 'the write crosses the declared or narrowed type on purpose, and the read sees the runtime value';
+const DYNAMIC_MEMBER = 'dynamic JS adds a member the literal type lacks';
+const HIGHER_KINDED = 'a higher-kinded application tsc refuses is the shape under test';
+const LITERAL_UNION_INDEX = 'an index signature keyed by a literal union is the shape under test';
+const MAPPED_KEY = 'a mapped key indexing a type it may not key is the shape under test';
+const UNDECLARED_THENABLE = 'tsc infers nothing through the Thenable a project declares and the lib does not';
+
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
 // fall back to that and corrupt the comparison. use `ctor` instead
@@ -307,7 +317,12 @@ for (const [name, source, expected] of [
   ['for-of head over the call', 'const f = () => ({ arr: [1] }); for (const { arr } of [f()]) arr.at(0);', 'Array'],
   ['block body, plain statements', 'function f() { const m = 1; return { arr: [m] }; } const { arr } = f(); arr.at(0);', 'Array'],
   ['branching body stays generic', 'function f(c) { if (c) return { arr: "s" }; return { arr: [1] }; } const { arr } = f(c); arr.at(0);', null],
-  ['declared return type stays the declaration', 'const f = (): { arr: unknown } => ({ arr: [1] }); const { arr } = f(); arr.at(0);', null],
+  [
+    'declared return type stays the declaration',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'const f = (): { arr: unknown } => ({ arr: [1] }); const { arr } = f(); arr.at(0);',
+    null,
+  ],
 ]) runBoth(`call-yielded literal member type/${ name }`, source, (adapter, prog, lbl) => {
   const at = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
   const type = adapter.makeResolver().resolveNodeType(at.get('object'));
@@ -375,7 +390,8 @@ runBoth('aliased const binding -> Array', 'const a = []; const b = a;', (adapter
 // which must win over the annotation (matches the runtime value the polyfill sees).
 
 runBoth('shadowed `undefined` init is a real value - wins over the annotation',
-  'let undefined = [1, 2];\nlet x: string = undefined;\nx.at(0);',
+  '// @ts-expect-error a binding named undefined is the shape under test\nlet undefined = [1, 2];\n'
+  + '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\nlet x: string = undefined;\nx.at(0);',
   (adapter, prog, lbl) => {
     const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
     checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
@@ -1034,6 +1050,16 @@ runBoth('keyof-self union: homogeneous containers still narrow',
     checkType(lbl, resolver.resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
   });
 
+runBoth('keyof-self union: a type parameter outranks the declaration its name shadows',
+  `interface T { [k: string]: number[] }
+   function f<T extends { [k: string]: string }>(v: T[keyof T]) {
+     const r = v;
+   }`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
 // --- Member-access object-type resolution (`resolvePropertyObjectType`) ---
 
 runBoth('member object type: [].length -> Array',
@@ -1334,12 +1360,12 @@ runBoth('TS conditional: an elided extends inner decides no branch either',
 // before still decides one. The extends sides below all resolve to an inner-less container, and the
 // unparameterised / all-top spellings among them constrain no inner at all - they keep matching
 // whatever the check carries, exactly as `Array<any>` does in TS
-for (const [what, checkSide, extendSide, trueBranch] of [
+for (const [what, checkSide, extendSide, trueBranch, rejected] of [
   ['concrete inners that agree', 'Array<string>', 'Array<string>', true],
   ['concrete inners that differ', 'Array<string>', 'Array<number>', false],
   ['nested concrete inners that agree', 'Array<Array<string>>', 'Array<Array<string>>', true],
   ['nested concrete inners that differ', 'Array<Array<string>>', 'Array<Array<number>>', false],
-  ['an unparameterised extends side', 'Array<string>', 'Array', true],
+  ['an unparameterised extends side', 'Array<string>', 'Array', true, BARE_GENERIC],
   ['an `any` argument on the extends side', 'Array<string>', 'Array<any>', true],
   ['an `unknown` argument on the extends side', 'Array<string>', 'Array<unknown>', true],
   ['an `any[]` extends side', 'Array<string>', 'any[]', true],
@@ -1349,7 +1375,7 @@ for (const [what, checkSide, extendSide, trueBranch] of [
   ['a primitive extends side', 'Array<string>', 'string', false],
 ]) {
   runBoth(`TS conditional: ${ what } still picks a branch`,
-    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    `${ expectError(rejected) }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
@@ -1422,7 +1448,7 @@ runBoth('TS conditional: a shorthand pair spelled directly picks the false branc
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
   }, ['typescript']);
 runBoth('TS conditional: a bare check against a substituted shorthand extends decides no branch',
-  'type Sel<T> = T extends { b: number }[] ? number[] : string;\ndeclare const v: Array;\n'
+  'type Sel<T> = T extends { b: number }[] ? number[] : string;\n// @ts-expect-error a generic named without its type arguments is the shape under test\ndeclare const v: Array;\n'
   + 'declare const r: Sel<typeof v>;\nconst x = r;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
@@ -1433,7 +1459,7 @@ runBoth('TS conditional: a bare check against a substituted shorthand extends de
 // annotation: an array literal whose elements do not fold, a generator whose yield type nothing
 // resolved, and a registry directive that names a container without naming its element. A family
 // with no element slot at all (`Date`) is not confessing anything - its absence IS agreement
-for (const [what, pre, subject, extendSide, want] of [
+for (const [what, pre, subject, extendSide, want, rejected] of [
   ['two array literals whose elements do not fold', "const la = [1, 'x'];\nconst lb = [true, 1];\n", 'la', 'typeof lb', 'none'],
   ['an array literal against a written element', "const la = [1, 'x'];\n", 'la', 'number[]', 'none'],
   ['an EMPTY array literal against a written element', 'const la = [];\n', 'la', 'number[]', 'none'],
@@ -1447,10 +1473,10 @@ for (const [what, pre, subject, extendSide, want] of [
   ['two results of the constructor CALL form', 'const ca = Array(3);\nconst cb = Array(2);\n', 'ca', 'typeof cb', 'true'],
   ['a directive that names its element', 'declare const oa: { a: 1 };\nconst ka = Object.keys(oa);\n', 'ka', 'string[]', 'true'],
   ['a family with no element slot at all', 'const da = new Date();\n', 'da', 'Date', 'true'],
-  ['the BARE container shorthand, which really does constrain nothing', 'declare const sa: Set<string>;\n', 'sa', 'Set', 'true'],
+  ['the BARE container shorthand, which really does constrain nothing', 'declare const sa: Set<string>;\n', 'sa', 'Set', 'true', BARE_GENERIC],
 ]) {
   runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
-    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\n${ pre }`
+    `${ expectError(rejected) }type Sel<T> = T extends ${ extendSide } ? number[] : string;\n${ pre }`
     + `declare const r: Sel<typeof ${ subject }>;\nconst x = r;`,
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
@@ -1902,7 +1928,7 @@ for (const [what, decls, checkSide, extendSide] of [
 // every other. The list is compared position by position instead, through the same decider the
 // outermost pair goes through: one definite mismatch sinks the relation whatever the rest say, and
 // a member with no Type form of its own is a HOLE the other positions still decide around.
-for (const [what, decls, checkSide, extendSide, trueBranch] of [
+for (const [what, decls, checkSide, extendSide, trueBranch, rejected] of [
   ['agree', '', 'Map<string, number>', 'Map<string, number>', true],
   ['differ in the value', '', 'Map<string, boolean>', 'Map<string, number>', false],
   ['differ in the key', '', 'Map<number, boolean>', 'Map<string, boolean>', false],
@@ -1912,14 +1938,15 @@ for (const [what, decls, checkSide, extendSide, trueBranch] of [
   ['pair a wide value with a narrower literal', '', 'Map<string, string>', 'Map<string, "a">', false],
   ['pair a readonly value with its mutable form', '', 'Map<string, ReadonlyArray<number>>', 'Map<string, Array<number>>', false],
   ['are written all-top on the extends side', '', 'Map<string, number>', 'Map<any, any>', true],
-  ['are written on neither side', '', 'Map', 'Map', true],
+  ['are written on neither side', '', 'Map', 'Map', true, BARE_GENERIC],
   ['differ in the key beside a hole', '', 'Map<number, { a: 1 }>', 'Map<string, { b: 2 }>', false],
   ['differ in the value beside a hole', '', 'WeakMap<{ a: 1 }, number>', 'WeakMap<{ a: 1 }, string>', false],
   ['differ beside a hole inside a container', '', 'Array<Map<number, { a: 1 }>>', 'Array<Map<string, { b: 2 }>>', false],
   ['differ in the key beside an `any` value', '', 'Map<number, any>', 'Map<string, any>', false],
 ]) {
   runBoth(`TS conditional: written parameters that ${ what } pick the branch tsc picks`,
-    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    `${ decls }${ expectError(rejected) }type Sel<T> = T extends ${ extendSide } ? number[] : string;\n${ expectError(rejected) }declare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
@@ -1980,18 +2007,19 @@ runBoth('TS conditional: a fold of Maps with agreeing parameters still picks a b
 // `object` keyword (one type, not a box), the boxed top reached THROUGH a container - which spells
 // itself constructor-null and so reads as a family mismatch against the box - and a container
 // whose arguments were never written, where nothing was dropped to begin with
-for (const [what, decls, checkSide, extendSide, trueBranch] of [
+for (const [what, decls, checkSide, extendSide, trueBranch, rejected] of [
   ['a concrete container element', '', 'Array<Date>', 'Array<Date>', true],
   ['the lowercase object keyword', '', 'Array<object>', 'Array<object>', true],
   ['a box against the boxed top', 'interface A { a: string }\n', 'Array<A>', 'Array<Object>', true],
   ['a primitive against the boxed top', '', 'Array<string>', 'Array<Object>', true],
   ['a box against a disjoint primitive', 'interface A { a: string }\n', 'Array<A>', 'Array<string>', false],
-  ['containers with no written arguments', '', 'Map', 'Map', true],
+  ['containers with no written arguments', '', 'Map', 'Map', true, BARE_GENERIC],
   ['tuple elements that fold to one type', '', 'Array<[string, string]>', 'Array<[string, string]>', true],
   ['empty tuples', '', 'Array<[]>', 'Array<[]>', true],
 ]) {
   runBoth(`TS conditional: ${ what } still picks a branch`,
-    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    `${ decls }${ expectError(rejected) }type Sel<T> = T extends ${ extendSide } ? number[] : string;\n${ expectError(rejected) }declare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
@@ -2125,7 +2153,7 @@ for (const [what, checkSide, extendSide, want] of [
 // resolved value, and an AST node in the element slot poisons every reader below it. The slot holds a
 // resolved type or a hint string and nothing else, so the container CONFESSES the absence instead
 runBoth('TS annotation: a cyclic type-param default leaves the element confessed, not the annotation',
-  'type Self<T = T[]> = { items: T };\ndeclare const r: Self;\nconst x = r.items;',
+  '// @ts-expect-error a cyclic type tsc refuses is the shape under test\ntype Self<T = T[]> = { items: T };\ndeclare const r: Self;\nconst x = r.items;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
     const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
@@ -2290,7 +2318,7 @@ runBoth('`Readonly<number[]>` still binds U against a non-mutable-array family (
 // FALSE; the REVERSE direction (a mutable check against a readonly pattern) still binds U because a
 // mutable collection IS assignable to its readonly view
 runBoth('readonly check against a bare (type-arg-less) `Array` pattern picks FALSE',
-  'type T = readonly number[] extends Array ? number[] : string; let r: T;',
+  '// @ts-expect-error a generic named without its type arguments is the shape under test\ntype T = readonly number[] extends Array ? number[] : string; let r: T;',
   (adapter, prog, lbl) => {
     const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
     checkType(lbl, type, { primitive: true, kind: 'string' });
@@ -2377,7 +2405,7 @@ for (const [label, ctor, resolvedCtor, wantInnerKind] of [
   ['ReadonlyMap drops the key from inner', 'ReadonlyMap', 'Map', null],
 ]) {
   runBoth(`HKT Wrap<${ ctor }, string> element-precision: ${ label }`,
-    `type Wrap<F, X> = F<X>; declare const m: Wrap<${ ctor }, string>;`,
+    `${ expectError(HIGHER_KINDED) }type Wrap<F, X> = F<X>; declare const m: Wrap<${ ctor }, string>;`,
     (adapter, prog, lbl) => {
       const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
       check(`${ lbl } ctor`, type?.constructor, resolvedCtor);
@@ -2656,6 +2684,7 @@ runBoth('discriminant union: decimal bigint guard narrows decimal bigint member'
 runBoth('discriminant union: bigint guard does not narrow same-digit number member',
   `
     type U = { kind: 1; x: string } | { kind: 2; x: number[] };
+    // @ts-expect-error a guard comparing a number discriminant with a bigint is the shape under test
     function f(u: U) { if (u.kind === 1n) { return u.x; } }
   `,
   (adapter, prog, lbl) => {
@@ -3080,6 +3109,7 @@ runBoth('capture-avoidance: generic-interface collider -> safe under-resolve (no
   `
     interface G<T> { rows(): string[]; }
     interface Wrap<G, Q> { item: Q; }
+    // @ts-expect-error a generic named without its type arguments is the shape under test
     declare const w: Wrap<string, G>;
     const y = w.item.rows();
   `,
@@ -3184,6 +3214,7 @@ for (const [label, src] of [
 // must TERMINATE and yield no type (generic degrade) - it used to loop forever (build DoS)
 runBoth('cyclic HKT alias body terminates with no type',
   `
+    // @ts-expect-error a higher-kinded application tsc refuses is the shape under test
     type Apply<F> = F<0>;
     function foo<F>(x: Apply<F>) { return x; }
   `,
@@ -3209,7 +3240,9 @@ runBoth('generic indexed-access return with parenthesized type-param index',
 
 runBoth('HKT alias self-application terminates with no type',
   `
+    // @ts-expect-error a higher-kinded application tsc refuses is the shape under test
     type Apply<F> = F<0>;
+    // @ts-expect-error a generic named without its type arguments is the shape under test
     function h(x: Apply<Apply>) { return x; }
   `,
   (adapter, prog, lbl) => {
@@ -3223,8 +3256,10 @@ runBoth('HKT alias self-application terminates with no type',
 // selection + resolution path yields a real type when the chain is productive)
 runBoth('productive HKT splice still resolves through the param',
   `
+    // @ts-expect-error a higher-kinded application tsc refuses is the shape under test
     type Wrap<F, X> = F<X>;
     type Boxed<T> = T[];
+    // @ts-expect-error a generic named without its type arguments is the shape under test
     function f(x: Wrap<Boxed, string>) { return x; }
   `,
   (adapter, prog, lbl) => {
@@ -3442,16 +3477,25 @@ runBoth('utility: ReturnType<() => number[]> -> Array',
 // signature-local `<T>` must be shadowed first, or the enclosing subst captures it and a bare T re-binds to
 // the receiver's concrete arg -> a foreign-type Maybe helper that throws on the real return at ie:11
 for (const [variant, code] of [
-  ['class method same-named <T> (resolveReturnType)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\nc.take(n).at(0);'],
-  ['ReturnType<Fn<...>> alias fn-type <T>', 'type Fn<T> = <T>(x: T) => T;\ndeclare const r: ReturnType<Fn<string[]>>;\nr.at(0);'],
-  ['fn-type property <T> (member-call annotation)', 'type Box<T> = { take: <T>(x: T) => T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb.take(n).at(0);'],
-  ['interface method same-named <T>', 'interface Box<T> { take<T>(x: T): T }\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb.take(n).at(0);'],
-  ['indexed-access into alias method <T>', 'type Box<T> = { take<T>(x: T): T };\ndeclare const f: Box<string[]>["take"];\ndeclare const n: number;\nf(n).at(0);'],
-  ['ReturnType<Fn> structural-return member (getTypeMembers path)', 'type Fn<T> = <T>() => { x: T };\ndeclare const r: ReturnType<Fn<string[]>>;\nr.x.at(0);'],
-  ['standalone generic fn<T>(): T', 'declare function f<T>(): T;\nf().at(0);'],
-  ['async <T>(): Promise<T> awaited', 'declare class C<T> { take<T>(x: T): Promise<T>; }\ndeclare const c: C<string[]>;\nasync function g() { (await c.take(1)).at(0); }'],
-  ['generic call signature { <T>(x: T): T }', 'type Box<T> = { <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb(n).at(0);'],
-  ['generic construct signature { new <T>(x: T): T }', 'type Box<T> = { new <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nnew b(n).at(0);'],
+  ['class method same-named <T> (resolveReturnType)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nc.take(n).at(0);'],
+  ['ReturnType<Fn<...>> alias fn-type <T>', 'type Fn<T> = <T>(x: T) => T;\ndeclare const r: ReturnType<Fn<string[]>>;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nr.at(0);'],
+  ['fn-type property <T> (member-call annotation)', 'type Box<T> = { take: <T>(x: T) => T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nb.take(n).at(0);'],
+  ['interface method same-named <T>', 'interface Box<T> { take<T>(x: T): T }\ndeclare const b: Box<string[]>;\ndeclare const n: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nb.take(n).at(0);'],
+  ['indexed-access into alias method <T>', 'type Box<T> = { take<T>(x: T): T };\ndeclare const f: Box<string[]>["take"];\ndeclare const n: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nf(n).at(0);'],
+  ['ReturnType<Fn> structural-return member (getTypeMembers path)', 'type Fn<T> = <T>() => { x: T };\ndeclare const r: ReturnType<Fn<string[]>>;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nr.x.at(0);'],
+  ['standalone generic fn<T>(): T', 'declare function f<T>(): T;\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\nf().at(0);'],
+  ['async <T>(): Promise<T> awaited', 'declare class C<T> { take<T>(x: T): Promise<T>; }\ndeclare const c: C<string[]>;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nasync function g() { (await c.take(1)).at(0); }'],
+  ['generic call signature { <T>(x: T): T }', 'type Box<T> = { <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nb(n).at(0);'],
+  ['generic construct signature { new <T>(x: T): T }', 'type Box<T> = { new <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nnew b(n).at(0);'],
   ['unresolvable call-arg falls back to unknown (no capture)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\nc.take(globalThis.zz).at(0);'],
 ]) {
   runBoth(`signature-local <T> shadows enclosing subst: ${ variant }`, code, (adapter, prog, lbl) => {
@@ -3467,7 +3511,7 @@ for (const [variant, code] of [
   ['non-generic method returns the class T (real array)', 'declare class C<T> { get(): T; }\ndeclare const c: C<string[]>;\nc.get().at(0);'],
   ['alias-level T (no signature-local <T>) IS the structural return type', 'type Fn<T> = () => { x: T };\ndeclare const r: ReturnType<Fn<number[][]>>;\nr.x.at(0);'],
   ['constrained <T extends any[]> narrows via its array call-arg', 'declare class C<T> { take<T extends any[]>(x: T): T; }\ndeclare const c: C<string>;\nc.take([1, 2, 3]).at(0);'],
-  ['multi-param: class U return survives the <T> shadow', 'declare class C<T, U> { take<T>(): U; }\ndeclare const c: C<string, number[][]>;\nc.take(0).at(0);'],
+  ['multi-param: class U return survives the <T> shadow', 'declare class C<T, U> { take<T>(): U; }\ndeclare const c: C<string, number[][]>;\nc.take().at(0);'],
   ['same-named <T> narrows via an array call-arg (call-site, not capture)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string>;\nc.take([1, 2, 3]).at(0);'],
   ['method <U> returning the class T keeps the real array narrow', 'declare class C<T> { m<U>(x: U): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\nc.m(n).at(0);'],
   ['defaulted <T = string[]> narrows to its default array', 'declare class C<T> { take<T = string[]>(): T; }\ndeclare const c: C<number>;\nc.take().at(0);'],
@@ -3506,7 +3550,8 @@ runBoth('utility: ConstructorParameters<typeof C>[0] walks two ambient declare-c
 // no constructor anywhere in the ambient chain: the walk must terminate gracefully (null), not
 // loop or throw - guards the fallback's depth-bounded termination on both parsers
 runBoth('utility: ConstructorParameters<typeof C>[0] with no ctor in ambient chain -> null',
-  'declare class A {}\ndeclare class B extends A {}\nclass C extends B {}\nlet x: ConstructorParameters<typeof C>[0];',
+  'declare class A {}\ndeclare class B extends A {}\nclass C extends B {}\n// @ts-expect-error an index past an empty tuple is the shape under test\n'
+  + 'let x: ConstructorParameters<typeof C>[0];',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
     const resolver = adapter.makeResolver();
@@ -3785,14 +3830,14 @@ runBoth('type member via computed const key resolves the folded name',
 // TS permits a computed type-member key only when the binding is a string-literal (or unique-symbol)
 // type: a value-less `declare const` reads its literal from the type annotation, and an `as const`
 // init peels to its literal. a unique-symbol / non-literal-typed binding is not a foldable string key
-for (const [label, decl, want] of [
+for (const [label, decl, want, rejected] of [
   ['declare const literal type', 'declare const k: "len";', true],
   ['as const init', 'const k = "len" as const;', true],
   ['annotated literal init', 'const k: "len" = "len";', true],
-  ['unique symbol (bails)', 'declare const k: unique symbol;', false],
+  ['unique symbol (bails)', 'declare const k: unique symbol;', false, ABSENT_MEMBER],
 ]) {
   runBoth(`type member keyed by ${ label }`,
-    `${ decl }\ntype T = { [k]: number[] };\ndeclare const t: T;\nconst x = t.len;`,
+    `${ decl }\ntype T = { [k]: number[] };\ndeclare const t: T;\n${ expectError(rejected) }const x = t.len;`,
     (adapter, prog, lbl) => {
       const ds = adapter.collectPaths(prog, 'VariableDeclarator');
       const type = adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init'));
@@ -3805,6 +3850,7 @@ runBoth('type member computed const key does not spuriously match the key identi
     const k = "len";
     type T = { [k]: number[] };
     declare const t: T;
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     const x = t.k;
   `,
   (adapter, prog, lbl) => {
@@ -4079,7 +4125,7 @@ runBoth('isString on TemplateLiteral',
 // --- Type alias self-reference (must not infinite loop) ---
 
 runBoth('Self-referential alias terminates: type X = X; let v: X;',
-  'type X = X; let v: X;',
+  '// @ts-expect-error a cyclic type tsc refuses is the shape under test\ntype X = X; let v: X;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const resolver = adapter.makeResolver();
@@ -4167,11 +4213,11 @@ const ENUM_BAIL_CASES = [
   // a bare member after a NON-numeric one is only reachable through non-type-checked input, and the
   // emitters disagree on what it then holds - babel refuses the enum outright, swc leaves the member
   // `undefined`. neither is an enum value kind, so all of these stay opaque instead of assuming number
-  { label: 'bare after string', src: 'enum E { A = "x", B } const v = E.B;' },
-  { label: 'bare after string, two hops', src: 'enum E { A = "x", B, C } const v = E.C;' },
-  { label: 'bare after bigint', src: 'enum E { A = 1n, B } const v = E.B;' },
-  { label: 'bare after unclassified predecessor', src: 'enum E { A = 1 > 2, B } const v = E.B;' },
-  { label: 'bare successor of a quoted string member', src: 'enum E { "A" = "x", B } const v = E.B;' },
+  { label: 'bare after string', src: '// @ts-expect-error an enum member tsc refuses is the shape under test\nenum E { A = "x", B } const v = E.B;' },
+  { label: 'bare after string, two hops', src: '// @ts-expect-error an enum member tsc refuses is the shape under test\nenum E { A = "x", B, C } const v = E.C;' },
+  { label: 'bare after bigint', src: '// @ts-expect-error an enum member tsc refuses is the shape under test\nenum E { A = 1n, B } const v = E.B;' },
+  { label: 'bare after unclassified predecessor', src: '// @ts-expect-error an enum member tsc refuses is the shape under test\nenum E { A = 1 > 2, B } const v = E.B;' },
+  { label: 'bare successor of a quoted string member', src: '// @ts-expect-error an enum member tsc refuses is the shape under test\nenum E { "A" = "x", B } const v = E.B;' },
 ];
 
 for (const { label, src } of ENUM_BAIL_CASES) {
@@ -4234,7 +4280,7 @@ for (const { label, checked, extend, taken } of BOXED_WRAPPER_CASES) {
   runBoth(`conditional boxed wrapper: ${ label } -> ${ taken ? 'true' : 'false' } branch`,
     `type C<T> = T extends ${ extend } ? number[] : Set<number>;
      declare const v: C<${ checked }>;
-     v.at(0);`,
+     ${ taken ? '' : expectError(ABSENT_MEMBER) }v.at(0);`,
     (adapter, prog, lbl) => {
       checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: taken ? 'Array' : 'Set' });
     });
@@ -4245,6 +4291,7 @@ for (const { label, checked, extend, taken } of BOXED_WRAPPER_CASES) {
 runBoth('conditional wide extends: string / object takes the false branch',
   `type C<T> = T extends object ? number[] : Set<number>;
    declare const v: C<string>;
+   // @ts-expect-error the member read is the probe, and the right answer is a type without it
    v.at(0);`,
   (adapter, prog, lbl) => {
     checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Set' });
@@ -4294,12 +4341,13 @@ for (const [position, decl, read] of NESTED_POSITIONS) {
       checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
     });
   runBoth(`mapped key inside the source set ${ position }`,
-    `type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: number[] }>') }\n${ read }.a.at(0);`,
+    `${ expectError(MAPPED_KEY) }type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: number[] }>') }\n${ read }.a.at(0);`,
     (adapter, prog, lbl) => {
       checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
     });
   runBoth(`mapped key outside the source set ${ position }`,
-    `type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: unknown; extra: number[] }>') }\n${ read }.extra.at(0);`,
+    `${ expectError(MAPPED_KEY) }type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: unknown; extra: number[] }>') }\n`
+    + `${ expectError(ABSENT_MEMBER) }${ read }.extra.at(0);`,
     (adapter, prog, lbl) => {
       const resolved = annotatedReceiverType(adapter, prog);
       if (resolved?.constructor === 'Array') return fail(lbl, 'a key outside the mapped key-set resolved');
@@ -4312,13 +4360,23 @@ for (const [position, decl, read] of NESTED_POSITIONS) {
 // anything structural by node - so a cross-type projection falls through to the per-key expansion
 const MAPPED_PASSTHROUGH_CASES = [
   { label: 'ref source indexed by the same ref', src: 'type M<T> = { [K in keyof T]: T[K] }; declare const v: M<{ a: number[] }>;', ctor: 'Array' },
-  { label: 'literal source indexed by a ref', src: 'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: number[] }>;', ctor: 'Array' },
+  {
+    label: 'literal source indexed by a ref',
+    src: 'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: number[] }>;',
+    ctor: 'Array',
+    rejected: MAPPED_KEY,
+  },
   { label: 'literal source, same structural body', src: 'type M = { [K in keyof { a: unknown }]: { a: number[] }[K] }; declare const v: M;', ctor: 'Array' },
-  { label: 'cross-type projection keeps the source keys', src: 'type M<A, B> = { [K in keyof A]: B[K] }; declare const v: M<{ a: unknown }, { a: number[] }>;', ctor: 'Array' },
+  {
+    label: 'cross-type projection keeps the source keys',
+    src: 'type M<A, B> = { [K in keyof A]: B[K] }; declare const v: M<{ a: unknown }, { a: number[] }>;',
+    ctor: 'Array',
+    rejected: MAPPED_KEY,
+  },
 ];
 
-for (const { label, src, ctor } of MAPPED_PASSTHROUGH_CASES) {
-  runBoth(`mapped passthrough: ${ label }`, `${ src } v.a.at(0);`, (adapter, prog, lbl) => {
+for (const { label, src, ctor, rejected } of MAPPED_PASSTHROUGH_CASES) {
+  runBoth(`mapped passthrough: ${ label }`, `${ expectError(rejected) }${ src } v.a.at(0);`, (adapter, prog, lbl) => {
     checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor });
   });
 }
@@ -4327,7 +4385,8 @@ for (const { label, src, ctor } of MAPPED_PASSTHROUGH_CASES) {
 // resolve - the negative half of the table above, and the direction the passthrough shortcut used
 // to get wrong
 runBoth('mapped passthrough: a key outside the source key-set does not resolve',
-  'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: unknown; extra: number[] }>; v.extra.at(0);',
+  '// @ts-expect-error a mapped key indexing a type it may not key is the shape under test\n'
+  + 'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: unknown; extra: number[] }>; v.extra.at(0);',
   (adapter, prog, lbl) => {
     const resolved = annotatedReceiverType(adapter, prog);
     if (resolved && resolved.constructor === 'Array') {
@@ -4346,8 +4405,11 @@ for (const [label, src, expected] of [
     'export {}; type String = number[]; declare const v: String; v.at(0);', 'Array'],
   ['Array alias resolves through its string body',
     'export {}; type Array = string; declare const v: Array; v.at(0);', 'string'],
-  ['an opaque String alias stays unresolved',
-    'export {}; type String = unknown; declare const v: String; v.at(0);', null],
+  [
+    'an opaque String alias stays unresolved',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nexport {}; type String = unknown; declare const v: String; v.at(0);',
+    null,
+  ],
   ['a nested String type argument resolves through its alias body',
     'export {}; type String = number[]; type Box<T> = { value: T }; declare const v: Box<String>; v.value.at(0);', 'Array'],
   ['a function-scoped String alias wins at the local use',
@@ -4369,8 +4431,18 @@ for (const [label, src, expected] of [
 // opaque, not the built-in container. only a single-segment reference can be shadowed, and a name
 // that matches no global has nothing to shadow
 const TYPE_PARAM_SHADOW_CASES = [
-  { label: 'parameter named Array shadows the container', src: 'function f<Array>(v: Array) { v.at(0); }', shadowed: true },
-  { label: 'parameter named Set shadows the container', src: 'function f<Set>(v: Set) { v.at(0); }', shadowed: true },
+  {
+    label: 'parameter named Array shadows the container',
+    src: '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(v: Array) { v.at(0); }',
+    shadowed: true,
+  },
+  {
+    label: 'parameter named Set shadows the container',
+    src: '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Set>(v: Set) { v.at(0); }',
+    shadowed: true,
+  },
   { label: 'qualified reference cannot be shadowed', src: 'namespace NS { export type Array = number[]; } function f<Array>(v: NS.Array) { v.at(0); }', shadowed: false },
   { label: 'unshadowed container resolves', src: 'function f(v: Array<number>) { v.at(0); }', shadowed: false },
   { label: 'constrained ordinary parameter still resolves', src: 'function f<T extends number[]>(v: T) { v.at(0); }', shadowed: false },
@@ -4380,14 +4452,25 @@ const TYPE_PARAM_SHADOW_CASES = [
   { label: 'constrained parameter named Set resolves via its constraint', src: 'function f<Set extends number[]>(v: Set) { v.at(0); }', shadowed: false },
   // the same shadow through the positions a type-ref can occupy - a return annotation and a
   // generic alias argument reach the resolver by different lanes than a parameter annotation
-  { label: 'shadow in a return annotation', src: 'declare const q: any;\nfunction f<Array>(x: any): Array { return x; }\nconst r = f(q);\nr.at(0);', shadowed: true },
+  {
+    label: 'shadow in a return annotation',
+    src: 'declare const q: any;\nfunction f<Array>(x: any): Array { return x; }\nconst r = f(q);\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nr.at(0);',
+    shadowed: true,
+  },
   { label: 'shadow in a generic alias argument', src: 'type W<Array> = Array;\ndeclare const r: W<any>;\nr.at(0);', shadowed: true },
   // the type-ARGUMENT position resolves through the substitution lane, where the parameter map
   // holds the ALIAS's own parameters and not the caller's - the bound-parameter check there does
   // not see the shadow, so the container lookup needs the same guard as the plain lane
-  { label: 'shadow in a type-argument position', src: 'type Outer<T> = { inner: T };\nfunction f<Array>(x: Outer<Array>) { x.inner.at(0); }', shadowed: true },
+  {
+    label: 'shadow in a type-argument position',
+    src: 'type Outer<T> = { inner: T };\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: Outer<Array>) { x.inner.at(0); }',
+    shadowed: true,
+  },
   { label: 'shadow in a nested type-argument position',
-    src: 'type Outer<T> = { inner: { deep: T } };\nfunction f<Array>(x: Outer<Array>) { x.inner.deep.at(0); }',
+    src: 'type Outer<T> = { inner: { deep: T } };\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+      + 'function f<Array>(x: Outer<Array>) { x.inner.deep.at(0); }',
     shadowed: true },
   { label: 'a real container in the same argument position resolves', src: 'type Outer<T> = { inner: T };\ndeclare const x: Outer<number[]>;\nx.inner.at(0);', shadowed: false },
 ];
@@ -4397,16 +4480,60 @@ const TYPE_PARAM_SHADOW_CASES = [
 // container, so a position that stopped resolving at all would fail the control rather than pass
 // the shadow by accident
 const SHADOW_POSITIONS = [
-  ['array element', 'function f<Array>(x: Array[]) { x[0].at(0); }', 'declare const x: number[][];\nx[0].at(0);'],
-  ['tuple element', 'function f<Array>(x: [Array]) { x[0].at(0); }', 'declare const x: [number[]];\nx[0].at(0);'],
-  ['union member', 'function f<Array>(x: Array | Array) { x.at(0); }', 'declare const x: number[] | number[];\nx.at(0);'],
-  ['intersection member', 'type Tag = { t: 1 };\nfunction f<Array>(x: Array & Tag) { x.at(0); }',
-    'type Tag = { t: 1 };\ndeclare const x: number[] & Tag;\nx.at(0);'],
-  ['object-type member', 'function f<Array>(x: { i: Array }) { x.i.at(0); }', 'declare const x: { i: number[] };\nx.i.at(0);'],
-  ['conditional branch', 'function f<Array>(x: 1 extends 1 ? Array : string) { x.at(0); }', 'declare const x: 1 extends 1 ? number[] : string;\nx.at(0);'],
-  ['mapped body', 'function f<Array>(x: { [K in "a"]: Array }) { x.a.at(0); }', 'declare const x: { [K in "a"]: number[] };\nx.a.at(0);'],
-  ['indexed access', 'function f<Array>(x: { a: Array }["a"]) { x.at(0); }', 'declare const x: { a: number[] }["a"];\nx.at(0);'],
-  ['awaited', 'function f<Array>(x: Awaited<Array>) { x.at(0); }', 'declare const x: Awaited<number[]>;\nx.at(0);'],
+  [
+    'array element',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: Array[]) { x[0].at(0); }',
+    'declare const x: number[][];\nx[0].at(0);',
+  ],
+  [
+    'tuple element',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: [Array]) { x[0].at(0); }',
+    'declare const x: [number[]];\nx[0].at(0);',
+  ],
+  [
+    'union member',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: Array | Array) { x.at(0); }',
+    'declare const x: number[] | number[];\nx.at(0);',
+  ],
+  [
+    'intersection member',
+    'type Tag = { t: 1 };\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: Array & Tag) { x.at(0); }',
+    'type Tag = { t: 1 };\ndeclare const x: number[] & Tag;\nx.at(0);',
+  ],
+  [
+    'object-type member',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: { i: Array }) { x.i.at(0); }',
+    'declare const x: { i: number[] };\nx.i.at(0);',
+  ],
+  [
+    'conditional branch',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: 1 extends 1 ? Array : string) { x.at(0); }',
+    'declare const x: 1 extends 1 ? number[] : string;\nx.at(0);',
+  ],
+  [
+    'mapped body',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: { [K in "a"]: Array }) { x.a.at(0); }',
+    'declare const x: { [K in "a"]: number[] };\nx.a.at(0);',
+  ],
+  [
+    'indexed access',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: { a: Array }["a"]) { x.at(0); }',
+    'declare const x: { a: number[] }["a"];\nx.at(0);',
+  ],
+  [
+    'awaited',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'function f<Array>(x: Awaited<Array>) { x.at(0); }',
+    'declare const x: Awaited<number[]>;\nx.at(0);',
+  ],
 ];
 
 for (const [position, shadowedSrc, controlSrc] of SHADOW_POSITIONS) {
@@ -5152,7 +5279,7 @@ runBoth('`Reflect.construct` still anchors the receiver class',
   });
 
 runBoth('a sibling `Reflect` static is not taken for `construct`',
-  'class C { m(): string[] { return ["a"]; } }\nReflect.ownKeys(C).m();',
+  'class C { m(): string[] { return ["a"]; } }\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\nReflect.ownKeys(C).m();',
   (adapter, prog, lbl) => {
     const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
     check(lbl, adapter.makeResolver().resolveNodeType(call), null);
@@ -5172,7 +5299,7 @@ runBoth('merged-namespace static resolves through a function declaration',
   });
 
 runBoth('merged-namespace static resolves through an ambient function declaration',
-  'class C { }\nnamespace C { export function make(): string[]; }\nC.make().at(0);',
+  'class C { }\ndeclare namespace C { export function make(): string[]; }\nC.make().at(0);',
   (adapter, prog, lbl) => {
     const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
     checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
@@ -5183,7 +5310,7 @@ runBoth('merged-namespace static resolves through an ambient function declaratio
 // declines a class leaf on its own - so this guards the outcome against whichever of the two
 // stops declining, not the filter in particular
 runBoth('merged-namespace class leaf resolves to nothing',
-  'class C { }\nnamespace C { export class Inner { } }\nC.Inner.at(0);',
+  'class C { }\nnamespace C { export class Inner { } }\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\nC.Inner.at(0);',
   (adapter, prog, lbl) => {
     const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
     check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
@@ -5200,6 +5327,7 @@ runBoth('an inherited merged-namespace static reaches the subclass',
 
 runBoth('the subclass own namespace export outranks the parent one',
   'class B { }\nnamespace B { export function make(): string[] { return ["a"]; } }\n'
+  + '// @ts-expect-error a subclass namespace exporting another type than its parent is the shape under test\n'
   + 'class C extends B { }\nnamespace C { export function make(): string { return "a"; } }\nC.make().at(0);',
   (adapter, prog, lbl) => {
     const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
@@ -8781,14 +8909,14 @@ runBoth('a recovered write of another value costs the binding its constancy',
 // a non-numeric string key against a number-only / symbol-only index signature has no
 // member in TS - the resolver must return null, not the index value type (over-emission)
 runBoth('number-only index signature, non-numeric string key -> null',
-  'type T = { [k: number]: number[] }; declare const t: T; let x = t.foo;',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\ntype T = { [k: number]: number[] }; declare const t: T; let x = t.foo;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
     check(`${ lbl } number-only index sig string key`, adapter.makeResolver().resolveNodeType(decl.get('id')), null);
   });
 
 runBoth('symbol-only index signature, non-numeric string key -> null',
-  'type T = { [k: symbol]: number[] }; declare const t: T; let x = t.foo;',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\ntype T = { [k: symbol]: number[] }; declare const t: T; let x = t.foo;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
     check(`${ lbl } symbol-only index sig string key`, adapter.makeResolver().resolveNodeType(decl.get('id')), null);
@@ -8924,7 +9052,8 @@ runBoth('default-param array narrow holds when no call site overrides it',
 // a rest binding nested under an inner OBJECT pattern in for-of (`[{ ...rest }]`) is always an
 // Object, independent of the iterable element type - it must not pick up the element type
 runBoth('for-of nested object-rest binding resolves to Object',
-  'declare const items: Array<[{ a: number }]>;\nfor (const [{ ...rest }] of items) {\n  rest.x;\n}',
+  'declare const items: Array<[{ a: number }]>;\nfor (const [{ ...rest }] of items) {\n'
+  + '  // @ts-expect-error the member read is the probe, and the right answer is a type without it\n  rest.x;\n}',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
@@ -8933,7 +9062,8 @@ runBoth('for-of nested object-rest binding resolves to Object',
 // control: a rest binding nested under an inner ARRAY pattern (`[[...rest]]`) is always an Array -
 // proves the depth-recursive rest classifier handles both pattern kinds
 runBoth('for-of nested array-rest binding resolves to Array',
-  'declare const items: string[][];\nfor (const [[...rest]] of items) {\n  rest.x;\n}',
+  'declare const items: string[][];\nfor (const [[...rest]] of items) {\n  // @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + '  rest.x;\n}',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
@@ -8961,8 +9091,10 @@ runBoth('object-binding array-rest under nested array pattern resolves to Array'
 // a wide primitive does NOT extend a narrower literal of the same family, so the conditional takes
 // the FALSE branch across every literal family (not just `number extends 1`)
 for (const [variant, src] of [
-  ['boolean extends true', 'type D<T> = T extends true ? string : number[];\ndeclare const w: D<boolean>;\nw.x;'],
-  ['bigint extends 1n', 'type D<T> = T extends 1n ? string : number[];\ndeclare const w: D<bigint>;\nw.x;'],
+  ['boolean extends true', 'type D<T> = T extends true ? string : number[];\ndeclare const w: D<boolean>;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;'],
+  ['bigint extends 1n', 'type D<T> = T extends 1n ? string : number[];\ndeclare const w: D<bigint>;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;'],
 ]) {
   runBoth(`conditional wide-extends-literal takes the false branch: ${ variant }`, src,
     (adapter, prog, lbl) => {
@@ -8974,7 +9106,7 @@ for (const [variant, src] of [
 // control: the assignable direction `1 extends number` is TRUE (a literal IS assignable to the wide
 // primitive), so it keeps the true branch - proves the fix only flips the non-assignable direction
 runBoth('conditional literal-extends-wide keeps the true branch',
-  'type D<T> = T extends number ? string : number[];\ndeclare const w: D<1>;\nw.x;',
+  'type D<T> = T extends number ? string : number[];\ndeclare const w: D<1>;\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { kind: 'string' });
@@ -8983,8 +9115,11 @@ runBoth('conditional literal-extends-wide keeps the true branch',
 // a dynamic computed-key index access selects the index signature matching the access-key type, not
 // the first signature - a number key picks the number sig, a symbol key picks the symbol sig
 for (const [variant, src] of [
-  ['number key', 'declare const o: { [k: symbol]: string; [k: number]: number[]; [k: string]: string };\ndeclare const k: number;\no[k].x;'],
-  ['symbol key', 'declare const o: { [k: string]: string; [k: symbol]: number[] };\ndeclare const k: symbol;\no[k].x;'],
+  ['number key', '// @ts-expect-error a number index of another family than the string index is the shape under test\n'
+    + 'declare const o: { [k: symbol]: string; [k: number]: number[]; [k: string]: string };\ndeclare const k: number;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\no[k].x;'],
+  ['symbol key', 'declare const o: { [k: string]: string; [k: symbol]: number[] };\ndeclare const k: symbol;\n'
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\no[k].x;'],
 ]) {
   runBoth(`index-signature dynamic key selection: ${ variant }`, src,
     (adapter, prog, lbl) => {
@@ -9023,8 +9158,8 @@ runBoth('discriminant narrow holds across a function boundary when a non-discrim
 // the use, so the straight-line interval misses it - the guard interval extends over the deferred region
 const VARIANT = 'type V = { kind: "a"; arr: number[] } | { kind: "b"; arr: string };\n';
 for (const [variant, code] of [
-  ['loop body', `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) {\n      s.arr.at(0);\n      s.kind = "b";\n    }\n  }\n}`],
-  ['function boundary', `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    const g = () => { s.arr.at(0); };\n    s.kind = "b";\n    g();\n  }\n}`],
+  ['loop body', `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) {\n      s.arr.at(0);\n      ${ expectError(CROSSING_WRITE) }s.kind = "b";\n    }\n  }\n}`],
+  ['function boundary', `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    const g = () => { s.arr.at(0); };\n    ${ expectError(CROSSING_WRITE) }s.kind = "b";\n    g();\n  }\n}`],
 ]) {
   runBoth(`discriminant narrow drops on a discriminant write in a deferred region: ${ variant }`, code, (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
@@ -9042,7 +9177,7 @@ runBoth('discriminant narrow holds across a loop when a non-discriminant field i
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 runBoth('discriminant narrow inside a loop re-narrows each iteration past its own discriminant write',
-  `${ VARIANT }function f(s: V, cond: any) {\n  while (cond()) {\n    if (s.kind === "a") {\n      s.arr.at(0);\n      s.kind = "b";\n    }\n  }\n}`,
+  `${ VARIANT }function f(s: V, cond: any) {\n  while (cond()) {\n    if (s.kind === "a") {\n      s.arr.at(0);\n      ${ expectError(CROSSING_WRITE) }s.kind = "b";\n    }\n  }\n}`,
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
@@ -9058,14 +9193,14 @@ runBoth('discriminant narrow holds when the use is in an immediately-invoked fun
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 runBoth('discriminant narrow drops for an IIFE inside a loop with a discriminant write',
-  `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) { (() => { s.arr.at(0); })(); s.kind = "b"; }\n  }\n}`,
+  `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    ${ expectError(CROSSING_WRITE) }while (cond()) { (() => { s.arr.at(0); })(); s.kind = "b"; }\n  }\n}`,
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
     check(`${ lbl } stale narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
   });
 runBoth('discriminant narrow holds across a switch (no back-edge) when a discriminant field is written after',
-  `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    switch (1) { case 1: s.arr.at(0); s.kind = "b"; }\n  }\n}`,
+  `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    ${ expectError(CROSSING_WRITE) }switch (1) { case 1: s.arr.at(0); s.kind = "b"; }\n  }\n}`,
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
@@ -9087,7 +9222,9 @@ runBoth('anonymous object this-field flow bails when the object escapes via retu
 // `if`-guard path, matching the bare `b.tag` discriminant (not just a `=== ` comparison)
 runBoth('switch discriminant narrow drops when the discriminant field is written',
   'type Box = { tag: "arr"; val: string[] } | { tag: "str"; val: string };\n'
-  + 'function f(b: Box) {\n  switch (b.tag) {\n    case "arr": {\n      b.tag = "str";\n      return b.val.at(0);\n    }\n  }\n}',
+  + 'function f(b: Box) {\n  switch (b.tag) {\n    case "arr": {\n'
+  + '      // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + '      b.tag = "str";\n      return b.val.at(0);\n    }\n  }\n}',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -9561,7 +9698,7 @@ for (const [variant, code] of [
   ['setPrototypeOf PROTO slot inherits methods', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o);\nx.read();`],
   ['Reflect.setPrototypeOf PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nReflect.setPrototypeOf(x, o);\nx.read();`],
   ['held freeze result method extraction', `const o = ${ ANON_ESC };\nconst p = Object.freeze(o);\nconst m = p.read;\nm.call({ data: 42 });`],
-  ['cast-wrapped arg at the unsafe PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o as any);\nx.read();`],
+  ['cast-wrapped arg at the unsafe PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o as any);\n${ expectError(DYNAMIC_MEMBER) }x.read();`],
   ['cast-wrapped held identity result', `const o = ${ ANON_ESC };\nconst p = Object.freeze(o as any);\np.data = 5;\no.read();`],
   ['__proto__ property held method read', `const o = ${ ANON_ESC };\nconst x = { __proto__: o, data: "xy" };\nconst m = x.read;\nm.call({ data: 7 });`],
   ['__proto__ property call through the heir', `const o = ${ ANON_ESC };\nconst x = { __proto__: o, data: "xy" };\nx.read();`],
@@ -9642,14 +9779,14 @@ runBoth('callable-field call with single-family annotation keeps the family',
 // flow type: memberWriteTargetPath / memberWriteFieldName peel the wrapper so the write is indexed.
 // without the peel the write is stranded (target stays the unpeeled wrapper), the field keeps its
 // array-only narrow, and `this.field.at` emits `_atMaybeArray` that throws on the string (ie:11)
-for (const [variant, write] of [
-  ['non-null', 'this.field! = s'],
+for (const [variant, write, rejected] of [
+  ['non-null', 'this.field! = s', CROSSING_WRITE],
   ['as-cast', '(this.field as any) = s'],
-  ['satisfies', '(this.field satisfies number[]) = s'],
-  ['paren', '(this.field) = s'],
+  ['satisfies', '(this.field satisfies number[]) = s', CROSSING_WRITE],
+  ['paren', '(this.field) = s', CROSSING_WRITE],
 ]) {
   runBoth(`class-field write through ${ variant } wrapper widens the field`,
-    `class C {\n  field = [1];\n  m(s: string) {\n    ${ write };\n    return this.field.at(0);\n  }\n}`,
+    `class C {\n  field = [1];\n  m(s: string) {\n    ${ expectError(rejected) }${ write };\n    return this.field.at(0);\n  }\n}`,
     (adapter, prog, lbl) => {
       const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
       check(`${ lbl } widened (not array-narrow)`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
@@ -9666,7 +9803,8 @@ runBoth('class-field with no write keeps the array narrow',
 // a spread arg at the defaulted param's OWN slot makes its runtime value unknown (the spread may or
 // may not supply it), so the body receiver widens to generic - same bail as a spread before the slot
 runBoth('default-param narrow widens when a spread arg covers its slot',
-  'declare const arr: string[];\nfunction f(b = [1, 2, 3]) { return b.at(0); }\nf(...arr);',
+  'declare const arr: string[];\nfunction f(b = [1, 2, 3]) { return b.at(0); }\n// @ts-expect-error a spread of another family over the defaulted slot is the shape under test\n'
+  + 'f(...arr);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
@@ -9675,7 +9813,7 @@ runBoth('default-param narrow widens when a spread arg covers its slot',
 // --- spread-before-slot: positional narrowing must bail when a spread shifts the target slot ---
 // a spread before a LATER defaulted param can supply it from the iterable -> widen
 runBoth('default-param widens when a spread covers an EARLIER slot',
-  'declare const args: any[];\nfunction f(a: any, b = [1, 2, 3]) { return b.at(0); }\nf(...args);',
+  'declare const args: any[];\nfunction f(a: any, b = [1, 2, 3]) { return b.at(0); }\n// @ts-expect-error a spread argument tsc cannot place is the shape under test\nf(...args);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
@@ -9701,7 +9839,8 @@ runBoth('array-pattern slot (no spread) keeps the array narrow [control]',
   });
 // pattern-param return-type narrowing must bail when a spread shifts the arg->param map
 runBoth('pattern-param return-type widens when a spread covers an earlier arg slot',
-  'declare const g: any[];\nfunction f(a: any, { x }) { return x; }\nf(...g, { x: [1, 2, 3] }).at(0);',
+  'declare const g: any[];\nfunction f(a: any, { x }) { return x; }\n// @ts-expect-error a spread argument tsc cannot place is the shape under test\n'
+  + 'f(...g, { x: [1, 2, 3] }).at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
@@ -9738,7 +9877,7 @@ runBoth('parenthesized union inside intersection keeps two-hop member type',
 // a no-subst conditional whose infer pattern is definitively false resolves the FALSE branch, never
 // leaking the INFER_PATTERN_FALSE sentinel as a Type (toHint would crash on the Symbol)
 runBoth('no-subst conditional infer disjoint check resolves false branch (not a symbol)',
-  'type T = string extends (infer U)[] ? U : number; declare const y: T; y.at(0);',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\ntype T = string extends (infer U)[] ? U : number; declare const y: T; y.at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const objType = adapter.makeResolver().resolvePropertyObjectType(member);
@@ -9750,9 +9889,9 @@ runBoth('no-subst conditional infer disjoint check resolves false branch (not a 
 // same way `Promise<infer U>` does: the check-side resolver normalizes all three to constructor
 // `'Promise'`, so the container-family guard must fold the synonym pattern names too or it wrongly
 // takes the FALSE branch (a wrong-receiver polyfill: `string` instead of the inferred `number[]`)
-for (const container of ['Promise', 'PromiseLike', 'Thenable']) {
+for (const [container, rejected] of [['Promise'], ['PromiseLike'], ['Thenable', UNDECLARED_THENABLE]]) {
   runBoth(`${ container }<infer U> over Promise<number[]> unwraps to the inferred Array element`,
-    `type T<P> = P extends ${ container }<infer U> ? U : string;\ndeclare const y: T<Promise<number[]>>;\ny.at(0);`,
+    `type T<P> = P extends ${ container }<infer U> ? U : string;\ndeclare const y: T<Promise<number[]>>;\n${ expectError(rejected) }y.at(0);`,
     (adapter, prog, lbl) => {
       const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
       checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(member), { primitive: false, ctor: 'Array' });
@@ -9816,7 +9955,8 @@ runBoth('readonly array element via destructure `readonly string[][]` -> Array',
 // the no-subst conditional false-branch resolution recurses: a false branch that is ITSELF an
 // infer-false conditional resolves through to the inner false branch, never leaking the sentinel
 runBoth('nested no-subst conditional infer-false recurses to inner false branch (not a symbol)',
-  'type T = string extends (infer U)[] ? U : (number extends Array<infer V> ? V : boolean); declare const y: T; y.at(0);',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'type T = string extends (infer U)[] ? U : (number extends Array<infer V> ? V : boolean); declare const y: T; y.at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const objType = adapter.makeResolver().resolvePropertyObjectType(member);
@@ -10020,7 +10160,8 @@ runBoth('pickarm: known Array super keeps the narrow',
 // spelling is what keeps the parent walk empty while a class declaration of that name still exists
 // to be found. an ANNOTATED receiver, not a `new` one - the construction lane never reaches here
 runBoth('pickarm: class over a merged interface-and-class base IS Object, stamped for the subclass',
-  'interface B extends Unknown {}\nclass B {}\nclass A extends B {}\ndeclare const a: A;\na.at(0);',
+  'interface B extends Unknown {}\nclass B {}\nclass A extends B {}\ndeclare const a: A;\n'
+  + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\na.at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -10029,7 +10170,7 @@ runBoth('pickarm: class over a merged interface-and-class base IS Object, stampe
     check(`${ lbl } identity is the subclass declaration`, resolved?.identity === subclass?.node, true);
   }, ['typescript']);
 runBoth('pickarm: class over a transitively unknowable base stays generic',
-  'class B extends Unknown {}\nclass A extends B {}\ndeclare const a: A;\na.at(0);',
+  'class B extends Unknown {}\nclass A extends B {}\ndeclare const a: A;\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\na.at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -10037,7 +10178,7 @@ runBoth('pickarm: class over a transitively unknowable base stays generic',
       !(resolved && (resolved.constructor === 'Object' || resolved.constructor === 'Array')), true);
   }, ['typescript']);
 runBoth('pickarm: class over an opaque imported super stays generic',
-  'import { Sup } from "sup";\nclass A extends Sup {}\ndeclare const a: A;\na.at(0);',
+  'import { Sup } from "sup";\nclass A extends Sup {}\ndeclare const a: A;\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\na.at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -10060,7 +10201,7 @@ for (const [what, decls, receiver] of [
   ['a static factory of the subclass', 'class B {}\nclass A extends B { static make() { return new A(); } }', 'A.make()'],
 ]) {
   runBoth(`pickarm: a constructed instance over ${ what } IS Object, stamped for the subclass`,
-    `${ decls }\n${ receiver }.at(0);`,
+    `${ decls }\n${ expectError(ABSENT_MEMBER) }${ receiver }.at(0);`,
     (adapter, prog, lbl) => {
       const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
       const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -10074,7 +10215,7 @@ for (const [what, decls, receiver] of [
 // one reads the declaration the walk STARTED at: handed the non-generic base instead, the family
 // took the base's identity and `new A<string>()` agreed with `new A<number>()`
 runBoth('pickarm: a GENERIC subclass over a local base carries no identity',
-  'class B {}\nclass A<T> extends B { v!: T }\nnew A<string>().at(0);',
+  'class B {}\nclass A<T> extends B { v!: T }\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\nnew A<string>().at(0);',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -10237,7 +10378,8 @@ runBoth('pickarm: an unannotated first overload param widens the call to generic
 // rest-param (estree-toolkit limitation); a spread onto positional params exercises the
 // same inference bail + opaque-guarded default fill
 runBoth('pickarm: spread arg keeps the type-param default opaque (generic)',
-  'declare function makeBox<T = number[]>(t: T, u?: T): { v: T };\ndeclare const arr: string[];\nconst r = makeBox(...arr);\nr.v.at(0);',
+  'declare function makeBox<T = number[]>(t: T, u?: T): { v: T };\ndeclare const arr: string[];\n// @ts-expect-error a spread argument tsc cannot place is the shape under test\n'
+  + 'const r = makeBox(...arr);\nr.v.at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('pickarm: positional arg still infers the type-param (no default)',
@@ -10321,7 +10463,8 @@ runBoth('pickarm: optional member-chained overload arg-discriminates',
   });
 
 runBoth('pickarm: spread call arg keeps the overload set indiscriminable (fold)',
-  'interface P2 { m(x: string): string; m(x: number): number[]; }\ndeclare const p: P2;\ndeclare const xs: number[];\np.m(...xs).at(0);',
+  'interface P2 { m(x: string): string; m(x: number): number[]; }\ndeclare const p: P2;\ndeclare const xs: number[];\n'
+  + '// @ts-expect-error a spread argument tsc cannot place is the shape under test\np.m(...xs).at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 // a function-valued object DATA prop is reassignable like any data prop: an observed
@@ -10367,7 +10510,8 @@ runBoth('pickarm: whole-rest string RHS spreads to an Array of chars',
   }, undefined, 'script');
 
 runBoth('pickarm: a spread in the redecl RHS keeps the slice element generic',
-  'var rest = "abc";\nfunction f(xs: number[]) { { var [a, ...rest] = [1, ...xs]; } return rest[0].at(-1); }',
+  'var rest = "abc";\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(xs: number[]) { { var [a, ...rest] = [1, ...xs]; } return rest[0].at(-1); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('pickarm: whole-RHS rest var-redecl keeps the element narrow',
@@ -10384,7 +10528,8 @@ runBoth('pickarm: whole-RHS rest var-redecl keeps the element narrow',
 // own type resolves precisely
 
 runBoth('stale-narrow: non-exiting consequent reassign resolves to the reassigned type',
-  'function f(x: unknown) { if (typeof x === "string") { x = 5; } else throw 0; return x.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown) { if (typeof x === "string") { x = 5; } else throw 0; return x.at(0); }',
   (adapter, prog, lbl) => {
     checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
   });
@@ -10401,17 +10546,20 @@ runBoth('stale-narrow: non-exiting alternate reassign resolves to the reassigned
 // exit), and `else if` chains compose level by level
 
 runBoth('stale-narrow: exiting-branch write does not leak to the post-if use',
-  'function f(x: number[], c) { if (c) { x = "s"; return null; } return x.at(0); }',
+  '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + 'function f(x: number[], c) { if (c) { x = "s"; return null; } return x.at(0); }',
   (adapter, prog, lbl) => {
     checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
   });
 
 runBoth('stale-narrow: dual sibling-branch writes bail',
-  'function f(c, arr: number[]) { let x: unknown; if (c) { x = 5; } else { x = arr; return null; } return x.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(c, arr: number[]) { let x: unknown; if (c) { x = 5; } else { x = arr; return null; } return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: nested-conditional write inside the fall-through branch stays conditional',
-  'function f(x: unknown, d) { if (typeof x === "string") { if (d) x = 5; } else throw 0; return x.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown, d) { if (typeof x === "string") { if (d) x = 5; } else throw 0; return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: labeled-break sibling branch is not a hard exit',
@@ -10419,7 +10567,8 @@ runBoth('stale-narrow: labeled-break sibling branch is not a hard exit',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: else-if chain of hard exits composes the dominance',
-  'function f(x: unknown, q) { if (typeof x === "string") { x = 5; } else if (q) { throw 0; } else { throw 1; } return x.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown, q) { if (typeof x === "string") { x = 5; } else if (q) { throw 0; } else { throw 1; } return x.at(0); }',
   (adapter, prog, lbl) => {
     checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
   });
@@ -10430,25 +10579,29 @@ runBoth('stale-narrow: else-if chain of hard exits composes the dominance',
 // the if keeps the back-edge bail
 
 runBoth('stale-narrow: use after the try is not dominated (caught throw resumes)',
-  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch {} return x.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch {} return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: use inside the try past the if is dominated',
-  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; return x.at(0); } catch {} }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; return x.at(0); } catch {} }',
   (adapter, prog, lbl) => {
     checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
   });
 
 runBoth('stale-narrow: catch-body use is not dominated',
-  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch { return x.at(0); } }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch { return x.at(0); } }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: loop-body use before the if keeps the back-edge bail',
-  'declare const c: boolean;\nfunction f(x: unknown, arr: number[]) { while (c) { const r = x.at(0); if (typeof x === "string") { x = arr; } else throw 0; return r; } }',
+  'declare const c: boolean;\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(x: unknown, arr: number[]) { while (c) { const r = x.at(0); if (typeof x === "string") { x = arr; } else throw 0; return r; } }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('landed-follow: closure-captured use is not followed',
-  'function f(arr: number[]) { let x: unknown; x = arr; return () => x.includes(1); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nfunction f(arr: number[]) { let x: unknown; x = arr; return () => x.includes(1); }',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
     const type = adapter.makeResolver().resolveNodeType(member.get('object'));
@@ -10512,7 +10665,8 @@ runBoth('element access: mutating method call bails',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('element access: call-argument escape bails',
-  'declare function touch(xs: unknown): void;\nconst a = [1, 2];\ntouch(a);\nconst v = a[0].at(0);',
+  'declare function touch(xs: unknown): void;\nconst a = [1, 2];\ntouch(a);\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'const v = a[0].at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('element access: read-only-referenced binding keeps the element precision',
@@ -10585,7 +10739,7 @@ runBoth('element access: conditional BRANCH position stays an escape',
 // annotation, exactly like a direct use
 
 runBoth('landed-follow: assignment RHS param annotation types the use',
-  'function f(x: unknown, arr: number[]) { x = arr; return x.includes(1); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nfunction f(x: unknown, arr: number[]) { x = arr; return x.includes(1); }',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
@@ -10625,7 +10779,8 @@ runBoth('stale-narrow: conditional reassign bails the array-destructure narrow',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: conditional reassign bails the for-of element narrow',
-  'function f(c, xs: number[][]) { for (let x of xs) { if (c) x = "hello"; return x.at(0); } }',
+  '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + 'function f(c, xs: number[][]) { for (let x of xs) { if (c) x = "hello"; return x.at(0); } }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 // a CONDITIONAL `var` re-declaration reaches the structural narrow with an empty violation
@@ -10668,7 +10823,8 @@ runBoth('stale-narrow: dominating var-redecl over a param resolves its own value
   });
 
 runBoth('stale-narrow: var-redecl over a guarded param bails the guard narrow',
-  'function F(x: unknown, c) { if (typeof x !== "object") return null; if (c) { var x = "s"; } return x.at(0); }',
+  '// @ts-expect-error a var redeclaration over the guarded parameter is the shape under test\n'
+  + 'function F(x: unknown, c) { if (typeof x !== "object") return null; if (c) { var x = "s"; } return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: plain-id conditional var-redecl over a rest binding bails',
@@ -10684,7 +10840,8 @@ runBoth('stale-narrow: dominating redecl with an unresolvable slot bails',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: dominating assignment with an unresolvable value bails the default-param narrow',
-  'declare const mk: () => unknown;\nfunction f(x = [1, 2]) { x = mk(); return x.at(0); }',
+  'declare const mk: () => unknown;\n// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + 'function f(x = [1, 2]) { x = mk(); return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow control: resolvable dominating write keeps its own precision',
@@ -10717,7 +10874,8 @@ runBoth('stale-narrow control: real return-exit guard narrows',
 // resurrect the init through `typeof x` resolution
 
 runBoth('stale-narrow: recovered closure-write drops the typeof-binding narrow',
-  'function f(mk) { let x = [1, 2, 3]; switch (mk(() => { x = "hello"; })) { case 1: { let x = 0; mk(x); } }'
+  '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + 'function f(mk) { let x = [1, 2, 3]; switch (mk(() => { x = "hello"; })) { case 1: { let x = 0; mk(x); } }'
     + ' const y: typeof x = x; return y.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
@@ -10738,7 +10896,9 @@ runBoth('stale-narrow control: write-free class field keeps the narrow',
 // LHS wrappers like the read side
 
 runBoth('stale-narrow: aliased computed-key discriminant write invalidates',
-  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nconst K = "kind";\nfunction f(box: F) { if (box.kind === "a") { box[K] = "b"; return box.data.at(0); } }',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nconst K = "kind";\n'
+  + '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + 'function f(box: F) { if (box.kind === "a") { box[K] = "b"; return box.data.at(0); } }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('stale-narrow: cast-wrapped discriminant write invalidates',
@@ -10821,16 +10981,16 @@ function arrayAtReceiver(adapter, prog, lbl) {
   checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
 }
 for (const [form, code] of [
-  ['do-while', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { do { s.arr.at(0); s.kind="b"; } while(c()); } }`],
-  ['for-of', `${ VARIANT }function f(s: V, xs: any) { if (s.kind==="a") { for (const x of xs) { s.arr.at(0); s.kind="b"; } } }`],
-  ['labeled loop', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { outer: while(c()) { s.arr.at(0); s.kind="b"; } } }`],
-  ['nested loop, outer write', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { while(c()){ s.arr.at(0); } s.kind="b"; } } }`],
-  ['for-init write before use', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { for (s.kind="b"; c();) { s.arr.at(0); } } }`],
-  ['ternary arm in loop', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { const z = c() ? s.arr.at(0) : 0; s.kind="b"; } } }`],
-  ['&& logical guard', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a" && c()) { while(c()){ s.arr.at(0); s.kind="b"; } } }`],
-  ['class-method body', `${ VARIANT }class Q { m(s: V, c: any) { if (s.kind==="a") { while(c()){ s.arr.at(0); s.kind="b"; } } } }`],
-  ['nested function, invoke after write', `${ VARIANT }function f(s: V) { if (s.kind==="a") { function g() { return () => s.arr.at(0); } s.kind="b"; g()(); } }`],
-  ['async function boundary', `${ VARIANT }function f(s: V) { if (s.kind==="a") { const g = async () => { s.arr.at(0); }; s.kind="b"; g(); } }`],
+  ['do-while', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, c: any) { if (s.kind==="a") { do { s.arr.at(0); s.kind="b"; } while(c()); } }`],
+  ['for-of', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, xs: any) { if (s.kind==="a") { for (const x of xs) { s.arr.at(0); s.kind="b"; } } }`],
+  ['labeled loop', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, c: any) { if (s.kind==="a") { outer: while(c()) { s.arr.at(0); s.kind="b"; } } }`],
+  ['nested loop, outer write', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { while(c()){ s.arr.at(0); } s.kind="b"; } } }`],
+  ['for-init write before use', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, c: any) { if (s.kind==="a") { for (s.kind="b"; c();) { s.arr.at(0); } } }`],
+  ['ternary arm in loop', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { const z = c() ? s.arr.at(0) : 0; s.kind="b"; } } }`],
+  ['&& logical guard', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V, c: any) { if (s.kind==="a" && c()) { while(c()){ s.arr.at(0); s.kind="b"; } } }`],
+  ['class-method body', `${ VARIANT }${ expectError(CROSSING_WRITE) }class Q { m(s: V, c: any) { if (s.kind==="a") { while(c()){ s.arr.at(0); s.kind="b"; } } } }`],
+  ['nested function, invoke after write', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V) { if (s.kind==="a") { function g() { return () => s.arr.at(0); } s.kind="b"; g()(); } }`],
+  ['async function boundary', `${ VARIANT }${ expectError(CROSSING_WRITE) }function f(s: V) { if (s.kind==="a") { const g = async () => { s.arr.at(0); }; s.kind="b"; g(); } }`],
   ['callback arg escapes into a call', `${ VARIANT }function f(s: V, run: (cb: any)=>void) { if (s.kind==="a") { run(() => { s.arr.at(0); }); } s.kind="b"; }`],
 ]) {
   runBoth(`discriminant narrow drops across a deferred form: ${ form }`, code, dropAtReceiver);
@@ -11284,28 +11444,31 @@ function checkHintSet(lbl, hints, expected) {
 }
 
 runBoth('union hints: mixed-family union annotation yields the exact hint set',
-  'function f(r: number[] | string) { r.includes("x"); }', (adapter, prog, lbl) => {
+  '// @ts-expect-error a call on a union of signatures tsc cannot call is the shape under test\nfunction f(r: number[] | string) { r.includes("x"); }', (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
     checkHintSet(lbl, hints, 'array,string');
   });
 
 runBoth('union hints: nullable arm contributes nothing',
-  'function f(r: number[] | string | null) { r.includes("x"); }', (adapter, prog, lbl) => {
+  '// @ts-expect-error a call on a union of signatures tsc cannot call is the shape under test\n'
+  + 'function f(r: number[] | string | null) { r.includes("x"); }', (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
     checkHintSet(lbl, hints, 'array,string');
   });
 
 runBoth('union hints: cross-family ternary receiver',
-  'function f(c: boolean, a: number[], s: string) { (c ? a : s).includes("x"); }', (adapter, prog, lbl) => {
+  '// @ts-expect-error a call on a union of signatures tsc cannot call is the shape under test\n'
+  + 'function f(c: boolean, a: number[], s: string) { (c ? a : s).includes("x"); }', (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
     checkHintSet(lbl, hints, 'array,string');
   });
 
 runBoth('union hints: nullable-union left under || yields both operand hints',
-  'function f(r: number[] | null) { (r || "f").includes("x"); }', (adapter, prog, lbl) => {
+  '// @ts-expect-error a call on a union of signatures tsc cannot call is the shape under test\n'
+  + 'function f(r: number[] | null) { (r || "f").includes("x"); }', (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
     checkHintSet(lbl, hints, 'array,string');
@@ -11350,7 +11513,8 @@ runBoth('union hints: destructure off a single-family init yields null',
   });
 
 runBoth('union hints: a primitive arm contributes its own hint',
-  'function f(n: number, arr: number[]) { (n ?? arr).at(0); }', (adapter, prog, lbl) => {
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(n: number, arr: number[]) { (n ?? arr).at(0); }', (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
     checkHintSet(lbl, hints, 'array,number');
@@ -11365,7 +11529,7 @@ runBoth('union hints: a class-annotated arm resolves into the object family',
   });
 
 runBoth('union hints: a family outside the hint-dispatch domain contributes nothing',
-  'function f(m: Map<string, number>, arr: number[]) { (m ?? arr).at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nfunction f(m: Map<string, number>, arr: number[]) { (m ?? arr).at(0); }',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
@@ -11373,7 +11537,8 @@ runBoth('union hints: a family outside the hint-dispatch domain contributes noth
   });
 
 runBoth('union hints: an unresolvable object-literal-typed arm bails the set',
-  'function f(o: { a: number }, arr: number[]) { (o ?? arr).includes(1); }', (adapter, prog, lbl) => {
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(o: { a: number }, arr: number[]) { (o ?? arr).includes(1); }', (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression');
     const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
     check(lbl, hints, null);
@@ -11600,6 +11765,32 @@ runBoth('wrapper wide-keyword mirrors the bare keyword: Readonly<object>', 'decl
   check(lbl, w.constructor === bt.constructor && w.primitive === bt.primitive, true);
 });
 
+// ... and so does an argument nothing resolves - an import, an undeclared name, an unconstrained
+// parameter - while an alias of a closed type literal keeps the Object fallback
+for (const [label, source] of [
+  ['an imported type', 'import type { Items } from "./items"; declare const v: Readonly<Items>; v;'],
+  ['an undeclared name', 'declare const v: Partial<Missing>; v;'],
+  ['an unconstrained parameter', 'function f<T>(v: NoInfer<T>) { v; }'],
+  ['an indexed access nothing reads', 'import type { Items } from "./items"; declare const v: Readonly<Items["list"]>; v;'],
+  ['a parameter an alias bound to an import', 'import type { Items } from "./items"; type W<X> = Readonly<X>; declare const v: W<Items>; v;'],
+]) {
+  runBoth(`wrapper over ${ label } -> null`, source, (adapter, prog, lbl) => {
+    const parameter = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'v' && pp.parentPath?.node?.type === 'ExpressionStatement');
+    check(lbl, adapter.makeResolver().resolveNodeType(parameter), null);
+  });
+}
+
+for (const [label, source] of [
+  ['an alias of a literal', 'type L = { a: 1 }; declare const v: Partial<L>; v;'],
+  ['a union of literals', 'declare const v: Readonly<{ a: 1 } | { b: 2 }>; v;'],
+  ['an intersection of literals', 'declare const v: Required<{ a?: 1 } & { b?: 2 }>; v;'],
+]) {
+  runBoth(`wrapper over ${ label } keeps the Object fallback`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Object' });
+  });
+}
+
 runBoth('wrapper literal inner keeps Object fallback', 'declare const v: Partial<{ a: 1 }>; v;', (adapter, prog, lbl) => {
   const decl = adapter.pickPath(prog, 'VariableDeclarator');
   checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Object' });
@@ -11667,7 +11858,7 @@ runBoth('container-of-opaque keeps container precision with an inert element',
   });
 
 runBoth('cyclic default with a supplied opaque arg resolves null without looping',
-  'type Foo = { z: 1; }; declare const fv: Foo; '
+  '// @ts-expect-error a cyclic type tsc refuses is the shape under test\ntype Foo = { z: 1; }; declare const fv: Foo; '
     + 'function cyc<T = T[]>(x: T | null): T { return x as any; } const out = cyc(fv);',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
@@ -11775,6 +11966,344 @@ runBoth('class property: opaque arg resolves null',
     check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
+// --- class type parameters as a runtime receiver binds them ---
+// a construction binds them by the call-site canon over its constructor: what that canon cannot see
+// the arguments bind - an inherited constructor, a spread, the array `Reflect.construct` takes - leaves
+// them open, never on their defaults, and with no argument at all the defaults are what binds. a
+// member the class declares only through a merged interface reads the same arguments
+const CONSTRUCTED_BOX = 'class Box<T extends string | number[] = number[]> { v: T; constructor(v?: T) { this.v = v!; } } ';
+const MERGED_BOX = 'interface Box<T extends string | number[] = number[]> { w: T } ';
+for (const [label, source, want] of [
+  [
+    'an inherited constructor fed an argument leaves the parameters open',
+    `${ CONSTRUCTED_BOX }class Sub<T extends string | number[] = number[]> extends Box<T> {} const out = new Sub("xy").v;`,
+    null,
+  ],
+  ['a spread argument leaves the parameters open', `${ CONSTRUCTED_BOX }declare const args: [string]; const out = new Box(...args).v;`, null],
+  ['`Reflect.construct` leaves the parameters open', `${ CONSTRUCTED_BOX }const out = Reflect.construct(Box, ["xy"]).v;`, null],
+  ['a construction with no argument binds the defaults', `${ CONSTRUCTED_BOX }const out = new Box().v;`, { primitive: false, ctor: 'Array' }],
+  [
+    '`this` leaves a merged member open',
+    `${ MERGED_BOX }class Box<T extends string | number[] = number[]> { last() { const out = this.w; } }`,
+    null,
+  ],
+  [
+    'an explicit construction binds a merged member',
+    `${ MERGED_BOX }class Box<T extends string | number[] = number[]> {} const out = new Box<string>().w;`,
+    { primitive: true, kind: 'string' },
+  ],
+]) {
+  runBoth(`class receiver: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
+// --- `typeof X` as a member source ---
+// the members of `typeof X` are those of the type X is declared or asserted with, else the static own
+// keys of the object literal it holds, each read as `typeof X.key`; each row folds `(typeof obj)[keyof
+// typeof obj]`, and a member walk that cannot see every key refuses rather than narrow
+for (const [label, declaration, want] of [
+  ['an object literal folds its values', 'const obj = { a: [1], b: [2] };', { primitive: false, ctor: 'Array' }],
+  ['`satisfies` keeps the literal', 'const obj = { a: [1] } satisfies { a: number[]; c?: string };', { primitive: false, ctor: 'Array' }],
+  ['`as const` keeps the literal', 'const obj = { a: "x", b: "y" } as const;', { primitive: true, kind: 'string' }],
+  ['an annotation wider than the literal wins', 'const obj: { a: number[]; c?: string } = { a: [1] };', null],
+  ['an assertion to a wider type wins', 'const obj = { a: [1] } as { a: number[]; c: string };', null],
+  ['a reassigned binding refuses', 'let obj = { a: [1] }; obj = { a: [2] };', null],
+  ['a spread refuses', 'declare const base: { z: string }; const obj = { a: [1], ...base };', null],
+  ['a numeric key refuses', 'const obj = { a: [1], 1: [2] };', null],
+  ['a getter reads its return', 'const obj = { a: [1], get g() { return [2]; } };', { primitive: false, ctor: 'Array' }],
+  ['a method folds in a function', 'const obj = { a: [1], m() { return [2]; } };', null],
+]) {
+  runBoth(`typeof member source: ${ label }`, `${ declaration } declare const v: (typeof obj)[keyof typeof obj]; const out = v;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want) checkType(lbl, type, want);
+      else check(lbl, type, null);
+    });
+}
+
+runBoth('typeof member source: a key constrained to `keyof typeof obj` reads the fold',
+  'const obj = { a: [1], b: [2] }; function f<K extends keyof typeof obj>(k: K) { const out = obj[k]; }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- an alias instantiation hands its indexed-access body the arguments it spelled ---
+// the substitution map holds what each argument resolved to, which an indexed access over the
+// parameter cannot read members off: it reads the spelled argument instead, in the scope that spelled
+// it - a parameter left to its default is not spelled
+const ALIAS_C = 'interface C { a: number[]; b: number[] } ';
+const ARRAY = { primitive: false, ctor: 'Array' };
+const STRING = { primitive: true, kind: 'string' };
+for (const [label, source, want] of [
+  ['a nested alias keeps the argument', `${ ALIAS_C }type W<U> = U[keyof U]; type V<T> = W<T>; declare const v: V<C>; const out = v;`, ARRAY],
+  ['a union body keeps the argument', `${ ALIAS_C }type M<T> = T[keyof T] | null; declare const v: M<C>; const out = v!;`, ARRAY],
+  ['an open parameter as the argument stays open', `${ ALIAS_C }type V<T> = T[keyof T]; function f<T extends C>(v: V<T>) { const out = v; }`, null],
+  [
+    'an open parameter under a string index signature folds it',
+    'type V<T> = T[keyof T]; function f<T extends Record<string, number[]>>(v: V<T>) { const out = v; }',
+    ARRAY,
+  ],
+  ['a defaulted parameter is not spelled', `${ ALIAS_C }type V<T = C> = T[keyof T]; declare const v: V; const out = v;`, null],
+]) {
+  runBoth(`alias spelled arguments: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
+// a generic callee's indexed return over an argument whose declared type names no keys one by one - an
+// index signature, an open parameter - folds that type in the argument's own scope
+const PICK = 'declare function pick<T>(o: T): T[keyof T]; ';
+for (const [label, source] of [
+  ['an index-signature argument', `${ PICK }declare const r: Record<string, number[]>; const out = pick(r);`],
+  ['an open parameter argument', `${ PICK }function f<U extends Record<string, number[]>>(u: U) { const out = pick(u); }`],
+]) {
+  runBoth(`callee indexed return: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), ARRAY);
+  });
+}
+
+// a member read through `typeof X` takes the type X is declared or asserted with before the value it holds
+for (const [label, source, want] of [
+  ['a declared `any` keeps it generic', 'const box: any = { rows: [8, 9] }; box.rows = "ab"; const out = (box as typeof box).rows;', null],
+  [
+    'an asserted wider type is the one read',
+    'interface C { rows: number[] | string } const box = { rows: [1] } as C; declare const x: typeof box; const out = x.rows;',
+    null,
+  ],
+  ['an undeclared literal is read itself', 'const box = { rows: [1] }; declare const x: typeof box; const out = x.rows;', ARRAY],
+]) {
+  runBoth(`typeof member read: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
+// --- a `typeof` path reads the type it spells ---
+// a query whose path meets a declared or asserted type - the binding's own, an object literal
+// property's, one a constant alias or a shorthand property hands on - names THAT type, never the value
+// the initializer holds, in every reader of the query, the utilities over it included. a destructured
+// name's declaration types its whole pattern and answers for none of its names
+const TYPEOF_BASE = 'class Base { items: string | number[] = "s"; } class Derived extends Base { items: number[] = [1]; } ';
+for (const [label, source, want] of [
+  ['ReturnType of a declared binding', 'const f: () => string | number[] = () => "x"; declare const r: ReturnType<typeof f>; const out = r;', null],
+  ['ReturnType through an alias annotation', 'type Fn = () => number[]; const f: Fn = () => [1]; declare const r: ReturnType<typeof f>; const out = r;', ARRAY],
+  ['ReturnType of an asserted initializer', 'const f = (() => "x") as () => string | number[]; declare const r: ReturnType<typeof f>; const out = r;', null],
+  [
+    'ReturnType through a constant alias',
+    'const b: () => string | number[] = () => "x"; const a = b; declare const r: ReturnType<typeof a>; const out = r;',
+    null,
+  ],
+  [
+    'ReturnType of a member of a declared binding',
+    'interface Api { get(): string | number[] } const api: Api = { get: () => "x" }; declare const r: ReturnType<typeof api.get>; const out = r;',
+    null,
+  ],
+  [
+    'ReturnType of an asserted literal member',
+    'const api = { get: (() => "x") as () => string | number[] }; declare const r: ReturnType<typeof api.get>; const out = r;',
+    null,
+  ],
+  ['ReturnType of an undeclared value reads the value', 'const f = () => [1]; declare const r: ReturnType<typeof f>; const out = r;', ARRAY],
+  ['ReturnType keeps folding a declared union of signatures', 'declare const f: (() => number[]) | (() => number[]); declare const r: ReturnType<typeof f>; const out = r;', ARRAY],
+  [
+    'InstanceType through a query naming a class',
+    'class A { items: number[] = []; } const K = A as typeof A; declare const i: InstanceType<typeof K>; const out = i.items;',
+    ARRAY,
+  ],
+  ['InstanceType of a declared binding', `${ TYPEOF_BASE }const K: typeof Base = Derived; declare const i: InstanceType<typeof K>; const out = i.items;`, null],
+  [
+    'InstanceType members of a declared binding',
+    `${ TYPEOF_BASE }const K: typeof Base = Derived; declare const x: InstanceType<typeof K>["items"]; const out = x;`,
+    null,
+  ],
+  [
+    'Parameters of a declared method',
+    'interface O { m(a: string | number[]): void } const o: O = { m(a: number[]) {} }; declare const p: Parameters<typeof o.m>; const out = p[0];',
+    null,
+  ],
+  [
+    'ConstructorParameters of a declared binding',
+    'class A { constructor(a: string | number[]) {} } class B extends A { constructor(a: number[]) { super(a); } } const K: typeof A = B;'
+      + ' declare const p: ConstructorParameters<typeof K>; const out = p[0];',
+    null,
+  ],
+  [
+    'ThisParameterType of a declared method',
+    'interface O { m(this: string | number[]): void } const o: O = { m(this: number[]) {} }; declare const t: ThisParameterType<typeof o.m>; const out = t;',
+    null,
+  ],
+  ['ThisParameterType of a subject not found', 'function f(o: { m(this: string[]): void }, t: ThisParameterType<typeof o.m>) { const out = t; }', null],
+  ['a bare query of an asserted initializer', 'const f = [1] as string | number[]; declare const v: typeof f; const out = v;', null],
+  ['an asserted literal member of one family', 'const s = { value: [] as number[] }; declare const v: typeof s.value; const out = v;', ARRAY],
+  [
+    'a query cycle ends',
+    '// @ts-expect-error a self-naming pair is the shape under test\n'
+      + 'declare const a: typeof b; declare const b: typeof a; declare const i: InstanceType<typeof a>; const out = i;',
+    null,
+  ],
+  [
+    'an alias cycle ends',
+    '// @ts-expect-error a self-naming pair is the shape under test\nconst a = b; const b = a; declare const r: ReturnType<typeof a>; const out = r;',
+    null,
+  ],
+  [
+    'a reassigned binding is typed by its asserted initializer',
+    'let f = (() => [1]) as () => number[]; f = () => [2]; declare const r: ReturnType<typeof f>; const out = r;',
+    ARRAY,
+  ],
+  [
+    'a hop to a reassigned binding reads its asserted member',
+    'let b = { v: "" as string | string[] }; b = { v: "x" }; const a = b; declare const x: typeof a.v; const out = x;',
+    null,
+  ],
+  [
+    'a reassigned binding\'s literal member asserted wider',
+    'let o = { v: "" as string | string[] }; o = { v: "x" }; declare const x: typeof o.v; const out = x;',
+    null,
+  ],
+  [
+    'the members of a declared binding fold',
+    'const obj: { a: number[]; b: number[] } = { a: [1], b: [2] }; declare const v: (typeof obj)[keyof typeof obj]; const out = v;',
+    ARRAY,
+  ],
+  [
+    'a destructure off `typeof` of a declared binding',
+    'const obj: { a: number[] } = { a: [1] }; function f(x: typeof obj) { const { a } = x; const out = a; }',
+    ARRAY,
+  ],
+  ['an asserted literal member', 'const s = { value: "" as string | string[] }; declare const v: typeof s.value; const out = v;', null],
+  ['a member read off `typeof` of the literal', 'const s = { value: "" as string | string[] }; declare const x: typeof s; const out = x.value;', null],
+  [
+    'a shorthand property hands its binding on',
+    'const inner = { value: "" as string | string[] }; const outer = { inner }; declare const v: typeof outer.inner.value; const out = v;',
+    null,
+  ],
+  ['an undeclared literal member reads the literal', 'const s = { value: [1] }; declare const x: typeof s; const out = x.value;', ARRAY],
+  ['a destructured name is not its pattern', 'const [a] = ["x"]; declare const v: typeof a; const out = v;', null],
+  ['a destructured name is not its initializer', 'const { a } = { a: "x" }; declare const v: typeof a; const out = v;', null],
+  [
+    'a member of a destructured name is not the container\'s',
+    'declare const src: { inner: { rows: string }; rows: number[] }; const { inner }: { inner: { rows: string }; rows: number[] } = src;'
+      + ' declare const x: typeof inner; const out = x.rows;',
+    null,
+  ],
+]) {
+  runBoth(`typeof path: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
+// accepted boundary: an unannotated function's return read at the type level is inferred from the
+// returned value - an assertion over a nullish or untyped value is honoured, while a concrete value
+// asserted to a wider union keeps its own family
+for (const [label, source, want] of [
+  ['a concrete value asserted wider keeps its family', 'function f() { return "" as string | string[]; } declare const r: ReturnType<typeof f>; const out = r;', STRING],
+  ['an arrow returning a concrete value asserted wider', 'const f = () => [1] as number[] | string; declare const r: ReturnType<typeof f>; const out = r;', ARRAY],
+  [
+    'a getter step returning a concrete value asserted wider',
+    'const s = { get value() { return "" as string | string[]; } }; declare const v: typeof s.value; const out = v;',
+    STRING,
+  ],
+  ['an assertion over null is honoured', 'function f() { return null as number[] | null; } declare const r: ReturnType<typeof f>; const out = r!;', ARRAY],
+  [
+    'an assertion over an untyped value is honoured',
+    'function f(raw: string) { return JSON.parse(raw) as number[]; } declare const r: ReturnType<typeof f>; const out = r;',
+    ARRAY,
+  ],
+]) {
+  runBoth(`return at the type level: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), want);
+  });
+}
+
+// ... and an unannotated class static field the same: the value it holds types it
+for (const [label, source, want] of [
+  ['a `typeof` of a static asserted wider keeps its family', 'class K { static v = "" as string | string[]; } declare const x: typeof K.v; const out = x;', STRING],
+  ['a member of `typeof K` asserted wider keeps its family', 'class K { static v = "" as string | string[]; } function f(k: typeof K) { const out = k.v; }', STRING],
+  ['an annotated static is read as declared', 'class K { static v: number[] = []; } declare const x: typeof K.v; const out = x;', ARRAY],
+]) {
+  runBoth(`static field at the type level: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), want);
+  });
+}
+
+// a reader holding a destructured name's declaration and no key path into it reads no annotation
+// there: the pattern's annotation types the container
+for (const [label, source, want] of [
+  ['a typeof guard narrows a destructured parameter', 'function f({ v }: { v: string | number[] }) { if (typeof v === "string") { const out = v; } }', STRING],
+  ['a typeof guard narrows an array-destructured parameter', 'function f([v]: [string | number[]]) { if (typeof v === "string") { const out = v; } }', STRING],
+  [
+    'a predicate on a destructured root is not the container\'s',
+    'interface Api { isStr(v: unknown): v is string }'
+      + ' function f({ api }: { api: Api; isStr(v: unknown): v is number[] }, v: string | number[]) { if (api.isStr(v)) { const out = v; } }',
+    null,
+  ],
+  [
+    'an overload picked by a destructured argument does not read the container',
+    'declare function isArr(k: string, v: unknown): v is string; declare function isArr(k: number, v: unknown): v is number[];'
+      + ' function f({ length }: string, v: string | number[]) { if (isArr(length, v)) { const out = v; } }',
+    null,
+  ],
+]) {
+  runBoth(`destructured name: ${ label }`, source, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
+// --- a loop test guards its body ---
+// a `while` / `for` test holds at the start of every run of the body and is asked again before the
+// next: a write the use reads after, or one in the test itself, breaks it; a write after the use or in
+// the update does not; the back edge of a loop that writes the binding stales a guard above the loop
+const LOOP_DECLS = 'declare let v: string | number[]; declare function next(): string | number[]; ';
+for (const [label, body, want] of [
+  ['a write in the test breaks it', 'while (typeof v === "string" && (v = next(), true)) { const out = v; }', null],
+  ['a for loop without a test guards nothing', 'for (;;) { if (Math.random()) break; const out = v; }', null],
+  ['a guard above a loop that writes goes stale', 'if (typeof v === "string") { while (Math.random()) { const out = v; v = next(); } }', null],
+  ['an inner loop test holds past the outer write', 'while (Math.random()) { while (typeof v === "string") { const out = v; } v = next(); }', STRING],
+  ['a closure in the body is deferred past it', 'while (typeof v === "string") { [1].forEach(() => { const out = v; }); v = next(); }', null],
+]) {
+  runBoth(`loop guard: ${ label }`, LOOP_DECLS + body, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
+// ... and a discriminant test over the same body, by the same rule
+const DISCRIMINATED = 'type U = { kind: "s"; v: string } | { kind: "a"; v: number[] }; declare let u: U; declare function nu(): U; ';
+for (const [label, body, want] of [
+  ['a discriminant loop test narrows its body', 'while (u.kind === "s") { const out = u.v; u = nu(); }', STRING],
+  ['a write before the use breaks a discriminant loop test', 'while (u.kind === "s") { u = nu(); const out = u.v; }', null],
+]) {
+  runBoth(`loop guard: ${ label }`, DISCRIMINATED + body, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want) checkType(lbl, type, want);
+    else check(lbl, type, null);
+  });
+}
+
 // --- class-body member resolution order ---
 // the read walk, the own-accessor probe and the bodyless-overload filter all ask the same
 // question of the same class body ("which members carry this name"), so the answer is indexed per
@@ -11786,6 +12315,7 @@ runBoth('class property: opaque arg resolves null',
 // field-wins: the field is declared BEFORE the same-named method, and still answers the read
 runBoth('class field wins over an earlier-declared method of the same name',
   `
+    // @ts-expect-error duplicate members are the shape under test
     class C { m: string[] = []; m(): Map<string, number> { return new Map(); } }
     const r = new C().m;
   `,
@@ -11797,6 +12327,7 @@ runBoth('class field wins over an earlier-declared method of the same name',
 // duplicate method keys: the source-LAST definition is the one installed on the prototype
 runBoth('duplicate class method keys resolve to the LAST definition',
   `
+    // @ts-expect-error duplicate members are the shape under test
     class C { m(): string[] { return []; } m(): Map<string, number> { return new Map(); } }
     const r = new C().m();
   `,
@@ -12065,14 +12596,16 @@ for (const [label, alias, applied, want] of [
 // identity fields alone drops whatever markers the bound already carried
 markerBranchCase({
   label: 'type markers: a higher-kinded application keeps the bound type markers',
-  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\ntype Apply<F, X> = F<X>;'
-    + '\ndeclare const q: IsMutable<Apply<ReadonlySet, number>>;\nconst v = q;',
+  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\n// @ts-expect-error a higher-kinded application tsc refuses is the shape under test\n'
+    + 'type Apply<F, X> = F<X>;'
+    + '\n// @ts-expect-error a generic named without its type arguments is the shape under test\ndeclare const q: IsMutable<Apply<ReadonlySet, number>>;\nconst v = q;',
   want: STRING_BRANCH,
 });
 markerBranchCase({
   label: 'type markers: control - a higher-kinded application of the mutable container',
-  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\ntype Apply<F, X> = F<X>;'
-    + '\ndeclare const q: IsMutable<Apply<Set, number>>;\nconst v = q;',
+  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\n// @ts-expect-error a higher-kinded application tsc refuses is the shape under test\n'
+    + 'type Apply<F, X> = F<X>;'
+    + '\n// @ts-expect-error a generic named without its type arguments is the shape under test\ndeclare const q: IsMutable<Apply<Set, number>>;\nconst v = q;',
   want: ARRAY_BRANCH,
 });
 
@@ -12080,13 +12613,14 @@ markerBranchCase({
 
 // a user DECLARATION or a type PARAMETER of the same name outranks the built-in reading. the
 // utility switch had no gate at all, so a user `Awaited` / a parameter named `Record` answered
-// with the utility's verdict for a value the source says is an array
+// with the utility's verdict for a value the source says is an array. an alias shadows only in a
+// module - in a script it collides with the lib's own (TS2300) - hence the `export {}`
 for (const [label, code] of [
-  ['a user alias named `Record`', 'type Record<K, V> = V[];\ndeclare const q: Record<string, number>;\nconst v = q;'],
-  ['a user alias named `Awaited`', 'type Awaited<T> = T[];\ndeclare const q: Awaited<number>;\nconst v = q;'],
-  ['a user alias named `NonNullable`', 'type NonNullable<T> = T[];\ndeclare const q: NonNullable<number>;\nconst v = q;'],
-  ['a user alias named `Exclude`', 'type Exclude<A, B> = A[];\ndeclare const q: Exclude<number, string>;\nconst v = q;'],
-  ['a user alias named `PropertyKey`', 'type PropertyKey = number[];\ndeclare const q: PropertyKey;\nconst v = q;'],
+  ['a user alias named `Record`', 'export {};\ntype Record<K, V> = V[];\ndeclare const q: Record<string, number>;\nconst v = q;'],
+  ['a user alias named `Awaited`', 'export {};\ntype Awaited<T> = T[];\ndeclare const q: Awaited<number>;\nconst v = q;'],
+  ['a user alias named `NonNullable`', 'export {};\ntype NonNullable<T> = T[];\ndeclare const q: NonNullable<number>;\nconst v = q;'],
+  ['a user alias named `Exclude`', 'export {};\ntype Exclude<A, B> = A[];\ndeclare const q: Exclude<number, string>;\nconst v = q;'],
+  ['a user alias named `PropertyKey`', 'export {};\ntype PropertyKey = number[];\ndeclare const q: PropertyKey;\nconst v = q;'],
   ['a parameter named `Record`', 'declare function f<Record extends number[]>(x: Record): Record;\ndeclare const q: number[];\nconst v = f(q);'],
   ['a parameter named `Partial`', 'declare function f<Partial extends number[]>(x: Partial): Partial;\ndeclare const q: number[];\nconst v = f(q);'],
 ]) {
@@ -12402,7 +12936,7 @@ runBoth('a block-local declaration does not outrank the class an outer annotatio
     declare class Base { constructor(a: number[]); }
     class Derived extends Base {}
     function shadowed() {
-      class Base { constructor(b: string); }
+      class Base { constructor(b: string) {} }
       type P = ConstructorParameters<typeof Derived>;
       const picked: P[0] = null as any;
       return picked;
@@ -12469,7 +13003,7 @@ for (const [label, open, close] of [['braced', '{', '}'], ['unbraced', '', '']])
       declare const k: number;
       switch (k) { case 1: ${ open }
         interface Inner { items: number[] }
-        declare const v: Inner;
+        let v: Inner;
         globalThis.out = v.items;
       ${ close } }
     `, ARRAY_MEMBER);
@@ -13095,7 +13629,7 @@ const AWAITED_TUPLE_SHAPES = [
 ];
 for (const [label, declaration] of AWAITED_TUPLE_SHAPES) {
   runBoth(`awaited: a ${ label } tuple element stays a Promise`,
-    `${ declaration }\ndeclare const t: T;\nt[0].at(0);`,
+    `${ declaration }\ndeclare const t: T;\n${ expectError(ABSENT_MEMBER) }t[0].at(0);`,
     (adapter, prog, lbl) => {
       const resolved = atReceiver(adapter, prog);
       if (resolved?.constructor === 'Array') return fail(lbl, 'the element was peeled to its awaited inner type');
@@ -13254,14 +13788,14 @@ const TEMPLATE_KEY_SHAPE = `{ [k: \`a$${ '{' }string}\`]: number[] }`;
 const INDEX_SIGNATURE_ROWS = [
   ['template, key matches', TEMPLATE_KEY_SHAPE, 'abc', 'Array'],
   ['template, key does not match', TEMPLATE_KEY_SHAPE, 'zzz', 'none'],
-  ['literal union, key in it', '{ [k: "a" | "b"]: number[] }', 'a', 'Array'],
-  ['literal union, key outside it', '{ [k: "a" | "b"]: number[] }', 'c', 'none'],
+  ['literal union, key in it', '{ [k: "a" | "b"]: number[] }', 'a', 'Array', LITERAL_UNION_INDEX],
+  ['literal union, key outside it', '{ [k: "a" | "b"]: number[] }', 'c', 'none', LITERAL_UNION_INDEX],
   // the plain keywords keep answering exactly as before
   ['bare string signature', '{ [k: string]: number[] }', 'zzz', 'Array'],
   ['bare number signature, string key', '{ [k: number]: number[] }', 'zzz', 'none'],
 ];
-for (const [label, shape, key, want] of INDEX_SIGNATURE_ROWS) {
-  runBoth(`index signature: ${ label }`, `type T = ${ shape };\ndeclare const o: T;\no["${ key }"].at(0);`,
+for (const [label, shape, key, want, rejected] of INDEX_SIGNATURE_ROWS) {
+  runBoth(`index signature: ${ label }`, `${ expectError(rejected) }type T = ${ shape };\ndeclare const o: T;\no["${ key }"].at(0);`,
     (adapter, prog, lbl) => {
       const resolved = atReceiver(adapter, prog);
       if (want === 'Array') return checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
@@ -13404,7 +13938,8 @@ for (const [label, wrap] of [['bare', 'this'], ['paren', '(this)']]) {
 // conservative on it rather than trusting the initializer
 const SCAN_ROOT_ROWS = [
   ['abstract member beside a this-write',
-    'abstract class C { abstract q(): void; xs = [1]; poison() { this.xs = "abc"; } }\n'
+    '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+    + 'abstract class C { abstract q(): void; xs = [1]; poison() { this.xs = "abc"; } }\n'
     + 'class D extends C { q() {} }\nconst d = new D();\nd.xs.at(0);', 'drop'],
   ['same class without the abstract member',
     'class C { xs = [1]; poison() { this.xs = "abc"; } }\nconst c = new C();\nc.xs.at(0);', 'drop'],
@@ -13412,7 +13947,8 @@ const SCAN_ROOT_ROWS = [
     'abstract class C { abstract q(): void; xs = [1]; }\nclass D extends C { q() {} }\n'
     + 'const d = new D();\nd.xs.at(0);', 'Array'],
   ['overload signatures beside a this-write',
-    'class C { xs = [1]; m(a: number): void; m(a: string): void; m(a: any) { this.xs = "abc"; } }\n'
+    '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+    + 'class C { xs = [1]; m(a: number): void; m(a: string): void; m(a: any) { this.xs = "abc"; } }\n'
     + 'const c = new C();\nc.xs.at(0);', 'drop'],
 ];
 // memberWriteReceiverPath roots the write in the same fold, whether the receiver is reached
@@ -13459,13 +13995,13 @@ const TOP_ARGUMENT_EXTENDS_ROWS = [
   // the negatives: a target that is NOT all-top keeps its concrete comparison. each resolves to
   // `never`, and TS forbids a property access on `never` - so the source is one tsc rejects, and
   // what the row locks is that an uninhabited receiver gets no family-specific helper
-  ['concrete element target', 'type R = Extract<number[] | string, Array<string>>;', 'drop'],
-  ['object element is not a top', 'type R = Extract<number[] | string, Array<object>>;', 'drop'],
-  ['foreign container with top arguments', 'type R = Extract<number[] | string, Map<any, any>>;', 'drop'],
-  ['concrete readonly target', 'type R = Extract<number[] | string, readonly string[]>;', 'drop'],
+  ['concrete element target', 'type R = Extract<number[] | string, Array<string>>;', 'drop', ABSENT_MEMBER],
+  ['object element is not a top', 'type R = Extract<number[] | string, Array<object>>;', 'drop', ABSENT_MEMBER],
+  ['foreign container with top arguments', 'type R = Extract<number[] | string, Map<any, any>>;', 'drop', ABSENT_MEMBER],
+  ['concrete readonly target', 'type R = Extract<number[] | string, readonly string[]>;', 'drop', ABSENT_MEMBER],
 ];
-for (const [label, decl, want] of TOP_ARGUMENT_EXTENDS_ROWS) {
-  runBoth(`top-argument extends: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+for (const [label, decl, want, rejected] of TOP_ARGUMENT_EXTENDS_ROWS) {
+  runBoth(`top-argument extends: ${ label }`, `${ decl }\ndeclare const r: R;\n${ expectError(rejected) }r.at(0);`,
     want === 'Array' ? arrayAtReceiver : dropAtReceiver);
 }
 // the same predicate answers for the other three conditional-branch sites, each with the
@@ -13473,14 +14009,14 @@ for (const [label, decl, want] of TOP_ARGUMENT_EXTENDS_ROWS) {
 // property access tsc rejects - the row asks only that no branch types the receiver
 const TOP_ARGUMENT_SITE_ROWS = [
   ['plain conditional type', 'type P<T> = T extends any[] ? T : never;\ntype R = P<number[]>;', 'Array'],
-  ['plain conditional type, concrete argument', 'type P<T> = T extends Array<string> ? T : never;\ntype R = P<number[]>;', 'drop'],
+  ['plain conditional type, concrete argument', 'type P<T> = T extends Array<string> ? T : never;\ntype R = P<number[]>;', 'drop', ABSENT_MEMBER],
   ['conditional type member', 'interface Box<T> { v: T extends readonly unknown[] ? T : string }\ntype R = Box<number[]>["v"];', 'Array'],
   ['conditional type member, concrete argument', 'interface Box<T> { v: T extends Array<string> ? T : string }\ntype R = Box<number[]>["v"];', 'drop'],
   ['conditional under Awaited', 'type U<T> = T extends Array<any> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'Array'],
-  ['conditional under Awaited, concrete argument', 'type U<T> = T extends Array<string> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'drop'],
+  ['conditional under Awaited, concrete argument', 'type U<T> = T extends Array<string> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'drop', ABSENT_MEMBER],
 ];
-for (const [label, decl, want] of TOP_ARGUMENT_SITE_ROWS) {
-  runBoth(`top-argument extends at site: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+for (const [label, decl, want, rejected] of TOP_ARGUMENT_SITE_ROWS) {
+  runBoth(`top-argument extends at site: ${ label }`, `${ decl }\ndeclare const r: R;\n${ expectError(rejected) }r.at(0);`,
     want === 'Array' ? arrayAtReceiver : dropAtReceiver);
 }
 // a union CALLEE is one value with several signatures: convergent arms keep the narrow, divergent
@@ -13497,7 +14033,12 @@ const UNION_CALLEE_ROWS = [
   ['callable object types', 'declare const f: { (): number[] } | { (): number[] };\nf().at(0);', 'Array'],
   // `new` on a union whose second arm is call-only is TS2351 - the lock is that the two signature
   // kinds never cross-resolve even when the source is one tsc rejects
-  ['construct signatures stay apart (tsc rejects)', 'declare const C: { new (): number[] } | { (): string };\nnew C().at(0);', 'drop'],
+  [
+    'construct signatures stay apart (tsc rejects)',
+    'declare const C: { new (): number[] } | { (): string };\n'
+    + '// @ts-expect-error a union of construct and call signatures is the shape under test\nnew C().at(0);',
+    'drop',
+  ],
 ];
 for (const [label, source, want] of UNION_CALLEE_ROWS) {
   runBoth(`union callee: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
@@ -13518,7 +14059,12 @@ const UNION_INDEXED_ACCESS_ROWS = [
   // the two below are input real tsc REJECTS (TS2339 on the missing key, TS2304 on the undeclared
   // name). the plugin never typechecks what it is given, so what they lock is the other half of the
   // contract: malformed input degrades to the generic helper instead of resolving to some arm
-  ['an arm missing the key (tsc rejects the source)', 'type S = { v: number[] } | { w: number };\ntype R = S["v"];', 'drop'],
+  [
+    'an arm missing the key (tsc rejects the source)',
+    'type S = { v: number[] } | { w: number };\n'
+    + '// @ts-expect-error an indexed access through an arm without the key is the shape under test\ntype R = S["v"];',
+    'drop',
+  ],
   ['an unresolvable arm (tsc rejects the source)', 'type S = { v: number[] } | Nowhere;\ntype R = S["v"];', 'drop'],
   // tsc says number[] here; the arm superset drags in a foreign family, so this degrades - an
   // under-resolve, and the safe direction for usage-pure
@@ -13586,7 +14132,12 @@ const INLINE_SIGNATURE_PARAMS_ROWS = [
   ['generic alias, later parameter', 'type F<T> = (a: string, b: T) => void;\ntype R = Parameters<F<number[]>>[1];', 'Array'],
   ['generic alias, foreign argument', 'type F<T> = (a: T) => void;\ntype R = Parameters<F<string>>[0];', 'drop'],
   ['generic construct alias', 'type C<T> = new (a: T) => object;\ntype R = ConstructorParameters<C<number[]>>[0];', 'Array'],
-  ['crossed kind through an alias', 'type C = new (a: number[]) => object;\ntype R = Parameters<C>[0];', 'drop'],
+  [
+    'crossed kind through an alias',
+    'type C = new (a: number[]) => object;\n'
+    + '// @ts-expect-error a utility over the wrong signature kind is the shape under test\ntype R = Parameters<C>[0];',
+    'drop',
+  ],
   // `ThisParameterType` is the same reader over the `this` slot, and it understood only the
   // `typeof` spelling too - the two must not disagree about which forms they accept
   ['this slot, inline signature', 'type R = ThisParameterType<(this: number[], a: string) => void>;', 'Array'],
@@ -13597,8 +14148,18 @@ const INLINE_SIGNATURE_PARAMS_ROWS = [
   ['ConstructorParameters, inline construct signature', 'type R = ConstructorParameters<new (a: number[]) => object>[0];', 'Array'],
   // each name takes only the signature kind it is defined over - a crossed spelling is one tsc
   // rejects, and it must stay unresolved rather than answer off the wrong shape
-  ['Parameters over a construct signature stays unresolved', 'type R = Parameters<new (a: number[]) => object>[0];', 'drop'],
-  ['ConstructorParameters over a call signature stays unresolved', 'type R = ConstructorParameters<(a: number[]) => void>[0];', 'drop'],
+  [
+    'Parameters over a construct signature stays unresolved',
+    '// @ts-expect-error a utility over the wrong signature kind is the shape under test\n'
+    + 'type R = Parameters<new (a: number[]) => object>[0];',
+    'drop',
+  ],
+  [
+    'ConstructorParameters over a call signature stays unresolved',
+    '// @ts-expect-error a utility over the wrong signature kind is the shape under test\n'
+    + 'type R = ConstructorParameters<(a: number[]) => void>[0];',
+    'drop',
+  ],
 ];
 for (const [label, decl, want] of INLINE_SIGNATURE_PARAMS_ROWS) {
   runBoth(`inline signature parameters: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
@@ -13635,14 +14196,19 @@ const ARGUMENT_DIRECTIVE_ROWS = [
   // argument the reader cannot see
   ['a second callback opens a second resolution', 'async function f() { const r = await Promise.resolve(0).then(() => [1], () => "s"); r.at(0); }', 'drop'],
   ['elements of different families', 'async function f() { const r = (await Promise.all([[1], "s"]))[0]; r.at(0); }', 'drop'],
-  ['a spread hides the elements', 'async function f() { declare const xs: number[][]; const r = (await Promise.all([...xs]))[0]; r.at(0); }', 'drop'],
+  ['a spread hides the elements', 'declare const xs: number[][]; async function f() { const r = (await Promise.all([...xs]))[0]; r.at(0); }', 'drop'],
   // both peels go through the canons the file already had: awaiting settles ALL the way down, and
   // a LITERAL spread still names its arguments - only a spread whose source is opaque does not
   ['nested promises settle to the innermost', 'async function f() { const r = await Promise.resolve(Promise.resolve([1])); r.at(0); }', 'Array'],
   ['three layers deep', 'async function f() { const r = await Promise.resolve(Promise.resolve(Promise.resolve([1]))); r.at(0); }', 'Array'],
   ['a literal spread still names the argument', 'async function f() { const r = await Promise.resolve(...[[1]]); r.at(0); }', 'Array'],
   ['a literal spread of the iterable', 'async function f() { const r = (await Promise.all(...[[[1], [2]]]))[0]; r.at(0); }', 'Array'],
-  ['an opaque spread stays undecidable', 'async function f() { declare const xs: any[]; const r = await Promise.resolve(...xs); (r as any).at(0); }', 'drop'],
+  [
+    'an opaque spread stays undecidable',
+    '// @ts-expect-error a spread argument tsc cannot place is the shape under test\n'
+    + 'declare const xs: any[]; async function f() { const r = await Promise.resolve(...xs); (r as any).at(0); }',
+    'drop',
+  ],
   // a callback slot may NAME its function instead of writing it, and BOTH slots are read the same
   // way - reading only literals in the second one let `then(onFulfilled, onRejected)` answer off
   // the first of two resolution paths
@@ -13656,7 +14222,12 @@ const ARGUMENT_DIRECTIVE_ROWS = [
   ['a slot holding no function at all', 'const notFn = 42;\nasync function f() { const r = await Promise.try(notFn as any); (r as any).at(0); }', 'drop'],
   // a TS wrapper hides either shape, so the slot reader has to look through one - and only a
   // REFERENCE is worth following at all, which is what keeps the guard off every data argument
-  ['an inline callback under a TS wrapper', 'async function f() { const r = await Promise.try((() => [1]) as any); r.at(0); }', 'Array'],
+  [
+    'an inline callback under a TS wrapper',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'async function f() { const r = await Promise.try((() => [1]) as any); r.at(0); }',
+    'Array',
+  ],
   ['a named callback under a TS wrapper', 'const mk = () => [1];\nasync function f() { const r = await Promise.try(mk!); r.at(0); }', 'Array'],
   // the callback's return is the answer, so an UNCERTAIN return is no answer: divergent branches,
   // no return at all, a throw, a generator - each leaves the container bare
@@ -13667,18 +14238,18 @@ const ARGUMENT_DIRECTIVE_ROWS = [
   // and the mutation guards still speak: a mutated static or a reassigned callback binding
   // declines the narrow, which usage-global shows by keeping BOTH families injected
   ['a reassigned callback binding', 'let mk = () => [1];\nmk = () => "s" as any;\nasync function f() { const r = await Promise.try(mk); (r as any).at(0); }', 'drop'],
-  ['a non-literal iterable', 'async function f() { declare const xs: number[][]; const r = (await Promise.all(xs))[0]; r.at(0); }', 'drop'],
+  ['a non-literal iterable', 'declare const xs: number[][]; async function f() { const r = (await Promise.all(xs))[0]; r.at(0); }', 'drop'],
   // the iterable behind a transparent wrapper is still the iterable, and it has to read the same on
   // BOTH parsers: babel strips `([...])` at parse while oxc keeps a ParenthesizedExpression, so a
   // shape test on the raw node made the two emitters inject different helpers for one source
   ['a parenthesised iterable', 'async function f() { const r = (await Promise.all(([[1], [2]])))[0]; r.at(0); }', 'Array'],
   ['a TS-wrapped iterable', 'async function f() { const r = (await Promise.all([[1], [2]] as any))[0]; r.at(0); }', 'Array'],
   ['a doubly wrapped iterable', 'async function f() { const r = (await Promise.all((([[1], [2]]) as any)))[0]; r.at(0); }', 'Array'],
-  ['a wrapper over a NON-literal still declines', 'async function f() { declare const xs: number[][]; const r = (await Promise.all((xs)))[0]; r.at(0); }', 'drop'],
+  ['a wrapper over a NON-literal still declines', 'declare const xs: number[][]; async function f() { const r = (await Promise.all((xs)))[0]; r.at(0); }', 'drop'],
   // the ELEMENTS carry wrappers too, and the spread test that guards them reads a raw node type
   ['a parenthesised element of the iterable', 'async function f() { const r = (await Promise.all([([1]), [2]]))[0]; r.at(0); }', 'Array'],
   ['a TS-wrapped element of the iterable', 'async function f() { const r = (await Promise.all([[1] as any, [2]]))[0]; r.at(0); }', 'Array'],
-  ['a wrapped SPREAD element still declines', 'async function f() { declare const xs: number[][]; const r = (await Promise.all([...(xs)]))[0]; r.at(0); }', 'drop'],
+  ['a wrapped SPREAD element still declines', 'declare const xs: number[][]; async function f() { const r = (await Promise.all([...(xs)]))[0]; r.at(0); }', 'drop'],
   // the carrier is reached by more than a bare member: through a proxy-global hop, and through a
   // binding that aliases the static. both land on the same registry entry, so both must read it
   ['through a proxy-global hop', 'const v = globalThis.Object.freeze([1, 2]);\nv.at(0);', 'Array'],
@@ -13689,7 +14260,12 @@ const ARGUMENT_DIRECTIVE_ROWS = [
   ['elements that disagree bail', 'async function f() { const r = (await Promise.all([[1], "xy" as any]))[0]; (r as any).at(0); }', 'drop'],
   ['a disagreement in the MIDDLE bails too', 'async function f() { const r = (await Promise.all([[1], "xy" as any, [2]]))[0]; (r as any).at(0); }', 'drop'],
   ['three arms that all agree still narrow', 'async function f() { const r = (await Promise.all([[1], [2], [3]]))[0]; r.at(0); }', 'Array'],
-  ['an empty iterable leaves the container bare', 'async function f() { const r = (await Promise.all([]))[0]; (r as any).at(0); }', 'drop'],
+  [
+    'an empty iterable leaves the container bare',
+    '// @ts-expect-error an index past an empty tuple is the shape under test\n'
+    + 'async function f() { const r = (await Promise.all([]))[0]; (r as any).at(0); }',
+    'drop',
+  ],
   // deliberately undeclared: a rejection is not a resolution, `catch` settles two ways, and the
   // settled wrappers are not the awaited elements
   ['reject carries no directive', 'async function f() { const r = await Promise.reject([1]); (r as any).at(0); }', 'drop'],
@@ -13799,10 +14375,13 @@ runBoth('parameter property: bare', 'class C { constructor(public a: number[]) {
   const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
   checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: false, ctor: 'Array' });
 });
-runBoth('parameter property: a body write reaches the read', 'class C { constructor(public a: number[] = [1]) { a = "s"; a; } }', (adapter, prog, lbl) => {
-  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
-  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: true, kind: 'string' });
-});
+runBoth('parameter property: a body write reaches the read',
+  '// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value\n'
+  + 'class C { constructor(public a: number[] = [1]) { a = "s"; a; } }',
+  (adapter, prog, lbl) => {
+    const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: true, kind: 'string' });
+  });
 // a namespace member's READ value: a data field hands back its init, a GETTER hands back what its
 // body returns - but only a body with nothing else to observe, since the walks that ask this resolve
 // the value statically and never run it. the object and CLASS containers answer alike, and so do the
@@ -14244,6 +14823,7 @@ runBoth('deferred read: typeof guard holds in a method computed key on both pars
 
 runBoth('deferred read: discriminant guard does not hold inside an instance field initializer whose field is written after',
   `type A = { kind: "a"; v: string }; type B = { kind: "b"; v: number[] }; function f(o: A | B) { if (o.kind === "a") { class K { p = o.v.at(0);
+   // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
    } o.kind = "b"; o.v = [1]; return new K(); } }`,
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
@@ -14277,6 +14857,7 @@ runBoth('deferred read: a tagged-template IIFE write lands straight-line before 
 
 runBoth('deferred read: discriminant guard does not bound a generator IIFE at the call',
   `type A = { kind: "a"; v: string }; type B = { kind: "b"; v: number[] };
+   // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
    function f(o: A | B) { if (o.kind === "a") { const it = (function* () { yield o.v.at(0); })(); o.kind = "b"; o.v = [1]; return it; } }`,
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
@@ -14323,23 +14904,26 @@ runBoth('stale guard: a write in a preceding case test reaches the matching case
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 // --- built-in identification behind a guard operand ---
+// a module, where a local `Number` / `Array` shadows the built-in rather than colliding with it
 
 runBoth('guard operand: a shadowed built-in inside a typeof-or group contributes no disjunct',
-  'const Number = { isFinite: (v: unknown) => true }; function f(x: string | number[]) { if (typeof x === "string" || Number.isFinite(x)) return x.at(0); }',
+  'export {}; const Number = { isFinite: (v: unknown) => true }; function f(x: string | number[]) { if (typeof x === "string" || Number.isFinite(x)) return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('guard operand: the built-in reached through the realm object inside a typeof-or group narrows',
-  'const Number = { isFinite: (v: unknown) => true }; function f(x: string | number[]) { if (typeof x === "string" || globalThis.Number.isFinite(x as any)) return x.at(0); }',
+  'export {}; const Number = { isFinite: (v: unknown) => true }; '
+  + 'function f(x: string | number[]) { if (typeof x === "string" || globalThis.Number.isFinite(x as any)) return x.at(0); }',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
 
 runBoth('guard operand: an instanceof against a shadowed built-in narrows nothing',
-  'const Array = Map; function f(x: string | number[]) { if (x instanceof Array) return x.at(0); }',
+  'export {}; const Array = Map; function f(x: string | number[]) { if (x instanceof Array) return x.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 // --- scope anchors: a guard test evaluates where its host stands ---
 
 runBoth('guard anchor: a predicate shadowed inside the braced branch is not what the test called',
-  'declare function check(v: unknown): boolean; function f(v: unknown) { if (check(v)) { const check = (x: unknown): x is string => typeof x === "string"; return v.at(0); } }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'declare function check(v: unknown): boolean; function f(v: unknown) { if (check(v)) { const check = (x: unknown): x is string => typeof x === "string"; return v.at(0); } }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('guard anchor: a built-in shadowed inside the braced branch still guards the test',
@@ -14349,7 +14933,8 @@ runBoth('guard anchor: a built-in shadowed inside the braced branch still guards
 // the case-level `let outer` shadows the discriminant's binding: its init says nothing (`unknown`),
 // so any string narrow here could only have come from the OUTER binding's guard
 runBoth('guard anchor: a switch discriminant reads the binding outside the case block',
-  'declare const outer: string; declare function make(): unknown; function f() { switch (typeof outer) { case "string": let outer = make(); return outer.at(0); } }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'declare const outer: string; declare function make(): unknown; function f() { switch (typeof outer) { case "string": let outer = make(); return outer.at(0); } }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('guard anchor: an identifier that IS a ternary arm is narrowed by its own host',
@@ -14571,12 +15156,70 @@ runBoth('optional guard: the truthy branch of that guard still narrows to the ar
 // module leave it genuinely absent - so its `?.` keeps the three-valued stamp and the complement
 // branch keeps the union. the plain call beside it is the narrow that stamp costs
 runBoth('optional guard: a `?.` over an installable static keeps the union',
-  'function f(value: number | string) { if (Number.isInteger?.(value)) return null; return value.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(value: Error | string) { if (Error.isError?.(value)) return null; return value.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('optional guard: the same installable static without the `?.` narrows',
-  'function f(value: number | string) { if (Number.isInteger(value)) return null; return value.at(0); }',
+  'function f(value: Error | string) { if (Error.isError(value)) return null; return value.at(0); }',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// a built-in predicate true for only PART of the type it names proves that type where it comes out
+// true and nothing where it comes out false: `NaN` fails `Number.isFinite` and is still a number
+runBoth('partial guard: a true answer narrows to the type the predicate names',
+  '// @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value\n'
+  + 'function f(value: number | string) { if (!Number.isFinite(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' }));
+
+runBoth('partial guard: a false answer keeps the arm the predicate names',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(value: number | string) { if (Number.isFinite(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('partial guard: compared against `false`, the answer flips like a plain one',
+  '// @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value\n'
+  + 'function f(value: number | string) { if (Number.isFinite(value) === false) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' }));
+
+runBoth('partial guard: ... and a false answer reached through the comparison still proves nothing',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'function f(value: number | string) { if (Number.isFinite(value) !== false) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// ... in every host a guard narrows in: a conditional's alternate, the right of an `&&` or an `||` -
+// and in a `||` group beside a `typeof` test, whose own false answer still excludes its type
+for (const [host, code] of [
+  ['a conditional alternate', 'return Number.isFinite(value) ? null : value.at(0);'],
+  ['the right of an `&&`', 'return !Number.isInteger(value) && value.at(0);'],
+  ['the right of an `||`', 'return Number.isSafeInteger(value) || value.at(0);'],
+]) {
+  runBoth(`partial guard: a false answer keeps the arm in ${ host }`,
+    `// @ts-expect-error ${ ABSENT_MEMBER }\nfunction f(value: number | string) { ${ code } }`,
+    (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+}
+
+runBoth('partial guard: a `typeof` beside it in a `||` group still excludes its own type',
+  'function f(value: number | string) { if (typeof value === "string" || Number.isFinite(value)) return null;\n'
+  + `// @ts-expect-error ${ ABSENT_MEMBER }\nreturn value.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' }));
+
+// the hint channel of an unannotated binding reads the same answers: a false one that proves nothing
+// excludes nothing, whether the predicate is partial or its `?.` call may not have run
+function checkExcludedHints(expected) {
+  return (adapter, prog, lbl) => {
+    const hints = adapter.makeResolver().resolveGuardHints(pickReturnArg(adapter, prog, 'x'));
+    checkDeep(lbl, hints?.excludedHints ? [...hints.excludedHints].sort() : null, expected);
+  };
+}
+
+runBoth('guard hints: a false partial answer excludes nothing',
+  'function f(x) { if (Number.isInteger(x)) return; return x; }', checkExcludedHints(null));
+
+runBoth('guard hints: a false answer of a `?.` call excludes nothing',
+  'function f(x) { if (Error.isError?.(x)) return; return x; }', checkExcludedHints(null));
+
+runBoth('guard hints: a false answer of the plain call excludes its type',
+  'function f(x) { if (Error.isError(x)) return; return x; }', checkExcludedHints(['error']));
 
 // ... and the rule reaches only the namespace itself: `window` has no entry here and stays the
 // environment probe a defensive `?.` genuinely tests, so a hop through it may short-circuit before
@@ -14622,7 +15265,7 @@ runBoth('predicate overloads: the arity selects the two-param header',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
 
 runBoth('a declared-unknown argument refutes no header, so a keyword-headed set selects nothing',
-  'function isStr(x: number): boolean; function isStr(x: unknown): asserts x is string; function isStr(x: unknown) {} function f(x: unknown) { isStr(x); return x.at(0); }',
+  'function isStr(x: number): boolean; function isStr(x: unknown): asserts x is string; function isStr(x: unknown): any {} function f(x: unknown) { isStr(x); return x.at(0); }',
   (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
 
 // the same refusal for an `object`-typed header. TypeScript does refute both for an argument that is
@@ -14791,7 +15434,8 @@ runBoth('a predicate on an unbound global narrows nothing',
 // the predicate names a PARAMETER; the call fills that slot with a member read, which no binding
 // carries, so the test contributes no guard - the binding asked about stays unnarrowed
 runBoth('a predicate called on a member read contributes no guard',
-  'declare function isStr(x: unknown): x is string; function f(x: unknown, o: { p: unknown }) { if (isStr(o.p)) return x.at(0); }',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'declare function isStr(x: unknown): x is string; function f(x: unknown, o: { p: unknown }) { if (isStr(o.p)) return x.at(0); }',
   (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
 
 // a structural target narrows through its annotation: the member read off it resolves to what the
@@ -14870,6 +15514,7 @@ runBoth('predicate overloads: two asserting heads spelling one named target keep
 // it resolves nothing rather than the first head's element type
 runBoth('predicate overloads: agreeing built-in heads with different type arguments drop the element type',
   `declare function isEither(v: object, k: string): v is number[]; declare function isEither(v: unknown, k: string): v is string[];
+   // @ts-expect-error the member read is the probe, and the right answer is a type without it
    function f(o: object) { if (isEither(o, "k")) return o[0].at(0); }`,
   (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
 
@@ -14931,7 +15576,8 @@ runBoth('predicate params: a spread after the named slot leaves it bound',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
 
 runBoth('predicate params: a spread at or before the named slot declines',
-  'declare function assertOpts(opts: unknown, x: unknown): asserts x is string; function f(val: unknown, rest: any[]) { assertOpts(...rest, val); return val.at(0); }',
+  '// @ts-expect-error a spread argument tsc cannot place is the shape under test\n'
+  + 'declare function assertOpts(opts: unknown, x: unknown): asserts x is string; function f(val: unknown, rest: any[]) { assertOpts(...rest, val); return val.at(0); }',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 // an OPTIONAL tail leaves a one-argument call legal, so the head stands and the predicate's slot is
@@ -15001,7 +15647,8 @@ runBoth('unresolvable arm: an undecided conditional type with an imported branch
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('unresolvable arm: an undecided conditional type still strips a nullish branch',
-  'interface L { [Symbol.iterator](): Iterator<number[]> } type P<T> = T extends Iterable<unknown> ? null : string; declare const q: P<L>; q.at(0);',
+  '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+  + 'interface L { [Symbol.iterator](): Iterator<number[]> } type P<T> = T extends Iterable<unknown> ? null : string; declare const q: P<L>; q.at(0);',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
 
 // ... and the certainty a positive guard adds reaches exactly as far as the CONSTRUCTOR it names.
@@ -15035,7 +15682,7 @@ runBoth('unresolvable arm: a fully resolvable union keeps its element type under
 // named like a minted one is a control that must NOT identify
 
 runBoth('guard operand: a minted constructor stub is the built-in through the hint channel',
-  'const _Promise = 0; function f(x: unknown) { if (x instanceof _Promise) return x; }',
+  '// @ts-expect-error a stub standing for a minted import name is the shape under test\nconst _Promise = 0; function f(x: unknown) { if (x instanceof _Promise) return x; }',
   (adapter, prog, lbl) => {
     const ref = pickReturnArg(adapter, prog, 'x');
     const hinted = adapter.makeResolver({ getPolyfillBindingHint: (scope, name) => name === '_Promise' ? 'Promise' : null });
@@ -15055,7 +15702,9 @@ runBoth('guard operand: a minted static-guard binding is the built-in through th
 // --- a divergent predicate set narrows nothing ---
 
 runBoth('predicate overloads: arms the arguments cannot tell apart must agree, else nothing narrows',
-  `declare function isEither(v: object, k: string): v is string; declare function isEither(v: unknown, k: string): v is number[];
+  `// @ts-expect-error predicate overloads that disagree are the shape under test
+declare function isEither(v: object, k: string): v is string; declare function isEither(v: unknown, k: string): v is number[];
+   // @ts-expect-error the member read is the probe, and the right answer is a type without it
    function f(o: object) { if (isEither(o, "k")) return o.at(0); }`,
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
@@ -15178,14 +15827,14 @@ for (const [label, prelude, subject, target, want] of [
 // relation above and nowhere else
 for (const [label, annotation] of [['Iterable', 'Iterable<string>'], ['ArrayLike', 'ArrayLike<string>']]) {
   runBoth(`a ${ label } annotation stays unresolved for member dispatch`,
-    `declare const xs: ${ annotation };\nxs.at(0);`,
+    `declare const xs: ${ annotation };\n${ expectError(ABSENT_MEMBER) }xs.at(0);`,
     (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
 }
 
 // `ArrayLike<T>` is index-and-length only, which makes its param-0 the element as surely as
 // `Array<T>`'s - and the element read is what never saw it, where its `Iterable` twin was seen all along
 runBoth('an ArrayLike element resolves through param-0',
-  'declare const xs: ArrayLike<string>;\nfor (const v of xs) { v.at(0); }',
+  'declare const xs: ArrayLike<string>;\n// @ts-expect-error iterating an ArrayLike, which tsc refuses, is the shape under test\nfor (const v of xs) { v.at(0); }',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
 
 // a NAKED type parameter names a type nobody has written yet - every instantiation is its own, and

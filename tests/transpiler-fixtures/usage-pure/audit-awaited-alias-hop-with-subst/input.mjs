@@ -4,6 +4,7 @@
 // Caller passes `T = number`, so final shape should be `number[]` -> Array narrows.
 type Wrapped<U> = Promise<U[]>;
 async function fn() {
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const v: Awaited<Wrapped<number>>;
   v.at(0);
   v.findLast(x => true);

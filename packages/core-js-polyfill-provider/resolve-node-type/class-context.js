@@ -7,7 +7,9 @@
 //   resolveThisAnchor(path)          - { kind: 'class', classPath, isStatic } | { kind: 'object', objectPath } | null
 //   resolveThisObject(path)          - object-literal path | null (only object anchors)
 //   resolveSuperClassPath(classPath) - parent ClassDeclaration / DeclareClass path | null
-//   resolveClassContext(objectPath)  - resolves `Foo` / `new Foo()` / `this` / `super` / `Reflect.construct(C)` to { classPath, isStatic }
+//   resolveClassContext(objectPath)  - resolves `Foo` / `new Foo()` / `this` / `super` / `Reflect.construct(C)` to
+//                                      { classPath, isStatic, receiverArgs } - the type arguments an instance
+//                                      receiver instantiates the class with
 //   buildParentClassSubstFromNodes / buildParentClassSubst - chain extends type-args -> parent declParams
 //
 // Service object:
@@ -20,7 +22,7 @@
 // for `ambientDeclCache`; identity must match between cluster and factory call sites.
 // `getSuperTypeArgs` comes from `helpers/ast-patterns.js` directly
 import { isAmbientClassNode } from './name-resolution.js';
-import { collectQualifiedSegments } from './ast-shapes.js';
+import { collectQualifiedSegments, openTypeArg } from './ast-shapes.js';
 import { classSuperPath, getHeritageTypeArgs } from '../helpers/ast-patterns.js';
 
 // ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
@@ -38,6 +40,7 @@ export function createClassContext({
   resolveRuntimeExpression,
   isReflectConstructCallee,
   buildSubstMap,
+  constructionTypeArgs,
   findAmbientDeclarationPath,
   findDeclPathBySegments,
   isClassLikeDeclaration,
@@ -142,6 +145,18 @@ export function createClassContext({
     return superClass.node ? resolveExpressionToClassPath(superClass) : null;
   }
 
+  // a class's own type parameters as type arguments, every one left open (`openTypeArg`) - what an
+  // instance whose construction the reader cannot see is known by. one array per class: the
+  // class-as-type reference built from it is interned by identity
+  const openClassArgsCache = new WeakMap();
+  function openClassArgs(classNode) {
+    const params = classNode.typeParameters?.params;
+    if (!params?.length) return undefined;
+    let args = openClassArgsCache.get(classNode);
+    if (!args) openClassArgsCache.set(classNode, args = params.map(param => openTypeArg(param)));
+    return args;
+  }
+
   function resolveClassContext(objectPath) {
     const { node } = objectPath;
     // Foo.staticProp - object is the class itself
@@ -150,7 +165,7 @@ export function createClassContext({
     // `declare class`, or a qualified `NS.Foo` - all resolved by the shared class-path helper)
     if (t.isNewExpression(node)) {
       const classPath = resolveExpressionToClassPath(objectPath.get('callee'));
-      if (classPath) return { classPath, isStatic: false };
+      if (classPath) return { classPath, isStatic: false, receiverArgs: constructionTypeArgs(classPath.node, objectPath) };
     }
     // `Reflect.construct(target, args[, newTarget])` is structurally equivalent to
     // `new target(...args)`, EXCEPT the created object's prototype is `newTarget.prototype`
@@ -165,10 +180,15 @@ export function createClassContext({
       && node.arguments?.[0]) {
       const ctorIndex = node.arguments[2] ? 2 : 0;
       const classPath = resolveExpressionToClassPath(objectPath.get('arguments')[ctorIndex]);
-      if (classPath) return { classPath, isStatic: false };
+      // the arguments travel in an array, so nothing binds the class's type parameters
+      if (classPath) return { classPath, isStatic: false, receiverArgs: openClassArgs(classPath.node) };
     }
-    // this.prop inside a class member
-    if (t.isThisExpression(node)) return resolveThisClass(objectPath);
+    // this.prop inside a class member: the instance was made with type arguments the class body
+    // cannot see, so its own parameters stay open
+    if (t.isThisExpression(node)) {
+      const thisCtx = resolveThisClass(objectPath);
+      return thisCtx && { ...thisCtx, receiverArgs: openClassArgs(thisCtx.classPath.node) };
+    }
     // super.prop inside a class member - resolve to parent class; isStatic inherits the
     // enclosing method's context (`static m() { super.x }` -> parent static; instance -> instance)
     if (node?.type === 'Super') {
@@ -177,9 +197,13 @@ export function createClassContext({
       // an INSTANCE `super.x` reads the parent PROTOTYPE, where instance fields never live - they
       // are own properties of the instance, so such a read sees only methods and accessors. a
       // STATIC `super.x` reads the parent constructor, where a static field IS an own property
-      return parentPath
-        ? { classPath: parentPath, isStatic: thisCtx.isStatic, viaPrototype: !thisCtx.isStatic }
-        : null;
+      // the parent is instantiated by the heritage clause, its missing arguments taking their defaults
+      return parentPath ? {
+        classPath: parentPath,
+        isStatic: thisCtx.isStatic,
+        viaPrototype: !thisCtx.isStatic,
+        receiverArgs: getHeritageTypeArgs(thisCtx.classPath.node)?.params,
+      } : null;
     }
     return null;
   }

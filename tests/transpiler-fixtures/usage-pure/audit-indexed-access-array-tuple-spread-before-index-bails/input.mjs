@@ -5,5 +5,7 @@ declare const rest: Array<{ items: string }>;
 function first<T extends [unknown, unknown]>(t: T): T[1] {
   return t[1];
 }
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 const r = first([{ items: [1, 2, 3] }, ...rest]);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.items.at(-1);

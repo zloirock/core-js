@@ -17,6 +17,7 @@ export function b(x: string | number[], c: boolean) {
         if (c) break l;
         return 0;
       }
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     case 'object':
       return _includes(x).call(x, 1);
   }

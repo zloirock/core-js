@@ -9,5 +9,7 @@ namespace Map {
 namespace Set {
   export enum R {}
 }
+// @ts-expect-error the declaration emits nothing, so it types the read for tsc alone, and the runtime reads the global
 export const viaMap = new _Map([[1, 2]]);
+// @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
 export const viaSet = new Set([1]);

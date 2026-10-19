@@ -18,9 +18,11 @@ function w<T = number[]>(x: T): Wrap<T> {
     v: x
   } as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 w({
   a: 1
 }).v.at(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 w(() => 1).v.includes(1);
 w(`a${n}b`).v.at(0);
 w<string>('abc' as any).v.includes('c');

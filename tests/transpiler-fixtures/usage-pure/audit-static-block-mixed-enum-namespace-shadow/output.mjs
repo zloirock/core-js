@@ -6,9 +6,11 @@ class Container {
     enum Map {
       Foo
     }
+    // @ts-expect-error a namespace below the top level is the shape under test
     namespace Set {
       export const value = 1;
     }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     m = new Map.Foo();
     s = Set.value;
   }

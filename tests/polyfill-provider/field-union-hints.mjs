@@ -2,7 +2,9 @@
 // Opaque writers still invalidate the entire set, including otherwise known alternatives.
 import { adapters, createChecker } from './harness.mjs';
 
-const { check, checkTruthy, runBoth, finish } = createChecker('field-union-hints');
+const { check, checkTruthy, runBoth, finish } = createChecker('field-union-hints', {
+  tsc: 'dynamic JS writes cross the initializer types on purpose, and the TS wrappers only exercise their erasure',
+});
 const cases = [
   ['assigned field extraction', 'const box = { data: Math }; box.data = "x"; let data = Math; ({ data } = box); data.includes("x");', 'object,string'],
   ['assigned field default', 'const box = { data: Math }; box.data = "x"; let data; ({ data = foreign } = box); data.includes("x");', null],

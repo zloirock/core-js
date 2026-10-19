@@ -11,5 +11,7 @@ type NumInner<T> = T extends Array<infer U extends number> ? U : never;
 declare const opaque: unknown[];
 declare const s: StrInner<typeof opaque>;
 declare const n: NumInner<typeof opaque>;
+// @ts-expect-error the resolver binds the constraint where tsc infers nothing, and the false branch is never, so no value can disagree
 s.at(0);
+// @ts-expect-error the resolver binds the constraint where tsc infers nothing, and the false branch is never, so no value can disagree
 n.toFixed(2);

@@ -5,6 +5,7 @@ function dec(v: any) {
 }
 @dec(_atMaybeArray(arr).call(arr, 0))
 class A {
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   @dec(_atMaybeArray(arr).call(arr, 1))
   method() {}
 }

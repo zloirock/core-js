@@ -4,5 +4,6 @@
 // does not stop at the earlier non-computed `arrayFn` and emit a wrong array-narrow polyfill.
 declare function arrayFn(): number[];
 declare function stringFn(): string;
+// @ts-expect-error a key collision, which tsc refuses, is the shape under test
 const obj = { foo: arrayFn, ['foo']: stringFn };
 obj.foo().at(-1);

@@ -11,6 +11,7 @@ type Shadowed<T> = <T>() => { x: T };
 declare const r: ReturnType<Shadowed<string[]>>;
 
 // signature-local <T> shadowed -> r.x is unknown -> no wrong array-Maybe helper injected
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.x.at(0);
 
 type AliasT<T> = () => { x: T };

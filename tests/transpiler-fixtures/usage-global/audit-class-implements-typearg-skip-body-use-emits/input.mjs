@@ -4,6 +4,7 @@
 // class - ClassBody is a pure-type-erase stop, so the upward scan halts there and emits
 // the polyfill rather than wrongly reaching the implements clause and skipping it.
 interface Foo<T> { x: T }
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class X implements Foo<Map<string, number>> {
   make() { return new Map(); }
 }

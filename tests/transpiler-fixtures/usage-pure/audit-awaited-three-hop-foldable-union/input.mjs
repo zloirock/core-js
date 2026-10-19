@@ -11,3 +11,4 @@ async function probe(): Promise<Outer<number>> {
 const result = await probe();
 result.at(0);
 result.findLast(x => true);
+export {};

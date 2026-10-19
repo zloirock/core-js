@@ -4,7 +4,10 @@
 // resolution). When cycle catches, the resolver returns the last-seen node which is itself a
 // TSTypeReference to a cyclic name, falling through to generic dispatch
 type A<T = B> = T;
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type B<U = A> = U;
 declare const r: A;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.at?.(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.includes?.('x');

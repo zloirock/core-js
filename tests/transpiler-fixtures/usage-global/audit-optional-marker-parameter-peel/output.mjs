@@ -10,4 +10,5 @@ declare const slot: Parameters<typeof take>[0];
 export function read(items?: number[]) {
   return (items ?? 'fallback').at(0);
 }
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 (slot ?? 'fallback').includes('a');

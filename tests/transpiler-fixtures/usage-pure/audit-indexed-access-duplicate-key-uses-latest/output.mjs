@@ -8,6 +8,7 @@ function pick<T extends {
 }>(o: T): T['k'] {
   return o.k;
 }
+// @ts-expect-error a key collision, which tsc refuses, is the shape under test
 const r = pick({
   k: 'string',
   k: [1, 2, 3]

@@ -10,6 +10,7 @@ export function viaUpdateWriteThenGuard() {
   {
     var bumped = unionSrc;
   }
+  // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
   bumped++;
   if (Array.isArray(bumped)) {
     return bumped.at(0);
@@ -20,6 +21,7 @@ export function viaRedeclareThenGuard() {
     var redeclared = unionSrc;
   }
   {
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     var redeclared = strItems;
   }
   if (Array.isArray(redeclared)) {

@@ -11,7 +11,9 @@ export function f(a = Map.groupBy(src, (x: any) => x)) {
 while (Object.fromEntries(src)) {
   enum Object { B }
 }
+// @ts-expect-error tsc reads the body namespace into the loop head and the runtime does not, which is the point
 for (let i = 0; Array.of(i); i++) {
+  // @ts-expect-error tsc reads the body namespace into the loop head and the runtime does not, which is the point
   namespace Array { export const c = 1; }
 }
 do {

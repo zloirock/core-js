@@ -7,5 +7,6 @@ interface T {
   b(): number[];
 }
 declare const v: T[keyof T];
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 const r = v.at(0);
 export { r };
