@@ -1,3 +1,0 @@
-enum Assigned {
-  MAP = 'map',
-}
