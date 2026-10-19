@@ -2223,10 +2223,14 @@ testUnlessDetectLowered('global-proxy: a nav whose leaf is the probe collapses i
   delete globalThis.deepNavProbeKey;
 });
 
+// an own `name` of a function is non-configurable in pre-ES2015 engines (like Firefox < 38), so it can be
+// neither redefined nor deleted there; an engine without the own `name` (the karma floor) defines a new one
+const CONFIGURABLE_FUNCTION_NAME = Object.getOwnPropertyDescriptor(() => { /* empty */ }, 'name')?.configurable !== false;
+
 // the member a `delete` NAMES is never read, so it is never polyfilled - swapped, the operand became a
 // CALL (`delete _nameMaybeFunction(...)`) and the delete stopped deleting anything. the members BELOW
 // it are read on the way there and keep their claims
-testUnlessDetectLowered('global-proxy: a deleted member is not polyfilled, the ones below it are', assert => {
+(CONFIGURABLE_FUNCTION_NAME ? testUnlessDetectLowered : QUnit.skip)('global-proxy: a deleted member is not polyfilled, the ones below it are', assert => {
   const box = { fn() { return 1; } };
   Object.defineProperty(box.fn, 'name', { value: 'named', configurable: true });
   assert.same(box.fn.name, 'named', 'the own name is there to start with');
@@ -2270,7 +2274,7 @@ testUnlessDetectLowered('global-proxy: a write below the probe hops runs where t
 // the guard a dispatch renders under a `delete` must be PARENTHESIZED: spelled bare, `delete null ==
 // _ref ? ...` parses as `(delete null) == _ref ? ...` - a comparison, not a deletion, and the operand
 // the source names is never touched
-testUnlessDetectLowered('global-proxy: a delete over a rendered guard keeps its parens', assert => {
+(CONFIGURABLE_FUNCTION_NAME ? testUnlessDetectLowered : QUnit.skip)('global-proxy: a delete over a rendered guard keeps its parens', assert => {
   globalThis.deleteGuardBox = { list: [[1]] };
   const dropped = delete globalThis.window?.self.deleteGuardBox.list.at.name;
   assert.same(typeof dropped, 'boolean', 'the operand is a delete, not a comparison');

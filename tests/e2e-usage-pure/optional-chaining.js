@@ -1092,6 +1092,9 @@ QUnit.test('optional chaining: folded guard under an operand slot', assert => {
   assert.same(globalThis.window?.self.Number.parseInt('4', 10) >> 1, WINDOW_PRESENT ? 2 : 0);
 });
 
+// pure cannot add `description` to a native `Symbol.prototype` lacking it; the probe evades the `in` fold
+const SYMBOL_DESCRIPTION = Function('return typeof Symbol != "function" || "description" in Symbol.prototype')();
+
 // the negatives that pin the same classification: a slot which already delimits a whole
 // expression keeps the fold BARE. `=` opens one only as a (compound) assignment and `>` only
 // as an arrow, and a keyword operand (`of`, `case`, `return`) runs to the next delimiter
@@ -1099,7 +1102,7 @@ QUnit.test('optional chaining: folded guard in a delimited slot', assert => {
   let assigned;
   // eslint-disable-next-line prefer-const -- the standalone assignment slot IS the case
   assigned = globalThis.window?.self.Symbol.for('e2e').description;
-  assert.same(assigned, WINDOW_PRESENT ? 'e2e' : undefined);
+  assert.same(assigned, WINDOW_PRESENT && SYMBOL_DESCRIPTION ? 'e2e' : undefined);
   let compound = 10;
   compound -= globalThis.window?.self.Math.cbrt(8);
   assert.same(compound, WINDOW_PRESENT ? 8 : NaN);
