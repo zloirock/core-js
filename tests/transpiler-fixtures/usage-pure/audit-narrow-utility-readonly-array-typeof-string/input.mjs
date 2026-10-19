@@ -8,4 +8,5 @@ function probe(input: ReadonlyArray<number>) {
   return input.at(0);
 }
 
+// @ts-expect-error the call supplies nothing, so only the annotation types the parameter
 probe();

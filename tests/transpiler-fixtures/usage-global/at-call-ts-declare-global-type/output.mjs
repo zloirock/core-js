@@ -21,3 +21,4 @@ function bar(c: Config) {
   // distinct method from foo's path: the interface-field route owns its own import
   keys.includes('k');
 }
+export {};

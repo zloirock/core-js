@@ -11,6 +11,7 @@ class Sub extends (Base as typeof Base) {}
 function probe() {
   var _ref;
   const s = new Sub();
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   s.items = "stringified";
   const b = new Base();
   return _at(_ref = b.items).call(_ref, 0);

@@ -3,6 +3,7 @@
 // TNext-typed Maybe would throw at runtime on the reassigned value
 function* gen(): Generator<number, void, number[]> {
   let items = yield 1;
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   items = 's';
   use(items.at(0));
 }

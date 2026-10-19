@@ -5,3 +5,4 @@ type Cond<T> = T extends unknown ? T : never;
 declare function probe<T>(): Awaited<Cond<T>>;
 const r = await probe<string[]>();
 r.at(0);
+export {};

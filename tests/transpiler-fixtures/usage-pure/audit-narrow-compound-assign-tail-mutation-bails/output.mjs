@@ -4,5 +4,5 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // the runtime type may not actually change (string += string stays string)
 let x: string | number[] = "hi";
 if (typeof x === "string" && (x += "world", true)) {
-  _includes(x).call(x, 1);
+  _includes(x).call(x, '1');
 }

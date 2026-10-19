@@ -3,15 +3,20 @@
 // into the typeof resolution rather than restart there. the member row closes the same loop through
 // a qualified chain, and the last row is the control: a non-circular typeof chain still narrows.
 // distinct method per line so each row is attributable
+// @ts-expect-error a declaration read in its own annotation is the shape under test
 declare const selfRef: typeof selfRef;
 export const a = selfRef.at(0);
+// @ts-expect-error a declaration read in its own annotation is the shape under test
 declare const left: typeof right;
+// @ts-expect-error a declaration read in its own annotation is the shape under test
 declare const right: typeof left;
 export const b = left.includes("x");
 declare const holder: {
+  // @ts-expect-error a declaration read in its own annotation is the shape under test
   p: typeof holder.p;
 };
 export const c = holder.p.flatMap(f);
+// @ts-expect-error a declaration read in its own annotation is the shape under test
 declare const awaitedSelf: Awaited<typeof awaitedSelf>;
 export const d = awaitedSelf.entries();
 declare const source: number[];

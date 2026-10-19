@@ -9,5 +9,6 @@ type Items = {
 function pick<K extends keyof Items>(k: K): Items[K] {
   return null as any;
 }
+// @ts-expect-error a key the keyof does not admit is the shape under test
 const r = pick(-1);
 _atMaybeArray(r).call(r, 0);

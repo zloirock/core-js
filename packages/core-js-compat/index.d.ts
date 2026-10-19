@@ -31,6 +31,8 @@ type ReturnTypeHint = {
   returnsArgument?: number,
   /** the spec return admits `undefined` / `null` (`Array#find`, `RegExp#exec`, `Object.getOwnPropertyDescriptor`, ...) */
   nullable?: true,
+  /** a type guard true for only part of its `type` (`Number.isFinite` fails `NaN`), so its false answer proves nothing */
+  partial?: true,
 };
 
 /** a method / property return hint, or a bare resolution directive (`Array#at` -> `element`) */

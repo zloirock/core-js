@@ -4,6 +4,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // string-aware dispatch
 function pick(input: Record<string, unknown>) {
   if (typeof input === 'string') {
+    // @ts-expect-error a guard the annotation rules out leaves tsc a never type, and the read sees the runtime value
     return _atMaybeString(input).call(input, 0);
   }
   return null;

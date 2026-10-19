@@ -5,4 +5,5 @@ let values;
 namespace NS {
   (sideEffect(), ({ values } = Object));
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 NS.values({ a: 1 });

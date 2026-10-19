@@ -8,5 +8,6 @@ abstract class C<T> {
 }
 new (class extends C<number> {
   bag = new Map();
+  // @ts-expect-error a heritage tsc refuses is the shape under test
   cache = new Set();
 })();

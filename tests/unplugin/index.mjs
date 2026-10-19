@@ -54,13 +54,17 @@ function collapseDriftingTargets(text) {
   return text === null ? text : text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
 }
 
-// fixtures whose babel BASELINE bakes an @babel/generator defect (EDGE row in the queue):
-// the body compare would hold our correct print to a wrong baseline - the import-set
-// assertion still stands. paired manifestation: cast-under-update baselines do not parse
-// at all and take the same lane through the parse check
+// fixtures whose babel BASELINE bakes an @babel/generator defect that still parses: the body
+// compare would hold our correct print to a wrong baseline, so the sidecar holds it instead and
+// the import-set assertion still stands. paired manifestation: cast-under-update baselines do
+// not parse at all and take the same lane through the parse check. named by method, as the
+// rewrite of one method can move a shape into the defect where the other leaves it alone
 const BASELINE_GENERATOR_DEFECTS = new Set([
   // `(f || g)<string>` printed as `f || g<string>` - the instantiation reassociates onto `g`
-  'ts-instantiation-host-priority-parens',
+  'usage-global/ts-instantiation-tail-priority-parens',
+  'usage-pure/ts-instantiation-tail-priority-parens',
+  // ... and in usage-pure through the argument slot a member dispatcher wraps it in
+  'usage-pure/ts-instantiation-reading-host-priority-parens',
 ]);
 
 function parseOrNull(parseId, source) {
@@ -365,35 +369,34 @@ async function compareStrict(directory, actual, directFile) {
 
 // the structural comparator: the unplugin leg is an AST renderer like babel, so the output
 // must be STRUCTURALLY identical to the babel baseline (`tests/unplugin/structural.mjs`
-// owns what counts as formatting) - a difference is a defect, never formatting. three lanes
+// owns what counts as formatting) - a difference is a defect, never formatting. two lanes
 // degrade to an imports-only compare, each with a reason the body compare cannot own: an
 // ABSTAIN (`null`) keeps the user's bytes while babel may reprint normalization-only
-// changes; a baseline that DOES NOT PARSE has a babel-generator defect baked in; and a
-// fixture whose babel chain carries OTHER real plugins bakes their work into the baseline
-// body. an `output-unplugin.mjs` sidecar records an ACCEPTED unplugin-vs-babel divergence
+// changes; and a fixture whose babel chain carries OTHER real plugins bakes their work into
+// the baseline body. a baseline with a babel-generator defect baked in - named above, or one
+// that DOES NOT PARSE - holds no body to compare against either, so the leg's own print is
+// byte-held in the sidecar instead (`compareDefectiveBaseline`). otherwise an
+// `output-unplugin.mjs` sidecar records an ACCEPTED unplugin-vs-babel divergence
 // (environment-dependent targets resolution, the `require` dialect on SFC virtuals) and is
 // byte-held via `compareStrict`; OVERWRITE regenerates the sidecar set from scratch: one is
 // written exactly where the structural (or lane's import-set) compare against babel differs
 async function compareMainOutput({ directory, actual, babelOutput, babelOptions, parseId, abstained, hasUnpluginOutput, unpluginOutputFile, rewritten }) {
-  const looseLane = abstained || BASELINE_GENERATOR_DEFECTS.has(basename(directory))
-    || (babelOptions.plugins ?? []).some(plugin => !(Array.isArray(plugin) && plugin[0] === '@core-js'));
+  const looseLane = abstained || (babelOptions.plugins ?? []).some(plugin => !(Array.isArray(plugin) && plugin[0] === '@core-js'));
+  const baselineParsed = looseLane || BASELINE_GENERATOR_DEFECTS.has(label(directory).replaceAll('\\', '/')) ? null : parseOrNull(parseId, babelOutput);
+  if (!looseLane && !baselineParsed) {
+    return compareDefectiveBaseline({ directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile, rewritten });
+  }
   let agrees;
   if (looseLane) {
     agrees = importsOf(actual) === importsOf(babelOutput);
   } else {
-    const baselineParsed = parseOrNull(parseId, babelOutput);
-    if (!baselineParsed) {
-      // unparsable baseline: the generator-defect lane without a listed name
-      agrees = importsOf(actual) === importsOf(babelOutput);
-    } else {
-      const actualParsed = parseOrNull(parseId, actual);
-      if (!actualParsed) return fail(directory, 'output does not parse for the structural compare');
-      agrees = JSON.stringify(strip(actualParsed.program)) === JSON.stringify(strip(baselineParsed.program));
-      // Comments live beside the AST in oxc. Structural equality alone would silently erase
-      // the entire claim of a comment fixture, including sidecar creation in overwrite mode.
-      agrees &&= JSON.stringify(commentSignature(actualParsed.comments))
-        === JSON.stringify(commentSignature(baselineParsed.comments));
-    }
+    const actualParsed = parseOrNull(parseId, actual);
+    if (!actualParsed) return fail(directory, 'output does not parse for the structural compare');
+    agrees = JSON.stringify(strip(actualParsed.program)) === JSON.stringify(strip(baselineParsed.program));
+    // Comments live beside the AST in oxc. Structural equality alone would silently erase
+    // the entire claim of a comment fixture, including sidecar creation in overwrite mode.
+    agrees &&= JSON.stringify(commentSignature(actualParsed.comments))
+      === JSON.stringify(commentSignature(baselineParsed.comments));
   }
   if (OVERWRITE) {
     const changed = await writeIfChanged(directory, unpluginOutputFile, agrees ? null : actual);
@@ -408,6 +411,23 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
   if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
   fail(directory, 'differs from the babel baseline (structurally, or by import set on a loose lane)',
     firstDiff(actual, babelOutput));
+}
+
+// the generator-defect lane: imports only were compared here once, which left the leg's print of
+// these fixtures - the very shapes the defect is about - checked by nothing at all. its sidecar is
+// required and written on every regeneration, so it never reads as stale
+async function compareDefectiveBaseline({ directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile, rewritten }) {
+  if (OVERWRITE) {
+    const changed = await writeIfChanged(directory, unpluginOutputFile, actual);
+    if (changed || rewritten) counts.rewritten++;
+    else counts.regenerated++;
+    return;
+  }
+  if (importsOf(actual) !== importsOf(babelOutput)) {
+    return fail(directory, 'differs from the babel baseline by import set', firstDiff(actual, babelOutput));
+  }
+  if (!hasUnpluginOutput) return fail(directory, `a baseline with a generator defect needs ${ cyan('output-unplugin.mjs') }`);
+  return compareStrict(directory, actual, unpluginOutputFile);
 }
 
 // four different reasons decline to compare a fixture, and one nameless counter reported them as a

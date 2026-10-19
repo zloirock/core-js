@@ -7,6 +7,7 @@ interface Make {
 }
 declare const make: Make;
 declare const u: unknown;
+// @ts-expect-error a call no overload admits is the shape under test
 export const viaIndiscriminable = make(u).includes(1);
 
 interface Parser {

@@ -3,6 +3,7 @@
 export function viaCastInstantiation(c) {
   let P4;
   if (c) ({ Promise: P4 } = globalThis);
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return ((P4.any as any)<number>)([1, 2]);
 }
 export const r = [viaCastInstantiation(true)];

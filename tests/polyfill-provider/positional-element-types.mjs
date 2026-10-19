@@ -121,10 +121,11 @@ runBoth('an unrelated Array iterator write preserves a generic String rest argum
     }
   });
 
+// a module, where the local `Reflect` shadows the built-in rather than colliding with it
 for (const [name, source] of [
-  ['direct', 'const Reflect = { apply(value) { return value; } }; Reflect.apply([1]).at;'],
-  ['default', 'const Reflect = { apply(value = [1]) { return value; } }; Reflect.apply(undefined).at;'],
-  ['generic', 'const Reflect = { apply<T>(value: T): T { return value; } }; Reflect.apply([1]).at;'],
+  ['direct', 'export {}; const Reflect = { apply(value) { return value; } }; Reflect.apply([1]).at;'],
+  ['default', 'export {}; const Reflect = { apply(value = [1]) { return value; } }; Reflect.apply(undefined).at;'],
+  ['generic', 'export {}; const Reflect = { apply<T>(value: T): T { return value; } }; Reflect.apply([1]).at;'],
 ]) runBoth(`local invoker spelling keeps its own arguments/${ name }`, source, (parser, program, label) => {
   const property = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
   const resolver = parser.makeResolver();

@@ -19,6 +19,7 @@ namespace Narrowed.Inner {
 // a NON-dotted namespace merge declaring the same-named static DOES shadow it: `this.<field>`
 // widens to the generic instance helper (a merged runtime static can hold a wider type)
 class Shadowed {
+  // @ts-expect-error merged declarations tsc refuses are the shape under test
   static tags: string[] = ['a'];
   static read() {
     var _ref2;
@@ -26,5 +27,6 @@ class Shadowed {
   }
 }
 namespace Shadowed {
+  // @ts-expect-error merged declarations tsc refuses are the shape under test
   export const tags = 5;
 }

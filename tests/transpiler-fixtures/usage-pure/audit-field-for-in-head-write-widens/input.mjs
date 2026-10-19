@@ -4,5 +4,6 @@
 declare const obj: object;
 class C { items = [1, 2, 3]; getFirst() { return this.items.at(0); } }
 const c = new C();
+// @ts-expect-error a loop head write tsc refuses is the shape under test
 for (c.items in obj) {}
 c.getFirst();

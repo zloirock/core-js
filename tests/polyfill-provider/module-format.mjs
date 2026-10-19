@@ -20,7 +20,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { parseSync } from 'oxc-parser';
 import { moduleIdLanguage } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
-import { createChecker } from './harness.mjs';
+import { createChecker, expectError } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('module-format');
 
@@ -75,7 +75,7 @@ const CENSUS = [
   ['declare const module: any; module.exports = 1;', false, true],
   ['declare var exports: any; exports.x = 1;', false, true],
   ['declare const __dirname: string; g(__dirname);', false, true],
-  ['import type { require } from "./a"; require("./dep");', false, true],
+  ['import type { require } from "./a"; require("./dep");', false, true, 'a type-only import read as a value is the shape under test'],
   // the author bound the name themselves, so the spelling is about their object
   ['let exports = {}; exports.x = 1;', false, false],
   ['const module = { exports: {} }; module.exports = 1;', false, false],
@@ -105,8 +105,8 @@ const CENSUS = [
   ['g();', false, false],
 ];
 
-for (const [source, hasLiveESM, hasCJS] of CENSUS) {
-  runBoth(`census: ${ source.replaceAll('\n', ' ') }`, source, (adapter, prog, label) => {
+for (const [source, hasLiveESM, hasCJS, rejected] of CENSUS) {
+  runBoth(`census: ${ source.replaceAll('\n', ' ') }`, `${ expectError(rejected) }${ source }`, (adapter, prog, label) => {
     checkDeep(label, moduleFormatMarkers(prog.node ?? prog), { hasLiveESM, hasCJS });
   });
 }

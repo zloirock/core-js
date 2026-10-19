@@ -1,7 +1,9 @@
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Loop = Ring | {
   kind: "a";
   entries: string[];
 };
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Ring = Loop | {
   kind: "b";
   entries: string[];

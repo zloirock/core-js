@@ -2,10 +2,12 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/web.dom-collections.entries";
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Loop = Ring | {
   kind: "a";
   entries: string[];
 };
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Ring = Loop | {
   kind: "b";
   entries: string[];

@@ -9,8 +9,12 @@ const g: any = (x: number) => x;
 const o: any = {
   m: g
 };
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaLogical = (g || _Object$groupBy)<any>([], g);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaOptionalMember = (o?.m)<any>(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaMember = _Map$groupBy<any>([], g);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaNonNull = _Promise$try<any>(g);
 export const r = [viaLogical, viaOptionalMember, viaMember, viaNonNull];

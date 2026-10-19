@@ -14,3 +14,4 @@ async function probe(): Promise<Outer<number>> {
 const result = await probe();
 _atMaybeArray(result).call(result, 0);
 _findLastMaybeArray(result).call(result, x => true);
+export {};

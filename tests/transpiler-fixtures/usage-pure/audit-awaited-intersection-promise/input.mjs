@@ -6,6 +6,7 @@
 async function isectAwait() {
   type Tagged = Promise<number[]> & { tag: 'arr' };
   type Result = Awaited<Tagged>;
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const r: Result;
   r.at(0);
   r.includes(1);

@@ -7,5 +7,7 @@ import _includes from "@core-js/pure/actual/instance/includes";
 declare const r: number[] | {
   x: 1;
 };
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 _at(r).call(r, 0);
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 _includes(r).call(r, 1);

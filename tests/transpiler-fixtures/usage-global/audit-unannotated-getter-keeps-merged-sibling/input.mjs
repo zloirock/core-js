@@ -1,6 +1,7 @@
 // an UNANNOTATED accessor must not halt the member walk: declaration merging can supply the type
 // from a sibling declaration, and stopping at the untyped accessor degrades to the generic family
 class Holder { get items() { return []; } }
+// @ts-expect-error a property merged with another type is the shape under test
 interface Holder { items: number[]; }
 declare const holder: Holder;
 export const first = holder.items.at(0);

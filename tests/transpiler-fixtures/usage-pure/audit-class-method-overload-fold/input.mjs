@@ -11,7 +11,7 @@ declare class Reg {
 }
 declare const reg: Reg;
 reg.get('a').at(0);
-reg.get('c').includes(1);
+reg.get('c').includes('1');
 function probe(u) {
   return reg.lookup(u).at(-1);
 }

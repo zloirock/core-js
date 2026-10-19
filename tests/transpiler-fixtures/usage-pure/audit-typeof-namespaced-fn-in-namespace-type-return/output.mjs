@@ -4,6 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // module body on oxc too (the recovered fn path's scope chain doesn't reach it), narrowing `.at`
 namespace NS {
   export type Local = number[];
+  // @ts-expect-error an overload head without its implementation is the shape under test
   export function fn(): Local;
 }
 type T = ReturnType<typeof NS.fn>;

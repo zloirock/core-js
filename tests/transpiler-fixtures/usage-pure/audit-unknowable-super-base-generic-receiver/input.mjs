@@ -10,11 +10,13 @@ export const a = m.at(0);
 
 interface Opaque extends Unresolvable {}
 declare const o: Opaque;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const b = o.includes(0);
 
 class Plain { value = 1; }
 class Known extends Plain {}
 declare const k: Known;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const c = k.at(0);
 
 class Real extends Array<number> {}

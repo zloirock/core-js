@@ -4,9 +4,11 @@ var _ref;
 // must short-circuit on revisit, otherwise the cycle exhausts the recursion-depth limit
 // for every member access (64 frames of CPU work per call). With cycle detection the
 // lookup terminates and returns null, so `.at` falls back to generic resolution
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 interface A extends B {
   foo: number[];
 }
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 interface B extends A {
   bar: string[];
 }

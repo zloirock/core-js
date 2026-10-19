@@ -6,5 +6,6 @@ function pickFirst<T extends [unknown, unknown]>(t: T): T[1] {
   return t[1] as T[1];
 }
 const a: number[] = [10, 20];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 const result = pickFirst([...a, 'tail'] as const);
 result.toString();

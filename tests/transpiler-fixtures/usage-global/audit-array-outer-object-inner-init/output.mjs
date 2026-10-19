@@ -24,3 +24,4 @@ const [{
 }] = rows;
 name.at(0);
 age.toFixed(2);
+export {};

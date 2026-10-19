@@ -34,7 +34,7 @@ import {
 import {
   composeModifierDeltas, isUnionType, modifierWrapperDelta, topKeywordAnnotationKind, typeRefName, withMemberModifiers,
 } from './ast-shapes.js';
-import { getTypeArgs, isTupleRestElement, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
+import { classConstructorFunction, getTypeArgs, isTupleRestElement, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
 
 export function createTypeFolding({
   t,
@@ -142,9 +142,8 @@ export function createTypeFolding({
       // aligns with the runtime params - return the this-dropped list (no-op for ctors, which can't
       // declare `this`)
       if (current.node.params) return dropLeadingThisParam(current.node.params);
-      const ctor = current.node.body?.body?.find(m => m?.kind === 'constructor');
-      // babel: ClassMethod.params; oxc: MethodDefinition.value.params (FunctionExpression)
-      if (ctor) return dropLeadingThisParam(ctor.params ?? ctor.value?.params ?? null);
+      const ctor = classConstructorFunction(current.node);
+      if (ctor) return dropLeadingThisParam(ctor.params);
       if (!t.isClass(current.node) || !current.node.superClass) return null;
       const superClassPath = current.get('superClass');
       const superNode = superClassPath.node;
@@ -166,11 +165,13 @@ export function createTypeFolding({
   }
 
   // the `this` pseudo-param TYPE annotation node of the function `ThisParameterType<typeof fn>` targets,
-  // or null when the subject declares no explicit `this`. mirrors resolveParametersParams' typeof ->
-  // function-node resolution (same last-ambient-overload selection) but KEEPS the leading `this` slot
-  // instead of dropping it, so the receiver type (`function f(this: number[])` -> `number[]`) resolves
+  // null when the subject declares no explicit `this`, undefined when no subject is found - a receiver
+  // nothing is known about, which must not read as one known to have no `this`. mirrors
+  // resolveParametersParams' typeof -> function-node resolution (same last-ambient-overload selection)
+  // but KEEPS the leading `this` slot instead of dropping it, so the receiver type
+  // (`function f(this: number[])` -> `number[]`) resolves
   function resolveThisParamAnnotation(typeRef, scope) {
-    if (typeRefName(typeRef) !== 'ThisParameterType') return null;
+    if (typeRefName(typeRef) !== 'ThisParameterType') return undefined;
     // the same walk the parameter-list twin above runs - shared so the two cannot disagree about
     // which spellings they understand
     const { arg, signature, subst: aliasSubst } = utilityArgumentSignature(typeRef, scope);
@@ -179,9 +180,9 @@ export function createTypeFolding({
       const annotation = thisParam?.typeAnnotation ?? null;
       return annotation && aliasSubst ? applyAliasSubstDeep(annotation, aliasSubst) : annotation;
     }
-    if (arg?.type !== 'TSTypeQuery') return null;
-    const current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
-    const params = current?.node?.params;
+    const current = arg?.type === 'TSTypeQuery' ? pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope) : null;
+    if (!current?.node) return undefined;
+    const { params } = current.node;
     return hasLeadingThisParam(params) ? params[0].typeAnnotation ?? null : null;
   }
 

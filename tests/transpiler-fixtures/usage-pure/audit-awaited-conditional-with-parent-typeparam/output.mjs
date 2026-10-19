@@ -6,3 +6,4 @@ type Cond<T> = T extends unknown ? T : never;
 declare function probe<T>(): Awaited<Cond<T>>;
 const r = await probe<string[]>();
 _atMaybeArray(r).call(r, 0);
+export {};

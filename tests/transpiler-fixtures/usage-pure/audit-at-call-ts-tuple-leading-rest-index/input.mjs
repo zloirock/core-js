@@ -5,4 +5,5 @@
 // generic instance dispatch is the safe widening for any rest-before-index case
 type Path = [...string[], number];
 declare const p: Path;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 p[1].at(0);

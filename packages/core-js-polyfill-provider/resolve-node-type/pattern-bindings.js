@@ -163,6 +163,14 @@ function aliasDeclaratorOf(ref) {
     && unwrapRuntimeExpr(alias.node.init) === ref.node ? alias : null;
 }
 
+// the pattern of `type` a binding node carries: a parameter's own, a declarator's `id`, a default's `left`
+function findBindingPattern(node, type) {
+  if (node.type === type) return node;
+  if (node.id?.type === type) return node.id;
+  if (node.left?.type === type) return node.left;
+  return null;
+}
+
 export function createPatternBindings({
   t,
   isMutatedStatic = () => false,
@@ -974,18 +982,17 @@ export function createPatternBindings({
     return null;
   }
 
-  function findBindingPattern(node, type) {
-    if (node.type === type) return node;
-    if (node.id?.type === type) return node.id;
-    if (node.left?.type === type) return node.left;
-    return null;
-  }
-
   // the destructuring pattern a binding node carries, either kind, or null for a plain binding.
   // the annotation written on such a pattern describes the CONTAINER, so a consumer asking what
   // the BINDING is must walk the destructure key path instead of reading that annotation
   function bindingDestructuringPattern(node) {
     return findBindingPattern(node, 'ObjectPattern') ?? findBindingPattern(node, 'ArrayPattern');
+  }
+
+  // the annotation a binding NAME is declared with, for a reader that has the name's declaration
+  // and no key path into it: a destructured name has none of its own
+  function findNameAnnotation(bindingPath) {
+    return bindingDestructuringPattern(bindingPath.node) ? null : findBindingAnnotation(bindingPath);
   }
 
   // callback-param inference for unannotated arrow / function params passed as a call argument.
@@ -1582,7 +1589,7 @@ export function createPatternBindings({
   // clusters):
   // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
   // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
-  // `findBindingPattern` / `unwrapPromiseAnnotation`
+  // `unwrapPromiseAnnotation`
   return {
     defaultParamNeverOverridden,
     parameterCallSites,
@@ -1596,6 +1603,7 @@ export function createPatternBindings({
     annotationAtKeyPath,
     findBindingAnnotation,
     bindingDestructuringPattern,
+    findNameAnnotation,
     isOwnBindingWrite,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,

@@ -1,9 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// these shapes now SYNTH their receiver: the caller-correct literal is preferred over
-// editing the pattern, so no prop is removed and no comma has to be consumed here. what they
-// lock is that a trailing comma does not push the pattern off the synth path. prop removal
-// and its comma handling are exercised where a dynamic computed key makes the literal impossible
+// these shapes SYNTH their receiver: the caller-correct literal is preferred over editing the
+// pattern, so no prop is removed. what they lock is that a trailing comma does not push the
+// pattern off the synth path
 (function ({
   'from': f
 }) {
@@ -20,8 +19,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
   'from': _Array$from,
   'of': _Array$of
 });
-// a block comment between the sole prop and its trailing comma must not hide the comma from the
-// removal scan, or the same orphaned-comma syntax error returns
+// a block comment between the sole prop and its trailing comma stays behind the prop
 (function ({
   'of': o /* keep me out */
 }) {

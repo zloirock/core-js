@@ -4,5 +4,6 @@ import "core-js/modules/es.string.at";
 enum E {
   at = "at"
 }
+// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test
 E = other;
 use(E.at);

@@ -11,5 +11,6 @@ export const viaSat = (withSatisfies.tags as any).includes('x');
 const silent = { keep: [3, 4], m: (function () { return null; }) as any };
 export const viaSilent = (silent.keep as any).at(1);
 
+// @ts-expect-error a read off a null or undefined type is the probe
 const arrowOnly = { outer: [5], m: (() => { this.outer = src(); }) as any };
 export const viaArrow = (arrowOnly.outer as any).at(0);

@@ -4,5 +4,7 @@
 // the bare guard-shim write records the slot mutation - the name DEOPTS: the statement and
 // the later read stay verbatim (native-faithful), and the debug note surfaces the deopt
 declare const Map: any;
+// @ts-expect-error a write to a constant, which tsc forbids, is the shape under test
 Map ||= { B: 2 };
 console.log(Map);
+export {};

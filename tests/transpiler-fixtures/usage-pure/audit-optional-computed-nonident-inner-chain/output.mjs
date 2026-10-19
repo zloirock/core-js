@@ -12,7 +12,7 @@ declare const arr: {
   from?: () => number[][];
 };
 export const bracketed = null == (_ref = arr['a-b']) ? void 0 : _atMaybeArray(_ref2 = _flatMaybeArray(_ref3 = _ref.call(arr)).call(_ref3)).call(_ref2, 0);
-export const dotted = null == (_ref4 = arr['from']) ? void 0 : _includesMaybeArray(_ref5 = _ref4.call(arr)).call(_ref5, 1);
+export const dotted = null == (_ref4 = arr['from']) ? void 0 : _includesMaybeArray(_ref5 = _ref4.call(arr)).call(_ref5, [1]);
 
 // a NUMERIC computed inner (`arr[0]`) has no method name at all, so the inner is non-poly by
 // construction. two trailing polys force the combine, which must keep the verbatim numeric

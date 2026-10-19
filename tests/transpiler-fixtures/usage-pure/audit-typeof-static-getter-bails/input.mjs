@@ -13,6 +13,7 @@ export const viaGetter = (g as any).at(0);
 
 // a setter-only accessor bails the same way (the accessor-kind guard is get/set-agnostic)
 class Y { static set ss(v: number[]) {} }
+// @ts-expect-error a heritage tsc refuses is the shape under test
 type FromSetter = ReturnType<typeof Y.ss>;
 declare const s: FromSetter;
 export const viaSetter = (s as any).at(1);

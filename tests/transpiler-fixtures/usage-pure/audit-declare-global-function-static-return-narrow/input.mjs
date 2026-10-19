@@ -5,3 +5,4 @@ declare global {
   function gfn<T>(): T[];
 }
 gfn<string>().at(0);
+export {};

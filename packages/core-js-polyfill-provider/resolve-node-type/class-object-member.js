@@ -207,6 +207,8 @@ export function createClassObjectMember({
     return isStatic ? staticFieldShadowable(classPath, name, foundNode !== null) : instanceMemberShadowable(classPath, name);
   }
 
+  // `receiverArgs` instantiate the class as its receiver does - an annotation's, where a missing one
+  // takes its default as at any use, or the ones `resolveClassContext` reads off a runtime receiver
   function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype, unionHints = false }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
     const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype });

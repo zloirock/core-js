@@ -16,6 +16,7 @@ const KEY = 'kind';
 export function viaComputedWrite(box: Freight) {
   if (box.kind === 'a') {
     var _ref;
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     box[KEY] = 'b';
     return _at(_ref = box.data).call(_ref, 0);
   }

@@ -93,3 +93,59 @@ function stripNode(node) {
   if (typeof node === 'bigint') return `${ node }n`;
   return node;
 }
+
+// where each comment sits: the path of child slots from the program to the innermost node holding
+// it, and how many of that node's children close ahead of it - the comment-channel half of the
+// identity above, which the signature alone cannot see: a print that flushes a comment out of a call's
+// argument list keeps its text, kind and order and moves it onto the next statement, a line-bound
+// directive included. the skips are the structural ones: a paren node is spelling, so a node is
+// entered by the span of what it wraps, and a list's `EmptyStatement` takes no index. a comment
+// closing a statement ahead of its `;` sits after the statement - the terminator is the only token
+// between them, and a print may spell it ahead of the comment
+export function commentPlacements(program, source, comments) {
+  return comments.map(comment => commentPlacement(program, source, comment.start));
+}
+
+const PLACEMENT_SKIPPED_KEYS = new Set(['start', 'end', 'loc', 'range', 'raw', 'type']);
+
+function peelSpelling(node) {
+  while (node?.type === 'ParenthesizedExpression' || node?.type === 'TSParenthesizedType') {
+    node = node.type === 'ParenthesizedExpression' ? node.expression : node.typeAnnotation;
+  }
+  return node;
+}
+
+function placementChildren(node) {
+  const children = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (PLACEMENT_SKIPPED_KEYS.has(key)) continue;
+    if (Array.isArray(value)) {
+      let index = 0;
+      for (const item of value) {
+        if (typeof item?.type === 'string' && item.type !== 'EmptyStatement') children.push([`${ key }.${ index++ }`, peelSpelling(item)]);
+      }
+    } else if (typeof value?.type === 'string') children.push([key, peelSpelling(value)]);
+  }
+  return children;
+}
+
+function commentPlacement(program, source, offset) {
+  const frames = [];
+  let node = program;
+  let children = placementChildren(node);
+  for (let inner = children.find(([, child]) => child.start <= offset && offset < child.end); inner;
+    inner = children.find(([, child]) => child.start <= offset && offset < child.end)) {
+    const [slot, child] = inner;
+    frames.push({ slot, node: child, siblings: children });
+    node = child;
+    children = placementChildren(node);
+  }
+  let before = children.filter(([, child]) => child.end <= offset).length;
+  while (frames.length && before === children.length && source[node.end - 1] === ';') {
+    const { node: closed, siblings } = frames.pop();
+    before = siblings.findIndex(([, child]) => child === closed) + 1;
+    children = siblings;
+    node = frames.at(-1)?.node ?? program;
+  }
+  return `${ frames.map(({ slot, node: { type } }) => `${ slot }:${ type }`).join('/') }#${ before }`;
+}

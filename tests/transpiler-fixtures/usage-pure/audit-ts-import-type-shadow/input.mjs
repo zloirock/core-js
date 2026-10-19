@@ -4,6 +4,9 @@
 import type Map from "x";
 import type { WeakMap } from "y";
 import { type Set } from "z";
+// @ts-expect-error a type-only import read as a value is the shape under test
 export const a = new Map();
+// @ts-expect-error a type-only import read as a value is the shape under test
 export const b = new WeakMap();
+// @ts-expect-error a type-only import read as a value is the shape under test
 export const c = new Set();

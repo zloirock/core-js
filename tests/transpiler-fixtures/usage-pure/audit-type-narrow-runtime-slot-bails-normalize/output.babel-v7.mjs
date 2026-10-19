@@ -4,4 +4,5 @@ enum E5 {
   A = 1,
   B = A * 2,
 }
+// @ts-expect-error a computed enum member the runtime makes a string is the shape under test
 use(E5.B.normalize());

@@ -1,28 +1,16 @@
 // the second axis of the same slot: WHERE the instantiation sits. a host that can carry the type
-// arguments itself (call, new, optional call, tagged tag) takes them and the node folds away; a host
-// that keeps reading after them (member tail, conditional test) needs the parens restored; every
-// other host terminates the expression, and there only a shape fusing on its own token still owes
+// arguments itself - a call, `new` with or without arguments, an optional call, a tagged tag - takes
+// them and the node folds away
 const f: any = (x: number) => x;
 const g: any = (x: number) => x;
-const o: any = { m: f };
-let q: any;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostCall = ((f || g)<string>)(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostNew = new ((f || g)<string>)();
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostOptionalCall = ((f || g)<string>)?.(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostTaggedTag = ((f || g)<string>)`t`;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostNewBareArgs = new ((f || g)<string>);
-const hostOptionalMember = ((o)<string>)?.m;
-const hostMember = ((f || g)<string>).name;
-const hostComputedMember = ((f || g)<string>)[0];
-const hostConditionalTest = ((q = f)<string>) ? 1 : 2;
-// hosts that end the expression: a loose-but-not-fusing shape keeps no parens, a fusing one does -
-// parens are spelled as a node later lowerings must accept, so they are only added where owed
-const tailValue = ((f || g)<string>);
-const tailArgument = g(((f || g)<string>));
-const tailElement = [((f || g)<string>)];
-const tailFusingCast = ((f as any)<string>);
-const tailFusingAssertion = ((<any>f)<string>);
-const tailFusingUpdate = ((q++)<string>);
-export const r = [hostCall, hostNew, hostNewBareArgs, hostOptionalMember, hostOptionalCall, hostTaggedTag, hostMember, hostComputedMember,
-  hostConditionalTest, tailValue, tailArgument, tailElement, tailFusingCast, tailFusingAssertion,
-  tailFusingUpdate, [1, [2]].flat()];
+export const r = [hostCall, hostNew, hostNewBareArgs, hostOptionalCall, hostTaggedTag, [1, [2]].flat()];

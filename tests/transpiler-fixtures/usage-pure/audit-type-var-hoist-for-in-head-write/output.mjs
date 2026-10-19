@@ -21,6 +21,7 @@ export function viaForInHeadWriteStaysGeneric() {
   {
     var keyHeld = arrSrc;
   }
+  // @ts-expect-error a loop head write tsc refuses is the shape under test
   for (keyHeld in keyedSrc) {}
   {
     return _includes(keyHeld).call(keyHeld, "x");

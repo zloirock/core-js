@@ -7,4 +7,5 @@ const blockBody = (c: boolean) => { return c ? arr : null; };
 blockBody(true).flat();
 // conflicting non-nullable branches still bail to the generic dispatcher
 const conflict = (c: boolean) => c ? arr : 's';
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 conflict(true).includes(1);

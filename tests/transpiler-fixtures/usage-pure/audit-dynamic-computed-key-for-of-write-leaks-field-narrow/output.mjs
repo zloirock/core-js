@@ -19,6 +19,7 @@ c.first();
 // binding is a union past the loop, so the dispatch stays generic - neither the stale
 // init narrow nor the stale write narrow may win
 let held = [1, 2];
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 for (const {
   q = held = 's'
 } of maybe) {

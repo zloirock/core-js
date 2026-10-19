@@ -3,6 +3,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // the call-site argPath through every intermediate key. without the chained-walk fix,
 // the type-ref name of `node.objectType` returns null on the inner TSIndexedAccessType and the
 // outer resolution falls back to bare type-annotation resolution losing the type-param map
+// @ts-expect-error an index into a type parameter tsc cannot key is the shape under test
 declare function pick<T>(o: T): T['a']['b'];
 const r = pick({
   a: {

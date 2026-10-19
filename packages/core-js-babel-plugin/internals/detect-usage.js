@@ -34,6 +34,7 @@ import {
   getDirectStatementBody,
   liveBindingWrites,
   memberContextPath,
+  parenLayerHost,
   useAnchorStart,
   walkPatternIdentifiers,
   cleanDestructureAliasWrites,
@@ -43,6 +44,7 @@ import {
   unwrapTransparentSeq,
   stillWrites,
   synthOwnerStrictlyInsideScope,
+  typeArgumentHostOf,
   wrapScopeBindingLookup,
   writesPastCeiling,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -590,27 +592,6 @@ export function instantiationSlotNeedsParens(node) {
   return !BARE_INSTANTIATION_SLOT_TYPES.has(node.type);
 }
 
-// the node the instantiation actually answers to, plus the child filling that node's slot. under
-// `createParenthesizedExpressions` the source parens are REAL nodes, so the host sits one or more
-// paren layers up instead of directly overhead and every question below would read the paren as
-// its host. paren layers ONLY: a TS cast between the instantiation and its host is a different
-// shape, not a transparent layer to climb through
-function hostSlotAbove(path) {
-  let child = path;
-  while (child.parentPath?.node?.type === 'ParenthesizedExpression') child = child.parentPath;
-  const host = child.parentPath?.node;
-  return host ? { host, childNode: child.node } : null;
-}
-
-// hosts that can carry type arguments of their own, each mapped to the slot it holds the
-// instantiation in
-const TYPE_ARGUMENT_HOST_SLOTS = new Map([
-  ['CallExpression', 'callee'],
-  ['NewExpression', 'callee'],
-  ['OptionalCallExpression', 'callee'],
-  ['TaggedTemplateExpression', 'tag'],
-]);
-
 // `((X)<T>)(a)` and `X<T>(a)` are the SAME TS spelling - a call carrying its own type arguments -
 // and the same holds for `new` and for a tagged template's tag. so hand the arguments to the host
 // above and drop the instantiation node: what is left is plain, and its slot is rendered by
@@ -625,10 +606,8 @@ const TYPE_ARGUMENT_HOST_SLOTS = new Map([
 // under one is invisible to it and the call it emits has lost its receiver. hence this runs BEFORE
 // them, and the paren half that ADDS a node they cannot walk runs after
 function foldInstantiationIntoTypeArgumentHost(path) {
-  const above = hostSlotAbove(path);
-  const slot = above && TYPE_ARGUMENT_HOST_SLOTS.get(above.host.type);
-  if (!slot || above.host[slot] !== above.childNode) return false;
-  const parent = above.host;
+  const parent = typeArgumentHostOf(path);
+  if (!parent) return false;
   const key = 'typeArguments' in path.node ? 'typeArguments' : 'typeParameters';
   // a host cannot carry two type-argument lists; leave the nested spelling to the paren restoration
   if (parent[key]) return false;
@@ -654,7 +633,7 @@ const FUSING_SLOT_TYPES = new Set([
 // shape at all. that makes this host's restoration unconditional, the one place the operand's own
 // priority does not decide
 function memberTailHost(path) {
-  const above = hostSlotAbove(path);
+  const above = parenLayerHost(path);
   return (above?.host.type === 'MemberExpression' || above?.host.type === 'OptionalMemberExpression')
     && above.host.object === above.childNode;
 }
@@ -664,7 +643,7 @@ function memberTailHost(path) {
 // the expression and asks nothing - and parens it does not owe are not free, since they are spelled
 // as a node the rest of the pipeline may not accept
 function conditionalTestHost(path) {
-  const above = hostSlotAbove(path);
+  const above = parenLayerHost(path);
   return above?.host.type === 'ConditionalExpression' && above.host.test === above.childNode;
 }
 

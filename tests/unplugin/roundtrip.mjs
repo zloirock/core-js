@@ -1,15 +1,17 @@
 // the AST-engine roundtrip gate: every transpiler fixture input parses with oxc, prints
 // through the esrap adapter with ZERO mutations, and the print must change nothing that
-// means anything - the reparse is structurally identical, every comment survives with its
-// line association (a trailing `core-js-disable-line` that moves to its own line changes
-// what it disables), and a second print of the reparse is byte-identical (idempotency).
+// means anything - the reparse is structurally identical, every comment survives where it
+// sat (between the same two nodes) and with its line association (a trailing
+// `core-js-disable-line` that moves to its own line changes what it disables), and a second
+// print of the reparse is byte-identical (idempotency). a trailing comma is not compared - ESTree
+// does not carry it and neither print writes one - and the output's ES5 grammar is the e2e bundles'.
 // files oxc cannot parse (error fixtures, flow) are out of the printer's contract - they
 // are counted and skipped, with a canary so a skip-everything regression cannot read green
 import { parseSync } from 'oxc-parser';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
-import { commentSignature, strip } from './structural.mjs';
+import { commentPlacements, commentSignature, strip } from './structural.mjs';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
 const { readdir, readFile, stat } = fs;
@@ -19,7 +21,7 @@ const { cyan, green, red } = chalk;
 const UTF8 = { encoding: 'utf8' };
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
-const counts = { compared: 0, skippedParse: 0, skippedOptions: 0, failed: 0 };
+const counts = { compared: 0, placed: 0, skippedParse: 0, skippedOptions: 0, failed: 0 };
 const failures = [];
 
 function fail(directory, detail) {
@@ -77,6 +79,15 @@ function checkFixture(directory, testId, rawSource) {
   if (JSON.stringify(sourceComments) !== JSON.stringify(printedComments)) {
     return fail(directory, `comments diverge: ${ sourceComments.length } in, ${ printedComments.length } out`);
   }
+  // the signature keeps text, kind and order, and a comment flushed out of its list keeps all three
+  const sourcePlacements = commentPlacements(parsed.program, source, parsed.comments);
+  const printedPlacements = commentPlacements(reparsed.program, printed.code, reparsed.comments);
+  for (let i = 0; i < sourcePlacements.length; i++) {
+    if (sourcePlacements[i] !== printedPlacements[i]) {
+      return fail(directory, `comment #${ i } moved: ${ sourcePlacements[i] } -> ${ printedPlacements[i] }`);
+    }
+  }
+  counts.placed += sourcePlacements.length;
   for (let i = 0; i < parsed.comments.length; i++) {
     if (!isLineBoundDisableDirective(parsed.comments[i].value)) continue;
     const wasOwnLine = isOwnLine(source, parsed.comments[i].start);
@@ -122,7 +133,17 @@ await walk(fixturesDir);
 
 for (const line of failures) echo`${ red('FAIL') } ${ line }`;
 if (counts.failed > failures.length) echo`${ red(`... and ${ counts.failed - failures.length } more failures`) }`;
-echo`\nRoundtrip: ${ green(counts.compared) } compared, ${ cyan(counts.skippedParse) } unparsable skipped, ${ cyan(counts.skippedOptions) } optionless skipped, ${ counts.failed ? red(counts.failed) : green(0) } failed`;
+echo`\nRoundtrip: ${ green(counts.compared) } compared, ${ green(counts.placed) } comments placed, ${ cyan(counts.skippedParse) } unparsable skipped, ${ cyan(counts.skippedOptions) } optionless skipped, ${ counts.failed ? red(counts.failed) : green(0) } failed`;
 // corpus-presence canary: a walk or parse regression that skips the corpus must not read green
 if (counts.compared < 8000) throw new Error(`roundtrip corpus collapsed: only ${ counts.compared } fixtures compared`);
+// ... and the placement compare is shown to see a move on a control rather than trusted to: a comment
+// leaving an argument list for the statement after it keeps its text, kind and order
+function controlPlacement(code) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync('control.ts', code, { sourceType: 'module' });
+  return commentPlacements(parsed.program, code, parsed.comments)[0];
+}
+if (controlPlacement('f(a, /* c */);\ng();') === controlPlacement('f(a);\n/* c */ g();')) {
+  throw new Error('roundtrip placement compare reads a moved comment as placed');
+}
 if (counts.failed) throw new Error('Some roundtrips have failed');

@@ -5,6 +5,7 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 export function viaCastInstantiation(c) {
   let P4;
   if (c) P4 = _Promise;
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return ((P4 === _Promise ? _Promise$any : P4.any.bind(P4)) as any)<number>([1, 2]);
 }
 export const r = [viaCastInstantiation(true)];

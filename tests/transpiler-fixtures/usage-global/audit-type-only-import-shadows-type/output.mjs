@@ -19,4 +19,5 @@ declare const shadowed: Set<number>;
 declare const runtimeQuery: typeof Map;
 export const a = shadowed;
 export const b = runtimeQuery;
+// @ts-expect-error a type-only import read as a value is the shape under test
 export const c = new WeakSet();

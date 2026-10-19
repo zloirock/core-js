@@ -5,5 +5,5 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 let x: string | number[] = "hi";
 let counter = 0;
 if (typeof x === "string" && (counter++, true)) {
-  _includesMaybeString(x).call(x, 1);
+  _includesMaybeString(x).call(x, '1');
 }

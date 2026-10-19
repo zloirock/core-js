@@ -4,6 +4,7 @@
 // `container-chosen-by-undecided-selection-mirrors-under-a-pattern`.
 function eff() {}
 function seSource({ from, of } = (eff(), globalThis.window.self.Array)) {
+  // @ts-expect-error arithmetic tsc refuses is the shape under test
   return from([1]) + of(2, 3);
 }
 const useGlobal = 1;

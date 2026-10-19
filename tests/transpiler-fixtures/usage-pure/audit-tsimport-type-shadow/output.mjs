@@ -8,6 +8,7 @@ import _Set from "@core-js/pure/actual/set/constructor";
 import Set = require('node:set');
 function build() {
   var _ref;
+  // @ts-expect-error a type-only import read as a value is the shape under test
   const s = new _Set([1, 2]);
   return _atMaybeArray(_ref = _Array$from(s)).call(_ref, 0);
 }

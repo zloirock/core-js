@@ -7,5 +7,6 @@ interface C<T> {
   bar<T>(): T;
 }
 declare const o: C<string>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 const r = _at(_ref = o.bar()).call(_ref, 0);
 export { r };

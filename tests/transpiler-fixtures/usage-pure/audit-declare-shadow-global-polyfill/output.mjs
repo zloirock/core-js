@@ -11,3 +11,4 @@ declare const Set: {
 };
 const s = new _Set<number>();
 s.has(1);
+export {};

@@ -6,4 +6,5 @@ interface Mixed {
   xs: number[];
 }
 declare const v: Mixed[keyof Mixed];
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const r1 = v.at(0);

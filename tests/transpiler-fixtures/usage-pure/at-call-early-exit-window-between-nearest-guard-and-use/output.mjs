@@ -16,6 +16,7 @@ export function inside(raw: string | number[], other: unknown) {
     return null;
   }
   _globalThis.a = _includes(raw).call(raw, 'a');
+  // @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
   return _keysMaybeArray(raw).call(raw);
 }
 export function before(raw: string | number[]) {

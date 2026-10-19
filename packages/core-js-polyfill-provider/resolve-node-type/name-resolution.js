@@ -589,7 +589,10 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   // narrower context and a namespace-local declaration beats an outer namesake. on babel every such
   // container owns a scope, so the lane yields nothing and the scope walk decides as it always did.
   // anchored on the USE instead, this order picks up whatever namesake the use happens to sit next
-  // to - measured, both emitters, wrong family
+  // to - measured, both emitters, wrong family. a type PARAMETER of the same name is not consulted: a
+  // caller that lets one shadow the declaration asks `findTypeParameter` first (`resolveUserDefinedType`,
+  // a member read, the keyof fold), and the index-signature and member-list lookups do not (an
+  // accepted boundary)
   function findTypeDeclaration(name, scope) {
     if (!scope) return null;
     return findTypeDeclInLookupPath(name)

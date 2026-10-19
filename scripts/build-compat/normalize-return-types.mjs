@@ -35,6 +35,7 @@ const VALID_HINT_KEYS = new Set([
   'inert',
   'mutatesElements',
   'nullable',
+  'partial',
 ]);
 
 // the constructor table takes its own keys, so it needs its own refusal: `call` absent means
@@ -74,6 +75,9 @@ export function normalizeHint(hint) {
   // nullable: the spec return admits undefined / null (`find` / `at` / `pop` / `exec` / ...);
   // the resolver marks the decoded type so the logical truthy-fold keeps the operand union
   if (hint.nullable !== undefined) result.nullable = hint.nullable;
+  // partial: a type guard true for only part of its `type` (`Number.isFinite` fails `NaN`), so its
+  // false answer proves nothing about the argument. passed through unchanged
+  if (hint.partial !== undefined) result.partial = hint.partial;
   return result;
 }
 

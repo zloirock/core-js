@@ -4,6 +4,7 @@
 let captured: unknown;
 class Container {
   static {
+    // @ts-expect-error a namespace below the top level is the shape under test
     namespace Set {
       export const value = 1;
     }

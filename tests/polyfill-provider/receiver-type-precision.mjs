@@ -1,7 +1,7 @@
 // Receiver proofs must retain their mutation, ownership and caller boundaries.
 // Unknown computed keys retain explicit slots as a deliberate precision policy.
 // Sources intentionally read absent members; runtime JS accepts these reads even where TS rejects them.
-import { createChecker } from './harness.mjs';
+import { createChecker, expectError } from './harness.mjs';
 import {
   CENSUS_KEY_NAMES,
   collectFileCensus,
@@ -18,6 +18,12 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 
 const { check, checkDeep, doesNotThrow, runBoth, finish } = createChecker('receiver-type-precision');
+
+// what a generated row hands `expectError` for the line `tsc` rejects on purpose
+const COMPUTED_KEY = 'a computed key tsc refuses is the shape under test';
+const FUNCTION_WRITE = 'a write over a function declaration, which tsc forbids, is the shape under test';
+const KEY_COLLISION = 'a key collision, which tsc refuses, is the shape under test';
+const TUPLE_INDEX = 'a tuple index tsc refuses is the shape under test';
 const cases = [
   ['inherited function', 'const result = ({}).toString;', 'Function'],
   ['inherited function alias', 'const box = {}; const result = box.hasOwnProperty;', 'Function'],
@@ -73,7 +79,7 @@ const cases = [
   ['namespaced enum shadow', 'namespace N { export enum E { at = "at" } } function f(N) { const result = N.E.at; }', null],
   ['namespaced enum reverse map', 'namespace N { export enum E { A } } const result = N.E[N.E.A];', 'string'],
   ['enum shadow', 'enum E { at = "at" } function f(E) { const result = E.at; }', null],
-  ['enum member written', 'enum E { at = "at" } E.at = other; const result = E.at;', null],
+  ['enum member written', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { at = "at" } E.at = other; const result = E.at;', null],
   ['locally caught value', 'const box = { data: [1] }; try { throw box; } catch (e) {} const result = box.data;', 'Array'],
   ['catch binding reads', 'const box = { data: [1] }; try { throw box; } catch (e) { void e.data; } const result = box.data;', 'Array'],
   ['anonymous catch receiver', 'let r; try { throw { data: [1], read() { const result = this.data; return result; } }; } catch (e) { r = e.read(); }', 'Array'],
@@ -131,38 +137,38 @@ for (const [label, source, expected, hints] of [
   ['instance caller branch families', 'function read({ includes: at }) {} read(flag ? [1] : "ab");', null, ['array', 'string']],
   ['RegExp caller family', '(({ toString: at }) => at)(flag ? /x/ : {});', null, ['object', 'regexp']],
   ['unresolved caller keeps the RegExp default live', 'function read({ toString: at } = /x/) {} read(flag ? Object : undefined);', null, null],
-  ['unknown caller branch', '(({ toString: at }) => at)(flag ? external : {});', null, null],
-  ['unknown caller call branch', '(({ toString: at }) => at)(flag ? external() : {});', null, null],
+  ['unknown caller branch', '(({ toString: at }) => at)(flag ? foreign : {});', null, null],
+  ['unknown caller call branch', '(({ toString: at }) => at)(flag ? foreign() : {});', null, null],
   ['unsettled logical and', 'function read({ includes: at }) {} read("" && [1]);', null, ['array', 'string']],
   ['unsettled logical or', 'function read({ includes: at }) {} read("" || [1]);', null, ['array', 'string']],
-  ['unknown logical left', 'function read({ includes: at }) {} read(external && [1]);', null, null],
-  ['IIFE receiver assertion', '(({ includes: at }) => at)(external as string);', [true, 'string'], ['string']],
-  ['named receiver assertion', 'function read({ includes: at }) {} read(external as string);', [true, 'string'], ['string']],
-  ['default receiver assertion', 'function read({ includes: at } = external as string) {} read();', [true, 'string'], ['string']],
-  ['inner default receiver assertion', 'function read({ row: { includes: at } = external as string }) {} read({});', [true, 'string'], ['string']],
-  ['nested receiver assertions', '(({ includes: at }) => at)((external! as unknown) as string);', [true, 'string'], ['string']],
+  ['unknown logical left', 'function read({ includes: at }) {} read(foreign && [1]);', null, null],
+  ['IIFE receiver assertion', '(({ includes: at }) => at)(foreign as string);', [true, 'string'], ['string']],
+  ['named receiver assertion', 'function read({ includes: at }) {} read(foreign as string);', [true, 'string'], ['string']],
+  ['default receiver assertion', 'function read({ includes: at } = foreign as string) {} read();', [true, 'string'], ['string']],
+  ['inner default receiver assertion', 'function read({ row: { includes: at } = foreign as string }) {} read({});', [true, 'string'], ['string']],
+  ['nested receiver assertions', '(({ includes: at }) => at)((foreign! as unknown) as string);', [true, 'string'], ['string']],
   ['open string default annotation',
-    'declare const external: unknown; export function read({ includes: at } = external as string) {}',
+    'declare const foreign: unknown; export function read({ includes: at } = foreign as string) {}',
     [true, 'string'], ['string']],
   ['open array default annotation',
-    'declare const external: unknown; export function read({ includes: at } = external as number[]) {}',
+    'declare const foreign: unknown; export function read({ includes: at } = foreign as number[]) {}',
     [false, 'Array'], ['array']],
   ['nested open default annotation',
-    'declare const external: unknown; type Box = { row: string }; '
-      + 'export function read({ row: { includes: at } } = external as Box) {}',
+    'declare const foreign: unknown; type Box = { row: string }; '
+      + 'export function read({ row: { includes: at } } = foreign as Box) {}',
     [true, 'string'], ['string']],
   ['open union default remains unknown',
-    'declare const external: unknown; export function read({ includes: at } = external as string | number[]) {}',
+    'declare const foreign: unknown; export function read({ includes: at } = foreign as string | number[]) {}',
     null, null],
   ['open any default remains unknown',
-    'declare const external: unknown; export function read({ includes: at } = external as any) {}',
+    'declare const foreign: unknown; export function read({ includes: at } = foreign as any) {}',
     null, null],
   ['explicit pattern annotation wins',
-    'declare const external: unknown; export function read({ includes: at }: string = external as any) {}',
+    'declare const foreign: unknown; export function read({ includes: at }: string = foreign as any) {}',
     [true, 'string'], null],
   // `as any` deliberately admits a runtime value outside the inferred string parameter type.
   ['supplied Array overrides default source annotation',
-    'declare const external: unknown; function read({ includes: at } = external as string) {} read([1] as any);',
+    'declare const foreign: unknown; function read({ includes: at } = foreign as string) {} read([1] as any);',
     [false, 'Array'], ['array']],
   ['runtime default and supplied annotation remain distinct arms',
     'export function read({ includes: at } = [1] as unknown as string) {}',
@@ -172,25 +178,33 @@ for (const [label, source, expected, hints] of [
     'export function read({ toString: at } = (flag ? Object : {}) as unknown as string) {}',
     null, ['function', 'object', 'string']],
   ['caller annotation resolves in caller scope',
-    'declare const external: unknown; type Receiver = string; '
-      + '(({ includes: at }) => { type Receiver = number[]; return at; })(external as Receiver);',
+    'declare const foreign: unknown; type Receiver = string; '
+      + '(({ includes: at }) => { type Receiver = number[]; return at; })(foreign as Receiver);',
     [true, 'string'], ['string']],
   ['plain open runtime default stays unknown',
     'export function read({ includes: at } = [1]) {}',
     null, null],
   ['asserted array literal', '(({ includes: at }) => at)([1] as unknown as string);', [false, 'Array'], ['array']],
   ['asserted string literal', '(({ includes: at }) => at)("ab" as unknown as number[]);', [true, 'string'], ['string']],
-  ['assertion preserves array binding annotation',
-    'declare const external: any; const value: number[] = external; (({ includes: at }) => at)(value as unknown as string);', [false, 'Array'], ['array']],
-  ['assertion preserves string binding annotation',
-    'declare const external: any; const value: string = external; (({ includes: at }) => at)(value as unknown as number[]);', [true, 'string'], ['string']],
+  [
+    'assertion preserves array binding annotation',
+    'declare const foreign: any; const value: number[] = foreign; (({ includes: at }) => at)(value as unknown as string);',
+    [false, 'Array'],
+    ['array'],
+  ],
+  [
+    'assertion preserves string binding annotation',
+    'declare const foreign: any; const value: string = foreign; (({ includes: at }) => at)(value as unknown as number[]);',
+    [true, 'string'],
+    ['string'],
+  ],
   ['assertion preserves ambient annotation', 'declare const value: number[]; (({ includes: at }) => at)(value as unknown as string);', [false, 'Array'], ['array']],
-  ['unknown caller value', 'function read({ includes: at }) {} read([1]); read(external);', null, null],
+  ['unknown caller value', 'function read({ includes: at }) {} read([1]); read(foreign);', null, null],
   ['exported function', 'export function read({ at }) {} read([1]);', null, null],
   ['escaped function', 'function read({ at }) {} hand(read); read([1]);', null, null],
-  ['unknown spread', 'function read({ at }) {} read(...external);', null, null],
-  ['opaque apply list', 'function read({ at } = [1]) {} read.apply(null, external);', null, null],
-  ['opaque Reflect.apply list', 'function read({ at } = [1]) {} Reflect.apply(read, null, external);', null, null],
+  ['unknown spread', 'function read({ at }) {} read(...foreign);', null, null],
+  ['opaque apply list', 'function read({ at } = [1]) {} read.apply(null, foreign);', null, null],
+  ['opaque Reflect.apply list', 'function read({ at } = [1]) {} Reflect.apply(read, null, foreign);', null, null],
   ['known empty apply list', 'function read({ at } = [1]) {} read.apply(null, []);', [false, 'Array'], ['array']],
   ['known string apply list', 'function read({ at } = [1]) {} read.apply(null, ["ab"]);', [true, 'string'], ['string']],
   ['omitted default', 'function read({ at } = [1]) {} read();', [false, 'Array'], ['array']],
@@ -229,7 +243,7 @@ for (const [label, source, expected] of [
   ['Function/Object', '(({ toString }) => toString)(flag ? Object : {});', ['object/to-string']],
   ['RegExp/Object', '(({ toString }) => toString)(flag ? /x/ : {});', ['object/to-string', 'regexp/to-string']],
   ['live RegExp default', 'function read({ toString } = /x/) {} read(flag ? Object : undefined);', ['object/to-string', 'regexp/to-string']],
-  ['unknown/Object', '(({ toString }) => toString)(flag ? external : {});', ['object/to-string', 'regexp/to-string']],
+  ['unknown/Object', '(({ toString }) => toString)(flag ? foreign : {});', ['object/to-string', 'regexp/to-string']],
 ]) runBoth(`parameter union dependencies/${ label }`, source, (adapter, program, name) => {
   const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property');
   const typeResolvers = adapter.makeResolver();
@@ -331,16 +345,26 @@ for (const [label, source, expected] of [
 });
 for (const [label, source, expected] of [
   ['enum own receiver', 'enum E { at = "at" } use(E.at);', 'Object'],
-  ['enum own receiver written', 'enum E { at = "at" } E.at = other; use(E.at);', 'Object'],
+  ['enum own receiver written', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { at = "at" } E.at = other; use(E.at);', 'Object'],
   ['enum implicit own receiver', 'enum E { at } use(E.at);', 'Object'],
-  ['qualified enum own receiver written', 'namespace N { export enum E { at = "at" } } N.E.at = other; use(N.E.at);', 'Object'],
-  ['enum receiver reassigned', 'enum E { at = "at" } E = other; use(E.at);', null],
+  [
+    'qualified enum own receiver written',
+    '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\n'
+    + 'namespace N { export enum E { at = "at" } } N.E.at = other; use(N.E.at);',
+    'Object',
+  ],
+  ['enum receiver reassigned', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { at = "at" } E = other; use(E.at);', null],
   ['qualified enum receiver reassigned', 'namespace N { export enum E { at = "at" } } N.E = other; use(N.E.at);', null],
   ['enum own receiver escaped', 'enum E { at = "at" } mutate(E); use(E.at);', null],
-  ['enum member deleted', 'enum E { at = "at" } delete E.at; use(E.at);', null],
+  ['enum member deleted', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { at = "at" } delete E.at; use(E.at);', null],
   ['enum unknown member deleted', 'enum E { at = "at" } delete E[key]; use(E.at);', null],
-  ['enum alias member deleted', 'enum E { at = "at" } const alias = E; delete alias.at; use(E.at);', null],
-  ['enum member updated', 'enum E { at = "at" } E.at++; use(E.at);', null],
+  [
+    'enum alias member deleted',
+    '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\n'
+    + 'enum E { at = "at" } const alias = E; delete alias.at; use(E.at);',
+    null,
+  ],
+  ['enum member updated', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { at = "at" } E.at++; use(E.at);', null],
 ]) runBoth(label, source, (adapter, program, name) => {
   collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
   const member = adapter.collectPaths(program, 'MemberExpression', p => p.node.property?.name === 'at').at(-1);
@@ -421,9 +445,9 @@ for (const [label, source, expected] of [
 });
 for (const [label, source, expected] of [
   ['enum key value', 'enum E { A = "at" } use([1][E.A]);', 'at'],
-  ['written enum key value', 'enum E { A = "at" } E.A = other; use([1][E.A]);', null],
-  ['deleted enum key value', 'enum E { A = "at" } delete E.A; use([1][E.A]);', null],
-  ['absent enum key value', 'enum E { A = "at" } use([1][E.missing]);', null],
+  ['written enum key value', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { A = "at" } E.A = other; use([1][E.A]);', null],
+  ['deleted enum key value', '// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test\nenum E { A = "at" } delete E.A; use([1][E.A]);', null],
+  ['absent enum key value', '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nenum E { A = "at" } use([1][E.missing]);', null],
 ]) runBoth(label, source, (adapter, program, name) => {
   collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
   const member = adapter.collectPaths(program, 'MemberExpression', p => p.node.object?.name === 'E').at(-1);
@@ -491,26 +515,26 @@ for (const [label, source, expected] of [
 
 // Unknown computed keys leave explicit slots intact, including deliberate runtime collisions.
 // Resolved keys still decide precedence; the type model does not promise disjoint runtime keys.
-for (const [label, properties, setup, expected] of [
+for (const [label, properties, setup, expected, rejected] of [
   ['literal-returning function data', 'rows: [1], [key()]: "ab"', 'function key() { return "rows"; }', 'string'],
   ['literal-returning function getter', 'rows: [1], get [key()]() { return "ab"; }', 'function key() { return "rows"; }', 'string'],
   ['literal-returning function method', 'rows: [1], [key()]() {}', 'function key() { return "rows"; }', 'Function'],
   ['opaque call key', 'rows: [1], [key(value)]: "ab"', 'function key(value) { return value; }', 'Array'],
   ['effectful literal return', 'rows: [1], [key()]: "ab"', 'function key() { effect(); return "rows"; }', 'string'],
   ['branching call key', 'rows: [1], [key()]: "ab"', 'function key() { if (cond) return "rows"; return "other"; }', 'Array'],
-  ['async call key', 'rows: [1], [key()]: "ab"', 'async function key() { return "rows"; }', 'Array'],
-  ['generator call key', 'rows: [1], [key()]: "ab"', 'function * key() { return "rows"; }', 'Array'],
-  ['written call key', 'rows: [1], [key()]: "ab"', 'function key() { return "rows"; } key = other;', 'Array'],
+  ['async call key', 'rows: [1], [key()]: "ab"', 'async function key() { return "rows"; }', 'Array', COMPUTED_KEY],
+  ['generator call key', 'rows: [1], [key()]: "ab"', 'function * key() { return "rows"; }', 'Array', COMPUTED_KEY],
+  ['written call key', 'rows: [1], [key()]: "ab"', 'function key() { return "rows"; } key = other;', 'Array', FUNCTION_WRITE],
   ['symbol-returning call key', 'rows: [1], [key()]: "ab"', 'function key() { return Symbol(); }', 'Array'],
-  ['known later key', 'rows: [1], [key]: "ab"', 'const key = "rows";', 'string'],
-  ['known earlier key', '[key]: "ab", rows: [1]', 'const key = "rows";', 'Array'],
+  ['known later key', 'rows: [1], [key]: "ab"', 'const key = "rows";', 'string', KEY_COLLISION],
+  ['known earlier key', '[key]: "ab", rows: [1]', 'const key = "rows";', 'Array', KEY_COLLISION],
   ['symbol key', 'rows: [1], [key]: "ab"', 'const key = Symbol();', 'Array'],
   ['nullable symbol key', 'undefined: [1], rows: [1], [key]: "ab"', 'const key = cond ? Symbol() : void 0;', 'Array'],
   ['computed getter pair', 'get [key]() { return [1]; }, set rows(value) {}', 'const key = "rows";', 'Array'],
   ['literal-returning function getter pair', 'get [key()]() { return [1]; }, set rows(value) {}', 'function key() { return "rows"; }', 'Array'],
 ]) runBoth(`indexed object key ${ label }`, `
   function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }
-  ${ setup } const result = pick({ ${ properties } });`, (adapter, program, name) => {
+  ${ expectError(rejected) }${ setup } const result = pick({ ${ properties } });`, (adapter, program, name) => {
   const path = adapter.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result').get('init');
   const type = adapter.makeResolver().resolveNodeType(path);
   check(name, type ? type.primitive ? type.type : type.constructor : null, expected);
@@ -632,9 +656,9 @@ for (const [label, properties, tail] of [
 
 // Canonical tuple indexes retain their positional type.
 // The non-canonical generic keys deliberately exercise inputs TypeScript rejects.
-for (const [key, expected] of [['1', 'Array'], ['1.0', null], ['01', null], ['', null]]) {
+for (const [key, expected, rejected] of [['1', 'Array'], ['1.0', null, TUPLE_INDEX], ['01', null, TUPLE_INDEX], ['', null, TUPLE_INDEX]]) {
   runBoth(`indexed tuple constraint ${ key }`, `
-    declare function pick<T extends [string, string[]]>(o: T): T["${ key }"];
+    ${ expectError(rejected) }declare function pick<T extends [string, string[]]>(o: T): T["${ key }"];
     const box: [string, string[]] = ["a", ["b"]]; const result = pick(box);`, (adapter, program, name) => {
     const path = adapter.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result').get('init');
     check(name, adapter.makeResolver().resolveNodeType(path)?.constructor ?? null, expected);
@@ -1019,7 +1043,8 @@ for (const [label, source, expected] of [
   ],
   [
     'unknown same-slot write',
-    'let box: { row: unknown } = { row: [1] }; box.row = "ab"; function read({ row: { at } }) {} read(box);',
+    '// @ts-expect-error the caller hands over a slot its annotation leaves unknown, on purpose\n'
+    + 'let box: { row: unknown } = { row: [1] }; box.row = "ab"; function read({ row: { at } }) {} read(box);',
     null,
   ],
   [

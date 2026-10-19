@@ -12,6 +12,6 @@ c.m(function (this: Window, a) {
   return a.at(0);
 });
 c.n(function (this: Window, b) {
-  return b.includes(1);
+  return b.includes('1');
 });
 export {};
