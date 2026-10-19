@@ -7,6 +7,7 @@ import "core-js/modules/es.string.includes";
 // es.string.includes) - NOT every variant of the method (the Iterator group is provably
 // excluded by the union). a nullable arm contributes nothing (nullish receivers throw)
 declare const r: number[] | string;
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 r.includes('x');
 declare const n: string[] | string | null;
 n.at(0);

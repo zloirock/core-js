@@ -8,11 +8,13 @@ declare function check(v: unknown): boolean;
 export function braced(v: unknown) {
   if (check(v)) {
     const check = (x: unknown): x is string => typeof x === 'string';
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     return v.at(0);
   }
   return null;
 }
 export function unbraced(v: unknown) {
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   if (check(v)) return v.at(0);
   return null;
 }

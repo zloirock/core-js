@@ -95,8 +95,8 @@ for (const [source, names] of [
   ['const { at = at } = at;', ['at']],
   ['const { at } = c ? at : [];', ['at']],
   ['const { at: a } = b, { at: b } = a;', ['a', 'b']],
-  ['const { at } = at as any;', ['at']],
-  ['const { at } = at!;', ['at']],
+  ['// @ts-expect-error a binding read in its own initializer is the shape under test\nconst { at } = at as any;', ['at']],
+  ['// @ts-expect-error a binding read in its own initializer is the shape under test\nconst { at } = at!;', ['at']],
 ]) runBoth(`symbol alias judgment: ${ source }`, source, (parser, program, label) => {
   const adapter = makeAdapter(parser, registryOf(Object.fromEntries(names.map(name => [name, 'instance/at']))));
   for (const name of names) {
@@ -133,7 +133,7 @@ for (const [source, types, name] of [
   ['const { at: a } = b(), { at: b } = a();', ['CallExpression'], 'b'],
   ['for (;;) { var { at } = at(); break; }', ['CallExpression'], 'at'],
   ['for (;;) { let { at } = at(); break; }', ['CallExpression'], 'at'],
-  ['const { at } = (at as any)();', ['CallExpression'], 'at'],
+  ['// @ts-expect-error a binding read in its own initializer is the shape under test\nconst { at } = (at as any)();', ['CallExpression'], 'at'],
 ]) runBoth(`pattern-bound callee: ${ source }`, source, (parser, program, label) => {
   const call = pickNamed(parser, program, types, name) ?? parser.pickPath(program, types[0]);
   const hop = { node: call.node, readNode: call.node, seen: new Set(), ctx: { scope: call.scope, adapter: makeAdapter(parser), path: call } };
@@ -186,7 +186,7 @@ for (const source of [
   'let value; value = value?.at;',
   'let value; value = value?.x; value?.at;',
   'for (;;) { let value = value?.at; break; }',
-  'const value = (value as any)?.at;',
+  '// @ts-expect-error a binding read in its own initializer is the shape under test\nconst value = (value as any)?.at;',
 ]) runBoth(`held-value undefinability: ${ source }`, source, (parser, program, label) => {
   const read = pickOptionalObject(parser, program, 'at');
   const aliasCtx = { scope: read.scope, adapter: makeAdapter(parser), path: read };

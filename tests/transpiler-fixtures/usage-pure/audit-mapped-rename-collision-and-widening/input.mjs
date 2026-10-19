@@ -10,6 +10,7 @@ export const first = collapsed.both.at(0);
 
 type Widened = { [K in keyof Source as string]: Source[K] };
 declare const widened: Widened;
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 export const last = widened.arr.findLast(x => x);
 
 type Kept = { [K in keyof Source as `x${K & string}`]: Source[K] };

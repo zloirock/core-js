@@ -18,6 +18,7 @@ export function inside(raw: string | number[], other: unknown) {
     return null;
   }
   globalThis.a = raw.includes('a');
+  // @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
   return raw.keys();
 }
 export function before(raw: string | number[]) {

@@ -19,6 +19,7 @@ export const viaMergedOptional = new Box().test();
 class Crate {
   test() {
     var _ref2;
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     return _includesMaybeArray(_ref2 = this.items ?? 'fallback').call(_ref2, 1);
   }
 }

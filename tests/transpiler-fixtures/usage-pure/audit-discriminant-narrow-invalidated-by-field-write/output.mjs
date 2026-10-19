@@ -23,6 +23,7 @@ function a(b: Box) {
     return _atMaybeArray(_ref = b.val).call(_ref, 0);
   }
 }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 function c(b: Box) {
   if (b.tag === "arr") {
     var _ref2;
@@ -30,6 +31,7 @@ function c(b: Box) {
     return _includes(_ref2 = b.val).call(_ref2, "x");
   }
 }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 function d(b: Box) {
   if (b.tag === "arr") {
     var _ref3;

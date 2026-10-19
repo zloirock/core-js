@@ -6,6 +6,7 @@
 async function deep() {
   type Inner = Promise<Promise<number[]> | string[]>;
   type Result = Awaited<Inner>;
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const v: Result;
   return v.at(0);
 }

@@ -6,5 +6,6 @@ function makeBox<T>(t: T): { v: T } {
   return { v: t };
 }
 declare const arr: string[];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 const r = makeBox(...arr);
 r.v.at(0);

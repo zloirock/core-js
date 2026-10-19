@@ -14,5 +14,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.number.to-fixed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// @ts-expect-error a generic named without its type arguments is the shape under test
 async function* gen(): AsyncGenerator<Promise<Promise>> {}
 for await (const val of gen()) val.toFixed(2);
+export {};

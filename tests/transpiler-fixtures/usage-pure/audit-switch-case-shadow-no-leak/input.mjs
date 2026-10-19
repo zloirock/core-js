@@ -5,6 +5,7 @@
 switch (x) {
   case 1:
     enum Map { A }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     new Map();
     break;
 }

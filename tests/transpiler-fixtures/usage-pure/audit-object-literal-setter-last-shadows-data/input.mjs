@@ -3,8 +3,10 @@
 // when setter-only - either way the earlier data property is SHADOWED and must not be read as the
 // stale array. a getter behind the setter is the real read source and still narrows. distinct
 // methods trace each line to its import.
+// @ts-expect-error an index into a type parameter tsc cannot key is the shape under test
 declare function pick<T>(obj: T): T["data"];
 
+// @ts-expect-error a key collision, which tsc refuses, is the shape under test
 export const a = pick({ data: [1, 2, 3], set data(v: number[]) {} }).at(0);
 
 export const b = pick({ get data() { return [1, 2, 3]; }, set data(v: number[]) {} }).includes(0);

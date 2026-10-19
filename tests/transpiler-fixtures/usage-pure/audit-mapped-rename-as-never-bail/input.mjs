@@ -3,4 +3,5 @@
 // type and the receiver lookup falls through to generic `_at`. graceful-bail check
 type DropAll<T> = { [K in keyof T as never]: T[K] };
 declare const r: DropAll<{ a: number[] }>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.a.at(0);

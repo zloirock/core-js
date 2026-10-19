@@ -9,4 +9,5 @@ unresolvable?.at(0);
 declare const matching: number[] | string[];
 matching?.includes(1);
 declare const partial: number[] | Date;
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 partial?.at(0);

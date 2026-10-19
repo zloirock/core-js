@@ -6,6 +6,7 @@ declare function getValue(): unknown;
 function outer(x: 1 | "two") {
   if (typeof x === "string") {
     const x: unknown = getValue();
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     x.includes("a");
   }
 }

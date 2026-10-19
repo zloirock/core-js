@@ -75,6 +75,15 @@ export function createUserTypeResolve({
   resolveTypeAnnotation,
   applyAliasSubstDeep,
 }) {
+  // the type ARGUMENTS an instantiation spelled, per substitution map it produced: the map holds what
+  // each resolved to, which has lost the structure an indexed access over the parameter reads
+  // (`type ValueOf<T> = T[keyof T]` folds the members of the argument, not its resolved type). a
+  // parameter left to its default is not among them: the default lives in the declaration's scope
+  const spelledTypeArgs = new WeakMap();
+  function spelledTypeArgsOf(typeParamMap) {
+    return typeParamMap ? spelledTypeArgs.get(typeParamMap) ?? null : null;
+  }
+
   function resolveTypeArgs({ decl, node, typeParamMap, scope, depth, seen }) {
     const declParams = decl.typeParameters?.params;
     if (!declParams?.length) return typeParamMap;
@@ -115,6 +124,15 @@ export function createUserTypeResolve({
     // neither subst happened nor a collision exists: return typeParamMap as-is so the caller's
     // identity preserves for downstream memoize keys
     if (!didSubst && !baseCollides) return typeParamMap;
+    // an argument naming an outer hop's parameter is read through that hop's spelled arguments; an
+    // outer map without them (a call site's inference) leaves nothing to spell this hop with
+    const baseSpelled = spelledTypeArgsOf(typeParamMap);
+    if (callArgs?.length && (!base.size || baseSpelled)) {
+      spelledTypeArgs.set(localMap, new Map(callArgs.slice(0, declParams.length).map((arg, i) => [
+        typeParamName(declParams[i]),
+        baseSpelled ? applyAliasSubstDeep(arg, baseSpelled) : arg,
+      ])));
+    }
     return localMap;
   }
 
@@ -170,12 +188,12 @@ export function createUserTypeResolve({
 
   function resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen }) {
     if (depth > MAX_DEPTH) return null;
-    // type parameters shadow type declarations with the same name.
-    // fall back to `default` FIRST (what TS binds without inference arguments), then
-    // `constraint` (upper bound, typically over-broad - `object` / `unknown`)
+    // type parameters shadow type declarations with the same name. a parameter read inside the
+    // scope that declares it is whatever its use supplied, bounded only by its `constraint`: its
+    // `default` is what a use supplying nothing binds, and that use substitutes it itself
     const typeParam = findTypeParameter(name, scope);
     if (typeParam) {
-      const annotation = typeParam.default ?? typeParam.constraint;
+      const annotation = typeParam.constraint;
       if (!annotation) return null;
       // pass `seen` through to substitution to inherit caller's decl-cycle guard. without
       // it, a cyclic default `type R<T = R<T>>` walks the substitution recursion fresh and
@@ -443,5 +461,6 @@ export function createUserTypeResolve({
   return {
     resolveUserDefinedType,
     buildSubstMap,
+    spelledTypeArgsOf,
   };
 }

@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// trailing comma in super.static argslist - argument-source extraction keeps every byte
-// between the parens, so the trailing comma survives unchanged in the rewritten call
+// a trailing comma in a `super` static's argument list is formatting: the rewrite passes the same
+// arguments after the receiver and prints no comma after the last
 class X extends Array {
   static make() {
     return _Array$from.call(this, [1, 2]);

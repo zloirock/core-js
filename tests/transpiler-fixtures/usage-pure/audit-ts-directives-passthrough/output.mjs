@@ -8,6 +8,6 @@ const a: number[] = [1, 2, 3];
 _atMaybeArray(a).call(a, -1);
 
 // @ts-expect-error something
-const b: string[] = ['x'];
+const b: string[] = [1];
 _atMaybeArray(b).call(b, 0);
 new _Map();

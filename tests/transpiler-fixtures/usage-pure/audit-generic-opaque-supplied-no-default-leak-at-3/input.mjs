@@ -5,4 +5,5 @@ type Opaque = { z: 1; };
 declare const opaque: Opaque;
 // channel: transitive dependent default (U = T) with an opaque earlier param
 function makeTransitive<T = number[], U = T>(x: T): U { return x as any; }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 makeTransitive(opaque).at(0);

@@ -6,3 +6,4 @@ declare const rows: { name: string; age: number }[];
 const [{ name, age }] = rows;
 name.at(0);
 age.toFixed(2);
+export {};

@@ -6,4 +6,5 @@ const f: any = (x: number) => x;
 const o: any = {
   m: f
 };
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaOptionalCall = (o?.())<string>(1);

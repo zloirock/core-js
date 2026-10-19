@@ -8,6 +8,7 @@ declare function makeBox<T = number[]>(t: T, u?: T): {
   v: T;
 };
 declare const arr: string[];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 const spreadBox = makeBox(...arr);
 export const viaSpread = _at(_ref = spreadBox.v).call(_ref, 0);
 

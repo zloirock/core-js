@@ -5,5 +5,6 @@ declare function readString(): string;
 let x = [1, 2, 3];
 for (const _ of [0, 1]) {
   x.includes(1);
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   x = readString();
 }

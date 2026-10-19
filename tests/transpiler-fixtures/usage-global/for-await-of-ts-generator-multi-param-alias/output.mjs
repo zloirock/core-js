@@ -14,6 +14,7 @@ import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 type MyAsyncGen<Y, R> = AsyncGenerator<Y, R>;
+// @ts-expect-error a return the annotation does not admit is the shape under test
 async function* gen(): MyAsyncGen<string, number> {}
 async function f() {
   for await (const x of gen()) {

@@ -4,5 +4,6 @@
 declare namespace Map.Y {
   const z: number;
 }
+// @ts-expect-error the ambient declaration types the read for tsc alone, and the runtime reads the global
 const a = new Map();
 export { a };

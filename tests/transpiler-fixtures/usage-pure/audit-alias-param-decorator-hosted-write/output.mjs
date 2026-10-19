@@ -12,6 +12,7 @@ function dec(v) {
 }
 let M;
 class C {
+  // @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
   constructor(@dec((M = _Map, _globalThis))
   private x) {}
 }

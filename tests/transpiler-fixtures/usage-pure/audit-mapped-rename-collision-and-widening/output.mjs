@@ -15,6 +15,7 @@ declare const collapsed: Collapsed;
 export const first = _at(_ref = collapsed.both).call(_ref, 0);
 type Widened = { [K in keyof Source as string]: Source[K] };
 declare const widened: Widened;
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 export const last = _findLastMaybeArray(_ref2 = widened.arr).call(_ref2, x => x);
 type Kept = { [K in keyof Source as `x${K & string}`]: Source[K] };
 declare const kept: Kept;

@@ -4,10 +4,12 @@
 // stack overflowed. resolution now threads the depth across the re-entry and bails to the GENERIC
 // helper (an unresolvable circular type), never crashing. a normal ReturnType still narrows
 // precisely - see the other return-type fixtures. distinct methods trace each line to its import.
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 declare function selfRef(): ReturnType<typeof selfRef>;
 declare const viaTypeof: ReturnType<typeof selfRef>;
 export const a = viaTypeof.at(0);
 
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Loop = () => ReturnType<Loop>;
 declare const viaAlias: ReturnType<Loop>;
 export const b = viaAlias.includes("z");

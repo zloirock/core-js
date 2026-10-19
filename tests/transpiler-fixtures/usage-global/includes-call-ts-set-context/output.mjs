@@ -11,4 +11,5 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 (x as Set<any>).includes(x);

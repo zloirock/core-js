@@ -9,6 +9,8 @@ interface BoxStr { tag: "str"; val: string; }
 type Box = BoxArr | BoxStr;
 declare function run(f: () => void): void;
 function a(b: Box) { if (b.tag === "arr") { return b.val.at(0); } }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 function c(b: Box) { if (b.tag === "arr") { b.tag = "str"; return b.val.includes("x"); } }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 function d(b: Box) { if (b.tag === "arr") { run(() => { b.tag = "str"; }); return b.val.at(0); } }
 export { a, c, d };

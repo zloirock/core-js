@@ -8,7 +8,7 @@ var _ref, _ref2, _ref3;
 declare function ra(...xs: string[]): number[];
 declare function ra(x: number): string;
 export const viaRestCall = _atMaybeArray(_ref = ra('a', 'b')).call(_ref, 0);
-export const viaDiscreteCall = _includes(_ref2 = ra(5)).call(_ref2, 1);
+export const viaDiscreteCall = _includes(_ref2 = ra(5)).call(_ref2, '1');
 
 // a SINGLE-head ambient still narrows precisely through the same by-name route
 declare function solo(x: number): number[];

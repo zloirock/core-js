@@ -6,4 +6,5 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 (x as Map<any, any>).filter(fn);

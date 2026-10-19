@@ -1,5 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// an arrow IIFE call argument has a trailing comma; the receiver-substitution must preserve it untouched.
+// an arrow IIFE whose call argument carries a trailing comma still substitutes its receiver: the
+// comma is formatting and leaves no trace in the rebuilt argument
 (({
   from
 }) => from(1))({

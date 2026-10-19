@@ -6,11 +6,13 @@ export function viaFunction() {
   enum Map {
     A = 1
   }
+  // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
   return new Map();
 }
 export namespace ViaNamespace {
   namespace WeakMap {
     export const x = 1;
   }
+  // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
   export const v = new WeakMap();
 }

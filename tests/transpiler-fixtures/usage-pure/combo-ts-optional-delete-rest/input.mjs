@@ -1,3 +1,4 @@
 // Object-rest keeps named slots at that level and reads through it native in usage-pure.
 // Independent reads and key/default expressions still receive their own polyfills.
+// @ts-expect-error a constructor called without new and a delete tsc refuses are the shape under test
 (Map satisfies any)?.(); delete obj.at!; const { includes, ...rest } = obj;

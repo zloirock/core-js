@@ -4,9 +4,13 @@
 // / the ternary alternate / the optional chain; the tail lines are negatives and must stay bare
 const g: any = (x: number) => x;
 const o: any = { m: g };
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaLogical = ((g || Object.groupBy)<any>)([], g);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaOptionalCall = ((o?.())<any>)(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaMember = ((Map.groupBy)<any>)([], g);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaNonNull = ((Promise.try!)<any>)(g);
 
 export const r = [viaLogical, viaOptionalCall, viaMember, viaNonNull];

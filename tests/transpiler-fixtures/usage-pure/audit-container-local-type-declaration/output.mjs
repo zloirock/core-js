@@ -31,6 +31,7 @@ switch (k) {
     interface Cased {
       items: number[];
     }
+    // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
     declare const local: Cased;
     cased = _flatMaybeArray(_ref4 = local.items).call(_ref4).length;
 }

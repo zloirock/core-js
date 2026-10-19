@@ -14,6 +14,6 @@ c.m(function (this: Window, a) {
   return _atMaybeArray(a).call(a, 0);
 });
 c.n(function (this: Window, b) {
-  return _includesMaybeArray(b).call(b, 1);
+  return _includesMaybeArray(b).call(b, '1');
 });
 export {};

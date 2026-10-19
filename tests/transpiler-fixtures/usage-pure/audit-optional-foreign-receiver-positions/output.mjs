@@ -7,8 +7,10 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 // first line is a real use and stays polyfilled, which also proves the machinery is not suppressed
 // wholesale. distinct method per line
 const log = [];
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 (_pushMaybeArray(log).call(log, 1), RegExp.prototype)?.at(0);
 declare const inArg: Date | RegExp;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 f(inArg?.includes(1));
 declare const computed: Date | Map<string, number>;
 computed?.["forEach"](g);

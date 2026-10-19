@@ -12,4 +12,5 @@ declare const required: Required<I>;
 declare const nonNullable: NonNullable<I['tags']>;
 const viaRequired = required.items;
 _atMaybeArray(_ref = viaRequired ?? 'fallback').call(_ref, 0);
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 _includesMaybeArray(_ref2 = nonNullable ?? 'fallback').call(_ref2, 1);

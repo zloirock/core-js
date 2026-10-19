@@ -1,5 +1,5 @@
 import _at from "@core-js/pure/actual/instance/at";
-function eff() {
+function eff(key) {
   return Object;
 }
 {

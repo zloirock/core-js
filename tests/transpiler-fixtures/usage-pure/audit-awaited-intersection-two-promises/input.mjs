@@ -4,8 +4,9 @@
 // per line so the import set shows observable dispatch
 async function twoProm() {
   type T = Promise<number[]> & Promise<string[]>;
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const r: Awaited<T>;
   r.at(0);
-  r.includes(1);
+  r.includes('1');
 }
 twoProm();

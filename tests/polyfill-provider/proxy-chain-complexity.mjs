@@ -142,7 +142,7 @@ for (const parser of adapters) {
 
   // Root-only queries must not inspect keys; keyed queries retain root-first order and
   // unreadable slots, including the parser-specific wrappers around optional/TS syntax.
-  const parsed = parser.parseAndScope('(source as any).first?.[unknown].last;');
+  const parsed = parser.parseAndScope('(source as any).first?.[opaque].last;');
   const expr = parser.pickPath(parsed, 'ExpressionStatement').node.expression;
   const chain = memberChainKeys(expr);
   checkDeep(`${ parser.name }/key order`, chain.keys, ['first', null, 'last']);

@@ -18,4 +18,5 @@ function wrapOpaque<T = string>(x: T | null): Wrap<T> {
     v: x
   } as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 wrapOpaque(opaque).v.at(0);

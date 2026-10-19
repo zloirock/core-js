@@ -8,6 +8,7 @@ declare class Base {
 }
 class Derived extends Base {}
 function shadowed() {
+  // @ts-expect-error an overload head without its implementation is the shape under test
   class Base {
     constructor(b: string);
   }

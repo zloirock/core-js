@@ -13,6 +13,7 @@ declare function pick({
   head: number;
   tail: string[];
 }): number[];
+// @ts-expect-error the argument crosses the parameter annotation on purpose, which is the shape under test
 _atMaybeArray(_ref = pick({
   head: 1
 })).call(_ref, 0);
@@ -21,6 +22,8 @@ interface Swapper {
 }
 declare const swapper: Swapper;
 _includesMaybeArray(_ref2 = swapper.swap([[1], 'a'])).call(_ref2, 'a');
+
+// @ts-expect-error overload signatures tsc refuses are the shape under test
 declare class Bag {
   take({
     size = 1

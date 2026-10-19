@@ -4,4 +4,5 @@
 // Identifier is replaced. both branches resolve their `from` polyfill
 declare function logCall(): void;
 const { from } = cond ? (logCall(), Array) : Iterator;
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 from([1, 2, 3]);

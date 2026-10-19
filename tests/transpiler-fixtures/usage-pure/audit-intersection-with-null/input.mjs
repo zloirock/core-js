@@ -3,4 +3,5 @@
 // each member independently. Risk: `string[] & null` gets folded to string[] (ignoring null).
 type WeirdInter = string[] & null;
 declare const x: WeirdInter;
+// @ts-expect-error a read off a null or undefined type is the probe
 x.at(0);

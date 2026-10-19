@@ -6,10 +6,15 @@ enum E { A, from = 2 }
 const enum K { A }
 namespace N { export const from = 1; }
 namespace Outer.Inner { export const from = 1; }
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const viaOr = (E || Object).groupBy([], f);
 export const viaNullish = (N ?? {}).from;
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const viaTernary = (c ? Outer : Map).groupBy([], f);
+// @ts-expect-error a const enum read as a value, which tsc refuses, is the shape under test
 export const viaConstEnum = K || {};
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 for (const M of [E, Map]) use((M || Object).groupBy([], f));
 export const viaIn = 'groupBy' in (N || Map);
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const { groupBy } = Outer || Map;

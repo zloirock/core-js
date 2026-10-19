@@ -39,7 +39,7 @@ import {
   sortedPrefixLength,
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { isLoopStatement, nodeAlwaysHardExits } from './exit-analysis.js';
+import { bodyRunsWhileTestHolds, isLoopStatement, nodeAlwaysHardExits } from './exit-analysis.js';
 import { isUnionType, violationInCapturedFunction } from './ast-shapes.js';
 import { MAX_DEPTH, hasRange } from './base.js';
 
@@ -508,25 +508,36 @@ export function createDiscriminantNarrow({
     // function CONTAINING the use, so a discriminant field write in that deferred-execution region (which
     // textually follows the use but runs before its re-execution / invocation) drops a guard ABOVE it
     let deferredUpper = ctx.objectStart;
+    // a loop the use sits in the BODY of re-asks its own test before every run: its back edge and the
+    // re-run region apply to the guards above it from the next level on, not to that test's guard
+    let loopAbove = null;
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
-      if (!crossedBackEdgeLoop && isLoopStatement(parent.node)
-        && loopReExecRegionHasViolation(parent.node, violationNodes, anchor)) {
-        crossedBackEdgeLoop = true;
+      if (loopAbove) {
+        crossedBackEdgeLoop ||= loopAbove.backEdge;
+        if (typeof loopAbove.node.end === 'number') deferredUpper = Math.max(deferredUpper, loopAbove.node.end);
       }
+      const loop = isLoopStatement(parent.node) ? parent.node : null;
+      const backEdge = !!loop && loopReExecRegionHasViolation(loop, violationNodes, anchor);
+      loopAbove = loop && current.key === 'body' ? { node: loop, backEdge } : null;
+      if (backEdge && !loopAbove) crossedBackEdgeLoop = true;
       // guards above a deferred boundary fire at class-eval / call-evaluation time, but the use inside
       // runs at invocation / construction time, after any textually later write: the mutation-check
       // interval of every guard above grows to cover that region - a loop body re-runs to its end; a
       // deferred context defers to invocation / construction (any later write matters, identity and
       // field alike) unless it is a body run at its immediate invocation, which runs at the call
-      if (isLoopStatement(parent.node) && typeof parent.node.end === 'number') deferredUpper = Math.max(deferredUpper, parent.node.end);
-      else if (isDeferredContextStep(parent.node, current)) deferredUpper = Math.max(deferredUpper, deferredStepBound(parent));
+      if (loop) {
+        if (!loopAbove && typeof loop.end === 'number') deferredUpper = Math.max(deferredUpper, loop.end);
+      } else if (isDeferredContextStep(parent.node, current)) deferredUpper = Math.max(deferredUpper, deferredStepBound(parent));
       if (crossedBackEdgeLoop) continue;
       let test;
       let conditionTrue;
       if (t.isIfStatement(parent.node) || t.isConditionalExpression(parent.node)) {
         if (current.key !== 'consequent' && current.key !== 'alternate') continue;
         conditionTrue = current.key === 'consequent';
+        test = parent.node.test;
+      } else if (bodyRunsWhileTestHolds(parent.node) && current.key === 'body') {
+        conditionTrue = true;
         test = parent.node.test;
       } else if (t.isLogicalExpression(parent.node) && current.key === 'right'
           && (parent.node.operator === '&&' || parent.node.operator === '||')) {

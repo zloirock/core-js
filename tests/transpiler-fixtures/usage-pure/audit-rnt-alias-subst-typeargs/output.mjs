@@ -8,9 +8,11 @@ var _ref, _ref2;
 // through the layered aliases so chained .includes after .at(0) dispatches to the
 // string-specific polyfill instead of the generic instance one
 type Box<X> = X[];
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type GenericMember<F, U> = {
   get(): F<U>;
 };
+// @ts-expect-error a generic named without its type arguments is the shape under test
 declare const v: GenericMember<Box, string>;
 _includesMaybeString(_ref = _atMaybeArray(_ref2 = v.get()).call(_ref2, 0)).call(_ref, "a");
 const second = v.get();

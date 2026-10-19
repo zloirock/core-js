@@ -4,5 +4,5 @@
 let x: string | number[] = "hi";
 let counter = 0;
 if (typeof x === "string" && (counter++, true)) {
-  x.includes(1);
+  x.includes('1');
 }

@@ -82,8 +82,8 @@ for (const parser of adapters) {
     ['class decorator', '@dec(this.x) class C {}', true],
     ['nested definition', 'function f() { class C { [this.x]() {} } }', false],
     ['key function', 'class C { [(function () { return this.x; })()]() {} }', false],
-    ['namespace', 'namespace N { this.x; }', false],
-    ['enum', 'enum E { A = this.x }', false],
+    ['namespace', '// @ts-expect-error a this tsc refuses in a namespace body is the shape under test\nnamespace N { this.x; }', false],
+    ['enum', '// @ts-expect-error a this tsc refuses in an enum initializer is the shape under test\nenum E { A = this.x }', false],
   ]) {
     const program = parser.parseAndScope(source, 'module', ['decorators']);
     const paths = parser.collectPaths(program, 'ThisExpression');

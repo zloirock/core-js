@@ -54,7 +54,7 @@ function parenthesize(expression) {
 
 // esrap 2.4.0 gaps, measured by the roundtrip gate over the fixture corpus; every override
 // carries its reproducing shape and dies as upstream catches up
-function withCorpusGapOverrides(language) {
+function withCorpusGapOverrides(language, tails) {
   // a concise arrow body whose LEFT EDGE is an object literal needs parens: bare, that `{`
   // opens a BLOCK body. esrap handles a direct object operand, but misses nested left edges
   // such as `() => ({ a: 1 } || x || y)`
@@ -162,6 +162,62 @@ function withCorpusGapOverrides(language) {
     context.newline();
     context.write(')');
   };
+  // a list's tail follows its last member, inside the list (`List tails` below)
+  const baseVisit = language._;
+  language._ = (node, context, visit) => {
+    baseVisit(node, context, visit);
+    const trailing = tails.byEnd.get(tails.ownerEnds.get(node));
+    if (trailing && !tails.written.has(trailing)) {
+      writeListTail(trailing, context, 'code');
+      tails.written.add(trailing);
+    }
+    const tail = tails.byMember.get(node);
+    if (!tail) return;
+    writeListTail(tail, context, 'code');
+    tails.written.add(tail);
+  };
+  // esrap writes a default or a namespace import's name without visiting its specifier, so a comment
+  // trailing that name rides the write instead - or it would print past `from`
+  const baseImport = language.ImportDeclaration;
+  language.ImportDeclaration = (node, context) => {
+    if (!node.specifiers?.some(specifier => tails.ownerEnds.has(specifier))) return baseImport(node, context);
+    baseImport(node, new Proxy(context, {
+      get(target, key) {
+        if (key !== 'write') return typeof target[key] === 'function' ? target[key].bind(target) : target[key];
+        return (text, at) => {
+          target.write(text, at);
+          const trailing = tails.byEnd.get(tails.ownerEnds.get(at));
+          if (!trailing || tails.written.has(trailing)) return;
+          writeListTail(trailing, target, 'code');
+          tails.written.add(trailing);
+        };
+      },
+    }));
+  };
+  // an empty list has no member to follow: a carrier stands in for one. an empty switch body breaks
+  // its line ahead of the carrier itself, an argument list does not
+  language.ListTailCarrier = (node, context) => {
+    writeListTail(node.tail, context, node.lead);
+    tails.written.add(node.tail);
+  };
+  for (const [type, key, lead] of [
+    ['CallExpression', 'arguments', 'open'],
+    ['NewExpression', 'arguments', 'open'],
+    ['SwitchStatement', 'cases', 'break'],
+  ]) {
+    const base = language[type];
+    language[type] = (node, context) => {
+      const tail = tails.byHost.get(node);
+      const gap = tails.byGap.get(node);
+      if (!tail && !gap) return base(node, context);
+      base({
+        ...node,
+        ...tail ? { [key]: [{ type: 'ListTailCarrier', tail, lead }] } : null,
+        // the `?.` gap rides where the type arguments print, and there are none (`claimOptionalCallGap`)
+        ...gap ? { typeArguments: { type: 'ListTailCarrier', tail: gap, lead: 'code' } } : null,
+      }, context);
+    };
+  }
   return language;
 }
 
@@ -198,6 +254,26 @@ function synthesizeLocs(program, comments, source) {
   let hasChainExpression = false;
   // Nodes marked to keep their own leading comments after a rewrite moves them.
   const heirs = [];
+  // the positioned hosts of a list tail (`collectListTails`)
+  const listHosts = [];
+  // where each trailing candidate's code ends, and the innermost node ending there (`collectTrailingComments`)
+  const trailEnds = trailingCommentEnds(comments, source);
+  const endOwners = new Map();
+  const ownedEnds = new Set(trailEnds.values());
+  function ownEnd(end, node) {
+    const owners = endOwners.get(end);
+    if (owners) owners.push(node);
+    else endOwners.set(end, [node]);
+  }
+  // a paren layer the print sheds leaves its closing offset to what it wrapped: a comment after
+  // `(a || b)` trails the operator expression, as it does in the babel leg
+  function peelOwnedParens(value, parent) {
+    const peeled = peelParens(value, parent, commentBetween);
+    for (let layer = value; layer !== peeled && layer?.type === 'ParenthesizedExpression'; layer = layer.expression) {
+      if (ownedEnds.has(layer.end)) ownEnd(layer.end, peeled);
+    }
+    return peeled;
+  }
   const sourceStarts = program.defaultCommentSpans?.length ? [] : null;
   (function walk(node, anchor) {
     if (Array.isArray(node)) {
@@ -211,17 +287,20 @@ function synthesizeLocs(program, comments, source) {
     if (typeof node.ownedCommentsAt === 'number') heirs.push(node);
     if (typeof node.type === 'string') {
       if (sourceStarts) {
-        const sourceStart = Number.isInteger(node.start) ? node.start : node.replacedSpan?.start;
+        const sourceStart = sourceOffset(node, 'start');
         if (Number.isInteger(sourceStart)) sourceStarts.push(sourceStart);
       }
       if (typeof node.start === 'number' && typeof node.end === 'number') {
         node.loc = { start: locate(node.start), end: locate(node.end) };
         anchor = node.loc;
+        if (Object.hasOwn(LIST_TAIL_HOSTS, node.type) || node.type === 'TemplateLiteral') listHosts.push(node);
+        if (ownedEnds.has(node.end)) ownEnd(node.end, node);
       } else if (node.replacedSpan) {
         // a drain REPLACEMENT carries the replaced host's span in the side channel - it maps
         // (and anchors its minted innards) exactly where the host stood
         node.loc = { start: locate(node.replacedSpan.start), end: locate(node.replacedSpan.end) };
         anchor = node.loc;
+        if (ownedEnds.has(node.replacedSpan.end)) ownEnd(node.replacedSpan.end, node);
       } else if (node.type === 'BlockStatement' && anchor) {
         // esrap resets its comment cursor on entering a body. A relocated loop body
         // without a location resets it to EOF and loses comments after the loop.
@@ -252,9 +331,9 @@ function synthesizeLocs(program, comments, source) {
       if (key === 'loc' || key === 'replacedSpan') continue;
       const value = node[key];
       if (Array.isArray(value)) {
-        for (let i = 0; i < value.length; i++) value[i] = peelParens(value[i], node, commentBetween);
+        for (let i = 0; i < value.length; i++) value[i] = peelOwnedParens(value[i], node);
       } else {
-        node[key] = peelParens(value, node, commentBetween);
+        node[key] = peelOwnedParens(value, node);
         if (directiveSlots && key === directiveSlots[1] && directiveLedValue(node, directiveSlots)) {
           node[key] = { type: 'ParenthesizedExpression', expression: node[key], commentInside: true };
         }
@@ -285,8 +364,12 @@ function synthesizeLocs(program, comments, source) {
   return {
     comments: comments.map(comment => ({ ...comment, loc: printLoc(comment), value: printValue(comment) })),
     hasChainExpression,
+    endOwners,
     heirs,
+    listHosts,
+    locate,
     sourceStarts: sourceStarts?.sort((a, b) => a - b),
+    trailEnds,
   };
 }
 
@@ -348,9 +431,8 @@ function ownedCommentIndexes({ heirs, comments, source }) {
   return owned;
 }
 
-// a comment the anchored channel leads a node with, laid out like esrap's own: a block one source
-// line per printed line, each on its own line ahead of the node
-function writeAnchoredComment(comment, context) {
+// a comment laid out like esrap's own: a block one source line per printed line
+function writeComment(comment, context) {
   if (typeof comment === 'string') context.write(comment);
   else if (comment.type === 'Line') context.write(`//${ comment.value }`);
   else {
@@ -360,7 +442,196 @@ function writeAnchoredComment(comment, context) {
       context.write(`${ index === 0 ? '/*' : '' }${ lines[index] }${ index === lines.length - 1 ? '*/' : '' }`);
     }
   }
+}
+
+// a comment the anchored channel leads a node with, each on its own line ahead of the node
+function writeAnchoredComment(comment, context) {
+  writeComment(comment, context);
   context.newline();
+}
+
+// --- List tails ---
+
+// esrap closes these lists without flushing the comments ahead of the closing token, and its
+// cursor flushes a comment only ahead of the next positioned node: a comment after the last member,
+// or inside an empty list, printed after the statement or ahead of the one below it - a commented-out
+// last argument left its call, and a `core-js-disable-next-line` closing an argument list came to
+// cover the next statement. each list's tail is printed inside it instead, in source order and on
+// the lines it opened on: [members, closing token, opening token of an empty list]. an arrow's
+// parameters need no entry: a comment between their `)` and the `=>` prints ahead of the `)`, the
+// same place to the roundtrip gate - inside the arrow, after its last parameter
+const LIST_TAIL_HOSTS = {
+  CallExpression: node => [node.arguments, ')', '('],
+  NewExpression: node => [node.arguments, ')', '('],
+  ImportExpression: node => [[node.source, ...node.arguments ?? [], node.options].filter(Boolean), ')', '('],
+  SwitchStatement: node => [node.cases, '}', '{'],
+  TSTypeParameterInstantiation: node => [node.params, '>', '<'],
+};
+
+// a node's `start` or `end` offset in the source: its own, or that of the span a rebuilt node stands in for
+function sourceOffset(node, edge) {
+  return Number.isInteger(node?.[edge]) ? node[edge] : node?.replacedSpan?.[edge];
+}
+
+// the tails of the positioned hosts the print walk met, keyed by the member they follow - or by the
+// host, for an empty list. a comment another channel owns (`taken`) stays there, and a comment two
+// hosts would claim (a copied span) goes to the first
+function collectListTails({ hosts, comments, taken, source, locate }) {
+  const tails = {
+    byMember: new Map(),
+    byHost: new Map(),
+    byGap: new Map(),
+    byEnd: new Map(),
+    ownerEnds: new Map(),
+    indexes: new Set(),
+    written: new Set(),
+  };
+  if (!hosts.length || !comments.length) return tails;
+  // the comment covering `offset`, if any: the list is source-ordered and its members do not overlap
+  function commentAt(offset) {
+    const comment = comments[sortedPrefixLength(comments, ({ start }) => start <= offset) - 1];
+    return comment?.end > offset ? comment : null;
+  }
+  // the nearest code character on either side of `offset`, past whitespace and comments
+  function codeOffset(offset, step) {
+    for (let i = offset; i >= 0 && i < source.length; i += step) {
+      const comment = commentAt(i);
+      if (comment) i = step > 0 ? comment.end - 1 : comment.start;
+      else if (source[i].trim()) return i;
+    }
+    return -1;
+  }
+  // the gap between an optional call's `?.` and its `(` prints after the `?.` as its type arguments
+  // would (`f?. /* c */(x)`): with none to print, the cursor flushed it into the argument list
+  function claimOptionalCallGap(host) {
+    const [first] = host.arguments;
+    const open = codeOffset((first ? sourceOffset(first, 'start') : host.end - 1) - 1, -1);
+    if (source[open] !== '(') return;
+    const dot = codeOffset(open - 1, -1);
+    if (source[dot] !== '.' || source[dot - 1] !== '?') return;
+    const run = claimRun(dot + 1, open);
+    if (run.length) tails.byGap.set(host, tail(run, dot + 1, open));
+  }
+  function claimRun(from, to) {
+    const run = [];
+    for (let index = sortedPrefixLength(comments, ({ start }) => start < from); index < comments.length; index++) {
+      if (comments[index].end > to) break;
+      if (!taken.has(index) && !tails.indexes.has(index)) run.push(index);
+    }
+    for (const index of run) tails.indexes.add(index);
+    return run;
+  }
+  function tail(run, from, to) {
+    return { comments: run.map(index => comments[index]), indexes: run, fromLine: locate(from).line, toLine: locate(to).line };
+  }
+  function claim({ host, member, from, to }) {
+    const run = claimRun(from, to);
+    if (!run.length) return;
+    if (member) tails.byMember.set(member, tail(run, from, to));
+    else tails.byHost.set(host, tail(run, from, to));
+  }
+  for (const host of hosts) {
+    if (host.type === 'CallExpression' && host.optional && !host.typeArguments) claimOptionalCallGap(host);
+    if (host.type === 'TemplateLiteral') {
+      // each substitution is a list of one, closed by its own `}`
+      for (const member of host.expressions) {
+        const from = sourceOffset(member, 'end');
+        const to = Number.isInteger(from) ? codeOffset(from, 1) : -1;
+        if (source[to] === '}') claim({ host, member, from, to });
+      }
+      continue;
+    }
+    const [members, close, open] = LIST_TAIL_HOSTS[host.type](host);
+    const to = host.end - 1;
+    if (source[to] !== close) continue;
+    const member = members.at(-1) ?? null;
+    const from = member ? sourceOffset(member, 'end') : codeOffset(to - 1, -1) + 1;
+    if (!Number.isInteger(from) || (!member && source[from - 1] !== open)) continue;
+    claim({ host, member, from, to });
+  }
+  return tails;
+}
+
+// a list's tail where it closes: a comment opening on a later line than the code before it keeps
+// its own line, a line comment ends one, and so does a block whose list closes on a later line.
+// `lead` is what the tail follows - a member (`code`), the opening token (`open`), or a line break
+// the host already wrote (`break`)
+function writeListTail({ comments, fromLine, toLine }, context, lead) {
+  let line = fromLine;
+  let fresh = lead === 'break';
+  let separated = lead !== 'code';
+  for (const comment of comments) {
+    if (comment.loc.start.line > line) {
+      if (!fresh) context.newline();
+    } else if (!fresh && !separated) context.write(' ');
+    writeComment(comment, context);
+    fresh = comment.type === 'Line' || comment.loc.end.line < toLine;
+    if (fresh) context.newline();
+    separated = false;
+    line = comment.loc.end.line;
+  }
+}
+
+// a comment that opens on the line a node closes on, with nothing but blanks and other such comments
+// between them, trails that node: esrap flushes a comment only ahead of the next positioned node, so
+// every token in between used to print first (`f /* c */ (x)` as `f(/* c */ x)`, `x /* c */ = 1` as
+// `x = /* c */ 1`, a comment ahead of `?.` past the type arguments an instantiation fold moved behind
+// it). the offset the code before each such comment ends at, by comment index
+function trailingCommentEnds(comments, source) {
+  const ends = new Map();
+  for (let index = 0; index < comments.length; index++) {
+    let at = comments[index].start - 1;
+    for (let previous = index - 1; ; previous--) {
+      while (at >= 0 && isIndentChar(source.charCodeAt(at))) at--;
+      const earlier = comments[previous];
+      if (earlier?.end !== at + 1) break;
+      // a block spanning lines puts the code before it on another line
+      if (/[\n\r\u2028\u2029]/.test(earlier.value)) at = -1;
+      else at = earlier.start - 1;
+    }
+    if (at >= 0 && !isLineTerminator(source.charCodeAt(at))) ends.set(index, at + 1);
+  }
+  return ends;
+}
+
+// the trailing comments by the offset their code ends at, behind the list tails. every node closing
+// there owns them, and the first whose visit completes - the innermost the printer spells as a node -
+// writes them
+function collectTrailingComments({ tails, trailEnds, endOwners, comments, taken, locate }) {
+  for (const [index, end] of trailEnds) {
+    const owners = endOwners.get(end);
+    if (!owners || taken.has(index) || tails.indexes.has(index)) continue;
+    tails.indexes.add(index);
+    const comment = comments[index];
+    const tail = tails.byEnd.get(end);
+    if (tail) {
+      tail.comments.push(comment);
+      tail.indexes.push(index);
+      tail.toLine = Math.max(tail.toLine, comment.loc.end.line);
+      continue;
+    }
+    tails.byEnd.set(end, { comments: [comment], indexes: [index], fromLine: locate(end).line, toLine: comment.loc.end.line });
+    for (const owner of owners) tails.ownerEnds.set(owner, end);
+  }
+}
+
+// the tails no visit wrote go back to the cursor; true when there were any
+function dropUnwrittenTails(tails) {
+  let dropped = false;
+  for (const map of [tails.byMember, tails.byHost, tails.byGap, tails.byEnd]) {
+    for (const [key, tail] of map) {
+      if (tails.written.has(tail)) continue;
+      map.delete(key);
+      for (const index of tail.indexes) tails.indexes.delete(index);
+      dropped = true;
+    }
+  }
+  tails.written.clear();
+  return dropped;
+}
+
+function isLineTerminator(code) {
+  return code === 0x0A || code === 0x0D || code === 0x2028 || code === 0x2029;
 }
 
 // horizontal whitespace - what an indent is made of and what a same-line scan steps over
@@ -422,7 +693,9 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
     return false;
   }
-  const { comments: locatedComments, hasChainExpression, heirs, sourceStarts } = synthesizeLocs(program, ownComments, source);
+  const {
+    comments: locatedComments, endOwners, hasChainExpression, heirs, listHosts, locate, sourceStarts, trailEnds,
+  } = synthesizeLocs(program, ownComments, source);
   // A surviving source node keeps its default's comments, including a rewritten default's span.
   // No source node in the span means the default was removed: do not annotate a lifted effect.
   for (const [start, end] of program.defaultCommentSpans ?? []) {
@@ -434,7 +707,10 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   // Owned comments leave the offset flush: moved defaults keep theirs, removed defaults drop theirs.
   const heirComments = ownedCommentIndexes({ heirs, comments: ownComments, source });
   const taken = new Set(heirComments.values().toArray().flat());
-  const printComments = taken.size ? locatedComments.filter((comment, index) => !taken.has(index)) : locatedComments;
+  // a list's tail prints where the list closes, and a comment trailing a node on its line right after
+  // that node - both off the cursor like an owned run
+  const tails = collectListTails({ hosts: listHosts, comments: locatedComments, taken, source, locate });
+  collectTrailingComments({ tails, trailEnds, endOwners, comments: locatedComments, taken, locate });
   const anchors = new Map(anchoredComments);
   const localized = new Map();
   for (const [heir, indexes] of heirComments) {
@@ -464,47 +740,56 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
   })(program);
 
-  // Every moved default has its own comment cursor. Its receiver's later source offsets must
-  // not flush comments out of the default, including annotations inside call arguments.
-  function createLanguage(dialectComments) {
-    const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }));
-    for (const type of new Set(anchors.keys().map(node => node.type))) {
-      const base = dialect[type];
-      if (typeof base !== 'function') continue;
-      dialect[type] = (node, context) => {
-        for (const comment of anchors.get(node) ?? []) writeAnchoredComment(comment, context);
-        base(node, context);
-      };
+  // the print proper, over whatever the tails left on the cursor
+  function render() {
+    const printComments = taken.size || tails.indexes.size
+      ? locatedComments.filter((comment, index) => !taken.has(index) && !tails.indexes.has(index)) : locatedComments;
+    // Every moved default has its own comment cursor. Its receiver's later source offsets must
+    // not flush comments out of the default, including annotations inside call arguments.
+    function createLanguage(dialectComments) {
+      const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }), tails);
+      for (const type of new Set(anchors.keys().map(node => node.type))) {
+        const base = dialect[type];
+        if (typeof base !== 'function') continue;
+        dialect[type] = (node, context) => {
+          for (const comment of anchors.get(node) ?? []) writeAnchoredComment(comment, context);
+          base(node, context);
+        };
+      }
+      return dialect;
     }
-    return dialect;
-  }
-  const language = createLanguage(printComments);
-  function visitLocalized(node, context, visit, base) {
-    const frameComments = localized.get(node);
-    if (!frameComments?.length) return base(node, context, visit);
-    const previous = { ...language };
-    const local = createLanguage(frameComments);
-    Object.assign(language, local, { _: (child, ctx, next) => visitLocalized(child, ctx, next, local._) });
-    try {
-      local._(node, context, child => local[child.type](child, context));
-      // Empty argument lists have no child to flush their interior comments. End the local
-      // cursor here, as the next source token would, before restoring the enclosing frame.
-      if (node.loc) local._(
-        { type: 'EmptyStatement', loc: { start: node.loc.end, end: node.loc.end } }, context,
-        () => { /* Flush comments without a source token. */ },
-      );
-    } finally {
-      Object.assign(language, previous);
+    const language = createLanguage(printComments);
+    function visitLocalized(node, context, visit, base) {
+      const frameComments = localized.get(node);
+      if (!frameComments?.length) return base(node, context, visit);
+      const previous = { ...language };
+      const local = createLanguage(frameComments);
+      Object.assign(language, local, { _: (child, ctx, next) => visitLocalized(child, ctx, next, local._) });
+      try {
+        local._(node, context, child => local[child.type](child, context));
+        // Empty argument lists have no child to flush their interior comments. End the local
+        // cursor here, as the next source token would, before restoring the enclosing frame.
+        if (node.loc) local._(
+          { type: 'EmptyStatement', loc: { start: node.loc.end, end: node.loc.end } }, context,
+          () => { /* Flush comments without a source token. */ },
+        );
+      } finally {
+        Object.assign(language, previous);
+      }
     }
+    if (localized.size) {
+      const base = language._;
+      language._ = (node, context, visit) => visitLocalized(node, context, visit, base);
+    }
+    return print(program, language, {
+      sourceMapSource: id,
+      sourceMapContent: includeContent ? source : undefined,
+    });
   }
-  if (localized.size) {
-    const base = language._;
-    language._ = (node, context, visit) => visitLocalized(node, context, visit, base);
-  }
-  const printed = print(program, language, {
-    sourceMapSource: id,
-    sourceMapContent: includeContent ? source : undefined,
-  });
+  let printed = render();
+  // a tail rides its node's visit, and a node the printer spells without visiting it would take the
+  // tail down with it: such a tail goes back to the cursor, and the file prints again
+  if (dropUnwrittenTails(tails)) printed = render();
   let { code } = printed;
   const { map } = printed;
   // esrap has no Hashbang handler; re-emit it and shift the map one generated line down

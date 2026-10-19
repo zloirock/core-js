@@ -13,4 +13,5 @@ type Pick2<T> = T extends Iterable<unknown> ? null : string;
 declare const p: Pick1<MyList>;
 declare const q: Pick2<MyList>;
 export const a = _at(p).call(p, 0);
+// @ts-expect-error a read off a null or undefined type is the probe
 export const b = _includesMaybeString(q).call(q, 'a');

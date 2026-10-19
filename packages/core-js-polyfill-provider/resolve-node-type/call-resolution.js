@@ -26,6 +26,7 @@
 //   resolveIndexSignatureValue(typeNode, scope, subst) - TSIndexSignature member resolution
 //   indexAccessKeyKind(memberPath)                    - computed-key kind classifier
 //   buildCallSiteSubst(fnNode, callNode)              - explicit `<...>` args -> subst Map
+//   constructionTypeArgs(classNode, newPath)          - the type arguments a `new` instantiates with
 //   resetExpressionAnnotationCache()                  - per-file cache drop
 //
 // `staticPairFromPolyfillEntry` stays in the factory because it's consumed by the
@@ -43,13 +44,16 @@ import {
   typeRefName,
   TS_NUMBER_TYPE,
   TS_UNKNOWN_TYPE,
+  openTypeArg,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
+  classConstructorFunction,
   cleanDestructureAliasWrites,
   forOfHeadElements,
   getCallSiteTypeArgs,
   getTypeArgs,
+  heritageClause,
   isCleanDestructureAliasBinding,
   isGuardedAliasingWrite,
   peelTSParenthesized,
@@ -752,6 +756,7 @@ export function createCallResolution({
 
   function resetExpressionAnnotationCache() {
     expressionAnnotationCache = new WeakMap();
+    constructionTypeArgsCache = new WeakMap();
   }
 
   function computeExpressionAnnotation(path, depth) {
@@ -955,9 +960,32 @@ export function createCallResolution({
     return subst.size ? subst : null;
   }
 
+  // the type arguments `new C(...)` instantiates a class with, by the call-site canon over its
+  // constructor: the spelled ones, else what the arguments infer, else the defaults, a parameter none
+  // of them binds left open (`openTypeArg`). a class with no constructor of its own but a parent runs
+  // the inherited one, which any argument may feed, so an argument leaves every parameter open. one
+  // array per construction: the class-as-type reference built from it is interned by identity
+  let constructionTypeArgsCache = new WeakMap();
+  function constructionTypeArgs(classNode, newPath) {
+    const params = classNode.typeParameters?.params;
+    if (!params?.length) return undefined;
+    const spelled = getCallSiteTypeArgs(newPath.node)?.params;
+    if (spelled) return spelled;
+    let args = constructionTypeArgsCache.get(newPath.node);
+    if (!args) {
+      const ctor = classConstructorFunction(classNode);
+      const inherited = !ctor && (classNode.superClass || heritageClause(classNode)) && callArgumentPaths(newPath).length;
+      const subst = inherited ? null
+        : inferCallSiteSubst({ typeParameters: classNode.typeParameters, params: ctor?.params ?? [] }, newPath, 0);
+      args = params.map(param => subst?.get(typeParamName(param)) ?? openTypeArg(param));
+      constructionTypeArgsCache.set(newPath.node, args);
+    }
+    return args;
+  }
+
   // cluster-private: `resolveMemberAnnotation` / `resolveMemberInTypeMembers` /
-  // `inferCallSiteSubst` (consumed only by `findExpressionAnnotation` / `resolveCallReturnType`
-  // internally), and likewise `resolveCallReturnTypeFromAnnotation`. `staticPairFromDestructure`
+  // `inferCallSiteSubst` (consumed only by `findExpressionAnnotation` / `resolveCallReturnType` /
+  // `constructionTypeArgs` internally), and likewise `resolveCallReturnTypeFromAnnotation`. `staticPairFromDestructure`
   // also names the static a destructured callee calls (`resolveStaticCalleePair`)
   return {
     resolveCallReturnType,
@@ -969,6 +997,7 @@ export function createCallResolution({
     resolveIndexSignatureValue,
     indexAccessKeyKind,
     buildCallSiteSubst,
+    constructionTypeArgs,
     resetExpressionAnnotationCache,
   };
 }

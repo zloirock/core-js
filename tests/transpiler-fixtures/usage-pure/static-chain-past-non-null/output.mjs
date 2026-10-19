@@ -13,5 +13,7 @@ declare const parity: (x: number) => number;
 const realm = _globalThis;
 export const grouped = null == _globalThis.window ? void 0 : _Map$groupBy(list, parity)!.size;
 export const entries = null == realm.window ? void 0 : _Object$fromEntries([['a', 1]])!.a;
+// @ts-expect-error a static the constructor lacks is the read under test
 export const missing = null == _self.window ? void 0 : _Promise.noSuchStatic!.valueOf();
+// @ts-expect-error a static the constructor lacks is the read under test
 export const sealed = (null == _globalThis.window ? void 0 : _WeakMap.noSuchStatic).toString();

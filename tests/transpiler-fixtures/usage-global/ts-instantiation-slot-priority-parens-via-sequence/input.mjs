@@ -4,4 +4,5 @@
 // the tail lines are the negatives - the shapes the slot accepts bare must STAY bare
 const f: any = (x: number) => x;
 let q: any;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaSequence = ((q++, f)<string>)(1);

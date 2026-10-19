@@ -2,6 +2,7 @@
 // F binds to `Array<string[]>` whose inner is already set, so the rebuild must be skipped -
 // else the `number` type-arg clobbers the nested-array inner. with the skip the bound stays
 // Array<string[]>, so both chained `at()` hops narrow on an Array (not the generic fallback)
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type Wrap<F> = F<number>;
 type Already = Wrap<Array<string[]>>;
 declare const xs: Already;

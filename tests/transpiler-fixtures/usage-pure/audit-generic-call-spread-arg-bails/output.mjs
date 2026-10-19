@@ -12,5 +12,6 @@ function makeBox<T>(t: T): {
   };
 }
 declare const arr: string[];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 const r = makeBox(...arr);
 _at(_ref = r.v).call(_ref, 0);

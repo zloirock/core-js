@@ -3,4 +3,5 @@
 // instead of keeping a boundary the other spellings did not have - a literal, a template and a
 // const-bound identifier chain all claimed here while the enum member alone stayed raw
 enum HopKeys { MAP = 'map' }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const r5 = arr.flat?.()[HopKeys.MISSING](f);

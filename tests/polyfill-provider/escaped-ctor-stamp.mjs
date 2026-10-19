@@ -798,10 +798,11 @@ const NAME_ROWS = [
     local: ['Map'],
   },
   // tsc erases an ambient declaration, so the reference reaches the realm at runtime and the file
-  // hands the realm's constructor out
+  // hands the realm's constructor out. a module, where the ambient `Map` shadows the lib's rather
+  // than colliding with it
   {
     name: 'an ambient declaration is no binding at runtime',
-    code: 'declare const Map: any;\nhand(Map);',
+    code: 'export {};\ndeclare const Map: any;\nhand(Map);',
     realm: ['Map'],
     local: [],
   },

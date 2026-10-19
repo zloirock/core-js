@@ -6,5 +6,6 @@ declare enum Map {
   A,
   B,
 }
+// @ts-expect-error the ambient declaration types the read for tsc alone, and the runtime reads the global
 const m = new _Map();
 export { m };

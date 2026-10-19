@@ -4,7 +4,10 @@
 const { groupBy } = (init(), (c ? Map : Object));
 const { from } = (init(), (c ? Array : Iterator) as any);
 const [{ of }] = [(init(), (c ? Array : Int8Array))];
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const [{ fromEntries }] = [(init(), (c ? Map : Object) satisfies object)];
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const { W: { hasOwn } } = { W: (init(), (c ? Reflect : Object)) };
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const { W: { entries } } = { W: (init(), (c ? Reflect : Object)!) };
 export { groupBy, from, of, fromEntries, hasOwn, entries };

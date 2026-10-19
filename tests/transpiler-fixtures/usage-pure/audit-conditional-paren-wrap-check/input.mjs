@@ -6,3 +6,4 @@ type Pick<T, U extends T> = U;
 type Wrapped<T> = { [K in keyof T as (K) extends ('a') ? K : never]: T[K] };
 declare const w: Wrapped<{ a: string; b: number }>;
 w.a.at(0);
+export {};

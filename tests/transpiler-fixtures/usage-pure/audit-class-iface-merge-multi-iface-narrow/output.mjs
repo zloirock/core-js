@@ -8,9 +8,11 @@ class C {
   items = [];
 }
 interface C {
+  // @ts-expect-error a property merged with another type is the shape under test
   items;
 }
 interface C {
+  // @ts-expect-error a property merged with another type is the shape under test
   items: number[];
 }
 declare const c: C;

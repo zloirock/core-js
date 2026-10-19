@@ -3,4 +3,5 @@
 // shadowed at runtime. estree-toolkit's binding tracker correctly classifies type-only
 // imports as non-runtime; the global-resolution path passes through to inject `_Map`
 import type { Map } from 'something';
+// @ts-expect-error a type-only import read as a value is the shape under test
 new Map();

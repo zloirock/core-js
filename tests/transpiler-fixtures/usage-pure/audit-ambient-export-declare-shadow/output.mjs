@@ -5,3 +5,4 @@ import _Map from "@core-js/pure/actual/map/constructor";
 declare const Map: any;
 const m = new _Map();
 m.has(1);
+export {};

@@ -6,6 +6,7 @@ const clean = { k: Object } as { k: typeof Object };
 const { k: { keys } } = clean;
 const written = { k: Object } as { k: unknown };
 (written as { k: unknown }).k = Map;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 const { k: { groupBy } } = written;
 // a const-tuple cast on an ARRAY container is transparent the same way
 const tuple = [Object] as const;
