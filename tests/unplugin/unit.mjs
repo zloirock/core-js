@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
+import './fixture-output-normalization.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
