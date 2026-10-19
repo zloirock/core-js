@@ -2,7 +2,7 @@
 // name that does not exist after stripping. both spellings gate: the declaration-level kind
 // (`import type g`) and the interop namespace form
 import type g from "@core-js/pure/actual/global-this";
-// @ts-expect-error a type-only import read as a value is the shape under test
+// TS7 leaves the unresolved default import opaque in value position.
 export const viaErasedDefault = () => g.Map.groupBy([], (x: number) => x);
 import type * as ns from "@core-js/pure/actual/global-this";
 // @ts-expect-error a type-only import read as a value is the shape under test
