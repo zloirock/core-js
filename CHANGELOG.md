@@ -1,5 +1,9 @@
 # Changelog
 ### Unreleased
+- Nothing
+
+### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
+- Changes [v3.50.0...v3.51.0](https://github.com/zloirock/core-js/compare/v3.50.0...v3.51.0) (62 commits)
 - [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
   - Built-ins:
     - `Iterator.prototype.chunks`
