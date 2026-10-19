@@ -6,8 +6,9 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // per line so the import set shows observable dispatch
 async function twoProm() {
   type T = Promise<number[]> & Promise<string[]>;
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const r: Awaited<T>;
   _atMaybeArray(r).call(r, 0);
-  _includesMaybeArray(r).call(r, 1);
+  _includesMaybeArray(r).call(r, '1');
 }
 twoProm();

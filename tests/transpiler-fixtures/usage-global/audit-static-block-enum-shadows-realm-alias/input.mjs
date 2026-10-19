@@ -5,6 +5,7 @@
 export class C {
   static {
     enum globalThis { A }
+    // @ts-expect-error the enum shadowing the realm name lacks the member, which is the shape under test
     const { Map: M } = globalThis;
     M.groupBy([1], x => x);
   }

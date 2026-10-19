@@ -9,6 +9,7 @@ type Shadowed<T> = {
   pick<T>(): T;
 };
 declare const s: Shadowed<number[]>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = s.pick()).call(_ref, 0);
 type Bound<T> = {
   all(): T[];

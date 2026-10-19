@@ -4,4 +4,5 @@
 // require-binding detector must enumerate TSEnumDeclaration / TSModuleDeclaration
 // (non-`declare`) so the two pipelines agree.
 enum require { foo = 1 }
+// @ts-expect-error a call of the user's shadowing binding, which tsc refuses, is the shape under test
 require('core-js/actual/array/from');

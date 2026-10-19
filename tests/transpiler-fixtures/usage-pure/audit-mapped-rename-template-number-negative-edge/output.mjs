@@ -14,5 +14,6 @@ declare const r: Tag<{
 }>;
 _atMaybeArray(_ref = r['v_-1']).call(_ref, 0);
 _includesMaybeArray(_ref2 = r['v_3.14']).call(_ref2, 'a');
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref3 = r['v_0x10']).call(_ref3, 1);
 _includes(_ref4 = r['v_42n']).call(_ref4, 0);

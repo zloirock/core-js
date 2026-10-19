@@ -10,6 +10,7 @@ export const first = collapsed.both.at(0);
 
 type Widened = { [K in keyof Source as string]: Source[K] };
 declare const widened: Widened;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const last = widened.arr.findLast(x => x);
 
 type Kept = { [K in keyof Source as `x${K & string}`]: Source[K] };

@@ -3,5 +3,6 @@ import _at from "@core-js/pure/actual/instance/at";
 enum E {
   at = "at",
 }
+// @ts-expect-error a write to an enum, which tsc forbids, is the shape under test
 E = other;
 use(_at(E));

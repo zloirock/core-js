@@ -13,4 +13,5 @@ _globalThis.tsBox = {
   list: ['ab', 'cd']
 };
 // a cast around the TAIL instead of the nav leaves the nav span whole, so the render applies
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 export const castOnTail = null == (_ref = (null == _globalThis.window ? void 0 : _self.tsBox.list) as any[]) ? void 0 : _atMaybeArray(_ref).call(_ref, 0);

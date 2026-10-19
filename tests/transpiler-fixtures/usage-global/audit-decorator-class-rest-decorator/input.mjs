@@ -7,6 +7,7 @@ function withTags(first: string, ...rest: string[]) {
     return value;
   };
 }
+// @ts-expect-error the decorator is an opaque read probe, not a callable tsc can check
 @withTags('a', 'b', 'c')
 class Tagged {
   m = new Map();

@@ -2,6 +2,8 @@
 // inner `Nested<Promise<T>>` re-enters Nested cyclically. cycle detection bails the
 // receiver type to null. without a known type, `n.at(0)` falls through to the generic
 // instance-method polyfill (works for any iterable receiver shape)
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type Nested<T> = Nested<Promise<T>>;
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 declare const n: Nested<string>;
 n.at(0);

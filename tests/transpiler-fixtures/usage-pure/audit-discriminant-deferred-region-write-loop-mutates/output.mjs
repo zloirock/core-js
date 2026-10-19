@@ -16,6 +16,7 @@ function loopMutates(s: V, cond: () => boolean) {
     while (cond()) {
       var _ref;
       _at(_ref = s.arr).call(_ref, -1);
+      // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
       s.kind = "b";
     }
   }

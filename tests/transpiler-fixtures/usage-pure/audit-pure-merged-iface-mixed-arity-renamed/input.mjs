@@ -4,7 +4,9 @@
 // them - the subst map is empty when the sibling has no type-params, so it passes
 // through unchanged. distinct methods (at vs includes) prove each line walked
 // through its own sibling without cross-contamination.
+// @ts-expect-error merged declarations tsc refuses are the shape under test
 interface Foo<T> { a: T }
+// @ts-expect-error merged declarations tsc refuses are the shape under test
 interface Foo { b: number[] }
 declare const f: Foo<string[]>;
 f.a.at(0);

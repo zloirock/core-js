@@ -5,6 +5,7 @@ import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers"
 export function viaInstantiation(c) {
   let P3;
   if (c) P3 = _Promise;
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return (P3 === _Promise ? _Promise$withResolvers : P3.withResolvers.bind(P3))<void>();
 }
 export const r = [viaInstantiation(true)];

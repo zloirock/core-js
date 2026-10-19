@@ -11,6 +11,7 @@ type ROSetElem<T> = T extends ReadonlySet<infer U> ? U : never;
 declare const disjoint: ArrElem<Set<string>>;
 declare const matched: SetElem<Set<number[]>>;
 declare const variance: ROSetElem<Set<string>>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 const a = disjoint.at(0);
 const b = _includesMaybeArray(matched).call(matched, 1);
 const c = _atMaybeString(variance).call(variance, 0);

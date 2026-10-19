@@ -5,4 +5,5 @@
 export enum Map {
   A = 1
 }
+// @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
 export const a = new Map();

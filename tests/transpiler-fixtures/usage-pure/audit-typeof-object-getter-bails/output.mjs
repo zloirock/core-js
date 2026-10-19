@@ -9,6 +9,7 @@ const box = {
     return [1, 2];
   }
 };
+// @ts-expect-error a heritage tsc refuses is the shape under test
 declare const q: ReturnType<typeof box.picked>;
 export const r = _at(q).call(q, 0);
 

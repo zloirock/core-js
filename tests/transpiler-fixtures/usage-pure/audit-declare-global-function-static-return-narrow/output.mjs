@@ -7,3 +7,4 @@ declare global {
   function gfn<T>(): T[];
 }
 _atMaybeArray(_ref = gfn<string>()).call(_ref, 0);
+export {};

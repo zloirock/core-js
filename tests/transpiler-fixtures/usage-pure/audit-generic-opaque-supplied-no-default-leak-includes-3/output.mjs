@@ -11,4 +11,5 @@ interface Box<T = number[]> {
   v: T;
 }
 declare const box: Box<Opaque>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _includes(_ref = box.v).call(_ref, 1);

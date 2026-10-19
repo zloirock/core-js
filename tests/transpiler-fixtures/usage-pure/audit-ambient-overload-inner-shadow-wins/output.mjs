@@ -6,7 +6,9 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 declare function fn(x: number): string;
 declare function fn(x: string): string;
 function probe() {
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare function fn(x: boolean): number[];
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const r: ReturnType<typeof fn>;
   _atMaybeArray(r).call(r, 0);
 }

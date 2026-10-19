@@ -5,6 +5,7 @@
 // SpreadElement so emit falls back to the unknown-receiver branch, not a wrong narrow
 function assertString(opts: unknown, x: unknown): asserts x is string {}
 function probe(val: unknown, rest: any[]) {
+  // @ts-expect-error a spread argument tsc cannot place is the shape under test
   assertString(...rest, val);
   return val.at(0);
 }

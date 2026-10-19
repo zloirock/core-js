@@ -5,7 +5,7 @@
 // folded key side effect strips the source form
 declare const arr: { 'a-b'?: () => number[][]; from?: () => number[][] };
 export const bracketed = arr['a-b']?.().flat().at(0);
-export const dotted = arr['from']?.().includes(1);
+export const dotted = arr['from']?.().includes([1]);
 
 // a NUMERIC computed inner (`arr[0]`) has no method name at all, so the inner is non-poly by
 // construction. two trailing polys force the combine, which must keep the verbatim numeric

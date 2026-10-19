@@ -4,10 +4,16 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 // pure resolves those names to ponyfill bindings, so this twin also shows the type-only reference
 // staying a TYPE: the annotation keeps the source name while the value position takes the import
 declare const f: any;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const foldCall = (f as any)<Map<string, number>>([1]);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const foldNew = new (f as any)<Set<number>>();
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const foldTag = (f as any)<WeakMap<object, number>>`t`;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const foldOptionalCall = (f as any)?.<Promise<number>>([1]);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const keptMemberTail = _nameMaybeFunction((f as any)<WeakSet<object>>);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const keptBareValue = (f as any)<ArrayBuffer>;
 export const r = [foldCall, foldNew, foldTag, foldOptionalCall, keptMemberTail, keptBareValue];

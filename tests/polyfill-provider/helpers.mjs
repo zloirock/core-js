@@ -1870,7 +1870,14 @@ for (const [label, source, expected, effectExpected = expected, calleeExpected =
   ['ambient const', 'declare const rows: number[]; rows.at(0);', true, true, false],
   ['ambient let', 'declare let rows: number[]; rows.at(0);', true, true, false],
   ['ambient var', 'declare var rows: number[]; rows.at(0);', true, true, false],
-  ['ambient function', 'declare function rows(): number[]; rows.at(0);', true, true, false],
+  [
+    'ambient function',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'declare function rows(): number[]; rows.at(0);',
+    true,
+    true,
+    false,
+  ],
   ['ambient class', 'declare class rows { static at(index: number): number; } rows.at(0);', true, true, false],
   ['ambient wrapped', 'declare const rows: number[]; (rows as number[]).at(0);', true, true, false],
   ['ambient write before read', 'declare let rows: number[]; rows = other; rows.at(0);', true, true, false],
@@ -2056,7 +2063,12 @@ for (const [wrapper, wrap] of [
   ['completed parameter write', receiver => `function probe(rows: number[]) { rows = other; return ${ receiver }.at(0); }`, true, true],
   ['unbound adjacent read', receiver => `${ receiver }.at(0);`, true, true],
   ['live import', receiver => `import { rows } from './rows.js'; ${ receiver }.at(0);`, false, false],
-  ['getter writer', receiver => `let rows = []; const box = { get at() { rows = []; } }; ${ receiver }.at(0);`, false, false],
+  [
+    'getter writer',
+    receiver => `// @ts-expect-error the getter exists for its write alone\nlet rows = []; const box = { get at() { rows = []; } }; ${ receiver }.at(0);`,
+    false,
+    false,
+  ],
   ['deferred writer', receiver => `function probe(rows: number[]) { function write() { rows = other; } return ${ receiver }.at(0); }`, false, false],
   ['resumable owner', receiver => `function* probe(rows: number[]) { yield () => ${ receiver }.at(0); rows = other; }`, false, false],
   ['this', () => `function probe() { return ${ wrap('this') }.at(0); }`, true, true],
@@ -2372,7 +2384,8 @@ for (const [source, expected] of [
 // `...([[x]] as any)` the way `unwrapRuntimeExpr` peels the node: a leg that read the raw argument
 // mirrored on one parser and bailed on the other
 runBoth('iife arg through a cast spread array: per-branch receiver path',
-  'const r = (([{ from: f }]) => f)(...([[pick ? Array : userObj]] as any));', (adapter, programPath, name) => {
+  '// @ts-expect-error a spread argument tsc cannot place is the shape under test\n'
+  + 'const r = (([{ from: f }]) => f)(...([[pick ? Array : userObj]] as any));', (adapter, programPath, name) => {
     const [declaration] = programPath.get('body');
     const [declarator] = declaration.get('declarations');
     const arrow = peelTransparentWrapperPath(declarator.get('init').get('callee'));
@@ -2382,7 +2395,7 @@ runBoth('iife arg through a cast spread array: per-branch receiver path',
     check(`${ name } argument`, findIifeArgPath(arrow, arrayPattern.node)?.node?.type, 'ArrayExpression');
   });
 runBoth('iife arg through a cast spread array: bare-pattern locator',
-  'const r = (({ at }) => at)(...([[1, 2]] as any));', (adapter, programPath, name) => {
+  '// @ts-expect-error a spread argument tsc cannot place is the shape under test\nconst r = (({ at }) => at)(...([[1, 2]] as any));', (adapter, programPath, name) => {
     const [declaration] = programPath.get('body');
     const [declarator] = declaration.get('declarations');
     const arrow = peelTransparentWrapperPath(declarator.get('init').get('callee'));
@@ -2857,7 +2870,8 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
 for (const adapter of adapters) {
   // the index is asked at the owner a binding is hosted by: for these `let`s the body block, which
   // the function-level scan would shadow (a block's own lexicals are not the function's)
-  const wrapped = adapter.parseAndScope('function f() { let a = []; a! = 1; let b = []; (b as any) = 2; let c = []; c = 3; (d)++; }');
+  const wrapped = adapter.parseAndScope('// @ts-expect-error the writes cross the inferred types on purpose, and only their targets are asked\n'
+    + 'function f() { let a = []; a! = 1; let b = []; (b as any) = 2; let c = []; c = 3; (d)++; }');
   const wrappedIndex = buildScopeReassignmentIndex(adapter.pickPath(wrapped, 'BlockStatement').node);
   check(`buildScopeReassignmentIndex/non-null target [${ adapter.name }]`, wrappedIndex.get('a')?.length ?? 0, 1);
   check(`buildScopeReassignmentIndex/as-cast target [${ adapter.name }]`, wrappedIndex.get('b')?.length ?? 0, 1);
@@ -3109,6 +3123,7 @@ for (const adapter of adapters) {
     'function f<WeakSet>(v: WeakSet) {}',
     'type Picked<T> = T extends Array<infer Promise> ? Promise : never;',
     'type Fallen<T> = T extends Array<infer Symbol> ? 1 : Symbol;',
+    '// @ts-expect-error the global namespace named as a type is the shape under test',
     'interface Plain { v: Reflect }',
   ].join('\n'));
   function reference(name) {
@@ -3144,6 +3159,7 @@ for (const adapter of adapters) {
     'type Member = NS.Uint8Array;',
     'declare const annotated: DisposableStack;',
     'const cast = value as AggregateError;',
+    '// @ts-expect-error a bare generic in the implements clause of an empty class is the shape under test',
     'class Impl implements Iterable<WeakRef> {}',
     'interface Shadowed<Promise> { v: Promise }',
     'interface Ext extends Date {}',
@@ -3187,8 +3203,10 @@ for (const adapter of adapters) {
     'class Live { [Set.name] = 1; }',
     'abstract class LiveMember { [WeakSet.name] = 2; }',
     'declare const query: typeof Symbol;',
+    '// @ts-expect-error a computed key tsc refuses is the shape under test',
     'declare class BareKey { [Date]: number }',
     'declare class OptionalKey { [Uint8Array?.name]: number }',
+    '// @ts-expect-error the decorator is a read on an abstract member, not a callable',
     'abstract class Decorated { @(Reflect.ownKeys({})) abstract accessor v: number; }',
   ].join('\n'), 'module', ['decorators', 'decoratorAutoAccessors']);
   function readOf(name) {
@@ -3757,7 +3775,8 @@ for (const [source, ordinary, effects = ordinary] of [
   ['function write() { for (rows of values) {} } rows.at(0);', false],
   ['rows[(rows = next, "at")](0);', true, false],
   // Intentionally invalid TS: an ambient const write must still prevent receiver reuse.
-  ['declare const rows: number[]; function write() { rows = next; } rows.at(0);', false],
+  ['// @ts-expect-error the write to a constant binding still sits in the source, and it is the shape under test\n'
+    + 'declare const rows: number[]; function write() { rows = next; } rows.at(0);', false],
   ['const rows = []; function write() { globalThis.rows = next; } rows.at(0);', true],
 ]) runBoth(`isReusableReceiver/source free write/${ source }`, source, (parser, program, label) => {
   const read = parser.pickPath(program, 'MemberExpression', path => path.node.object?.name === 'rows');

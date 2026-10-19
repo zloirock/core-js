@@ -6,6 +6,7 @@
 declare const r: number[] | null;
 declare const arr: string[];
 (r ?? 'fallback').at(0);
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 (r || 'fallback').includes('f');
 (r && 'tail').at(1);
 (arr ?? 'x').includes('y');

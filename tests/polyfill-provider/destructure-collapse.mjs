@@ -2139,7 +2139,15 @@ for (const [name, prefix, params, key, expression, expected] of [
   ['uncalled iterator', 'import method from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method', false],
   ['shadow', 'import method from "@core-js/pure/full/get-iterator-method";', 'method', '[Symbol.iterator]', 'method(globalThis)', false],
   ['reassigned', 'let method=require("@core-js/pure/actual/get-iterator-method");method=custom;', '', '[Symbol.iterator]', 'method(globalThis)', false],
-  ['type only', 'import type method from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', false],
+  [
+    'type only',
+    '// @ts-expect-error a type-only import read as a value, beside a symbol key tsc cannot index globalThis by, is the shape under test\n'
+    + 'import type method from "@core-js/pure/full/get-iterator-method";',
+    '',
+    '[Symbol.iterator]',
+    'method(globalThis)',
+    false,
+  ],
 ]) runBoth(`sentinel/source import/${ name }`,
   `${ prefix } function read(${ params }){const{${ key }:_unused}=globalThis;return ${ expression };}`,
   (parser, program, label) => {

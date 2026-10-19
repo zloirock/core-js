@@ -4,6 +4,7 @@
 // (generic); an alias method WITHOUT its own type param still binds the outer T (array-specific).
 type Shadowed<T> = { pick<T>(): T };
 declare const s: Shadowed<number[]>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 s.pick().at(0);
 type Bound<T> = { all(): T[] };
 declare const bnd: Bound<number>;

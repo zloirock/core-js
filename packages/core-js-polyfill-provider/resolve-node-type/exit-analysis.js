@@ -39,6 +39,12 @@ export function isLoopStatement(node) {
   return LOOP_STATEMENT_TYPES.has(node?.type);
 }
 
+// a loop that runs its body only while its test holds, asking it again before every run: the test
+// guards the body as an `if` test guards its consequent. a `do-while` runs the body before its first test
+export function bodyRunsWhileTestHolds(node) {
+  return node?.type === 'WhileStatement' || (node?.type === 'ForStatement' && !!node.test);
+}
+
 // does an exit statement end the question `exitTypes` asks? a labeled break / continue to an
 // enclosing LabeledStatement the walk blocked exits only the labeled wrapper, not the surrounding
 // case / function. the check matters on the full EXIT_STATEMENTS walk (`canFallThrough` via

@@ -3,6 +3,7 @@
 // (extends inherits its behavior at instantiation); Set MUST NOT (implements is a pure
 // type contract). same AST shape, distinguished only by superClass vs implements position.
 interface Bar<T> { y: T }
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class C extends Promise<string> implements Bar<Set<number>> {
   constructor(exec) { super(exec); }
 }

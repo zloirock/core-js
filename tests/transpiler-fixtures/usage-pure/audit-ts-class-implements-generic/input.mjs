@@ -3,4 +3,5 @@
 // `class X extends Foo<T>` shares the same node wrapper but in the super-class slot;
 // that one is runtime and stays polyfilled
 export class A extends Map<string, number> {}
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 export class B implements Map<string, number> {}

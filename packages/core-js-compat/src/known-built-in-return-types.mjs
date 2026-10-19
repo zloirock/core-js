@@ -970,7 +970,8 @@ export const staticMethods = {
   },
 };
 
-// known static type guard methods
+// known static type guard methods: a true answer proves the argument is of `type`, a false one that it
+// is not - unless the guard is `partial`, true for only part of its type, whose false answer proves nothing
 export const staticTypeGuards = {
   AggregateError: {
     isError: 'Error',
@@ -984,11 +985,12 @@ export const staticTypeGuards = {
   EvalError: {
     isError: 'Error',
   },
+  // `NaN` fails `isFinite`, `1.5` fails `isInteger`: a number may come out false from each of them
   Number: {
-    isFinite: 'number',
-    isInteger: 'number',
-    isNaN: 'number',
-    isSafeInteger: 'number',
+    isFinite: { type: 'number', partial: true },
+    isInteger: { type: 'number', partial: true },
+    isNaN: { type: 'number', partial: true },
+    isSafeInteger: { type: 'number', partial: true },
   },
   RangeError: {
     isError: 'Error',

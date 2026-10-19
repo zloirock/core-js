@@ -15,7 +15,7 @@ declare class Reg {
 }
 declare const reg: Reg;
 _atMaybeString(_ref = reg.get('a')).call(_ref, 0);
-_includesMaybeArray(_ref2 = reg.get('c')).call(_ref2, 1);
+_includesMaybeArray(_ref2 = reg.get('c')).call(_ref2, '1');
 function probe(u) {
   var _ref3;
   return _at(_ref3 = reg.lookup(u)).call(_ref3, -1);

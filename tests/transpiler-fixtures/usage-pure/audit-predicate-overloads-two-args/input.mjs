@@ -10,6 +10,7 @@ let r1;
 let r2;
 if (pick(e, f)) {
   r1 = e.at(2);
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   r2 = f.includes(3);
 }
 export { r1, r2 };

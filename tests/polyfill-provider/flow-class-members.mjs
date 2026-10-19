@@ -16,7 +16,12 @@ const cases = [
   ['two generic hops', 'declare class B<T> { m(): T } declare class M<U> extends B<U> {} declare class C extends M<number[]> {} new C().m().at(0);', 'Array'],
   ['typeof aliased static field', 'declare class C { static items: string } const D = C; function f(x: typeof D.items) { x.at(0); }', 'string'],
   // Intentionally inconsistent override: the ancestor own field still shadows the prototype.
-  ['ancestor own callable field', 'declare class B { m: () => number[] } declare class C extends B { m(): string } new C().m().at(0);', 'Array'],
+  [
+    'ancestor own callable field',
+    '// @ts-expect-error an override of another kind and type is the shape under test\n'
+    + 'declare class B { m: () => number[] } declare class C extends B { m(): string } new C().m().at(0);',
+    'Array',
+  ],
   ['ancestor proto callable field', 'declare class B { proto m: () => (number[] | string) } declare class C extends B { m(): string } new C().m().at(0);', 'string', 'flow'],
   ['generic rest default', 'declare class C { m<T = number[]>(...xs: T[]): T } new C().m("abc").at(0);', 'string'],
   ['generic rest spread', 'declare class C { m<T = number[]>(...xs: T[]): T } new C().m(...["abc"]).at(0);', 'string'],
@@ -25,6 +30,11 @@ const cases = [
   ['generic rest opaque', 'declare class C { m<T = number[]>(...xs: T[]): T } function f(x: any) { new C().m(x).at(0); }', null],
   ['generic method', 'declare class C { m<T>(x: T): T } new C().m([1]).at(0);', 'Array'],
   ['generic default', 'declare class C<T = string> { m(): T } new C().m().at(0);', 'string'],
+  // a receiver that binds none of the class's parameters reads each through its bound
+  ['open parameter via this, annotated return', 'class C<T: Array<number>> { get(): T { return (null: any); } f() { return this.get().at(0); } }', 'Array', 'flow'],
+  ['open parameter via this, field', 'class C<T: Array<number>> { v: T; f() { return this.v.at(0); } }', 'Array', 'flow'],
+  ['open parameter via this, constraint', 'class C<T extends number[]> { v: T; f() { return this.v.at(0); } }', 'Array', 'typescript'],
+  ['open parameter via Reflect.construct', 'declare class C<T: Array<number>> { v: T; constructor(v: T): void } Reflect.construct(C, [[1]]).v.at(0);', 'Array', 'flow'],
   ['overload arity', 'declare class C { m(x: string): string; m(x: string, y: number): number[] } new C().m("x").at(0);', 'string'],
   ['overload second arm', 'declare class C { m(x: string): string; m(x: string, y: number): number[] } new C().m("x", 1).at(0);', 'Array'],
   ['rest overload', 'declare class C { m(x: string, ...ys: number[]): number[]; m(): string } new C().m("x", 1).at(0);', 'Array'],
@@ -45,16 +55,46 @@ const cases = [
   ['typeof static field', 'declare class C { static items: string } function f(x: typeof C.items) { x.at(0); }', 'string'],
   ['typeof static method', 'declare class C { static m(): number[] } function f(m: typeof C.m) { m().at(0); }', 'Array'],
   // Deliberately invalid when the callable is present; absence must still reach the string fallback.
-  ['optional callable fallback', 'declare class C { m?: () => number[] } (new C().m || "abc").at(0);', null],
+  [
+    'optional callable fallback',
+    '// @ts-expect-error a read the callable arm lacks is the shape under test\n'
+    + 'declare class C { m?: () => number[] } (new C().m || "abc").at(0);',
+    null,
+  ],
   ['union return', 'declare class C { m(): number[] | string } new C().m().at(0);', null],
-  ['missing member', 'declare class C {} new C().m().at(0);', null],
-  ['setter only', 'declare class C { set items(x: string): void } new C().items.at(0);', null],
+  [
+    'missing member',
+    '// @ts-expect-error a read of a member the class lacks is the shape under test\n'
+    + 'declare class C {} new C().m().at(0);',
+    null,
+  ],
+  [
+    'setter only',
+    '// @ts-expect-error Flow requires the setter return annotation tsc refuses, and the row runs in both dialects\n'
+    + 'declare class C { set items(x: string): void } new C().items.at(0);',
+    null,
+  ],
   // Deliberately invalid sources include the missing-member/setter reads and cycles below.
   // Cycles must terminate, and observed writes must not
   // retain a stale signature even when a typechecker would reject the replacement.
-  ['cyclic heritage', 'declare class B extends C {} declare class C extends B {} new C().m().at(0);', null],
-  ['written instance method', 'declare class C { m(): number[] } C.prototype.m = () => "s"; new C().m().at(0);', null],
-  ['written static method', 'declare class C { static m(): number[] } C.m = () => "s"; C.m().at(0);', null],
+  [
+    'cyclic heritage',
+    '// @ts-expect-error a cyclic heritage tsc refuses is the shape under test\n'
+    + 'declare class B extends C {} declare class C extends B {} new C().m().at(0);',
+    null,
+  ],
+  [
+    'written instance method',
+    '// @ts-expect-error the write crosses the declared type on purpose, and the read sees the runtime value\n'
+    + 'declare class C { m(): number[] } C.prototype.m = () => "s"; new C().m().at(0);',
+    null,
+  ],
+  [
+    'written static method',
+    '// @ts-expect-error the write crosses the declared type on purpose, and the read sees the runtime value\n'
+    + 'declare class C { static m(): number[] } C.m = () => "s"; C.m().at(0);',
+    null,
+  ],
   ['shadowed class', 'declare class C { m(): number[] } function f(C: any) { new C().m().at(0); }', null],
 ];
 

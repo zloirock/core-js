@@ -6,9 +6,11 @@
 // reference all carry their annotation and must resolve on both. `at` and `includes` are the only
 // methods with both an array and a string variant, so they are what makes "resolved to array"
 // distinguishable from "not resolved at all"
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 class Cyclic extends Other { get a() { return "s"; } }
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 class Other extends Cyclic {}
-new Cyclic().a.includes(1);
+new Cyclic().a.includes('1');
 abstract class Shapes {
   abstract b: number[];
   abstract accessor c: number[];

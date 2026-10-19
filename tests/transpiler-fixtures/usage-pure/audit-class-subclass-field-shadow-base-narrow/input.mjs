@@ -6,8 +6,11 @@ class Base {
   bag: number[] = [];
 }
 class Sub extends Base {
+  // @ts-expect-error a heritage tsc refuses is the shape under test
   bag: { length: number } = { length: 0 };
 }
 declare const s: Sub;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 s.bag.at(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 s.bag.includes(1);

@@ -6,4 +6,5 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 enum HopKeys {
   MAP = 'map',
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const r5 = _flatMaybeArray(arr)?.call(arr)[HopKeys.MISSING](f);

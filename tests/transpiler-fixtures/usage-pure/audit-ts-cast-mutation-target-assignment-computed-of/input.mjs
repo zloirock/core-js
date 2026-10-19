@@ -3,4 +3,5 @@
 // its claim. spelled as an unreadable key the census deopted the whole receiver, and the neighbour
 // lost its polyfill with it
 enum WriteKeys { OF = 'of' }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 Array[WriteKeys.OF] = function () { return [9]; };

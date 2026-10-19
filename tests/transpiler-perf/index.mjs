@@ -162,6 +162,16 @@ function syntheticUnionWidth(width) {
   return `type U = ${ variants.join(' | ') };\n${ Array.from({ length: 200 }, (unused, index) => `declare const u${ index }: U; if (u${ index }.kind === ${ index % width }) u${ index }.value.at(0);`).join('\n') }`;
 }
 
+// a type name resolves against the statement list declaring it through a per-list name index, and a
+// lookup that walked the list instead pays (aliases x statements) - invisible on the TS synthetics
+// above, which read one alias over and over. here every alias is distinct and read once, the way a
+// generated API client spells its models
+function syntheticUniqueTypeAliases(names) {
+  const parts = [];
+  for (let i = 0; i < names; i++) parts.push(`type T${ i } = number[] | string[];`, `declare const x${ i }: T${ i };`, `x${ i }.at(${ i });`);
+  return parts.join('\n');
+}
+
 // bare-name callees on a LONG top level: pairing a call asks whether its callee's name is a minted
 // pure import - a fact of the whole program.
 // re-deriving it per call by scanning the top-level statements is quadratic in (calls x top-level
@@ -573,6 +583,9 @@ const CASES = [
   ...[32, 128].map(width => ({ name: `synthetic union width ${ width }, 200 reads`, source: () => syntheticUnionWidth(width), ts: true, bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } })),
+  { name: 'synthetic unique type aliases, 2000 names', source: () => syntheticUniqueTypeAliases(2000), ts: true, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
   { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: { 'usage-global': 65, 'usage-pure': 47 }, bounds: {

@@ -7,7 +7,10 @@ declare const obj: {
   assertStr(x: unknown): asserts x is string;
 } | undefined;
 function take(input: unknown) {
+  // @ts-expect-error an assertion called through a non-identifier callee is the shape under test
   (0, obj?.assertStr)(input);
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   input.at(0);
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return input.padStart(2);
 }

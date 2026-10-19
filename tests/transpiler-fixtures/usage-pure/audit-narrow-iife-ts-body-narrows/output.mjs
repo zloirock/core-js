@@ -4,5 +4,6 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // AND TS wrappers on the body side (mirroring the callee-side wrapper handling) so the
 // "assignment IS the body" trivial-straight-line case still matches through TS casts
 let x = [1, 2, 3];
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 (() => (x = "hello") as any)();
 _atMaybeString(x).call(x, 0);

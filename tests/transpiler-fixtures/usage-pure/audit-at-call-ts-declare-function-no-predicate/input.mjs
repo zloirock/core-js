@@ -4,5 +4,6 @@
 declare function noop(x: unknown): void;
 function probe(x: unknown) {
   noop(x);
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return x.at(0);
 }

@@ -5,6 +5,7 @@
 declare class Base { constructor(a: number[]); }
 class Derived extends Base {}
 function shadowed() {
+  // @ts-expect-error an overload head without its implementation is the shape under test
   class Base { constructor(b: string); }
   type P = ConstructorParameters<typeof Derived>;
   const picked: P[0] = null!;

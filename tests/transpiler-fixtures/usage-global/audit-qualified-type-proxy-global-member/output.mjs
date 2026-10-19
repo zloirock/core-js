@@ -24,5 +24,6 @@ import "core-js/modules/web.self";
 // so its polyfill is pulled in for the member - and for each link along a proxy chain
 let setRef: globalThis.Set<number>;
 let weakRef: self.WeakMap<object, number>;
+// @ts-expect-error a qualified type through a non-namespace is the shape under test
 let mapRef: globalThis.self.Map<string, number>;
 export { setRef, weakRef, mapRef };

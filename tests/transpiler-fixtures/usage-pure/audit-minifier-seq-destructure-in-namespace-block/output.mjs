@@ -8,6 +8,7 @@ namespace NS {
   sideEffect();
   values = _Object$values;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _values(NS).call(NS, {
   a: 1
 });

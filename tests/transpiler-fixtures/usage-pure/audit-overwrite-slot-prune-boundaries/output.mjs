@@ -17,6 +17,7 @@ declare const userNs: {
 let dropped, kept, sibling, wrapped, computed, other, z;
 dropped = _copyWithinMaybeArray(_globalThis.Array.prototype);
 kept = _flatMaybeArray(userNs.Array.prototype);
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 sibling = _atMaybeArray(_globalThis.Array.prototype);
 ({
   z

@@ -7,4 +7,5 @@ function probe(input: Record<string, unknown>) {
   return null;
 }
 
+// @ts-expect-error the call supplies nothing, so only the annotation types the parameter
 probe();

@@ -11,5 +11,6 @@ class C {
   }
 }
 const c = new C();
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 [c.items] = src;
 c.getFirst();

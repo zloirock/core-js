@@ -44,7 +44,13 @@ check('all rows were checked', checked, 32);
 // full census supplies write sites so conditional, escaped and captured values stay distinct.
 const writtenRows = [
   ['direct', 'const source = { realm: Object }; source.realm = Map;', 'source', 'Map'],
-  ['TS wrappers', 'const source = { realm: Object } as { realm: unknown }; (source as { realm: unknown }).realm = Map;', 'source', 'Map'],
+  [
+    'TS wrappers',
+    '// @ts-expect-error the slot is declared unknown on purpose, and the read sees the runtime value\n'
+    + 'const source = { realm: Object } as { realm: unknown }; (source as { realm: unknown }).realm = Map;',
+    'source',
+    'Map',
+  ],
   ['alias receiver', 'const source = { realm: Object }; const alias = source; alias.realm = Map;', 'source', 'Map'],
   ['wrapper receiver', 'const source = { realm: Object }; const alias = { box: source }; alias.box.realm = Map;', 'source', 'Map'],
   ['array receiver', 'const source = [Object]; source[0] = Map;', 'source', 'Map', '0'],

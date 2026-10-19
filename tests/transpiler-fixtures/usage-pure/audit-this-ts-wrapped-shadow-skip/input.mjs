@@ -5,5 +5,5 @@
 class C extends Array {
   at() { return 'shadowed'; }
   foo() { return (this as any).at(0); }
-  bar() { return this!.at(1); }
+  bar() { return this!.at(); }
 }

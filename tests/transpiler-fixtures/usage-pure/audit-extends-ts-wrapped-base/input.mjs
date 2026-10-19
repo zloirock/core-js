@@ -9,6 +9,7 @@ class Base {
 class Sub extends (Base as typeof Base) {}
 function probe() {
   const s = new Sub();
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   s.items = "stringified";
   const b = new Base();
   return b.items.at(0);

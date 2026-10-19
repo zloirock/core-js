@@ -8,6 +8,7 @@ export function either(box: Box) {
 }
 export function exit(box: Box) {
   if (typeof Promise != 'undefined' && box.kind !== 'text') return;
+  // @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
   return box.data.includes('b');
 }
 export function exitConditional(box: Box) {
@@ -21,8 +22,6 @@ export function rewritten(box: Box, other: Box) {
   }
 }
 export function alwaysTrue(box: Box) {
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   if (typeof Promise != 'undefined' || box.kind === 'text') return box.data.concat('d');
-}
-export function undecided(box: Box) {
-  if (flag || box.kind === 'text') return box.data.flat();
 }

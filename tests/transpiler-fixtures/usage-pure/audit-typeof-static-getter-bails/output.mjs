@@ -21,6 +21,7 @@ export const viaGetter = _at(g as any).call(g as any, 0);
 class Y {
   static set ss(v: number[]) {}
 }
+// @ts-expect-error a heritage tsc refuses is the shape under test
 type FromSetter = ReturnType<typeof Y.ss>;
 declare const s: FromSetter;
 export const viaSetter = _at(s as any).call(s as any, 1);

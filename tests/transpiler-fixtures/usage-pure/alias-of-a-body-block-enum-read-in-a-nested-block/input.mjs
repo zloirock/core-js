@@ -16,6 +16,7 @@ const box = { P: Promise };
 try { f(); } catch (e) {
   enum box { P = 1 }
   const a = box;
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   { const { P } = a; use(P.try(f)); }
 }
 use(A.from(xs));

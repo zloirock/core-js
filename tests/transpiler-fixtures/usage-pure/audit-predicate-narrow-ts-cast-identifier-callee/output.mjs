@@ -9,6 +9,7 @@ function isArr(x: unknown): x is unknown[] {
 }
 function probe(v: unknown) {
   if ((isArr as any)(v)) {
+    // @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
     return _atMaybeArray(v).call(v, 0);
   }
   return null;

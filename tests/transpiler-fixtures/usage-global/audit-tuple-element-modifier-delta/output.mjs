@@ -9,4 +9,5 @@ type Opt = [string, number[]?];
 declare const fromPartial: Partial<Pair>[0];
 declare const fromRequired: Required<Opt>[1];
 (fromPartial ?? 'fallback').at(0);
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 (fromRequired ?? 'fallback').includes(1);

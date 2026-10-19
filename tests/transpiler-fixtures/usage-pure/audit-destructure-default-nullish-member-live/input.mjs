@@ -8,4 +8,5 @@ export const viaNullishMember = a.at(0);
 
 // a literally-present member keeps the default dead - its precise type still narrows
 const { b = [4, 5] } = { b: 'hello' };
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 export const viaPresentMember = b.includes('h');

@@ -5,4 +5,5 @@ var _ref, _ref2;
 // non-optionally; throw-on-nullish semantics survive the wrapper stack
 declare function getArr(): number[] | null;
 (null == (_ref = getArr()) ? void 0 : _includesMaybeArray(_ref)).call(_ref, 1);
+// @ts-expect-error a call through a value tsc cannot call is the shape under test
 (null == (_ref2 = getArr()) ? void 0 : _atMaybeArray(_ref2)).call(_ref2, 0);

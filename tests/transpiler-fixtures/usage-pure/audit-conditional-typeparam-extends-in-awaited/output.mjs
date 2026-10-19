@@ -7,3 +7,4 @@ type Pick<T, U> = T extends U ? Promise<string[]> : Promise<number[]>;
 declare function probe<T, U>(): Awaited<Pick<T, U>>;
 const r = await probe<Array<number>, Array<string>>();
 _atMaybeArray(r).call(r, 0);
+export {};

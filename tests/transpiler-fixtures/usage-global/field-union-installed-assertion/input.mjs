@@ -4,4 +4,5 @@ function change(value) { value.data = '1020'; }
 class Box { static data = [10, 20]; static change() {} }
 (Box.change as any) = function () { change(this); };
 Box.change();
+// @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
 export const result = Box.data.includes('02');

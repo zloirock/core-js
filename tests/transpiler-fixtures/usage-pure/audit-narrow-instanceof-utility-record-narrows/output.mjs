@@ -7,4 +7,6 @@ function probe(input: Record<string, unknown>) {
   if (input instanceof Array) return _atMaybeArray(input).call(input, 0);
   return null;
 }
+
+// @ts-expect-error the call supplies nothing, so only the annotation types the parameter
 probe();

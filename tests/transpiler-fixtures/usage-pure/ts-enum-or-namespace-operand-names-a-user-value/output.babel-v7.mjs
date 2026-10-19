@@ -19,15 +19,20 @@ namespace N {
 namespace Outer.Inner {
   export const from = 1;
 }
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const viaOr = (_ref = E || Object, _ref === Object ? _Object$groupBy([], f) : _ref.groupBy([], f));
 export const viaNullish = (N ?? {}).from;
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const viaTernary = (c ? Outer : _Map).groupBy([], f);
+// @ts-expect-error a const enum read as a value, which tsc refuses, is the shape under test
 export const viaConstEnum = K || {};
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 for (const M of [E, _Map]) {
   var _ref2;
   use((_ref2 = M || Object, _ref2 === Object ? _Object$groupBy([], f) : _ref2.groupBy([], f)));
 }
 export const viaIn = 'groupBy' in (N || _Map);
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 export const {
   groupBy
 } = Outer || {

@@ -20,6 +20,7 @@ class Written {
     return a;
   }
 }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 Written.pick = () => "patched";
 export const b = _at(_ref2 = Written.pick(1)).call(_ref2, 0);
 export const c = _atMaybeString(_ref3 = Host.make("x")).call(_ref3, 0);

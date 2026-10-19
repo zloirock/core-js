@@ -4,6 +4,7 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 // TS satisfies-cast wrapper on the super-class alias - alias chain resolves
 // through to Promise and `super.try` gets polyfilled
 const A = _Promise;
+// @ts-expect-error a heritage tsc refuses is the shape under test
 class C extends A {
   static run() {
     return _Promise$try.call(this, () => 1);

@@ -8,7 +8,7 @@
 /* eslint-disable node/no-sync -- a one-shot corpus scan at test time: the async forms would buy
    nothing here and babel's parse / traverse are sync anyway */
 import { createRequire } from 'node:module';
-import { createChecker } from './harness.mjs';
+import { createChecker, scenarioSource } from './harness.mjs';
 import { LITERAL, POSITIONS } from './holder-shape-equivalence.mjs';
 
 const { parseSync, traverse } = createRequire(import.meta.url)('@babel/core');
@@ -87,7 +87,8 @@ function collectPositions(dir, takes, found) {
     if (!takes(entry.name)) continue;
     let ast;
     // a fixture that pins syntax this parser build cannot read carries no position information -
-    // skipping it under-reports the domain, which is the safe direction for a completeness check
+    // skipping it under-reports the domain, which is the safe direction for a completeness check.
+    // the file is the corpus' own input, not a scenario this suite writes, so it is not recorded
     try {
       ast = parseSync(fs.readFileSync(file, 'utf8'), {
         configFile: false,
@@ -128,7 +129,7 @@ const covered = new Set();
 for (const [, shape] of POSITIONS) {
   let ast;
   try {
-    ast = parseSync(shape.replace('@', LITERAL), {
+    ast = parseSync(scenarioSource(shape.replace('@', LITERAL), { extraPlugins: PARSER_PLUGINS }), {
       configFile: false,
       babelrc: false,
       filename: 'shape.jsx',

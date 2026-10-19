@@ -14,7 +14,7 @@
 import entries from '@core-js/compat/entries' with { type: 'json' };
 import { transformAsync } from '@babel/core';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { createChecker } from './harness.mjs';
+import { createChecker, scenarioSource } from './harness.mjs';
 
 const { check, fail, finish, pass } = createChecker('flavor-entry-coverage');
 
@@ -32,7 +32,7 @@ function polyfillImports(code) {
 // cwd is the root would lower the source before the plugin sees it and the answer would depend on
 // how the suite was started rather than on what the provider decided
 async function babelImports(source, options, filename = 'input.mjs') {
-  const out = await transformAsync(source, {
+  const out = await transformAsync(scenarioSource(source), {
     plugins: [['@core-js', options]],
     filename,
     configFile: false,
@@ -43,7 +43,7 @@ async function babelImports(source, options, filename = 'input.mjs') {
 }
 
 function unpluginImports(source, options, filename = 'input.mjs') {
-  return polyfillImports(createUnplugin(options).transform(source, filename)?.code ?? source);
+  return polyfillImports(createUnplugin(options).transform(scenarioSource(source), filename)?.code ?? source);
 }
 
 // the modules a WIDE pure entry carries beyond its constructor sibling - the statics an escaped
@@ -521,7 +521,13 @@ const FOLDED_KEYS = [
   ['an enum member', 'enum E { a = "any" } use(Promise[E.a]([]));', 'promise', ['any'], 'input.ts'],
   ['an enum member, destructured', 'enum E { a = "any" } const { [E.a]: f } = Promise; use(f([]));', 'promise', ['any'], 'input.ts'],
   ['an enum member off a call', 'enum E { a = "name" } function mk() { return Promise; } use(mk()[E.a]);', 'promise', [], 'input.ts'],
-  ['an enum member naming no static', 'enum E { a = "other" } const { [E.a]: f } = Promise; use(f);', 'promise', [], 'input.ts'],
+  [
+    'an enum member naming no static',
+    '// @ts-expect-error a static the constructor lacks is the read under test\nenum E { a = "other" } const { [E.a]: f } = Promise; use(f);',
+    'promise',
+    [],
+    'input.ts',
+  ],
   ['a selection off a proxy member', 'use(globalThis.Promise[flag ? "any" : "allSettled"]([]));', 'promise', ['any', 'all-settled']],
   ['a selection through a proxy level, destructured', 'const { Promise: { [flag ? "any" : "allSettled"]: f } } = globalThis; use(f([]));', 'promise', ['any', 'all-settled']],
   ['a presence test by a selection', 'use((flag ? "any" : "allSettled") in Promise);', 'promise', ['any', 'all-settled']],

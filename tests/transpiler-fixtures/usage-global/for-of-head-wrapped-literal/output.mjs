@@ -1,10 +1,10 @@
 import "core-js/modules/es.symbol.constructor";
 import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
-import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.entries";
 import "core-js/modules/es.object.from-entries";
 import "core-js/modules/es.object.get-own-property-descriptor";
+import "core-js/modules/es.object.get-own-property-descriptors";
 import "core-js/modules/es.object.get-own-property-names";
 import "core-js/modules/es.object.is";
 import "core-js/modules/es.object.keys";
@@ -66,7 +66,7 @@ for (const {
 }]!) out.push(viaNonNull);
 for (const {
   w: {
-    defineProperties: viaSatisfies
+    getOwnPropertyDescriptors: viaSatisfies
   }
 } of [{
   w: Object
@@ -76,13 +76,6 @@ for (const item of [{
 }] as any) {
   const viaAsAnyMember = item.w.fromEntries;
   out.push(viaAsAnyMember);
-}
-for (const item of [{
-  w: Object
-}]) {
-  item.w = Array;
-  const viaParenWrittenSlot = item.w.assign;
-  out.push(viaParenWrittenSlot);
 }
 for (const {
   w: {

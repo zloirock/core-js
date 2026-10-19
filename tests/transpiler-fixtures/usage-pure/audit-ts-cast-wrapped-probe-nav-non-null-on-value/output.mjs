@@ -10,4 +10,5 @@ _globalThis.tsBox = {
   },
   list: ['ab', 'cd']
 };
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 export const nonNullOnValue = (null == _globalThis.window ? void 0 : _self.tsBox.n)!;

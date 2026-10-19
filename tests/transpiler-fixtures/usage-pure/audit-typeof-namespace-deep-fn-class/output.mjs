@@ -16,4 +16,5 @@ declare const r: R;
 _atMaybeArray(r).call(r, 0);
 type H = typeof NS.Inner.Holder;
 declare const h: InstanceType<H>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _findLastMaybeArray(_ref = h.items).call(_ref, x => true);

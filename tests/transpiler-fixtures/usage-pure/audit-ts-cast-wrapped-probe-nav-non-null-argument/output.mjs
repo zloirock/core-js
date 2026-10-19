@@ -14,4 +14,5 @@ _globalThis.tsBox = {
 // a TS layer on the claim sitting in a call ARGUMENT: the guard belongs in the argument, never over
 // the call the source wrote. the erased operator's side of that guard is where the emitters part -
 // `!` and a cast both vanish at emit, so the two spellings compile to the same JS
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 export const nonNullArgument = _Array$of((null == _globalThis.window ? void 0 : _self.tsBox.n)!);

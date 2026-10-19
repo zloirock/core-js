@@ -8,7 +8,9 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 function g<T>(this: Window, x: T): T {
   return x;
 }
+// @ts-expect-error a call that does not supply the declared this is the shape under test
 const arr = g([1, 2]);
+// @ts-expect-error a call that does not supply the declared this is the shape under test
 const str = g("hi");
 export const r1 = _atMaybeArray(arr).call(arr, 0);
 export const r2 = _includesMaybeString(str).call(str, "h");

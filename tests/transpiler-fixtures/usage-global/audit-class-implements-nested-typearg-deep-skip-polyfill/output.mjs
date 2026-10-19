@@ -7,6 +7,7 @@ interface Outer<T, U> {
   x: T;
   y: U;
 }
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class C implements Outer<Map<Set<string>, number>, Promise<string>> {
   m() {
     return 1;

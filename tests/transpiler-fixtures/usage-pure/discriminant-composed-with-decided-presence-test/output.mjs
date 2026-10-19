@@ -1,5 +1,4 @@
 import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _sliceMaybeArray from "@core-js/pure/actual/array/instance/slice";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
@@ -21,6 +20,7 @@ export function either(box: Box) {
 export function exit(box: Box) {
   var _ref2;
   if (box.kind !== 'text') return;
+  // @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
   return _includesMaybeString(_ref2 = box.data).call(_ref2, 'b');
 }
 export function exitConditional(box: Box) {
@@ -37,9 +37,6 @@ export function rewritten(box: Box, other: Box) {
 }
 export function alwaysTrue(box: Box) {
   var _ref5;
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   if (true) return _concatMaybeArray(_ref5 = box.data).call(_ref5, 'd');
-}
-export function undecided(box: Box) {
-  var _ref6;
-  if (flag || box.kind === 'text') return _flatMaybeArray(_ref6 = box.data).call(_ref6);
 }

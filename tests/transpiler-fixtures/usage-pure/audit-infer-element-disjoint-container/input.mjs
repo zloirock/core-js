@@ -9,6 +9,7 @@ type ROSetElem<T> = T extends ReadonlySet<infer U> ? U : never;
 declare const disjoint: ArrElem<Set<string>>;
 declare const matched: SetElem<Set<number[]>>;
 declare const variance: ROSetElem<Set<string>>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 const a = disjoint.at(0);
 const b = matched.includes(1);
 const c = variance.at(0);

@@ -11,3 +11,4 @@ declare const w: Wrapped<{
   b: number;
 }>;
 _atMaybeString(_ref = w.a).call(_ref, 0);
+export {};

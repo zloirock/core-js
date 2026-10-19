@@ -4,6 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // shape collapses through, but typeof-vs-direct semantics distinction is undefined
 // for type-parameter operands. The unrelated array binding below is the assertion
 // surface: substitution path must not corrupt unrelated resolution
+// @ts-expect-error a type read as a value, which tsc refuses, is the shape under test
 type X<T> = keyof typeof T;
 type Y = X<number>;
 declare const y: Y;

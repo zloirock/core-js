@@ -31,6 +31,7 @@ declare const arr: any[];
 ({
   trunc: a as any
 } = Math);
+// @ts-expect-error a static the constructor lacks is the read under test
 ({
   of: b!,
   custom: c
@@ -56,6 +57,7 @@ for ({
 ({
   groupBy: (h as any) = fallback
 } = Object);
+// @ts-expect-error a pattern reading a member its source lacks is the shape under test
 ({
   at: j as any,
   custom: c

@@ -6,7 +6,10 @@
 // three sit at the end of an optional chain, the position where a stray injection also rewrites
 // the guard around them. distinct method per line so each carrier is attributable
 declare const union: Date | RegExp;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 union?.at(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 Date.prototype?.includes(1);
 declare const folded: Date;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 folded?.flatMap(f);
