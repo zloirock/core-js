@@ -1,7 +1,7 @@
-import { equal, notEqual } from 'node:assert/strict';
+import { equal, notEqual, ok } from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { normalizeEnumTrailingCommas } from './fixture-output.mjs';
+import { normalizeFixtureOutput } from './fixture-output.mjs';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
@@ -10,7 +10,7 @@ const requireBabel = BABEL_REQUIRE_FROM
 const babel = requireBabel('@babel/core');
 const parserOpts = { sourceType: 'module', plugins: ['typescript'] };
 function normalize(code, options = parserOpts) {
-  return normalizeEnumTrailingCommas(code, babel, options, 'babel-v7');
+  return normalizeFixtureOutput(code, babel, options, 'babel-v7');
 }
 
 for (const [source, expected] of [
@@ -40,7 +40,7 @@ for (const source of [
 ]) equal(normalize(source), source);
 equal(normalize(null), null);
 for (const variant of [undefined, '']) {
-  equal(normalizeEnumTrailingCommas('enum E { A, }', babel, parserOpts, variant), 'enum E { A, }');
+  equal(normalizeFixtureOutput('enum E { A, }', babel, parserOpts, variant), 'enum E { A, }');
 }
 equal(normalize('enum E { A, }', { ...parserOpts, startIndex: 40, startLine: 3, startColumn: 2 }), 'enum E { A }');
 equal(normalize('enum E { A, } const view = <span />;', { ...parserOpts, plugins: ['typescript', 'jsx'] }),
@@ -64,4 +64,65 @@ for (const [left, right] of [
   ['enum E { A, } const obj = { x: 1, };', 'enum E { A } const obj = { x: 1 };'],
 ]) notEqual(normalize(left), normalize(right));
 
-echo(chalk.green('fixture-output-normalization: enum tails and comparison boundaries passed'));
+// Type-only grouping is cosmetic only when reparsing keeps the same type tree.
+for (const [source, expected] of [
+  ['type X = (number[]);', 'type X = number[];'],
+  ['type X = A & (B);', 'type X = A & B;'],
+  ['declare const x: ([number[], string])[0];', 'declare const x: [number[], string][0];'],
+  ['type X = ({ items: string[] })["items"];', 'type X = { items: string[] }["items"];'],
+  ['type X = ReturnType<(typeof f)>;', 'type X = ReturnType<typeof f>;'],
+  ['type X = ((() => number[]));', 'type X = () => number[];'],
+  ['type M<T> = { [K in (keyof T)]: (T)[K] };', 'type M<T> = { [K in keyof T]: T[K] };'],
+  ['type X = (/* keep */ number);', 'type X = /* keep */ number;'],
+  ['enum E { A, } type X = (number);', 'enum E { A } type X = number;'],
+]) {
+  equal(normalize(source), expected);
+  equal(normalize(expected), expected);
+}
+
+for (const source of [
+  'type X = (A | B)[];',
+  'type X = A & (B | C);',
+  'type X = (() => number)[];',
+  'type X = (A | B)[]; type Y = (number);',
+  'const value = ((o.m)<T>)?.();',
+  'const text = "type X = (number)";',
+  '// type X = (number)\nconst x = (f || g);',
+]) equal(normalize(source), source);
+equal(normalize('enum E { A, } type X = (A | B)[];'), 'enum E { A } type X = (A | B)[];');
+equal(normalize('type X = (number);', { ...parserOpts, plugins: [['typescript', { dts: true }]] }), 'type X = number;');
+equal(normalize('type X = (number);', { ...parserOpts, plugins: ['flow'] }), 'type X = (number);');
+for (const variant of [undefined, '']) {
+  equal(normalizeFixtureOutput('type X = (number);', babel, parserOpts, variant), 'type X = (number);');
+}
+for (const [left, right] of [
+  ['type X = (A | B)[];', 'type X = A | B[];'],
+  ['type X = A & (B | C);', 'type X = (A & B) | C;'],
+  ['type X = (number);', 'type X = string;'],
+  ['type X = (number); // keep', 'type X = number;'],
+  ['const x = (f || g)<T>;', 'const x = f || g<T>;'],
+  ['o.m<T>?.(); type X = (number);', 'o.m?.<T>(); type X = number;'],
+  ['import type X = require("x"); type Y = (number);', 'import X = require("x"); type Y = number;'],
+]) notEqual(normalize(left), normalize(right));
+
+// Count boundary comparisons rather than wall time: independent types must scale linearly.
+let comparisons = 0;
+const countedBabel = { ...babel, types: { ...babel.types, traverseFast(ast, visit) {
+  babel.types.traverseFast(ast, node => {
+    const inner = node.type === 'TSParenthesizedType' ? node.typeAnnotation
+      : babel.types.isTSType(node) && node.extra?.parenthesized ? node : null;
+    if (inner) {
+      const { start } = inner;
+      inner.start = { valueOf() {
+        comparisons++;
+        return start;
+      } };
+    }
+    visit(node);
+  });
+} } };
+const batch = Array.from({ length: 128 }, (_, index) => `type T${ index } = (number);`).join('\n');
+equal(normalizeFixtureOutput(batch, countedBabel, parserOpts, 'babel-v7'), batch.replaceAll('(number)', 'number'));
+ok(comparisons > 0 && comparisons <= 256);
+
+echo(chalk.green('fixture-output-normalization: enum tails, type grouping and comparison boundaries passed'));

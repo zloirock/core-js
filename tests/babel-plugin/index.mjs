@@ -14,7 +14,7 @@ const { equal } = require('node:assert/strict');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
 
-const { normalizeEnumTrailingCommas } = await import('./fixture-output.mjs');
+const { normalizeFixtureOutput } = await import('./fixture-output.mjs');
 
 const { FIXTURE_SHARD, collectFixtures, defaultShardCount, emitShardSummary, runShards, shardSlice } =
   await import('./fixture-shards.mjs');
@@ -201,9 +201,9 @@ async function runFixture(directory) {
   const debugOutput = normalizeDriftingTargets(logs.length ? normalizeOutput(logs.join('\n')) : null);
   const warningsOutput = warns.length ? normalizeOutput(warns.join('\n')) : null;
   // Keep the default Babel 8 snapshots exact. Variant comparison and regeneration share
-  // the same narrow normalization so a cosmetic enum tail never needs a sidecar.
+  // the same narrow normalization for enum tails and redundant type parentheses.
   function normalizeCode(code) {
-    return normalizeEnumTrailingCommas(code, babel, parserOpts, BABEL_VARIANT);
+    return normalizeFixtureOutput(code, babel, parserOpts, BABEL_VARIANT);
   }
 
   // Apply the same resolved-target collapse to expected debug content as to actual

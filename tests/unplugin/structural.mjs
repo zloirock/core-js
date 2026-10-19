@@ -10,11 +10,18 @@
 // every nullish split, and babel prints the unsealed spelling; a seal under a NON-optional
 // continuation stays load-bearing and IS compared). `directive` stays - a re-quoted
 // prologue with escapes would change which directives the block carries
+// Statement lists split comma declarations and expression statements without moving
+// effects across a statement or scope boundary. Generated var lists without initializers
+// have no evaluation order; their declarations sort before names are canonicalized.
 // the MINTED names (`_ref3`, `_unused5`) number by emission order, which the two legs reach
-// differently once any earlier statement differs - the number is formatting, the identity is what
-// is compared: within each top-level statement a minted name maps to its order of first appearance
-// there (a hoisted `var _ref;` and the statement reading it each number their own)
+// differently once any earlier statement differs - the number is formatting, the binding is what
+// is compared. One map spans the program, so statement splits cannot erase reference identity.
+// Only declared bindings and their references rename; property names and free names stay exact.
+import { traverse } from 'estree-toolkit';
+
+const MINTED_NAME = /^_(?:ref|unused)\d*$/;
 let mintedNames = null;
+let mintedBindings = null;
 
 // Comments are a separate parser channel. Block indentation can reflow; text, kind,
 // multiplicity and order still participate in fixture comparison.
@@ -22,23 +29,62 @@ export function commentSignature(comments) {
   return comments.map(comment => [comment.type,
     comment.type === 'Block' ? comment.value.replaceAll(/\n[\t ]*/g, '\n') : comment.value]);
 }
-function canonicalMinted(name) {
-  if (!mintedNames || !/^_(?:ref|unused)\d*$/.test(name)) return name;
-  if (!mintedNames.has(name)) mintedNames.set(name, `${ name.replace(/\d+$/, '') }#${ mintedNames.size }`);
-  return mintedNames.get(name);
+function canonicalMinted(node) {
+  const binding = mintedBindings?.get(node);
+  if (!binding) return node.name;
+  if (!mintedNames.has(binding)) mintedNames.set(binding, `${ node.name.replace(/\d+$/, '') }#${ mintedNames.size }`);
+  return mintedNames.get(binding);
 }
 
 export function strip(node) {
   if (node?.type !== 'Program') return stripNode(node);
-  const body = node.body.filter(item => item?.type !== 'EmptyStatement').map(item => {
-    mintedNames = new Map();
+  mintedNames = new Map();
+  const bindings = new WeakMap();
+  try {
     try {
-      return stripNode(item);
-    } finally {
-      mintedNames = null;
+      traverse(node, {
+        $: { scope: true },
+        Identifier(path) {
+          if (!MINTED_NAME.test(path.node.name)) return;
+          const binding = path.scope.getBinding(path.node.name);
+          if (!binding || bindings.has(binding.identifierPath.node)) return;
+          for (const site of [binding.identifierPath, ...binding.references, ...binding.constantViolations]) {
+            bindings.set(site.node, binding);
+          }
+        },
+      });
+      mintedBindings = bindings;
+    } catch {
+      // Scope crawling does not support every TS signature. Keep all names exact on failure.
     }
+    return stripNode(node);
+  } finally {
+    mintedNames = null;
+    mintedBindings = null;
+  }
+}
+
+function sequenceItems(expressions) {
+  return expressions.flatMap(item => {
+    const expression = peelSpelling(item);
+    return expression?.type === 'SequenceExpression' ? sequenceItems(expression.expressions) : [item];
   });
-  return { ...stripNode({ ...node, body: [] }), body };
+}
+
+// Only statement lists may split. A for head, unbraced body and a callee keep their shape.
+function statementList(nodes) {
+  return nodes.filter(item => item?.type !== 'EmptyStatement').flatMap(node => {
+    if (node.type === 'VariableDeclaration') {
+      if (node.kind === 'var' && node.declarations.every(item => !item.init && item.id.type === 'Identifier' && MINTED_NAME.test(item.id.name))) {
+        return [{ ...node, declarations: node.declarations.toSorted((a, b) => a.id.name.localeCompare(b.id.name, 'en')) }];
+      }
+      return node.declarations.map(declaration => ({ ...node, declarations: [declaration] }));
+    }
+    const expression = node.type === 'ExpressionStatement' && !node.directive && peelSpelling(node.expression);
+    return expression?.type === 'SequenceExpression'
+      ? sequenceItems(expression.expressions).map(item => ({ ...node, expression: item }))
+      : [node];
+  });
 }
 
 function stripNode(node) {
@@ -47,15 +93,7 @@ function stripNode(node) {
   if (Array.isArray(node)) return node.filter(item => item?.type !== 'EmptyStatement').map(item => strip(item));
   if (node && typeof node === 'object') {
     if (node.type === 'SequenceExpression') {
-      const flat = [];
-      (function flatten(expressions) {
-        for (let item of expressions) {
-          while (item?.type === 'ParenthesizedExpression') item = item.expression;
-          if (item?.type === 'SequenceExpression') flatten(item.expressions);
-          else flat.push(item);
-        }
-      })(node.expressions);
-      return { expressions: flat.map(item => strip(item)), type: 'SequenceExpression' };
+      return { expressions: sequenceItems(node.expressions).map(item => strip(item)), type: 'SequenceExpression' };
     }
     // spelling-normalization loop, to a fixed point (a lift can expose the other):
     // `new ((f || g)<string>)()` == `new ((f || g))<string>()` - the instantiation is
@@ -86,7 +124,9 @@ function stripNode(node) {
     const out = {};
     for (const key of Object.keys(node).sort()) {
       if (key === 'start' || key === 'end' || key === 'loc' || key === 'range' || key === 'raw' || key === 'shorthand') continue;
-      out[key] = key === 'name' && node.type === 'Identifier' ? canonicalMinted(node[key]) : strip(node[key]);
+      const value = Array.isArray(node[key]) && (key === 'body' || node.type === 'SwitchCase' && key === 'consequent')
+        ? statementList(node[key]) : node[key];
+      out[key] = key === 'name' && node.type === 'Identifier' ? canonicalMinted(node) : strip(value);
     }
     return out;
   }
