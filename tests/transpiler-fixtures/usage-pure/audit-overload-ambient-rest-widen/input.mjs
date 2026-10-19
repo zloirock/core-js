@@ -5,7 +5,7 @@
 declare function ra(...xs: string[]): number[];
 declare function ra(x: number): string;
 export const viaRestCall = ra('a', 'b').at(0);
-export const viaDiscreteCall = ra(5).includes(1);
+export const viaDiscreteCall = ra(5).includes('1');
 
 // a SINGLE-head ambient still narrows precisely through the same by-name route
 declare function solo(x: number): number[];

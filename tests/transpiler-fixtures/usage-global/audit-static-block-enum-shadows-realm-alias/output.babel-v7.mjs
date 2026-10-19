@@ -7,6 +7,7 @@ export class C {
     enum globalThis {
       A,
     }
+    // @ts-expect-error the enum shadowing the realm name lacks the member, which is the shape under test
     const {
       Map: M
     } = globalThis;

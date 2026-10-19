@@ -9,5 +9,6 @@ class C {
     return _at(_ref = this.items).call(_ref, 0);
   }
 }
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 new C().items = "string";
 (new C() as any).getFirst();

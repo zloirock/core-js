@@ -6,5 +6,6 @@ type Foo = { kind: 'a'; data: string[] } | { kind: 'b'; data: number };
 function take(init: Foo) {
   let f: Foo = init;
   [f] = [{ kind: 'a', data: ['x'] } as Foo];
+  // @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
   return f.data.at(0);
 }

@@ -9,5 +9,6 @@ declare function readAnything(): unknown;
 function probe(x: unknown) {
   assertString(x);
   x = readAnything();
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return _at(x).call(x, 0);
 }

@@ -12,6 +12,7 @@ let r1;
 let r2;
 if (pick(e, f)) {
   r1 = _atMaybeString(e).call(e, 2);
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   r2 = _includes(f).call(f, 3);
 }
 export { r1, r2 };

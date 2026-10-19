@@ -5,6 +5,7 @@ var _ref;
 // call site so the array-specific polyfill variant is picked.
 type ElementOf<T> = T extends ReadonlyArray<infer U> ? U : never;
 function wrap<T extends readonly string[]>(x: T): ElementOf<T>[] {
+  // @ts-expect-error a return the annotation does not admit is the shape under test
   return _sliceMaybeArray(x).call(x);
 }
 _atMaybeArray(_ref = wrap(['a', 'b', 'c'])).call(_ref, 0);

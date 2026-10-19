@@ -3,7 +3,11 @@
 // `window` answers `true`, a present one reads the missing static plainly and throws as the source
 // does, past a `!` too. A paren ends the chain first, and the read past it throws on the short-circuit.
 const realm = globalThis;
+// @ts-expect-error a static the constructor lacks is the read under test
 export const viaRoot = delete globalThis.window?.Promise.noSuchStatic.slot;
+// @ts-expect-error a static the constructor lacks is the read under test
 export const viaAlias = delete realm.window?.WeakMap.noSuchStatic?.slot;
+// @ts-expect-error a static the constructor lacks is the read under test
 export const viaSelf = delete self.window?.Map.noSuchStatic!.slot;
+// @ts-expect-error a static the constructor lacks is the read under test
 export const sealed = delete (globalThis.window?.Set.noSuchStatic).slot;

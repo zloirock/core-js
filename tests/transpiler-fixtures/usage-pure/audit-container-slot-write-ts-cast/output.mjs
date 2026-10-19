@@ -20,6 +20,7 @@ const written = {
 (written as {
   k: unknown;
 }).k = _Map;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 const {
   k: {
     groupBy

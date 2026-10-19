@@ -12,4 +12,5 @@ unresolvable == null ? void 0 : _at(unresolvable).call(unresolvable, 0);
 declare const matching: number[] | string[];
 matching == null ? void 0 : _includesMaybeArray(matching).call(matching, 1);
 declare const partial: number[] | Date;
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 partial == null ? void 0 : _atMaybeArray(partial).call(partial, 0);

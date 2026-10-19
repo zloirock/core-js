@@ -29,11 +29,9 @@
 import { MAX_DEPTH, $Object, $Primitive, canonicalArrayIndex, dropLeadingThisParam, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments,
-  isMethodShapeMember,
   isQualifiedNameNode,
   isUnionType,
-  typeRefName,
-  withMemberModifiers,
+  memberTypeQuery,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
@@ -53,6 +51,7 @@ import {
   peelTSParenthesized,
   provablyPrecedes,
   reassignmentDominatesUsage,
+  staticKeyNames,
   staticMemberKeyName,
   writeNeverRuns,
   ESCAPED_CONTAINER_NAMES,
@@ -65,14 +64,14 @@ const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
 export function createMemberResolve({
   t,
+  typeofSource,
   getScopeBinding,
   isLiteralOf,
   unwrapTypeAnnotation,
   getTypeMembers,
   keyMatchesName,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
-  findBindingAnnotation,
-  bindingDestructuringPattern,
+  findNameAnnotation,
   findExpressionAnnotation,
   withLookupPath,
   functionTypeReturnAnnotation,
@@ -164,7 +163,7 @@ export function createMemberResolve({
   // the walk itself, split out so the caller can anchor the WHOLE of it on the declaration rather
   // than only the annotation read - see the anchor note at the call site
   function resolveMemberChainFrom(binding, props) {
-    let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
+    let annotation = unwrapTypeAnnotation(findNameAnnotation(binding.path));
     const scopeRef = binding.path.scope;
     // props collected leaf-first; consume from the end to walk root-down. last entry stays
     // for the leaf-member lookup below (its raw signature is what callers need).
@@ -423,10 +422,9 @@ export function createMemberResolve({
       // bound out of it - the rule `resolveBindingType` states before its own direct-annotation
       // lane. reading a member off it answers for the container wherever the container happens to
       // carry that key (a numeric index on a tuple: `const [, ...rest]: [string, number[]]` made
-      // `rest[0]` the source's element 0). skip it here and let the `findExpressionAnnotation`
-      // fallback below walk the destructure key path to the binding's own slot
-      annotation = bindingDestructuringPattern(binding.path.node)
-        ? null : unwrapTypeAnnotation(findBindingAnnotation(binding.path));
+      // `rest[0]` the source's element 0). `findNameAnnotation` reads none there, and the
+      // `findExpressionAnnotation` fallback below walks the destructure key path to the binding's own slot
+      annotation = unwrapTypeAnnotation(findNameAnnotation(binding.path));
       scope = binding.path.scope;
       anchorPath = binding.path;
       // identifier without explicit annotation: route through findExpressionAnnotation so
@@ -483,8 +481,15 @@ export function createMemberResolve({
     // declare const m: Q`) so the typeof branch below dispatches. peeling unconditionally
     // would break generic alias resolution (`Box<string[]>` -> `{val: T}` loses subst)
     annotation = swapAliasToTSTypeQueryWithSubst(annotation, scope);
-    // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
-    if (annotation.type === 'TSTypeQuery') {
+    // `x: typeof obj` of a binding declared or asserted with a type reads that type, not the value it holds
+    const declared = annotation.type === 'TSTypeQuery' ? typeofSource(annotation, scope) : null;
+    if (declared?.annotation) {
+      annotation = declared.annotation;
+      scope = declared.scope;
+    }
+    // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there. a member
+    // whose own path spells a type (`{ v: '' as string | string[] }`) is read through it by the lanes below
+    if (annotation.type === 'TSTypeQuery' && !typeofSource(memberTypeQuery(annotation.exprName, name), scope)?.annotation) {
       const resolved = resolveTypeQueryBinding(annotation, scope);
       if (resolved?.node) {
         if (t.isObjectExpression(resolved.node)) {
@@ -494,7 +499,12 @@ export function createMemberResolve({
         const ctx = resolveClassContext(resolved);
         if (ctx) {
           return resolveClassMember({
-            classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath, viaPrototype: ctx.viaPrototype,
+            classPath: ctx.classPath,
+            name,
+            isStatic: ctx.isStatic,
+            callPath,
+            receiverArgs: ctx.receiverArgs,
+            viaPrototype: ctx.viaPrototype,
           });
         }
         return null;
@@ -573,38 +583,29 @@ export function createMemberResolve({
     return classPathFromTypeDeclaration(segments, scope);
   }
 
-  // runtime analogue of `resolveKeyofSelfValueUnion`: `obj[k]` where `obj: T` (a typeparam)
-  // and `k: keyof T` (direct or constrained) folds T's constraint members into a value-union
-  function resolveKeyofSelfMemberViaTypeParam(path, objAnnotation, objScope) {
-    if (objAnnotation.type !== 'TSTypeReference') return null;
-    const name = typeRefName(objAnnotation);
-    if (!name) return null;
-    const param = findTypeParameter(name, objScope);
-    if (!param?.constraint) return null;
+  // `obj[k]` where `k: keyof X` (or a parameter constrained to it) and X is the object's type: the key
+  // ranges over X's keys, so the read is whatever a static read of each key reads, folded - a write or a
+  // hand-out the static read honours is honoured here too. keys X does not name one by one (an index
+  // signature, an open type parameter) leave the fold to the type `X[keyof X]`. a call through the key
+  // reads each value's return, which neither answers: generic there
+  function resolveKeyofSelfMember(path, callPath, objectType, objectScope) {
+    if (callPath) return null;
     const propInfo = findExpressionAnnotation(path.get('property'));
-    const propAnnotation = propInfo && unwrapTypeAnnotation(propInfo.annotation);
-    if (!propAnnotation) return null;
-    if (!isKeyofTargeting(propAnnotation, objAnnotation, propInfo.scope)) return null;
-    const members = getTypeMembers({ objectType: unwrapTypeAnnotation(param.constraint), scope: param.scope });
-    if (!members?.length) return null;
-    // `obj[k]` (k: keyof T) is a member VALUE. a data property / index value yields its annotation,
-    // and a GETTER (`kind === 'get'`) yields its return on access - both readable. but a regular
-    // METHOD's value is the function itself (not its return), and a SETTER yields nothing - so a
-    // method-shaped member that isn't a getter makes `obj[k]` a Function / undefined, which the
-    // readable-value union below can't represent. narrowing then would mis-dispatch (e.g.
-    // `_atMaybeArray` on a method that returns an array). bail to the generic helper (sound)
-    if (members.some(m => isMethodShapeMember(m.type) && m.kind !== 'get')) return null;
-    const valueAnnotations = [];
-    for (const m of members) {
-      const annotation = m.typeAnnotation ?? m.returnType;
-      // an untyped (implicit-any) member makes the union `any` - mirrors the annotation-side
-      // keyof-self fold: no surviving-member narrow is sound
-      if (!annotation) return null;
-      // ... and so does its optional-marker half: an optional member puts `undefined` in the union
-      valueAnnotations.push(withMemberModifiers(annotation, { optional: Boolean(m.optional) }));
-    }
-    if (!valueAnnotations.length) return null;
-    return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, param.scope));
+    const index = propInfo && unwrapTypeAnnotation(propInfo.annotation);
+    if (!index || !isKeyofTargeting(index, objectType, propInfo.scope)) return null;
+    const members = getTypeMembers({ objectType, scope: objectScope });
+    const keys = members && staticKeyNames(members);
+    if (!keys) return resolveTypeAnnotation({ type: 'TSIndexedAccessType', objectType, indexType: index }, objectScope);
+    const objectPath = path.get('object');
+    return keys.length ? foldUnionTypes(keys, key => resolveMemberOfObjectPath(objectPath, key, null)) : null;
+  }
+
+  // ... and an object read through its own binding (`obj[k]`, `k: keyof typeof obj`) has no annotation
+  // to hand over: its type is `typeof obj`
+  function resolveKeyofTypeofMember(path, callPath) {
+    const { object } = path.node;
+    if (object?.type !== 'Identifier') return null;
+    return resolveKeyofSelfMember(path, callPath, { type: 'TSTypeQuery', exprName: { type: 'Identifier', name: object.name } }, path.scope);
   }
 
   // computed dynamic-key member access via TSIndexSignature: `obj[k]` where
@@ -641,7 +642,7 @@ export function createMemberResolve({
         .filter(b => !isNullableOrNeverAnnotation(b))
         .map(lookup)
         .filter(Boolean);
-      if (!infos.length) return resolveKeyofSelfMemberViaTypeParam(path, unwrapped, objInfo.scope);
+      if (!infos.length) return resolveKeyofSelfMember(path, callPath, unwrapped, objInfo.scope);
       const vals = [];
       for (const info of infos) {
         const v = resolveIndexValue(info);
@@ -660,7 +661,7 @@ export function createMemberResolve({
     }
     const info = lookup(target);
     if (info) return resolveIndexValue(info);
-    return resolveKeyofSelfMemberViaTypeParam(path, unwrapped, objInfo.scope);
+    return resolveKeyofSelfMember(path, callPath, unwrapped, objInfo.scope);
   }
 
   // --- Runtime dispatch (receiver-aware MemberExpression) ---
@@ -810,7 +811,7 @@ export function createMemberResolve({
       // computed access without a statically-resolvable key (`obj[k]` where k is a
       // dynamic Identifier): if obj has a TSIndexSignature, resolve to its value type.
       // routed via the same annotation-based path as named member access for symmetry
-      if (path.node.computed) return resolveIndexSignatureMember(path, callPath);
+      if (path.node.computed) return resolveIndexSignatureMember(path, callPath) ?? resolveKeyofTypeofMember(path, callPath);
       return null;
     }
     return resolveMemberOfObjectPath(path.get('object'), name, callPath);
@@ -875,6 +876,7 @@ export function createMemberResolve({
         name,
         isStatic: ctx.isStatic,
         callPath,
+        receiverArgs: ctx.receiverArgs,
         viaPrototype: ctx.viaPrototype,
         viaThis: t.isThisExpression(objectPath.node),
         unionHints,

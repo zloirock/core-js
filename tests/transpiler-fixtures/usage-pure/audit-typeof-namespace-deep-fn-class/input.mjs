@@ -13,4 +13,5 @@ declare const r: R;
 r.at(0);
 type H = typeof NS.Inner.Holder;
 declare const h: InstanceType<H>;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 h.items.findLast(x => true);

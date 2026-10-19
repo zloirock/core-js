@@ -13,4 +13,5 @@ function g(cond: boolean) {
   if (cond) return [1];
   return [2, 3];
 }
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 export const viaAlwaysExits = (g(c) ?? 'fallback').includes(1);

@@ -7,12 +7,14 @@ class Outer {
     enum Map {
       Outer
     }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     outer = new Map.Outer();
     class Inner {
       static {
         enum Map {
           Inner
         }
+        // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
         inner = new Map.Inner();
       }
     }

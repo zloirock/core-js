@@ -20,7 +20,9 @@ type Multi = {
 export function exactWrite(u: Multi) {
   if (u.m.k === 'a') {
     var _ref;
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     u.m.k = 'b';
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     return _includes(_ref = u.val).call(_ref, 'x');
   }
   return undefined;

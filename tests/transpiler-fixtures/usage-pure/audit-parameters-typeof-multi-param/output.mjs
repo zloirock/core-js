@@ -10,4 +10,5 @@ function fn(x: string, y: number) {
   return x;
 }
 declare const args: Parameters<typeof fn>;
+// @ts-expect-error a union whose other arm lacks the member is the shape under test
 null == (_ref = _atMaybeArray(args).call(args, 0)) ? void 0 : _at(_ref).call(_ref, -1);

@@ -13,4 +13,5 @@ declare const boxes: {
 }[] | null;
 boxes == null ? true : delete _atMaybeArray(boxes).call(boxes, -1)!.k;
 boxes == null ? true : delete _findLastMaybeArray(boxes).call(boxes, Boolean)!!.j!.k;
+// @ts-expect-error a delete tsc refuses is the shape under test
 delete (boxes == null ? void 0 : _toReversedMaybeArray(boxes).call(boxes))!.k;

@@ -27,6 +27,7 @@ declare namespace AmbientNamespace {
     ...rest
   }: O): void;
 }
+// @ts-expect-error an ambient module declared from a module file is the shape under test
 declare module "ambient-module" {
   export function f({
     e,

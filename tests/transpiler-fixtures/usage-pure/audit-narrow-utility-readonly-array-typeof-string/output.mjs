@@ -8,4 +8,6 @@ function probe(input: ReadonlyArray<number>) {
   if (typeof input === "string") return null;
   return _atMaybeArray(input).call(input, 0);
 }
+
+// @ts-expect-error the call supplies nothing, so only the annotation types the parameter
 probe();

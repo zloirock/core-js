@@ -89,9 +89,11 @@ const {
 const [{
   of
 }] = [(init(), c ? Array : Int8Array)];
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const [{
   fromEntries
 }] = [(init(), (c ? Map : Object) satisfies object)];
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const {
   W: {
     hasOwn
@@ -99,6 +101,7 @@ const {
 } = {
   W: (init(), c ? Reflect : Object)
 };
+// @ts-expect-error a selection whose other arm lacks the member is the shape under test
 const {
   W: {
     entries

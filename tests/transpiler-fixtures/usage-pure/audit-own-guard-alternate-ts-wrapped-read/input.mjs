@@ -17,6 +17,7 @@ export const viaCast = h === Array ? _Array$of : (h.of as any);
 export const viaNonNull = h === Array ? _Array$of : h.of!;
 export const viaAssertion = h === Array ? _Array$of : <any>h.of;
 export const viaSatisfies = h === Array ? _Array$of : (h.of satisfies any);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 export const viaInstantiation = h === Array ? _Array$of : h.of<any>;
 export const viaWrappedComposition = h === Array ? _Array$of : (h.of as any).bind(h);
 export const belowTheRead = h === Array ? _Array$of : (h as any).of;

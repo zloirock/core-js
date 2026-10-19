@@ -37,7 +37,9 @@ class Boxed {
   Map: any, @inject(new Set())
   other: any) {
     let Set = 1;
+    // @ts-expect-error dynamic JS adds a member the declared type lacks
     this.first = new WeakMap();
+    // @ts-expect-error a return the annotation does not admit is the shape under test
     return [Map, other, Set];
   }
   reach() {

@@ -15,6 +15,7 @@ export const viaMergedOptional = new Box().test();
 // a REQUIRED merged-interface property still folds to its precise family
 class Crate {
   test() {
+    // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
     return (this.items ?? 'fallback').includes(1);
   }
 }

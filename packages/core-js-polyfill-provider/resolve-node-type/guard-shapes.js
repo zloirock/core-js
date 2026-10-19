@@ -13,9 +13,11 @@
 // the record's fields: `kind` and the kind's payload (`value` / `constructorName` / `values`);
 // `negated` - the parser's polarity INPUT (the test's own `!` and `!==`), folded with the branch
 // into `positive` by `stampPolarity` and read by nothing after that fold; `positive` - the whole
-// polarity every consumer reads; and two optional stamps - `optionalCall` (`markOptionalCall`: the
+// polarity every consumer reads; and three optional stamps - `optionalCall` (`markOptionalCall`: the
 // guard's call may have short-circuited without testing its argument, so it is trusted only where
-// it provably ran) and `annotation` / `scope` (a predicate's declared target, for member resolution)
+// it provably ran), `partial` (`guardFromHint`: a built-in predicate true for only part of its type,
+// so its false answer proves nothing) and `annotation` / `scope` (a predicate's declared target, for
+// member resolution). `guardProves` is what every consumer asks of the first two
 //   isTypeofVar(node, varName)                - `typeof varName` (peeled through TS wrappers)
 //
 // Factory-shaped surface (`createPredicateGuards`) parses `function isFoo(x): x is T` and
@@ -81,9 +83,19 @@ export function markOptionalCall(guard, optionalCall) {
   return guard;
 }
 
-// hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object)
+// hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object).
+// the ONE writer of `partial` - a registry guard true for only part of its type (`Number.isFinite`)
 export function guardFromHint(hint, negated) {
-  return PRIMITIVES.has(hint.type) ? typeofGuard(hint.type, negated) : instanceofGuard(hint.type, negated);
+  const guard = PRIMITIVES.has(hint.type) ? typeofGuard(hint.type, negated) : instanceofGuard(hint.type, negated);
+  if (hint.partial) guard.partial = true;
+  return guard;
+}
+
+// does the guard prove anything in the polarity it holds? a true answer always does; a false one only
+// when the call surely ran (no `optionalCall`) and the predicate covers its whole type (no `partial`) -
+// `Number.isFinite(x)` false leaves `x` a possible `NaN`
+export function guardProves(guard) {
+  return guard.positive || !(guard.optionalCall || guard.partial);
 }
 
 // convert a resolved type back to a typeof / instanceof guard. types that can't be
@@ -152,7 +164,7 @@ export function createPredicateGuards({
   memberCallParams,
   resolveBindingReturnInfo,
   findAmbientFunctionPaths,
-  findBindingAnnotation,
+  findNameAnnotation,
   resolveTypeAnnotation,
 }) {
   // what the call says about an argument's TYPE with no path to resolve it through: a literal spells
@@ -168,7 +180,7 @@ export function createPredicateGuards({
     const unwrapped = unwrapSafeSequenceTail(argNode);
     if (unwrapped.type !== 'Identifier') return null;
     const binding = getScopeBinding({ scope, name: unwrapped.name });
-    const annotation = binding ? unwrapTypeAnnotation(findBindingAnnotation(binding.path)) : null;
+    const annotation = binding ? unwrapTypeAnnotation(findNameAnnotation(binding.path)) : null;
     return keywordPrimitiveKind(annotation);
   }
 

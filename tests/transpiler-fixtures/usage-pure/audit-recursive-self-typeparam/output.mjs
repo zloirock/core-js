@@ -6,4 +6,5 @@ type R<T = R<string[]>> = {
   val: T;
 };
 declare const x: R;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = x.val).call(_ref, 0);

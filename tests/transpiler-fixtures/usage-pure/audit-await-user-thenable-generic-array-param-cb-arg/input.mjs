@@ -10,3 +10,4 @@ class Box<T> {
 declare const b: Box<string>;
 const arr = await b;
 arr.includes("a");
+export {};

@@ -9,6 +9,7 @@ type Opaque = {
 };
 declare const opaque: Opaque;
 declare function parse<T = string[]>(x: T | null): T;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _at(_ref = parse(opaque)).call(_ref, 0);
 declare const s: string;
 declare function pick<T, U = number[]>(t: T, u: U): U;

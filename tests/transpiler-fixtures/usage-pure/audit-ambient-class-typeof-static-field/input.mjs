@@ -4,4 +4,4 @@
 // the rewrite diverges from estree-toolkit (which binds it).
 declare class K { static rows: string[]; }
 declare const v: typeof K.rows;
-v.includes(1);
+v.includes('1');

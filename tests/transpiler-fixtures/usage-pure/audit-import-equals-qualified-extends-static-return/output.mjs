@@ -4,6 +4,7 @@ var _ref;
 // the parent class via the path-walker's import-equals branch, so the inherited static return
 // (`C.head<string>()` -> `string[]`) narrows `.at` to the array variant
 namespace M {
+  // @ts-expect-error an overload head without its implementation is the shape under test
   export class Base {
     static head<T>(): T[];
   }

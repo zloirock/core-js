@@ -8,6 +8,7 @@ function pick(x: unknown, self: {
   Array: any;
 }) {
   if (x instanceof self.Array) {
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     return _at(x).call(x, 0);
   }
   return null;

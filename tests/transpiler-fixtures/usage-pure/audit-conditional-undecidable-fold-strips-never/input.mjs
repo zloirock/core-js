@@ -4,3 +4,4 @@ type Pick<K> = K extends string ? { v: number[] } : never;
 declare const p: Pick<'x'>;
 p.v.at(0);
 p.v.flat();
+export {};

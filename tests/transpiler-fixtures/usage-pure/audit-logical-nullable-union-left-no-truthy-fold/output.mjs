@@ -11,6 +11,7 @@ var _ref, _ref2, _ref3, _ref4;
 declare const r: number[] | null;
 declare const arr: string[];
 _at(_ref = r ?? 'fallback').call(_ref, 0);
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 _includes(_ref2 = r || 'fallback').call(_ref2, 'f');
 _atMaybeString(_ref3 = r && 'tail').call(_ref3, 1);
 _includesMaybeArray(_ref4 = arr ?? 'x').call(_ref4, 'y');

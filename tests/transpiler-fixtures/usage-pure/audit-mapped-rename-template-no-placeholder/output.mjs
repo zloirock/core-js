@@ -10,4 +10,5 @@ declare const r: Filter<{
   abcdef: string[];
 }>;
 _atMaybeArray(_ref = r.abc).call(_ref, 0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _includes(_ref2 = r.abcdef).call(_ref2, 'a');

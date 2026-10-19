@@ -12,4 +12,5 @@ class C {
 }
 const c = new C();
 (c as any).getFirst();
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
 c.items = "string";

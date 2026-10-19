@@ -6,6 +6,7 @@ import _Promise$race from "@core-js/pure/actual/promise/race";
 export function viaNonNullInstantiation(c) {
   let P5;
   if (c) P5 = _Promise;
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return (P5 === _Promise ? _Promise$race : P5.race.bind(P5))!<number>([]);
 }
 export const r = [viaNonNullInstantiation(true)];

@@ -1,9 +1,11 @@
 import "core-js/modules/es.array.at";
 // A mutually recursive pair of union aliases, with BOTH members of the pair referenced from one union.
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Ping = Pong | {
   kind: "a";
   items: string[];
 };
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 type Pong = Ping | {
   kind: "b";
   items: string[];

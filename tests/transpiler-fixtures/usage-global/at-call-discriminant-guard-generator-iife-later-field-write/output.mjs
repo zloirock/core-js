@@ -35,7 +35,9 @@ export function viaGenerator(o: A | B) {
     const it = function* () {
       yield o.v.at(0);
     }();
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     o.kind = 'b';
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     o.v = [1, 2];
     return it;
   }
@@ -47,7 +49,9 @@ export function viaAsync(o: A | B) {
       await 0;
       return o.v.includes('x');
     })();
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     o.kind = 'b';
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     o.v = [1, 2];
     return p;
   }

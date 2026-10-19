@@ -6,4 +6,5 @@
 enum require {
   foo = 1,
 }
+// @ts-expect-error a call of the user's shadowing binding, which tsc refuses, is the shape under test
 require('core-js/actual/array/from');

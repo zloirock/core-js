@@ -6,6 +6,7 @@
 function take(init: { data: string[] | number }) {
   let f = init;
   ({ x: f } = { x: { data: ['y'] } });
+  // @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
   return f.data.at(0);
 }
 export { take };

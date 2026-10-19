@@ -1,6 +1,4 @@
-// mid-arg comments (between args, not around them) must survive: argument-source
-// extraction takes every byte between the parens, including comments and whitespace
-// that fall between consecutive arguments
+// a comment between two arguments of a `super` static survives the rewrite between the same two
 class X extends Array {
   static of(x, y) { return super.of(x, /* between */ y); }
 }

@@ -18,6 +18,7 @@ const babelTraverse = _babelTraverse.default ?? _babelTraverse;
 export const babelAdapter = {
   name: 'babel',
   parseAndScope(code, sourceType = 'module', extraPlugins = []) {
+    scenarioSource(code, { extraPlugins });
     // flow and typescript are mutually exclusive at the parser level - a flow scenario
     // supplies its own plugin set instead of extending the typescript default
     const plugins = extraPlugins.includes('flow') ? extraPlugins : ['typescript', ...extraPlugins];
@@ -58,6 +59,7 @@ const oxcAdapter = {
   // babel-only). a 'script' sourceType parses sloppy-mode (Annex-B block-function hoisting); use
   // a `.js` name so oxc doesn't apply TS module rules
   parseAndScope(code, sourceType = 'module', extraPlugins = []) {
+    scenarioSource(code, { extraPlugins });
     // oxc keys the language off the FILENAME: a `.ts` name parses `<X ... />` as a type
     // assertion, so a JSX scenario must ask for the `.tsx` grammar the same way the babel
     // adapter asks for its `jsx` plugin
@@ -127,10 +129,54 @@ export function findTypeNode(root, type) {
   return findNode(root, node => node.type === type);
 }
 
+// every scenario source the suites hand to a parser, once per source and dialect, with the suite's own
+// word on what `tsc` makes of its sources (`tsc-validity.mjs` reads both once the suites have run).
+// `runBoth` / `runBothAndAgree` record a source with its label and suite, an adapter records whatever
+// a suite parses through it directly, and a source a suite writes and hands to an emitter or a parser
+// of its own in a TS dialect is recorded at that call by `scenarioSource` (a JS-only channel cannot
+// parse a TS row at all)
+export const scenarioSources = [];
+export const suiteTscIntents = new Map();
+const suiteFiles = new Map();
+const recordedSources = new Map();
+const STACK_FRAME = /(?<url>file:\/\/[^\s)]+?):(?<line>\d+):\d+/g;
+
+// record a source once per dialect and text, and hand it back, so a call wraps the literal it passes
+// on. a record without its suite keeps the stack of the call, which names the suite and the line
+export function scenarioSource(code, { extraPlugins = [], label = null, suite = null } = {}) {
+  const dialect = extraPlugins.includes('flow') ? 'flow' : extraPlugins.includes('jsx') ? 'tsx' : 'ts';
+  if (!recordedSources.has(dialect)) recordedSources.set(dialect, new Set());
+  const recorded = recordedSources.get(dialect);
+  if (recorded.has(code)) return code;
+  recorded.add(code);
+  scenarioSources.push({ code, dialect, label, suite, site: suite === null ? new Error('scenario source') : null });
+  return code;
+}
+
+// the suite a source recorded without one came from, and the line of the call that handed it over
+export function scenarioOrigin({ suite, site }) {
+  for (const { groups: { url, line } } of site?.stack.matchAll(STACK_FRAME) ?? []) {
+    if (suiteFiles.has(url)) return { suite: suite ?? suiteFiles.get(url), where: `${ url.slice(url.lastIndexOf('/') + 1) }:${ line }` };
+  }
+  return { suite, where: null };
+}
+
+// the marker line a generated row puts above the line `tsc` rejects on purpose; a row `tsc` accepts
+// passes no reason and gets no line, so one template serves both
+export function expectError(why) {
+  return why ? `// @ts-expect-error ${ why }\n` : '';
+}
+
 // suite factory. `name` is used by `finish()` for the summary line + Error message;
 // counts are per-suite so each file reports independently. `echo` / `chalk` are zx
-// globals - imported modules see them on `globalThis` via the bare identifier
-export function createChecker(name) {
+// globals - imported modules see them on `globalThis` via the bare identifier.
+// `tsc`: why the suite's sources are not held to `tsc` at all - a suite whose TS syntax only wraps
+// dynamic JavaScript the checker cannot type. a single row's deliberate invalidity is marked in its
+// source instead, by a `// @ts-expect-error <why>` line above the line `tsc` rejects
+export function createChecker(name, { tsc } = {}) {
+  if (tsc !== undefined) suiteTscIntents.set(name, tsc);
+  const caller = new Error('suite').stack.matchAll(STACK_FRAME).find(({ groups }) => groups.url !== import.meta.url);
+  if (caller) suiteFiles.set(caller.groups.url, name);
   const { cyan, green, red } = chalk;
   const counts = { passed: 0, failed: 0 };
 
@@ -184,6 +230,7 @@ export function createChecker(name) {
   // run scenario against BOTH parsers; scenario is `(adapter, programPath, label) => void`.
   // `extraPlugins` is passed to babel's parser (oxc auto-enables based on file extension)
   function runBoth(label, code, scenario, extraPlugins, sourceType) {
+    scenarioSource(code, { extraPlugins, label, suite: name });
     for (const adapter of adapters) {
       try {
         const programPath = adapter.parseAndScope(code, sourceType, extraPlugins);
@@ -204,6 +251,7 @@ export function createChecker(name) {
   // must assert that separately. throws inside `extract` are caught and
   // reported as failures - same contract as runBoth
   function runBothAndAgree(label, code, extract, extraPlugins) {
+    scenarioSource(code, { extraPlugins, label, suite: name });
     const results = [];
     for (const adapter of adapters) {
       try {

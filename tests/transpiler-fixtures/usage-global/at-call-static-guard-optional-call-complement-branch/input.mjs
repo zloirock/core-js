@@ -9,5 +9,6 @@ export function optionalCall(value: number[] | string) {
 }
 export function optionalReceiver(value: number[] | string) {
   if (Array?.isArray(value)) return null;
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   return value.includes(1);
 }

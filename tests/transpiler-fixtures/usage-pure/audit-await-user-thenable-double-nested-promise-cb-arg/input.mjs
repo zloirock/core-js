@@ -11,3 +11,4 @@ class Box {
 declare const b: Box;
 const arr = await b;
 arr.at(0);
+export {};

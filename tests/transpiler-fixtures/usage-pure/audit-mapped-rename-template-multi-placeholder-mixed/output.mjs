@@ -10,4 +10,6 @@ declare const r: Pick<{
   no_match: boolean;
 }>;
 _atMaybeArray(_ref = r.foo_42).call(_ref, 0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _includes(_ref2 = r.a_b_42).call(_ref2, 'x');
+export {};

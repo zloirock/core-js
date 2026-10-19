@@ -4,3 +4,4 @@
 declare const Map: any;
 const m = new Map();
 m.has(1);
+export {};

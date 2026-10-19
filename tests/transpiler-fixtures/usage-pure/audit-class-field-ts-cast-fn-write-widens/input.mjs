@@ -3,6 +3,7 @@
 // `_at` instead of an array-specific Maybe (the field is a string at runtime once `reset` runs)
 class C {
   field = [1, 2];
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   reset = (() => { this.field = "s"; }) as () => void;
   m() {
     return this.field.at(0);

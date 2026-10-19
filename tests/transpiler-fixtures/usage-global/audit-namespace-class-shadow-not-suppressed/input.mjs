@@ -6,4 +6,4 @@ namespace N {
     size = 0;
   }
 }
-new Set().union([1]);
+new Set().union(new Set([1]));

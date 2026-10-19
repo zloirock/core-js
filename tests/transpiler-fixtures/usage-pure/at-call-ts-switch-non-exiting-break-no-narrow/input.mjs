@@ -9,6 +9,7 @@ function f(x: string[] | number) {
       case 2: break;
     }
   }
+  // @ts-expect-error a union whose other arm lacks the member is the shape under test
   return x.at(0);
 }
 export { f };

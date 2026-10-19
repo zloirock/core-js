@@ -3,6 +3,7 @@ var _ref;
 // import-equals alias to a NESTED namespace (`import IM = M.Sub`, multi-segment moduleReference):
 // the path-walker re-walks the alias target's segments to resolve the qualified `extends IM.Base`,
 // so the inherited static return narrows `.at` to the array variant
+// @ts-expect-error an overload head without its implementation is the shape under test
 namespace M {
   export namespace Sub {
     export class Base {

@@ -3,8 +3,10 @@
 // it (round-trip `String(n) === key`) and fall back to the generic helper, instead of `Number("1.0")=1`
 // mis-reading element 1 (string[]) and emitting a type-specific `_atMaybeArray`. The canonical `T["1"]`
 // still resolves to element 1 (string[]) -> `_includesMaybeArray`
+// @ts-expect-error an index into a type parameter tsc cannot key is the shape under test
 declare function pickBad<T extends [string, string[]]>(t: T): T["1.0"];
 declare function pickGood<T extends [string, string[]]>(t: T): T["1"];
 const tup: [string, string[]] = ["x", ["y"]];
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 pickBad(tup).at(0);
 pickGood(tup).includes("z");

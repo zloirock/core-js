@@ -9,6 +9,7 @@ function f(a: any, {
   return x;
 }
 declare const args: any[];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 _at(_ref = f(...args, {
   x: [1, 2, 3]
 })).call(_ref, 0);

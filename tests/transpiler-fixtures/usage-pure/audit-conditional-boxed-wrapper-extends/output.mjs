@@ -15,5 +15,6 @@ declare const contained: Contained<string>;
 declare const wide: Wide<string>;
 _atMaybeArray(matched).call(matched, 0);
 _includesMaybeString(mismatched).call(mismatched, "a");
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 contained.find(x => x);
 _joinMaybeArray(wide).call(wide, "-");

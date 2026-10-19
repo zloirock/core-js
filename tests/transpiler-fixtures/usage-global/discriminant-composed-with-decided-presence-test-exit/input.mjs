@@ -4,5 +4,6 @@
 type Box = { kind: 'text'; data: string } | { kind: 'list'; data: number[] };
 export function exit(box: Box) {
   if (typeof Promise != 'undefined' && box.kind !== 'text') return;
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   return box.data.includes('b');
 }

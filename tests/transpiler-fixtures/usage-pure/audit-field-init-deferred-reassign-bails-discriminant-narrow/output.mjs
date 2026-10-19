@@ -13,4 +13,5 @@ function f(v: string | number[]) {
   }
   return undefined;
 }
+// @ts-expect-error the argument crosses the parameter annotation on purpose, which is the shape under test
 f([[1]]);

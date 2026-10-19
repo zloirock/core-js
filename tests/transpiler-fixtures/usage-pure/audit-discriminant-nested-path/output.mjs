@@ -19,6 +19,7 @@ function gn(u: U) {
   if (u.m.k === 'a') _atMaybeArray(_ref = u.xs).call(_ref, 0);
 }
 // switch over a nested discriminant narrows its cases
+// @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
 function gs(u: U) {
   var _ref2;
   switch (u.m.k) {
@@ -27,6 +28,7 @@ function gs(u: U) {
   }
 }
 // an optional-chained test still narrows the positive branch
+// @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
 function go(u: U) {
   var _ref3;
   if (u?.m?.k === 'a') _toSplicedMaybeArray(_ref3 = u.xs).call(_ref3, 0, 1);
@@ -47,6 +49,7 @@ type D = {
   };
   xs: string;
 };
+// @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
 function gd(u: D) {
   var _ref4;
   if (u.a.b.c === 'x') _flatMaybeArray(_ref4 = u.xs).call(_ref4);

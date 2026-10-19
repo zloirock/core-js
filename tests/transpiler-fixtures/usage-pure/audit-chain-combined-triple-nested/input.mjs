@@ -5,4 +5,4 @@
 // ride the chain inside the alternate - the short-circuit skips them like native;
 // TS-annotated args pass through verbatim
 const arr = [1, 2];
-arr.flat?.().map(x => x * 2).filter?.().reduce?.((a: number, b: number) => a + b, 0).toString();
+arr.flat?.().map(x => x * 2).filter?.(Boolean).reduce?.((a: number, b: number) => a + b, 0).toString();

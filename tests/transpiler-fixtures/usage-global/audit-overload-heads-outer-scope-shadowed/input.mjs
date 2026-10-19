@@ -8,7 +8,9 @@
 // falling back to the family-agnostic helper. Either read alone leaves one flavor blind.
 declare function convert(input: number): number[];
 declare function widen(input: number): number[];
+// @ts-expect-error overload signatures tsc refuses are the shape under test
 export declare function exported(input: number): string;
+// @ts-expect-error overload signatures tsc refuses are the shape under test
 export declare function exported(input: string): number[];
 export function exported(input: any) { return input; }
 

@@ -7,4 +7,5 @@ enum HopName {
 }
 // a `delete` over the same enum-spelled hop lands the operator's ROOT binding, as it does for every
 // other spelling of that key - the fold's own rule, not the run's landing
+// @ts-expect-error a realm member the lib does not declare stands for any global the user adds
 export const r18 = delete _globalThis.customQ;

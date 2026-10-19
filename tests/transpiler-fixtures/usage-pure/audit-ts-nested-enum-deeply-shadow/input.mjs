@@ -4,6 +4,7 @@
 export function outer() {
   if (Math.random() < 0.5) {
     enum Map { A = 1 }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     return new Map();
   }
   return null;

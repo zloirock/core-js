@@ -7,3 +7,4 @@ declare global {
   }
 }
 GBox.make<string>().at(0);
+export {};

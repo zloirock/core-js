@@ -19478,6 +19478,168 @@ function * generateStaticHandOuts() {
   }
 }
 
+// --- an OPEN type parameter read inside the body that declares it ---
+// there the parameter is whatever the caller passed within its constraint: its default binds only a
+// use that supplies nothing, and a `keyof` read is bounded by a `string` index signature of the
+// constraint alone. a class's own parameters are bound only by what its receiver spells, so a `this`,
+// a `super` and an instance whose arguments the construction infers leave them open too. every row
+// passes a STRING where the plausible wrong answer - the default, or the array arm of the index value
+// - is an array, so only the stripped realm tells the array helper from the generic one. the axes are
+// the scope the parameter is found through and the receiver a class member is read off; each class
+// row declares only the members it reads, or a generic read beside it masks the usage-global leg
+const OTP_CLASS = 'class Box<T extends string | number[] = number[]> { v: T; constructor(v: T) { this.v = v; }';
+const OPEN_TYPE_PARAM_READS = [
+  ['default/function', 'function last<T extends string | number[] = number[]>(x: T) { return x.at(-1); }'
+    + ' return String(last("xy"));'],
+  ['default/arrow', 'const last = <T extends string | number[] = number[]>(x: T) => x.at(-1); return String(last("xy"));'],
+  ['default/method', 'class A { last<T extends string | number[] = number[]>(x: T) { return x.at(-1); } }'
+    + ' return String(new A().last("xy"));'],
+  ['default/nested-function', 'function outer<T extends string | number[] = number[]>(x: T) {'
+    + ' function inner() { return x.at(-1); } return inner(); } return String(outer("xy"));'],
+  ['class/this', `${ OTP_CLASS } last() { return this.v.at(-1); } } return String(new Box("xy").last());`],
+  ['class/super', `${ OTP_CLASS } get(): T { return this.v; } }`
+    + ' class Sub extends Box<string> { last() { return super.get().at(-1); } } return String(new Sub("xy").last());'],
+  ['class/new-inferred', `${ OTP_CLASS } } return String(new Box("xy").v.at(-1));`],
+  ['class/new-explicit', `${ OTP_CLASS } } return String(new Box<string>("xy").v.at(-1));`],
+  ['class/held-instance', `${ OTP_CLASS } get(): T { return this.v; } } const held = new Box("xy"); return String(held.get().at(-1));`],
+  ['keyof-index/value-read', 'function last<T extends Record<string, string | number[]>>(t: T, k: keyof T) { return t[k].at(-1); }'
+    + ' return String(last({ a: "xy" }, "a"));'],
+  ['keyof-index/type-level', 'function last<T extends Record<string, string | number[]>>(v: T[keyof T]) { return v.at(-1); }'
+    + ' return String(last<{ a: string }>("xy"));'],
+];
+function * generateOpenTypeParamReads() {
+  for (const [id, body] of OPEN_TYPE_PARAM_READS) {
+    yield { ...snippet(`open-type-param-reads/${ id }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
+// --- a read through a `keyof` key ---
+// `obj[k]` with `k: keyof X` folds the values of X, the object's declared type: a CALL through the key
+// reads what a value returns, so it must stay generic (a value-typed answer left it without any
+// polyfill), and a declared type wider than the literal the binding holds wins over the literal (a key
+// the literal omits holds a string here, where the literal's own values are arrays). every row passes
+// a string where the wrong answer is an array, or nothing at all
+const KEYOF_KEY_READS = [
+  ['call/type-parameter', 'function last<T extends Record<string, () => string[]>>(t: T, k: keyof T) { return t[k]().at(-1); }'
+    + ' return String(last({ one: () => ["x", "y"] }, "one"));'],
+  ['call/typeof-binding', 'const makers = { one: () => ["x", "y"] }; function last(k: keyof typeof makers) { return makers[k]().at(-1); }'
+    + ' return String(last("one"));'],
+  ['read/declared-wider-than-literal', 'interface Box { items: number[]; label?: string } const box: Box = { items: [1] }; box.label = "xy";'
+    + ' function last(k: keyof typeof box) { return String(box[k]!.at(-1)); } return last("label");'],
+  ['read/asserted-wider-than-literal', 'interface Box { items: number[]; label?: string } const box = { items: [1] } as Box; box.label = "xy";'
+    + ' function last(k: keyof typeof box) { return String(box[k]!.at(-1)); } return last("label");'],
+];
+function * generateKeyofKeyReads() {
+  for (const [id, body] of KEYOF_KEY_READS) {
+    yield { ...snippet(`keyof-key-reads/${ id }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
+// --- an indexed access through an alias instantiation ---
+// an alias hands its indexed-access body the argument each parameter was instantiated with, also
+// through another alias: every row pairs a parameter holding strings with one holding arrays, so
+// reading the wrong one serves the array helper to a string - which only the stripped realm tells
+// apart. a generic callee's indexed return reads its arguments only off a declared signature, which
+// a snippet cannot run, so the fixtures hold that half
+const IA_TYPES = 'interface Nums { n: number[] } interface Strs { s: string }';
+const INDEXED_ACCESS_INSTANTIATIONS = [
+  ['alias/second-parameter', `${ IA_TYPES } type Second<A, B> = B[keyof B];`
+    + ' function last(v: Second<Nums, Strs>) { return v.at(-1); } return String(last("xy"));'],
+  ['alias/handed-on-swapped', `${ IA_TYPES } type Second<A, B> = B[keyof B]; type Flip<A, B> = Second<B, A>;`
+    + ' function last(v: Flip<Strs, Nums>) { return v.at(-1); } return String(last("xy"));'],
+  ['alias/literal-key', `${ IA_TYPES } type Get<T, K extends keyof T> = T[K]; interface Both { n: number[]; s: string }`
+    + ' function last(v: Get<Both, "s">) { return v.at(-1); } return String(last("xy"));'],
+];
+function * generateIndexedAccessInstantiations() {
+  for (const [id, body] of INDEXED_ACCESS_INSTANTIATIONS) {
+    yield { ...snippet(`indexed-access-instantiations/${ id }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
+// --- a loop test over its body ---
+// a `while` / `for` test narrows the body as an `if` test narrows its consequent, asked again before
+// every run: the negative rows hold an ARRAY where the test proved a string - written before the use,
+// written in the test, run before the first test (`do-while`), or behind the back edge of a loop under
+// an outer guard - so a narrow that outlived the proof serves the string helper to an array, which only
+// the stripped realm tells apart; the positive rows keep the narrow the test does prove
+const LOOP_TEST_GUARDS = [
+  ['narrows/write-after-use', 'let v: string | string[] = "ab"; let n = 0; let out = "";'
+    + ' while (typeof v === "string") { out += v.at(-1); v = n++ ? ["x"] : "cd"; } return out;'],
+  ['narrows/negated', 'let v: string | string[] = ["x", "y"]; let out = "";'
+    + ' while (typeof v !== "string") { out += String(v.at(-1)); v = "z"; } return out;'],
+  ['holds-not/write-before-use', 'let v: string | string[] = "ab"; let n = 0; let out = "";'
+    + ' while (typeof v === "string") { v = n++ ? "q" : ["x", "y"]; out += String(v.at(-1)); } return out;'],
+  ['holds-not/write-in-test', 'let v: string | string[] = "ab"; let n = 0; let out = "";'
+    + ' while (typeof v === "string" && (v = n++ ? "q" : ["x", "y"], true)) { out += String(v.at(-1)); } return out;'],
+  ['holds-not/do-while', 'let v: string | string[] = ["x", "y"]; let out = "";'
+    + ' do { out += String(v.at(-1)); v = "z"; } while (typeof v === "string" && out.length < 2); return out;'],
+  ['holds-not/guard-above-writing-loop', 'let v: string | string[] = "ab"; let out = "";'
+    + ' if (typeof v === "string") { let i = 0; while (i++ < 2) { out += String(v.at(-1)); v = ["x", "y"]; } } return out;'],
+];
+function * generateLoopTestGuards() {
+  for (const [id, body] of LOOP_TEST_GUARDS) {
+    yield { ...snippet(`loop-test-guards/${ id }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
+// --- a `typeof` path over a declared type ---
+// a query whose path meets a declared or asserted type names that type, so a value of it may hold any
+// family the declaration admits: every row hands over a value of the family the initializer does NOT
+// hold, and a read of the initializer serves its family's helper to it - which only the stripped realm
+// tells apart. a destructured name's declaration types its pattern, never the name; a name-keyed
+// reader holding that declaration (a guard's, a predicate chain's, an overload's argument kind) reads
+// no annotation there
+const TD_BASE = 'class Base { items: string | number[] = "s"; } class Derived extends Base { items: number[] = [1]; }';
+const TD_IS_ARR = 'function isArr(k: string, v: unknown): v is string; function isArr(k: number, v: unknown): v is number[];'
+  + ' function isArr(k: string | number, v: unknown): boolean { return typeof k === "number" ? Array.isArray(v) : typeof v === "string"; }';
+const TYPEOF_DECLARED_SOURCES = [
+  ['return-type/declared', 'const f: () => string | number[] = () => "x";'
+    + ' function last(v: ReturnType<typeof f>) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['return-type/asserted', 'const f = (() => "x") as () => string | number[];'
+    + ' function last(v: ReturnType<typeof f>) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['return-type/constant-alias', 'const b: () => string | number[] = () => "x"; const a = b;'
+    + ' function last(v: ReturnType<typeof a>) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['return-type/declared-root-member', 'interface Api { get(): string | number[] } const api: Api = { get: () => "x" };'
+    + ' function last(v: ReturnType<typeof api.get>) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['return-type/asserted-member', 'const api = { get: (() => "x") as () => string | number[] };'
+    + ' function last(v: ReturnType<typeof api.get>) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['instance-type/declared', `${ TD_BASE } const K: typeof Base = Derived;`
+    + ' function last(i: InstanceType<typeof K>) { return String(i.items.at(-1)); } return last({ items: "xy" });'],
+  ['parameters/declared-method', 'interface O { m(a: string | number[]): void } const o: O = { m(a: number[]) {} };'
+    + ' function last(p: Parameters<typeof o.m>) { return String(p[0].at(-1)); } return last(["xy"]);'],
+  ['constructor-parameters/declared', 'class A { constructor(a: string | number[]) {} } class B extends A { constructor(a: number[]) { super(a); } }'
+    + ' const K: typeof A = B; function last(p: ConstructorParameters<typeof K>) { return String(p[0].at(-1)); } return last(["xy"]);'],
+  ['this-parameter/declared-method', 'interface O { m(this: string | number[]): void } const o: O = { m(this: number[]) {} };'
+    + ' function last(t: ThisParameterType<typeof o.m>) { return String(t.at(-1)); } return last("xy");'],
+  ['this-parameter/subject-not-found', 'interface O { m(this: string[]): void }'
+    + ' function last(o: O, t: ThisParameterType<typeof o.m>) { return String(t.at(-1)); } return last({ m() {} }, ["x", "y"]);'],
+  ['bare/asserted', 'const f = ["x"] as string | string[]; function last(v: typeof f) { return String(v.at(-1)); } return last("xy");'],
+  ['member/asserted', 'const initial = { value: "" as string | number[] };'
+    + ' function last(s: typeof initial) { return String(s.value.at(-1)); } return last({ value: [1, 2] });'],
+  ['member/asserted-qualified', 'const initial = { value: "" as string | number[] };'
+    + ' function last(v: typeof initial.value) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['member/asserted-destructured', 'const initial = { value: "" as string | number[] };'
+    + ' function last(s: typeof initial) { const { value } = s; return String(value.at(-1)); } return last({ value: [1, 2] });'],
+  ['member/asserted-call', 'const api = { get: (() => "x") as () => string | number[] };'
+    + ' function last(s: typeof api) { return String(s.get().at(-1)); } return last({ get: () => [1, 2] });'],
+  ['member/reassigned-hop', 'let b = { v: "" as string | string[] }; b = { v: "x" }; const a = b;'
+    + ' function last(v: typeof a.v) { return String(v.at(-1)); } return last(["x", "y"]);'],
+  ['member/shorthand-hop', 'const inner = { value: "" as string | number[] }; const outer = { inner };'
+    + ' function last(v: typeof outer.inner.value) { return String(v.at(-1)); } return last([1, 2]);'],
+  ['destructured/array-name', 'const [a] = ["x"]; function last(v: typeof a) { return String(v.at(-1)); } return last("xy");'],
+  ['destructured/object-name', 'const { a } = { a: "x" }; function last(v: typeof a) { return String(v.at(-1)); } return last("xy");'],
+  ['destructured/predicate-root', 'interface Api { isStr(v: unknown): v is string }'
+    + ' function last({ api }: { api: Api; isStr(v: unknown): v is number[] }, v: string | number[]) { return api.isStr(v) ? String(v.at(-1)) : ""; }'
+    + ' return last({ api: { isStr: (x: unknown): x is string => typeof x === "string" }, isStr: (x: unknown): x is number[] => Array.isArray(x) }, "xy");'],
+  ['destructured/overload-argument', `${ TD_IS_ARR }`
+    + ' function last({ length }: string, v: string | number[]) { return isArr(length, v) ? String(v.at(-1)) : ""; } return last("ab", [1, 2]);'],
+];
+function * generateTypeofDeclaredSources() {
+  for (const [id, body] of TYPEOF_DECLARED_SOURCES) {
+    yield { ...snippet(`typeof-declared-sources/${ id }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -19835,4 +19997,9 @@ export function * generate() {
   yield * generateNestedParameterInstances();
   yield * generateMethodArgumentEffects();
   yield * generateStaticHandOuts();
+  yield * generateOpenTypeParamReads();
+  yield * generateKeyofKeyReads();
+  yield * generateIndexedAccessInstantiations();
+  yield * generateLoopTestGuards();
+  yield * generateTypeofDeclaredSources();
 }

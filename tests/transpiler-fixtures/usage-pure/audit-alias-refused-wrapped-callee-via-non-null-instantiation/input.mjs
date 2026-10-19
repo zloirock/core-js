@@ -4,6 +4,7 @@
 export function viaNonNullInstantiation(c) {
   let P5;
   if (c) ({ Promise: P5 } = globalThis);
+  // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
   return ((P5.race!)<number>)([]);
 }
 export const r = [viaNonNullInstantiation(true)];

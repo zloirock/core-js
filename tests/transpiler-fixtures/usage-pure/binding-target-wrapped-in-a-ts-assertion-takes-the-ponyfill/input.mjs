@@ -4,12 +4,14 @@
 let a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, j: any, k: any, m: any, x: any, rest: any;
 declare const arr: any[];
 ({ trunc: (a as any) } = Math);
+// @ts-expect-error a static the constructor lacks is the read under test
 ({ of: b!, custom: c } = Array);
 ({ fromAsync: (d satisfies any), ...rest } = Array);
 ({ Object: { values: (e as any) } } = globalThis);
 ({ Object: { entries: f!, ...rest } } = globalThis);
 for ({ fromEntries: (g as any) } of [Object]);
 ({ groupBy: (h as any) = fallback } = Object);
+// @ts-expect-error a pattern reading a member its source lacks is the shape under test
 ({ at: (j as any), custom: c } = arr);
 x = ({ includes: (k as any) } = arr);
 x = ({ Object: { hasOwn: (m as any) } } = globalThis);

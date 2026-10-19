@@ -11,3 +11,4 @@ class Box<T> {
 declare const b: Box<string>;
 const arr = await b;
 _includesMaybeArray(arr).call(arr, "a");
+export {};

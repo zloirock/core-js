@@ -14,4 +14,5 @@ declare const mapped: { [K in keyof I]?: I[K] };
 const viaWrapper = wrapped.items;
 const viaMapped = mapped.tags;
 (viaWrapper ?? 'fallback').at(0);
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 (viaMapped ?? 'fallback').includes('a');

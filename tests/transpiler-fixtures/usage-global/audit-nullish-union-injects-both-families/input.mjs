@@ -11,4 +11,5 @@ declare const c: boolean;
 function f(cond: boolean) {
   if (cond) return [1, 2];
 }
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 export const viaFallThrough = (f(c) ?? 'fallback').includes(1);

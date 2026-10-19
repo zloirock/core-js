@@ -9,6 +9,7 @@ class NotAThenable {
 }
 declare const n: NotAThenable;
 async function go() {
+  // @ts-expect-error an await over a value tsc refuses is the shape under test
   const arr = await n;
   arr.at(0);
 }

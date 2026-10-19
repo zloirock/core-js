@@ -5,6 +5,7 @@
 // Exercises that TS cast wrappers around the callee don't disguise the IIFE.
 let x = [];
 ((() => {
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   x = 'hello';
 }) as any)();
 x.at(-1);

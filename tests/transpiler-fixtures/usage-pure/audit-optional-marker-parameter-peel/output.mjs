@@ -10,4 +10,5 @@ export function read(items?: number[]) {
   var _ref;
   return _at(_ref = items ?? 'fallback').call(_ref, 0);
 }
+// @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
 _includes(_ref2 = slot ?? 'fallback').call(_ref2, 'a');

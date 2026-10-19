@@ -5,6 +5,7 @@ function* delegate(): Iterator<number, string[], void> {
   return ["a", "b", "c"];
 }
 function* outer() {
+  // @ts-expect-error an await over a value tsc refuses is the shape under test
   const r = yield* delegate();
   r.at(0);
 }

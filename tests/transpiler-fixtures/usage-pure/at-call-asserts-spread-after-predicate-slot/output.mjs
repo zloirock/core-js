@@ -10,6 +10,7 @@ export function after(val: unknown, rest: any[]) {
   return _atMaybeString(val).call(val, 0);
 }
 export function before(val: unknown, rest: any[]) {
+  // @ts-expect-error a spread argument tsc cannot place is the shape under test
   assertOpts(...rest, val);
   return _includes(val).call(val, 'a');
 }

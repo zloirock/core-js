@@ -10,4 +10,5 @@ declare namespace AmbientLib {
 }
 
 const lib = AmbientLib.create();
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 lib.at(0);

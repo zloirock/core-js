@@ -15,5 +15,7 @@ namespace MyContainer {
   }
 }
 
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 MyContainer.build([1, 2, 3]).at(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 MyContainer.create(42).at(0);

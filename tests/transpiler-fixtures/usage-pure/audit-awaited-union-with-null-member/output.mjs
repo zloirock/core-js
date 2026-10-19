@@ -5,3 +5,4 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 declare function probe(): Promise<string[]> | null;
 const r = await probe()!;
 _atMaybeArray(r).call(r, 0);
+export {};

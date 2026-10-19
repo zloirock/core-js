@@ -45,6 +45,7 @@ import {
   noReassignmentReachesUsage,
   patternSlotHasDefault,
   peelTSParenthesized,
+  staticKeyNames,
   walkAstNodes,
   withCanonQuestion,
   writeNeverRuns,
@@ -90,7 +91,7 @@ import { createElementTypes } from './resolve-node-type/element-types.js';
 import { createEnumTypes } from './resolve-node-type/enum-types.js';
 import { createExpressionDispatch } from './resolve-node-type/expression-dispatch.js';
 import { createGlobalResolve } from './resolve-node-type/global-resolve.js';
-import { createPredicateGuards } from './resolve-node-type/guard-shapes.js';
+import { createPredicateGuards, guardProves } from './resolve-node-type/guard-shapes.js';
 import { createKnownGlobals } from './resolve-node-type/known-globals.js';
 import { createMemberResolve } from './resolve-node-type/member-resolve.js';
 import {
@@ -324,6 +325,10 @@ function createResolveNodeType(babelNodeType, t, {
       root = peelTSParenthesized(root.objectType);
     }
     const rootName = root && typeRefName(root);
+    // an alias instantiation's spelled arguments, where it kept them: the access reads the argument's
+    // members, which the type the map resolved it to no longer carries
+    const spelled = spelledTypeArgsOf(typeParamMap);
+    if (spelled?.has(rootName)) return resolveTypeAnnotation(applyAliasSubstDeep(node, spelled), scope, depth + 1, seen);
     if (rootName && typeParamMap.has(rootName)) {
       const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth, seen });
       if (direct !== null) return direct;
@@ -418,6 +423,34 @@ function createResolveNodeType(babelNodeType, t, {
         propType = element ? resolveNodeType(element) : cursor && t.isObjectExpression(cursor.node) && resolveObjectMember(cursor, key);
       } else if (literal && t.isObjectExpression(literal.node)) propType = resolveObjectMemberPath(literal, literalKeys, argPath);
       if (propType) return propType;
+    }
+    // a literal key or a `keyof` over the parameter itself, on a parameter an argument bound (`pick(c)`
+    // against `pick<T>(o: T): T[keyof T]`): the type the parameter resolved to no longer carries the
+    // members either reads, so they are read off the argument. a literal argument is the literal-key
+    // read's above, with the writes and hand-outs it honours, so a `keyof` folds its own keys read that
+    // way; any other argument is read key by key as a static read of it is, the keys a `keyof` names
+    // coming off its declared type - and where that type names none one by one, the type itself folds
+    // in the argument's own scope
+    const argPath = indexNodes.length === 1 && returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);
+    const argValue = argPath && resolveRuntimeExpression(argPath);
+    const root = { type: 'TSTypeReference', typeName: { type: 'Identifier', name: rootName } };
+    if (t.isObjectExpression(argValue?.node)) {
+      const keys = isKeyofTargeting(indexNodes[0], root, scope) && staticKeyNames(argValue.node.properties);
+      const read = keys?.length && foldUnionTypes(keys, key => resolveObjectMemberPath(argValue, [key], argPath));
+      if (read) return read;
+    } else if (argPath) {
+      const declared = isKeyofTargeting(indexNodes[0], root, scope) && findExpressionAnnotation(argPath);
+      const declaredType = declared && unwrapTypeAnnotation(declared.annotation);
+      const members = declaredType && getTypeMembers({ objectType: declaredType, scope: declared.scope });
+      const keys = literalKeys[0] === null ? members && staticKeyNames(members) : literalKeys;
+      let read = null;
+      if (keys?.length) read = foldUnionTypes(keys, key => memberResolveCluster.resolveMemberOfObjectPath(argPath, key, null));
+      else if (declaredType && !keys) {
+        const indexType = { type: 'TSTypeOperator', operator: 'keyof', typeAnnotation: declaredType };
+        const access = { type: 'TSIndexedAccessType', objectType: declaredType, indexType };
+        read = resolveTypeAnnotation(access, declared.scope, depth + 1, seen);
+      }
+      if (read) return read;
     }
     // single-step constraint fallback: `<T extends {k: number[]}>(o: T): T['k']` with no
     // arg-Path match still resolves through constraint. multi-step constraint walking
@@ -1192,6 +1225,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     resolveUserDefinedType,
     buildSubstMap,
+    spelledTypeArgsOf,
   } = createUserTypeResolve({
     typeParamName,
     findTypeDeclaration,
@@ -1838,6 +1872,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     isReflectConstructCallee,
     buildSubstMap,
+    // forward-decl thunk: call-resolution instantiates later in the factory body
+    constructionTypeArgs: (...args) => callResolutionCluster.constructionTypeArgs(...args),
     findAmbientDeclarationPath,
     findDeclPathBySegments,
     isClassLikeDeclaration,
@@ -2257,6 +2293,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveArrayLiteralCommonType,
     findBindingAnnotation,
     bindingDestructuringPattern,
+    findNameAnnotation,
     isOwnBindingWrite,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
@@ -2269,12 +2306,10 @@ function createResolveNodeType(babelNodeType, t, {
   } = patternBindingsCluster;
 
   // type-query <-> call-return form a small dep cycle (typeQuery's `resolveReturnTypeFromTypeQuery`
-  // uses `functionTypeReturnAnnotation`; call-return's `resolveCallReturnTypeFromAnnotation`
+  // uses `shadowedAliasReturnAnnotation`; call-return's `resolveCallReturnTypeFromAnnotation`
   // uses `resolveReturnTypeFromTypeQuery`). break it by instantiating typeQuery first with a
-  // thunk for functionTypeReturnAnnotation, then call-return reads `resolveReturnTypeFromTypeQuery`
+  // thunk for shadowedAliasReturnAnnotation, then call-return reads `resolveReturnTypeFromTypeQuery`
   // from the typeQuery destructure directly
-  // eslint-disable-next-line prefer-const -- destructuring assignment below rebinds this
-  let functionTypeReturnAnnotation;
   const typeQueryCluster = createTypeQuery({
     foldUnionArmTypes,
     t,
@@ -2300,17 +2335,22 @@ function createResolveNodeType(babelNodeType, t, {
     resolveClassMember,
     resolveObjectMemberPath,
     resolveAnnotatedMemberPath,
+    annotationAtKeyPath,
+    bindingDestructuringPattern,
     resolveReturnType,
     unwrapTypeAnnotation,
     applyAliasSubstDeep,
     buildCallSiteSubst: (...args) => buildCallSiteSubst(...args),
-    functionTypeReturnAnnotation: (...args) => functionTypeReturnAnnotation(...args),
+    // forward-decl thunk: call-resolution instantiates later in the factory body
+    shadowedAliasReturnAnnotation: (...args) => callResolutionCluster.shadowedAliasReturnAnnotation(...args),
   });
   ({ resolveTypeQueryBinding, pickLastAmbientOverload } = typeQueryCluster);
   const {
     resolveTypeQuery,
     resolveTypeofFromSegments,
     resolveReturnTypeFromTypeQuery,
+    typeofSource,
+    declaredTypeofTarget,
   } = typeQueryCluster;
 
   // call-resolution cluster: consolidates call-return (dispatch `foo()` / `obj.method()` /
@@ -2320,8 +2360,8 @@ function createResolveNodeType(babelNodeType, t, {
   // findExpressionAnnotation -> functionTypeReturnAnnotation on call-callee annotations);
   // one cluster closure resolves the cycle internally. `staticPairFromPolyfillEntry` stays
   // in the factory (binding-analysis cluster consumer) and is passed through here. assigns
-  // forward-declared `functionTypeReturnAnnotation` + `buildCallSiteSubst` so typeQuery
-  // (instantiated earlier) sees them via thunks
+  // forward-declared `findExpressionAnnotation` + `buildCallSiteSubst`; typeQuery
+  // (instantiated earlier) sees the latter via a thunk
   const callResolutionCluster = createCallResolution({
     foldUnionArmTypes,
     resolveMemberPropertyName,
@@ -2375,8 +2415,14 @@ function createResolveNodeType(babelNodeType, t, {
     resolveIndexedAccessMemberAnnotationAST,
     foldUnionTypes,
   });
-  ({ functionTypeReturnAnnotation, findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
-  const { resolveCallReturnType, resolveIndexSignatureValue, indexAccessKeyKind, shadowedAliasReturnAnnotation } = callResolutionCluster;
+  ({ findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
+  const {
+    resolveCallReturnType,
+    resolveIndexSignatureValue,
+    indexAccessKeyKind,
+    shadowedAliasReturnAnnotation,
+    functionTypeReturnAnnotation,
+  } = callResolutionCluster;
 
   // type-annotation-resolve cluster: ResolveTypeAnnotation + named-utility-type dispatch.
   // instantiated here because it consumes typeQuery / call-resolution / element-types
@@ -2420,6 +2466,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveAwaitedAnnotation,
     resolveReturnTypeFromTypeQuery,
     resolveTypeQueryBinding,
+    declaredTypeofTarget,
+    spelledTypeArgsOf,
     resolveTypeQuery,
     unwrapPromise,
     resolveTypeofFromSegments,
@@ -2487,6 +2535,8 @@ function createResolveNodeType(babelNodeType, t, {
     isUnconstrainedTypeShape,
     pickConditionalBranchVia,
     resolveTypeQueryBinding,
+    typeofSource,
+    declaredTypeofTarget,
     resolveIndexedAccessMemberAnnotationAST,
     buildCallSiteSubst,
     resolveTypeAnnotation,
@@ -2507,10 +2557,11 @@ function createResolveNodeType(babelNodeType, t, {
   // discriminant-narrow / type-subst outputs. real thunks: `substituteTypeParams`
   // (type-resolve-dispatch instantiates below) and `findAnnotationGuard` (narrow-by-guards
   // instantiates below). everything else is already bound here and passes direct - including
-  // the `let`s `findExpressionAnnotation` / `functionTypeReturnAnnotation` (assigned by the
-  // call-resolution cluster above) and the hoisted `resolveNodeType` function declaration
+  // `findExpressionAnnotation` / `functionTypeReturnAnnotation` (both from the call-resolution
+  // cluster above) and the hoisted `resolveNodeType` function declaration
   const memberResolveCluster = createMemberResolve({
     t,
+    typeofSource,
     getModuleFieldIndex,
     namespaceExportReturn,
     findNamespacedValueAnnotation,
@@ -2523,8 +2574,7 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapTypeAnnotation,
     getTypeMembers,
     keyMatchesName,
-    findBindingAnnotation,
-    bindingDestructuringPattern,
+    findNameAnnotation,
     withLookupPath,
     findExpressionAnnotation,
     functionTypeReturnAnnotation,
@@ -2648,7 +2698,7 @@ function createResolveNodeType(babelNodeType, t, {
     memberCallParams,
     resolveBindingReturnInfo,
     findAmbientFunctionPaths,
-    findBindingAnnotation,
+    findNameAnnotation,
     resolveTypeAnnotation,
   });
   const { parseUserPredicateGuardEntries, parseAssertionGuardEntries } = predicateGuardsCluster;
@@ -2692,7 +2742,7 @@ function createResolveNodeType(babelNodeType, t, {
     isNullableOrNever,
     foldUnionTypes,
     resolveKnownConstructor,
-    findBindingAnnotation,
+    findNameAnnotation,
     followTypeAliasChain,
     applyAliasSubstDeep,
     findEnclosingTypeGuards,
@@ -3620,10 +3670,12 @@ function createResolveNodeType(babelNodeType, t, {
     path = anchorPathScope(path);
     const info = findGuardsForBinding(path);
     if (!info) return null;
-    const { guards, classification } = info;
+    const { classification } = info;
     // only unannotated or open (unknown/any/object/mixed) bindings accept hint-based narrowing.
     // 'closed' is already filtered by findGuardsForBinding
     if (classification.kind !== 'none' && classification.kind !== 'open') return null;
+    // a false answer that proves nothing (`guardProves`) excludes no hint either
+    const guards = info.guards.filter(guardProves);
     // bail if any positive guard resolves to a concrete type (already handled by resolveTypeGuardNarrowing)
     if (guards.some(g => g.positive && resolveGuardType(g))) return null;
 

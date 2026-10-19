@@ -4,6 +4,7 @@ import _at from "@core-js/pure/actual/instance/at";
 type Rename<T> = { [K in keyof T as `_${string & K}`]: T[K] };
 function probe<T>(r: Rename<T>) {
   var _ref;
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   _at(_ref = r._a).call(_ref, 0);
 }
 probe({

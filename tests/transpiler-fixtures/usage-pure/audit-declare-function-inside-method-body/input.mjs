@@ -4,6 +4,7 @@
 // polyfill via the declared `number[]` return type
 class K {
   m() {
+    // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
     declare function g(): number[];
     return g().at(0);
   }

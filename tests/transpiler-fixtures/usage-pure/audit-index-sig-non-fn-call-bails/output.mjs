@@ -8,5 +8,6 @@ interface D {
 }
 declare const d: D;
 declare const k: string;
+// @ts-expect-error a call through a value tsc cannot call is the shape under test
 const r = _at(_ref = d[k]()).call(_ref, 0);
 export { r };

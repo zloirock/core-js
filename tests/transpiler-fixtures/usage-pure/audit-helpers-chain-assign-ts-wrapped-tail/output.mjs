@@ -15,6 +15,7 @@ let r;
 export const {
   from
 } = r = (cond ? Array : _Iterator) as any;
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 export const {
   groupBy: grouped
 } = r = (0, cond ? Object : _WeakSet);

@@ -18,10 +18,12 @@ export function viaDominantNumber(x: unknown) {
   if (typeof x === 'string') {
     x = 5;
   } else throw 0;
+  // @ts-expect-error the member read is the probe, and the right answer is a type without it
   return x.at(0);
 }
 var rest = 'abc';
 {
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   var [head, ...rest] = [[1], 2, 3];
 }
 export const viaSliceNumber = rest[0].at(-1);
@@ -31,5 +33,5 @@ export function viaDominantArray(x: string | number[], arr: number[]) {
   } else {
     x = arr;
   }
-  return x.includes('a');
+  return x.includes(1);
 }

@@ -7,8 +7,11 @@ var _ref;
 type Boxed<T> = {
   val: T;
 };
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type Wrap<F, X> = F<X>;
+// @ts-expect-error a generic named without its type arguments is the shape under test
 declare const a: Wrap<Array, string>;
+// @ts-expect-error a generic named without its type arguments is the shape under test
 declare const b: Wrap<Boxed, string[]>;
 _atMaybeArray(a).call(a, 0);
 _findLastMaybeArray(_ref = b.val).call(_ref, s => s.length > 0);

@@ -9,4 +9,4 @@ var _ref, _ref2, _ref3;
 // ride the chain inside the alternate - the short-circuit skips them like native;
 // TS-annotated args pass through verbatim
 const arr = [1, 2];
-null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2).reduce?.((a: number, b: number) => a + b, 0).toString();
+null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2, Boolean).reduce?.((a: number, b: number) => a + b, 0).toString();

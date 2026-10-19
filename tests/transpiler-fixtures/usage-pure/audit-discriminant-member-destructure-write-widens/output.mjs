@@ -15,6 +15,7 @@ function f(w: Wrap, src: any) {
   if (w.meta.kind === "a") {
     var _ref;
     [w.meta] = src;
+    // @ts-expect-error the member read is the probe, and the right answer is a type without it
     return _at(_ref = w.meta.data).call(_ref, 0);
   }
 }

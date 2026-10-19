@@ -1,8 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// trailing comma after last property (before rest if any) - parser accepts it as
-// non-rest. the property-removal slicing must handle the trailing comma without leaving
-// double commas in the rebuilt pattern
+// a trailing comma after the last property is no rest and no extra slot: every property extracts,
+// and nothing of the pattern is left behind
 const from = _Array$from;
 const of = _Array$of;
 export { from, of };

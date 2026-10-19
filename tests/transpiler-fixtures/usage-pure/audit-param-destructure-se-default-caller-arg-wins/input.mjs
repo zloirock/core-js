@@ -9,4 +9,5 @@ function probe({ from } = (logCall(), Array)) {
 }
 probe();
 probe(undefined);
+// @ts-expect-error the argument crosses the parameter annotation on purpose, which is the shape under test
 probe({ from: customFn });

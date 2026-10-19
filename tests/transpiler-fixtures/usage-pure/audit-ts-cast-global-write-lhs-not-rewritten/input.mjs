@@ -7,6 +7,7 @@
 (Map as any) = x;
 (<any>Set) = y;
 (Promise satisfies any) ||= z;
+// @ts-expect-error arithmetic tsc refuses is the shape under test
 WeakMap! += 1;
 ((WeakSet as any)) = w;
 for ((Symbol as any) of arr) {}

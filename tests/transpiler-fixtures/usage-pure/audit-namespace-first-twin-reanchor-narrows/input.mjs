@@ -21,6 +21,7 @@ export const rw = w.includes("x");
 // outer narrow survives (a dead-end here degraded to generic dispatch)
 const t = "abcdef";
 function outerReader() {
+  // @ts-expect-error a namespace below the top level is the shape under test
   namespace P { export const t = [7, 8]; }
   return t.at(-1);
 }

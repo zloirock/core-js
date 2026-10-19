@@ -6,6 +6,7 @@ import "core-js/modules/es.string.at";
 interface Foo {
   method(): string;
 }
+// @ts-expect-error a void arm, nullish at runtime, is the shape under test
 function f(x: Foo | void) {
   return x.method().at(0);
 }

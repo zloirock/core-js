@@ -16,15 +16,10 @@ for (const item of ([{ w: Object }])) {
   out.push(viaParenAlias);
 }
 for (const { w: { getOwnPropertyDescriptor: viaNonNull } } of ([{ w: Object }]!)) out.push(viaNonNull);
-for (const { w: { defineProperties: viaSatisfies } } of ([{ w: Object }] satisfies unknown)) out.push(viaSatisfies);
+for (const { w: { getOwnPropertyDescriptors: viaSatisfies } } of ([{ w: Object }] satisfies unknown)) out.push(viaSatisfies);
 for (const item of ([{ w: Object }] as any)) {
   const viaAsAnyMember = item.w.fromEntries;
   out.push(viaAsAnyMember);
-}
-for (const item of ([{ w: Object }])) {
-  item.w = Array;
-  const viaParenWrittenSlot = item.w.assign;
-  out.push(viaParenWrittenSlot);
 }
 for (const { w: { getOwnPropertyNames: viaParenCallee } } of [{ w: (e)('a') }, { w: e('b') }]) out.push(viaParenCallee);
 export { out, n };

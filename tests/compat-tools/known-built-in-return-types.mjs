@@ -89,11 +89,11 @@ function isArgumentIndexList(list) {
 
 function isValidHint(hint) {
   if (isDirectiveName(hint)) return true;
-  // normalized hint: always { type, element?, resolved?, mutatesArgument?, exposesArgument?, inert?,
-  // mutatesElements?, nullable? }
+  // normalized hint:
+  // always { type, element?, resolved?, mutatesArgument?, exposesArgument?, inert?, mutatesElements?, nullable?, partial? }
   if (typeof hint !== 'object' || hint === null) return false;
-  // a directive may be wrapped in object form to carry qualifiers (`{ type: 'inherit',
-  // nullable: true }` - `find` / `at` / `pop` return element | undefined per spec);
+  // a directive may be wrapped in object form to carry qualifiers (`{ type: 'inherit', nullable: true }` -
+  // `find` / `at` / `pop` return element | undefined per spec);
   // a wrapped directive carries no inner hint of its own
   const isDirective = isDirectiveName(hint.type);
   if (isDirective && (hint.element !== undefined || hint.resolved !== undefined)) return false;
@@ -107,6 +107,7 @@ function isValidHint(hint) {
     'inert',
     'mutatesElements',
     'nullable',
+    'partial',
   ]);
   for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
   // nullable: the spec return admits undefined / null; only the `true` form is emitted
@@ -120,6 +121,8 @@ function isValidHint(hint) {
   // mutatesElements: an instance method that writes the receiver's elements in place;
   // only the `true` form is emitted
   if ('mutatesElements' in hint && hint.mutatesElements !== true) return false;
+  // partial: a type guard true for only part of its type; only the `true` form is emitted
+  if ('partial' in hint && hint.partial !== true) return false;
   const innerHint = hint.element ?? hint.resolved ?? null;
   if (innerHint === null) return true;
   // an inner hint may be a union - a list of two or more member hints, each valid on its own
@@ -184,10 +187,21 @@ throws(() => checkArgumentQualifiers('probe', 'staticMethods', { type: 'Promise'
 checkArgumentQualifiers('control', 'staticMethods', { type: 'boolean', mutatesArgument: [0, 3], exposesArgument: [2] });
 checkArgumentQualifiers('control', 'staticMethods', { type: 'argument', exposesArgument: [1], inert: true });
 
+// `partial` qualifies the answer of a type GUARD, and the resolver reads it only off the guard lane
+function checkGuardQualifier(label, kind, hint) {
+  if (hint && typeof hint === 'object' && 'partial' in hint && kind !== 'staticTypeGuards') {
+    fail(`${ label }: guard qualifier 'partial' sits outside the guard lane`);
+  }
+}
+
+throws(() => checkGuardQualifier('probe', 'staticMethods', { type: 'boolean', partial: true }), /outside the guard lane/);
+checkGuardQualifier('control', 'staticTypeGuards', { type: 'number', partial: true });
+
 function checkHint(label, kind, hint) {
   ok(isValidHint(hint), `${ label }: hint '${ JSON.stringify(hint) }' is valid`);
   checkLane(label, kind, hint);
   checkArgumentQualifiers(label, kind, hint);
+  checkGuardQualifier(label, kind, hint);
 }
 
 for (const kind of ['globalMethods', 'globalProperties']) {
@@ -265,6 +279,7 @@ for (const [label, hint] of [
 }
 deepEqual(normalizeHint({ type: 'Object', mutatesArgument: [0] }), { type: 'Object', mutatesArgument: [0] });
 deepEqual(normalizeHint({ type: 'argument', exposesArgument: [1], inert: true }), { type: 'argument', exposesArgument: [1], inert: true });
+deepEqual(normalizeHint({ type: 'number', partial: true }), { type: 'number', partial: true });
 deepEqual(normalizeHint('argument'), 'argument');
 deepEqual(normalizeHint({ type: 'Array', element: 'inherit' }), { type: 'Array', element: 'inherit' });
 // the constructor table carries its own keys, and a wrong one there FLIPS rather than drops: with
@@ -312,6 +327,8 @@ for (const [label, hint] of [
   ['inert spelled false', { type: 'boolean', inert: false }],
   ['inert spelled as anything else', { type: 'boolean', inert: 1 }],
   ['mutatesElements spelled false', { type: 'Array', mutatesElements: false }],
+  ['partial spelled false', { type: 'number', partial: false }],
+  ['partial spelled as anything else', { type: 'number', partial: 1 }],
   ['a one-member union', { type: 'Array', element: [{ type: 'string' }] }],
   ['a union member that is itself a union', { type: 'Array', element: [[{ type: 'string' }], { type: 'symbol' }] }],
   ['an invalid inner', { type: 'Array', element: { type: 'NotAType' } }],
@@ -326,6 +343,7 @@ for (const [label, hint] of [
   ['mutatesElements spelled true', { type: 'Array', mutatesElements: true }],
   ['exposesArgument as an index list', { type: 'boolean', exposesArgument: [2] }],
   ['inert spelled true', { type: 'boolean', inert: true }],
+  ['partial spelled true', { type: 'number', partial: true }],
   ['a two-member union', { type: 'Array', element: [{ type: 'string' }, { type: 'symbol' }] }],
   ['a directive with a qualifier but no inner', { type: 'inherit', nullable: true }],
 ]) {
@@ -379,7 +397,8 @@ deepEqual(knownBuiltInReturnTypes.instanceProperties.URL.searchParams, { type: '
 deepEqual(knownBuiltInReturnTypes.instanceProperties.Document.all, { type: 'HTMLAllCollection' });
 // type guard
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array' });
-deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
+// a partial type guard: `NaN` is a number `isFinite` answers false for
+deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number', partial: true });
 // mutatesArgument annotation beside the `argument` directive: assign returns its target AND writes it
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'argument', mutatesArgument: [0] });
 // and beside `exposesArgument`: `Reflect.set` writes its target and receiver and stores its value there

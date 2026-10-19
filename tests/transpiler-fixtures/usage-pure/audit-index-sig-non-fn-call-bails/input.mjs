@@ -4,5 +4,6 @@
 interface D { [k: string]: number[]; }
 declare const d: D;
 declare const k: string;
+// @ts-expect-error a call through a value tsc cannot call is the shape under test
 const r = d[k]().at(0);
 export { r };

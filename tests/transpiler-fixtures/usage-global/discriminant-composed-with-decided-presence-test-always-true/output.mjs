@@ -15,5 +15,6 @@ type Box = {
   data: number[];
 };
 export function alwaysTrue(box: Box) {
+  // @ts-expect-error a call on a union receiver tsc cannot type is the shape under test
   if (typeof Promise != 'undefined' || box.kind === 'text') return box.data.concat('d');
 }

@@ -7,11 +7,13 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // of the array-specific helper that would throw on the string the write installed
 export function f() {
   let a = [];
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   a! = 's';
   let b = [];
   (b as any) = 's';
   // the bare spelling of the same write narrows to the string it reaches
   let c = [];
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   c = 's';
   return [_at(a).call(a, 0), _includes(b).call(b, 's'), _atMaybeString(c).call(c, 0)];
 }

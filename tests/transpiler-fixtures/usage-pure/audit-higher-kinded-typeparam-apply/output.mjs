@@ -4,6 +4,8 @@ var _ref;
 // bound (`Array`) must rebuild the container with X as inner when the binding is a named
 // container with empty inner, else typeArgs are dropped. chained `.at(0)?.at(0)`: first
 // hop returns Array<string> (rebuilt inner); without the rebuild the second hop bails to generic
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type Wrap<F, X> = F<X>;
+// @ts-expect-error a generic named without its type arguments is the shape under test
 declare const r: Wrap<Array, string[]>;
 null == (_ref = _atMaybeArray(r).call(r, 0)) ? void 0 : _atMaybeArray(_ref).call(_ref, 0);

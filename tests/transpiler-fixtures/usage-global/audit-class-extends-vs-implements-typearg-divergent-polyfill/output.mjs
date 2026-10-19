@@ -9,6 +9,7 @@ import "core-js/modules/es.promise.finally";
 interface Bar<T> {
   y: T;
 }
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class C extends Promise<string> implements Bar<Set<number>> {
   constructor(exec) {
     super(exec);

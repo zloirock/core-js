@@ -3,3 +3,4 @@ const l = [16];
 for await ((l as any).entries of fns) {
   l.entries();
 }
+export {};

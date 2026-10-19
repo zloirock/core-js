@@ -16,6 +16,7 @@ declare const c: C<string[]>;
 declare const n: number;
 
 // signature-local <T> shadowed -> the return is unknown, so no wrong array-Maybe helper is injected
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 c.take(n).at(0);
 
 // non-generic method returns the class T (= string[], a real array) -> array-specific includes

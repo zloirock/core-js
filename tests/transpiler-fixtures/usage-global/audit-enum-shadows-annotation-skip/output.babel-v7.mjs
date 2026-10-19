@@ -6,3 +6,4 @@ enum Map {
   A,
 }
 let x: Map;
+export {};

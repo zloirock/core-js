@@ -12,6 +12,7 @@ async function wrappedIterable() {
   _atMaybeString(paren).call(paren, 0);
   const cast = (await _Promise$all(['ab', 'cd'] as any))[0];
   _includesMaybeString(cast).call(cast, 'a');
+  // @ts-expect-error a declaration inside a body, which tsc refuses, gives the row a value of a local type
   declare const dynamic: any;
   const opaque = (await _Promise$all(dynamic))[0];
   opaque.indexOf('a');

@@ -7,8 +7,12 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 // ponyfill substitution is still landing in it. dropped, the call re-associates into the arrow body
 // / the ternary alternate / the optional chain; the tail lines are negatives and must stay bare
 const g: any = (x: number) => x;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaConditional = (g ? _Array$of : g)<any>(1);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaLogical = (g || _Object$groupBy)<any>([], g);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaMember = _Map$groupBy<any>([], g);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const viaNonNull = _Promise$try<any>(g);
 export const r = [viaConditional, viaLogical, viaMember, viaNonNull];

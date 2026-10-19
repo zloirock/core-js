@@ -8,8 +8,8 @@ import "core-js/modules/es.string.includes";
 // substitution boundaries around opaque markers: a resolvable sibling keeps precision next
 // to a marked one; a PARTIAL explicit list marks only the supplied slot; a default-only
 // call still binds its defaults; per-call maps stay isolated; a cyclic function-level
-// default with a supplied opaque arg degrades without looping; an indexed-access peek
-// falls through untouched
+// default with a supplied opaque arg degrades without looping; an indexed access over a
+// declared argument reads that argument's element
 type Opaque = {
   z: 1;
 };
@@ -21,6 +21,7 @@ mix(opaque, [1]).at(0);
 function partial<T = number[], U = T>(): U {
   return [] as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 partial<Opaque>().includes(1);
 function defaultsOnly<U = string[]>(): U {
   return [] as any;
@@ -29,11 +30,14 @@ defaultsOnly().at(0);
 function twice<T = string>(x: T | null): T {
   return x as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 twice(opaque).at(0);
 twice('abc').includes('b');
+// @ts-expect-error a cyclic type tsc refuses is the shape under test
 function cyc<T = T[]>(x: T | null): T {
   return x as any;
 }
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 cyc(opaque).at(0);
 declare const tup: [string, number];
 function head<T extends unknown[]>(t: T): T[0] {

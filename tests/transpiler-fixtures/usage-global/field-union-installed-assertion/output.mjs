@@ -16,4 +16,5 @@ class Box {
   change(this);
 };
 Box.change();
+// @ts-expect-error the read sees the value the source assigned, which the declared type does not carry
 export const result = Box.data.includes('02');

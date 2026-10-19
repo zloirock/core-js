@@ -28,6 +28,7 @@
 // lookup, and the injector's alias channel (`staticPairFromPolyfillBinding`) that names the
 // built-in a pure-import binding stands for
 import { getOrInitMap, hasRange, nodeRangeContains } from './base.js';
+import { bodyRunsWhileTestHolds } from './exit-analysis.js';
 import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   cachedContainerPaths,
@@ -327,9 +328,9 @@ export function createTypeofGuards({
     return !binding || getScopeBinding({ scope: testPath.scope, name: varName, path: testPath }) === binding;
   }
 
-  // if / ternary / && / || - unified: parse guards from condition, determine polarity. the
-  // test is parsed in the HOST's scope: a braced branch opens a block of its own, and a name
-  // declared in it - a predicate, a namespace - is not what the test read
+  // if / ternary / && / || / a loop test over its body - unified: parse guards from condition,
+  // determine polarity. the test is parsed in the HOST's scope: a braced branch opens a block of its
+  // own, and a name declared in it - a predicate, a namespace - is not what the test read
   function findConditionalGuards(current, varName, binding) {
     const parent = current.parentPath;
     if (!parent) return EMPTY_ENTRIES;
@@ -338,6 +339,9 @@ export function createTypeofGuards({
       const { key } = current;
       if (key !== 'consequent' && key !== 'alternate') return EMPTY_ENTRIES;
       conditionTrue = key === 'consequent';
+      testNode = parent.node.test;
+    } else if (bodyRunsWhileTestHolds(parent.node) && current.key === 'body') {
+      conditionTrue = true;
       testNode = parent.node.test;
     } else if (t.isLogicalExpression(parent.node) && current.key === 'right') {
       const { operator } = parent.node;

@@ -4,4 +4,5 @@
 // must agree with the usage-side runtime-binding walk (both go through the shared instantiation gate),
 // otherwise babel expands while unplugin silently skips.
 namespace require { const enum E {} }
+// @ts-expect-error the declaration emits nothing, so it types the read for tsc alone, and the runtime reads the global
 require('core-js/actual/array/from');

@@ -3,6 +3,7 @@
 // output drops the `type` modifier on reprint (an upstream generator gap); the unplugin sidecar
 // keeps the source spelling - the axis under lock is the EMPTY import set, identical in both
 import gt3 = require("@core-js/pure/actual/global-this");
+// @ts-expect-error a type-only import read as a value is the shape under test
 export const viaErasedTsEquals = () => (gt3 as never as {
   Map: MapConstructor;
 }).Map.groupBy([], (x: number) => x);

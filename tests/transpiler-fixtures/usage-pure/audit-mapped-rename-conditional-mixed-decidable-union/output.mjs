@@ -10,4 +10,5 @@ declare const r: Pick1<{
   other: string;
 }>;
 _atMaybeArray(_ref = r.items).call(_ref, 0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 _includes(_ref2 = r.other).call(_ref2, 'a');

@@ -5,4 +5,6 @@
 namespace globalThis {
   export const Map: unknown = 1;
 }
+// @ts-expect-error a write to a constant, which tsc forbids, is the shape under test
 globalThis.Map ||= {};
+export {};

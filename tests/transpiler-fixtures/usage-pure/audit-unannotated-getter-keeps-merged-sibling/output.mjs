@@ -8,6 +8,7 @@ class Holder {
     return [];
   }
 }
+// @ts-expect-error a property merged with another type is the shape under test
 interface Holder {
   items: number[];
 }

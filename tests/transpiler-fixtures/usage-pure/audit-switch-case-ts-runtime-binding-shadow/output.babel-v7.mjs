@@ -8,19 +8,25 @@ switch (x) {
     enum Map {
       A,
     }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     new Map();
     break;
   case 2:
+    // @ts-expect-error a namespace below the top level is the shape under test
     namespace Set {
       export const z = 1;
     }
     break;
   case 3:
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
     new Set();
     break;
   case 4:
+    // @ts-expect-error an ambient declaration inside a block, which tsc refuses, is the shape under test
     declare enum WeakMap {
       A,
     }
+    // @ts-expect-error the ambient declaration types the read for tsc alone, and the runtime reads the global
     new _WeakMap();
 }
+export {};

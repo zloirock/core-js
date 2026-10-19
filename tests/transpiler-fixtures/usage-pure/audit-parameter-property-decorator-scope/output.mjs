@@ -9,7 +9,9 @@ import _Set from "@core-js/pure/actual/set/constructor";
 class Boxed {
   constructor(@inject(new _Map())
   private Map: any, private WeakMap: any) {
+    // @ts-expect-error dynamic JS adds a member the declared type lacks
     this.first = new Map();
+    // @ts-expect-error dynamic JS adds a member the declared type lacks
     this.second = new WeakMap();
   }
   reach() {

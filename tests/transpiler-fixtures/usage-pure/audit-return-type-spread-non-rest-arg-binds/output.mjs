@@ -9,4 +9,5 @@ function fn<T>(t: T): T {
   return t;
 }
 declare const arr: string[];
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 _atMaybeString(_ref = fn(...arr)).call(_ref, 0);

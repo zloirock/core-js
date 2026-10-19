@@ -3,4 +3,6 @@
 type Pick<T> = { [K in keyof T as K extends `${ string }_${ number }` ? K : never]: T[K] };
 declare const r: Pick<{ foo_42: number[]; a_b_42: string[]; no_match: boolean }>;
 r.foo_42.at(0);
+// @ts-expect-error the member read is the probe, and the right answer is a type without it
 r.a_b_42.includes('x');
+export {};

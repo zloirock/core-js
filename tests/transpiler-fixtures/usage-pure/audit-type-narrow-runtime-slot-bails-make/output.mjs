@@ -11,6 +11,7 @@ class Base {
     return _at(_ref = this.make()).call(_ref, 0);
   }
 }
+// @ts-expect-error a heritage tsc refuses is the shape under test
 class Sub extends Base {}
 namespace Sub {
   export function make(): string {

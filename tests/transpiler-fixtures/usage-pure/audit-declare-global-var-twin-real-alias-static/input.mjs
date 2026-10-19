@@ -7,3 +7,4 @@ declare global {
   var A: any;
 }
 A.from([1]);
+export {};

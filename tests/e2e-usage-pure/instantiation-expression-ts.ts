@@ -102,14 +102,28 @@ QUnit.test('instantiation-ts: re-parenting keeps side-effect order and the recei
 
   assert.deepEqual(((holder.member)<never>)(1), ['holder', 1], 'a folded member callee keeps its receiver');
   assert.deepEqual(((holder.member as never)<never>)(1), ['holder', 1], 'and keeps it through a cast');
-  // the OPTIONAL-call twin of these is asserted by the fixtures instead: an instantiation left in
-  // front of `?.` is invisible to the lowering that memoizes the receiver, and in the post phase
-  // that lowering has already run by the time this plugin sees the file - nothing downstream of it
-  // can put the receiver back, so the runtime oracle cannot hold on every leg
 
   let counter = 0;
   assert.throws(() => ((counter++)<never>)(1), TypeError);
   assert.same(counter, 1, 'a re-parented update operand still runs exactly once');
+});
+
+// the optional-call twin: an instantiation left in front of `?.` hides the member callee from the
+// lowering that memoizes the receiver, so it moves past the `?.` first. in the post phase that
+// lowering ran before this plugin saw the file, and nothing downstream of it can put the receiver
+// back - that leg alone skips
+QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('instantiation-ts: an optional call keeps its receiver', assert => {
+  const log: string[] = [];
+  const mark = (tag: string) => { log.push(tag); return tag; };
+  const holder = { tag: 'holder', member(...args: unknown[]) { return [this && this.tag, ...args]; } };
+  assert.deepEqual(((holder.member)<never>)?.(1), ['holder', 1], 'a member callee');
+  assert.deepEqual(((holder[mark('member')])<never>)?.(mark('argument')), ['holder', 'argument'], 'a computed one');
+  assert.deepEqual(log, ['member', 'argument'], 'the key before the argument, each once');
+  const empty: { member?: (...args: unknown[]) => unknown } = {};
+  assert.same(((empty.member)<never>)?.(mark('skipped')), undefined, 'a nullish callee short-circuits');
+  assert.deepEqual(log, ['member', 'argument'], 'and evaluates no argument');
+  const list = [1, 2, 3];
+  assert.same(((list.at)<never>)?.(-1), 3, 'a polyfilled method runs on its receiver');
 });
 
 // the compensating paren is a node only the generator understands, so it goes in after every

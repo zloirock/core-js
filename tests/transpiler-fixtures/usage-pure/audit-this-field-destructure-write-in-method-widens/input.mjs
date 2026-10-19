@@ -4,6 +4,7 @@
 // gets the generic polyfill.
 class C {
   items = [1, 2, 3];
+  // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
   setIt(src: { v: string }) { ({ v: this.items } = src); }
   getFirst() { return this.items.at(0); }
 }

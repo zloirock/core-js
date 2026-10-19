@@ -4,6 +4,7 @@
 // it; oxc's dedicated TSClassImplements wrapper already gates this. distinct from
 // `extends Foo<Map<...>>` (superClass IS runtime) and from `type`/`interface` uses.
 interface Foo<T> { x: T }
+// @ts-expect-error an implements clause the class does not satisfy is the shape under test
 class X implements Foo<Map<string, number>> {
   m() { return 1; }
 }

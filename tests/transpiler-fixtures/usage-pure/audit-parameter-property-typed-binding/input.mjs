@@ -14,6 +14,7 @@ export class Bare {
 }
 export class Written {
   constructor(private c: string[] = []) {
+    // @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
     c = 's';
     c.at(0);
   }

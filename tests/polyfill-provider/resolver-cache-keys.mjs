@@ -12,7 +12,7 @@
 // single emitter's fixtures cannot see a provider-level regression) rather than at resolver level:
 // the helper name is the only place the resolved family becomes observable.
 import { createRequire } from 'node:module';
-import { createChecker } from './harness.mjs';
+import { createChecker, scenarioSource } from './harness.mjs';
 import { TS_NUMBER_TYPE, TS_UNKNOWN_TYPE } from '../../packages/core-js-polyfill-provider/resolve-node-type/ast-shapes.js';
 import { createStraightLineFlow } from '../../packages/core-js-polyfill-provider/resolve-node-type/straight-line-flow.js';
 import {
@@ -32,7 +32,7 @@ const { check, checkDeep, finish } = createChecker('resolver-cache-keys');
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
 
 async function babel(source, extra = {}, filename = 'input.ts') {
-  const out = await transformAsync(source, {
+  const out = await transformAsync(scenarioSource(source), {
     plugins: [[babelPlugin, { ...OPTIONS, ...extra }]],
     filename,
     sourceType: 'module',
@@ -44,7 +44,7 @@ async function babel(source, extra = {}, filename = 'input.ts') {
 }
 
 function unplugin(source, extra = {}, filename = 'input.ts') {
-  return createUnplugin({ ...OPTIONS, ...extra }).transform(source, filename)?.code ?? source;
+  return createUnplugin({ ...OPTIONS, ...extra }).transform(scenarioSource(source), filename)?.code ?? source;
 }
 
 function imports(code) {
@@ -88,7 +88,9 @@ await checkBoth('class body: two member names, reverse read order', `
 await checkBoth('class body: static and instance of one name stay apart', `
   class C {
     static m(): string { return 'a'; }
+    // @ts-expect-error duplicate members are the shape under test
     m(): number[] { return [1]; }
+    // @ts-expect-error duplicate members are the shape under test
     m(): string[] { return ['a']; }
   }
   export const r = [new C().m().at(0), C.m().at(0)];
@@ -139,6 +141,7 @@ await checkBoth('namespace census: an unrelated namespace does not shadow', `
       static f: string[] = ['a'];
       static read() { return this.f.at(0); }
     }
+    // @ts-expect-error a subclass namespace exporting another type than its parent is the shape under test
     class Sub extends A {}
     namespace Sub { export function f(): string { return 'a'; } }
     export const r = A.read();

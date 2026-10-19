@@ -3,5 +3,6 @@
 let pick = 1;
 const userObj = {};
 {
+// @ts-expect-error a spread argument tsc cannot place is the shape under test
 const r = (({ from: f }) => f)(...([pick ? Array : userObj] as any));
 }
