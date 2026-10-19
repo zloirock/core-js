@@ -10,7 +10,8 @@
 // would go quiet instead, so the gate reads them as plain text. A suite whose TS syntax only wraps
 // dynamic JavaScript says why in `createChecker(name, { tsc })`, and that reason fails as soon as no row
 // of the suite needs it
-import ts from 'typescript';
+import { API } from 'typescript/unstable/sync';
+import { createVirtualFileSystem } from 'typescript/unstable/fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
@@ -23,12 +24,12 @@ const { check, checkDeep, fail, finish, pass } = createChecker('tsc-validity');
 const OPAQUE_PLACEHOLDER_CODES = new Set([2304, 2307, 2503, 2552, 2582, 2583, 2584, 2591, 2592, 2593, 2882, 18004]);
 
 const OPTIONS = {
-  target: ts.ScriptTarget.ESNext,
-  module: ts.ModuleKind.Preserve,
-  moduleResolution: ts.ModuleResolutionKind.Bundler,
-  moduleDetection: ts.ModuleDetectionKind.Auto,
-  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts', 'lib.dom.iterable.d.ts'],
-  jsx: ts.JsxEmit.Preserve,
+  target: 'esnext',
+  module: 'preserve',
+  moduleResolution: 'bundler',
+  moduleDetection: 'auto',
+  lib: ['esnext', 'dom', 'dom.iterable'],
+  jsx: 'preserve',
   // the rows that decorate a parameter are written in the legacy dialect, the only one that has it
   experimentalDecorators: true,
   strict: false,
@@ -99,182 +100,227 @@ function readSource(code, file) {
   return { typescript: hasTSSyntax(program), markersWithoutReason, checked };
 }
 
-// one program per source, so no two share a global scope; the lib and type files are parsed once and
-// the previous program is handed on, which keeps a source at a few milliseconds
-const baseHost = ts.createCompilerHost(OPTIONS);
-const libFiles = new Map();
-let current = null;
-const host = {
-  ...baseHost,
-  getSourceFile(name, language) {
-    if (name === current?.file) return ts.createSourceFile(name, current.code, language, true);
-    if (!libFiles.has(name)) libFiles.set(name, baseHost.getSourceFile(name, language));
-    return libFiles.get(name);
+// The native API keeps the libraries warm across snapshots. Only one source belongs to the virtual
+// project at a time, so script globals never leak between rows. Unhandled paths fall back to disk for
+// TypeScript's lib and the built core-js types.
+const VIRTUAL_ROOT = path.join(os.tmpdir(), 'core-js-tsc-validity').replaceAll('\\', '/');
+const CONFIG = `${ VIRTUAL_ROOT }/tsconfig.json`;
+const virtualFS = createVirtualFileSystem({});
+const api = new API({
+  fs: {
+    ...virtualFS,
+    fileExists: name => virtualFS.fileExists(name) || undefined,
+    directoryExists: name => virtualFS.directoryExists(name) || undefined,
   },
-  fileExists: name => name === current?.file || baseHost.fileExists(name),
-  readFile: name => name === current?.file ? current.code : baseHost.readFile(name),
-};
-let previous;
+});
+let currentFile;
+function diagnosticText({ text, messageChain = [] }) {
+  return [text, ...messageChain.map(diagnosticText)].join(' ');
+}
+
 function rejections(code, file) {
-  current = { file, code };
-  const program = previous = ts.createProgram([CORE_JS_TYPES, file], OPTIONS, host, previous);
-  const source = program.getSourceFile(file);
-  return [...program.getSyntacticDiagnostics(source), ...program.getSemanticDiagnostics(source)]
-    .filter(diagnostic => !OPAQUE_PLACEHOLDER_CODES.has(diagnostic.code))
-    .map(({ code: diagnosticCode, start, messageText }) => {
-      const { line } = source.getLineAndCharacterOfPosition(start ?? 0);
-      return `TS${ diagnosticCode } on line ${ line + 1 }: ${ ts.flattenDiagnosticMessageText(messageText, ' ') }`;
-    });
+  const source = `${ VIRTUAL_ROOT }${ file }`;
+  const deleted = currentFile && currentFile !== source ? [currentFile] : [];
+  for (const name of deleted) virtualFS.removeFile(name);
+  virtualFS.writeFile(source, code);
+  const changed = [source];
+  if (currentFile !== source) {
+    virtualFS.writeFile(CONFIG, JSON.stringify({ compilerOptions: OPTIONS, files: [CORE_JS_TYPES, source] }));
+    changed.push(CONFIG);
+  }
+  const snapshot = api.updateSnapshot({
+    openProjects: currentFile ? [] : [CONFIG],
+    fileChanges: { changed, deleted },
+  });
+  currentFile = source;
+  try {
+    const { program } = snapshot.getProject(CONFIG);
+    return [...program.getSyntacticDiagnostics(source), ...program.getSemanticDiagnostics(source)]
+      .filter(diagnostic => !OPAQUE_PLACEHOLDER_CODES.has(diagnostic.code))
+      .map(diagnostic => {
+        const line = code.slice(0, Math.max(0, diagnostic.pos)).split(LINE_BREAK).length;
+        return `TS${ diagnostic.code } on line ${ line }: ${ diagnosticText(diagnostic) }`;
+      });
+  } finally {
+    snapshot.dispose();
+  }
 }
 
 function reportMarkers(label, markers) {
   for (const marker of markers) fail(label, `a marker needs its reason, as \`@ts-expect-error <why>\`: ${ marker }`);
 }
 
-// --- Scenario sources ---
+try {
+  // --- Scenario sources ---
 
-const counts = { checked: 0, suiteReasoned: 0, flow: 0, plain: 0 };
-const suitesNeedingReason = new Set();
-for (const row of scenarioSources) {
-  if (row.dialect === 'flow') {
-    counts.flow++;
-    continue;
+  const counts = { checked: 0, suiteReasoned: 0, flow: 0, plain: 0 };
+  const suitesNeedingReason = new Set();
+  for (const row of scenarioSources) {
+    if (row.dialect === 'flow') {
+      counts.flow++;
+      continue;
+    }
+    const file = `/rows/row.${ row.dialect }`;
+    const { typescript, markersWithoutReason, checked } = readSource(row.code, file);
+    if (!typescript) {
+      counts.plain++;
+      continue;
+    }
+    const { suite, where } = row.suite === null ? scenarioOrigin(row) : row;
+    const label = row.label === null ? `${ where ?? suite }: ${ row.code.trim().split('\n', 1)[0].slice(0, 80) }` : `${ suite } / ${ row.label }`;
+    reportMarkers(label, markersWithoutReason);
+    const rejected = rejections(checked, file);
+    if (suiteTscIntents.has(suite)) {
+      counts.suiteReasoned++;
+      if (rejected.length) suitesNeedingReason.add(suite);
+      continue;
+    }
+    counts.checked++;
+    if (rejected.length) fail(label, `tsc rejects the source:\n    ${ rejected.join('\n    ') }`);
+    else pass();
   }
-  const file = `/rows/row.${ row.dialect }`;
-  const { typescript, markersWithoutReason, checked } = readSource(row.code, file);
-  if (!typescript) {
-    counts.plain++;
-    continue;
+  for (const [suite, reason] of suiteTscIntents) {
+    check(`${ suite }: the suite's tsc reason is still needed (${ reason })`, suitesNeedingReason.has(suite), true);
   }
-  const { suite, where } = row.suite === null ? scenarioOrigin(row) : row;
-  const label = row.label === null ? `${ where ?? suite }: ${ row.code.trim().split('\n', 1)[0].slice(0, 80) }` : `${ suite } / ${ row.label }`;
-  reportMarkers(label, markersWithoutReason);
-  const rejected = rejections(checked, file);
-  if (suiteTscIntents.has(suite)) {
-    counts.suiteReasoned++;
-    if (rejected.length) suitesNeedingReason.add(suite);
-    continue;
-  }
-  counts.checked++;
-  if (rejected.length) fail(label, `tsc rejects the source:\n    ${ rejected.join('\n    ') }`);
-  else pass();
-}
-for (const [suite, reason] of suiteTscIntents) {
-  check(`${ suite }: the suite's tsc reason is still needed (${ reason })`, suitesNeedingReason.has(suite), true);
-}
 
-// --- Transpiler fixtures ---
+  // --- Transpiler fixtures ---
 
-const FIXTURES = fileURLToPath(new URL('../transpiler-fixtures/', import.meta.url));
+  const FIXTURES = fileURLToPath(new URL('../transpiler-fixtures/', import.meta.url));
 
-// a directory holding `input.mjs` is a fixture, any other one groups fixtures
-async function collectFixtures(directory, found = []) {
-  if (await fs.pathExists(path.join(directory, 'input.mjs'))) {
-    found.push(directory);
+  // a directory holding `input.mjs` is a fixture, any other one groups fixtures
+  async function collectFixtures(directory, found = []) {
+    if (await fs.pathExists(path.join(directory, 'input.mjs'))) {
+      found.push(directory);
+      return found;
+    }
+    for (const name of (await fs.readdir(directory)).sort()) {
+      const entry = path.join(directory, name);
+      if ((await fs.stat(entry)).isDirectory()) await collectFixtures(entry, found);
+    }
     return found;
   }
-  for (const name of (await fs.readdir(directory)).sort()) {
-    const entry = path.join(directory, name);
-    if ((await fs.stat(entry)).isDirectory()) await collectFixtures(entry, found);
+
+  // the file `tsc` reads a fixture as, from the options the babel leg parses it with: TypeScript only
+  // through the `typescript` parser plugin, under the extension its filename names - a declaration file,
+  // a CommonJS `.cts`, an SFC block's `lang` - or else `.ts`, and `.tsx` beside the `jsx` plugin. null for
+  // a fixture babel reads as Flow or plain JavaScript
+  function fixtureFile({ filename = '', parserOpts }) {
+    const plugins = new Set((parserOpts?.plugins ?? []).map(plugin => Array.isArray(plugin) ? plugin[0] : plugin));
+    if (!plugins.has('typescript')) return null;
+    const lang = /[&?]lang=(?<lang>[cm]?tsx?)(?=[#&]|$)/.exec(filename)?.groups.lang;
+    const named = /(?:\.d)?\.[cm]?tsx?$/.exec(filename.replace(/[#?].*/s, ''))?.[0] ?? (lang && `.${ lang }`);
+    return `/fixtures/input${ named || (plugins.has('jsx') ? '.tsx' : '.ts') }`;
   }
-  return found;
-}
 
-// the file `tsc` reads a fixture as, from the options the babel leg parses it with: TypeScript only
-// through the `typescript` parser plugin, under the extension its filename names - a declaration file,
-// a CommonJS `.cts`, an SFC block's `lang` - or else `.ts`, and `.tsx` beside the `jsx` plugin. null for
-// a fixture babel reads as Flow or plain JavaScript
-function fixtureFile({ filename = '', parserOpts }) {
-  const plugins = new Set((parserOpts?.plugins ?? []).map(plugin => Array.isArray(plugin) ? plugin[0] : plugin));
-  if (!plugins.has('typescript')) return null;
-  const lang = /[&?]lang=(?<lang>[cm]?tsx?)(?=[#&]|$)/.exec(filename)?.groups.lang;
-  const named = /(?:\.d)?\.[cm]?tsx?$/.exec(filename.replace(/[#?].*/s, ''))?.[0] ?? (lang && `.${ lang }`);
-  return `/fixtures/input${ named || (plugins.has('jsx') ? '.tsx' : '.ts') }`;
-}
-
-const fixtures = await collectFixtures(FIXTURES);
-const fixtureCounts = { checked: 0, plain: 0, other: 0 };
-for (const directory of fixtures) {
-  const file = fixtureFile(await loadBabelOptions(directory) ?? {});
-  if (!file) {
-    fixtureCounts.other++;
-    continue;
+  const fixtures = await collectFixtures(FIXTURES);
+  const fixtureCounts = { checked: 0, plain: 0, other: 0 };
+  for (const directory of fixtures) {
+    const file = fixtureFile(await loadBabelOptions(directory) ?? {});
+    if (!file) {
+      fixtureCounts.other++;
+      continue;
+    }
+    const { typescript, markersWithoutReason, checked } = readSource(await fs.readFile(path.join(directory, 'input.mjs'), 'utf8'), file);
+    if (!typescript) {
+      fixtureCounts.plain++;
+      continue;
+    }
+    const label = `transpiler-fixtures/${ path.relative(FIXTURES, directory).replaceAll('\\', '/') }`;
+    reportMarkers(label, markersWithoutReason);
+    const rejected = rejections(checked, file);
+    fixtureCounts.checked++;
+    if (rejected.length) fail(label, `tsc rejects the input:\n    ${ rejected.join('\n    ') }`);
+    else pass();
   }
-  const { typescript, markersWithoutReason, checked } = readSource(await fs.readFile(path.join(directory, 'input.mjs'), 'utf8'), file);
-  if (!typescript) {
-    fixtureCounts.plain++;
-    continue;
+
+  const { cyan } = chalk;
+  echo(`tsc-validity: ${ cyan(counts.checked) } TS sources checked, ${ cyan(counts.suiteReasoned) } under a suite reason, ${
+    cyan(counts.plain) } without TS syntax, ${ cyan(counts.flow) } Flow`);
+  echo(`tsc-validity: ${ cyan(fixtureCounts.checked) } TS fixture inputs checked, ${ cyan(fixtureCounts.plain) } without TS syntax, ${
+    cyan(fixtureCounts.other) } parsed as Flow or JavaScript`);
+  check('tsc-validity: every scenario source is counted once', counts.checked + counts.suiteReasoned + counts.plain + counts.flow,
+    scenarioSources.length);
+  check('tsc-validity: every fixture is counted once', fixtureCounts.checked + fixtureCounts.plain + fixtureCounts.other, fixtures.length);
+
+  // --- Leg controls ---
+  // every leg shown to fire on a control rather than trusted to: a leg that died would pass every source
+
+  const CONTROL = '/rows/row.ts';
+  function typescriptOf(code) {
+    return readSource(code, CONTROL).typescript;
   }
-  const label = `transpiler-fixtures/${ path.relative(FIXTURES, directory).replaceAll('\\', '/') }`;
-  reportMarkers(label, markersWithoutReason);
-  const rejected = rejections(checked, file);
-  fixtureCounts.checked++;
-  if (rejected.length) fail(label, `tsc rejects the input:\n    ${ rejected.join('\n    ') }`);
-  else pass();
-}
-
-const { cyan } = chalk;
-echo(`tsc-validity: ${ cyan(counts.checked) } TS sources checked, ${ cyan(counts.suiteReasoned) } under a suite reason, ${
-  cyan(counts.plain) } without TS syntax, ${ cyan(counts.flow) } Flow`);
-echo(`tsc-validity: ${ cyan(fixtureCounts.checked) } TS fixture inputs checked, ${ cyan(fixtureCounts.plain) } without TS syntax, ${
-  cyan(fixtureCounts.other) } parsed as Flow or JavaScript`);
-check('tsc-validity: every scenario source is counted once', counts.checked + counts.suiteReasoned + counts.plain + counts.flow,
-  scenarioSources.length);
-check('tsc-validity: every fixture is counted once', fixtureCounts.checked + fixtureCounts.plain + fixtureCounts.other, fixtures.length);
-
-// --- Leg controls ---
-// every leg shown to fire on a control rather than trusted to: a leg that died would pass every source
-
-const CONTROL = '/rows/row.ts';
-function typescriptOf(code) {
-  return readSource(code, CONTROL).typescript;
-}
-function markersOf(code) {
-  return readSource(code, CONTROL).markersWithoutReason;
-}
-function rejectionsOf(code) {
-  return rejections(readSource(code, CONTROL).checked, CONTROL).length;
-}
-check('tsc-validity: the detector reads a TS node', typescriptOf('let x: number;'), true);
-check('tsc-validity: the detector reads a TS flag', typescriptOf('declare class C {}'), true);
-check('tsc-validity: the detector passes JavaScript by', typescriptOf('a?.b(); class C { m() {} }'), false);
-checkDeep('tsc-validity: a marker without its reason is caught, in either comment form',
-  markersOf('// @ts-expect-error\nlet a;\n/* @ts-expect-error */\nlet b;\n// @ts-expect-error why\nlet c;\n'), ['@ts-expect-error', '@ts-expect-error ']);
-checkDeep('tsc-validity: a directive mentioned inside a comment is no marker',
-  markersOf('// names `@ts-expect-error` in passing\n// /@ts-expect-error\n'), []);
-check('tsc-validity: tsc rejects', rejectionsOf('const x: number = "a";'), 1);
-check('tsc-validity: a marker answers for its line', rejectionsOf('// @ts-expect-error a control\nconst x: number = "a";'), 0);
-check('tsc-validity: a stale marker is reported', rejectionsOf('// @ts-expect-error a control\nconst x = 1;'), 1);
-check('tsc-validity: an undeclared name is opaque', rejectionsOf('foreign.read();'), 0);
-check('tsc-validity: a line `@ts-ignore` silences nothing', rejectionsOf('// @ts-ignore\nconst x: number = "a";'), 1);
-check('tsc-validity: a block `@ts-ignore` silences nothing', rejectionsOf('/* @ts-ignore */\nconst x: number = "a";'), 1);
-check('tsc-validity: `@ts-nocheck` silences nothing', rejectionsOf('// @ts-nocheck\nconst x: number = "a";'), 1);
-check('tsc-validity: a `@ts-ignore` over an accepted line passes', rejectionsOf('// @ts-ignore\nconst x = 1;'), 0);
-check('tsc-validity: a JSDoc-style `@ts-ignore` silences nothing', rejectionsOf('/** @ts-ignore */\nconst x: number = "a";'), 1);
-check('tsc-validity: a `@ts-ignore` behind code silences nothing', rejectionsOf('let y; // @ts-ignore\nconst x: number = "a";'), 1);
-check('tsc-validity: `@ts-ignore` spelled as a prefix silences nothing, as tsc honors it', rejectionsOf('// @ts-ignored\nconst x: number = "a";'), 1);
-checkDeep('tsc-validity: a directive inside a string is no marker', markersOf('const s = "// @ts-expect-error";\n'), []);
-checkDeep('tsc-validity: a reason opens after whitespace', markersOf('// @ts-expect-error: why\nconst x: number = "a";\n'), ['@ts-expect-error: why']);
-check('tsc-validity: the core-js types are read', rejectionsOf('Iterator.zip([[1], [2]]);'), 0);
-check('tsc-validity: ... and check a member they lack', rejectionsOf('Iterator.notAMember();'), 1);
-const walkRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-tsc-validity-'));
-try {
-  for (const fixture of ['flat', 'flat/inner', 'group/nested', 'group/deeper/nested']) await fs.outputFile(path.join(walkRoot, fixture, 'input.mjs'), '');
-  checkDeep('tsc-validity: the walk collects a fixture at any depth and stops at one',
-    (await collectFixtures(walkRoot)).map(directory => path.relative(walkRoot, directory).replaceAll('\\', '/')), ['flat', 'group/deeper/nested', 'group/nested']);
+  function markersOf(code) {
+    return readSource(code, CONTROL).markersWithoutReason;
+  }
+  function rejectionsOf(code) {
+    return rejections(readSource(code, CONTROL).checked, CONTROL).length;
+  }
+  check('tsc-validity: the detector reads a TS node', typescriptOf('let x: number;'), true);
+  check('tsc-validity: the detector reads a TS flag', typescriptOf('declare class C {}'), true);
+  check('tsc-validity: the detector passes JavaScript by', typescriptOf('a?.b(); class C { m() {} }'), false);
+  checkDeep('tsc-validity: a marker without its reason is caught, in either comment form',
+    markersOf('// @ts-expect-error\nlet a;\n/* @ts-expect-error */\nlet b;\n// @ts-expect-error why\nlet c;\n'), ['@ts-expect-error', '@ts-expect-error ']);
+  checkDeep('tsc-validity: a directive mentioned inside a comment is no marker',
+    markersOf('// names `@ts-expect-error` in passing\n// /@ts-expect-error\n'), []);
+  check('tsc-validity: tsc rejects', rejectionsOf('const x: number = "a";'), 1);
+  check('tsc-validity: a marker answers for its line', rejectionsOf('// @ts-expect-error a control\nconst x: number = "a";'), 0);
+  check('tsc-validity: a stale marker is reported', rejectionsOf('// @ts-expect-error a control\nconst x = 1;'), 1);
+  check('tsc-validity: an undeclared name is opaque', rejectionsOf('foreign.read();'), 0);
+  check('tsc-validity: a line `@ts-ignore` silences nothing', rejectionsOf('// @ts-ignore\nconst x: number = "a";'), 1);
+  check('tsc-validity: a block `@ts-ignore` silences nothing', rejectionsOf('/* @ts-ignore */\nconst x: number = "a";'), 1);
+  check('tsc-validity: `@ts-nocheck` silences nothing', rejectionsOf('// @ts-nocheck\nconst x: number = "a";'), 1);
+  check('tsc-validity: a `@ts-ignore` over an accepted line passes', rejectionsOf('// @ts-ignore\nconst x = 1;'), 0);
+  check('tsc-validity: a JSDoc-style `@ts-ignore` silences nothing', rejectionsOf('/** @ts-ignore */\nconst x: number = "a";'), 1);
+  check('tsc-validity: a `@ts-ignore` behind code silences nothing', rejectionsOf('let y; // @ts-ignore\nconst x: number = "a";'), 1);
+  check('tsc-validity: `@ts-ignore` spelled as a prefix silences nothing, as tsc honors it', rejectionsOf('// @ts-ignored\nconst x: number = "a";'), 1);
+  checkDeep('tsc-validity: a directive inside a string is no marker', markersOf('const s = "// @ts-expect-error";\n'), []);
+  checkDeep('tsc-validity: a reason opens after whitespace', markersOf('// @ts-expect-error: why\nconst x: number = "a";\n'), ['@ts-expect-error: why']);
+  check('tsc-validity: the core-js types are read', rejectionsOf('Iterator.zip([[1], [2]]);'), 0);
+  check('tsc-validity: ... and check a member they lack', rejectionsOf('Iterator.notAMember();'), 1);
+  checkDeep('tsc-validity: syntactic diagnostics are checked', rejections('const x: = 1;', CONTROL),
+    ['TS1110 on line 1: Type expected.']);
+  checkDeep('tsc-validity: diagnostic positions count UTF-16 and CRLF lines',
+    rejections('const text = "\u{1F642}";\r\nconst x: number = "a";', CONTROL),
+    ["TS2322 on line 2: Type 'string' is not assignable to type 'number'."]);
+  check('tsc-validity: chained diagnostics retain the underlying type mismatch',
+    rejections('declare const value: { nested: { count: string } };\nconst result: { nested: { count: number } } = value;', CONTROL)
+      .some(message => message.includes("Type 'string' is not assignable to type 'number'.")), true);
+  check('tsc-validity: a new snapshot reads the corrected source', rejectionsOf('const x: number = 1;'), 0);
+  check('tsc-validity: a script declaration is checked against the lib', rejectionsOf('let String: number;'), 1);
+  check('tsc-validity: a module declaration shadows the lib', rejectionsOf('export {}; let String: number;'), 0);
+  check('tsc-validity: a row declares a script global', rejectionsOf('declare const rowOnly: string;'), 0);
+  check('tsc-validity: the following row does not inherit that global', rejectionsOf('const value: number = rowOnly;'), 0);
+  check('tsc-validity: switching to TSX keeps JSX valid', rejections('const view = <div />;', '/rows/row.tsx').length, 0);
+  check('tsc-validity: TSX is still type-checked', rejections('const x: number = "a";', '/rows/row.tsx').length, 1);
+  for (const extension of ['ts', 'cts', 'mts']) {
+    check(`tsc-validity: a .${ extension } file accepts a runtime declaration`,
+      rejections('let value: string;', `/rows/row.${ extension }`).length, 0);
+    check(`tsc-validity: a .d.${ extension } file retains skipLibCheck`,
+      rejections('let value: string;', `/rows/row.d.${ extension }`).length, 0);
+    check(`tsc-validity: a .d.${ extension } file still reports syntax errors`,
+      rejections('let value: = 1;', `/rows/row.d.${ extension }`).length, 1);
+  }
+  const walkRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-tsc-validity-'));
+  try {
+    for (const fixture of ['flat', 'flat/inner', 'group/nested', 'group/deeper/nested']) await fs.outputFile(path.join(walkRoot, fixture, 'input.mjs'), '');
+    checkDeep('tsc-validity: the walk collects a fixture at any depth and stops at one',
+      (await collectFixtures(walkRoot)).map(directory => path.relative(walkRoot, directory).replaceAll('\\', '/')), ['flat', 'group/deeper/nested', 'group/nested']);
+  } finally {
+    await fs.remove(walkRoot);
+  }
+  for (const [options, expected] of [
+    [{}, null],
+    [{ parserOpts: { plugins: ['flow', 'jsx'] } }, null],
+    [{ filename: 'input.ts' }, null],
+    [{ parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.ts'],
+    [{ parserOpts: { plugins: [['typescript', {}], 'jsx'] } }, '/fixtures/input.tsx'],
+    [{ filename: 'types.d.cts', parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.d.cts'],
+    [{ filename: 'Component.vue?vue&type=script&lang=tsx', parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.tsx'],
+    [{ filename: 'Component.vue?vue&type=script&lang=ts#L42', parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.ts'],
+  ]) {
+    check(`tsc-validity: a fixture with ${ JSON.stringify(options) } is read as ${ expected }`, fixtureFile(options), expected);
+  }
+  finish();
 } finally {
-  await fs.remove(walkRoot);
+  api.close();
 }
-for (const [options, expected] of [
-  [{}, null],
-  [{ parserOpts: { plugins: ['flow', 'jsx'] } }, null],
-  [{ filename: 'input.ts' }, null],
-  [{ parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.ts'],
-  [{ parserOpts: { plugins: [['typescript', {}], 'jsx'] } }, '/fixtures/input.tsx'],
-  [{ filename: 'types.d.cts', parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.d.cts'],
-  [{ filename: 'Component.vue?vue&type=script&lang=tsx', parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.tsx'],
-  [{ filename: 'Component.vue?vue&type=script&lang=ts#L42', parserOpts: { plugins: ['typescript'] } }, '/fixtures/input.ts'],
-]) {
-  check(`tsc-validity: a fixture with ${ JSON.stringify(options) } is read as ${ expected }`, fixtureFile(options), expected);
-}
-finish();
