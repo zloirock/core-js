@@ -10,13 +10,13 @@ exports.restoreProperty = restoreProperty;
 // Prime a possibly absent realm slot without masking the caller's bare assignment.
 exports.withTemporaryProperty = function (object, key, value, run) {
   var descriptor = Object.getOwnPropertyDescriptor(object, key);
-  // A browser's locked window alias already has the requested value.
-  if (!descriptor || descriptor.configurable || object[key] !== value) {
-    Object.defineProperty(object, key, { value: value, configurable: true, writable: true });
-  }
+  // A browser's locked window alias already has the requested value, so it's left as is - even
+  // redefining it with the same descriptor throws in some engines (like Firefox 37).
+  var locked = descriptor && !descriptor.configurable && object[key] === value;
+  if (!locked) Object.defineProperty(object, key, { value: value, configurable: true, writable: true });
   try {
     return run();
   } finally {
-    restoreProperty(object, key, descriptor);
+    if (!locked) restoreProperty(object, key, descriptor);
   }
 };
