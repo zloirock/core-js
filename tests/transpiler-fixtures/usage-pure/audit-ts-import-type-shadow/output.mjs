@@ -7,7 +7,7 @@ import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import type Map from "x";
 import type { WeakMap } from "y";
 import { type Set } from "z";
-// @ts-expect-error a type-only import read as a value is the shape under test
+// TS7 leaves the unresolved default import opaque in value position.
 export const a = new _Map();
 // @ts-expect-error a type-only import read as a value is the shape under test
 export const b = new _WeakMap();
