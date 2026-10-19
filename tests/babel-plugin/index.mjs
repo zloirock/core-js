@@ -8,11 +8,13 @@
 //      fixtures whose alternate-babel output cannot be expressed as a baseline match.
 //      listed entries are tracked by bucket so the divergence story stays inspectable.
 //   2) per-fixture override: when BABEL_VARIANT is set (e.g. `babel-v7`) the runner
-//      prefers a `<stem>.<variant>.<ext>` sibling for each expected file and falls back
-//      to the baseline otherwise.
+//      uses the fixture's full `<stem>.<variant>.<ext>` sibling set if any sibling exists,
+//      and falls back to the baseline otherwise.
 const { equal } = require('node:assert/strict');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
+
+const { normalizeEnumTrailingCommas } = await import('./fixture-output.mjs');
 
 const { FIXTURE_SHARD, collectFixtures, defaultShardCount, emitShardSummary, runShards, shardSlice } =
   await import('./fixture-shards.mjs');
@@ -21,11 +23,12 @@ const { BABEL_REQUIRE_FROM, BABEL_SKIP, BABEL_VARIANT, OVERWRITE } = process.env
 
 // resolve @babel/core (and any plugin transitively loaded by name) from the requested
 // workspace; without BABEL_REQUIRE_FROM fall through to plain require so the zx host's
-// resolution (@babel/core@7 at the repo root) is used
+// resolution (@babel/core@8 at the repo root) is used
 const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : require;
-const { transformAsync } = requireBabel('@babel/core');
+const babel = requireBabel('@babel/core');
+const { transformAsync } = babel;
 
 const { _: args } = argv;
 const { pathExists, readFile, readJson, rm, writeFile } = fs;
@@ -34,10 +37,8 @@ const { cyan, green, red, yellow } = chalk;
 
 const UTF8 = { encoding: 'utf8' };
 const ROOT = path.resolve('../..').replaceAll('\\', '/');
-// pinning options.cwd to BABEL_REQUIRE_FROM redirects babel's plugin-by-name resolution to
-// that workspace's node_modules. without this, v8 babel called from cwd=tests/babel-plugin
-// would walk up to the repo root and pick up the v7 transform plugins. fixtures that pin
-// their own cwd take precedence
+// Resolve named plugins from the same workspace as the selected Babel host.
+// Fixtures that pin their own cwd take precedence.
 const transformCwd = BABEL_REQUIRE_FROM ? path.resolve(BABEL_REQUIRE_FROM) : null;
 function withTransformCwd(options) {
   return transformCwd && options.cwd === undefined ? { ...options, cwd: transformCwd } : options;
@@ -146,13 +147,13 @@ async function resolveExpectedSlots(directory) {
 // matches the baseline drop every sibling so the fixture falls back to baseline. all-or-nothing -
 // mirrors resolveExpectedSlots' lock (one sibling => the variant owns every slot). so a plain
 // `OVERWRITE=1 npm run test-babel-plugin-v7` regenerates v7 variants with no manual placeholder
-// and never clobbers output.mjs. `slots` is [[slotName, desiredContent | null], ...]
+// and never clobbers output.mjs. `slots` is [[slotName, desiredContent | null, normalize?], ...]
 async function overwriteVariant(directory, slots) {
   const baseline = await Promise.all(slots.map(async ([name]) => {
     const file = join(directory, name);
     return await pathExists(file) ? readFile(file, UTF8) : null;
   }));
-  const matchesBaseline = slots.every(([, content], i) => content === baseline[i]);
+  const matchesBaseline = slots.every(([, content, normalize = x => x], i) => normalize(content) === normalize(baseline[i]));
   // touch (and report) only what actually changes - an OVERWRITE sweep over thousands of
   // untouched fixtures must stay silent so the real regen deltas are the whole output
   let changed = false;
@@ -183,9 +184,11 @@ async function runFixture(directory) {
 
   const { logs, warns, restore } = captureConsole();
 
-  let result, error;
+  let result, error, parserOpts;
   try {
-    result = normalizeOutput((await transformAsync(source, withTransformCwd(options))).code);
+    const transformed = await transformAsync(source, withTransformCwd(options));
+    result = normalizeOutput(transformed.code);
+    parserOpts = transformed.options.parserOpts;
   } catch (transformError) {
     error = transformError;
   } finally {
@@ -197,12 +200,16 @@ async function runFixture(directory) {
   const actual = error ? normalizeOutput(error.message) : result;
   const debugOutput = normalizeDriftingTargets(logs.length ? normalizeOutput(logs.join('\n')) : null);
   const warningsOutput = warns.length ? normalizeOutput(warns.join('\n')) : null;
+  // Keep the default Babel 8 snapshots exact. Variant comparison and regeneration share
+  // the same narrow normalization so a cosmetic enum tail never needs a sidecar.
+  function normalizeCode(code) {
+    return normalizeEnumTrailingCommas(code, babel, parserOpts, BABEL_VARIANT);
+  }
 
-  // the debug slot carries `normalizeDriftingTargets` so the EXPECTED fixture content gets the same
-  // resolved-targets collapse the actual went through - keeps both comparison sides aligned in the
-  // default (babel@8) run without touching the variant leg (a no-op normalizer there)
+  // Apply the same resolved-target collapse to expected debug content as to actual
+  // debug content, for both Babel hosts.
   const expected = [
-    [actualFile, actual],
+    [actualFile, actual, error ? undefined : normalizeCode],
     [debugFile, debugOutput, normalizeDriftingTargets],
     [warningsFile, warningsOutput],
   ];
@@ -215,7 +222,7 @@ async function runFixture(directory) {
     if (BABEL_VARIANT) {
       const changed = await overwriteVariant(directory, [
         [EXPECTED_SLOTS.errorFile, error ? actual : null],
-        [EXPECTED_SLOTS.outputFile, error ? null : actual],
+        [EXPECTED_SLOTS.outputFile, error ? null : actual, normalizeCode],
         [EXPECTED_SLOTS.debugFile, debugOutput],
         [EXPECTED_SLOTS.warningsFile, warningsOutput],
       ]);
@@ -272,7 +279,7 @@ async function runFixture(directory) {
       return echo(red(`${ cyan(label(directory)) } failed: ${ cyan(file) } is missing`));
     }
     try {
-      equal(content, normalizeExpected(await readFile(file, UTF8)));
+      equal(file === outputFile ? normalizeCode(content) : content, normalizeExpected(await readFile(file, UTF8)));
     } catch (equalError) {
       failed++;
       echo(red(`${ cyan(label(directory)) } failed:`));
@@ -327,7 +334,7 @@ if (FIXTURE_SHARD) {
 }
 
 // alternate-workspace runs prefix the summary with the resolved babel version and append
-// a Skipped count; default v7 path keeps the original concise two-line shape
+// a Skipped count; default v8 path keeps the original concise two-line shape
 function logSummary() {
   if (BABEL_REQUIRE_FROM) {
     const { version } = requireBabel('@babel/core/package.json');

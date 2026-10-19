@@ -1,3 +1,0 @@
-enum PatPatched {
-  OF = 'of',
-}
