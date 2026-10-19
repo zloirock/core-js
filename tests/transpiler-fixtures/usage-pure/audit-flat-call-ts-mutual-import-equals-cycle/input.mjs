@@ -3,6 +3,7 @@
 // polyfill instead of recursing the two aliases unbounded
 // @ts-expect-error a cyclic type tsc refuses is the shape under test
 import A = B.X;
+// @ts-expect-error a cyclic import alias tsc refuses is the shape under test
 import B = A.Y;
 declare const r: A.Items;
 r.flat();

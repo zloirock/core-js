@@ -5,7 +5,7 @@ import type Map from 'some-module';
 import type { Set } from 'some-module';
 import { type Promise } from 'some-module';
 
-// @ts-expect-error a type-only import read as a value is the shape under test
+// TS7 leaves the unresolved default import opaque in value position.
 const m = new Map();
 // @ts-expect-error a type-only import read as a value is the shape under test
 const s = new Set();
