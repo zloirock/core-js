@@ -10,6 +10,7 @@ var hasOwn = require('../internals/has-own-property');
 var isCallable = require('../internals/is-callable');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var toString = require('../internals/to-string');
+var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
@@ -36,12 +37,12 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in SymbolPrototy
   copyConstructorProperties(SymbolWrapper, NativeSymbol);
   // wrap Symbol.for for correct handling of empty string descriptions
   var nativeFor = SymbolWrapper['for'];
-  SymbolWrapper['for'] = { 'for': function (key) {
+  defineBuiltIn(SymbolWrapper, 'for', function (key) {
     var stringKey = toString(key);
     var symbol = call(nativeFor, this, stringKey);
     if (stringKey === '') EmptyStringDescriptionStore[symbol] = true;
     return symbol;
-  } }['for'];
+  });
   SymbolWrapper.prototype = SymbolPrototype;
   SymbolPrototype.constructor = SymbolWrapper;
 
