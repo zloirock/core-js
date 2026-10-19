@@ -16,6 +16,8 @@ One detail bites: the v7 variant is all-or-nothing per fixture - once one siblin
 
 Which sibling set the runner reads comes from `BABEL_VARIANT` - `npm run test-babel-plugin-v7` sets it to `babel-v7`, and without it every slot is the baseline.
 
+Variant output comparisons normalize enum tail commas and redundant type parentheses; the default Babel 8 snapshots stay exact. Removing type parentheses must preserve the parsed tree, so required type grouping and value-level spellings remain observable.
+
 `tests/babel-plugin-v7/skip.mjs` is the last resort, for a fixture whose v7 behavior cannot be expressed as a sibling at all. It is empty by design - reach for a sibling first, and if you add an entry, put it in a named bucket so the divergence stays inspectable.
 
 ## Regenerating
@@ -42,7 +44,7 @@ An explicit `OVERWRITE` run succeeds after regeneration and reports changed and 
 - Never regenerate blindly. Read every diff: if the new output is correct, update the fixture together with its comment; if it is not, the fix is wrong
 - Never delete a fixture that exposes a bug, and never retarget an existing one onto a different shape - that consolidates the bug instead of showing it. Restore the original input and add a new fixture next to it
 - A fixture locks the current behavior *and* the assumptions behind it, and those assumptions may themselves be wrong. When a fix changes an existing output, analyze it, do not revert reflexively
-- A sidecar is a proof obligation: show what the divergence actually IS before accepting it. The unplugin leg is compared STRUCTURALLY against the babel baseline (both are AST renderers - formatting is normalized away by `tests/unplugin/structural.mjs`), so an `output-unplugin.mjs` sidecar is never cosmetic; the accepted classes are enumerated in the unplugin package's `AGENTS.md`, and each one is debt to justify, not formatting to skim past
+- A sidecar is a proof obligation: show what the divergence actually IS before accepting it. The unplugin leg is compared STRUCTURALLY against the babel baseline through `tests/unplugin/structural.mjs`: formatting, statement-list declaration/expression splits, and the order of generated `var` declarations without initializers are normalized. Remaining sidecars record reviewed differences beyond that contract; the accepted classes are enumerated in the unplugin package's `AGENTS.md`, and each one is debt to justify
 - Lock every fix in both `usage-global` and `usage-pure`. `usage-global` is the primary product, and the pure fixture is usually the regression guard
 - An expected output with no injection on a typed receiver means the resolver bailed - investigate before locking it in
 - A row written in the wrong FORM is green and useless at once: the shape has to be the one whose route the row claims to cover. Three ways this fails silently: a PLAIN spelling where the route only fires on the nested one; a pure accessor where the route only fires once the receiver cannot be re-read; and a method that lives on one type only (`flat`, `findLast`) where the row is about the receiver's TYPE - that answers the same whether the type resolved or not, so the discriminator has to be a method several types carry (`at`), and it has to stand where the loss would show. Mutate the predicate the row exists for and see the row go red; a row that stays green does not cover it
