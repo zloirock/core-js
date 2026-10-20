@@ -53,6 +53,7 @@ import {
   nullFirstGuardTest,
   renderInExpressionPlan,
   renderMethodCallMember,
+  planMethodCall,
   renderProxyReceiverPlan,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
@@ -688,22 +689,23 @@ export default function createAstUsagePureCallback({
   // the consume CORE: the helper call, and for the method form its `.call` dispatch -
   // a non-reusable receiver memoizes into the helper argument
   function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone, lookup = null }) {
-    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
-    const receiverCore = unwrapRuntimeExpr(object);
-    const receiver = receiverCore?.type === 'SequenceExpression' ? peelReceiverSequenceTail(receiverCore) : object;
-    if (methodCallConsume && !lookup && !isReusableReceiver(receiver, { ctx: receiverCtx })) {
-      const recvRef = injector.generateDeclaredRef(metaPath);
-      return callExpression(renderMethodCallMember(
-        callExpression(identifier(id), [assignmentExpression('=', identifier(recvRef), receiverClone())]),
-        { args: callerPath.node.arguments, ctx: receiverCtx },
-      ), [identifier(recvRef), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
+    if (!methodCallConsume) return lookup ?? callExpression(identifier(id), [receiverClone()]);
+    const decision = planMethodCall({
+      receiver: object, prepared: !!lookup, args: callerPath.node.arguments,
+      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+    });
+    let receiver = cloneNode(decision.receiver);
+    let lookupArg;
+    if (!lookup) {
+      lookupArg = receiverClone();
+      if (decision.capture) {
+        receiver = identifier(injector.generateDeclaredRef(metaPath));
+        lookupArg = assignmentExpression('=', cloneNode(receiver), lookupArg);
+      }
     }
-    let core = lookup ?? callExpression(identifier(id), [receiverClone()]);
-    if (methodCallConsume) {
-      core = callExpression(renderMethodCallMember(core, { args: callerPath.node.arguments, ctx: receiverCtx }),
-        [cloneNode(receiver), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
-    }
-    return core;
+    const core = lookup ?? callExpression(identifier(id), [lookupArg]);
+    return callExpression(renderMethodCallMember(core, decision),
+      [receiver, ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
   }
 
   // `x?.[S]` / `x?.[S]()` - the null test guards the whole consumed shape; a non-reusable

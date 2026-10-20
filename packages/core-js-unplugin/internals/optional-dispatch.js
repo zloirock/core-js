@@ -62,6 +62,7 @@ import {
   nullGuardTest,
   renderNavCollapseLeaf,
   renderMethodCallMember,
+  planMethodCall,
   renderNavCollapseTail,
   renderShortCircuitGuard,
   sequenceExpression,
@@ -76,7 +77,6 @@ import {
 } from './emit-shared.js';
 import { calleeParenWrapped, guardProbeUndefinable, optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
 import {
-  LITERAL_RECEIVER_TYPES,
   chainContainsMutatedStatic,
   climbToCallerPath,
   cloneSpinePeeled,
@@ -1212,10 +1212,36 @@ export default function createOptionalDispatchChannel(ctx) {
     return composeNullGuardTest([...guardChecks ?? [], ...check ? [check] : []]);
   }
 
+  // Temporary ESTree application of the shared ordinary-call decision. Generated refs are
+  // registered by the injector before any later query; cloning preserves the source frame.
+  function spellMethodCall(decision) {
+    let lookupArg,
+        callReceiver;
+    const callEffects = [...decision.prefixEffects, ...decision.firstReadEffects].map(effect => cloneNode(effect));
+    if (decision.capture) {
+      const ref = injector.generateDeclaredRef(decision.ctx.path);
+      callReceiver = identifier(ref);
+      const memo = assignmentExpression('=', identifier(ref), cloneStamped(decision.firstReceiver, typeStampCtx));
+      if (decision.capture === 'lookup') lookupArg = memo;
+      else {
+        callEffects.push(memo);
+        lookupArg = identifier(ref);
+      }
+    } else {
+      lookupArg = cloneStamped(decision.lookupReceiver, typeStampCtx);
+      callReceiver = cloneStamped(decision.receiver, typeStampCtx);
+    }
+    callEffects.push(...decision.keyEffects.map(effect => cloneNode(effect)));
+    return { lookupArg, callReceiver, callEffects, callDecision: decision };
+  }
+
   // the receiver / guard spelling of one instance dispatch: how the lookup argument and the
   // `this` slot re-read or memoize the receiver, and where the member-optional null test
   // lands (its memo joins split disjuncts when the split ran)
-  function resolveDispatchSpelling({ metaPath, effObject, memberOptional, isCall, guardDisjuncts }) {
+  function resolveDispatchSpelling({
+    metaPath, effObject, memberOptional, isCall, guardDisjuncts,
+    sourceReceiver = effObject, sideEffects = [], receiverEffectCount = 0, args = [], optional = false,
+  }) {
     // source parens are printer trivia - the reusability question and the re-spelled
     // receiver both read through them (`(arr).at(0)` -> `_at(arr).call(arr, 0)`); TS
     // casts stay (the `satisfies` memo canon)
@@ -1252,6 +1278,13 @@ export default function createOptionalDispatchChannel(ctx) {
       const effects = observableSequenceElements(prefix, receiverCtx, { preserveSourceReads: true });
       effObject = effects.length ? sequenceExpression([...effects.map(effect => cloneNode(effect)), cloneNode(receiver)]) : receiver;
     } else if (!receiverSequence) receiver = effObject;
+    if (!memberOptional && isCall) return {
+      ...spellMethodCall(planMethodCall({
+        receiver: effObject, sourceReceiver, sideEffects, receiverEffectCount, args, optional, ctx: receiverCtx,
+      })),
+      check: null,
+      guardDisjuncts,
+    };
     // A current-pass pure import owns its stable receiver binding. An inherited import
     // hint alone does not prove that the adjacent reads still name the same value.
     const mintedImport = receiver.type === 'Identifier' && !!bindingPolyfillHint({
@@ -1291,13 +1324,6 @@ export default function createOptionalDispatchChannel(ctx) {
         lookupArg = identifier(ref);
         callReceiver = identifier(ref);
       }
-    } else if (reusable) {
-      lookupArg = cloneStamped(effObject, typeStampCtx);
-      callReceiver = cloneStamped(receiver, typeStampCtx);
-    } else if (isCall) {
-      const ref = injector.generateDeclaredRef(metaPath);
-      lookupArg = assignmentExpression('=', identifier(ref), cloneStamped(effObject, typeStampCtx));
-      callReceiver = identifier(ref);
     } else {
       lookupArg = cloneStamped(effObject, typeStampCtx);
     }
@@ -1522,7 +1548,7 @@ export default function createOptionalDispatchChannel(ctx) {
   }
 
   // eslint-disable-next-line max-statements -- sequential emission steps of one instance claim
-  function replaceInstanceLike({ metaPath, id }) {
+  function replaceInstanceLike({ metaPath, id, sideEffects = [], receiverEffectCount = 0 }) {
     const memberNode = metaPath.node;
     if (fuseGuardCommaMemo({ metaPath, id })) return true;
     if (isDeleteOperand(metaPath)) return false;
@@ -1599,8 +1625,11 @@ export default function createOptionalDispatchChannel(ctx) {
         effObject = rewrapNonNull(split.receiver);
       }
     }
-    const spelling = resolveDispatchSpelling({ metaPath, effObject, memberOptional, isCall, guardDisjuncts });
-    const { check, lookupArg, callReceiver } = spelling;
+    const spelling = resolveDispatchSpelling({
+      metaPath, effObject, memberOptional, isCall, guardDisjuncts, sourceReceiver: object,
+      sideEffects, receiverEffectCount, args: isCall ? parent.arguments : [], optional: callOptional,
+    });
+    const { check, lookupArg, callReceiver, callEffects, callDecision } = spelling;
     ({ guardDisjuncts } = spelling);
     let built;
     const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
@@ -1624,7 +1653,7 @@ export default function createOptionalDispatchChannel(ctx) {
     if (isCall) {
       const lookup = callExpression(identifier(id), [lookupArg]);
       const dispatch = callExpression(
-        renderMethodCallMember(lookup, { optional: callOptional, args: parent.arguments, ctx: receiverCtx }),
+        renderMethodCallMember(lookup, callDecision ?? { optional: callOptional, args: parent.arguments, ctx: receiverCtx }),
         [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
       );
       // the `?.call` needs a chain wrapper of its own ONLY when the original chain does not
@@ -1634,7 +1663,7 @@ export default function createOptionalDispatchChannel(ctx) {
       const chainContinues = upNode
         && ((upNode.type === 'MemberExpression' && upNode.object === parent)
           || (upNode.type === 'CallExpression' && upNode.callee === parent));
-      built = callOptional && !chainContinues ? chainExpression(dispatch) : dispatch;
+      built = withSideEffects(callOptional && !chainContinues ? chainExpression(dispatch) : dispatch, callEffects);
     } else {
       built = callExpression(identifier(id), [lookupArg]);
     }
@@ -1690,6 +1719,12 @@ export default function createOptionalDispatchChannel(ctx) {
     if (meta.sideEffects?.length && meta.sideEffects.length <= (meta.receiverEffectCount ?? 0)
       && meta.sideEffects.every(effect => subtreeContainsNode(node.object, effect))) {
       return replaceInstanceLike({ metaPath, id: injectPureImport(entry, hintName) });
+    }
+    if (methodCall && !parent.optional && !memberOptional && !receiverCarriesOptional(node.object)) {
+      return replaceInstanceLike({
+        metaPath, id: injectPureImport(entry, hintName),
+        sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+      });
     }
     const interveningEffects = (meta.sideEffects?.length ?? 0) > (meta.receiverEffectCount ?? 0);
     const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
@@ -1769,24 +1804,23 @@ export default function createOptionalDispatchChannel(ctx) {
     let receiver = peelReceiverSequenceTail(node.object);
     const tailPure = receiverPure ?? instanceSynthReceiverPure(receiver, { ...receiverCtx, resolvePure: m => resolvePure(m, metaPath) });
     if (tailPure) receiver = identifier(injectPureImport(tailPure.entry, tailPure.hintName));
-    if (!memberOptional && isReusableReceiver(receiver, { interveningEffects, ctx: receiverCtx })) {
+    const receiverSequence = peelNestedSequenceExpressions(node.object);
+    const renderedFirstReceiver = tailPure
+      ? sequenceExpression([...receiverSequence.prefix, receiver]) : node.object;
+    const ordinaryDecision = !memberOptional && planMethodCall({
+      receiver: renderedFirstReceiver, sourceReceiver: node.object,
+      sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+      args: parent.arguments, ctx: receiverCtx,
+    });
+    if (ordinaryDecision && !ordinaryDecision.capture) {
       const id = injectPureImport(entry, hintName);
-      const receiverSequence = peelNestedSequenceExpressions(node.object);
-      const renderedFirstReceiver = tailPure
-        ? sequenceExpression([...receiverSequence.prefix.map(effect => cloneNode(effect)), cloneNode(receiver)])
-        : cloneNode(node.object);
-      const firstReadEffects = [
-        ...meta.sideEffects.slice(0, meta.receiverEffectCount ?? 0)
-          .filter(effect => !subtreeContainsNode(node.object, effect)).map(effect => cloneNode(effect)),
-        ...observableSequenceElements([renderedFirstReceiver], receiverCtx, { preserveSourceReads: true }),
-        ...meta.sideEffects.slice(meta.receiverEffectCount ?? 0).map(effect => cloneNode(effect)),
-      ];
+      const { lookupArg, callReceiver, callEffects } = spellMethodCall(ordinaryDecision);
       const dispatch = callExpression(
-        renderMethodCallMember(callExpression(identifier(id), [cloneNode(receiver)]), { args: parent.arguments, ctx: receiverCtx }),
-        [cloneNode(receiver), ...parent.arguments.map(argument => cloneNode(argument))],
+        renderMethodCallMember(callExpression(identifier(id), [lookupArg]), ordinaryDecision),
+        [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
       );
       markRewrite();
-      callerPath.replaceWith(withSideEffects(dispatch, firstReadEffects));
+      callerPath.replaceWith(withSideEffects(dispatch, callEffects));
       return;
     }
     // a non-reusable receiver memoizes FIRST, then the harvested key SE, then the dispatch
@@ -1811,46 +1845,40 @@ export default function createOptionalDispatchChannel(ctx) {
       emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath, meta, entry, hintName }, bareOptionalCtx);
       return;
     }
-    // The first capture owns its full source receiver, including quiet prefix reads.
-    // Harvested receiver effects outside that spelling precede it; computed-key effects follow.
     const id = injectPureImport(entry, hintName);
+    if (!memberOptional) {
+      const decision = planMethodCall({
+        receiver: effReceiver, sourceReceiver: node.object,
+        sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+        args: parent.arguments, ctx: receiverCtx,
+      });
+      const { lookupArg, callReceiver, callEffects } = spellMethodCall(decision);
+      const dispatch = callExpression(
+        renderMethodCallMember(callExpression(identifier(id), [lookupArg]), decision),
+        [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
+      );
+      markRewrite();
+      replaceGuardedHop({
+        hopPath: callerPath, test: composeGuardTest(guardDisjuncts, null),
+        built: withSideEffects(dispatch, callEffects), skippedNodes,
+      });
+      return;
+    }
+    // The optional member's own guard captures the receiver before its key effects.
     const ref = injector.generateDeclaredRef(metaPath);
-    const firstReceiver = effReceiver;
-    const memo = assignmentExpression('=', identifier(ref), cloneNode(firstReceiver));
-    // a LITERAL receiver's memo fuses into the lookup argument and the harvested key SE
-    // hoists ahead - constructing it observes nothing, so the order is unobservable
-    // (`[3, 4][(k(), 'at')](0)` -> `(k(), _at(_ref = [3, 4]).call(_ref, 0))`). every other
-    // receiver READS (a member's getter, a call), and ECMA evaluates the receiver BEFORE
-    // the key: the memo leads the sequence (`(_ref = box.list, k++, _at(_ref)...)`). under
-    // a split's guard the alternate keeps the memo-first seq too (the disjuncts' own canon)
-    const fusableReceiver = LITERAL_RECEIVER_TYPES.has(unwrapRuntimeExpr(effReceiver)?.type);
-    const fuseMemo = !memberOptional && !guardDisjuncts && fusableReceiver && !interveningEffects && !mayHaveSideEffects(effReceiver);
+    const memo = assignmentExpression('=', identifier(ref), cloneNode(effReceiver));
     const dispatch = callExpression(
-      renderMethodCallMember(callExpression(identifier(id), [fuseMemo ? memo : identifier(ref)]), {
-        args: parent.arguments,
-        ctx: receiverCtx,
+      renderMethodCallMember(callExpression(identifier(id), [identifier(ref)]), {
+        args: parent.arguments, ctx: receiverCtx,
       }),
       [identifier(ref), ...parent.arguments.map(argument => cloneNode(argument))],
     );
-    const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(firstReceiver, effect)).map(effect => cloneNode(effect));
-    const prefixEffects = meta.sideEffects.slice(0, meta.receiverEffectCount ?? 0)
-      .filter(effect => !subtreeContainsNode(firstReceiver, effect)).map(effect => cloneNode(effect));
-    const keyEffects = meta.sideEffects.slice(meta.receiverEffectCount ?? 0).map(effect => cloneNode(effect));
-    let built,
-        test;
-    if (memberOptional) {
-      // the member's own `?.` folds into the guard: the receiver memo is its null test
-      // (`... || null == (_ref2 = _ref.call(arr, 0)) ? void 0 : (eff(), _k(_ref2)...)`)
-      test = composeGuardTest(guardDisjuncts, memo);
-      built = effects.length ? sequenceExpression([...effects, dispatch]) : dispatch;
-    } else {
-      test = composeGuardTest(guardDisjuncts, null);
-      built = fuseMemo
-        ? (effects.length ? sequenceExpression([...effects, dispatch]) : dispatch)
-        : sequenceExpression([...prefixEffects, memo, ...keyEffects, dispatch]);
-    }
+    const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(effReceiver, effect)).map(effect => cloneNode(effect));
     markRewrite();
-    replaceGuardedHop({ hopPath: callerPath, test, built, skippedNodes });
+    replaceGuardedHop({
+      hopPath: callerPath, test: composeGuardTest(guardDisjuncts, memo),
+      built: withSideEffects(dispatch, effects), skippedNodes,
+    });
   }
 
   // `this.from(x)` / `super.of(x)` in static context resolve against the super class's
