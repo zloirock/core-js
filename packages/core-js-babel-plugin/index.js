@@ -105,6 +105,7 @@ import {
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
   renderMethodCallMember,
+  planMethodCall,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
@@ -1022,12 +1023,16 @@ export default function plugin(api, options) {
             const optional = raw && !!callPath.node.optional;
             if (!thisArg) return hostSlot({ ...call, callee: estreeToBabel(callee), optional });
             // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
-            const canonicalMember = renderMethodCallMember(callee.object, {
-              optional, args: call.arguments,
+            const decision = planMethodCall({
+              receiver: thisArg,
+              prepared: true,
+              optional,
+              args: call.arguments,
               ctx: { scope: path.scope, path, adapter, injectorState: injector },
             });
+            const canonicalMember = renderMethodCallMember(callee.object, decision);
             const callMember = estreeToBabel(optional ? chainExpression(canonicalMember) : canonicalMember);
-            const args = [estreeToBabel(thisArg), ...call.arguments];
+            const args = [estreeToBabel(decision.receiver), ...call.arguments];
             return hostSlot(optional
               ? t.optionalCallExpression(callMember, args, false)
               : t.callExpression(callMember, args));
