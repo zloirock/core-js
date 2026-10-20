@@ -1089,10 +1089,9 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
   if (!leafPlan?.leafPure && !leafPlan?.leafName) {
     return { boundary, key, passthrough: true };
   }
-  // the effect nodes this plan will RE-EMIT stay claim-live: a claim inside the kept key
-  // (`log.push('k')`) fires later in the walk and must land on the (soon detached) original,
-  // which the render-time harvest off `effectsHost` then picks up rewritten
-  for (const expr of sealedLeafKeyEffects(boundary.inner)) ctx.keepLive?.add(expr);
+  // the render harvests the kept key's effects off this original: a claim inside one (`log.push('k')`)
+  // fires now, while its path is live - the walk reaches it only after the collapse detached it
+  ctx.claimLive?.(sealedLeafKeyEffects(boundary.inner), metaPath);
   return {
     boundary,
     key,

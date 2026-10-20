@@ -259,6 +259,7 @@ export default function createAstDestructureEmitter({
   markRewrite,
   skippedNodes,
   markSubtreeSkipped,
+  claimLive,
   program,
   resolvePure,
   resolveGlobalPolyfill,
@@ -349,7 +350,7 @@ export default function createAstDestructureEmitter({
     resolvePure,
     resolveGlobalPolyfill,
     injectPureImport,
-    keepLive: skippedNodes.keepLive,
+    claimLive,
   };
 
   // the drain half rides the same per-transform state; `resolveProxyNavReceiver` is hoisted,
@@ -1662,9 +1663,12 @@ export default function createAstDestructureEmitter({
       if (plan.array.bodyless) statement.replaceWith(bodylessSlotReplacement(statement.node, [statement.node, ...rendered.slice(1)]));
       else statement.insertAfter(rendered.slice(1));
     } else if (plan.array.inDeclaration) {
-      // the export unwraps first, as on the other leg: the declarators land in the live declaration
+      // the export unwraps first, as on the other leg: the declarators land in the live declaration, through
+      // its own declarator path - the one this route holds hangs off the export the unwrap removed
       const host = unwrapExportedHost(declaration) ?? declaration;
-      const replacements = declarator.replaceWithMultiple(rendered.flatMap(node => node.declarations));
+      const liveDeclarator = host === declaration ? declarator
+        : host.get('declarations')[host.node.declarations.indexOf(declarator.node)];
+      const replacements = liveDeclarator.replaceWithMultiple(rendered.flatMap(node => node.declarations));
       for (const replacement of replacements) registerDeclaratorBindings(replacement);
       if (plan.array.splitDeclaration) pendingSplits.set(host.node, statementListOf(host.parentPath?.node));
     } else if (plan.array.positional && !exported) {
@@ -2737,7 +2741,7 @@ export default function createAstDestructureEmitter({
         absentableStoreReadKey: absentableStoreReadKeyOf(declarator.init,
           { scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath) }),
         // ... and the SEALED shape of the same read, for the same reason
-        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
+        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
       },
     });
     return 'handled';
@@ -3404,7 +3408,7 @@ export default function createAstDestructureEmitter({
           local: propLocalName(prop), host: 'memo-decl', exported, metaPath,
           initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
           initProbeNavStart: discardedInitProbeNavStart(declarator.init),
-          sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
+          sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
         },
       });
       markRewrite();
@@ -3598,7 +3602,7 @@ export default function createAstDestructureEmitter({
         // time the walk has collapsed the nav and the probe's own question is unanswerable
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
         initProbeNavStart: discardedInitProbeNavStart(declarator.init),
-        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
+        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         readsReceiver: kind === 'instance',
         consumeResidualRead: literalPlan.consumeResidualRead,
@@ -4249,7 +4253,7 @@ export default function createAstDestructureEmitter({
       // declaration host's own pair, asked of the assignment's right
       initProbePlan,
       initProbeNavStart,
-      sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
+      sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure, claimLive }),
       // an SE-keyed prop in an ASSIGNMENT host keeps its ORIGINAL binding in the residual -
       // the overwrite channel re-binds it right after, so no sentinel mints (babel's shape);
       // a rest sibling still renames (the key must keep excluding it from rest)
