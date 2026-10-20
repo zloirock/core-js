@@ -11,13 +11,14 @@ import {
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   callExpression,
-  chainExpression,
   cloneNode,
   identifier,
   memberExpression,
   sequenceExpression,
   voidZero,
   nullGuardTest,
+  planMethodCall,
+  renderMethodCall,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
@@ -67,9 +68,9 @@ export function emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPat
   const keyEffects = (meta.sideEffects ?? []).slice(meta.receiverEffectCount ?? 0).map(expr => cloneNode(expr));
   const firstRead = reusable ? firstReceiver : ctx.assignmentExpression('=', identifier(ref), firstReceiver);
   const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)), [keyEffects.length ? held() : firstRead]);
-  const dispatch = chainExpression(callExpression(
-    memberExpression(lookup, identifier('call'), { optional: true }),
-    [held(), ...parent.arguments.map(argument => cloneNode(argument))]));
+  const dispatch = renderMethodCall(planMethodCall({
+    receiver: held(), prepared: true, optional: true, args: parent.arguments,
+  }), { lookup, embed: cloneNode });
   ctx.markRewrite();
   const optTarget = callerPath.parentPath?.node?.type === 'ChainExpression' ? callerPath.parentPath : callerPath;
   const consumed = optTarget.node;
@@ -112,20 +113,21 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
       keyEffects.length ? sequenceExpression([...keyEffects, lookup]) : lookup);
     ctx.markRewrite();
     const consumed = callerPath.node;
-    callerPath.replaceWith(callExpression(
-      memberExpression(sealedGuard, identifier('call')),
-      [reusable ? cloneNode(receiver) : identifier(ref), ...parent.arguments.map(argument => cloneNode(argument))]));
+    callerPath.replaceWith(renderMethodCall(planMethodCall({
+      receiver: reusable ? receiver : identifier(ref), prepared: true, args: parent.arguments,
+      ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
+    }), { lookup: sealedGuard, embed: cloneNode }));
     markSubtreeSkipped(ctx.skippedNodes, consumed);
     return;
   }
   const held = reusable ? cloneNode(receiver) : identifier(ref);
   const optionalCall = parent.optional === true;
-  let dispatch = callExpression(
-    memberExpression(callExpression(identifier(ctx.injectPureImport(entry, hintName)), [cloneNode(held)]),
-      identifier('call'), { optional: optionalCall }),
-    [cloneNode(held), ...parent.arguments.map(argument => cloneNode(argument))],
-  );
-  if (optionalCall) dispatch = chainExpression(dispatch);
+  const dispatch = renderMethodCall(planMethodCall({
+    receiver: held, prepared: true, optional: optionalCall, args: parent.arguments,
+    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
+  }), {
+    lookup: callExpression(identifier(ctx.injectPureImport(entry, hintName)), [cloneNode(held)]), embed: cloneNode,
+  });
   // the memo SPELLS the receiver whole, its own sequence prefix included: an effect the test
   // already runs must not run a second time in the alternate - only the KEY's effects are left
   // for it (`(eff(), arr)?.[(k(), 'flat')]()` -> `... ? void 0 : (k(), _flat(_ref)...)`)

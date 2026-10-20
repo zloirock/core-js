@@ -35,6 +35,8 @@ import {
   objectPattern,
   objectProperty,
   renderMemoActivation,
+  planMethodCall,
+  renderMethodCall,
   sequenceExpression,
   unaryExpression,
   variableDeclaration,
@@ -60,6 +62,35 @@ function caught(node) {
   } catch (error) {
     return error.message;
   }
+}
+
+// A complete method render uses only the closed vocabulary; embedded argument slots stay
+// live until apply, and a generated memo is registered before the argument is embedded.
+{
+  const args = [literal(1)];
+  const decision = planMethodCall({ receiver: callExpression(identifier('get'), []), args });
+  args[0] = callExpression(identifier('argument'), []);
+  let registered = false;
+  const built = renderMethodCall(decision, {
+    helper: identifier('lookup'),
+    mintRef: () => '_receiver',
+    recordCapture(node) {
+      const assignment = estreeToBabel(node);
+      registered = assignment.left.name === '_receiver';
+      return hostSlot(assignment);
+    },
+    embed(node, role) {
+      if (role === 'argument') check('method render memo registered before arguments', registered, true);
+      return node;
+    },
+  });
+  check('method render live argument and receiver', print(built), '(lookup(_receiver = get()) || 0).call(_receiver, argument())');
+  const guarded = planMethodCall({ receiver: identifier('receiver'), prepared: true, methodGuarded: true, args });
+  check('method render enclosing guard owns nullish check',
+    print(renderMethodCall(guarded, { lookup: identifier('method') })), 'method.call(receiver, argument())');
+  const optional = planMethodCall({ receiver: identifier('receiver'), prepared: true, optional: true, args });
+  check('method render optional chain converts through the call',
+    print(renderMethodCall(optional, { lookup: identifier('method') })), 'method?.call(receiver, argument())');
 }
 
 // --- per-element shape locks: every builder output converts, one lock per element ---
