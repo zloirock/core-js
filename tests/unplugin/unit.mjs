@@ -4,6 +4,7 @@ import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
 import './fixture-output-normalization.mjs';
 import { builders, traverse } from 'estree-toolkit';
+import { Traverser } from 'estree-toolkit/dist-es/traverse';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
@@ -22,6 +23,7 @@ import {
   variableDeclarator as mintDeclarator,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import {
+  claimLive,
   collectPrePassSites,
   createEstreeAdapter,
   createUsageVisitors,
@@ -4921,8 +4923,9 @@ for (const depth of [8, 64, 128]) {
   check(`discarded receiver/${ depth }/no scope queries in removed subtrees`, deadQueries, 0);
 }
 
-// A retained effect can sit BELOW a discarded intermediate member. It is rewritten on
-// the old tree before the emitter reuses it, so rejecting a parent must not prune children.
+// A retained effect can sit BELOW a discarded intermediate member. Its claims fire on its live path before
+// the member is discarded (`claimLive`), and never through the detached one - once, whether or not the
+// traversal still descends into the removed children.
 for (const [effect, claim] of [
   ['Array.of(1)', 'property/of'],
   ['Promise', 'global/Promise'],
@@ -4930,30 +4933,50 @@ for (const [effect, claim] of [
   ['(() => { const { resolve } = Promise; return resolve; })()', 'property/resolve'],
 ]) for (const retain of [false, true]) {
   const ast = programOf(`(${ effect }, globalThis).self.Array.from([1]); Array.isArray([]);`);
-  const keepLive = new Set();
   const seen = [];
-  traverse(ast, {
-    $: { scope: true },
-    ...createUsageVisitors({
-      adapter: createEstreeAdapter({ method: 'usage-pure' }),
-      method: 'usage-pure',
-      walkAnnotations: false,
-      isEntryAvailable: () => true,
-      keepLive,
-      onUsage(meta, path) {
-        seen.push(`${ meta.kind }/${ meta.key ?? meta.name }`);
-        if (meta.key === 'from') {
-          if (retain) {
-            const sequence = unwrapNode(path.node.object.object.object);
-            keepLive.add(sequence.expressions[0]);
-          }
-          path.replaceWith(builders.identifier('replacement'));
-        }
-      },
-    }),
+  const visitors = createUsageVisitors({
+    adapter: createEstreeAdapter({ method: 'usage-pure' }),
+    method: 'usage-pure',
+    walkAnnotations: false,
+    isEntryAvailable: () => true,
+    onUsage(meta, path) {
+      seen.push(`${ meta.kind }/${ meta.key ?? meta.name }`);
+      if (meta.key === 'from') {
+        if (retain) claimLive(visitors, [unwrapNode(path.node.object.object.object).expressions[0]], path);
+        path.replaceWith(builders.identifier('replacement'));
+      }
+    },
   });
-  check(`discarded receiver/${ claim }/retained ${ retain }`, seen.includes(claim), retain);
+  traverse(ast, { $: { scope: true }, ...visitors });
+  check(`discarded receiver/${ claim }/retained ${ retain }`, seen.filter(item => item === claim).length, retain ? 1 : 0);
   check(`discarded receiver/${ claim }/live sibling ${ retain }`, seen.includes('property/isArray'), true);
+}
+
+// whether estree-toolkit still walks the children a replace or remove detached is its own choice: a pure output
+// must not move once it stops. the model skips every path under a removed ancestor
+function withoutDetachedDescent(run) {
+  const { visitPath } = Traverser.prototype;
+  Traverser.prototype.visitPath = function (visitorCtx, path, ...rest) {
+    for (let up = path.parentPath; up; up = up.parentPath) if (up.removed) return;
+    return visitPath.call(this, visitorCtx, path, ...rest);
+  };
+  try {
+    return run();
+  } finally {
+    Traverser.prototype.visitPath = visitPath;
+  }
+}
+
+for (const [label, source] of [
+  // the drain harvests the sealed key's effect off the original the hop collapse detached
+  ['sealed key effect', 'const log = [];\nexport const r = (() => { const { of: o } = (globalThis.window?.[(log.push("k"), "self")]).Array; return typeof o; })();'],
+  // the flatten route registers its declarators off the live declaration the export unwrap left
+  ['exported flatten declarator', "const log = [];\nexport const x0 = 1, { w: [{ [(log.push('k'), 'at')]: a, flat: b }] } = { w: [[1, [2]]] }, y0 = 2;"],
+]) {
+  function transform() {
+    return createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+  }
+  check(`detached descent/${ label }`, withoutDetachedDescent(transform), transform());
 }
 
 // --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---

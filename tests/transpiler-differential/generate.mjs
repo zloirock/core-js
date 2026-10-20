@@ -19640,6 +19640,54 @@ function * generateTypeofDeclaredSources() {
   }
 }
 
+// --- Claims inside a sealed nav's computed key: the destructure collapse detaches the original read, and the render
+// re-emits the key's effect off that detached original - so every claim in the key, the walk's loop-left extraction
+// included, has to land on it while it is still live, and exactly once. Each host plans that read through its own
+// route; each effect kind is a different visitor of the walk. RIGGED: `window` present, the key runs once and the
+// value is the ponyfill; unrigged: the sealed read throws and the key never runs.
+// the hosts held out are accepted limitations - shapes real code does not write - named per effect in `skipHosts` so
+// the gap stays enumerable and re-adding a host is its own fail-before: under the FALLBACK and ASSIGNMENT hosts the
+// unplugin renders the probe twice (ahead of the extraction as the discarded read, and inside it), so the key runs
+// twice; under the BRANCH host both emitters drop the throw the absent-window path owes; under the PARAMETER-DEFAULT
+// host a declaration or loop-left in the key stays unpolyfilled in the probe the unplugin emits
+const SEALED_KEY_HOSTS = [
+  { id: 'declaration', build: sealed => `const { of: o } = ${ sealed }.Array; return typeof o;` },
+  { id: 'fallback', build: sealed => `const { of: o } = ${ sealed }.Array ?? {}; return typeof o;` },
+  { id: 'assignment', build: sealed => `let o; ({ of: o } = ${ sealed }.Array); return typeof o;` },
+  { id: 'parameter-default', build: sealed => `return (({ of: o } = ${ sealed }.Array) => typeof o)();` },
+  { id: 'branch', build: sealed => `const { of: o } = cond ? ${ sealed }.Array : {}; return typeof o;` },
+];
+const SEALED_KEY_HELD_HOSTS = ['fallback', 'assignment', 'branch'];
+const SEALED_KEY_EFFECTS = [
+  { id: 'static', effect: 'log.push(typeof Array.from)', skipHosts: SEALED_KEY_HELD_HOSTS },
+  { id: 'instance', effect: 'log.push([1, 2].at(-1))', skipHosts: SEALED_KEY_HELD_HOSTS },
+  {
+    id: 'destructure',
+    effect: '(() => { const { from } = Array; log.push(typeof from); })()',
+    skipHosts: [...SEALED_KEY_HELD_HOSTS, 'parameter-default'],
+  },
+  {
+    id: 'for-of-left',
+    effect: '(() => { for (const { from } of [Array]) log.push(typeof from); })()',
+    skipHosts: SEALED_KEY_HELD_HOSTS,
+  },
+  {
+    id: 'for-in-left',
+    effect: '(() => { for (const { at } in { x: 1 }) log.push(typeof at); })()',
+    skipHosts: [...SEALED_KEY_HELD_HOSTS, 'parameter-default'],
+  },
+];
+function * generateSealedKeyClaims() {
+  for (const host of SEALED_KEY_HOSTS) {
+    for (const { id, effect, skipHosts } of SEALED_KEY_EFFECTS) {
+      if (skipHosts.includes(host.id)) continue;
+      const expr = `(() => { try { ${ host.build(`(globalThis.window?.[(${ effect }, 'self')])`) } } catch (e) { return 'throw'; } })()`;
+      yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }`, expr), strip: true };
+      yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }-rigged`, expr, { rig: true }), strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -20002,4 +20050,5 @@ export function * generate() {
   yield * generateIndexedAccessInstantiations();
   yield * generateLoopTestGuards();
   yield * generateTypeofDeclaredSources();
+  yield * generateSealedKeyClaims();
 }

@@ -94,6 +94,8 @@ import {
   createEstreeAdapter,
   createUsageVisitors,
   createSyntaxVisitors,
+  claimLive,
+  rejectDetachedPaths,
 } from './detect-usage.js';
 import {
   bindingNamesReducer,
@@ -1168,8 +1170,8 @@ export default function createPlugin(options) {
       // (the self-contained rule) and stores the injector union, post dedups via the
       // existing-import re-scan
       function runUsagePure() {
-        // `keepLive`: effect subtrees a render RE-EMITS BY IDENTITY - claims under them stay
-        // live even inside consumed / detached spans, and land in place (the keep-live carve)
+        // `keepLive`: effect subtrees a render RE-EMITS BY IDENTITY - a consumed span's skip marks walk around
+        // them, so their claims still land in place wherever the walk reaches them live (the keep-live carve)
         const keepLive = new Set();
         const skippedNodes = Object.assign(new WeakSet(), { keepLive });
         // the user selections the detect pass found partly dead, with what each folds to once the drain rendered -
@@ -1284,6 +1286,7 @@ export default function createPlugin(options) {
           markRewrite() { astRewrote = true; },
           skippedNodes,
           markSubtreeSkipped,
+          claimLive: (nodes, at) => claimLive(walkVisitors, nodes, at),
           program: ast,
           resolvePure,
           resolveGlobalPolyfill,
@@ -1342,7 +1345,6 @@ export default function createPlugin(options) {
         });
         const usageVisitorOptions = {
           adapter: estreeAdapter,
-          keepLive,
           // the part of a selection the build never evaluates is no usage: it is skipped, and a fold the
           // core asks for waits for the drain - folding HERE would reshape a receiver a claim still
           // pairs (an IIFE argument, a destructure init)
@@ -1357,6 +1359,8 @@ export default function createPlugin(options) {
             discardedClaims = true;
           },
           parameterCallSites: typeResolvers.parameterCallSites,
+          // detection names a computed member key through the TYPE layer's resolver rather than a
+          // copy of its enum fold - one name, one resolver
           resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           method,
           walkAnnotations: false,
@@ -1364,6 +1368,12 @@ export default function createPlugin(options) {
           resolveMeta: resolvePure,
           resolvePure,
         };
+        // everything the walk fires below the root - what `claimLive` fires ahead of it, too
+        const walkVisitors = mergeVisitors(rejectDetachedPaths({
+          CatchClause(path) { destructureEmit.extractCatchClause(path); },
+          ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
+          ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
+        }), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
         // a pure walk rewrites as it goes, so only what holds through a rewrite is kept for it
         withVarScopeOwners(() => traverse(ast, mergeVisitors({
           $: { scope: true },
@@ -1371,18 +1381,7 @@ export default function createPlugin(options) {
             injector.rootScope = path.scope;
             memoProgramPath = path;
           },
-          CatchClause(path) { destructureEmit.extractCatchClause(path); },
-          ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
-          ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
-        }, createUsageVisitors({
-          ...usageVisitorOptions,
-          // detection names a computed member key through the TYPE layer's resolver rather than a
-          // copy of its enum fold - one name, one resolver
-          onUsage: callback,
-          // the AST engine mutates the tree in place, so an emission inside a DECORATOR
-          // (walked manually, with nothing re-queued) hides the replacement's own claims
-          // from the traversal - the second pass reaches them
-        }))));
+        }, walkVisitors)));
         destructureEmit.drain();
         // the partly dead user selections still standing fold to what they yield - an operand, kept a
         // value in its slot (`foldedOperandNeedsValue`), or the value a decided test answers: a claim owns
