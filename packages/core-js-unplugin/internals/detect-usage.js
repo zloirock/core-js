@@ -38,6 +38,7 @@ import {
   memoizeBindingLookup,
   namespaceScopedBindingBlock,
   pathContainedBy,
+  pathOfNode,
   peelTransparentExprAncestorPath,
   POSSIBLE_GLOBAL_OBJECTS,
   liveBindingWrites,
@@ -842,6 +843,23 @@ function isLiteralString(node) {
 
 // --- Usage visitors ---
 
+// estree-toolkit descends into the children a replace or remove detached - its choice, not a contract. a pure
+// walk acts through no path under a removed ancestor; what still needs a claim there fires first (`claimLive`).
+// the mark decides, not the shape (`ancestorChainDetached`): a node a render moved by hand under a new parent is
+// live, and the walk reaches it through its old chain only
+export function rejectDetachedPaths(visitors) {
+  return Object.fromEntries(Object.entries(visitors).map(([type, visit]) => [type, path => {
+    for (let up = path; up?.node; up = up.parentPath) if (up.removed) return;
+    visit(path);
+  }]));
+}
+
+// fire the claims inside nodes a render re-reads off the pristine tree while their paths are still live. a node a
+// second route hands again meets its own rendered output, which the visitors leave inert as they do on a requeue
+export function claimLive(visitors, nodes, at) {
+  for (const node of nodes) pathOfNode(at, node)?.traverse(visitors);
+}
+
 export function createUsageVisitors({
   adapter,
   onUsage,
@@ -855,7 +873,6 @@ export function createUsageVisitors({
   resolveStaticKey = null,
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
-  keepLive = null,
   onDeadBranch = null,
   onDiscardedClaim = null,
 }) {
@@ -874,18 +891,9 @@ export function createUsageVisitors({
   });
   const { skipUpdateTargets } = core;
 
-  // estree-toolkit descends into the old children after replacing their parent. Reject
-  // detached paths before detection builds their metadata.
-  // Do not prune the walk: a nested effect re-emitted by identity can still be keepLive.
+  // detached paths are rejected before detection builds their metadata
   function liveVisitors(visitors) {
-    if (method !== 'usage-pure') return visitors;
-    return Object.fromEntries(Object.entries(visitors).map(([type, visit]) => [type, path => {
-      for (let up = path; up?.node; up = up.parentPath) {
-        if (keepLive?.has(up.node)) break;
-        if (up.removed) return;
-      }
-      visit(path);
-    }]));
+    return method === 'usage-pure' ? rejectDetachedPaths(visitors) : visitors;
   }
 
   // build meta for destructuring property: const { from } = Array, ({ from } = Array) - the funnel
