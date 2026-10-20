@@ -94,7 +94,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
-  chainExpression,
   hostSlot,
   nullFirstGuardTest,
   renderBoundRawBranch,
@@ -104,7 +103,7 @@ import {
   renderGuardedChainTail,
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
-  renderMethodCallMember,
+  renderMethodCall,
   planMethodCall,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
@@ -1024,18 +1023,13 @@ export default function plugin(api, options) {
             if (!thisArg) return hostSlot({ ...call, callee: estreeToBabel(callee), optional });
             // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
             const decision = planMethodCall({
-              receiver: thisArg,
+              receiver: estreeToBabel(thisArg),
               prepared: true,
               optional,
               args: call.arguments,
               ctx: { scope: path.scope, path, adapter, injectorState: injector },
             });
-            const canonicalMember = renderMethodCallMember(callee.object, decision);
-            const callMember = estreeToBabel(optional ? chainExpression(canonicalMember) : canonicalMember);
-            const args = [estreeToBabel(decision.receiver), ...call.arguments];
-            return hostSlot(optional
-              ? t.optionalCallExpression(callMember, args, false)
-              : t.callExpression(callMember, args));
+            return renderMethodCall(decision, { lookup: callee.object, embed: hostSlot });
           } : undefined,
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,

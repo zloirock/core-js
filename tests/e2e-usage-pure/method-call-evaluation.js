@@ -184,3 +184,80 @@ QUnit.test('method call: a re-entering getter cannot replace the outer receiver 
   }), 7);
   assert.deepEqual(events, ['outer key', 'outer lookup', 'inner key', 'inner body', 'outer argument', 'outer body']);
 });
+
+// Default expressions and field initializers need a capture local to each evaluation.
+// eslint-disable-next-line no-sequences -- the key runs after capturing the receiver
+export function invokeDefaultKeyedMethod(get, key, argument, value = get()[key(), 'at'](argument())) {
+  return value;
+}
+
+export function invokeFieldKeyedMethod(get, key, argument) {
+  return new class {
+    // eslint-disable-next-line no-sequences -- the field owns its own receiver capture
+    value = get()[key(), 'at'](argument());
+  }().value;
+}
+
+QUnit.test('method call: re-entry keeps parameter and field captures in their own activation', assert => {
+  for (const invoke of [invokeDefaultKeyedMethod, invokeFieldKeyedMethod]) {
+    const events = [];
+    const inner = { at(value) {
+      assert.same(this, inner);
+      events.push('inner body');
+      return value;
+    } };
+    const outer = { get at() {
+      events.push('outer lookup');
+      assert.same(invoke(() => inner, () => events.push('inner key'), () => 3), 3);
+      return function (value) {
+        assert.same(this, outer);
+        events.push('outer body');
+        return value;
+      };
+    } };
+    assert.same(invoke(() => {
+      events.push('outer receiver'); return outer;
+    }, () => events.push('outer key'), () => {
+      events.push('outer argument'); return [7].at(0);
+    }), 7);
+    assert.deepEqual(events, [
+      'outer receiver', 'outer key', 'outer lookup', 'inner key', 'inner body', 'outer argument', 'outer body',
+    ]);
+  }
+});
+
+export function invokeSymbolMethod(get, argument) {
+  return get()[Symbol.iterator](argument());
+}
+
+QUnit.test('method call: symbol lookup keeps its receiver through re-entry and argument effects', assert => {
+  const events = [];
+  const inner = { [Symbol.iterator](value) {
+    assert.same(this, inner);
+    events.push('inner body');
+    return value;
+  } };
+  const outer = { get [Symbol.iterator]() {
+    events.push('outer lookup');
+    assert.same(invokeSymbolMethod(() => inner, () => 3), 3);
+    return function (value) {
+      assert.same(this, outer);
+      events.push('outer body');
+      return value;
+    };
+  } };
+  assert.same(invokeSymbolMethod(() => {
+    events.push('receiver'); return outer;
+  }, () => {
+    events.push('argument'); return 7;
+  }), 7);
+  assert.deepEqual(events, ['receiver', 'outer lookup', 'inner body', 'argument', 'outer body']);
+  for (const method of [undefined, null]) {
+    events.length = 0;
+    const receiver = { get [Symbol.iterator]() {
+      events.push('lookup'); return method;
+    } };
+    assert.throws(() => invokeSymbolMethod(() => receiver, () => events.push('argument')), TypeError);
+    assert.deepEqual(events, ['lookup', 'argument']);
+  }
+});
