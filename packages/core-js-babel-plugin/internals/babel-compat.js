@@ -92,17 +92,14 @@ import {
   peelChainAssignment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  callExpression,
   chainExpression,
   composeNullGuardTest,
   conditionalExpression,
   hostSlot,
-  identifier,
   literal,
-  memberExpression,
   nullFirstGuardTest,
   renderAliasHeldProbeRead,
-  renderMethodCallMember,
+  renderMethodCall,
   planMethodCall,
   renderDeleteShortCircuitGuard,
   renderNavCollapseLeaf,
@@ -1166,8 +1163,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       composeNullGuardTest(guardChecks(check), { embed: hostSlot }), hostSlot(result)));
   }
 
-  // Temporary host composition of the shared call decision; refs remain visible through the
-  // injector before subsequent queries, and source arguments retain their own live claims.
+  // Apply the shared call with Babel source slots and memo provenance. Registration remains
+  // immediate, and only the generated shell crosses the closed ESTree conversion boundary.
   function buildMethodCall({
     id,
     object,
@@ -1195,30 +1192,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       optional: optionalCall,
       ctx: receiverCtx,
     });
-    let lookupArg, receiver;
-    const effects = [...decision.prefixEffects, ...decision.firstReadEffects];
-    if (decision.capture) {
-      receiver = generateRef(scope, anchorNode ?? decision.ctx?.path?.node ?? object);
-      const assign = t.assignmentExpression('=', t.cloneNode(receiver), decision.firstReceiver);
-      getInjector().recordMemoWrite?.(receiver.name, assign);
-      if (decision.capture === 'lookup') lookupArg = assign;
-      else {
-        effects.push(assign);
-        lookupArg = t.cloneNode(receiver);
-      }
-    } else {
-      lookupArg = t.cloneNode(decision.lookupReceiver);
-      receiver = t.removeComments(t.cloneNode(decision.receiver));
-    }
-    effects.push(...decision.keyEffects);
-    // clone args: originals may belong to a parent being replaced (stale Babel path containers)
-    const callArgs = [t.cloneNode(receiver), ...args.map(a => t.cloneNode(a))];
-    const canonicalMember = renderMethodCallMember(hostSlot(t.callExpression(id, [lookupArg])), decision);
-    const callMember = estreeToBabel(optionalCall ? chainExpression(canonicalMember) : canonicalMember);
-    const call = optionalCall
-      ? t.optionalCallExpression(callMember, callArgs, false)
-      : t.callExpression(callMember, callArgs);
-    return withSideEffects(call, effects);
+    const result = estreeToBabel(renderMethodCall(decision, {
+      helper: hostSlot(id),
+      mintRef: () => generateRef(scope, anchorNode ?? decision.ctx?.path?.node ?? object).name,
+      embed(node, role) {
+        if (role === 'capture') return hostSlot(node);
+        if (role === 'effect') return hostSlot(mintedEffectNodes.has(node) ? node : t.cloneWithoutRetiring(node));
+        const clone = t.cloneNode(node);
+        return hostSlot(role === 'receiver' ? t.removeComments(clone) : clone);
+      },
+      recordCapture(node) {
+        const assign = estreeToBabel(node);
+        getInjector().recordMemoWrite?.(assign.left.name, assign);
+        return hostSlot(assign);
+      },
+    }));
+    if (t.isSequenceExpression(result)) pluginSeqWraps.add(result);
+    return result;
   }
 
   // strip Optional{Member,Call}Expression wrappers above a replaced node
@@ -1306,8 +1296,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const lookupArg = receiverMemo && !testsReceiver ? receiverMemo : t.cloneNode(callReceiver);
     const [methodMemo, methodRef] = memoize(lookupId ? t.callExpression(lookupId, [lookupArg]) : methodNode,
       scope, chainStart.node);
-    chainStart.node.callee = t.memberExpression(seededRefClone(methodRef, memoType), t.identifier('call'));
-    chainStart.node.arguments = [callReceiver, ...chainStart.node.arguments.map(arg => t.cloneNode(arg))];
+    const invocation = estreeToBabel(renderMethodCall(planMethodCall({
+      receiver: callReceiver, prepared: true, methodGuarded: true, args: chainStart.node.arguments,
+    }), {
+      lookup: hostSlot(seededRefClone(methodRef, memoType)),
+      embed: node => hostSlot(t.cloneNode(node)),
+    }));
+    chainStart.node.callee = invocation.callee;
+    chainStart.node.arguments = invocation.arguments;
     let checks;
     if (!lookupId) {
       // when recv is memoized, fold its assignment ahead of the method memo so it runs first
@@ -3067,11 +3063,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the SE INTO the conditional alternate (`check==null ? void 0 : (SE, lookup)`); prepending
       // it to the whole result would fire it even on the short-circuit. no guard -> SE stays outside
       const wrappedCallee = check ? wrapConditional(check, keyedLookup) : keyedLookup;
-      const callArgs = [t.cloneNode(objRef), ...parent.arguments.map(a => t.cloneNode(a))];
-      const result = t.callExpression(estreeToBabel(renderMethodCallMember(hostSlot(wrappedCallee), {
-        args: parent.arguments,
+      const result = estreeToBabel(renderMethodCall(planMethodCall({
+        receiver: objRef, prepared: true, args: parent.arguments,
         ctx: { scope: path.scope, path, adapter: getAdapter?.(), injectorState: getInjector() },
-      })), callArgs);
+      }), { lookup: hostSlot(wrappedCallee), embed: node => hostSlot(t.cloneNode(node)) }));
       callerPath.parentPath.replaceWith(result);
       return;
     }
@@ -3230,12 +3225,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const compactMethod = !hasHops && outerPath.node.optional && chainStartNode?.optional
       && unwrapRuntimeExpr(outerPath.node.object) === chainStartNode;
     const mRef = compactMethod ? null : generateRef(scope, outerPath.node);
-    const callArgs = [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))];
-    const mCall = compactMethod
-      ? estreeToBabel(chainExpression(callExpression(
-        memberExpression(hostSlot(methodGet), identifier('call'), { optional: true }), callArgs.map(hostSlot),
-      )))
-      : t.callExpression(t.memberExpression(t.cloneNode(mRef), t.identifier('call')), callArgs);
+    const mCall = estreeToBabel(renderMethodCall(planMethodCall({
+      receiver: aRef, prepared: true, methodGuarded: !compactMethod, optional: compactMethod, args: innerArgs,
+    }), {
+      lookup: hostSlot(compactMethod ? methodGet : t.cloneNode(mRef)),
+      embed: node => hostSlot(t.cloneNode(node)),
+    }));
     t.inheritInnerComments(mCall, chainStartNode);
     if (chainStartType) resolvedType?.set(mCall, chainStartType);
     const checks = [...linkChecks, ...compactMethod ? testsReceiver ? [anAssign] : []
