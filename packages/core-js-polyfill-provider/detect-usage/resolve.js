@@ -273,23 +273,6 @@ export function navHopSequencePrefixes(inner, { unwrap, renderedSpans = null, ct
   };
 }
 
-// classify how an instance-call rewrite must handle a SequenceExpression receiver:
-//   `'peel'`     - non-optional case: peel receiver to SE tail so memoize captures only
-//                  the unwrapped value; sideEffects (prepend) supplies preceding-effects
-//   `'suppress'` - optional case: leave SE intact, the optional-guard memoize already
-//                  captures it (`null == (_ref = (fn(), arr)) ? void 0 : ...`); suppress
-//                  prepend to avoid double-emit on non-nullish branch
-//   `null`       - no SE receiver / no sideEffects to prepend - no special handling
-// detects SE through transparent wrappers (Paren / Chain / TS) so oxc + babel parser
-// shapes work uniformly. shared between babel-compat and unplugin instance dispatch
-export function classifyReceiverSE(receiver, isOptional, sideEffects) {
-  if (!sideEffects?.length || !receiver) return null;
-  let cur = receiver;
-  while (cur && isTransparentWrapper(cur)) cur = cur.expression;
-  if (cur?.type !== 'SequenceExpression') return null;
-  return isOptional ? 'suppress' : 'peel';
-}
-
 // meta `sideEffects` carry the receiver-SE first then the computed-key SE (source order); the split
 // point is `meta.receiverEffectCount`, RECORDED at build time (the resolver's full receiver collection -
 // parens/sequence + chain-collapse + inline-call root). a recompute off the receiver node undercounted
