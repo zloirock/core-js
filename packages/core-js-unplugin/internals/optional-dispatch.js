@@ -61,7 +61,7 @@ import {
   memberExpression,
   nullGuardTest,
   renderNavCollapseLeaf,
-  renderMethodCallMember,
+  renderMethodCall,
   planMethodCall,
   renderNavCollapseTail,
   renderShortCircuitGuard,
@@ -488,8 +488,9 @@ export default function createOptionalDispatchChannel(ctx) {
         hopKind: 'call',
         disjuncts,
         receiver: stampSourceCallType(
-          callExpression(memberExpression(identifier(refMethod), identifier('call')),
-            [thisArg, ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
+          renderMethodCall(planMethodCall({
+            receiver: thisArg, prepared: true, methodGuarded: true, args: node.arguments,
+          }), { lookup: identifier(refMethod), embed: cloneNode }), node, metaPath, typeStampCtx),
       };
     }
     // `X?.m?.()`: the root guards first, the method memo joins as a second disjunct
@@ -507,9 +508,9 @@ export default function createOptionalDispatchChannel(ctx) {
     if (resultOptional && optionalCalleeProbe.kind === 'instance') return {
       hopKind: 'call',
       disjuncts: rootGuard.disjuncts,
-      receiver: stampSourceCallType(chainExpression(callExpression(
-        memberExpression(methodRead, identifier('call'), { optional: true }),
-        [rootGuard.makeBase(), ...node.arguments.map(argument => cloneNode(argument))])), node, metaPath, typeStampCtx),
+      receiver: stampSourceCallType(renderMethodCall(planMethodCall({
+        receiver: rootGuard.makeBase(), prepared: true, optional: true, args: node.arguments,
+      }), { lookup: methodRead, embed: cloneNode }), node, metaPath, typeStampCtx),
     };
     const ref = injector.generateDeclaredRef(metaPath);
     return {
@@ -517,8 +518,9 @@ export default function createOptionalDispatchChannel(ctx) {
       disjuncts: [...rootGuard.disjuncts,
         assignmentExpression('=', identifier(ref), methodRead)],
       receiver: stampSourceCallType(
-        callExpression(memberExpression(identifier(ref), identifier('call')),
-          [rootGuard.makeBase(), ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
+        renderMethodCall(planMethodCall({
+          receiver: rootGuard.makeBase(), prepared: true, methodGuarded: true, args: node.arguments,
+        }), { lookup: identifier(ref), embed: cloneNode }), node, metaPath, typeStampCtx),
     };
   }
 
@@ -732,9 +734,9 @@ export default function createOptionalDispatchChannel(ctx) {
         return {
           hopKind: 'call',
           disjuncts: receiverDisjuncts,
-          receiver: stampSourceCallType(chainExpression(callExpression(
-            memberExpression(firstRead, identifier('call'), { optional: true }),
-            [identifier(refRecv), ...node.arguments.map(argument => cloneNode(argument))])), node, metaPath, typeStampCtx),
+          receiver: stampSourceCallType(renderMethodCall(planMethodCall({
+            receiver: identifier(refRecv), prepared: true, optional: true, args: node.arguments,
+          }), { lookup: firstRead, embed: cloneNode }), node, metaPath, typeStampCtx),
         };
       }
       const refMethod = injector.generateDeclaredRef(metaPath);
@@ -747,8 +749,9 @@ export default function createOptionalDispatchChannel(ctx) {
         hopKind: 'call',
         disjuncts: [...receiverDisjuncts, memo],
         receiver: stampSourceCallType(
-          callExpression(memberExpression(identifier(refMethod), identifier('call')),
-            [identifier(refRecv), ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
+          renderMethodCall(planMethodCall({
+            receiver: identifier(refRecv), prepared: true, methodGuarded: true, args: node.arguments,
+          }), { lookup: identifier(refMethod), embed: cloneNode }), node, metaPath, typeStampCtx),
       };
     }
     // a proxy-surface receiver blocks the descent's instance claim on the memoized read
@@ -775,9 +778,9 @@ export default function createOptionalDispatchChannel(ctx) {
         if (resultOptional) return {
           hopKind: 'call',
           disjuncts: [],
-          receiver: stampSourceCallType(chainExpression(callExpression(
-            memberExpression(methodRead, identifier('call'), { optional: true }),
-            [reusableThisArg(), ...node.arguments.map(argument => cloneNode(argument))])), node, metaPath, typeStampCtx),
+          receiver: stampSourceCallType(renderMethodCall(planMethodCall({
+            receiver: reusableThisArg(), prepared: true, optional: true, args: node.arguments,
+          }), { lookup: methodRead, embed: cloneNode }), node, metaPath, typeStampCtx),
         };
       }
     }
@@ -786,8 +789,9 @@ export default function createOptionalDispatchChannel(ctx) {
       hopKind: 'call',
       disjuncts: [assignmentExpression('=', identifier(ref), methodRead)],
       receiver: stampSourceCallType(
-        callExpression(memberExpression(identifier(ref), identifier('call')),
-          [reusableThisArg(), ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
+        renderMethodCall(planMethodCall({
+          receiver: reusableThisArg(), prepared: true, methodGuarded: true, args: node.arguments,
+        }), { lookup: identifier(ref), embed: cloneNode }), node, metaPath, typeStampCtx),
     };
   }
 
@@ -1212,27 +1216,10 @@ export default function createOptionalDispatchChannel(ctx) {
     return composeNullGuardTest([...guardChecks ?? [], ...check ? [check] : []]);
   }
 
-  // Temporary ESTree application of the shared ordinary-call decision. Generated refs are
-  // registered by the injector before any later query; cloning preserves the source frame.
-  function spellMethodCall(decision) {
-    let lookupArg,
-        callReceiver;
-    const callEffects = [...decision.prefixEffects, ...decision.firstReadEffects].map(effect => cloneNode(effect));
-    if (decision.capture) {
-      const ref = injector.generateDeclaredRef(decision.ctx.path);
-      callReceiver = identifier(ref);
-      const memo = assignmentExpression('=', identifier(ref), cloneStamped(decision.firstReceiver, typeStampCtx));
-      if (decision.capture === 'lookup') lookupArg = memo;
-      else {
-        callEffects.push(memo);
-        lookupArg = identifier(ref);
-      }
-    } else {
-      lookupArg = cloneStamped(decision.lookupReceiver, typeStampCtx);
-      callReceiver = cloneStamped(decision.receiver, typeStampCtx);
-    }
-    callEffects.push(...decision.keyEffects.map(effect => cloneNode(effect)));
-    return { lookupArg, callReceiver, callEffects, callDecision: decision };
+  // Receiver copies retain the source frame and resolved type; arguments and effects keep
+  // their own live claims. The provider owns the placement of every embedded slot.
+  function cloneCallSlot(node, role) {
+    return role === 'argument' || role === 'effect' ? cloneNode(node) : cloneStamped(node, typeStampCtx);
   }
 
   // the receiver / guard spelling of one instance dispatch: how the lookup argument and the
@@ -1279,9 +1266,9 @@ export default function createOptionalDispatchChannel(ctx) {
       effObject = effects.length ? sequenceExpression([...effects.map(effect => cloneNode(effect)), cloneNode(receiver)]) : receiver;
     } else if (!receiverSequence) receiver = effObject;
     if (!memberOptional && isCall) return {
-      ...spellMethodCall(planMethodCall({
+      callDecision: planMethodCall({
         receiver: effObject, sourceReceiver, sideEffects, receiverEffectCount, args, optional, ctx: receiverCtx,
-      })),
+      }),
       check: null,
       guardDisjuncts,
     };
@@ -1629,7 +1616,7 @@ export default function createOptionalDispatchChannel(ctx) {
       metaPath, effObject, memberOptional, isCall, guardDisjuncts, sourceReceiver: object,
       sideEffects, receiverEffectCount, args: isCall ? parent.arguments : [], optional: callOptional,
     });
-    const { check, lookupArg, callReceiver, callEffects, callDecision } = spelling;
+    const { check, lookupArg, callReceiver, callDecision } = spelling;
     ({ guardDisjuncts } = spelling);
     let built;
     const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
@@ -1638,24 +1625,8 @@ export default function createOptionalDispatchChannel(ctx) {
     // (`(test ? void 0 : _mMaybe(_ref = nav)).call(_ref, args)`)
     const parenWrapped = isCall && calleeParenWrapped(parent);
     const test = composeGuardTest(guardDisjuncts, check);
-    if (isCall && parenWrapped && test && !callOptional) {
-      const lookup = callExpression(identifier(id), [lookupArg]);
-      built = callExpression(
-        renderMethodCallMember(renderShortCircuitGuard(test, lookup), { args: parent.arguments, ctx: receiverCtx }),
-        [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
-      );
-      const returnTypePl = valueIsDroppedAt(climbTransparentWrapperPath(callerPath)) ? null : resolveNodeType(callerPath);
-      if (returnTypePl) resolvedType.set(built, returnTypePl);
-      markRewrite();
-      replaceGuardedHop({ hopPath: callerPath, test: null, built, skippedNodes });
-      return true;
-    }
+    const sealedLookup = isCall && parenWrapped && test && !callOptional;
     if (isCall) {
-      const lookup = callExpression(identifier(id), [lookupArg]);
-      const dispatch = callExpression(
-        renderMethodCallMember(lookup, callDecision ?? { optional: callOptional, args: parent.arguments, ctx: receiverCtx }),
-        [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
-      );
       // the `?.call` needs a chain wrapper of its own ONLY when the original chain does not
       // continue above: a continuing hop keeps riding the source ChainExpression, and sealing
       // the dispatch under a nested wrapper would cut the short-circuit off from the tail
@@ -1663,7 +1634,16 @@ export default function createOptionalDispatchChannel(ctx) {
       const chainContinues = upNode
         && ((upNode.type === 'MemberExpression' && upNode.object === parent)
           || (upNode.type === 'CallExpression' && upNode.callee === parent));
-      built = withSideEffects(callOptional && !chainContinues ? chainExpression(dispatch) : dispatch, callEffects);
+      built = renderMethodCall(callDecision ?? planMethodCall({
+        receiver: callReceiver, prepared: true, optional: callOptional, args: parent.arguments, ctx: receiverCtx,
+      }), {
+        helper: identifier(id),
+        lookup: callDecision ? null : callExpression(identifier(id), [lookupArg]),
+        lookupGuard: sealedLookup ? test : null,
+        chain: !chainContinues,
+        mintRef: () => injector.generateDeclaredRef(metaPath),
+        embed: cloneCallSlot,
+      });
     } else {
       built = callExpression(identifier(id), [lookupArg]);
     }
@@ -1675,7 +1655,9 @@ export default function createOptionalDispatchChannel(ctx) {
       ? null : resolveNodeType(isCall ? callerPath : metaPath);
     if (returnType) resolvedType.set(built, returnType);
     markRewrite();
-    replaceGuardedHop({ hopPath: isCall ? callerPath : metaPath, test, built, skippedNodes, returnType, resolvedType });
+    replaceGuardedHop({
+      hopPath: isCall ? callerPath : metaPath, test: sealedLookup ? null : test, built, skippedNodes, returnType, resolvedType,
+    });
     return true;
   }
 
@@ -1814,13 +1796,9 @@ export default function createOptionalDispatchChannel(ctx) {
     });
     if (ordinaryDecision && !ordinaryDecision.capture) {
       const id = injectPureImport(entry, hintName);
-      const { lookupArg, callReceiver, callEffects } = spellMethodCall(ordinaryDecision);
-      const dispatch = callExpression(
-        renderMethodCallMember(callExpression(identifier(id), [lookupArg]), ordinaryDecision),
-        [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
-      );
+      const dispatch = renderMethodCall(ordinaryDecision, { helper: identifier(id), embed: cloneCallSlot });
       markRewrite();
-      callerPath.replaceWith(withSideEffects(dispatch, callEffects));
+      callerPath.replaceWith(dispatch);
       return;
     }
     // a non-reusable receiver memoizes FIRST, then the harvested key SE, then the dispatch
@@ -1852,27 +1830,22 @@ export default function createOptionalDispatchChannel(ctx) {
         sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
         args: parent.arguments, ctx: receiverCtx,
       });
-      const { lookupArg, callReceiver, callEffects } = spellMethodCall(decision);
-      const dispatch = callExpression(
-        renderMethodCallMember(callExpression(identifier(id), [lookupArg]), decision),
-        [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
-      );
+      const dispatch = renderMethodCall(decision, {
+        helper: identifier(id), mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneCallSlot,
+      });
       markRewrite();
       replaceGuardedHop({
         hopPath: callerPath, test: composeGuardTest(guardDisjuncts, null),
-        built: withSideEffects(dispatch, callEffects), skippedNodes,
+        built: dispatch, skippedNodes,
       });
       return;
     }
     // The optional member's own guard captures the receiver before its key effects.
     const ref = injector.generateDeclaredRef(metaPath);
     const memo = assignmentExpression('=', identifier(ref), cloneNode(effReceiver));
-    const dispatch = callExpression(
-      renderMethodCallMember(callExpression(identifier(id), [identifier(ref)]), {
-        args: parent.arguments, ctx: receiverCtx,
-      }),
-      [identifier(ref), ...parent.arguments.map(argument => cloneNode(argument))],
-    );
+    const dispatch = renderMethodCall(planMethodCall({
+      receiver: identifier(ref), prepared: true, args: parent.arguments, ctx: receiverCtx,
+    }), { lookup: callExpression(identifier(id), [identifier(ref)]), embed: cloneNode });
     const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(effReceiver, effect)).map(effect => cloneNode(effect));
     markRewrite();
     replaceGuardedHop({

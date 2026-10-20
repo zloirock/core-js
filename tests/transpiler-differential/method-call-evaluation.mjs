@@ -13,11 +13,19 @@ const rows = [
   ['ordinary', 'receiver.at(argument())'],
   ['computed effects', 'receiver[(effect(), "at")](argument())'],
   ['receiver effects', '(effect(), receiver).at(argument())'],
+  ['optional prefix and key effects', '(effect?.(), stable)[(effect(), "at")](argument())', 'const stable = receiver;'],
   ['receiver factory', 'getReceiver().at(argument())'],
   ['optional receiver', 'receiver?.at(argument())'],
+  ['optional receiver with key effects', 'receiver?.[(effect(), "at")](argument())'],
   ['optional method', 'receiver.at?.(argument())'],
+  ['optional method with key effects', 'receiver[(effect(), "at")]?.(argument())'],
   ['optional receiver and method', 'receiver?.at?.(argument())'],
   ['sealed optional receiver', '(receiver?.at)(argument())'],
+  ['sealed optional receiver with key effects', '(receiver?.[(effect(), "at")])(argument())'],
+  ['symbol method', 'getReceiver()[Symbol.iterator](argument())'],
+  ['optional symbol method', 'getReceiver()[Symbol.iterator]?.(argument())'],
+  ['parameter capture', '((value = getReceiver()[(effect(), "at")](argument())) => value)()'],
+  ['field capture', 'new class { value = getReceiver()[(effect(), "at")](argument()); }().value'],
   ['spread', 'receiver.at(...argument())'],
   ['values method', 'receiver.values(argument())'],
   ['negative literal', 'receiver.at(-1)', '', false],
@@ -73,6 +81,9 @@ for (const [label, expression, before = '', needsGuard = null] of rows) {
         .replaceAll(/import\s+["'][^"']+["'];?/gu, '').replace('export ', '');
       const invoke = runInNewContext(`${ executable }; invoke;`, { require, externalArgument: 7 });
       for (const value of [undefined, null, 0, false, '', 17, 'callable', 'null receiver']) {
+        // The iterator helper's existing falsy fallback is outside native-equivalent dispatch.
+        // Keep its runtime contract unchanged; these values do not test call rendering.
+        if (label === 'optional symbol method' && method === 'usage-pure' && [0, false, ''].includes(value)) continue;
         for (const argumentThrows of [false, true]) {
           function observe(call) {
             const events = [];

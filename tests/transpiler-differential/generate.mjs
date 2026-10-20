@@ -19688,6 +19688,40 @@ function * generateSealedKeyClaims() {
   }
 }
 
+// Receiver captures belong to each body, parameter or field evaluation, including getter
+// re-entry. The symbol route consumes a method with arguments instead of the iterator shortcut.
+function * generateMethodCaptureFrames() {
+  for (const [frame, wrap] of [
+    ['body', call => `return ${ call };`],
+    ['parameter', call => `return ((value = ${ call }) => value)();`],
+    ['field', call => `return new class { value = ${ call }; }().value;`],
+    ['nested argument', call => `return [0].concat(${ call })[1];`],
+  ]) for (const [kind, key] of [['instance', '"at"'], ['symbol', 'Symbol.iterator']]) {
+    for (const outcome of ['callable', 'absent', 'throwing']) {
+      const call = kind === 'instance' ? `get()[(effects.push("key"), ${ key })](argument())` : `get()[${ key }](argument())`;
+      yield {
+        name: `method-capture-frames/${ frame }/${ kind }/${ outcome }`,
+        code: `export const effects = [];
+          export function read(get, argument) { ${ wrap(call) } }
+          const inner = { [${ key }](value) { effects.push(this === inner ? "inner this" : "wrong this"); return value; } };
+          const outer = { get [${ key }]() {
+            effects.push("lookup");
+            ${ outcome === 'throwing' ? 'throw new RangeError("lookup");' : outcome === 'absent' ? 'return null;' : `
+              read(() => inner, () => { effects.push("inner argument"); return 3; });
+              return function (value) { effects.push(this === outer ? "outer this" : "wrong this"); return value; };` }
+          } };
+          let r;
+          try { r = read(() => { effects.push("receiver"); return outer; },
+            () => { effects.push("argument"); return 7; }); }
+          catch (error) { r = error.name; }
+          export { r };`,
+        // Own getters and methods observe rewriting; no missing builtin arms stripping here.
+        strip: false,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -20051,4 +20085,5 @@ export function * generate() {
   yield * generateLoopTestGuards();
   yield * generateTypeofDeclaredSources();
   yield * generateSealedKeyClaims();
+  yield * generateMethodCaptureFrames();
 }

@@ -52,7 +52,7 @@ import {
   nullGuardTest,
   nullFirstGuardTest,
   renderInExpressionPlan,
-  renderMethodCallMember,
+  renderMethodCall,
   planMethodCall,
   renderProxyReceiverPlan,
 } from '@core-js/polyfill-provider/render';
@@ -387,10 +387,9 @@ export default function createAstUsagePureCallback({
       lookupArg = memberOptional ? identifier(ref) : capture;
       callReceiver = identifier(ref);
     }
-    const dispatch = callExpression(
-      memberExpression(callExpression(identifier(id), [lookupArg]), identifier('call'), { optional: true }),
-      [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
-    );
+    const dispatch = renderMethodCall(planMethodCall({
+      receiver: callReceiver, prepared: true, optional: true, args: parent.arguments,
+    }), { lookup: callExpression(identifier(id), [lookupArg]), chain: false, embed: cloneNode });
     const callPath = metaPath.parentPath;
     const upNode = callPath.parentPath?.node;
     const chainContinues = upNode
@@ -694,18 +693,11 @@ export default function createAstUsagePureCallback({
       receiver: object, prepared: !!lookup, args: callerPath.node.arguments,
       ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
     });
-    let receiver = cloneNode(decision.receiver);
-    let lookupArg;
-    if (!lookup) {
-      lookupArg = receiverClone();
-      if (decision.capture) {
-        receiver = identifier(injector.generateDeclaredRef(metaPath));
-        lookupArg = assignmentExpression('=', cloneNode(receiver), lookupArg);
-      }
-    }
-    const core = lookup ?? callExpression(identifier(id), [lookupArg]);
-    return callExpression(renderMethodCallMember(core, decision),
-      [receiver, ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
+    return renderMethodCall(decision, {
+      helper: identifier(id), lookup,
+      mintRef: () => injector.generateDeclaredRef(metaPath),
+      embed: (node, role) => role === 'lookup' || role === 'capture' ? receiverClone() : cloneNode(node),
+    });
   }
 
   // `x?.[S]` / `x?.[S]()` - the null test guards the whole consumed shape; a non-reusable
@@ -714,10 +706,10 @@ export default function createAstUsagePureCallback({
     const guard = guardObject(object, metaPath, { interveningEffects: !!effects?.length });
     let guardedCore = callExpression(identifier(id), [guard.makeBase()]);
     if (methodCallConsume) {
-      guardedCore = callExpression(renderMethodCallMember(guardedCore, {
-        args: callerPath.node.arguments, ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-      }),
-      [guard.makeBase(), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
+      guardedCore = renderMethodCall(planMethodCall({
+        receiver: guard.makeBase(), prepared: true, args: callerPath.node.arguments,
+        ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+      }), { lookup: guardedCore, embed: cloneNode });
     }
     const [check] = guard.disjuncts;
     // the split hands raw CHECKS - the spelling is the canon's, at the render boundary

@@ -67,12 +67,13 @@ export function memberExpression(object, property, { computed = false, optional 
 // effects follow it. Only a stable tail can be read again for lookup / this. A capture with
 // no intervening key lives in the lookup argument; otherwise it precedes the key effects.
 // `prepared` means an upstream lookup already owns the receiver capture (identity / symbol
-// branches). This query never clones, imports, allocates refs or marks claims. Its source
+// branches); `methodGuarded` means that enclosing code has already excluded a nullish method.
+// This query never clones, imports, allocates refs or marks claims. Its source
 // slots and ctx belong to this synchronous question; apply must retain the read's frame and
 // register a newly allocated ref before asking any subsequent scope question about it.
 export function planMethodCall({
   receiver, sourceReceiver = receiver, sideEffects = [], receiverEffectCount = 0,
-  prepared = false, args = [], optional = false, ctx = null,
+  prepared = false, methodGuarded = false, args = [], optional = false, ctx = null,
 }) {
   const sequence = prepared ? null : peelNestedSequenceExpressions(receiver);
   const tail = sequence?.prefix.length ? sequence.tail : receiver;
@@ -91,6 +92,7 @@ export function planMethodCall({
     keyEffects,
     args,
     optional,
+    methodGuarded,
     ctx,
   };
 }
@@ -98,12 +100,53 @@ export function planMethodCall({
 // A missing method must reject the CALL after its arguments, not the preceding `.call` read.
 // Zero boxes without throwing and has no call method; falsy non-callables reject at the same point.
 // Optional calls retain the nullish short-circuit. Quiet arguments need no timing repair.
-export function renderMethodCallMember(method, { optional = false, args = [], ctx = null } = {}) {
-  const base = !optional && args.some(argument => callArgumentMayBeObserved(hostSlotNode(argument), ctx))
+function renderMethodCallMember(method, { optional = false, methodGuarded = false, args = [], ctx = null } = {}) {
+  const base = !optional && !methodGuarded && args.some(argument => callArgumentMayBeObserved(hostSlotNode(argument), ctx))
     ? logicalExpression('||', method, literal(0)) : method;
   // The argument's own claim may later replace an observable lookup with a pure import.
   if (base !== method) base.extra = { corejsMethodCallGuard: true };
   return memberExpression(base, identifier('call'), { optional });
+}
+
+// Apply one call decision, including its first receiver, capture, key effects and invocation.
+// `lookup` is an already prepared method value; otherwise `helper` reads the chosen receiver.
+// A sealed lookup may carry its enclosing guard in `lookupGuard`, without guarding the arguments.
+// Host hooks only embed source slots, allocate/register refs and register the generated write.
+// `embed` roles distinguish a moved capture from repeated receiver reads, effects and arguments:
+// Babel must not retire a source write merely because its first receiver moves into a memo.
+// All slots are read at apply time; nested claims stay live. `chain` seals a callee-optional
+// invocation only where the host has no continuing chain around it.
+export function renderMethodCall(plan, {
+  helper, lookup = null, lookupGuard = null, chain = true,
+  mintRef, embed = node => node, recordCapture = node => node,
+}) {
+  const effects = [...plan.prefixEffects, ...plan.firstReadEffects].map(node => embed(node, 'effect'));
+  let receiver;
+  if (lookup) {
+    receiver = embed(plan.receiver, 'receiver');
+  } else {
+    let lookupArg;
+    if (plan.capture) {
+      const ref = mintRef();
+      receiver = identifier(ref);
+      const capture = recordCapture(assignmentExpression('=', identifier(ref), embed(plan.firstReceiver, 'capture')));
+      if (plan.capture === 'lookup') lookupArg = capture;
+      else {
+        effects.push(capture);
+        lookupArg = identifier(ref);
+      }
+    } else {
+      lookupArg = embed(plan.lookupReceiver, 'lookup');
+      receiver = embed(plan.receiver, 'receiver');
+    }
+    lookup = callExpression(helper, [lookupArg]);
+  }
+  effects.push(...plan.keyEffects.map(node => embed(node, 'effect')));
+  if (lookupGuard) lookup = renderShortCircuitGuard(lookupGuard, lookup);
+  const args = [receiver, ...plan.args.map(node => embed(node, 'argument'))];
+  const call = callExpression(renderMethodCallMember(lookup, plan), args);
+  const result = plan.optional && chain ? chainExpression(call) : call;
+  return effects.length ? sequenceExpression([...effects, result]) : result;
 }
 
 // After claims settle, remove guards whose observable arguments became plain values.
