@@ -49,6 +49,7 @@ import './destructure-host-shape.mjs';
 import './destructure-write-order.mjs';
 import './destructure-receiver-capture.mjs';
 import './key-effects.mjs';
+import './method-call.mjs';
 import './nested-receiver-base.mjs';
 import './prototype-hop-receiver.mjs';
 import './array-wrapper-drop.mjs';

@@ -120,3 +120,67 @@ QUnit.test('method call: optional calls skip arguments and sealed calls evaluate
   assert.same(argumentsRun, 1, 'a null receiver still throws during property lookup');
 });
 
+// Key effects must not move before a receiver capture, including during getter re-entry.
+export function invokeKeyedMethod(getReceiver, key, argument) {
+  // eslint-disable-next-line no-sequences -- computed key effects follow the receiver evaluation
+  return getReceiver()[key(), 'at'](argument());
+}
+
+export function invokeMutableKeyedMethod(receiver, replacement, argument) {
+  // eslint-disable-next-line no-useless-assignment, no-sequences -- the key overwrites a value already captured by the member evaluation
+  return receiver[receiver = replacement, 'at'](argument());
+}
+
+export function invokeNestedKeyedMethod(receiver, events) {
+  // eslint-disable-next-line no-sequences -- nested claims in a consumed key must remain live
+  return receiver[events.push('key'), ['x'].includes('x'), 'at']([4].at(0));
+}
+
+QUnit.test('method call: receiver, key, lookup and argument retain their order', assert => {
+  const events = [];
+  const receiver = { get at() {
+    events.push('lookup');
+    return function (value) {
+      events.push('body');
+      assert.same(this, receiver);
+      return value;
+    };
+  } };
+  assert.same(invokeKeyedMethod(() => {
+    events.push('receiver'); return receiver;
+  }, () => events.push('key'), () => {
+    events.push('argument'); return 42;
+  }), 42);
+  assert.deepEqual(events, ['receiver', 'key', 'lookup', 'argument', 'body']);
+  events.length = 0;
+  const failure = {};
+  assert.throws(() => invokeKeyedMethod(() => { throw failure; }, () => events.push('key'), () => events.push('argument')),
+    error => error === failure);
+  assert.deepEqual(events, [], 'a receiver failure precedes key and argument effects');
+  assert.same(invokeMutableKeyedMethod(receiver, { at: null }, () => 7), 7, 'the key cannot replace the captured this value');
+  events.length = 0;
+  assert.same(invokeNestedKeyedMethod(receiver, events), 4);
+  assert.deepEqual(events, ['key', 'lookup', 'body'], 'nested key and argument claims remain live');
+});
+
+QUnit.test('method call: a re-entering getter cannot replace the outer receiver capture', assert => {
+  const events = [];
+  const nested = { at(value) {
+    events.push('inner body');
+    assert.same(this, nested);
+    return value;
+  } };
+  const outer = { get at() {
+    events.push('outer lookup');
+    assert.same(invokeKeyedMethod(() => nested, () => events.push('inner key'), () => 3), 3);
+    return function (value) {
+      events.push('outer body');
+      assert.same(this, outer);
+      return value;
+    };
+  } };
+  assert.same(invokeKeyedMethod(() => outer, () => events.push('outer key'), () => {
+    events.push('outer argument'); return 7;
+  }), 7);
+  assert.deepEqual(events, ['outer key', 'outer lookup', 'inner key', 'inner body', 'outer argument', 'outer body']);
+});

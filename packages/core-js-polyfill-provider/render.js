@@ -4,6 +4,11 @@ import {
   markGeneratedMemoDeclarator,
   markRenderedStoredValue,
   callArgumentMayBeObserved,
+  classifyReceiverSE,
+  isReusableReceiver,
+  observableSequenceElements,
+  peelNestedSequenceExpressions,
+  subtreeContainsNode,
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
@@ -55,6 +60,39 @@ export function callExpression(callee, args, { optional = false } = {}) {
 
 export function memberExpression(object, property, { computed = false, optional = false } = {}) {
   return { type: 'MemberExpression', object, property, computed, optional };
+}
+
+// One ordinary method invocation, after entry selection and any enclosing guard. The first
+// receiver owns its source prefix; harvested effects outside it precede that read, and key
+// effects follow it. Only a stable tail can be read again for lookup / this. A capture with
+// no intervening key lives in the lookup argument; otherwise it precedes the key effects.
+// `prepared` means an upstream lookup already owns the receiver capture (identity / symbol
+// branches). This query never clones, imports, allocates refs or marks claims. Its source
+// slots and ctx belong to this synchronous question; apply must retain the read's frame and
+// register a newly allocated ref before asking any subsequent scope question about it.
+export function planMethodCall({
+  receiver, sourceReceiver = receiver, sideEffects = [], receiverEffectCount = 0,
+  prepared = false, args = [], optional = false, ctx = null,
+}) {
+  const sequence = prepared ? null : peelNestedSequenceExpressions(receiver);
+  const tail = sequence?.prefix.length ? sequence.tail : receiver;
+  const effects = sideEffects ?? [];
+  const keyEffects = effects.slice(receiverEffectCount);
+  const reusable = prepared || isReusableReceiver(tail, { interveningEffects: keyEffects.length > 0, ctx });
+  return {
+    firstReceiver: receiver,
+    receiver: tail,
+    lookupReceiver: reusable && keyEffects.length ? tail : receiver,
+    capture: reusable ? null : keyEffects.length ? 'before-key' : 'lookup',
+    prefixEffects: classifyReceiverSE(sourceReceiver, false, effects) === 'peel' ? []
+      : effects.slice(0, receiverEffectCount).filter(effect => !subtreeContainsNode(sourceReceiver, effect)),
+    firstReadEffects: reusable && keyEffects.length
+      ? observableSequenceElements([receiver], ctx, { preserveSourceReads: true }) : [],
+    keyEffects,
+    args,
+    optional,
+    ctx,
+  };
 }
 
 // A missing method must reject the CALL after its arguments, not the preceding `.call` read.

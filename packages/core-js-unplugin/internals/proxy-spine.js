@@ -95,6 +95,7 @@ import {
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderMethodCallMember,
+  planMethodCall,
   renderDestructureAssignments,
   renderNavCollapseLeaf,
   renderNavCollapseTail,
@@ -274,13 +275,17 @@ export default function createProxySpineChannel(ctx) {
       const call = { ...cloneNode(parent), callee, optional };
       for (const arg of call.arguments) liveArguments.add(arg);
       // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
-      if (thisArg) Object.assign(call, {
-        callee: renderMethodCallMember(callee.object, {
-          optional, args: call.arguments, ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState: injector },
-        }),
-        arguments: [thisArg, ...call.arguments],
-        optional: false,
-      });
+      if (thisArg) {
+        const decision = planMethodCall({
+          receiver: thisArg, prepared: true, optional, args: call.arguments,
+          ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState: injector },
+        });
+        Object.assign(call, {
+          callee: renderMethodCallMember(callee.object, decision),
+          arguments: [decision.receiver, ...call.arguments],
+          optional: false,
+        });
+      }
       // an absorbed optional call is its own chain in the branch it lands in
       return optional ? chainExpression(call) : call;
     } : undefined, captureSource);
