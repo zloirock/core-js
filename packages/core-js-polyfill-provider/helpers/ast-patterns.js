@@ -12874,6 +12874,19 @@ export function peelSequenceTail(node, { step = null, onPrefix = null, visited =
   return node;
 }
 
+// Classify ownership of a sequence receiver's harvested effects through runtime wrappers.
+// `peel`: an ordinary receiver owns its prefix on the first read; later reads use its tail.
+// A caller retaining that complete first receiver must not replay the harvested prefix.
+// `suppress`: the optional guard already evaluates the complete receiver, so its body must
+// not replay that prefix either. Null means there is no sequence harvest to account for.
+export function classifyReceiverSE(receiver, isOptional, sideEffects) {
+  if (!sideEffects?.length || !receiver) return null;
+  let cur = receiver;
+  while (cur && isTransparentWrapper(cur)) cur = cur.expression;
+  if (cur?.type !== 'SequenceExpression') return null;
+  return isOptional ? 'suppress' : 'peel';
+}
+
 // Collect nested sequence prefixes through runtime wrappers, returning `{ prefix, tail }`.
 // `(a(), (b(), R))` yields `[a(), b()]` and `R`; callers replay the prefixes in that order.
 // Empty and single-element sequences stay as the tail.

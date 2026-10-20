@@ -7,7 +7,6 @@ import {
   planProvenNavGuardCollapse,
   planKeptSequenceTail,
   claimReceiverEvaluationMayThrow,
-  classifyReceiverSE,
   descendToChainRoot,
   discardRescueNodes,
   keySideEffectsOnly,
@@ -49,6 +48,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { decidedReusableReceiver, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
+  classifyReceiverSE,
   chainValueCarrier,
   isNullLiteralNode,
   isDeoptedGlobalSlotRead,
@@ -103,6 +103,7 @@ import {
   nullFirstGuardTest,
   renderAliasHeldProbeRead,
   renderMethodCallMember,
+  planMethodCall,
   renderDeleteShortCircuitGuard,
   renderNavCollapseLeaf,
   renderKeptSequenceTail,
@@ -635,13 +636,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return t.identifier(getInjector().generateUnusedName());
   }
 
-  // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
-  // to `node`, but callers memoizing a CLONE or a synthesized subtree (optional-method-call
-  // methodNode, combined-chain spliced receivers) must pass the live source node instead: a
-  // range-less useNode fails the param/loop-header escape check and strands the `var` in the
-  // function body, unreachable from a parameter-default use (ReferenceError at call time for
-  // a TS parameter-property default)
-  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
+  // Apply the already shared navigation decisions before the call asks about its receiver.
+  // This is an apply step: imports and source replacement must never enter planMethodCall.
+  function prepareMemoReceiver(node, ctx) {
     // Preserve the kept sequence probe before cloning the receiver into its guard.
     const canRender = ctx?.adapter && ctx.path && resolvePureGlobalEntry && injectPureGlobal;
     const keptTail = canRender && planKeptSequenceTail(unwrapRuntimeExpr(node), {
@@ -668,6 +665,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const { leafPure: pure } = navPlan;
       node = renderNavCollapseAst(navPlan, injectPureGlobal(pure.entry, pure.hintName));
     }
+    return node;
+  }
+
+  // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
+  // to `node`, but callers memoizing a CLONE or a synthesized subtree (optional-method-call
+  // methodNode, combined-chain spliced receivers) must pass the live source node instead: a
+  // range-less useNode fails the param/loop-header escape check and strands the `var` in the
+  // function body, unreachable from a parameter-default use (ReferenceError at call time for
+  // a TS parameter-property default)
+  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
+    node = prepareMemoReceiver(node, ctx);
     const { prefix, tail } = peelNestedSequenceExpressions(node);
     // The first read runs the prefix once; later reads need only its stable rendered value.
     if (prefix.length && isReusableReceiver(tail, { interveningEffects, directCallee, ctx })) {
@@ -1158,23 +1166,59 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       composeNullGuardTest(guardChecks(check), { embed: hostSlot }), hostSlot(result)));
   }
 
-  function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode, anchorPath = null }) {
+  // Temporary host composition of the shared call decision; refs remain visible through the
+  // injector before subsequent queries, and source arguments retain their own live claims.
+  function buildMethodCall({
+    id,
+    object,
+    scope,
+    args,
+    optionalCall,
+    anchorNode,
+    anchorPath = null,
+    sourceReceiver = object,
+    sideEffects = [],
+    receiverEffectCount = 0,
+  }) {
     const receiverCtx = anchorPath && {
       scope,
       path: anchorPath,
       adapter: getAdapter?.(),
       injectorState: getInjector(),
     };
-    const [assign, ref] = memoize(object, scope, anchorNode ?? object, false, receiverCtx);
-    // clone args: originals may belong to a parent being replaced (stale Babel path containers)
-    const callArgs = [t.cloneNode(ref), ...args.map(a => t.cloneNode(a))];
-    const canonicalMember = renderMethodCallMember(hostSlot(t.callExpression(id, [assign])), {
-      optional: optionalCall, args, ctx: receiverCtx,
+    const decision = planMethodCall({
+      receiver: prepareMemoReceiver(object, receiverCtx),
+      sourceReceiver,
+      sideEffects,
+      receiverEffectCount,
+      args,
+      optional: optionalCall,
+      ctx: receiverCtx,
     });
+    let lookupArg, receiver;
+    const effects = [...decision.prefixEffects, ...decision.firstReadEffects];
+    if (decision.capture) {
+      receiver = generateRef(scope, anchorNode ?? decision.ctx?.path?.node ?? object);
+      const assign = t.assignmentExpression('=', t.cloneNode(receiver), decision.firstReceiver);
+      getInjector().recordMemoWrite?.(receiver.name, assign);
+      if (decision.capture === 'lookup') lookupArg = assign;
+      else {
+        effects.push(assign);
+        lookupArg = t.cloneNode(receiver);
+      }
+    } else {
+      lookupArg = t.cloneNode(decision.lookupReceiver);
+      receiver = t.removeComments(t.cloneNode(decision.receiver));
+    }
+    effects.push(...decision.keyEffects);
+    // clone args: originals may belong to a parent being replaced (stale Babel path containers)
+    const callArgs = [t.cloneNode(receiver), ...args.map(a => t.cloneNode(a))];
+    const canonicalMember = renderMethodCallMember(hostSlot(t.callExpression(id, [lookupArg])), decision);
     const callMember = estreeToBabel(optionalCall ? chainExpression(canonicalMember) : canonicalMember);
-    return optionalCall
+    const call = optionalCall
       ? t.optionalCallExpression(callMember, callArgs, false)
       : t.callExpression(callMember, callArgs);
+    return withSideEffects(call, effects);
   }
 
   // strip Optional{Member,Call}Expression wrappers above a replaced node
@@ -3041,9 +3085,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const rawObject = path.node.object;
     const guardedRecv = !check && guardedClaims.has(object) && !parenTerminated.has(object)
       && rawObject === object && !rawObject?.extra?.parenthesized ? object : null;
+    const ordinaryCall = isCall && !parent.optional && !check && !guardedRecv;
     const [recvNode, hoistedSE] = guardedRecv
       ? [guardedRecv.alternate, null]
-      : hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount, path, isCall ? 2 : 1, receiverSource);
+      : ordinaryCall ? [receiverSource, null]
+        : hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount, path, isCall ? 2 : 1, receiverSource);
     const built = isCall
       ? buildMethodCall({
         id,
@@ -3053,6 +3099,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         optionalCall: parent.optional,
         anchorNode: parent,
         anchorPath: path,
+        ...ordinaryCall ? { sourceReceiver: receiverSource, sideEffects: effectiveSE, receiverEffectCount } : {},
       })
       : t.callExpression(id, [cloneReceiverForEmit({ t, collapse: collapseKeptNavValueNode, node: recvNode, path, types: resolvedType })]);
     const result = guardedRecv
