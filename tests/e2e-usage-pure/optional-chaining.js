@@ -788,6 +788,29 @@ QUnit.test('optional chaining: sealed probe nav keeps the source throw', assert 
   }
 });
 
+// a claim inside a SEALED destructure source's computed key: the destructure re-emits the key off the read it
+// collapses, so the claim - a loop head's destructure in that key too - lands polyfilled there, once, and only
+// past a present window
+QUnit.test('optional chaining: claims inside a sealed destructure key land polyfilled', assert => {
+  const seen = [];
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
+    const { of } = (globalThis.window?.[(seen.push(typeof Array.from), 'self')]).Array;
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
+    const { from } = (globalThis.window?.[((() => { for (const { at } in { x: 1 }) seen.push(typeof at); })(), 'self')]).Array;
+    assert.same(typeof of, 'function');
+    assert.same(typeof from, 'function');
+    assert.deepEqual(seen, ['function', 'function']);
+  } else {
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
+      const { of } = (globalThis.window?.[(seen.push(typeof Array.from), 'self')]).Array;
+      return of;
+    }, TypeError);
+    assert.deepEqual(seen, []);
+  }
+});
+
 // a pattern-hop (anchored) destructure over an undefinable probe nav: destructuring the
 // probe VALUE throws where `window` is absent - the anchored renders must keep that throw
 // (an always-defined ctor binding would swallow it AND run the computed-key effect the
