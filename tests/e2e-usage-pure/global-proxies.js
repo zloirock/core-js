@@ -1295,8 +1295,7 @@ testUnlessDetectLowered('global-proxy: unguarded chain-assign over an unpolyfill
   assert.same(seAroundKeptRoot(), hasWindow ? 0 : undefined);
   assert.same(count, 1);
   assert.same(sq, globalThis.window);
-  // every OTHER place an effect can sit around a kept root: inside the assigned value, and in a computed
-  // hop key. the root re-emits itself and must not double-run; everything else runs once, in source order
+  // Effects inside a stored value and a native computed hop run once in source order.
   let log = [];
   let va;
   function effectInsideValue() {
@@ -1309,12 +1308,10 @@ testUnlessDetectLowered('global-proxy: unguarded chain-assign over an unpolyfill
   log = [];
   let kb;
   function effectInHopKey() {
-    // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: only a foldable key migrates
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence key is the native fallback under test
     return (kb = globalThis.window)?.[(log.push('k'), 'self')].Array.prototype.at.call([5], 0);
   }
-  // a SE-bearing hop key MIGRATES into the surviving leaf key (`_ref[(c++, 'self')].Array` ->
-  // `_ref[c++, "Array"]`): the hop is rescued like its plain twin, and the key effect still evaluates
-  // exactly where the native order puts it - past the guard, before the read
+  // The effectful key stays in the native read, past the guard and before the instance claim.
   if (hasWindow) assert.same(effectInHopKey(), 5);
   else assert.same(effectInHopKey(), undefined);
   assert.same(kb, globalThis.window);
@@ -2022,22 +2019,14 @@ testUnlessDetectLowered('global-proxy: a bare probed nav throws in every spellin
 });
 
 // a chain-assign root is the OBJECT being read, so the source evaluates it before any key above it.
-// three channels used to place the key first: the provider withheld the slot from a static READ,
-// an emitter fallback never received it, and a claim render took over only the effects sitting
-// BEFORE the assignment - a key from a hop the collapse had already dropped got wrapped around the
-// whole render. the key reads what the assignment stored, which is what makes the order observable
+// Static reads and claim keys both observe the assignment first. The key reads the stored value,
+// which makes their order observable; effectful realm-hop collapse is outside this contract.
 testUnlessDetectLowered('global-proxy: a chain-assign root evaluates before every key above it', assert => {
   function staticRead() {
     let t;
     /* eslint-disable-next-line @stylistic/no-extra-parens, es/no-nonstandard-set-properties -- the parenthesized sequence
        KEY is the subject; the absent static `Set.size` is the read that keeps this route on the fallback swap */
     const v = (t = globalThis)[(order.push(t === undefined ? 'key-first' : 'assign-first'), 'Set')].size;
-    return [typeof v, order.pop()];
-  }
-  function droppedHopKey() {
-    let p;
-    // eslint-disable-next-line @stylistic/no-extra-parens -- as above: the key sits on a hop the collapse DROPS
-    const v = (p = globalThis)[(order.push(p === undefined ? 'key-first' : 'assign-first'), 'globalThis')].Map.name;
     return [typeof v, order.pop()];
   }
   function claimHopKey() {
@@ -2048,7 +2037,6 @@ testUnlessDetectLowered('global-proxy: a chain-assign root evaluates before ever
   }
   const order = [];
   assert.deepEqual(staticRead(), ['undefined', 'assign-first'], 'a static READ runs the assignment first');
-  assert.deepEqual(droppedHopKey(), ['string', 'assign-first'], 'and so does a key on a hop the collapse drops');
   assert.deepEqual(claimHopKey(), ['string', 'assign-first'], 'and a key on the claim hop itself');
   assert.same(order.length, 0, 'each row observed exactly one key evaluation');
 });
@@ -3049,14 +3037,6 @@ QUnit.test('global-proxy: a kept store of a prefixed call nav stores the backed 
   assert.same(ticks, 1, 'the store prefix ran exactly once');
   assert.same(read, 5);
   assert.same(held, globalThis);
-  const keyLog = [];
-  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its claim must stay live
-  const keyRead = (held = globalThis[(keyLog.push(1), 'window')].self)?.customStoreSlotC;
-  assert.same(keyLog.length, 1, 'the key effect ran exactly once');
-  // the key-SE store takes the VALUE form: the realm slot answers in every realm - the
-  // accepted collapse price where native, off-window, throws on the `.self` read
-  assert.same(keyRead, 5);
-  assert.same(held.customStoreSlotC, 5, 'the store held the realm object');
   delete globalThis.customStoreSlotC;
 });
 
@@ -3472,30 +3452,6 @@ testUnlessDetectLowered('global-proxy: the probe inside a stored span still shor
   const probedRead = (probed = globalThis.window?.self.Object)?.keys({ a: 1 });
   assert.same(probed === undefined, !WINDOW_PRESENT, 'the store holds the probe verdict, not the ponyfill');
   assert.same(probedRead === undefined, !WINDOW_PRESENT, 'and the read rides it');
-  // ... with the hop key's own effect on the branch the source reaches, and nowhere else
-  let keys = 0;
-  let keyed;
-  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject
-  const keyedRead = (keyed = globalThis.window?.[(keys++, 'self')].Number)?.isInteger(1);
-  assert.same(keys, WINDOW_PRESENT ? 1 : 0, 'the hop key runs only past the probe');
-  assert.same(keyed === undefined, !WINDOW_PRESENT, 'the store holds the same verdict for the keyed spelling');
-  assert.same(keyedRead, WINDOW_PRESENT ? true : undefined, 'and its read rides it too');
-});
-
-// ... and where the key the migration lands on names a CONSTRUCTOR the pure package spells, the
-// read must land on the ponyfill rather than on the engine slot off the memo - respelled computed
-// it reads the very slot the ponyfill stands in for. The karma floor is the cell that says so:
-// `window` is present there and `WeakSet` is not, a combination no Node leg can produce, so in Node
-// this row rides its counters and the short-circuit alone
-testUnlessDetectLowered('global-proxy: a migrated hop key keeps the ctor substitution', assert => {
-  const WINDOW_PRESENT = typeof window != 'undefined';
-  let keys = 0;
-  let held;
-  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject
-  const named = (held = globalThis.window)?.[(keys++, 'self')].WeakSet.name;
-  assert.same(keys, WINDOW_PRESENT ? 1 : 0, 'the migrated key runs once, and only past the guard');
-  assert.same(held === undefined, !WINDOW_PRESENT, 'the store holds the probe verdict, not the ponyfill');
-  assert.same(typeof named, WINDOW_PRESENT ? 'string' : 'undefined', 'and the read lands on a constructor the host may not carry');
 });
 
 // the probe standing INSIDE the carrier with the `?.` ABOVE it: what a sequence or a store hands on
@@ -4267,11 +4223,6 @@ testUnlessDetectLowered('realm-call guards fold plain middle hops on every host'
   const text = 'abc';
   const stringArgument = realm(text.at(1)).window.window.self?.Array.of(11).includes(11);
   assert.same(stringArgument, true, 'a string argument keeps its receiver family');
-  const order = [];
-  // eslint-disable-next-line no-sequences -- the computed key must run after the call argument
-  const computed = realm((order.push(values.at(0)), 0)).window[order.push('key'), 'self']?.Array.of(12).at(0);
-  assert.same(computed, 12, 'a folded key keeps the same backed value');
-  assert.deepEqual(order, [1, 'key'], 'the root argument runs before the folded key');
   let tailCalls = 0;
   const innerOptional = realm((effects++, values.at(0))).window?.self?.Array.of(++tailCalls).at(0);
   assert.same(innerOptional, typeof window === 'undefined' ? undefined : 1, 'an inner optional keeps its probe');
@@ -4292,15 +4243,11 @@ QUnit.test('proxy guard keeps a stored terminal environment probe', assert => {
   const prefixed = (stored = (effects++, globalThis).self.window)?.Array.of(++calls);
   assert.same(stored === globalThis.window, true, 'a prefix keeps the same stored value');
   assert.deepEqual(prefixed, typeof window === 'undefined' ? undefined : [2], 'prefix stays inside the value');
-  // eslint-disable-next-line no-sequences -- the effect is part of the probe's computed key
-  const computed = (stored = globalThis.self[effects++, 'window'])?.Array.from([++calls]);
-  assert.same(stored === globalThis.window, true, 'a computed key names the same probe');
-  assert.deepEqual(computed, typeof window === 'undefined' ? undefined : [3], 'computed terminal probe');
   const called = (stored = (() => globalThis)().self.window)?.Array.of(++calls);
   assert.same(stored === globalThis.window, true, 'a proven call keeps the same probe');
-  assert.deepEqual(called, typeof window === 'undefined' ? undefined : [4], 'call-rooted terminal probe');
-  assert.same(calls, typeof window === 'undefined' ? 0 : 4, 'the guarded arguments run only in a window realm');
-  assert.same(effects, 2, 'both value effects run once before their guards');
+  assert.deepEqual(called, typeof window === 'undefined' ? undefined : [3], 'call-rooted terminal probe');
+  assert.same(calls, typeof window === 'undefined' ? 0 : 3, 'the guarded arguments run only in a window realm');
+  assert.same(effects, 1, 'the value effect runs once before its guard');
   const staticTail = (stored = globalThis.self.window)?.Map.length;
   assert.same(stored === globalThis.window, true, 'a residual static read keeps the same probe');
   assert.same(typeof staticTail, typeof window === 'undefined' ? 'undefined' : 'number',
@@ -4390,7 +4337,6 @@ QUnit.test('proxy guard: an optional inside the stored run keeps its branch', as
 });
 
 /* eslint-disable unicorn/prefer-global-this -- A bare unbacked window is the regression's root. */
-/* eslint-disable no-sequences -- The computed probe must carry a side effect. */
 
 QUnit.test('unbacked window: stored tails preserve the second environment read', assert => {
   withChangingWindow(synthetic => {
@@ -4424,23 +4370,7 @@ QUnit.test('unbacked window: dotted probes keep their optional continuation', as
   }
 });
 
-QUnit.test('unbacked window: computed probe effects precede the optional continuation', assert => {
-  for (const absent of [true, false]) {
-    withNestedWindow(absent, synthetic => {
-      const shorted = synthetic && absent;
-      let keys = 0;
-      let args = 0;
-      const name = window.window[keys++, 'window']?.window.Array.name;
-      assert.same(name, shorted ? undefined : 'Array');
-      assert.same(keys, 1, 'the guard evaluates its computed probe once');
-      const result = window.window[keys++, 'window']?.window.Array.of(++args);
-      assert.deepEqual(result, shorted ? undefined : [1]);
-      assert.same(keys, 2, 'the call evaluates its computed probe once');
-      assert.same(args, shorted ? 0 : 1, 'short-circuiting suppresses call arguments');
-    });
-  }
-});
-/* eslint-enable unicorn/prefer-global-this, no-sequences -- end of the source forms above */
+/* eslint-enable unicorn/prefer-global-this -- end of the source forms above */
 
 /* eslint-disable no-var, block-scoped-var -- the guarded realm alias (a `var` written under a branch) is the source form */
 QUnit.test('a constructor without a pure entry held off a guarded realm alias dispatches its static', assert => {

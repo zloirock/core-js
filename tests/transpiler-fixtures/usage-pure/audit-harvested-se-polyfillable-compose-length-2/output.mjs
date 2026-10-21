@@ -1,12 +1,13 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+// A retained realm-key read keeps its nested static claim and assignment effect.
 let a2;
 function sf() {
   return _globalThis;
 }
-a2 = _Object$entries({
+const {
+  groupBy
+} = sf()[a2 = _Object$entries({
   q: 1
-});
-const groupBy = _Map$groupBy;
+}), 'self'].Map;
 export const r3 = [typeof groupBy, a2.length];

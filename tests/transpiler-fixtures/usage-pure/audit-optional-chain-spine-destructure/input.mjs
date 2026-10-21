@@ -1,5 +1,5 @@
-// Destructuring follows optional realm hops, including computed keys and stored receivers.
-// Supported static and instance leaves receive polyfills while key effects and rest exclusions survive.
+// Quiet realm and ordinary leaf keys keep static, instance, rest and caller handling.
+// Effectful realm keys retain the source receiver and its effects.
 let c = 0;
 const { Symbol: { iterator } } = globalThis?.[(c++, 'self')];
 export const r1 = [typeof iterator, c];

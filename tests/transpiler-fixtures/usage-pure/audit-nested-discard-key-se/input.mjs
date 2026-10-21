@@ -1,9 +1,4 @@
-// a nested destructure consuming its receiver must re-emit the side effect buried in the
-// receiver's computed hop KEY: the discard probe folds the key, and a chain-assignment /
-// root-call-only rescue dropped the key effect silently - on a full consume (receiver gone)
-// and on a partial consume (receiver swapped under the surviving residual). polyfillable
-// content inside the harvested key keeps its own rewrite; a chain-root call interleaves
-// with the key effect in source-eval order
+// Nested patterns retain effectful realm reads and independent claims inside their keys.
 let c = 0;
 const { Symbol: { iterator } } = globalThis[(c++, 'self')];
 export const r1 = [typeof iterator, c];

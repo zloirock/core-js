@@ -1848,7 +1848,7 @@ function checkOptionalReceiverCaptureBoundaries() {
   }
   withTemporaryProperty(globalThis, 'window', globalThis, () => {
     withTemporaryProperty(globalThis, 'self', globalThis, () => {
-      for (const [label, source, expected, declinedEntry] of [
+      for (const [label, source, expected, entry, injected] of [
         [
           'external key effects',
           "let trace = '';\n"
@@ -1857,9 +1857,10 @@ function checkOptionalReceiverCaptureBoundaries() {
           + 'module.exports = [r, trace];',
           [[1, 2], 'receiver;list;key;argument;'],
           'array/instance/flat',
+          false,
         ],
-        // The scoped alias names Object, but the staged split keeps its dynamic
-        // spelling after migrating the self key. Calling Object.name still throws.
+        // The realm key stays native; its independent name claim can now dispatch.
+        // Calling Object.name still throws after the key effect.
         [
           'staged dynamic receiver',
           'let held, hop = 0, failed, r;\n'
@@ -1868,12 +1869,13 @@ function checkOptionalReceiverCaptureBoundaries() {
           + 'catch { failed = true; }\nmodule.exports = [typeof r, hop, failed];',
           ['undefined', 1, true],
           'function/instance/name',
+          true,
         ],
       ]) {
         const code = createPlugin(options).transform(source, '/optional-capture-boundary.cjs')?.code ?? source;
         checkDeep(`optional receiver capture/${ label }/native`, execute(source), expected);
         checkDeep(`optional receiver capture/${ label }/runtime`, execute(code), expected);
-        check(`optional receiver capture/${ label }/no premature dispatch`, code.includes(`/actual/${ declinedEntry }`), false);
+        check(`optional receiver capture/${ label }/independent dispatch`, code.includes(`/actual/${ entry }`), injected);
       }
       for (const [label, source, expected, memos] of [
         [
@@ -5924,7 +5926,7 @@ for (const [source, typed] of [
               + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
             absentValue,
             absentValue ? ['object', 'probe'] : ['object', 'probe', 'hop', 'key', 'ctor-first', 'ctor-last'],
-            0,
+            1,
             '/instance/to-fixed',
             absentValue,
           ]),
@@ -5935,7 +5937,7 @@ for (const [source, typed] of [
               + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
             absentValue,
             absentValue ? ['object', 'test-first', 'test-last', 'probe'] : ['object', 'test-first', 'test-last', 'probe', 'hop', 'key'],
-            0,
+            1,
             '/instance/to-fixed',
             absentValue,
           ]),
@@ -6448,7 +6450,8 @@ for (const [source, typed] of [
           checkDeep(`rendered sequence receiver/${ label }/${ leg }/order`, trace, ['hop', 'key', 'lookup', 'realm']);
         }
         const receiverDeclarations = programOf(code).body.flatMap(statement => statement.type === 'VariableDeclaration' ? statement.declarations : []);
-        check(`rendered sequence receiver/${ label }/no receiver memo`, receiverDeclarations.filter(declarator => !declarator.init).length, 0);
+        // The native R1 receiver is captured before the symbol key and consumed once.
+        check(`rendered sequence receiver/${ label }/native receiver memo`, receiverDeclarations.filter(declarator => !declarator.init).length, 1);
       }
     });
   }));

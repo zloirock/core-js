@@ -57,10 +57,8 @@ import {
   cloneNode,
   composeNullGuardTest,
   identifier,
-  literal,
   memberExpression,
   nullGuardTest,
-  renderNavCollapseLeaf,
   renderMethodCall,
   planMethodCall,
   renderNavCollapseTail,
@@ -71,7 +69,6 @@ import {
 import {
   mintedProxyGlobalName,
   receiverCarriesOptional,
-  replaceNodeInTree,
   stampReplacementSpan,
   withSideEffects,
 } from './emit-shared.js';
@@ -199,10 +196,9 @@ export default function createOptionalDispatchChannel(ctx) {
       && (navPlan.kind === 'sequence' || !navPlan.call
         || !guardProbeUndefinable(navPlan.call, { metaPath, adapter, resolvePure }))) {
       const pure = navPlan.leafPure;
-      memoSource = renderNavCollapseTail(navPlan, renderNavCollapseLeaf(navPlan,
-        identifier(injectPureImport(pure.entry, pure.hintName)), {
-          cloneHost: cloneNode, prefix: navPlan.kind === 'sequence' ? navRootPrefixNodes(navPlan, cloneNode) : [],
-        }), { cloneHost: cloneNode });
+      memoSource = renderNavCollapseTail(navPlan, withSideEffects(
+        identifier(injectPureImport(pure.entry, pure.hintName)),
+        navPlan.kind === 'sequence' ? navRootPrefixNodes(navPlan, cloneNode) : []), { cloneHost: cloneNode });
     } else if (surface) {
       // trailing ERASABLE hops drop from a SURFACE memo - the surface below them IS the
       // memo's value (`(v = gw)?.self` memoizes `_ref = v = _globalThis.window`); a hop
@@ -290,11 +286,7 @@ export default function createOptionalDispatchChannel(ctx) {
     if (composed) {
       return {
         disjuncts: [cloneNode(composed.probe)],
-        // the base is the collapse render's own leaf: the key effects BELOW the composed test ride
-        // with the ponyfill, where the source runs them - the test's own share is already inside
-        // the probe this composes with
-        makeBase: () => renderNavCollapseLeaf(composed.plan,
-          identifier(injectPureImport(composed.pure.entry, composed.pure.hintName)), { cloneHost: cloneNode }),
+        makeBase: () => identifier(injectPureImport(composed.pure.entry, composed.pure.hintName)),
       };
     }
     // a `?.` sitting directly on a KEPT WRITE whose stored value is provably defined is dead
@@ -852,21 +844,9 @@ export default function createOptionalDispatchChannel(ctx) {
         readerKey: leafKey,
       });
     // a pristine hop read off a guarded PROXY-surface value drops - `(q = gw)?.self
-    // .Array` reads `_ref.Array` (window.self is the same surface, babel's kept canon);
-    // an SE-bearing key's effects MIGRATE into the next surviving key (native order:
-    // the key evaluates past the guard, before the next read)
-    if (surfaceHeld) {
-      const hop = surfaceHop;
-      // SE-key migration is the KEPT-ROOT canon, and the root is the write this `?.` TESTS -
-      // never one buried under a hop. There the memo holds an environment read taken above the
-      // store, the migration re-roots the kept read off it, and the same source under every
-      // write-less root keeps the hop where it stands (babel's spelling for all of them)
-      if (hop && (!hop.effects.length || spineHoldsKeptWrite(node.object, { throughHops: false }))) {
-        return {
-          hopKind: 'member', disjuncts, receiver: makeBase(), proxySurface: true,
-          pendingKeySe: hop.effects,
-        };
-      }
+    // .Array` reads `_ref.Array` (window.self is the same surface, babel's kept canon).
+    if (surfaceHop) {
+      return { hopKind: 'member', disjuncts, receiver: makeBase(), proxySurface: true };
     }
     // a key that names a pure CTOR is answered by the substitution below, never by the chain
     // respell: respelled off the memo it reads the constructor off the ponyfill surface, which is
@@ -986,9 +966,7 @@ export default function createOptionalDispatchChannel(ctx) {
         // ... but only while the INNER probe is the live one: over a provably defined object
         // its guard is dead, and folding into it drops the hop this `?.` actually tests
         // (`globalThis?.window?.self.box` must test `_globalThis.window`, not `_globalThis`)
-        // the hop KEY is asked through the canonical resolver, so an SE-bearing computed
-        // spelling folds like its dotted twin and its effects MIGRATE into the surviving key
-        // (`(w = gw)?.[(c++, 'self')]?.[(c++, 'self')].Array` -> `_ref[c++, c++, 'Array']`)
+        // Only quiet keys enter the hop collapse; effectful keys keep their source slots.
         const foldKey = receiverCarriesOptional(node.object)
           ? proxyHopKey(node, { allowOptional: true, metaPath }) : null;
         const innerHop = foldKey ? unwrapRuntimeExpr(node.object) : null;
@@ -1004,18 +982,13 @@ export default function createOptionalDispatchChannel(ctx) {
           && (innerHop.type !== 'MemberExpression' || !innerHop.optional
             || guardProbeUndefinable(innerHop.object, { metaPath, adapter, resolvePure }))) {
           const surfaced = splitOptionalReceiverInner(node.object, metaPath);
-          if (surfaced && surfaced !== STAGED_SPLIT && surfaced.proxySurface) {
-            const pendingKeySe = [...surfaced.pendingKeySe ?? [], ...foldKey.effects];
-            if (!pendingKeySe.length) return surfaced;
-            return { ...surfaced, pendingKeySe };
-          }
+          if (surfaced && surfaced !== STAGED_SPLIT && surfaced.proxySurface) return surfaced;
         }
         return splitOptionalMemberHop(node, metaPath);
       }
       const inner = splitOptionalReceiverInner(node.object, metaPath);
       if (!inner || inner === STAGED_SPLIT) return inner;
-      if (inner.proxySurface && !inner.pendingKeySe?.length
-        && !node.computed && isPristineProxyGlobal(adapter, node.property?.name)) {
+      if (inner.proxySurface && !node.computed && isPristineProxyGlobal(adapter, node.property?.name)) {
         return inner;
       }
       // a resolvable CTOR read off the surface memo substitutes its own pure inside the
@@ -1024,10 +997,6 @@ export default function createOptionalDispatchChannel(ctx) {
       // a COMPUTED key folds the same way the proven-chain route already does: an SE-bearing
       // spelling keeps its prefix around the substituted ctor (`[(c += 1, 'Set')]` ->
       // `(c += 1, _Set)`), a quiet one resolves through the canonical key resolver
-      // effects MIGRATED off a dropped hop below ride the same prefix, ahead of the key's own:
-      // that is where the dropped hop's key ran. gating the substitution on their absence
-      // respelled the key computed instead (`_ref[(c++, "Set")]`), which reads the ENGINE
-      // constructor off the memo - the ponyfill this claim exists for, dropped by an effect
       const surfaceKey = inner.proxySurface
         ? (node.computed
           ? foldSeqKeyLiteralTail(node.property, { scope: metaPath.scope, adapter, path: metaPath })
@@ -1041,7 +1010,7 @@ export default function createOptionalDispatchChannel(ctx) {
             hopKind: inner.hopKind,
             disjuncts: inner.disjuncts,
             receiver: withSideEffects(identifier(injectPureImport(ctorPure.entry, ctorPure.hintName)),
-              [...inner.pendingKeySe ?? [], ...surfaceKey.effects]),
+              surfaceKey.effects),
           };
         }
       }
@@ -1070,30 +1039,6 @@ export default function createOptionalDispatchChannel(ctx) {
           disjuncts: inner.disjuncts,
           receiver: stampReplacementSpan(
             memberExpression(spelled, cloneNode(node.property), { computed: node.computed }), node),
-        };
-      }
-      if (inner.pendingKeySe?.length) {
-        // the migrated key effects respell the surviving key computed (`[c++, "Array"]`);
-        // a computed key that spells a STATIC NAME respells the same way - only a dynamic one
-        // (whose own read the prefix would reorder against) stays staged. the name comes from the
-        // canon, which folds a sequence tail, a `+` concat and a template nested in any combination:
-        // spelled here as a one-layer sequence peel it staged a nested key its single-layer twin
-        // respelled. an EFFECT-bearing key keeps its own node - the effects run where they stand
-        const computedTail = node.computed ? unwrapRuntimeExpr(node.property) : null;
-        const computedName = computedTail ? computedKeyStaticName(computedTail) : null;
-        const surviving = !node.computed && node.property?.type === 'Identifier'
-          ? literal(node.property.name)
-          : computedName === null ? null
-            : computedTail.type === 'Literal' ? literal(computedTail.value)
-              : cloneNode(computedTail);
-        if (!surviving) return STAGED_SPLIT;
-        return {
-          hopKind: inner.hopKind,
-          disjuncts: inner.disjuncts,
-          receiver: stampReplacementSpan(memberExpression(inner.receiver,
-            sequenceExpression([...inner.pendingKeySe.map(expr => cloneNode(expr)),
-              ...surviving.type === 'SequenceExpression' ? surviving.expressions : [surviving]]),
-            { computed: true }), node),
         };
       }
       return {
@@ -1152,8 +1097,8 @@ export default function createOptionalDispatchChannel(ctx) {
         value = unwrapRuntimeExpr(value.right);
         continue;
       }
-      const hopKey = isMemberAccessNode(value) ? staticMemberKeyName(value) : null;
-      if (hopKey && POSSIBLE_GLOBAL_OBJECTS.has(hopKey) && isPristineProxyGlobal(adapter, hopKey)) {
+      const hop = isMemberAccessNode(value) && proxyHopKey(value, { allowOptional: true, metaPath });
+      if (hop) {
         value = unwrapRuntimeExpr(value.object);
         continue;
       }
@@ -1244,7 +1189,9 @@ export default function createOptionalDispatchChannel(ctx) {
     const objectKeySequence = isMemberAccessNode(objectTail) && objectTail.computed
       ? peelNestedSequenceExpressions(objectTail.property) : null;
     const objectKey = objectKeySequence && staticMemberKeyName({ ...objectTail, property: objectKeySequence.tail });
-    const quietObject = typeof objectKey === 'string'
+    // A realm key keeps its effects in the source read; a quiet proof view must not
+    // manufacture the removed collapse. Ordinary static leaf keys still use this slot.
+    const quietObject = typeof objectKey === 'string' && !POSSIBLE_GLOBAL_OBJECTS.has(objectKey)
       ? memberFromKeyName(unwrapRuntimeExpr(objectTail.object), objectKey, { optional: objectTail.optional === true }) : objectTail;
     const staticKey = objectSequence && staticMemberKeyName(keySequence ? { ...receiver, property: keySequence.tail } : receiver);
     const pureView = typeof staticKey === 'string'
@@ -1488,9 +1435,7 @@ export default function createOptionalDispatchChannel(ctx) {
 
   // the realm hops a SPLIT receiver reads off its own MEMO. inside the guard's alternate that memo is
   // provably the realm object the probe yielded, and `X.self` IS `X` there - so the hop folds onto it
-  // and a computed key hands its effects to the base, where the source ran them. kept instead, the hop
-  // is a NATIVE read of the very slot the ponyfill stands in for, which is how pure came to ship
-  // `self` off the environment. the fold stops at the first hop that is not a realm self-reference,
+  // when its key is quiet. The fold stops at the first hop that is not a realm self-reference,
   // and stands down entirely when the leaf names a pure CONSTRUCTOR - that nav whole-swaps to the
   // ctor's own binding, and folding under it would leave a native read of the ctor off the memo
   function foldRealmHopsOverSplitMemo(receiverNode, disjuncts, metaPath) {
@@ -1506,32 +1451,17 @@ export default function createOptionalDispatchChannel(ctx) {
       base = unwrapRuntimeExpr(base.object);
     }
     if (base?.type !== 'Identifier' || !memoNames.has(base.name)) return receiverNode;
-    const keySe = [];
     let folding = true;
     let rebuilt = base;
     for (const hop of hops) {
       const key = hop.computed ? foldSeqKeyLiteralTail(hop.property)?.key ?? null
         : hop.property?.type === 'Identifier' ? hop.property.name : null;
-      if (folding && key !== null && POSSIBLE_GLOBAL_OBJECTS.has(key) && isPristineProxyGlobal(adapter, key)) {
-        // a computed key gives up its effects only where its VALUE is a sequence tail; any other
-        // effect-bearing spelling keeps the hop rather than swallow an observable. the source's own
-        // parens are a node on this dialect, so the sequence is read THROUGH them
-        const keyCore = unwrapRuntimeExpr(hop.property);
-        const effects = keyCore?.type === 'SequenceExpression' ? keyCore.expressions.slice(0, -1) : [];
-        if (hop.computed && !effects.length && mayHaveSideEffects(hop.property)) return receiverNode;
-        keySe.push(...effects);
-        continue;
-      }
+      if (folding && proxyHopKey(hop, { metaPath, allowOptional: true })) continue;
       if (folding && key !== null && resolvePure({ kind: 'global', name: key }, metaPath)) return receiverNode;
       folding = false;
       rebuilt = memberExpression(rebuilt, hop.property, { computed: hop.computed, optional: hop.optional });
     }
-    if (rebuilt === base && !keySe.length) return receiverNode;
-    if (!keySe.length) return rebuilt;
-    const prefixed = sequenceExpression([...keySe, base]);
-    if (rebuilt === base) return prefixed;
-    replaceNodeInTree(rebuilt, base, prefixed);
-    return rebuilt;
+    return rebuilt === base ? receiverNode : rebuilt;
   }
 
   // eslint-disable-next-line max-statements -- sequential emission steps of one instance claim

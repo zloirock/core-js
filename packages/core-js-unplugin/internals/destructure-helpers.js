@@ -38,6 +38,7 @@ import {
   peelRealmLogicalDefault,
   peelReceiverSequenceTail,
   proxyReceiverValueCanBeUndefined,
+  realmHopKeyName,
   realmSelectionCollapseOperand,
   resolveObjectName,
   agreeingTernaryArm,
@@ -1031,31 +1032,17 @@ export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlob
     cur = peelTransparentExpr(cur.object);
   }
   if (cur?.type !== 'MemberExpression') return null;
-  // a COMPUTED leaf key folds to its literal spelling, and the effects it carries ride the
-  // ALTERNATE - where native runs them, past the short-circuit and before the read
-  // (`(g.window?.[(c++, 'self')])` -> `null == _g.window ? void 0 : (c++, _self)`)
-  const keyEffects = [];
-  let hopName = cur.computed ? null : cur.property?.type === 'Identifier' ? cur.property.name : null;
-  if (cur.computed) {
-    let key = peelTransparentExpr(cur.property);
-    if (key?.type === 'SequenceExpression') {
-      keyEffects.push(...key.expressions.slice(0, -1));
-      key = peelTransparentExpr(key.expressions.at(-1));
-    }
-    hopName = key?.type === 'Literal' && typeof key.value === 'string' ? key.value : null;
-  }
+  const hopName = realmHopKeyName(cur, { scope: metaPath.scope, adapter, path: metaPath });
   const hopPure = hopName ? resolveGlobalPolyfill(hopName) : null;
   if (!hopPure) return null;
   const probe = substituteProxyRootsInClone(cloneStamped(cur.object), metaPath,
     { adapter, resolveGlobalPolyfill, injectPureImport });
   const navTail = tail.reduce((base, hop) => memberFromKeyName(base, hop),
     identifier(injectPureImport(hopPure.entry, hopPure.hintName)));
-  const alternate = keyEffects.length
-    ? sequenceExpression([...keyEffects.map(expr => cloneNode(expr)), navTail]) : navTail;
-  return renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
+  return renderShortCircuitGuard(nullFirstGuardTest(probe), navTail);
 }
 
-// the effects a sealed nav's LEAF hop key carries (`?.[(c++, 'self')]`): native runs them past
+// the effects a sealed nav's supported LEAF key carries (`?.[(c++, 'Array')]`): native runs them past
 // the short-circuit and before the read, which is inside the guard's alternate
 function sealedLeafKeyEffects(nav) {
   const leaf = peelTransparentExpr(nav);

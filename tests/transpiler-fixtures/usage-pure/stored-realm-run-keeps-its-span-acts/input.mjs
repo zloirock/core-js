@@ -1,8 +1,5 @@
-// A realm run stored in a KEPT WRITE, landed on the deepest span pure can back: what that span
-// spells BELOW its own key is discarded with it, so a sequence prefix and the write under the run
-// survive the landing. A `?.` INSIDE the span leaves no landing - the collapse spells the run
-// instead, lowering the probe into a guard test and folding the backed hop, an SE-bearing hop key
-// running in that test. The last line is the negative: a span of nothing but hops lands whole.
+// Stored quiet realm runs retain their prefix, write and probe contracts.
+// Effectful realm keys keep their source evaluation.
 let c = 0;
 let k = 0;
 

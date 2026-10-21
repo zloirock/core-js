@@ -1,3 +1,4 @@
+// A retained realm-key read keeps its nested static claim and assignment effect.
 let a2;
 function sf() {
   return globalThis;

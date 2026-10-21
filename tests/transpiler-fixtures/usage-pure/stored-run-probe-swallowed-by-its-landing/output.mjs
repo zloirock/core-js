@@ -10,11 +10,8 @@ import _Object$getOwnPropertySymbols from "@core-js/pure/actual/object/get-own-p
 import _self from "@core-js/pure/actual/self";
 import _Symbol from "@core-js/pure/actual/symbol";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
-// A plain navigation ending at a backed value does not invent a guard for a
-// middle environment hop. Storing that value preserves writes and key effects.
-// A source optional over a terminal environment probe remains live, and a
-// stored terminal probe keeps its final read instead of becoming the realm.
-// A source optional inside the navigation also keeps its original short-circuit.
+// Quiet stored realm runs retain their backed landing and terminal-probe contracts.
+// An effectful realm key keeps its source read before the store.
 let a, b, c, d, e, f, g, h, m;
 let k = 0;
 export const swallowedProbe = (a = _self.Number, _Number$isInteger)(1);
@@ -25,8 +22,7 @@ export const vestigialOverTheLanding = (g = _self.Number, _Number$parseInt)('7',
 export const sourceOptionalOverAFoldedHop = null == (h = _self.window?.Number) ? void 0 : _Number$isInteger(3);
 export const probeAboveTheRootLanding = (e = _Symbol, _Symbol$for)('fc362');
 export const sourceWroteTheHop = null == (d = null == _globalThis.window ? void 0 : _self.Array) ? void 0 : _Array$from([1]);
-export const prefixLeafIsTheProbe = null == (m = _self[k++, 'window']) ? void 0 : _Number$isInteger(1);
-// A computed unbacked prefix preserves the optional over the next constructor read.
+export const prefixLeafIsTheProbe = (m = _self[k++, 'window'])?.Number.isInteger(1);
 export const computedPrefixProbe = null == (a = (null == _globalThis.window ? void 0 : _self['window'])?.Array) ? void 0 : _Array$of(1);
 export const computedPrefixPlain = null == (b = null == _globalThis.window ? void 0 : _self['window'].Array) ? void 0 : _Array$from([]);
 export const dottedPrefixProbe = null == (c = (null == _globalThis.window ? void 0 : _self.window)?.Number) ? void 0 : _Number$isFinite(1);
