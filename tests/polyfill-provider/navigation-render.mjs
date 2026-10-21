@@ -5,7 +5,7 @@ import {
   planProvenNavGuardCollapse, terminalNavCollapsePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import {
-  cloneNode, hostSlot, identifier, renderNavCollapseValue, renderNavGuardTest,
+  cloneNode, hostSlot, identifier, renderClaimProbe, renderNavCollapseValue, renderNavGuardTest,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -70,8 +70,12 @@ for (const [expression, supported, tail] of [
   const plan = guardedNavPassthroughPlan(path.node.init, resolvePure, { scope: path.scope, adapter, path });
   check(`${ label }/supported`, !!plan, supported);
   if (plan) {
-    check(`${ label }/tail`, plan.hops.length, tail);
+    check(`${ label }/tail`, plan.navPlan.hops.length, tail);
     check(`${ label }/root binding`, plan.test.source.root?.pure.entry, 'globalThis');
+    const rendered = renderClaimProbe(plan, { injectImport, embed: hostSlot });
+    check(`${ label }/absent value`, rendered.consequent.operator, 'void');
+    checkTruthy(`${ label }/present realm`, findNode(rendered.alternate,
+      node => node.type === 'Identifier' && node.name === '_self'));
   }
   check(`${ label }/query purity`, JSON.stringify(path.node.init), before);
 });
