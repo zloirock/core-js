@@ -5411,7 +5411,7 @@ export function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
     const key = memberKeyName(boundary.member);
     if (key === null || !proxyReceiverValueCanBeUndefined(boundary.inner,
       resolvePure, aliasCtx, { throughChainAssign: true })) continue;
-    const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner };
+    const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner, preserveRead };
     const navPlan = !preserveRead && planProvenNavGuardCollapse({
       rootNode: boundary.inner, ...aliasCtx, resolvePure,
       throughKeptAssign: true, allowSequenceRoot: true, descendSequenceTail: true,
@@ -5435,10 +5435,10 @@ export function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   return aliasPlan();
 }
 
-// A source slot carried by a direct probe. The paths describe only its value spine: computed
+// A source slot carried by a claim or pattern probe. The paths describe only its value spine: computed
 // keys, sequence prefixes, assignment targets and call arguments remain live child slots.
 // Decide deopts and root substitution BEFORE cloning; rendering applies these facts verbatim.
-function claimProbeSourceSlot(source, resolvePure, ctx) {
+export function claimProbeSourceSlot(source, resolvePure, ctx) {
   const dead = new Set(vestigialNavOptionals(unwrapRuntimeExpr(source), resolvePure, ctx));
   const served = [];
   const deopt = [];
@@ -5476,7 +5476,14 @@ function claimProbeSourceSlot(source, resolvePure, ctx) {
 // their capture contract; this adds no live claims or host mutations to the shared question.
 export function directClaimProbePlan(source, resolvePure, ctx, options) {
   const decision = sealedClaimProbePlan(source, resolvePure, ctx, options);
-  if (!decision) return null;
+  return decision && claimProbeRenderPlan(decision, resolvePure, ctx, options);
+}
+
+// Enrich a decided read or guarded value with source slots shared by both render channels.
+// A value probe preserves its terminal read; only a direct claim can fold the test navigation.
+function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
+  if (decision.kind === 'passthrough') return decision;
+  const { source } = decision;
   const retained = [];
   function slot(node) {
     retained.push(node);
@@ -5496,11 +5503,13 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
       aliasProbe = shorter;
       member = receiver;
     }
-    return { ...decision, aliasProbe, object: slot(aliasProbe.object), retained, consumed: [] };
+    return { ...decision, aliasProbe, object: slot(aliasProbe.object), retained, consumed: [], readsSource: true };
   }
   const { navPlan, leafPlan, boundary } = decision;
   let test;
-  if (decision.kind === 'nav') {
+  if (decision.kind === 'value' || decision.preserveRead) {
+    test = { source: slot(leafPlan.guardObject) };
+  } else if (decision.kind === 'nav') {
     const base = navGuardTestBase(navPlan);
     let sourceTest = navPlan.hops[navPlan.lastUnresolvableIdx].node;
     const below = unwrapRuntimeExpr(sourceTest.object);
@@ -5539,7 +5548,7 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
   const consumed = [...navPrefix, ...decision.keyEffects ?? [], ...decision.guardEffects ?? [],
     ...navPlan?.rootEffectCall ? [navPlan.rootEffectCall] : [],
     ...navPlan?.rootAssign ? [navPlan.rootAssign] : [], ...navPlan?.assignWrap ? [navPlan.assignWrap] : []];
-  return { ...decision, test, prefix, retained, consumed };
+  return { ...decision, test, prefix, retained, consumed, readsSource: !!boundary.member };
 }
 
 // Residual effects use source ownership, never a scan of the emitted probe. A retained source
@@ -5575,10 +5584,42 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
   }
   if (!nav) return null;
   const leafPlan = sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx, { probeLeaf: true });
-  if (leafPlan) return leafPlan;
+  if (leafPlan) {
+    const keyEffects = navComputedKeyEffects(nav);
+    return { ...leafPlan, ...claimProbeRenderPlan({
+      kind: 'value', source: initNode, boundary: { inner: nav }, leafPlan,
+      keyEffects, alternateEffects: keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect)),
+      navStart: discardedInitProbeNavStart(initNode), foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
+    }, resolvePure, aliasCtx) };
+  }
   const aliasProbe = aliasHeldClaimProbe(sealedChainBoundary(nav)?.member ?? nav,
     resolvePure, aliasCtx, { allowStoreHolder: !arrayWrapped });
-  return aliasProbe ? { aliasProbe } : null;
+  return aliasProbe ? claimProbeRenderPlan({ kind: 'alias', source: initNode, aliasProbe,
+    navStart: aliasProbe.navStart }, resolvePure, aliasCtx) : null;
+}
+
+// The immediate pattern's discarded receiver: a sealed source read takes precedence over
+// reading the first pattern key. Otherwise preserve the guarded value used by a full consume
+// or mirror. Queue timing stays with the host; asking this question never accepts child claims.
+export function destructureProbePlan(source, resolvePure, ctx) {
+  const sealed = directClaimProbePlan(source, resolvePure, ctx, { allowStoreHolder: true });
+  if (sealed) return sealed;
+  const value = probedDestructureInitValue(source, resolvePure, ctx);
+  if (!value) return null;
+  // A dead fallback still evaluates its left value before reading the pattern's first key.
+  // Its seal is a guarded VALUE here, not the complete destructure read.
+  if (value !== source) {
+    const left = directClaimProbePlan(value, resolvePure, ctx);
+    if (left) return { ...left, readsSource: false };
+    source = value;
+  }
+  const navPlan = planProvenNavGuardCollapse({ rootNode: source, ...ctx, resolvePure });
+  if (navPlan) {
+    if (navPlan.topAssign || navPlan.kind !== 'nested' || !navPlan.leafPure) return null;
+    return claimProbeRenderPlan({ kind: 'nav', source, navPlan, boundary: { inner: source },
+      navStart: discardedInitProbeNavStart(source) }, resolvePure, ctx);
+  }
+  return discardedInitProbePlan(source, resolvePure, ctx);
 }
 
 // the guarded VALUE of a sealed nav that ENDS AT a claim, as a decision both emitters render their
