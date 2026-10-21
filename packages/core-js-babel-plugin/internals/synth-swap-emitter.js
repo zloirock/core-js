@@ -730,30 +730,29 @@ export default function createSynthSwapEmitter({
     });
   }
 
-  // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the
-  // receiver. polyfilled keys come from `pending.polyfills` (lazy import via
-  // `injectPureImport`); unpolyfilled keys fall back to a member access through the
-  // receiver - injected as a pure import when the receiver is itself a polyfillable global,
-  // collapsed to the polyfilled root for a proxy-global member chain, raw otherwise.
-  // all-polyfilled cases never call `getReceiverRef`, keeping the import set clean
   // canonical re-read target for a MEMOIZED receiver, peeled to its SE tail: a pure-ctor leaf
-  // whole-swaps (the erased navigation's harvested effects re-run ahead of the binding), an
-  // alias / proxy chain collapses through the shared plan. only the unresolvable remainder
-  // falls back to the verbatim clone - re-traversal of that clone picks a per-shape collapse
-  // (`_self.Map` vs `_Map` vs a kept dead hop) and desyncs the emitters on the re-read target
-  function buildMemoArg(memoReceiver, aliasCtx) {
+  // whole-swaps (the erased navigation's harvested effects re-run ahead of the binding).
+  // Alias / proxy chains use their shared collapse plan, then a captured guarded probe.
+  // Only an undecided source falls back to a verbatim clone: re-traversing a decided read
+  // would pick a fresh collapse and desync the emitters on the memo target.
+  function buildMemoArg(memoReceiver, aliasCtx, probePlan, cloneHost) {
     const plan = planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure });
     const target = !plan ? null
       : plan.pure ? injectPureImport(plan.pure.entry, plan.pure.hintName)
       : renderCollapsePlan(plan.plan);
-    if (!target) return t.cloneNode(memoReceiver, true);
+    if (!target) return probePlan ? estreeToBabel(renderClaimProbe(probePlan, {
+      injectImport: (entry, hintName) => injectPureImport(entry, hintName).name, cloneHost, embed: hostSlot,
+    })) : t.cloneNode(memoReceiver, true);
     const ahead = [...plan.prefix, ...plan.se];
     return ahead.length
       ? t.sequenceExpression([...ahead.map(node => t.cloneNode(node, true)), target])
       : target;
   }
 
-  // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
+  // Build the synth `{key: _polyfill, otherKey: R.otherKey}` receiver from the classified
+  // entries. Unpolyfilled keys read through the receiver, using a pure import or a proxy
+  // collapse where known. Fully polyfilled cases never need `getReceiverRef`.
+  // Accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
   // `globalThis?.Array`) receivers. for member-chain shapes, unpolyfilled keys still re-read
   // through the chain (`window.Array.other`) - each clone re-evaluates the receiver expression.
   // trade-off: lifting the chain to a temp would change AST shape (require IIFE wrap or
@@ -906,7 +905,7 @@ export default function createSynthSwapEmitter({
         // right operand could inject its polyfill again on re-traversal.
         const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
         const memoCandidate = pending.callBranch && entries.some(entry => !entry.polyfill);
-        const memoArg = memoCandidate && !synthGuard ? buildMemoArg(memoReceiver, aliasCtx) : null;
+        const memoArg = memoCandidate && !synthGuard ? buildMemoArg(memoReceiver, aliasCtx, pending.probePlan, cloneProbeSource) : null;
         const memoTail = memoArg && peelNestedSequenceExpressions(memoArg).tail;
         const reusableMemo = memoTail && isReusableReceiver(memoTail, {
           interveningEffects: true, ctx: { ...aliasCtx, injectorState: injector },
