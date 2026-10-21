@@ -2,13 +2,12 @@
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import {
-  sealedClaimProbePlan,
+  directClaimProbePlan,
   composableNavGuardPlan,
   planProvenNavGuardCollapse,
   planKeptSequenceTail,
   claimReceiverEvaluationMayThrow,
   descendToChainRoot,
-  discardRescueNodes,
   keySideEffectsOnly,
   maximalProxyGlobalPrefix,
   chainReadsThroughSeal,
@@ -98,7 +97,7 @@ import {
   hostSlot,
   literal,
   nullFirstGuardTest,
-  renderAliasHeldProbeRead,
+  renderDirectClaimProbe,
   renderMethodCall,
   planMethodCall,
   renderDeleteShortCircuitGuard,
@@ -694,8 +693,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   const renderedPlanTails = new WeakSet();
   const renderedGuardTests = new WeakSet();
   const guardedClaims = new WeakSet();
-  // render-minted effect nodes (alias throw probes): inserted AS-IS by the SE wrap, so
-  // the consumer's skip seeding survives to the visitor that would otherwise re-claim
+  // Rendered throw probes are inserted AS-IS by the SE wrap, so
+  // their served-read marks survive the visitor that would otherwise re-claim
   const mintedEffectNodes = new WeakSet();
   const pluginSeqWraps = new WeakSet();
   const parenTerminated = new WeakSet();
@@ -2262,65 +2261,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
     const aliasCtx = { scope: memberPath.scope, adapter, path: memberPath };
-    const decision = sealedClaimProbePlan(probeNode ?? memberPath.node,
+    const decision = directClaimProbePlan(probeNode ?? memberPath.node,
       ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx, { allowStoreHolder });
     if (!decision) return null;
-    if (decision.kind === 'alias') {
-      const read = estreeToBabel(renderAliasHeldProbeRead(decision.aliasProbe,
-        hostSlot(t.cloneNode(decision.aliasProbe.object))));
-      // A complete source read seeds the skip as a whole; re-claiming an inner hop would erase it.
-      mintedEffectNodes.add(read);
-      return { keySeExprs: [], navStart: decision.navStart, node: read };
-    }
-    const { boundary, key, navPlan: plan } = decision;
-    const leafGuardEffects = [];
-    const rendered = decision.kind === 'nav'
-      ? renderNavCollapseAst(plan, injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName))
-      : sealedClaimLeafGuardNode(boundary.inner, memberPath, aliasCtx,
-        { decision, consumedEffects: leafGuardEffects });
-    // the probe CARRIES the nav's key SE (native order: test, key effect, read) - hand the
-    // plan's SE nodes back so the claim's own SE channel does not re-run them
-    // a SEQUENCE prefix inside the nav is dropped by the plan's transparent unwrap, and the effect
-    // channel replays it AFTER the probe - where the probe's own throw never reaches it. the source
-    // runs it BEFORE the read, so it is spelled here, ahead of the probe, and reported so no other
-    // channel repeats it. only the prefix a hop OBJECT carries: the key effects the render already
-    // spells inside its own alternate are not ours to repeat - nor is one the RENDERED test carries:
-    // babel builds that test by cloning the source subtree, so a sequence inside its span comes along
-    const bareRead = boundary.member.computed
-      ? t.memberExpression(rendered, t.stringLiteral(key), true)
-      : t.memberExpression(rendered, t.identifier(key));
-    // a test synthesized from resolved names carries no source span - and no effects - so
-    // everything is spelled ahead of it
-    const testNode = rendered?.type === 'ConditionalExpression' ? rendered.test?.right : null;
-    const navPrefix = navHopSequencePrefixes(boundary.inner,
-      { unwrap: unwrapRuntimeExpr, renderedSpans: [nodeSpan(testNode)].filter(Boolean), ctx: aliasCtx });
-    const probeRead = navPrefix.spell.length
-      ? t.sequenceExpression([...navPrefix.spell.map(expr => t.cloneNode(expr)), bareRead]) : bareRead;
-    return {
-      // the guard test runs an effect-bearing CALL root exactly once - carry it like a key
-      // SE so every consumer's identity filter keeps other channels from re-running it
-      keySeExprs: [
-        ...plan?.rootEffectCall ? [plan.rootEffectCall] : [],
-        ...plan?.assignWrap ? [plan.assignWrap] : [],
-        ...plan?.rootAssign ? [plan.rootAssign] : [],
-        ...navPrefix.all,
-        ...leafGuardEffects,
-      ],
-      // the probe RENDERS the nav, so an effect the source wrote BEFORE it (a sequence prefix on
-      // the receiver) still runs first - consumers split their residual effects on this position
-      navStart: decision.navStart,
-      node: probeRead,
-    };
+    const node = estreeToBabel(renderDirectClaimProbe(decision, {
+      injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+      cloneHost: source => t.cloneNode(source),
+      embed: hostSlot,
+    }));
+    mintedEffectNodes.add(node);
+    return { node, decision, keySeExprs: decision.consumed, navStart: decision.navStart };
   }
 
   // the guarded VALUE of a sealed nav that ends AT a claim, as a NODE: the erase verdict names the
   // `?.` object to test, the claim's own ponyfill is the always-defined alternate. null when no
   // single `?.` expresses the short-circuit, or the leaf has neither a ponyfill nor a plain name
-  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx, {
-    probeLeaf = false, consumedEffects = null, decision = null,
-  } = {}) {
-    const plan = decision?.leafPlan
-      ?? sealedClaimLeafGuardPlan(nav, ({ name }) => resolvePureGlobalEntry(name, anchorPath), aliasCtx, { probeLeaf });
+  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx, { probeLeaf = false } = {}) {
+    const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolvePureGlobalEntry(name, anchorPath), aliasCtx, { probeLeaf });
     let alternate = !plan ? null
       : plan.leafPure ? injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName)
       // the value IS the probe: the test operand doubles as the alternate (a second read of
@@ -2335,11 +2292,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       : t.isValidIdentifier(plan.leafName) ? t.identifier(plan.leafName) : null;
     if (!alternate) return null;
     // Folded keys above the test run only in its reached branch, before the leaf read.
-    const leafEffects = decision?.alternateEffects ?? navComputedKeyEffects(nav)
+    const leafEffects = navComputedKeyEffects(nav)
       .filter(expr => !subtreeContainsNode(plan.guardObject, expr));
     if (leafEffects.length) alternate = withSideEffects(alternate, leafEffects.map(expr => t.cloneNode(expr)));
-    // The source guard and alternate already evaluate these effects; report their ownership.
-    consumedEffects?.push(...decision?.guardEffects ?? discardRescueNodes({ node: plan.guardObject, ...aliasCtx }), ...leafEffects);
     // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
     // shared spelling only clones the source, and a write below the hops kept `_globalThis.self`
     // standing there - a host read off the ponyfill, undefined in the realms the polyfill is for.

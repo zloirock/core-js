@@ -23,16 +23,7 @@ import {
 } from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop, sealedLayerAbove } from './claim-guards.js';
-import { climbToCallerPath, collectSourceSpans, markSubtreeSkipped, sourceSpanKey } from './nav-spine.js';
-
-// the harvested effects a THROW PROBE does not already run: the ones it consumed, and the ones its
-// RENDER spells - a prefix copy of either would evaluate it twice
-// (`(dheCombo(), (null == dheCombo().window ? ...).Array, _Array$of)`)
-export function effectsPastThrowProbe(effects, throwProbe) {
-  const spans = collectSourceSpans(throwProbe.node);
-  return (effects ?? []).filter(effect => !throwProbe.consumed.includes(effect)
-    && !(sourceSpanKey(effect) && spans.has(sourceSpanKey(effect))));
-}
+import { climbToCallerPath, markSubtreeSkipped } from './nav-spine.js';
 
 // An optional method call keeps the complete first receiver in its lookup argument.
 // A computed key instead follows that evaluation, before the lookup and its this-value.

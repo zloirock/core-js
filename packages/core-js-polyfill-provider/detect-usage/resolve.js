@@ -5396,38 +5396,160 @@ export function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   const value = peelTransparentExpr(source);
   // A fallback changes the bound value, but its left read always runs, including its throw.
   const read = preserveRead && value?.type === 'LogicalExpression' ? value.left : source;
-  const boundary = sealedChainBoundary(read);
-  const key = boundary ? memberKeyName(boundary.member) : null;
+  const outerBoundary = sealedChainBoundary(read);
   function aliasPlan() {
     if (preserveRead) return null;
-    const member = boundary?.member ?? read;
+    const member = outerBoundary?.member ?? read;
     // Source clones retain a span or location; a true mint must not recursively probe itself.
     if (!nodeCarriesSourceSpan(member)) return null;
     const aliasProbe = aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder });
     return aliasProbe ? { kind: 'alias', source, aliasProbe, navStart: aliasProbe.navStart } : null;
   }
-  // A transparent seal over an alias hides no short-circuit, but its binding read can still throw.
-  if (!boundary || key === null || !proxyReceiverValueCanBeUndefined(boundary.inner,
-    resolvePure, aliasCtx, { throughChainAssign: true })) return aliasPlan();
-  const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner };
-  const navPlan = !preserveRead && planProvenNavGuardCollapse({
-    rootNode: boundary.inner, ...aliasCtx, resolvePure,
-    throughKeptAssign: true, allowSequenceRoot: true, descendSequenceTail: true,
-  });
-  if (navPlan && !navPlan.topAssign && navPlan.kind === 'nested' && navPlan.leafPure) {
-    return { ...facts, kind: 'nav', navPlan };
+  // An outer seal can end at a claim with no guard of its own. Keep descending the SOURCE
+  // boundaries: that claim's value does not discharge a throwing read through an inner seal.
+  for (let boundary = outerBoundary; boundary; boundary = sealedChainBoundary(boundary.inner)) {
+    const key = memberKeyName(boundary.member);
+    if (key === null || !proxyReceiverValueCanBeUndefined(boundary.inner,
+      resolvePure, aliasCtx, { throughChainAssign: true })) continue;
+    const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner };
+    const navPlan = !preserveRead && planProvenNavGuardCollapse({
+      rootNode: boundary.inner, ...aliasCtx, resolvePure,
+      throughKeptAssign: true, allowSequenceRoot: true, descendSequenceTail: true,
+    });
+    if (navPlan && !navPlan.topAssign && navPlan.kind === 'nested' && navPlan.leafPure) {
+      return { ...facts, kind: 'nav', navPlan };
+    }
+    const leafPlan = sealedClaimLeafGuardPlan(boundary.inner, resolvePure, aliasCtx);
+    if (!leafPlan?.leafPure && !leafPlan?.leafName) {
+      if (preserveRead) return { ...facts, kind: 'passthrough' };
+      continue;
+    }
+    const keyEffects = navComputedKeyEffects(boundary.inner);
+    const alternateEffects = keyEffects.filter(expr => !subtreeContainsNode(leafPlan.guardObject, expr));
+    return {
+      ...facts, kind: 'leaf', navPlan: navPlan || null, leafPlan, keyEffects, alternateEffects,
+      guardEffects: discardRescueNodes({ node: leafPlan.guardObject, ...aliasCtx }),
+      foldLeafOntoBase: !preserveRead && !!leafPlan.foldLeafOntoBase,
+    };
   }
-  const leafPlan = sealedClaimLeafGuardPlan(boundary.inner, resolvePure, aliasCtx);
-  if (!leafPlan?.leafPure && !leafPlan?.leafName) {
-    return preserveRead ? { ...facts, kind: 'passthrough' } : aliasPlan();
+  return aliasPlan();
+}
+
+// A source slot carried by a direct probe. The paths describe only its value spine: computed
+// keys, sequence prefixes, assignment targets and call arguments remain live child slots.
+// Decide deopts and root substitution BEFORE cloning; rendering applies these facts verbatim.
+function claimProbeSourceSlot(source, resolvePure, ctx) {
+  const dead = new Set(vestigialNavOptionals(unwrapRuntimeExpr(source), resolvePure, ctx));
+  const served = [];
+  const deopt = [];
+  let root = null;
+  let path = [];
+  for (let node = source, depth = 0; node && depth++ < MAX_KEY_DEPTH;) {
+    const peeled = unwrapRuntimeExpr(node);
+    if (peeled !== node) {
+      path = [...path, 'expression'];
+      node = node.expression;
+    } else if (isMemberAccessNode(node)) {
+      served.push(path);
+      if (dead.has(node)) deopt.push(path);
+      path = [...path, 'object'];
+      node = node.object;
+    } else if (node.type === 'SequenceExpression') {
+      path = [...path, 'expressions', node.expressions.length - 1];
+      node = node.expressions.at(-1);
+    } else if (node.type === 'AssignmentExpression') {
+      path = [...path, 'right'];
+      node = node.right;
+    } else {
+      if (node.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
+        && isProxyGlobalIdentifierNode({ node, ...ctx })) {
+        const pure = resolvePure({ kind: 'global', name: node.name });
+        if (pure) root = { path, pure };
+      }
+      break;
+    }
   }
-  const keyEffects = navComputedKeyEffects(boundary.inner);
-  const alternateEffects = keyEffects.filter(expr => !subtreeContainsNode(leafPlan.guardObject, expr));
-  return {
-    ...facts, kind: 'leaf', navPlan: navPlan || null, leafPlan, keyEffects, alternateEffects,
-    guardEffects: discardRescueNodes({ node: leafPlan.guardObject, ...aliasCtx }),
-    foldLeafOntoBase: !preserveRead && !!leafPlan.foldLeafOntoBase,
-  };
+  return { source, served, deopt, root };
+}
+
+// Rendering facts for ordinary claims and receiver rebases. Pattern/deferred consumers keep
+// their capture contract; this adds no live claims or host mutations to the shared question.
+export function directClaimProbePlan(source, resolvePure, ctx, options) {
+  const decision = sealedClaimProbePlan(source, resolvePure, ctx, options);
+  if (!decision) return null;
+  const retained = [];
+  function slot(node) {
+    retained.push(node);
+    return claimProbeSourceSlot(node, resolvePure, ctx);
+  }
+  if (decision.kind === 'alias') {
+    let { aliasProbe } = decision;
+    // The alias read must still throw when its holder is absent. A backed constructor above
+    // it, however, belongs to pure: reading through the native constructor would throw on the
+    // legacy engines it serves. Keep the read BELOW each substituted value, not through it.
+    let member = unwrapRuntimeExpr(peelReceiverSequenceTail(source));
+    for (let receiver = unwrapRuntimeExpr(peelReceiverSequenceTail(member?.object));
+      isMemberAccessNode(receiver) && proxyGlobalMemberCtorPure({ receiver, aliasCtx: ctx, resolvePure });
+      receiver = unwrapRuntimeExpr(peelReceiverSequenceTail(member.object))) {
+      const shorter = aliasHeldClaimProbe(receiver, resolvePure, ctx, options);
+      if (!shorter) break;
+      aliasProbe = shorter;
+      member = receiver;
+    }
+    return { ...decision, aliasProbe, object: slot(aliasProbe.object), retained, consumed: [] };
+  }
+  const { navPlan, leafPlan, boundary } = decision;
+  let test;
+  if (decision.kind === 'nav') {
+    const base = navGuardTestBase(navPlan);
+    let sourceTest = navPlan.hops[navPlan.lastUnresolvableIdx].node;
+    const below = unwrapRuntimeExpr(sourceTest.object);
+    if (isCallShape(below) && !below.optional && proxyReceiverValueCanBeUndefined(below,
+      resolvePure, ctx, { throughChainAssign: true })) sourceTest = below;
+    test = base ? { base, prefix: navPlan.rootAssign ? [slot(navPlan.rootAssign)] : [] } : { source: slot(sourceTest) };
+    if (navPlan.assignWrap) test.assign = navPlan.assignWrap;
+  } else {
+    const guard = leafPlan.guardObject;
+    // A claim-ending test can collapse its navigation, but never across a load-bearing seal.
+    let root = guard;
+    const rehang = [];
+    function planFor(node) {
+      return planProvenNavGuardCollapse({ rootNode: node, ...ctx, resolvePure,
+        allowSequenceRoot: true, descendSequenceTail: true });
+    }
+    const sealedRead = chainReadsThroughSeal(guard, resolvePure, ctx);
+    let plan = !sealedRead && planFor(root);
+    if (!plan && !sealedRead
+      && isMemberAccessNode(root) && !root.computed && root.property?.type === 'Identifier') {
+      rehang.push({ name: root.property.name, liveOptional: !!root.optional, node: root });
+      root = unwrapRuntimeExpr(root.object);
+      plan = planFor(root);
+    }
+    if (plan && !plan.topAssign && plan.leafPure) {
+      const prefix = navHopSequencePrefixes(guard, { unwrap: unwrapRuntimeExpr, ctx }).all;
+      if (plan.rootAssign) prefix.push(plan.rootAssign);
+      if (plan.rootEffectCall && inlineCallHasObservableEffects({ callNode: plan.rootEffectCall, ...ctx })) {
+        prefix.push(plan.rootEffectCall);
+      }
+      test = { pure: plan.leafPure, prefix: prefix.map(slot), tail: [...plan.hops.slice(plan.collapseIdx + 1), ...rehang] };
+    } else test = { source: slot(guard) };
+  }
+  const navPrefix = navHopSequencePrefixes(boundary.inner, { unwrap: unwrapRuntimeExpr, ctx }).all;
+  const prefix = navPrefix.filter(effect => retained.every(node => !subtreeContainsNode(node, effect)));
+  const consumed = [...navPrefix, ...decision.keyEffects ?? [], ...decision.guardEffects ?? [],
+    ...navPlan?.rootEffectCall ? [navPlan.rootEffectCall] : [],
+    ...navPlan?.rootAssign ? [navPlan.rootAssign] : [], ...navPlan?.assignWrap ? [navPlan.assignWrap] : []];
+  return { ...decision, test, prefix, retained, consumed };
+}
+
+// Residual effects use source ownership, never a scan of the emitted probe. A retained source
+// slot already runs its descendants; the remaining effects straddle the source read's boundary.
+export function directClaimProbeEffects(probe, effects = []) {
+  const { decision } = probe;
+  const rest = effects.filter(effect => !decision.consumed.includes(effect)
+    && decision.retained.every(node => !subtreeContainsNode(node, effect)));
+  const { ahead, after } = partitionEffectsAtProbe(rest, decision.navStart);
+  return [...ahead, probe.node, ...after];
 }
 
 // where the READ a rendered probe reproduces begins - asked of the SOURCE spelling, at plan time:
