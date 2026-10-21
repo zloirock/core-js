@@ -19557,6 +19557,56 @@ function * generateMethodCaptureFrames() {
   }
 }
 
+// --- Declarations a block the tracker does not scope makes: a class static block and a switch case bind what they
+// declare to themselves, so the rest of the class - and the discriminant - read the OUTER name, while the block's own
+// reads stay on its local. each declaration kind (`let` / `const` / `var` / class / function) x each read site: a
+// static method past the block, a read inside the block, a second static block redeclaring the name (its own read
+// beside the class's global one) and the case's own read under the discriminant. the same declaration one block
+// deeper binds a `var` to the static block still, and a lexical one to the nested block alone, which the static
+// block's own body then reads past; and the block of a class expression redeclaring the class's own name reads its
+// declaration, under an early-exit guard as well. a lost polyfill shows in the stripped realm (`Array.from` is
+// stripped there), a local read the rewrite takes for the global shows in the full one
+const SCOPE_LESS_DECLARATIONS = [
+  { id: 'let', static: 'let Array = { from: 1 };', case: 'let Array = { from: 1 };' },
+  { id: 'const', static: 'const Array = { from: 1 };', case: 'const Array = { from: 1 };' },
+  { id: 'var', static: 'var Array = { from: 1 };', case: null },
+  { id: 'class', static: 'class Array { static from = 1; }', case: 'class Array { static from = 1; }' },
+  { id: 'function', static: 'function Array() {} Array.from = 1;', case: 'function Array() {} Array.from = 1;' },
+];
+function * generateScopeLessBlocks() {
+  for (const { id, static: declare, case: caseDeclare } of SCOPE_LESS_DECLARATIONS) {
+    yield { ...snippet(`scope-less-blocks/static-${ id }/method`, `(() => { class C { static { ${ declare } } static read() { return typeof Array.from; } } return C.read(); })()`), strip: true };
+    yield { ...snippet(`scope-less-blocks/static-${ id }/own`, `(() => { let own; class C { static { ${ declare } own = typeof Array.from; } } return own; })()`), strip: true };
+    yield {
+      ...snippet(`scope-less-blocks/static-${ id }/twin-block`,
+        `(() => { let own; class C { static { let Array = 1; } static { ${ declare } own = typeof Array.from; } static read() { return typeof Array.from; } } return [own, C.read()]; })()`),
+      strip: true,
+    };
+    yield {
+      ...snippet(`scope-less-blocks/static-nested-${ id }/block-body`,
+        `(() => { let own; class C { static { { ${ declare } } own = typeof Array.from; } } return own; })()`),
+      strip: true,
+    };
+    if (caseDeclare) {
+      yield {
+        ...snippet(`scope-less-blocks/case-${ id }/discriminant-and-own`,
+          `(() => { switch (typeof Array.from) { case 'function': ${ caseDeclare } return typeof Array.from; } return 'unmatched'; })()`),
+        strip: true,
+      };
+    }
+  }
+  yield {
+    ...snippet('scope-less-blocks/static-class-name-twin/own',
+      '(() => { const K = class Array { static { let Array = [1, 2]; this.last = Array.at(-1); } }; return K.last; })()'),
+    strip: true,
+  };
+  yield {
+    ...snippet('scope-less-blocks/static-class-name-twin/guard',
+      "(v => { const K = class Array { static { let Array = v; if (typeof Array !== 'string') throw 0; this.last = Array.at(-1); } }; return K.last; })('ab')"),
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -19918,4 +19968,5 @@ export function * generate() {
   yield * generateTypeofDeclaredSources();
   yield * generateSealedKeyClaims();
   yield * generateMethodCaptureFrames();
+  yield * generateScopeLessBlocks();
 }

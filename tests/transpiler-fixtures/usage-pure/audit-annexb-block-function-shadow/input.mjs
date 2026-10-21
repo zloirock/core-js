@@ -1,9 +1,11 @@
 // the usage-pure direction of the same rule, where getting it wrong SUBSTITUTES: a real Annex-B
-// hoist makes the name the local function, so replacing it with a pure import ships a different
-// value. a lexical rebind between the function and its var-scope owner blocks the hoist and the
-// name stays the global, where the substitution is required. an identifier catch param is exempt
+// hoist makes the name the local function - a case clause's too, for its switch's discriminant -
+// so replacing it with a pure import ships a different value. a lexical rebind between the
+// function and its var-scope owner blocks the hoist and the name stays the global, where the
+// substitution is required. an identifier catch param is exempt
 { function Promise() {} }
 var a = Promise.withResolvers;
+switch (typeof Reflect.ownKeys) { case 1: function Reflect() {} }
 try { null.x; } catch (Set) { { function Set() {} } }
 var b = Set.prototype;
 for (let Map of []) { function Map() {} }
