@@ -1,5 +1,6 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 {
   const order = [];
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
@@ -8,8 +9,6 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
       from: f4
     }
   } = {
-    w: {
-      from: _Array$from
-    }
+    w: Array
   };
 }

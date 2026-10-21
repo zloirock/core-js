@@ -1,5 +1,6 @@
 import _Promise from "@core-js/pure/actual/promise";
-import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let effCount = 0;
 const eff9 = () => effCount++;
 let rw9 = {
@@ -12,9 +13,5 @@ const {
   d: {
     allSettled: viaSeWrite
   }
-} = {
-  d: {
-    allSettled: _Promise$allSettled
-  }
-};
+} = rw9;
 export { viaSeWrite };

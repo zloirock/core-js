@@ -8,7 +8,8 @@ let f3, r3;
 const p = {};
 ({
   Array: _ref
-} = c && _globalThis), {} = _ref, f3 = _Array$of, {
+} = c && _globalThis);
+({} = _ref), f3 = _Array$of, {
   custom: p.c,
   of: _unused,
   ...r3

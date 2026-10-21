@@ -1,8 +1,5 @@
-// a constructor DESTRUCTURED off the proxy-global surface escapes exactly as a spelled-out read of
-// that surface does: the slot pairs with a member the source never writes, so the pattern SLOT is
-// what names the escape. every spelling of the pairing answers alike - shorthand, renamed, nested,
-// defaulted, an array wrapper, and a for-of head, whose pattern pairs with the iterated element -
-// flat and through a proxy hop, where the level is a synthesized read no position of its own names
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const { Map } = globalThis;
 const { Set: S } = globalThis;
 const { self: { WeakMap } } = globalThis;

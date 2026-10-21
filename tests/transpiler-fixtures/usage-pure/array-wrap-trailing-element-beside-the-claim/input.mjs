@@ -1,6 +1,5 @@
-// A claimed element followed by another keeps the whole array wrapper: an effectful neighbour still
-// runs after the claimed element's own prefix and a pure one is carried along, while the static is
-// served by a literal in the claimed slot.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const [{ Object: { fromEntries } }] = [(eff('e'), globalThis), eff('f')];

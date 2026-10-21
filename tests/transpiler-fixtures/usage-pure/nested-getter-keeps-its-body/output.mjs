@@ -1,14 +1,13 @@
+import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
-// The nested pattern keeps its getter and effects; only the returned realm is mirrored.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order.
 const {
-  w: {
-    WeakSet: value
-  }
-} = {
-  get w() {
-    mark();
-    return {
-      WeakSet: _WeakSet
-    };
-  }
-};
+    w: _ref
+  } = {
+    get w() {
+      mark();
+      return _globalThis;
+    }
+  },
+  value = _ref === _globalThis ? _WeakSet : _ref.WeakSet;

@@ -1,9 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
-// A head element built by a CALL answers for every pass only where the arguments answer alike: a
-// callee can hand its own argument back, so a constructor beside a user object parts the passes and
-// the leaf keeps its runtime guard. Primitive arguments carry no claim of their own, so a callee
-// reached under them reads the same value each pass and its leaf extracts once.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions.
 function pick(value) {
   return value;
 }
@@ -24,11 +21,12 @@ for (const _ref2 of [{
     from = _ref === Array ? _Array$from : _ref.from;
   use(from([7]));
 }
-for (const _ref3 of [{
+for (const {
+  w: {
+    of
+  }
+} of [{
   w: constant('a')
 }, {
   w: constant('b')
-}]) {
-  const of = _Array$of;
-  use(of(8));
-}
+}]) use(of(8));

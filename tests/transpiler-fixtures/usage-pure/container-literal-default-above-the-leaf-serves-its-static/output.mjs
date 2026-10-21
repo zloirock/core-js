@@ -1,20 +1,11 @@
-import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _Array$of from "@core-js/pure/actual/array/of";
-import _Error$isError from "@core-js/pure/actual/error/is-error";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
-import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Math$sumPrecise from "@core-js/pure/actual/math/sum-precise";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$try from "@core-js/pure/actual/promise/try";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
-// a CONTAINER-literal default ABOVE the leaf's level (`= { B: Map }`, `= [Object]`) holds the value
-// the static is read through where the default fires: the read takes its polyfill off the literal's
-// slot at any depth, beside a sibling, in a declaration, an assignment, a parameter, a loop head and a
-// catch clause, and a named container default is read whole, its own declaration left as written
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 function h1(o) {
   const {
     A: {
@@ -22,9 +13,7 @@ function h1(o) {
         groupBy: s
       }
     } = {
-      B: {
-        groupBy: _Map$groupBy
-      }
+      B: _Map
     }
   } = o;
   return s;
@@ -35,9 +24,7 @@ const {
       try: t2
     }
   } = {
-    B: {
-      try: _Promise$try
-    }
+    B: _Promise
   }
 } = {};
 function h3(o) {
@@ -50,9 +37,7 @@ function h3(o) {
       }
     } = {
       B: {
-        C: {
-          from: _Iterator$from
-        }
+        C: _Iterator
       }
     }
   } = o;
@@ -62,26 +47,20 @@ function h4(o) {
   const {
     A: [{
       fromEntries: e
-    }] = [{
-      fromEntries: _Object$fromEntries
-    }]
+    }] = [Object]
   } = o;
   return e;
 }
 function h5(o) {
   const {
-    A: {
-      B: {
-        withResolvers: w,
-        name: nm
+      A: {
+        B: _ref
+      } = {
+        B: _Promise
       }
-    } = {
-      B: {
-        withResolvers: _Promise$withResolvers,
-        name: _nameMaybeFunction(_Promise)
-      }
-    }
-  } = o;
+    } = o,
+    w = _ref === _Promise ? _Promise$withResolvers : _ref.withResolvers,
+    nm = _nameMaybeFunction(_ref);
   return [w, nm];
 }
 function h6(o) {
@@ -92,9 +71,7 @@ function h6(o) {
         concat: c
       }
     } = {
-      B: {
-        concat: _Iterator$concat
-      }
+      B: _Iterator
     }
   } = o);
   return c;
@@ -105,9 +82,7 @@ function h7({
       fromAsync: a
     }
   } = {
-    B: {
-      fromAsync: _Array$fromAsync
-    }
+    B: Array
   }
 } = {}) {
   return a;
@@ -132,9 +107,7 @@ for (const {
       sumPrecise: sp
     }
   } = {
-    B: {
-      sumPrecise: _Math$sumPrecise
-    }
+    B: Math
   }
 } of [{}]) use(sp);
 try {
@@ -145,9 +118,7 @@ try {
       isError: ie
     }
   } = {
-    B: {
-      isError: _Error$isError
-    }
+    B: Error
   }
 }) {
   use(ie);
@@ -157,9 +128,7 @@ function h11(o) {
   const {
     A: [{
       of: so
-    }] = [{
-      of: _Array$of
-    }]
+    }] = G
   } = o;
   return so;
 }

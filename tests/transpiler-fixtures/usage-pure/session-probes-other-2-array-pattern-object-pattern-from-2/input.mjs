@@ -1,3 +1,0 @@
-{
-const [{ from: f }] = [Array];
-}

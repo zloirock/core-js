@@ -421,22 +421,6 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node,
   };
 }
 
-// Retain a sole static leaf's native pattern reads, replacing only its binding/default.
-// The source plan has already proved every surrounding hop safe to read natively.
-function renderStaticSentinelPattern(pattern, mintUnused) {
-  const native = cloneNode(pattern);
-  walkAstNodes({
-    root: native,
-    visit(node, parent) {
-      if (parent?.type === 'ObjectPattern' && isPropertyNode(node) && propBindingIdentifier(node.value)) {
-        node.value = identifier(mintUnused());
-        node.shorthand = false;
-      }
-    },
-  });
-  return native;
-}
-
 // Render the complete array host. A capture keeps each element's original value;
 // its native fragments and independent reads then follow source property order.
 // Bindings supply imports, memo names, source embedding and comment attachments only.
@@ -498,13 +482,6 @@ export function renderArrayDestructurePlan(plan, {
       variableDeclaration(kind, [variableDeclarator(retain({ ...tailPattern, elements: [tail] }), iteratorRef)]),
     ];
   }
-  if (plan.array.nativeStatic) {
-    const native = renderStaticSentinelPattern(plan.pattern, mintUnused);
-    return [
-      variableDeclaration(kind, [variableDeclarator(embed(native), embed(init))]),
-      ...plan.extractions.map(extraction => extract(extraction, null)),
-    ];
-  }
   if (plan.array.capture) {
     const captured = renderArrayWrapperCapture(plan.array.capture, { mintRef, embed, retain });
     if (plan.array.normalize) {
@@ -522,31 +499,6 @@ export function renderArrayDestructurePlan(plan, {
       capture,
       ...captured.elements.flatMap(element => {
         const planned = plannedElements.get(element.pattern);
-        if (planned.retained) {
-          const ref = identifier(element.ref);
-          const rendered = renderRetainedObjectCapture(
-            {
-              ...planned.retained,
-              init: ref,
-              receiverRef: element.ref,
-              // Iteration already evaluated this source, including its prefix and stores.
-              reuseReceiver: false,
-              restEffects: [],
-              restSource: planned.retained.restSource ? ref : null,
-            },
-            {
-              mintRef,
-              mintDeclaredRef,
-              mintUnused,
-              injectImport,
-              embed,
-              entry: planned.extraction.entry,
-              hintName: planned.extraction.hint,
-            },
-          );
-          return rendered.expression ? [expressionStatement(rendered.expression)]
-            : rendered.declarations.map(declarator => variableDeclaration(kind, [declarator]));
-        }
         if (planned.kind === 'verbatim') return !element.declarator ? [] : [
           plan.array.assignment
           ? expressionStatement(assignmentExpression('=', element.declarator.id, element.declarator.init))
@@ -563,8 +515,8 @@ export function renderArrayDestructurePlan(plan, {
             // a kept leaf MOVES off the replaced source: it re-dispatches against a minted ref, and
             // only its own node still holds the receiver type the source answered
             if (child.kind === 'verbatim') return [plan.array.assignment
-              ? expressionStatement(assignmentExpression('=', objectPattern((child.props ?? [child.prop]).map(retain)), receiver))
-              : variableDeclaration(kind, [variableDeclarator(objectPattern((child.props ?? [child.prop]).map(retain)), receiver)])];
+              ? expressionStatement(assignmentExpression('=', objectPattern((child.props ?? [child.prop]).map(retain)), embed(receiver)))
+              : variableDeclaration(kind, [variableDeclarator(objectPattern((child.props ?? [child.prop]).map(retain)), embed(receiver))])];
             if (child.keyedCapture) {
               // An identifier here is this render's element capture or immutable import.
               // A nested navigation still needs one GetValue before the computed key.
@@ -581,12 +533,9 @@ export function renderArrayDestructurePlan(plan, {
                   : variableDeclaration(kind, [fragment.declarator])];
               });
             }
-            const reads = child.extractions.map(extraction => extract(extraction, extraction.kind === 'static' ? null : child.nested
+            const reads = child.extractions.map(extraction => extract(extraction, child.nested
               ? child.nestedKeys.reduce(memberFromKeyName, receiver) : receiver));
-            if (child.nativeStatic) {
-              const native = renderStaticSentinelPattern(objectPattern([child.prop]), mintUnused);
-              reads.unshift(variableDeclaration(kind, [variableDeclarator(embed(native), receiver)]));
-            } else if ((plan.array.capturedStatic || plan.array.capturedKey) && child.sentinel) {
+            if (plan.array.capturedKey && child.sentinel) {
               const sentinel = objectProperty(embed(child.prop.key), identifier(mintUnused()), { computed: child.prop.computed });
               reads.unshift(variableDeclaration(kind, [variableDeclarator(objectPattern([sentinel]), receiver)]));
             }
@@ -594,7 +543,6 @@ export function renderArrayDestructurePlan(plan, {
           });
         }
         if (planned.positional) {
-          if (planned.anchorPure) return renderLeaf(identifier(injectImport(planned.anchorPure.entry, planned.anchorPure.hintName)));
           const rendered = renderPositionalDestructurePlan(planned, { kind, refName: element.ref, mintRef, embed, renderLeaf });
           return [...rendered.leading, ...rendered.body, ...rendered.trailing];
         }
@@ -619,7 +567,7 @@ export function renderArrayDestructurePlan(plan, {
   });
   const extracted = plan.extractions.map(extraction => extract(
     extraction,
-    extraction.kind === 'static' ? null : refs.get(extraction.receiver) ?? embed(extraction.receiver),
+    refs.get(extraction.receiver) ?? embed(extraction.receiver),
   ));
   const leading = plan.array.leading.map(node => expressionStatement(embed(node)));
   if (plan.array.dropsResidual) return [
@@ -628,21 +576,18 @@ export function renderArrayDestructurePlan(plan, {
     ...memos,
     ...extracted,
   ];
-  const residualInit = cloneNode(plan.array.liftedInit ?? init);
+  const residualInit = cloneNode(init);
   unwrapRuntimeExpr(residualInit).elements = plan.array.initElements.map(node => refs.get(node) ?? cloneNode(node));
   const residualPattern = { ...plan.array.residualPattern, elements: [...plan.array.residualPattern.elements] };
   for (const element of plan.array.elements) {
     const sentinels = element.children?.filter(child => child.sentinel).map(child => child.prop);
     if (!sentinels?.length) continue;
     let pattern = residualPattern.elements[element.index];
-    const levels = element.staticLevels ?? [];
-    for (let index = levels.length - 1; index >= 0; index--) pattern = pattern.properties[0].value;
     pattern = {
       ...pattern,
       properties: pattern.properties.map(prop => sentinels.includes(prop)
         ? { ...prop, value: identifier(mintUnused()), shorthand: false } : prop),
     };
-    for (const level of levels) pattern = { ...level.pattern, properties: [{ ...level.prop, value: pattern }] };
     residualPattern.elements[element.index] = pattern;
   }
   const residual = variableDeclarator(embed(residualPattern), embed(residualInit));

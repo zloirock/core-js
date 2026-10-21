@@ -1,15 +1,19 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
-// A getter hop read by a static and an instance member is memoized once, ahead of the static,
-// in an exported declarator.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 class KE {
   static get P() {
     log();
     return _Promise;
   }
 }
-n++;
-const _ref = KE.P;
-export const s5 = _Promise$withResolvers;
-export const nm5 = _nameMaybeFunction(_ref);
+const {
+    M: _ref
+  } = (n++, {
+    M: KE.P
+  }),
+  s5 = _Promise$withResolvers,
+  nm5 = _nameMaybeFunction(_ref);
+export { s5, nm5 };

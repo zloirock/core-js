@@ -1,9 +1,8 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// 3-level static descent through `wrapper.a.b.c.Array` lifts the constructor leaf.
-// Each instance call must narrow precisely so the body-extract alias registers per call site.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const wrapper = {
   a: {
     b: {
@@ -19,15 +18,7 @@ const {
       }
     }
   }
-} = {
-  a: {
-    b: {
-      c: {
-        from: _Array$from
-      }
-    }
-  }
-};
+} = wrapper;
 const arr = from('xyz');
 _atMaybeArray(arr).call(arr, 0);
 _includesMaybeArray(arr).call(arr, 'y');

@@ -41,7 +41,8 @@ const _ref2 = w = m && _self,
   } = _ref2;
 ({
   String: {}
-} = w = m && _globalThis), o.chars = _String$fromCodePoint;
+} = w = m && _globalThis);
+o.chars = _String$fromCodePoint;
 export const used = (_ref3 = m && _globalThis, {
   allSettled
 } = _ref3 === _globalThis ? {

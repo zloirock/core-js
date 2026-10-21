@@ -1,4 +1,6 @@
-import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 {
   let hopSeq;
   ({
@@ -8,11 +10,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
       }
     }
   } = {
-    w: (f(), g(), {
-      Array: {
-        from: _Array$from
-      }
-    })
+    w: (f(), g(), _globalThis)
   });
   use(hopSeq);
 }

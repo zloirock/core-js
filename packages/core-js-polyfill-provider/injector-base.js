@@ -23,6 +23,7 @@ import {
   isQuietLiteralOperand,
   isRequireCall,
   isReusableReceiver,
+  leavingAnswerStatements,
   subtreeContainsNode,
   isTypeAnnotationWrapper,
   isVarScopeBoundary,
@@ -1267,6 +1268,7 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
   });
   const retiredDeclarations = new Set();
   const inlinedDeclarations = new Set();
+  const retiredStatements = new Map();
   for (const [name, binding] of census.memoBindings) {
     if (binding.invalid || binding.writes.length !== 1 || !binding.reads.length
       || !injectorState.isOwnPassGeneratedName(name)) continue;
@@ -1476,7 +1478,11 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
     const writeContainer = listKey ? parent[listKey] : parent;
     if (writeContainer[slotKey] !== writer.write) continue;
     if (initialized) retiredDeclarations.add(writer.write);
-    else writeContainer[slotKey] = value;
+    else {
+      writeContainer[slotKey] = value;
+      const list = parent.type === 'ExpressionStatement' && statementListOf(writer.ancestors.at(-3));
+      if (list && performsNothing(value, { ...ctx, injectorState })) retiredStatements.set(parent, { list, value });
+    }
     for (const read of binding.reads) {
       if (member) {
         const container = read.listKeys.at(-1) ? read.parent[read.listKeys.at(-1)] : read.parent;
@@ -1626,6 +1632,28 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
     const container = listKeys.at(-1) ? parent[listKeys.at(-1)] : parent;
     const [first] = kept;
     if (kept.length === 1 && container[keys.at(-1)] === node) container[keys.at(-1)] = first;
+  }
+  // The same retired memo may stand alone or inside a sequence. An immutable own
+  // binding left by its standalone write owes no read; source reads and effects stay.
+  // Remove only after positional queries, preserving comments and directive boundaries.
+  for (const [statement, { list, value }] of retiredStatements.entries().toArray().toReversed()) {
+    const index = list.indexOf(statement);
+    // Dead private declarations leave after this pass and cannot protect a string from promotion.
+    const body = list.filter(node => node.type !== 'VariableDeclaration' || node.declarations.some(item => item.init
+      || item.id.type !== 'Identifier' || !injectorState.isOwnPassGeneratedName(item.id.name)
+      || census.refCounts.get(item.id.name) !== census.refDeclIdCounts.get(item.id.name)));
+    if (index === -1 || !leavingAnswerStatements(body, [body.indexOf(statement)]).length) continue;
+    const comments = [...statement.leadingComments ?? [], ...statement.trailingComments ?? []];
+    const next = list[index + 1];
+    if (comments.length && !next) continue;
+    if (comments.length) next.leadingComments = [...comments, ...next.leadingComments ?? []];
+    list.splice(index, 1);
+    const inner = unwrapRuntimeExpr(value);
+    if (inner?.type === 'Identifier' && census.pureNames.has(inner.name)) {
+      census.pureCounts.set(inner.name, (census.pureCounts.get(inner.name) ?? 1) - 1);
+    } else if (inner?.type === 'Identifier' && census.refCounts.has(inner.name)) {
+      census.refCounts.set(inner.name, census.refCounts.get(inner.name) - 1);
+    }
   }
 }
 

@@ -1,21 +1,18 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Static receiver reads through accessors keep their effects exactly once.
-// Nested, array-wrapped, aliased and sibling forms all receive the pure method.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 const log = [];
 const {
   w: {
     from: one
   }
 } = {
-  w: ({
+  w: {
     get w() {
       _pushMaybeArray(log).call(log, 'a');
       return Array;
     }
-  }.w, {
-    from: _Array$from
-  })
+  }.w
 };
 const {
   a: {
@@ -25,14 +22,12 @@ const {
   }
 } = {
   a: {
-    b: ({
+    b: {
       get w() {
         _pushMaybeArray(log).call(log, 'b');
         return Array;
       }
-    }.w, {
-      from: _Array$from
-    })
+    }.w
   }
 };
 const [{
@@ -40,14 +35,12 @@ const [{
     from: viaWrapper
   }
 }] = [{
-  w: ({
+  w: {
     get w() {
       _pushMaybeArray(log).call(log, 'c');
       return Array;
     }
-  }.w, {
-    from: _Array$from
-  })
+  }.w
 }];
 const held = {
   w: {
@@ -57,21 +50,23 @@ const held = {
     }
   }.w
 };
-const viaAlias = _Array$from;
+const {
+  w: {
+    from: viaAlias
+  }
+} = held;
 const {
   w: {
     from: beside
   },
   z
 } = {
-  w: ({
+  w: {
     get w() {
       _pushMaybeArray(log).call(log, 'e');
       return Array;
     }
-  }.w, {
-    from: _Array$from
-  }),
+  }.w,
   z: 7
 };
 let assigned;
@@ -80,13 +75,11 @@ let assigned;
     from: assigned
   }
 } = {
-  w: ({
+  w: {
     get w() {
       _pushMaybeArray(log).call(log, 'f');
       return Array;
     }
-  }.w, {
-    from: _Array$from
-  })
+  }.w
 });
 export { one, two, viaWrapper, viaAlias, beside, z, assigned, log };

@@ -1,8 +1,5 @@
-import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Object$values from "@core-js/pure/actual/object/values";
-// A user object holding constructors mirrors as a realm root only where a binding leaf asks for it: with
-// member targets alone the statics stay native in both emitters (an accepted limit), and one binding beside
-// them mirrors the whole pattern, the member targets included.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const src = {
   Object,
   Array
@@ -20,10 +17,5 @@ let values;
     entries: o.e,
     values
   }
-} = {
-  Object: {
-    entries: _Object$entries,
-    values: _Object$values
-  }
-});
+} = src);
 export { o, values };

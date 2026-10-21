@@ -1,11 +1,9 @@
-import _Array$of from "@core-js/pure/actual/array/of";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// The iterator slot stays native beside rest. The static sibling retains its polyfill
-// and its rest exclusion.
-const o = _Array$of;
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 const [{
   [_Symbol$iterator]: it,
-  of: _unused,
+  of: o,
   ...r
 }] = [Array];
 it;

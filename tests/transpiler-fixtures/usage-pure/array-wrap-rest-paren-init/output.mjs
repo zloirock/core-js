@@ -1,32 +1,27 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
-const keys = _Object$keys;
 const [{
   Object: {
-    keys: _unused,
+    keys,
     ...restA
   }
 }] = ([_globalThis]);
 const values = _Object$values;
 const {
   Object: {
-    values: _unused2,
+    values: _unused,
     ...restB
   }
 } = _globalThis;
-eff('a');
-const entries = _Object$entries;
 const [{
   Object: {
-    entries: _unused3,
+    entries,
     ...restC
   }
-}] = [_globalThis];
+}] = ([(eff('a'), _globalThis)]);
 export { keys, restA, values, restB, entries, restC, seen };

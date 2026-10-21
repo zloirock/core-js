@@ -1,7 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-// An unknown computed key may replace the slot; dispatch on the stored constructor.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 const clean = {
   S: _Iterator
 };
@@ -9,11 +10,7 @@ const {
   S: {
     from
   }
-} = {
-  S: {
-    from: _Iterator$from
-  }
-};
+} = clean;
 export function dynamicBails(o) {
   const ns = {
     P: Array,

@@ -1,7 +1,5 @@
-// a static-only key read through a wrapper level off a selecting receiver mirrors the constructor arm in
-// place and leaves the user arm as written - an element, an `&&`, behind an effect prefix, an IIFE
-// argument, two levels deep, under a key, an index, a hop default, a computed literal key or in a getter's
-// returned value; a plain constructor level mirrors the same way, its hop default left dead
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const [{ of: viaElementDefault } = {}] = [c ? Array : userObj];
 const [{ from: viaAnd }] = [c && Array];
 const [{ trunc: viaPrefix }] = [(mark++, c ? Math : userObj)];

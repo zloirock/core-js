@@ -1,5 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const k = 'k';
 {
   const k = 'z';
@@ -9,7 +10,11 @@ const k = 'k';
   };
   {
     const k = 'w';
-    const m = _Map;
+    const {
+      [k]: {
+        Map: m
+      }
+    } = wrapper;
     use(m);
   }
 }

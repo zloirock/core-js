@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 declare const log: () => void;
 const userGlobal = { Array };
 for (const { Array: { from }, ...rest } = (log(), userGlobal); false; ) {

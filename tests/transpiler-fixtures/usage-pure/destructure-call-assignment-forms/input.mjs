@@ -1,6 +1,5 @@
-// the pattern ASSIGNMENT forms pair through the call the same way: object and array slots of the
-// write, a computed key resolved through a pattern write, a container primary kept alive by one, the
-// for-of assignment head, and the array write beside a bound sibling. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const assign = () => ({ a: Object, b: [Math] });
 let viaAssigned, viaAssignedArray;
 ({ a: viaAssigned, b: [viaAssignedArray] } = assign());

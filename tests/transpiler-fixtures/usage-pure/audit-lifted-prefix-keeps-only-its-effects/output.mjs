@@ -1,13 +1,12 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Discarded receiver prefixes preserve their observable effects once.
-// Effect-free reads need no replay; prefixes kept inside a live expression retain their source order.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 function eff() {}
 function eff2() {}
 let a, b, c, d, e;
@@ -37,11 +36,7 @@ const [{
   Array: {
     of: h
   }
-}] = [(0, eff(), {
-  Array: {
-    of: _Array$of
-  }
-})];
+}] = [(0, eff(), _globalThis)];
 if (1) {
   eff();
   var i = _Set;

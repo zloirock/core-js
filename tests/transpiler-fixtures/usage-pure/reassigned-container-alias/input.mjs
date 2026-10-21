@@ -1,5 +1,5 @@
-// A dominating assignment from another local holder selects its slot value.
-// Neither local container escapes; reading raw needs only the String static.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let first = { x: Number };
 let second = { x: String };
 first = second;

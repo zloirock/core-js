@@ -1,8 +1,5 @@
-// an effect prefix on a destructure init runs once, ahead of every read the pattern makes, wherever the
-// extraction leaves it room: a statement of its own where one fits - in the block a bodyless `if` gains,
-// between the halves of a split declaration - else the head of the sequence an assignment becomes, the
-// first extracted initializer (in a for-init, ahead of a computed key's effect) or its place in a
-// mirrored literal
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 function eff() {}
 function pre() {}
 var bm, bo;

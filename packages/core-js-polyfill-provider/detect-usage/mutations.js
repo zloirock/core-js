@@ -204,7 +204,6 @@ import {
   bareBuiltInLeft,
   decidedSelection,
   defaultDroppedAsDead,
-  destructurePropLeafMeta,
   readRunsAccessor,
   walkStaticReceiverChain,
 } from './destructure.js';
@@ -1561,7 +1560,6 @@ function inheritedClassStatic(value, key) {
 // holds that family only in pure; an unknown key needs the whole family in both flavors, and files
 // the name in `unnamedReadNames` too. Constructor rest requires the whole family in each flavor that
 // has a constructor entry.
-// eslint-disable-next-line max-statements -- one receiver census with shared per-query caches
 function collectHeldReceivers({
   programNode,
   memberReceivers,
@@ -1581,7 +1579,6 @@ function collectHeldReceivers({
   keyNames,
   censusKey,
   isOptedOut,
-  heldPatternReads,
 }) {
   const opaqueFamilies = new WeakMap();
   const receiverFamilies = new WeakMap();
@@ -1892,19 +1889,13 @@ function collectHeldReceivers({
     // the alias question asks what the root's VALUE names: for a sequence that is its tail
     // (`(0, realm).Map` reads through `realm`); the prefix is the emitters' to place
     const root = peelReceiverSequenceTail(runtimeChainRoot(receiver, receiverRoots));
-    // The claim side can resolve one reaching write or a decided arm that this raw census
-    // deliberately unions. Settle only these new positional obligations in the scoped pre-pass.
-    let heldNames = heldInSlot;
-    if (positional && !rawRead && !optedOut) {
-      heldNames = heldPatternReads.get(read) ?? new Set();
-    }
+    // Positional static reads stay on the substituted receiver after wrapper synthesis is removed.
     for (const key of readKeys) {
       holdUnresolvedReadFamilies({
         receiver, root, readKey: key, guardable, guardsIdentity: guardsIdentity && !optedOut,
-        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut, heldNames,
+        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut || positional, heldNames: heldInSlot,
       });
     }
-    if (heldNames !== heldInSlot && heldNames.size) heldPatternReads.set(read, heldNames);
     if (opaqueOnly && !hasOpaqueIteration) continue;
     const selectingRealm = !!getFallbackBranchSlots(peelFallbackReceiver(root))
       && !allProxySelectingInit(root, { adapter: null, injectorState: null, allowEffectfulTest: true })
@@ -3013,40 +3004,11 @@ function stampEscapingLeaves(node, stamps, work, receiverOnly = false, ownStatic
 // closes over is the name sets and nothing else. taken from inside the walk it would capture
 // that scope's context - the escape list, the deferred writes, the alias graph, all of them holding
 // the file's own nodes - and a plugin instance keeping the answer would keep the tree with it
-function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames, heldPatternNames }) {
+function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames }) {
   return {
     has: (name, held = false) => names.has(name)
-      || (held ? heldInSlot.has(name) || heldPatternNames.has(name) : globalOnly.has(name)),
+      || (held ? heldInSlot.has(name) : globalOnly.has(name)),
     readsUnnamedStatic: name => unnamedReadNames.has(name),
-  };
-}
-
-// Resolve a positional census approximation through the same scoped claim funnel as emission.
-// The scoped pre-pass collects only requested property paths, gated on these obligations.
-// The long-lived name answer keeps sets alone, and settlement releases every source node/path.
-export function heldPatternReadCollector(census) {
-  if (!census?.heldPatternReads?.size) return null;
-  const { heldPatternReads, heldPatternNames } = census;
-  const paths = new Map();
-  return {
-    ObjectPattern(path) {
-      for (const prop of path.get('properties')) if (heldPatternReads.has(prop.node)) paths.set(prop.node, prop);
-    },
-    settle(adapter, resolvePure) {
-      heldPatternNames.clear();
-      for (const [read, names] of heldPatternReads) {
-        const path = paths.get(read);
-        const { meta } = path ? withReentrantQuestion(() => destructurePropLeafMeta({
-          prop: read, objectPattern: path.parentPath, scope: path.scope, path, adapter, resolvePure,
-          parameterCallSites: adapter.parameterCallSites,
-        }), 'census') : { meta: null };
-        const servedName = meta?.object && meta.placement === 'static' && !meta.fromFallback
-          && resolvePure(meta, path)?.kind === 'static' ? meta.object : null;
-        for (const name of names) if (name !== servedName) heldPatternNames.add(name);
-      }
-      heldPatternReads.clear();
-      paths.clear();
-    },
   };
 }
 
@@ -3078,8 +3040,6 @@ const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 // eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
 export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
   const optedOutNodes = isOptedOut ? new WeakSet() : null;
-  const heldPatternReads = new Map();
-  const heldPatternNames = new Set();
   let stamps = null;
   let programNode = null;
   // the NAMES half of the census, handed to the file census so the entry decision reads it without
@@ -3912,13 +3872,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
     return held;
   }
 
-  // does this pattern level gather a REST? the object-rest boundary stops pure's extraction at the
-  // level that spells one, so every leaf under it keeps the source's own read
-  function gathersRest(patternNode) {
-    return (patternNode?.properties ?? patternNode?.elements ?? [])
-      .some(item => item?.type === 'RestElement');
-  }
-
   // a read that comes BACK off a container slot this file stored a constructor in: pure substitutes
   // its own binding into that slot and never reads the slot back, so the static the pattern names
   // under it has to be ON that binding - and the narrow `*/constructor` module installs none of the
@@ -3929,13 +3882,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
   // takes is not this census's to decide. an effect spelled ahead of the value belongs to the SOURCE and
   // not to the value, so the union's flattener peels it first - `const box = (n++, { Map })` holds the
   // literal exactly as the bare spelling does
-  function stampCtorStaticReadThroughSlot(pattern, source, served = true) {
+  function stampCtorStaticReadThroughSlot(pattern, source) {
     const values = flattenBranchingValueNodes([source]).map(value => unwrapRuntimeExpr(value));
-    // ... and whether the pattern reads that container DIRECTLY: ONE value, on a host the extraction
-    // below serves - every one but a catch parameter, which takes what a throw hands it (`served`). a
-    // SELECTION hands the pattern one arm at runtime and only the realm arm is mirrored, so a container
-    // arm is destructured as it stands and every leaf under it reads the slot back
-    const directSource = served && values.length === 1;
     // an ARRAY pattern names its slots by INDEX, an object pattern by key - one walk over the pairs
     const slots = pattern?.type === 'ArrayPattern'
       ? pattern.elements.map((element, at) => [String(at), patternSlotTarget(element)])
@@ -3952,34 +3900,23 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
         const ctorName = value?.type === 'Identifier' ? ctorHeldByContainerSlot(value.name, key)
           : literal ? ctorInContainerLiteralSlot(value, key) : null;
         if (ctorName !== null) {
-          if (inner.type === 'ObjectPattern') stampLeavesReadBack({ pattern, inner, ctorName, directSource });
+          if (inner.type === 'ObjectPattern') stampLeavesReadBack({ inner, ctorName });
           continue;
         }
         // ... and a slot the literal fills with another level - a container, or a selection of them - is
         // read by the pattern under it the same way, one level down (`{ W: c ? { C: Map } : Wrapper }`)
         if (literal) for (const level of containerSlotValues(value, key, true)) {
-          if (level !== value) stampCtorStaticReadThroughSlot(inner, level, directSource && !gathersRest(pattern));
+          if (level !== value) stampCtorStaticReadThroughSlot(inner, level);
         }
       }
     }
   }
 
-  // hold `ctorName` where a leaf of the slot pattern `inner` reads one of its own statics back off the
-  // binding pure put in the slot. a leaf the EXTRACTION serves reads no slot at runtime: the pass binds
-  // the static's own import in its place (`const resolve = _Promise$resolve`), so nothing ever comes back
-  // through the container and the narrow entry answers everything this file spells. what does come back
-  // is the leaf an extraction cannot serve - a MEMBER target, a computed key nothing folds, a
-  // pattern-valued slot - and that one still reads its static off the binding pure put in the slot.
-  // asking of the whole pattern instead cost the FILE the constructor's namespace for a read the pass had
-  // already answered. a REST anywhere over that leaf bars the extraction outright (the declared
-  // object-rest boundary), so the read comes back through the slot however plain the leaf is
-  function stampLeavesReadBack({ pattern, inner, ctorName, directSource }) {
+  // A static retained under a literal wrapper reads the substituted constructor itself.
+  // Its namespace supplies that static; an intrinsic property needs only the narrow entry.
+  function stampLeavesReadBack({ inner, ctorName }) {
     for (const leaf of inner.properties) {
       if (leaf.type !== 'Property' && leaf.type !== 'ObjectProperty') continue;
-      const target = patternSlotTarget(leaf.value);
-      const servedByExtraction = directSource && !leaf.computed && target?.type === 'Identifier'
-        && !gathersRest(inner) && !gathersRest(pattern);
-      if (servedByExtraction) continue;
       const staticName = leaf.computed ? null : plainSynthKeyName(leaf.key);
       if (staticName === null || hasOwnStaticDefinition(ctorName, staticName)) {
         heldInSlot.add(ctorName);
@@ -3994,7 +3931,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
     source = installedWriteValue(source);
     if (isDestructurePattern(pattern) && source) {
       patternReceiverSlotNodes(pattern, source, null, { preservesBody: true, restSources, restValues });
-      stampCtorStaticReadThroughSlot(pattern, source, at?.type !== 'CatchClause');
+      stampCtorStaticReadThroughSlot(pattern, source);
     }
     if (source) walkPatternIdentifiers(pattern, id => {
       recordAliasInit(id.name, pattern.type === 'Identifier' ? source : { pattern, source }, at, assignment ? id : null);
@@ -5065,7 +5002,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
       }
     }
   }
-  // eslint-disable-next-line max-statements -- finalize the shared escape and held-read tables once
   function result() {
     finalize();
     const kept = keptArguments;
@@ -5211,18 +5147,14 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
       keyNames: censusKeyNames,
       censusKey: censusResolveKey,
       isOptedOut: optedOutNodes ? node => optedOutNodes.has(node) : null,
-      heldPatternReads,
     });
     for (const value of kept) {
       stampEscapesFrom(programNode, value, { names: heldInSlot, state: heldState, heldInSlot: true, syntheticNames: true });
     }
-    for (const names of heldPatternReads.values()) for (const name of names) heldPatternNames.add(name);
     // read at QUERY time, when every reducer of this census has stamped: ONE answer object rather
     // than two census fields, since the flavor doing the asking is what picks the half
     return {
-      escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames, heldPatternNames }),
-      heldPatternReads,
-      heldPatternNames,
+      escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames }),
     };
   }
   return { visit, result: withContainerProofs(result) };

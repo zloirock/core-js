@@ -1,5 +1,5 @@
-// The wrapper is reassigned only AFTER the destructuring read, so the read still sees the original
-// `[Array]` snapshot and resolves the static method; the later write doesn't poison it
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let w = [Array];
 const [{ from }] = w;
 from([1]);

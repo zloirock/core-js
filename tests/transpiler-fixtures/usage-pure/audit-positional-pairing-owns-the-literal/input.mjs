@@ -1,6 +1,5 @@
-// A plain array literal gives the paired claim its element value. A proxy-global element reads
-// the substituted root; an opaque getter hop keeps the returned value's type, including the
-// string instance family for `at`. The literal's own `at` value needs no polyfill.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const proxyRoot = (function () {
   const [{ Array: { from } }] = [globalThis];
   return from;

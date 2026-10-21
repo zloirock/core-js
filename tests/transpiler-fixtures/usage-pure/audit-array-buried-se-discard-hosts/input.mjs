@@ -1,7 +1,5 @@
-// An effect buried in an array wrapper's element runs once, in source order, whatever host the
-// destructure stands in. A loop head hands the claim a literal in the slot; beside an object rest the
-// wrapper is left consuming the element, the static written from its own entry and the rest copied
-// off the realm after it - in a loop head and in an assignment alike.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (seen.push(t), t);
 let out1;

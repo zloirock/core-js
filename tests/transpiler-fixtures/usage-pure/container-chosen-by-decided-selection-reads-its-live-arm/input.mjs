@@ -1,5 +1,5 @@
-// a container a test the build decides selects is the one it always yields, so a static read through it
-// is that container's own: chosen for an alias, in a slot, nested, spelled in place, and under a pattern
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const aliased = typeof Symbol != 'undefined' ? { C: Map } : { C: Object };
 export const viaAlias = () => aliased.C.groupBy([1], x => x);
 const inSlot = { C: typeof Symbol != 'undefined' ? Iterator : Object };

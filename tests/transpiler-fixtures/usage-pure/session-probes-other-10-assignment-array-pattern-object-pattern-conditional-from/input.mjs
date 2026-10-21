@@ -1,6 +1,5 @@
-// Each block locks an independent form: a destructuring assignment, declaration or catch parameter,
-// or a computed member write.
-// Computed keys, stored receiver values and sibling bindings keep their source order.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 let pick = 1;
 const userObj = {};
 {

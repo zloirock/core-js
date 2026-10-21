@@ -1,6 +1,5 @@
-// A call the build polyfills inside the prefix an array wrapper's element buries keeps its own
-// substitution while the static beside it is served by a literal in the slot: the prefix stays where
-// the source wrote it, ahead of that literal, and runs once.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const w = "abc";

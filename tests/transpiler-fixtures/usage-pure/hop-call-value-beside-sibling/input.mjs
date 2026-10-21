@@ -1,6 +1,5 @@
-// A static reached through a call keeps that call and neighboring effects in source order.
-// Known constructor arms receive pure values; user branches keep their own members, and an arm the
-// selection never reaches drops with it.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const c = 1;
 const userObj = {};
 const log = [];

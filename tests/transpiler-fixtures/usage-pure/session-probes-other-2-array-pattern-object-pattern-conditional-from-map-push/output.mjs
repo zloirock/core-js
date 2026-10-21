@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Map from "@core-js/pure/actual/map/constructor";
-// probe corpus of the defense cycles over the destructure wrappers, family "other", part 2:
-// every block is one probed form, self-contained over the header bindings, locked on both legs
+import _globalThis from "@core-js/pure/actual/global-this";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 let pick = 1;
 const userObj = {};
 const log = [];
@@ -11,10 +11,6 @@ const log = [];
     from: f
   }, {
     Map: M
-  }] = [pick ? {
-    from: _Array$from
-  } : userObj, {
-    Map: _Map
-  }];
+  }] = [pick ? Array : userObj, _globalThis];
   _pushMaybeArray(log).call(log, f === _Array$from, typeof M);
 }

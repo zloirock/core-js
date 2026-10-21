@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// probe corpus of the defense cycles over the destructure wrappers, family "param", part 3:
-// every block is one probed form, self-contained over the header bindings, locked on both legs
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 let pick = 1;
 const userObj = {};
 const log = [];
@@ -11,9 +11,7 @@ const log = [];
       from: f
     }
   } = {
-    w: pick ? {
-      from: _Array$from
-    } : userObj
+    w: pick ? Array : userObj
   }) {
     return f;
   }

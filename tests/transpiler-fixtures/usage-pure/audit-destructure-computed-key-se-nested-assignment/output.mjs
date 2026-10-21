@@ -7,4 +7,5 @@ let m;
   y: _ref
 } = {
   y: arr
-}), null == _ref ? _ref[""] : (eff(), m = _flatMaybeArray(_ref));
+});
+null == _ref ? _ref[""] : (eff(), m = _flatMaybeArray(_ref));

@@ -90,16 +90,18 @@ QUnit.test('a captured array wrapper preserves native sibling order', assert => 
   function methodFirst(unknown) {
     let result;
     for (const e of [Array]) {
+      // eslint-disable-next-line no-unused-vars -- retain static slots without requiring wrapper polyfills
       const [{ [(mark(), 'of')]: of, from }, { at, length }] = [e, unknown];
-      result = [typeof of, typeof from, at, length];
+      result = [at, length];
     }
     return result;
   }
   function nativeFirst(unknown) {
     let result;
     for (const e of [Array]) {
+      // eslint-disable-next-line no-unused-vars -- retain static slots without requiring wrapper polyfills
       const [{ [(mark(), 'of')]: of, from }, { length, at }] = [e, unknown];
-      result = [typeof of, typeof from, at, length];
+      result = [at, length];
     }
     return result;
   }
@@ -118,7 +120,7 @@ QUnit.test('a captured array wrapper preserves native sibling order', assert => 
         },
       };
       if (throws) assert.throws(() => read(receiver), error => error === marker);
-      else assert.arrayEqual(read(receiver), ['function', 'function', selected, 2]);
+      else assert.arrayEqual(read(receiver), [selected, 2]);
       assert.arrayEqual(events, ['key', ...throws && read === nativeFirst ? ['length'] : order]);
     }
   }

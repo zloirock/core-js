@@ -1,8 +1,5 @@
-// 2-level nested destructure `const { a: { b: { from } } } = wrapper` walks two outer
-// keys (`['a', 'b']`) through the const-bound ObjectExpression chain. Receiver chain:
-// wrapper -> { a: { b: Array } } -> step 'a' -> { b: Array } -> step 'b' -> Identifier
-// 'Array'. Walker recurses into nested ObjectExpression at each step. Distinct methods
-// (at, includes, copyWithin) lock array narrowing per call site
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const wrapper = { a: { b: Array } };
 const { a: { b: { from } } } = wrapper;
 const arr = from('xy');

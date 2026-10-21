@@ -1,4 +1,4 @@
-// A nested pattern reads the imported pure constructor.
-// Only pure mode supplies its missing static.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 import P from "@core-js/pure/actual/promise/constructor.js";
 export const { P: { all } } = { P };

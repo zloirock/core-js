@@ -14,7 +14,8 @@ for (const _ref2 of [{
   var _ref;
   ({
     w: _ref
-  } = _ref2), {} = _ref, e(), f = _Array$from, {
+  } = _ref2);
+  ({} = _ref), e(), f = _Array$from, {
     length: o[k]
   } = _ref;
   use(f);
@@ -29,7 +30,8 @@ for (const _ref4 of [{
     w: {
       v: _ref3
     }
-  } = _ref4), {} = _ref3, e(), f = _Array$of, {
+  } = _ref4);
+  ({} = _ref3), e(), f = _Array$of, {
     length: g().p
   } = _ref3;
   use(f);

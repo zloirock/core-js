@@ -1,6 +1,5 @@
-// a pattern level reached through a STORE nested in the destructure source stays as written - pure
-// would otherwise rewrite the container the store hands to `cache` - so the constructor the read
-// lands on takes its whole entry. a store that is the source itself keeps the static named
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let cache;
 export const [[{ groupBy }]] = [(cache = [Map])];
 

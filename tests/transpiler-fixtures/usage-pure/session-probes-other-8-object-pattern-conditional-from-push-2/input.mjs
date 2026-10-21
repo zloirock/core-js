@@ -1,5 +1,5 @@
-// Nested literal containers preserve sibling effects and receiver uncertainty.
-// Object rest keeps instance slots native; proven static leaves receive their pure entries.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 let pick = 1;
 const userObj = {};
 const log = [];
