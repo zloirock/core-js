@@ -40,6 +40,19 @@ for (const [index, source] of sources.entries()) for (const createParenthesizedE
     }
   }
 }
+// An unresolved pattern slot keeps the memo value rather than discarding its read.
+for (const createParenthesizedExpressions of [false, true]) {
+  const source = 'function read({ of, from } = ((() => { [7].at(0); return globalThis.window; })()?.self).Array) { return [of(3), from([4])]; } read();';
+  const result = await transformAsync(source, {
+    configFile: false, babelrc: false, ast: true, parserOpts: { createParenthesizedExpressions },
+    plugins: [['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, exclude: ['es.array.of'] }]],
+  });
+  const imports = result.ast.program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value);
+  checkTruthy('memo retains the navigation ponyfill', imports.some(name => name.endsWith('/self')));
+  checkTruthy('memo retains its nested instance claim', imports.some(name => name.endsWith('/array/instance/at')));
+  checkTruthy('memo serves the admitted sibling', imports.some(name => name.endsWith('/array/from')));
+  check('memo keeps the excluded sibling native', imports.some(name => name.endsWith('/array/of')), false);
+}
 // An accepted queue entry reads the native child slot after another visitor replaces it.
 // This isolates host application from the source-form admission decision.
 {

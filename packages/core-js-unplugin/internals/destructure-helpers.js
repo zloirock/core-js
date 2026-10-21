@@ -41,7 +41,7 @@ import {
   peelChainRootValue,
   peelRealmLogicalDefault,
   peelReceiverSequenceTail,
-  realmHopKeyName,
+  guardedNavPassthroughPlan,
   realmSelectionCollapseOperand,
   resolveObjectName,
   agreeingTernaryArm,
@@ -104,6 +104,8 @@ import {
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
   renderShortCircuitGuard,
+  renderNavGuardTest,
+  renderNavCollapseValue,
   renderStaticDefaultGuard,
   memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
@@ -1029,22 +1031,15 @@ export function duplicateReceiver(node, injector) {
 // spell: the hop's object is the probe, the hop's own ponyfill the alternate, and the tail
 // above it hangs back on. null where no such hop carries the short-circuit
 export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport }) {
-  const tail = [];
-  let cur = peelTransparentExpr(receiver);
-  while (cur?.type === 'MemberExpression' && !cur.optional) {
-    if (cur.computed || cur.property?.type !== 'Identifier') return null;
-    tail.unshift(cur.property.name);
-    cur = peelTransparentExpr(cur.object);
-  }
-  if (cur?.type !== 'MemberExpression') return null;
-  const hopName = realmHopKeyName(cur, { scope: metaPath.scope, adapter, path: metaPath });
-  const hopPure = hopName ? resolveGlobalPolyfill(hopName) : null;
-  if (!hopPure) return null;
-  const probe = substituteProxyRootsInClone(cloneStamped(cur.object), metaPath,
-    { adapter, resolveGlobalPolyfill, injectPureImport });
-  const navTail = tail.reduce((base, hop) => memberFromKeyName(base, hop),
-    identifier(injectPureImport(hopPure.entry, hopPure.hintName)));
-  return renderShortCircuitGuard(nullFirstGuardTest(probe), navTail);
+  const plan = guardedNavPassthroughPlan(receiver, ({ name }) => resolveGlobalPolyfill(name),
+    { ...nodeSite(receiver, metaPath), adapter });
+  if (!plan) return null;
+  const probe = substituteProxyRootsInClone(renderNavGuardTest(plan.test, {
+    injectImport: injectPureImport, cloneHost: cloneStamped, own: node => node,
+  }), metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
+  const value = renderNavCollapseValue(plan, identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)),
+    { cloneHost: cloneStamped });
+  return renderShortCircuitGuard(nullFirstGuardTest(probe), value);
 }
 
 // the sealed receiver READ a swap erases, PLANNED on the pristine tree: the seal's inner nav
@@ -2289,6 +2284,8 @@ export function emitLiteralReceiverMemos({ declarator, jobs, statements, kind, m
   }
 }
 
+// The memo argument keeps the planned target behind its live prefix effects, whose claims
+// landed during the walk. Without a plan, keep the live receiver for its caller to duplicate.
 export function buildMemoArg(pending) {
   const { memoReceiver, memoArgPlan } = pending;
   if (!memoArgPlan) return memoReceiver;

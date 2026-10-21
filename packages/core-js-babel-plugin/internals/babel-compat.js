@@ -23,13 +23,12 @@ import {
   deleteGuardKeepingHop,
   inlineCallProxyGlobalRoot,
   receiverSequenceTailKeys,
-  inlineCallHasObservableEffects,
-  navHopSequencePrefixes,
   navRootPrefixNodes,
   storedAbsenceObservedAbove,
   storedNavHopClaimSuppressed,
   storedUserAssignmentOf,
-  navGuardTestBase,
+  navGuardTestPlan,
+  navGuardSourcePlan,
   proxyReceiverValueCanBeUndefined,
   sealedChainBoundary,
   sealedClaimLeafGuardPlan,
@@ -92,7 +91,6 @@ import {
   peelChainAssignment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  chainExpression,
   composeNullGuardTest,
   conditionalExpression,
   hostSlot,
@@ -102,10 +100,9 @@ import {
   renderMethodCall,
   planMethodCall,
   renderDeleteShortCircuitGuard,
-  sequenceExpression,
   renderKeptSequenceTail,
-  renderNavCollapseTail,
-  renderNavGuardTestBase,
+  renderNavCollapseValue,
+  renderNavGuardTest,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel, { printableWriteTarget } from './estree-to-babel.js';
@@ -353,10 +350,11 @@ function reparenthesizeTaggedTag(t, fromPath) {
 // it. the guarded render is the other half of the same plan (`renderNavCollapseAst`); this one is what a
 // slot holding the nav's VALUE takes when nothing about that value short-circuits
 function navPlanValueAst(t, plan, pureId, renderedPlanTails) {
-  let out = t.cloneNode(pureId);
-  for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
-    out = t.memberExpression(out, t.identifier(hop.name));
-    renderedPlanTails.add(out);
+  const out = estreeToBabel(renderNavCollapseValue(plan, hostSlot(t.cloneNode(pureId)), {
+    cloneHost: node => hostSlot(t.cloneNode(node)),
+  }));
+  for (let cur = out, left = plan.hops.length - plan.collapseIdx - 1; left > 0; left--, cur = cur.object) {
+    renderedPlanTails.add(cur);
   }
   return out;
 }
@@ -1361,74 +1359,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const resolvePure = plan ? plan.resolvePure : ({ name }) => resolvePureGlobalEntry(name, anchorPath);
     const ctx = plan ? plan.ctx : { scope: anchorPath?.scope, adapter, path: anchorPath };
     if (!ctx?.scope) return node;
-    // the test takes the PLAN's own value: a read no deeper than the environment probe off the
-    // ponyfill. spelling the source instead dereferences a value that is undefined off-window and
-    // throws THERE - inside the polyfilled output, which the ponyfill exists to keep working - so a
-    // seal is no reason to keep it: the seal decides where a `?.` guards, not whether hops collapse.
-    // a hop-object SEQUENCE still rides the source spelling: the plan renders the VALUE and its
-    // prefix has no slot there, so taking it dropped the effect entirely (`(n++, gw).self?.X`)
-    const testPrefix = guardObject
-      ? navHopSequencePrefixes(guardObject, { unwrap: unwrapRuntimeExpr, ctx }).all : [];
-    // ... with ONE exception, and it is the seal canon, not a spelling preference: a chain that READS
-    // THROUGH a seal over a short-circuit performs that read itself (`((w = gw).window?.self).Symbol`
-    // throws off-window), and collapsing the test both erases the throw and drops the write the
-    // source performs on the way. keep the source spelling there - what the unplugin leg spells too
-    if (guardObject && injectPureGlobal
-      && !chainReadsThroughSeal(guardObject, resolvePure, ctx)) {
-      // the plan models PROXY hops, so a guard object ending in a claim hop (`(gw).self.Array`) has
-      // none - peel those keys off, plan the navigation under them, and hang them back on the
-      // collapsed value. left unpeeled the test spelled the source chain and threw off-window
-      let testRoot = guardObject;
-      const rehang = [];
-      // this caller re-emits the peeled prefix itself (below), so it may ask the plan to own a
-      // sequence root and descend past its tail - the opt-in the probe channels use for the same reason
-      function planFor(root) {
-        return planProvenNavGuardCollapse({ rootNode: root, ...ctx, resolvePure,
-          allowSequenceRoot: true, descendSequenceTail: true });
-      }
-      let testPlan = planFor(testRoot);
-      while (!testPlan && !rehang.length
-        && (testRoot.type === 'MemberExpression' || testRoot.type === 'OptionalMemberExpression')
-        && !testRoot.computed && testRoot.property?.type === 'Identifier') {
-        rehang.unshift({ name: testRoot.property.name, optional: !!testRoot.optional });
-        testRoot = unwrapRuntimeExpr(testRoot.object);
-        testPlan = planFor(testRoot);
-      }
-      // an OBSERVABLE root below the hops - a write, a sequence prefix, an effect-bearing call - is
-      // spelled by nothing here: this collapse replaces the whole prefix and has no slot for it, so
-      // taking it deletes an assignment the source performs (`((w = globalThis).self.window?.self)
-      // ?.Array.of` left `w` unwritten) or reorders an effect past a read that throws. keep the
-      // source spelling there - the owner-decided base price buys an always-defined base, not this
-      if (testPlan && !testPlan.topAssign && testPlan.leafPure) {
-        // the WRITE below the hops is what the collapse replaces along with them, and it is the
-        // source's own first act: it rides INSIDE the collapsed value, ahead of the leaf, so the
-        // hops above read off the ponyfill and the store still happens where the source performs it
-        // (`(u = _globalThis, _self).window` - the unplugin leg's own spelling). declining the collapse
-        // for it instead left `_globalThis.self` standing: a host read off the ponyfill, undefined
-        // in exactly the realms the polyfill exists for
-        let spelled = injectPureGlobal(testPlan.leafPure.entry, testPlan.leafPure.hintName);
-        // the prefix wraps the LEAF, not the whole read: `(dh(), _self).window` is the spelling both
-        // emitters keep for a collapsed sequence root, and hanging the hops outside it is what makes
-        // the two legs print the same bytes
-        // an EFFECT-BEARING erased call is the source's own run and re-emits with the prefix -
-        // dropping it with the fold lost the effect its argument or body carries
-        // (`(a(), dh(b()))?.self...` spells `(a(), dh(b()), _self)`, the other leg's bytes)
-        const effectCall = testPlan.rootEffectCall
-          && inlineCallHasObservableEffects({ callNode: testPlan.rootEffectCall, ...testPlan.ctx })
-          ? testPlan.rootEffectCall : null;
-        if (testPlan.rootAssign || effectCall || testPrefix.length) {
-          spelled = t.sequenceExpression([...testPrefix.map(expr => t.cloneNode(expr)),
-            ...testPlan.rootAssign ? [t.cloneNode(testPlan.rootAssign, true)] : [],
-            ...effectCall ? [t.cloneNode(effectCall, true)] : [], spelled]);
-        }
-        for (const hop of [...testPlan.hops.slice(testPlan.collapseIdx + 1), ...rehang]) {
-          spelled = hop.liveOptional
-            ? t.optionalMemberExpression(spelled, t.identifier(hop.name), false, true)
-            : t.memberExpression(spelled, t.identifier(hop.name));
-        }
-        markGuardTestRendered(spelled);
-        return spelled;
-      }
+    if (guardObject && injectPureGlobal) {
+      const test = navGuardSourcePlan(guardObject, resolvePure, ctx);
+      if (!test.source) return markGuardTestRendered(estreeToBabel(renderNavGuardTest(test, {
+        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+        cloneHost: source => t.cloneNode(source), embed: hostSlot, own: source => source,
+      })));
     }
     // `detached`: the caller's own render lifts this test out of the tree, so no visitor reaches
     // its root again - a raw `globalThis` frozen there is a ReferenceError on exactly the engines
@@ -1469,58 +1405,29 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // test, where the source runs it, so the leaf leaves it out
     const prefix = plan.kind === 'sequence' && !prefixOutside
       ? navRootPrefixNodes(plan, node => hostSlot(keptPrefix(node))) : [];
-    const leaf = prefix.length ? sequenceExpression([...prefix, cloneHost(pureId)]) : cloneHost(pureId);
-    const tailHops = plan.hops.slice(plan.collapseIdx + 1);
-    // the TAIL hangs off the leaf INSIDE the guarded alternate (`null == X ? void 0 : _self
-    // .window`) - hung off the whole ternary it would read `.window` off the short-circuited
-    // void 0. the sequence / bare spellings keep the tail outside (`(dh(), _self).window`)
-    function withTail(base) {
-      if (!tailHops.length) return estreeToBabel(base);
-      const built = renderNavCollapseTail(plan, base, { cloneHost });
-      // a live `?.` in the tail is spelled as the estree chain the converter lowers to babel's
-      // Optional* dialect - a bare optional member has no meaning on that side
-      const out = estreeToBabel(tailHops.some(hop => hop.liveOptional) ? chainExpression(built) : built);
-      // the render already decided each hop's fate; re-entering the traversal they would look
-      // like fresh redundant hops and collapse against a receiver the plan never chose
-      for (let cur = out, left = tailHops.length; left > 0; left--, cur = cur.object) renderedPlanTails.add(cur);
-      return out;
-    }
-    function collapsedTestNode() {
-      const base = navGuardTestBase(plan);
-      if (!base) return null;
-      // the WRITE below the hops is replaced along with them, and it is the source's own first act:
-      // it rides INSIDE the collapsed value, ahead of the base, so the probe reads off the ponyfill
-      // and the store still happens where the source performs it (`(w = _globalThis, _self).window`)
-      return estreeToBabel(renderNavGuardTestBase(base, {
-        rootAssign: plan.rootAssign,
-        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
-        embed: hostSlot,
-      }));
+    const value = estreeToBabel(renderNavCollapseValue(plan, cloneHost(pureId), { prefix, cloneHost }));
+    for (let cur = value, left = plan.hops.length - plan.collapseIdx - 1; left > 0; left--, cur = cur.object) {
+      renderedPlanTails.add(cur);
     }
     function keptPrefix(node) {
       return navGuardTestNode(node, null, plan);
     }
-    if (plan.kind === 'nested') {
-      // the deferred flush may land inside a SUPPRESSED guard region no visitor re-enters, so
-      // the proven root substitutes EAGERLY in the test - a raw `globalThis` frozen there reads
-      // the engine global where the ponyfill belongs. an ALIAS root keeps its name (its own
-      // declaration is rewritten where it lives); the injected binding survives any re-visit
-      if (plan.rootId?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(plan.rootId.name)) {
-        const rootPure = plan.resolvePure({ kind: 'global', name: plan.rootName });
-        if (rootPure) plan.rootId.name = injectPureGlobal(rootPure.entry, rootPure.hintName).name;
-      }
-      // a DEEP CLONE resets node identity: the original prefix members were marked handled by
-      // the claim's own walk, so the flush requeue would skip their subtree and freeze a prefix
-      // effect's polyfill raw (`arr.at(0)` in the test); fresh nodes re-enter the visitors
-      const probeTest = collapsedTestNode()
-        ?? t.cloneNode(keptPrefix(plan.hops[plan.lastUnresolvableIdx].node), true);
-      const wrapAssign = plan.assignWrap;
-      return estreeToBabel(renderShortCircuitGuard(
-        nullFirstGuardTest(wrapAssign
-          ? t.assignmentExpression(wrapAssign.operator, t.cloneNode(wrapAssign.left), probeTest) : probeTest,
-        { embed: hostSlot }), hostSlot(withTail(leaf))));
+    if (plan.kind !== 'nested') return value;
+    const testPlan = navGuardTestPlan(plan);
+    // The replaced source spine can still be held by a sibling receiver. Apply its decided
+    // root binding in that live slot before requeue, while rendering clones the retained read.
+    if (testPlan.source?.root) {
+      const { path, pure } = testPlan.source.root;
+      path.reduce((node, key) => node[key], testPlan.source.source).name = injectPureGlobal(pure.entry, pure.hintName).name;
     }
-    return withTail(leaf);
+    if (testPlan.source) for (const path of testPlan.source.served) {
+      renderedGuardTests.add(path.reduce((node, key) => node[key], testPlan.source.source));
+    }
+    const test = renderNavGuardTest(testPlan, {
+      injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+      cloneHost: source => t.cloneNode(source), embed: hostSlot, own: source => source,
+    });
+    return estreeToBabel(renderShortCircuitGuard(nullFirstGuardTest(test), hostSlot(value)));
   }
 
   // node-level twin of `collapseProvenNavPath` for channels that hold a NODE, not a path (the

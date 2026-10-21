@@ -561,10 +561,52 @@ export function renderAliasHeldProbeRead(probe, object, own = markRenderedProbeR
     : memberExpression(base, identifier(probe.key)));
 }
 
-// A direct read or guarded pattern value. Source-slot edits and effect ownership are plan facts; hosts only
-// clone/embed their dialect and allocate imports. Served reads are marked individually so a
-// nested key or argument is still visited, while requeue cannot erase the probe's own throw.
+// Apply source-spine facts without re-resolving a cloned or already rewritten tree.
+function renderProbeSource(slot, { injectImport, cloneHost = cloneNode, embed = node => node, own = markRenderedProbeRead }) {
+  const node = cloneHost(slot.source);
+  function at(path) {
+    return path.reduce((value, key) => value[key], node);
+  }
+  for (const path of slot.served) own(at(path));
+  for (const path of slot.deopt) {
+    const hop = at(path);
+    if (hop.type === 'OptionalMemberExpression') hop.type = 'MemberExpression';
+    hop.optional = false;
+  }
+  if (slot.root) at(slot.root.path).name = injectImport(slot.root.pure.entry, slot.root.pure.hintName);
+  return embed(node);
+}
+
+// The common guard-test spelling. Hosts clone/embed source slots and own their traversal marks;
+// base selection, prefix order, the retained tail and a kept write are already decided facts.
+export function renderNavGuardTest(test, { injectImport, cloneHost = cloneNode, embed = node => node, own = markRenderedProbeRead }) {
+  const context = { injectImport, cloneHost, embed, own };
+  let probe = test.source ? renderProbeSource(test.source, context)
+    : test.base ? own(renderNavGuardTestBase(test.base, {
+      prefix: test.prefix.map(slot => renderProbeSource(slot, context)), injectImport,
+    })) : renderNavCollapseValue({ hops: test.tail, collapseIdx: -1 },
+      identifier(injectImport(test.pure.entry, test.pure.hintName)), {
+        prefix: test.prefix.map(slot => renderProbeSource(slot, context)), cloneHost: node => embed(cloneHost(node)), own,
+      });
+  if (test.assign) {
+    noteRenderRetiredWrites(test.assign);
+    probe = assignmentExpression(test.assign.operator, embed(cloneHost(test.assign.left)), probe);
+  }
+  return probe;
+}
+
+// Compose the retained navigation tail over its leaf, with effects inside the receiver slot.
+// A guarded caller places this whole value in the alternate, so an absent probe reads no tail.
+export function renderNavCollapseValue(plan, base, { prefix = [], cloneHost = node => node, own = node => node } = {}) {
+  const leaf = prefix.length ? sequenceExpression([...prefix, base]) : base;
+  const built = renderNavCollapseTail(plan, leaf, { cloneHost, own });
+  return plan.hops.slice(plan.collapseIdx + 1).some(hop => hop.liveOptional) ? chainExpression(built) : built;
+}
+
+// A direct read or guarded pattern value. Shared source facts preserve live child claims while
+// served reads are marked individually, so requeue cannot erase the probe's own throw.
 export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
+  const context = { injectImport, cloneHost, embed };
   function pure(entry) {
     return identifier(injectImport(entry.entry, entry.hintName));
   }
@@ -575,40 +617,16 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
     return effects.length ? sequenceExpression([...effects, value]) : value;
   }
   const own = markRenderedProbeRead;
-  function source(slot) {
-    const node = cloneHost(slot.source);
-    function at(path) {
-      return path.reduce((value, key) => value[key], node);
-    }
-    for (const path of slot.served) own(at(path));
-    for (const path of slot.deopt) {
-      const hop = at(path);
-      if (hop.type === 'OptionalMemberExpression') hop.type = 'MemberExpression';
-      hop.optional = false;
-    }
-    if (slot.root) at(slot.root.path).name = injectImport(slot.root.pure.entry, slot.root.pure.hintName);
-    return embed(node);
-  }
-  function tail(base, hops) {
-    const result = renderNavCollapseTail({ hops, collapseIdx: -1 }, base, { cloneHost: clone, own });
-    return hops.some(hop => hop.liveOptional) ? chainExpression(result) : result;
-  }
   if (plan.kind === 'alias') {
-    return renderAliasHeldProbeRead(plan.aliasProbe, source(plan.object), own);
+    return renderAliasHeldProbeRead(plan.aliasProbe, renderProbeSource(plan.object, context), own);
   }
   const { test, navPlan, leafPlan } = plan;
-  let probe = test.source ? source(test.source)
-    : test.base ? own(renderNavGuardTestBase(test.base, { prefix: test.prefix.map(source), injectImport }))
-    : tail(sequence(test.prefix.map(source), pure(test.pure)), test.tail);
-  if (test.assign) {
-    noteRenderRetiredWrites(test.assign);
-    probe = assignmentExpression(test.assign.operator, clone(test.assign.left), probe);
-  }
-  let alternate = plan.kind === 'nav' ? tail(pure(navPlan.leafPure), navPlan.hops.slice(navPlan.collapseIdx + 1))
+  const probe = renderNavGuardTest(test, context);
+  let alternate = plan.kind === 'nav' ? renderNavCollapseValue(navPlan, pure(navPlan.leafPure), { cloneHost: clone, own })
     : leafPlan.leafPure ? pure(leafPlan.leafPure)
     : leafPlan.leafBasePure ? (plan.foldLeafOntoBase ? pure(leafPlan.leafBasePure)
       : own(memberFromKeyName(pure(leafPlan.leafBasePure), leafPlan.leafName)))
-    : leafPlan.leafIsProbe ? source(test.source) : identifier(leafPlan.leafName);
+    : leafPlan.leafIsProbe ? renderProbeSource(test.source, context) : identifier(leafPlan.leafName);
   if (plan.alternateEffects?.length) alternate = sequence(plan.alternateEffects.map(clone), alternate);
   const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
   const read = plan.boundary.member ? own(plan.boundary.member.computed
