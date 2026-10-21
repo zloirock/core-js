@@ -66,6 +66,7 @@ import './parameter-static-sources.mjs';
 import './guard-canon.mjs';
 import './claim-probe.mjs';
 import './navigation-render.mjs';
+import './guarded-value.mjs';
 import './wrapper-peels.mjs';
 import './detect-syntax.mjs';
 import './syntax-set-measurement.mjs';
