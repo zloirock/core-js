@@ -2289,7 +2289,7 @@ export default function plugin(api, options) {
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
         synthSwap = createSynthSwapEmitter({
-          adapter, injectPureImport, injector, resolvePure, skippedNodes, t, sealedClaimThrowProbeNode,
+          adapter, injectPureImport, injector, resolvePure, skippedNodes, t,
         });
         destructureEmit = createDestructureEmitter({
           adapter,
