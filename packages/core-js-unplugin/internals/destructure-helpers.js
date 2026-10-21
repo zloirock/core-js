@@ -33,7 +33,6 @@ import {
   discardedInitProbePlan,
   directClaimProbePlan,
   directClaimProbeEffects,
-  partitionEffectsAtProbe,
   claimProbeSourceSlot,
   consumableHopSlotName,
   discardRescueNodes,
@@ -1021,8 +1020,8 @@ export function registerAssignmentExtractAlias({ prop, kind, entry, hintName, ho
 // ride along), and the refs the walk planted inside its own functions re-mint - they have
 // no declaration in the copy otherwise
 export function duplicateReceiver(node, injector) {
-  const clone = cloneNode(node);
-  injector.recloneDeclaredRefs?.(clone);
+  const clone = cloneStamped(node);
+  injector?.recloneDeclaredRefs?.(clone);
   return clone;
 }
 
@@ -1072,11 +1071,18 @@ export function captureSealedNavProbe(receiver, metaPath, ctx) {
 // remains a standalone nav consumer until B.2c.
 export function renderSealedNavProbe(plan, metaPath, ctx) {
   if (!plan) return null;
-  if (plan.kind !== 'passthrough') return renderClaimProbe(plan, { injectImport: ctx.injectPureImport, cloneHost: cloneStamped });
-  const navRead = guardedNavPassthrough(plan.boundary.inner, metaPath, ctx);
-  return navRead && (plan.boundary.member.computed
-    ? memberExpression(navRead, literal(plan.key), { computed: true })
-    : memberFromKeyName(navRead, plan.key));
+  let node;
+  if (plan.kind !== 'passthrough') node = renderClaimProbe(plan, {
+    injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
+  });
+  else {
+    const navRead = guardedNavPassthrough(plan.boundary.inner, metaPath, ctx);
+    node = navRead && (plan.boundary.member.computed
+      ? memberExpression(navRead, literal(plan.key), { computed: true })
+      : memberFromKeyName(navRead, plan.key));
+  }
+  if (node) probeFacts.set(node, plan.residual);
+  return node;
 }
 
 // Accept and render one immediate sealed read while its child paths are still available.
@@ -1097,18 +1103,20 @@ export function planDiscardedInitProbe(initNode, metaPath, ctx) {
 // the snapshot, and source-spine edit paths are then bound to that actual captured spelling.
 // Deferred callers register their pristine host facts before accepting this plan.
 export function captureProbePlan(plan, metaPath, ctx) {
-  if (!plan || plan.kind === 'passthrough') return plan;
+  if (!plan) return plan;
   const remaining = directClaimProbeEffects({ decision: plan, node: null }, harvestDiscardedReceiverSE(plan.source,
-    { ...nodeSite(plan.source, metaPath), adapter: ctx.adapter })).filter(Boolean);
-  const residual = remaining.map(node => ({ node, slot: pathOfNode(metaPath, node) }));
+    { ...nodeSite(plan.source, metaPath), adapter: ctx.adapter }));
+  const residual = remaining.map(node => ({ node, slot: node && pathOfNode(metaPath, node) }));
   // An alias holder stays live until drain, as before: eagerly walking a stored RHS can
   // rebase its enclosing receiver before the natural claim reaches it.
-  if (plan.kind === 'alias') return { ...plan, residual };
+  if (plan.kind === 'alias' || plan.kind === 'passthrough') return { ...plan, residual };
   const effects = plan.alternateEffects ?? [];
   const sources = [plan.test?.source?.source].filter(Boolean);
   const nodes = [...effects, ...sources];
   const slots = nodes.map(node => pathOfNode(metaPath, node));
-  ctx.claimLive?.([...effects, ...sources.map(node => node.type === 'AssignmentExpression' ? node.right : node)], metaPath);
+  // Only source child slots are independently claimable. Walking the guard spine itself
+  // rewrites its root before a sibling pattern key has asked its pristine receiver question.
+  ctx.claimLive?.([...effects, ...plan.test?.source?.children ?? []], metaPath);
   const live = nodes.map((node, index) => slots[index]?.container[slots[index].key] ?? node);
   let index = effects.length;
   function capture(source) {
@@ -1129,47 +1137,26 @@ export function absentableStoreReadKeyOf(initNode, ctx) {
   return read ? memberKeyName(read) : null;
 }
 
-// Source facts by probe node; legacy producers still contribute only their original offset.
+// Source effects by rendered probe identity. A null slot is the probe's position in the
+// common effect order; native slots supply children rewritten after the source decision.
 const probeFacts = new WeakMap();
 
-// The read boundary for deferred consumers that have not migrated to source residual slots.
-export function probeNavStartOf(probe) {
-  // unknown means NOTHING precedes the read: the split then hands every harvested effect to the
-  // probe, which is the safe half - a wrong `ahead` re-emits effects the probe already carries
-  return probe ? probeFacts.get(probe)?.navStart ?? 0 : 0;
+// The complete source effect order, with the rendered read in its decided slot.
+export function probeEffectNodes(probe) {
+  const slots = probeFacts.get(probe);
+  return slots ? slots.map(({ node, slot }) => node ? slot?.container[slot.key] ?? node : probe) : [probe];
 }
 
-// The immediate probe's source residual, bound to live native slots before child replacement.
-// Older deferred callers without captured facts keep their source-offset partition for now.
-export function probeResidualEffects(probe, effects = []) {
-  const residual = probeFacts.get(probe)?.residual;
-  return residual ? residual.map(({ node, slot }) => slot?.container[slot.key] ?? node)
-    : partitionEffectsAtProbe(effects, probeNavStartOf(probe)).ahead;
+// Effects left to a host that places the read separately. Carried writes were excluded by
+// source identity at acceptance; the drain never searches the generated read for a target name.
+export function probeResidualEffects(probe) {
+  return probeEffectNodes(probe).filter(node => node !== probe);
 }
 
-// does a rendered probe already carry THIS write? the read a probe reproduces may hold the kept
-// store inside it, and then the effect channel owes nothing - but a probe rendered from another arm
-// (a sealed boundary, a guarded leaf) carries no write at all, and there the read is still owed.
-// asked of the write's TARGET: the walk rebuilds nodes, so identity cannot carry the answer
-export function probeCarriesWrite(probe, write) {
-  const target = write?.type === 'AssignmentExpression' && write.operator === '='
-    && write.left?.type === 'Identifier' ? write.left.name : null;
-  if (!probe || target === null) return false;
-  let carried = false;
-  walkAstNodes({ root: probe, visit(node) {
-    if (node.type === 'AssignmentExpression' && node.operator === '='
-      && node.left?.type === 'Identifier' && node.left.name === target) carried = true;
-  } });
-  return carried;
-}
-
-// ... and its emission: the planned guard, the slot key hanging back on
+// Render a captured discarded-initializer read, or accept its late sealed fallback.
 export function renderDiscardedInitProbe(jobs, ctx) {
-  const [job] = jobs;
-
-  const navStart = job?.initProbeNavStart ?? null;
   const rendered = renderDiscardedInitProbeRead(jobs, ctx);
-  if (rendered) probeFacts.set(rendered.node, { navStart, residual: rendered.plan?.residual });
+  if (rendered?.plan?.residual) probeFacts.set(rendered.node, rendered.plan.residual);
   return rendered?.node ?? null;
 }
 
@@ -1188,7 +1175,9 @@ function renderDiscardedInitProbeRead(jobs, ctx) {
   // source-spelling paths to that live value; the read decision remains the pristine one.
   const captured = plan.kind === 'alias' ? { ...plan, object: claimProbeSourceSlot(plan.aliasProbe.object,
     meta => ctx.resolvePure(meta, metaPath), { ...nodeSite(plan.aliasProbe.object, metaPath), adapter: ctx.adapter }) } : plan;
-  const guarded = renderClaimProbe(captured, { injectImport: ctx.injectPureImport, cloneHost: cloneStamped });
+  const guarded = renderClaimProbe(captured, {
+    injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
+  });
   if (plan.kind === 'alias') return { node: guarded, plan };
   const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
   // The outermost pattern hop is the first read; a logical selection keeps its leaf read.

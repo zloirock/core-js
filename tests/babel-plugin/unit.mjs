@@ -11,6 +11,7 @@ import './import-injector.mjs';
 import './catch-extractor-mode.mjs';
 import './fresh-path-memo.mjs';
 import './discarded-call-types.mjs';
+import './deferred-probe-sources.mjs';
 import './mutation-gate-superset.mjs';
 import './transform-idempotence.mjs';
 import './transform-idempotence-pure.mjs';
