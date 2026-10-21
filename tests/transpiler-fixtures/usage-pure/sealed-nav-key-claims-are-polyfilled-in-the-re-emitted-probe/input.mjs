@@ -1,5 +1,5 @@
-// Claims inside a sealed nav's computed key are polyfilled in the probe the destructure re-emits: a static read, an
-// instance call, a nested destructure and the destructures of both loop heads each land once, where the key runs.
+// A sealed realm read keeps its native throw and visits every independent key claim.
+// Static, instance, nested destructuring and loop-head claims inside the key remain live.
 const log = [];
 const { of: o1 } = (globalThis.window?.[(log.push(typeof Object.keys), 'self')]).Array;
 const { of: o2 } = (globalThis.window?.[(log.push([1, 2].findLast(x => x)), 'self')]).Array;

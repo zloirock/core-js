@@ -11,7 +11,6 @@ import {
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderInExpressionPlan,
-  renderNavCollapseLeaf,
   renderNavCollapseTail,
   renderNavGuardTestBase,
   renderKeptSequenceTail,
@@ -26,6 +25,7 @@ import {
   resolveInlineCalleeFunction,
   navRootPrefixNodes,
   planKeptSequenceTail,
+  planProvenNavGuardCollapse,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import {
   walkAstNodes,
@@ -40,6 +40,29 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('guard-canon');
+
+for (const [source, collapses] of [
+  ['const value = globalThis.window?.self;', true],
+  ['const value = globalThis.window?.["self"];', true],
+  ['const key = "self"; const value = globalThis.window?.[key];', true],
+  ['const value = globalThis[(effect(), "window")]?.self;', false],
+  ['const value = globalThis.window?.[(effect(), "self")];', false],
+  ['const value = globalThis.window?.[(effect(), "se") + "lf"];', false],
+  // eslint-disable-next-line no-template-curly-in-string -- source parsed by both adapters
+  ['const value = globalThis.window?.[`s${ (effect(), "e") }lf`];', false],
+  ['const value = globalThis.window?.[key()];', false],
+  ['let held; const value = (held = globalThis.window)?.[(effect(), "self")];', false],
+  ['function read(globalThis) { const value = globalThis.window?.self; }', false],
+]) runBoth(`realm collapse admission/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const node = unwrapRuntimeExpr(path.node.init);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const original = JSON.stringify(node);
+  const plan = planProvenNavGuardCollapse({ rootNode: node, scope: path.scope, adapter, path,
+    resolvePure: ({ name }) => name === 'self' || name === 'globalThis' ? { entry: name, hintName: name } : null });
+  check(`${ label }/admission`, !!plan, collapses);
+  check(`${ label }/source remains live`, JSON.stringify(node), original);
+});
 
 for (const source of [
   'const value = (first(), (second(), globalThis));',
@@ -580,8 +603,8 @@ check('bound-raw/binds the receiver back',
 
 // --- the nav-collapse leaf and its tail ---
 
-function navPlan(hops, collapseIdx, keySe = [], testKeySeCount = 0) {
-  return { hops, collapseIdx, liveKeySeExprs: () => keySe, testKeySeCount };
+function navPlan(hops, collapseIdx) {
+  return { hops, collapseIdx };
 }
 function hop(name, { computed = false, key = null, optional = false } = {}) {
   return {
@@ -590,37 +613,6 @@ function hop(name, { computed = false, key = null, optional = false } = {}) {
     node: { type: 'MemberExpression', computed, property: computed ? key : identifier(name), object: null },
   };
 }
-
-check('leaf/no key effects answers the binding alone',
-  renderNavCollapseLeaf(navPlan([hop('self')], 0), identifier('_self')).name, '_self');
-
-check('leaf/live key effects ride ahead of the binding',
-  (() => {
-    const leaf = renderNavCollapseLeaf(navPlan([hop('self')], 0, [identifier('eff')]), identifier('_self'));
-    return `${ leaf.type }:${ leaf.expressions[0].name }:${ leaf.expressions[1].name }`;
-  })(), 'SequenceExpression:eff:_self');
-
-// the share the guard TEST already spelled is skipped by count - the test evaluates the key once,
-// and replaying it in the alternate would run the source's effect twice
-check('leaf/the test share is skipped',
-  (() => {
-    const leaf = renderNavCollapseLeaf(navPlan([hop('self')], 0, [identifier('a'), identifier('b')], 1),
-      identifier('_self'));
-    return `${ leaf.expressions.length }:${ leaf.expressions[0].name }`;
-  })(), '2:b');
-
-check('leaf/cloneHost lifts every effect node',
-  renderNavCollapseLeaf(navPlan([hop('self')], 0, [identifier('eff')]), identifier('_self'),
-    { cloneHost: hostSlot }).expressions[0].type, HOST_SLOT);
-
-check('leaf/root effects precede folded key effects in one sequence',
-  (() => {
-    const prefix = hostSlot(identifier('rootArgument'));
-    const rendered = renderNavCollapseLeaf(navPlan([hop('self')], 0, [identifier('keyEffect')]),
-      identifier('_self'), { cloneHost: hostSlot, prefix: [prefix] });
-    return [rendered.expressions[0] === prefix, rendered.expressions[1].node.name,
-      rendered.expressions[2].name].join(':');
-  })(), 'true:keyEffect:_self');
 
 check('tail/nothing above the collapse hangs nothing',
   renderNavCollapseTail(navPlan([hop('self')], 0), identifier('_self')).name, '_self');

@@ -35,7 +35,6 @@ import {
 import {
   cloneNode,
   identifier,
-  literal,
   memberExpression,
   sequenceExpression,
   nullFirstGuardTest,
@@ -105,8 +104,6 @@ export function emitNestedGuardNavValue(metaPath, node, {
   if (!provenRoot || provenRoot.start < prefixNode.start || provenRoot.end > prefixNode.end) return false;
   substituteProbeProxyRoot(prefixNode);
   let built = identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName));
-  const leafKeySe = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(expr => cloneNode(expr));
-  if (leafKeySe.length) built = sequenceExpression([...leafKeySe, built]);
   for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
     built = hop.node.computed
       ? memberExpression(built, cloneNode(hop.node.property), { computed: true, optional: !!hop.liveOptional })
@@ -117,17 +114,12 @@ export function emitNestedGuardNavValue(metaPath, node, {
   return true;
 }
 
-// a kept-tail hop's respelling: dotted for a plain name, a computed SE-carrying key for
-// the seq-keyed spelling - the one member shape every tail consumer spells
+// A kept-tail hop's respelling: dotted for a plain name, computed for a retained key node.
 // a QUIET computed key the canon could name is kept as the source spelled it: the hop itself
 // survives the collapse, so re-spelling its key dotted rewrites a read the transform does not
 // otherwise touch - and the same source, rooted at a bare proxy global, keeps its brackets on
 // both legs. the guard render's own kept-hop respell above already spells it that way
-export function respellKeptHop(spelling, { keyName, keySe, keyNode = null }) {
-  if (keySe.length) {
-    return memberExpression(spelling,
-      sequenceExpression([...keySe.map(expr => cloneNode(expr)), literal(keyName)]), { computed: true });
-  }
+export function respellKeptHop(spelling, { keyName, keyNode = null }) {
   return keyNode
     ? memberExpression(spelling, cloneNode(keyNode), { computed: true })
     : memberFromKeyName(spelling, keyName);
@@ -436,7 +428,7 @@ export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHo
   const seqValue = unwrapRuntimeExpr(object);
   const tail = seqValue?.type === 'SequenceExpression' ? unwrapRuntimeExpr(seqValue.expressions.at(-1)) : null;
   const collapsed = tail?.type === 'MemberExpression' ? collapseProxyHopSpine(tail, metaPath) : null;
-  if (!collapsed?.entry || collapsed.aliasRoot || collapsed.keyEffects?.length) return null;
+  if (!collapsed?.entry || collapsed.aliasRoot) return null;
   return sequenceExpression([
     ...seqValue.expressions.slice(0, -1).map(expr => cloneNode(expr)),
     identifier(injectPureImport(collapsed.entry, collapsed.hintName)),

@@ -3,22 +3,13 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4;
-// a deeper nav under a non-proxy leaf chain with a CALL root: the receiver plan's member
-// recursion must reach the call-rooted collapse exactly like the identifier-rooted twin
-// (`_globalThis.foo`), never leave the raw `.window` hop standing over the inlined call
+// Call-rooted quiet navigation retains its existing collapse. Effectful realm keys stay native, including under a symbol receiver.
 typeof _getIteratorMethod(_globalThis.foo);
 typeof (null == (_ref = _globalThis.foo) ? void 0 : _getIteratorMethod(_ref));
 typeof (null == (_ref2 = _globalThis.foo) ? void 0 : _getIteratorMethod(_ref2));
-// boundary forms of the same collapse: an SE-bearing computed hop key keeps its effect as the
-// collapsed base's prefix, and a computed user leaf keeps its own spelling over the folded base
 let c = 0;
-typeof (null == (_ref3 = (c++, _globalThis).foo) ? void 0 : _getIteratorMethod(_ref3));
-typeof (null == (_ref4 = (c++, _globalThis)['foo-bar']) ? void 0 : _getIteratorMethod(_ref4));
-
-// a claimless nav on a DEFINED-yield call root collapses onto the deepest ponyfill-backed
-// realm hop, like its identifier twin, with a sequence prefix re-emitted ahead of the base;
-// the PROBE-yield twin keeps the same leaf collapse, and an effect-bearing call keeps the
-// leaf too, retaining the call once before the user property read
+typeof (null == (_ref3 = (() => _globalThis)()[c++, 'window'].foo) ? void 0 : _getIteratorMethod(_ref3));
+typeof (null == (_ref4 = (() => _globalThis)()[c++, 'window']['foo-bar']) ? void 0 : _getIteratorMethod(_ref4));
 export const viaDefinedCallRoot = _self.userSlot;
 export const viaDefinedCallRootClaim = _Array$of(3);
 let sq = 0;

@@ -422,15 +422,7 @@ export function renderProxyReceiverPlan(plan, { injectImport, embed = node => no
   const rootNode = plan.harvestedSE.length
     ? sequenceExpression([...plan.harvestedSE.map(expr => embed(carry(expr))), rootBinding])
     : rootBinding;
-  // dropped-hop KEY effects fold into the surviving leaf key - where the native order
-  // evaluates them (after the root and its guard, before the read)
-  const keyPrefix = plan.keyPrefixSE ?? [];
-  const property = keyPrefix.length
-    ? sequenceExpression([...keyPrefix.map(expr => embed(carry(expr))),
-      plan.computed ? embed(carry(plan.property)) : literal(plan.property.name)])
-    : embed(carry(plan.property));
-  const computed = plan.computed || keyPrefix.length > 0;
-  return memberExpression(rootNode, property, { computed, optional: !!plan.optional });
+  return memberExpression(rootNode, embed(carry(plan.property)), { computed: plan.computed, optional: !!plan.optional });
 }
 
 // a member hop spelled by KEY NAME: a valid identifier reads after a dot, anything else
@@ -576,16 +568,7 @@ export function renderKeptSequenceTail(plan, { injectImport, embed = node => nod
   return plan.probe ? renderShortCircuitGuard(nullFirstGuardTest(plan.probe, { embed }), value) : value;
 }
 
-// the nav-collapse LEAF: the collapsed run answers with its pure binding, wrapped in the leaf's
-// own live key effects - the share the guard test already spelled stays out of it, that prefix
-// evaluated there (`(c++, _self)`). an already-embedded root prefix runs before those key effects
-// in the SAME sequence. `cloneHost` lifts the source's key-effect nodes into the render.
-export function renderNavCollapseLeaf(plan, pureId, { cloneHost = node => node, prefix = [] } = {}) {
-  const keySe = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(expr => cloneHost(expr));
-  return prefix.length || keySe.length ? sequenceExpression([...prefix, ...keySe, pureId]) : pureId;
-}
-
-// ... and the TAIL the collapse did not absorb, hung back on in the SOURCE's own spelling: a
+// The tail the collapse did not absorb, hung back on in the source's own spelling: a
 // computed hop stays computed, a named one takes the key-name spelling, and a live `?.` rides
 // where the source wrote it. it hangs off the LEAF, never off a whole guard - there it would
 // read the short-circuited `void 0` instead of the ponyfill

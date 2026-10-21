@@ -102,7 +102,7 @@ import {
   renderMethodCall,
   planMethodCall,
   renderDeleteShortCircuitGuard,
-  renderNavCollapseLeaf,
+  sequenceExpression,
   renderKeptSequenceTail,
   renderNavCollapseTail,
   renderNavGuardTestBase,
@@ -349,13 +349,6 @@ function reparenthesizeTaggedTag(t, fromPath) {
   }
 }
 
-// the nav-collapse descent reached the environment PROBE itself (`globalThis.self.window?.X` - the nav
-// ENDS at the hop pure cannot back, so there is no ponyfilled LEAF for a plan to collapse onto). the hops
-// BELOW it still collapse: substitute their ponyfill and leave the probe read - and its `?.` - exactly as
-// written, which is what the unplugin emitter spells. without it the emit keeps `_globalThis.self.window`, a
-// NATIVE `self` read off the ponyfill that throws in Node where the same source, spelled by the other
-// leg, short-circuits. effect-free plans with nothing above their collapse only - everything else is the
-// guarded render's business
 // the VALUE a nav-collapse plan answers - its ponyfill leaf plus the hops above it, with no test around
 // it. the guarded render is the other half of the same plan (`renderNavCollapseAst`); this one is what a
 // slot holding the nav's VALUE takes when nothing about that value short-circuits
@@ -365,10 +358,7 @@ function navPlanValueAst(t, plan, pureId, renderedPlanTails) {
     out = t.memberExpression(out, t.identifier(hop.name));
     renderedPlanTails.add(out);
   }
-  // the COLLAPSED hops go away with their computed keys, so the value replays those keys' effects
-  // ahead of the leaf - the order native evaluates them in, and the sequence the other emitter writes
-  const keySe = plan.liveKeySeExprs();
-  return keySe.length ? t.sequenceExpression([...keySe.map(node => t.cloneNode(node)), out]) : out;
+  return out;
 }
 
 // a CLAIM sitting BELOW the chain end (`(nav).Map.prototype`) is the erase channel's: it re-emits
@@ -1499,14 +1489,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // the AST spelling of a nav-collapse plan: the leaf and its tail are the canon's, this binding
   // clones its host nodes into them and keeps the traversal bookkeeping the canon knows nothing of
   function renderNavCollapseAst(plan, pureId, { prefixOutside = false } = {}) {
-    // the flush may land in a suppressed region no visitor re-enters, so the render reads the
-    // key effects through the plan's LIVE accessor - the one liveness rule both emitters share.
-    // the test's share is already inside the rendered prefix - only the hops ABOVE it re-emit here.
     // a caller wrapping the leaf in a test of its own hangs the root's sequence prefix OUTSIDE that
     // test, where the source runs it, so the leaf leaves it out
     const prefix = plan.kind === 'sequence' && !prefixOutside
       ? navRootPrefixNodes(plan, node => hostSlot(keptPrefix(node))) : [];
-    const leaf = renderNavCollapseLeaf(plan, cloneHost(pureId), { cloneHost, prefix });
+    const leaf = prefix.length ? sequenceExpression([...prefix, cloneHost(pureId)]) : cloneHost(pureId);
     const tailHops = plan.hops.slice(plan.collapseIdx + 1);
     // the TAIL hangs off the leaf INSIDE the guarded alternate (`null == X ? void 0 : _self
     // .window`) - hung off the whole ternary it would read `.window` off the short-circuited
@@ -1644,11 +1631,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       readerKey: key === 'object' ? staticMemberKeyName(chainStart.node) : null,
     });
     if (!composed) return null;
-    // the base is the collapse render's own leaf: the key effects BELOW the composed test ride with
-    // the ponyfill, where the source runs them - the test's own share is already inside the probe
-    chainStart.node[key] = seededRefClone(estreeToBabel(renderNavCollapseLeaf(
-      composed.plan, hostSlot(injectPureGlobal(composed.pure.entry, composed.pure.hintName)),
-      { cloneHost })), memoType);
+    chainStart.node[key] = seededRefClone(injectPureGlobal(composed.pure.entry, composed.pure.hintName), memoType);
     deoptionalizeNode(chainStart);
     for (let up = chainStart.parentPath; up && up !== path; up = up.parentPath) {
       if (isOptionalNode(up.node)) deoptionalizeNode(up);
@@ -1676,7 +1659,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // a stored nav that cannot SHORT-CIRCUIT is the proxy global it navigates, so the value slot takes
     // the plan's VALUE, not its guarded render: spelled as a guard the store read `window` off the
     // ponyfill and handed the user's variable `void 0` off-window, where the same nav read bare answers
-    // the ponyfill leaf. effect-free, identifier-rooted plans only - a sequence prefix, a key SE and an
+    // the ponyfill leaf. effect-free, identifier-rooted plans only - a sequence prefix and an
     // effectful root all re-emit INSIDE the guarded render, and the claims living in them go with it
     // the WRITE observes the raw read by construction - this channel exists for it - so the value
     // question is asked with that flag: the proxy spine below the probe hop is one surface here,
@@ -1690,22 +1673,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the render replaces the INNERMOST `=` step's value slot - the plan peels the whole `=`
     // chain to the nav, so writing the OUTER right would obliterate every mid-chain write
     // (`q = w = nav` must keep `w =`)
-    // a render that has to CARRY a source subtree - a surviving hop's computed key with effects in
-    // it - cannot land in the IMMEDIATE path while the host is LIVE in the tree: that write is a raw
-    // slot mutation, so the traversal keeps its queued paths into the subtree it detaches and
-    // reaches a claim inside that key only as an ORPHAN (`[(log.push(1), 'window')]` kept its raw
-    // `push`, the polyfill silently missing from the output). such a plan takes the deferred flush
-    // instead - it renders at the host's own exit, after those claims landed, reading the key
-    // through the plan's live accessor, exactly as the queue's own snapshot rule intends.
-    // a host that is NOT reachable from the anchor is a CLONE this channel owns (the receiver copy
-    // an emit builds): the flush could never match it by identity, and the original subtree - with
-    // the claim in it - is still in the tree being visited, so rendering now loses nothing
-    // a seq-ROOTED plan carries source the same way - its prefix expressions ride the nested
-    // test's slice or the re-emitted root, claims inside them included - so it defers too.
-    // and so does EVERY key-SE plan: above the collapse the key survives in the tail's source
-    // spelling, at or below it the render replays it through the plan's live accessor - either
-    // way an eager clone would freeze the claims inside it raw
-    const carriesSourceSubtree = plan.seqRoot || plan.call || plan.keySeExprs.length > 0;
+    // Sequence and call roots carry live source claims. A raw slot replacement on a live
+    // host would detach queued paths into those subtrees, so their render waits for exit.
+    // A detached clone has no later flush site and can render immediately.
+    const carriesSourceSubtree = plan.seqRoot || plan.call;
     // the EARLY half of the store's guard verdict, carried to whichever moment renders: the
     // value form is what a stored plain nav owes unless the plan itself has effects only the
     // guarded render can spell, or the CALLER's own render observes the store's absence (its
@@ -2174,7 +2145,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // receiver under a non-global key): nothing short-circuits, so the doctrine collapses it - onto
     // the ROOT ponyfill, the same answer the bare-root spelling of this source gives
     if (definedCallRoot && plan.rootName && !plan.topAssign
-      && !plan.keySeExprs.length && !plan.seqAroundPrefix?.length && !plan.rootEffectCall) {
+      && !plan.seqAroundPrefix?.length && !plan.rootEffectCall) {
       const rootPure = proxyRunLandingPure({
         navNode: navSlotPath(target).node,
         ctx: { scope: memberPath.scope, adapter, path: memberPath },
@@ -2288,7 +2259,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         { scope: anchorPath.scope, adapter, path: anchorPath }, { probeLeaf: true });
       return leafGuard ? { node: leafGuard, rootEffectCall: null } : null;
     }
-    if (plan.topAssign || plan.kind !== 'nested' || plan.keySeExprs.length) return null;
+    if (plan.topAssign || plan.kind !== 'nested') return null;
     const { leafPure: pure } = plan;
     // CLONE the guard-test prefix and PRE-substitute its proxy root: the caller discards
     // (skip-seeds) the original init subtree and may insert this render only at program
@@ -2380,7 +2351,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the guard test runs an effect-bearing CALL root exactly once - carry it like a key
       // SE so every consumer's identity filter keeps other channels from re-running it
       keySeExprs: [
-        ...plan?.keySeExprs ?? [],
         ...plan?.rootEffectCall ? [plan.rootEffectCall] : [],
         ...plan?.assignWrap ? [plan.assignWrap] : [],
         ...plan?.rootAssign ? [plan.rootAssign] : [],
@@ -2586,7 +2556,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // .window; (a = w)?...`) resolves only through a path-anchored binding lookup - with a null
     // path the prefix test misses the alias shape and the kept-swap plan drops the root guard
     if (maximalProxyGlobalPrefix(navNode, { scope, adapter, path: anchorPath },
-      { allowSideEffectKeys: true, throughChainAssign: true }) !== navNode) return null;
+      { throughChainAssign: true }) !== navNode) return null;
     // the hop fold holds only while the hops are ALWAYS DEFINED (a realm self-reference, a
     // ponyfilled forwarder). an UNRESOLVABLE hop is the environment probe itself - the one
     // value the guard exists for - so folding it out of the test leaves an always-defined

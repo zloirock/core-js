@@ -1,10 +1,5 @@
-// A side-effecting proxy-global HOP key sitting DEEPER than an immediate static collapse - under
-// `.Array.prototype` on an instance-method receiver (`globalThis[(eff(), 'self')].Array.prototype.flat`).
-// the immediate-hop resolver only saw the native `.Array` directly above the hop, so it left a dead
-// `_globalThis.self` (undefined off-engine) and dropped eff(). usage-pure must collapse the redundant hop to
-// the proxy ROOT pure import and HARVEST the buried eff() ahead of it (`(eff(), _globalThis).Array.prototype`),
-// uniformly across an instance `.call`, a destructure binding, a DOUBLE hop (both keys harvested in source
-// order), and a no-SE computed control (collapses with no harvest). distinct instance method per line.
+// Instance claims retain their receiver and independent key calls through effectful realm access.
+// The quiet computed control retains the existing realm collapse.
 let log = [];
 function eff(tag) {
   log.push(tag);

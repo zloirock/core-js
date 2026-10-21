@@ -66,58 +66,6 @@ QUnit.test('side effect: buried template-fold computed-key effect runs once', as
   assert.strictEqual(probe, 1);
 });
 
-// SE7: a static-collapse discards the whole receiver and re-emits its effects as a sequence prefix. They
-// must run in SOURCE-EVAL order: the chain-root CALL (deepest object) BEFORE the shallower computed hop-key.
-// A harvest that appended the call last reversed the order. The polyfill collapses to `_Array$of`, so the
-// `.self` hop is dropped and never reached at runtime - only the effect ORDER is observable.
-QUnit.test('side effect: static-collapse chain-root call runs before the hop-key effect', assert => {
-  const log = [];
-  (() => {
-    log.push('call');
-    return globalThis;
-  })()[(log.push('key'), 'self')].Array.of(1);
-  assert.deepEqual(log, ['call', 'key']);
-});
-
-// SE9: a `.name` (MaybeFunction memoizing-get) on a proxy-global hop chain memoizes the receiver. The
-// receiver's own buried hop-key effect must run EXACTLY once - the memo `_ref = receiver` already
-// evaluates it, so the rewrite must not ALSO re-emit it as a prefix (which double-ran it on both emitters).
-// the polyfill collapses `globalThis.self.Map` to the pure `_Map`, so the `.self` hop is never reached.
-QUnit.test('side effect: .name memoizing-get receiver effect runs once on a proxy-hop chain', assert => {
-  let probe = 0;
-  const result = globalThis[(probe++, 'self')].Map.name;
-  assert.strictEqual(result, 'Map');
-  assert.strictEqual(probe, 1);
-});
-
-// SE10: a NESTED sequence inside the proxy-hop computed key (`globalThis[(a, (b, 'self'))].Map`). Folding the
-// key to its tail name must recurse PAST the inner parenthesized sequence, harvesting BOTH buried effects in
-// source order - a peel that stops at the inner paren leaves the hop raw (`_globalThis.self`, undefined
-// off-engine) and loses the outer effect. The collapse drops the `.self` hop, so the two harvested effects
-// (logged in order) are the only observable - a dropped or reordered level shows directly in the log.
-QUnit.test('side effect: nested-sequence proxy-hop key harvests both buried effects once, in order', assert => {
-  const log = [];
-  const result = globalThis[(log.push('a'), (log.push('b'), 'self'))].Map.name;
-  assert.strictEqual(result, 'Map');
-  assert.deepEqual(log, ['a', 'b']);
-});
-
-// SE8: a destructure-default receiver rooted in a proxy-global hop, forced through the MEMO path by an
-// unresolved sibling (`length`). The collapse drops the hop and re-roots on the pure global, so the dropped
-// prefix's chain-root call AND its buried computed hop-key effect must BOTH re-emit. Calling with the param
-// omitted runs the default once; harvesting only the chain-root call lost the hop-key effect.
-QUnit.test('side effect: memo-path proxy-hop default re-emits chain-root and hop-key effects', assert => {
-  let c = 0;
-  function withDefault({ of, length } = (() => {
-    c += 1;
-    return globalThis;
-  })()[(c += 10, 'self')].Array) {
-    return [of(1), length];
-  }
-  withDefault();
-  assert.strictEqual(c, 11);
-});
-
 // SE11: a `.name` memo on a proxy chain-root-call receiver leaves the call body visitor-rewritten, so its
 // inner proxy-global member chain (`globalThis.self`) and polyfillable member (`[1].flat()`) resolve through
 // the polyfill exactly as the natural visitor resolves them, and the body's own effect still runs once.
@@ -161,24 +109,6 @@ QUnit.test('side effect: optional .name on a chain-root-call receiver runs recei
   assert.strictEqual(keySe, 'Set');
   assert.strictEqual(r, 11);
   assert.strictEqual(k, 1);
-});
-
-// SE13: a side-effecting proxy-global HOP key sitting DEEPER than an immediate collapse - under
-// `.Array.prototype` on an instance-method receiver. the redundant hop collapses to the pure root and the
-// buried effect harvests ahead of it; before the fix the deep hop survived as a dead `_globalThis.self`
-// (TypeError off the undefined property in Node) and the effect risked being dropped. the transformed output
-// reads off `_globalThis.Array.prototype`, so it runs in Node despite the `self` / `window` source hops.
-QUnit.test('side effect: deep proxy-hop key under .Array.prototype harvests its effect once and collapses', assert => {
-  let k = 0;
-  const single = globalThis[(k += 1, 'self')].Array.prototype.flat.call([1, [2, 3]]);
-  assert.deepEqual(single, [1, 2, 3]);
-  assert.strictEqual(k, 1);
-  let a = 0;
-  let b = 0;
-  const double = globalThis[(a += 1, 'self')][(b += 1, 'window')].Array.prototype.at.call([5, 6], 0);
-  assert.strictEqual(double, 5);
-  assert.strictEqual(a, 1);
-  assert.strictEqual(b, 1);
 });
 
 // SE14: an OPTIONAL chain-ASSIGN root storing a CALL that inline-resolves to globalThis, navigating a `.self`
@@ -261,23 +191,6 @@ QUnit.test('side effect: bodyless for-of body destructure runs the key effect on
   assert.strictEqual(keyEval, 2, 'key effect ran once per loop iteration');
   // eslint-disable-next-line block-scoped-var -- `var` is function-scoped; reading the binding after the bodyless loop is the point
   assert.strictEqual(typeof pick, 'function', 'instance method re-extracted each iteration');
-});
-
-// a call-rooted fallback LEFT (`(() => globalThis)()[(key, 'self')].Array || Set`) discarded by
-// the param-default synth-collapse re-emits its effects in SOURCE order: the chain-root call
-// runs BEFORE the hop-key effect (object evaluates before its computed key) - an append-last
-// harvest reversed them on both emitters
-QUnit.test('fallback-collapse: root call runs before the hop-key effect', assert => {
-  const log = [];
-  function f({ from } = (() => {
-    log.push('call');
-    return globalThis;
-  })()[(log.push('key'), 'self')].Array || Set) {
-    return from;
-  }
-  const from = f();
-  assert.same(typeof from, 'function');
-  assert.deepEqual(log, ['call', 'key']);
 });
 
 // a paren-wrapped callee over a guarded refused-alias member keeps `this` on the raw branch
@@ -574,15 +487,6 @@ QUnit.test('side effect: a hop key below a collapsed ctor-static leaf still runs
   assert.strictEqual(digits, Number.MAX_SAFE_INTEGER.toFixed(2));
   assert.strictEqual(keyEval, 1);
   assert.strictEqual(root, globalThis);
-});
-
-// SE11: the same collapse through a SEQUENCE-tail receiver, where the prefix effect and the dropped
-// hop key both have to survive, in source order.
-QUnit.test('side effect: a sequence prefix and a dropped hop key both run once, in order', assert => {
-  const order = [];
-  const map = (order.push('prefix'), globalThis)[(order.push('key'), 'self')].Map;
-  assert.same(typeof map, 'function');
-  assert.deepEqual(order, ['prefix', 'key']);
 });
 
 // SE12: a flatten slot that already renders its declarator's init - through a routed receiver memo or

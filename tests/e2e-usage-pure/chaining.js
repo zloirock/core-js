@@ -259,33 +259,6 @@ QUnit.test('chain: an instance claim inside a foreign optional chain keeps the h
   assert.same(present?.wrap[arr.at(0)], 'hit');
 });
 
-// a side-effecting proxy-hop KEY read under a live `?.`. the guard test is the kept source of the
-// hop that owns the key, so it evaluates that effect once - and the alternate must not re-run it.
-// the count discriminates only where the guard actually PASSES, i.e. where `window` exists; in a
-// window-less realm the chain short-circuits after the same single evaluation
-QUnit.test('chain: a side-effecting hop key under a live optional runs once', assert => {
-  const hasWindow = globalThis.window !== undefined;
-  const log = [];
-  function eff(t) {
-    log.push(t);
-    return t;
-  }
-  /* eslint-disable no-sequences -- the side-effecting hop KEY is the shape under test */
-  const plainRoot = globalThis[eff('a'), 'window']?.self.Array;
-  assert.deepEqual(log, ['a'], 'the guarded hop key runs exactly once');
-  assert.same(plainRoot, hasWindow ? Array : undefined);
-  const g = globalThis;
-  const aliasRoot = g[eff('b'), 'window']?.self.Map;
-  assert.deepEqual(log, ['a', 'b'], 'an alias-rooted nav runs its key once too');
-  assert.same(aliasRoot, hasWindow ? Map : undefined);
-  // a key ABOVE the guarded hop is the boundary: the test never reaches it, so it belongs to the
-  // alternate and runs only when the guard passes
-  const aboveTheGuard = globalThis.window?.[eff('c'), 'self'].Set;
-  assert.deepEqual(log, hasWindow ? ['a', 'b', 'c'] : ['a', 'b'], 'a key above the guard rides the alternate');
-  /* eslint-enable no-sequences -- back to the ordinary rule below */
-  assert.same(aboveTheGuard, hasWindow ? Set : undefined);
-});
-
 // a polyfillable GET reading off a chain that already carries a polyfillable CALL: two channels
 // render this shape and share one span, so a stand-down in either leaves the guard test reading the
 // method natively - invisible where the native exists, a missed polyfill in a stripped realm

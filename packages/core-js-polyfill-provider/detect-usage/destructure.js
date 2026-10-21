@@ -4735,10 +4735,17 @@ function forOfHeadElement(binding, name) {
 
 // the slot key a container read spells: its static name, or a computed key the key canon folds -
 // a const alias of a string (`const k = 'g'; o[k]`); a symbol names no slot a literal spells here
+// Pure must not turn an effectful realm hop declined by the name walk into a container path.
+// A same-named slot on a user container still follows the ordinary container rules.
 function containerKeyName(member, { scope, adapter, path }) {
   const key = staticMemberKeyName(member)
     ?? (member.computed ? sharedResolveKey({ node: member.property, computed: true, scope, adapter, path })
       : privateReadKeyName(member, path, adapter));
+  if (adapter.method === 'usage-pure' && member.computed && POSSIBLE_GLOBAL_OBJECTS.has(key)
+    && !sharedResolveKey({ node: member.property, computed: true, scope, adapter, path, bailOnSideEffectKey: true })
+    && isPristineProxyGlobal(adapter, resolveObjectName({
+      objectNode: member.object, scope, adapter, path, readNode: member.object,
+    }))) return null;
   return typeof key === 'string' && !key.startsWith('Symbol.') && (!key.startsWith('#') || !member.computed) ? key : null;
 }
 function privateReadKeyName(member, path, adapter) {

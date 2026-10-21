@@ -30,7 +30,8 @@ const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destru
 // Plain deep proxy navigation uses the receiver's throw proof; live guards and a
 // shadowed host still need the source's runtime selection.
 for (const [name, source, folded] of [
-  ['deep effect-key namespace', 'let count = 0; const { getOwnPropertyNames } = globalThis.self[(count++, "window")].Object || Object;', true],
+  ['deep effect-key namespace stays native', 'let count = 0; const { getOwnPropertyNames } = globalThis.self[(count++, "window")].Object || Object;', false],
+  ['quiet namespace collapse', 'const { getOwnPropertyNames } = globalThis.self.window.Object || Object;', true],
   ['live window guard', 'let count = 0; const { getOwnPropertyNames } = globalThis.window?.self[(count++, "window")].Object || Object;', false],
   ['missing optional namespace', 'const { getOwnPropertyNames } = globalThis.window?.Object || Object;', false],
   ['shadowed host', 'function read(globalThis) { let count = 0; const { getOwnPropertyNames } = globalThis.self[(count++, "window")].Object || Object; }', false],
@@ -1590,7 +1591,6 @@ function collapsePlan(extra = {}) {
     kind: 'collapse',
     rootBinding: { pure: { entry: 'actual/global-this', hintName: 'globalThis' } },
     harvestedSE: [],
-    keyPrefixSE: [],
     property: identifier('Array'),
     computed: false,
     optional: false,
@@ -1623,16 +1623,6 @@ check('render/harvested effects prefix the root',
     }), { injectImport });
     return rendered.object.expressions.map(e => e.name).join(',');
   })(), 'a,b,_globalThis');
-
-// dropped-hop key effects migrate INTO the surviving key instead, which forces it computed -
-// its plain spelling becomes the string the source read
-check('render/key prefix folds into the leaf key',
-  (() => {
-    const rendered = renderProxyReceiverPlan(collapsePlan({
-      keyPrefixSE: [identifier('c')],
-    }), { injectImport });
-    return `${ rendered.computed }:${ rendered.property.expressions.map(e => e.name ?? e.value).join(',') }`;
-  })(), 'true:c,Array');
 
 check('render/a kept root re-hangs its guard on the leaf',
   renderProxyReceiverPlan(collapsePlan({
