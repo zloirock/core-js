@@ -19729,6 +19729,20 @@ function * generateDeferredProbeSiblings() {
   }
 }
 
+// Guarded leaves retain their source absence across a store, rebuilt argument and default.
+function * generateGuardedResidualValues() {
+  for (const [name, body] of [
+    ['stored', 'let held; const value = (held = globalThis.window?.self.Number)?.isInteger(log.push(1)); return [value, held === undefined];'],
+    ['rebuilt', 'let held; const values = []; values.push((held = globalThis.window?.self.Number)?.isInteger(log.push(1))); return [values, held === undefined];'],
+    ['open', 'function f({ of, length } = globalThis.window?.self.Array) { return [of(log.push(1)), length]; } return f();'],
+    ['default', 'function f({ of } = (globalThis.window?.self).Array) { return of(log.push(1)); } return f();'],
+    ['supplied', 'function f({ of } = (globalThis.window?.self).Array) { return of(log.push(1)); } return f({ of: x => [x + 1] });'],
+  ]) for (const rig of [false, true]) {
+    yield { ...snippet(`guarded-residual-values/${ name }/${ rig ? 'window' : 'off-window' }`,
+      `(() => { try { ${ body } } catch (error) { return error.name; } })()`, { rig }), strip: true };
+  }
+}
+
 // A partial pattern memo retains its navigation and child effects. The host boundary
 // changes placement, while a supplied argument bypasses that whole default evaluation.
 function * generateNavigationMemoReads() {
@@ -20121,4 +20135,5 @@ export function * generate() {
   yield * generateDestructureProbeEffects();
   yield * generateDeferredProbeSiblings();
   yield * generateNavigationMemoReads();
+  yield * generateGuardedResidualValues();
 }

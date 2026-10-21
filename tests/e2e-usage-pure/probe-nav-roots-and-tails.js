@@ -310,3 +310,33 @@ QUnit.test('probe navigation: a partial parameter memo keeps the sealed receiver
     assert.deepEqual(read({ of: n => [n + 1], length: 4 }), [[4], 4], 'a supplied receiver bypasses the memo');
   });
 });
+
+// A stored constructor keeps the absent probe value, including inside a rebuilt argument.
+QUnit.test('probe navigation: stored leaf guards retain value and argument timing', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let held;
+    let effects = 0;
+    const result = [];
+    result.push((held = globalThis.window?.self.Number)?.isInteger(++effects));
+    assert.deepEqual(result, [live ? true : undefined], 'the call follows the stored guarded value');
+    assert.same(held === undefined, !live, 'the store retains absence');
+    assert.same(effects, live ? 1 : 0, 'an absent constructor skips the argument');
+  });
+});
+
+// A surviving sibling forces the guarded native value to remain in the default slot.
+QUnit.test('probe navigation: a partial pattern reads its guarded native value', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let effects = 0;
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the pattern must throw after the short circuit
+    function read({ of, length } = globalThis.window?.self.Array) { return [of(++effects), length]; }
+    let value;
+    try {
+      value = read();
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [[1], 1] : 'TypeError', 'the pattern reads after the short circuit');
+    assert.same(effects, live ? 1 : 0, 'the body runs only after a successful pattern read');
+  });
+});
