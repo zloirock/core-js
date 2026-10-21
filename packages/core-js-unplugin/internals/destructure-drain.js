@@ -973,8 +973,6 @@ export default function createDestructureDrains(ctx) {
     return { prefix: plan.prefix, liveSe: plan.se, target, tail: plan.tail };
   }
 
-  // the memo argument: the planned canonical target behind the receiver's own LIVE prefix
-  // effects (their claims landed during the walk), or the live receiver when no plan held
   // markRewrite fires ONLY on a landed mutation: a registration whose drain drops (partial
   // coverage, a failed replace) must leave the engine's ABSTAIN untouched - a spurious mark
   // turns the abstain into a reprint the structural gate then compares strictly
@@ -1067,7 +1065,9 @@ export default function createDestructureDrains(ctx) {
         // visited before its own init, and babel numbers by that order
         const synthGuard = planSynthReceiverGuard({ receiver, ...nodeSite(receiver, pending.metaPath), adapter,
           resolvePure: meta => resolvePure(meta, pending.metaPath) });
-        const memoArg = synthGuard ? cloneStamped(synthGuard.fallback?.left ?? receiver) : buildMemoArg(pending);
+        // The moved receiver keeps declarations for the frames it contains. Its old nodes
+        // may already have been replaced while the probe retained their live child claims.
+        const memoArg = duplicateReceiver(synthGuard ? synthGuard.fallback?.left ?? receiver : buildMemoArg(pending), injector);
         const memoTail = !synthGuard && peelNestedSequenceExpressions(memoArg).tail;
         const reusableMemo = memoTail?.type === 'Identifier' && isReusableReceiver(memoTail, {
           interveningEffects: true, ctx: { ...nodeSite(memoTail, pending.metaPath), adapter, injectorState },

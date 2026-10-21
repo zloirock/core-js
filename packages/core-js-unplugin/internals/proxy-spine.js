@@ -5,6 +5,8 @@ import {
   proxyRunValueIsProven,
   navValueCanShortCircuit,
   navGuardTestBase,
+  navGuardTestPlan,
+  terminalNavCollapsePlan,
   directClaimProbeEffects,
   keptProbeStore,
   writtenRunKeptProbeStore,
@@ -78,7 +80,6 @@ import {
   subtreeContainsNode,
   peelChainAssignment,
   peelChainAssignmentDeep,
-  noteRenderRetiredWrites,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentExpression,
@@ -96,8 +97,8 @@ import {
   renderMethodCall,
   planMethodCall,
   renderDestructureAssignments,
-  renderNavCollapseTail,
-  renderNavGuardTestBase,
+  renderNavCollapseValue,
+  renderNavGuardTest,
 } from '@core-js/polyfill-provider/render';
 import {
   receiverCarriesOptional,
@@ -108,7 +109,6 @@ import {
   descendIntoOwnGuard,
   guardProbeUndefinable,
   optionalMemberStaysGuarded,
-  probeSpelling,
   replaceGuardedHop,
   sealedClaimThrowProbe,
   sealedLayerAbove,
@@ -863,7 +863,6 @@ export default function createProxySpineChannel(ctx) {
     declineValueProbe = false,
     sealedRead = false,
   }) {
-    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
     function resolveHere(m) {
       return resolvePure(m, metaPath);
     }
@@ -929,7 +928,7 @@ export default function createProxySpineChannel(ctx) {
       const planOwned = new Set([plan.rootAssign, ...seqPrefix].filter(Boolean));
       if (meta.sideEffects.some(effect => !planOwned.has(effect))) return false;
     }
-    let test = buildNavGuardTest(plan, { metaPath, aliasCtx, resolveHere });
+    let test = buildNavGuardTest(plan);
     test = instanceTailMemoTest(test, metaPath, node, seKeyReadCtx);
     const id = injectPureImport(entry, hintName);
     markRewrite();
@@ -948,43 +947,19 @@ export default function createProxySpineChannel(ctx) {
   // the guard TEST of a nav plan: the resolvable-base probe read when one exists, else the
   // probe hop's source spelling - root substituted, dead `?.` dropped (the shared
   // vestigial verdict: a hop over the always-defined ponyfill reads plainly)
-  function buildNavGuardTest(plan, { aliasCtx, resolveHere }) {
-    const base = navGuardTestBase(plan);
-    if (base) {
-      const test = renderNavGuardTestBase(base, { rootAssign: plan.rootAssign, injectImport: injectPureImport });
-      if (plan.rootAssign) substituteProbeProxyRoot(test);
-      return test;
+  function buildNavGuardTest(plan) {
+    const test = navGuardTestPlan(plan);
+    const { source } = test;
+    if (skippedNodes.keepLive && source) {
+      for (const child of source.children) skippedNodes.keepLive.add(child);
     }
-    // an UNDEFINABLE call below the probe hop is the deeper source: its own value is
-    // what the `?.` tests, and the hop above drops from the test (`(() => globalThis
-    // .window?.self)()?.window?...` tests `null == <call>` alone)
-    let probeNode = plan.hops[plan.lastUnresolvableIdx].node;
-    const probeBelow = unwrapRuntimeExpr(probeNode.object);
-    // ... but a call whose OWN `?.()` is the undefinable part is not that source: its spelling
-    // already carries that test, and the hop above is the environment probe the source asked
-    // for (`oc?.()?.window?.self.Array.of` tests `oc?.()?.window`) - the same exclusion the
-    // live-probe descent makes
-    if (probeBelow?.type === 'CallExpression' && !probeBelow.optional) {
-      // the body may already be REWRITTEN into its guard ternary - that shape is the
-      // undefinability proof itself
-      const probeCalleeFn = unwrapRuntimeExpr(probeBelow.callee);
-      const fnBody = (probeCalleeFn?.type === 'ArrowFunctionExpression' && probeCalleeFn.expression)
-        ? unwrapRuntimeExpr(probeCalleeFn.body) : null;
-      const guardShapedBody = fnBody?.type === 'ConditionalExpression'
-        && fnBody.consequent?.type === 'UnaryExpression' && fnBody.consequent.operator === 'void';
-      if (guardShapedBody || proxyReceiverValueCanBeUndefined(
-        probeBelow, resolveHere, aliasCtx, { throughChainAssign: true })) {
-        probeNode = probeBelow;
-      }
-    }
-    let probe = probeSpelling(probeNode,
-      { resolveHere, aliasCtx, substituteProbeProxyRoot, keepLive: skippedNodes.keepLive });
-    // a kept write WRAPPING the probe hop rebuilds around the test (`(fh = _globalThis.window)`)
-    if (plan.assignWrap) {
-      // the rebuilt write stands in for the source's: its target is a copy
-      noteRenderRetiredWrites(plan.assignWrap);
-      probe = assignmentExpression(plan.assignWrap.operator, cloneNode(plan.assignWrap.left), probe);
-    }
+    const probe = renderNavGuardTest(test, {
+      injectImport: injectPureImport,
+      cloneHost: node => source && skippedNodes.keepLive ? node : cloneNode(node),
+      own: node => node,
+    });
+    substituteProbeProxyRoot(probe);
+    if (test.base) return probe;
     // the probe is a FINISHED spelling: a re-visited claim on it must not re-collapse the
     // load-bearing read (`null == g.window` keeps its hop) - only the kept computed keys'
     // effect claims stay live and land in place. registered as a TEST clone too: the keep-live
@@ -1082,25 +1057,14 @@ export default function createProxySpineChannel(ctx) {
         dropValueProbeNavHops(plan, climbed, metaPath);
         return false;
       }
-      const test = buildNavGuardTest(plan, { aliasCtx, resolveHere });
+      const test = buildNavGuardTest(plan);
       // Hops above the collapse retain their source spelling on the ponyfill leaf.
       // A terminal run of realm self-references is navigation, not a value retained by
       // another consumer. Fold those hops onto the backed leaf, as the Babel binding does.
       const leafSlot = climbTransparentWrapperPath(leafPath);
-      const { node: leafConsumer } = leafSlot.parentPath ?? {};
-      const readsThroughLeaf = (leafConsumer?.type === 'MemberExpression' && leafConsumer.object === leafSlot.node)
-        || (leafConsumer?.type === 'CallExpression' && leafConsumer.callee === leafSlot.node)
-        || (leafConsumer?.type === 'AssignmentExpression' && leafConsumer.right === leafSlot.node);
-      let { collapseIdx } = plan;
-      if (!readsThroughLeaf && !plan.rootAssign && !plan.topAssign) {
-        while (collapseIdx + 1 < plan.hops.length
-          && (!plan.hops[collapseIdx + 1].node.computed
-            || !mayHaveSideEffects(plan.hops[collapseIdx + 1].node.property))
-          && unbackedProxyHopKey(plan.hops[collapseIdx + 1].node, resolveHere)) collapseIdx++;
-      }
-      const renderPlan = collapseIdx === plan.collapseIdx ? plan : { ...plan, collapseIdx };
+      const renderPlan = terminalNavCollapsePlan(plan, { node: leafSlot.node, consumer: leafSlot.parentPath?.node });
       const leaf = identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName));
-      const built = renderNavCollapseTail(renderPlan, leaf, { cloneHost: cloneNode });
+      const built = renderNavCollapseValue(renderPlan, leaf, { cloneHost: cloneNode });
       markRewrite();
       replaceGuardedHop({
         hopPath: leafPath,

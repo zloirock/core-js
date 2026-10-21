@@ -19729,6 +19729,29 @@ function * generateDeferredProbeSiblings() {
   }
 }
 
+// A partial pattern memo retains its navigation and child effects. The host boundary
+// changes placement, while a supplied argument bypasses that whole default evaluation.
+function * generateNavigationMemoReads() {
+  const receiver = '((() => { log.push([7].at(0)); return globalThis.window; })()?.self).Array';
+  for (const [name, body] of [
+    ['parameter', `function f({ of, length } = ${ receiver }) { return [of(3), length]; } return f();`],
+    ['caller', `return (({ of, length }) => [of(3), length])(${ receiver });`],
+    ['reentry', `function f({ of, length } = ${ receiver }) { return [of(3), length]; } return [f(), f()];`],
+    ['frame', `let depth = 0;
+      function make() { const arr = [depth++]; Object.defineProperty(arr, 'at', {
+        get() { if (arr[0] === 0) f(); return function () { return this[0]; }; },
+      }); return arr; }
+      function f({ of, length } = ((() => { log.push(make().at(0)); return globalThis.window; })()?.self).Array) {
+        return [of(3), length];
+      } return f();`],
+    ['supplied', `function f({ of, length } = ${ receiver }) { return [of(3), length]; }
+      return f({ of: n => [n + 1], length: 4 });`],
+  ]) for (const rig of [false, true]) {
+    yield { ...snippet(`navigation-memo-reads/${ name }/${ rig ? 'window' : 'off-window' }`,
+      `(() => { try { ${ body } } catch (error) { return error.name; } })()`, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20097,4 +20120,5 @@ export function * generate() {
   yield * generateDirectClaimProbes();
   yield * generateDestructureProbeEffects();
   yield * generateDeferredProbeSiblings();
+  yield * generateNavigationMemoReads();
 }

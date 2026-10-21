@@ -61,7 +61,7 @@ import {
   nullGuardTest,
   renderMethodCall,
   planMethodCall,
-  renderNavCollapseTail,
+  renderNavCollapseValue,
   renderShortCircuitGuard,
   sequenceExpression,
   memberFromKeyName,
@@ -196,9 +196,9 @@ export default function createOptionalDispatchChannel(ctx) {
       && (navPlan.kind === 'sequence' || !navPlan.call
         || !guardProbeUndefinable(navPlan.call, { metaPath, adapter, resolvePure }))) {
       const pure = navPlan.leafPure;
-      memoSource = renderNavCollapseTail(navPlan, withSideEffects(
-        identifier(injectPureImport(pure.entry, pure.hintName)),
-        navPlan.kind === 'sequence' ? navRootPrefixNodes(navPlan, cloneNode) : []), { cloneHost: cloneNode });
+      memoSource = renderNavCollapseValue(navPlan, identifier(injectPureImport(pure.entry, pure.hintName)), {
+        prefix: navPlan.kind === 'sequence' ? navRootPrefixNodes(navPlan, cloneNode) : [], cloneHost: cloneNode,
+      });
     } else if (surface) {
       // trailing ERASABLE hops drop from a SURFACE memo - the surface below them IS the
       // memo's value (`(v = gw)?.self` memoizes `_ref = v = _globalThis.window`); a hop
