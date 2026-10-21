@@ -1,15 +1,14 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 var _ref;
-// static-object receiver nested flatten: the receiver `wrapper` stays verbatim in the
-// rebuilt init (no proxy-global root to substitute), so the residual init tail AND the
-// residual `x` default `[2].flat()` are both kept verbatim. the flatten extracts
-// `from = _Array$from` and the residual instance call must still be polyfilled in place
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const wrapper = {
   ns: Array
 };
-const from = _Array$from;
 const {
+  ns: {
+    from
+  },
   x = _flatMaybeArray(_ref = [2]).call(_ref)
 } = wrapper;
 from([3]);

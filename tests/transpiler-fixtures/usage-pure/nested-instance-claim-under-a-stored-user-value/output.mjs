@@ -38,7 +38,8 @@ for (const {
   } = (n++, kw = box), findLast = _findLastMaybeArray(_ref2);;) break;
 ({
   s: _ref3
-} = kw = box), padEnd = _padEndMaybeString(_ref3);
+} = kw = box);
+padEnd = _padEndMaybeString(_ref3);
 export function pick(p = (() => {
   var _ref4;
   return {

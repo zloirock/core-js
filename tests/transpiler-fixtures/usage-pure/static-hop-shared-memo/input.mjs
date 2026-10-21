@@ -1,5 +1,5 @@
-// A destructured static method supplies the receiver of its nested function properties.
-// The name slot uses a function helper; sibling reads and rest share that selected method.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const c = 1;
 function eff() {}
 const { of: { name: viaFlat, foo: f1 } } = Array;

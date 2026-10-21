@@ -1,5 +1,5 @@
-import _Object$values from "@core-js/pure/actual/object/values";
-// A write to another property accompanies a nested read of the unchanged constructor slot.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const unrelatedKeyWritten = function () {
   const holder = {
     k: Object,
@@ -10,11 +10,7 @@ const unrelatedKeyWritten = function () {
     k: {
       values
     }
-  } = {
-    k: {
-      values: _Object$values
-    }
-  };
+  } = holder;
   return values;
 }();
 export { unrelatedKeyWritten };

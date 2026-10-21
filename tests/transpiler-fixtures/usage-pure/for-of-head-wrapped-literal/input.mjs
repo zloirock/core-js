@@ -1,10 +1,5 @@
-// a for-of head whose iterated LITERAL stands behind a wrapper - parentheses, a TS assertion - that
-// one parser keeps as a node and the other drops: every reader of the head (the pattern in the head,
-// the alias bound by the head, the census that keys the head's element as a container) reads the
-// same elements through the wrapper, so the leaf resolves to the constructor's STATIC on both legs
-// rather than to the instance dispatcher, and the global flavor injects the static's own module.
-// a parenthesized CALLEE in a same-callee element list is the same wrapper one level down. one static
-// per row: the global flavor is read by its import set, where two rows on one method mask each other
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
 let n = 0;
 const e = t => { n += t.length; return Object; };
 const out = [];

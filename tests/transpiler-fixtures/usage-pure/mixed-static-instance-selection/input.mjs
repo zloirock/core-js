@@ -1,5 +1,5 @@
-// Every selected receiver keeps its own instance methods beside the constructor arm.
-// Unknown arrays and strings both remain possible when no caller type is known.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 export function flat(flag, user) {
   const { from, at } = flag ? Array : user;
   return [from, at];

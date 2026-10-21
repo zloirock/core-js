@@ -1,9 +1,5 @@
-// A binding read ahead of its own initializer holds `undefined` (a hoisted `var` declared below the
-// read) or throws (a lexical binding in its TDZ). Every resolution that follows a binding to the
-// literal it holds - the static container, the alias chain, the array-wrapper slot, the folded key,
-// the inner default's slot - proves the initializer ran first (the dominance canon), or the rewrite
-// would bind where the source throws: those reads stay native here, while their declared-before
-// twins resolve. Both legs read one follower.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 let r1, r2, r3, r4, r5;
 try { const { a: { from } } = container; r1 = from([1]).length; } catch (error) { r1 = error.name; }
 try { const alias = container; const { a: { from } } = alias; r2 = from([1]).length; } catch (error) { r2 = error.name; }

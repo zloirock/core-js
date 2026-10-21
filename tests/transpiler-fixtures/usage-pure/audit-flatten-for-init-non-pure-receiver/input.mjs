@@ -1,4 +1,4 @@
-// A user container holding Array resolves its nested static in a loop initializer.
-// The prefix function and calls through the binding keep their independent instance polyfills.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const userGlobal = { Array };
 for (const { Array: { from } } = ((() => [].values())(), userGlobal); false;) from([]).at(0);

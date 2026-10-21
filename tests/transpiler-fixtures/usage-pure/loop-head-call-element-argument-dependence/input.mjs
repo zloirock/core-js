@@ -1,7 +1,5 @@
-// A head element built by a CALL answers for every pass only where the arguments answer alike: a
-// callee can hand its own argument back, so a constructor beside a user object parts the passes and
-// the leaf keeps its runtime guard. Primitive arguments carry no claim of their own, so a callee
-// reached under them reads the same value each pass and its leaf extracts once.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions.
 function pick(value) { return value; }
 function constant(tag) { return Array; }
 const custom = { from: fallback };

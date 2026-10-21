@@ -1,4 +1,5 @@
-// A write to another property accompanies a nested read of the unchanged constructor slot.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const unrelatedKeyWritten = (function () {
   const holder = { k: Object, other: 1 };
   holder.other = 2;

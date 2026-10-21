@@ -1,8 +1,5 @@
-import _Array$of from "@core-js/pure/actual/array/of";
-import _Math$sign from "@core-js/pure/actual/math/sign";
-var _ref, _ref2;
-// A static binding precedes a neighbouring native getter, including through a stored array.
-// Capturing both positions preserves the getter's observation of the preceding binding.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 let sign, other;
 const source = {
   get other() {
@@ -10,26 +7,20 @@ const source = {
   }
 };
 const rows = [Math, source];
-[_ref, _ref2] = rows;
-const {
-  sign: _unused
-} = _ref;
-sign = _Math$sign;
-({
+[{
+  sign
+}, {
   other
-} = _ref2);
+}] = rows;
 const inspect = {
   get next() {
     return typeof of;
   }
 };
 const values = [Array, inspect];
-const [_ref3, _ref4] = values;
-const {
-  of: _unused2
-} = _ref3;
-const of = _Array$of;
-const {
+const [{
+  of
+}, {
   next
-} = _ref4;
+}] = values;
 use(sign, other, of, next);

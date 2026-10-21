@@ -1,6 +1,5 @@
-// A catch parameter binds a value no host spells, so the default alone is mirrored where it fires: a
-// selection the build decides mirrors its live operand, an undecided one every arm - flat and through a
-// container level alike.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 export function viaDecided(g) {
   try { g(); } catch ({ W: { allSettled } = typeof Symbol != 'undefined' ? Promise : Object }) { return allSettled; }
 }

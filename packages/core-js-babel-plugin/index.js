@@ -2338,7 +2338,6 @@ export default function plugin(api, options) {
         typeResolvers.reset();
         resetASTHelpers();
         resetClassHelpers();
-        mutationPrePass?.heldReads?.settle(adapter, resolvePure);
         // usage-pure shares one visitor instance (commonVisitorOptions match), reset skips dupe
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();

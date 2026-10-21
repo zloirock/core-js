@@ -1,8 +1,5 @@
-// Re-aliased const chain: `const Foo = Array; const wrapper = { a: Foo };` then
-// `const { a: { from } } = wrapper`. Walker dereferences each Identifier through its
-// const VariableDeclarator init - `Foo` resolves to `Array` (one extra hop), then
-// `wrapper.a` lands on `Foo` -> `Array`. Tests the re-alias chain at the leaf, not just
-// at intermediate hops. Distinct methods (findLast, fill) lock narrowing
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const Foo = Array;
 const wrapper = { a: Foo };
 const { a: { from } } = wrapper;

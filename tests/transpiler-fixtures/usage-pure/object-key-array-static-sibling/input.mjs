@@ -1,4 +1,4 @@
-// The object key and native array iteration select a static receiver once.
-// The static getter remains ahead of its binding and the neighbouring element binding.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 const held = { k: [Math] };
 export const { k: [{ sign }, tail] } = held;

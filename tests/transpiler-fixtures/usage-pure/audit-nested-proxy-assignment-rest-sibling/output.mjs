@@ -11,7 +11,8 @@ let from, rest, fromEntries, inner;
 } = _globalThis;
 ({
   Object: _ref
-} = _globalThis), fromEntries = _Object$fromEntries, {
+} = _globalThis);
+fromEntries = _Object$fromEntries, {
   fromEntries: _unused2,
   ...inner
 } = _ref;

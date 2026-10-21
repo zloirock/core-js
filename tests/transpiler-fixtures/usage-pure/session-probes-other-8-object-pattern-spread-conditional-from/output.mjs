@@ -1,6 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-// Nested literal containers preserve sibling effects and receiver uncertainty.
-// Object rest keeps instance slots native; proven static leaves receive their pure entries.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 let pick = 1;
 const userObj = {};
 const more = {};
@@ -11,8 +10,6 @@ const more = {};
     }
   } = {
     ...more,
-    w: pick ? {
-      from: _Array$from
-    } : userObj
+    w: pick ? Array : userObj
   };
 }

@@ -1,7 +1,5 @@
-// a sequence prefix element that READS through a getter (`K.g`) is work the source does, not a dead
-// value: every channel that lifts or trims a destructure's prefix keeps it, in the order the source
-// ran it - beside a sibling declarator, exported, in a loop head, ahead of a memo, in a bodyless slot,
-// under an array wrapper, and behind a residual that keeps the realm
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 class K { static get g() { log(); return 0; } }
 function mkMap() { log(); return Map; }
 const z1 = 1, { from: a1, foo: b1 } = (K.g, Array);

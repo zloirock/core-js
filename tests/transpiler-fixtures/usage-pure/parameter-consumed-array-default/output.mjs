@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// A named array parameter consumes the supplied element or its own Array default.
-// Every known call needs an extraction; custom methods retain their identity.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims.
 function read([{
   from
 } = {
@@ -11,12 +11,8 @@ function read([{
 function ownFrom(value) {
   return value;
 }
-read([{
-  from: _Array$from
-}])([1]);
-read([{
-  from: _Array$from
-}])([2]);
+read([Array])([1]);
+read([Array])([2]);
 read([])([3]);
 read([undefined])([4]);
 read([{

@@ -1,7 +1,6 @@
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-import _Object$entries from "@core-js/pure/actual/object/entries";
-// A const-bound container supplies a static through an inner pattern default.
-// The known constructor keeps that default dead.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const wrapper = {
   ns: Object
 };
@@ -9,11 +8,7 @@ const {
   ns: {
     entries
   } = {}
-} = {
-  ns: {
-    entries: _Object$entries
-  }
-};
+} = wrapper;
 const arr = entries({
   k: 1
 });

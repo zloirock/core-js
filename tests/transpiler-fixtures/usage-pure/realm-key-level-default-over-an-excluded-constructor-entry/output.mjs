@@ -74,7 +74,8 @@ const {
 let resolve, resolved;
 ({
   Promise: _ref = _URL
-} = _globalThis), resolve = _Promise$resolve, {
+} = _globalThis);
+resolve = _Promise$resolve, {
   resolve: _unused7,
   ...resolved
 } = _ref;

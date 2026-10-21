@@ -1,5 +1,5 @@
-// `const Foo = Array; const wrapper = { a: Foo }` chains identifier hops before reaching the constructor.
-// Static descent must follow each const hop until it lands on a literal object or unbound identifier.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const Foo = Array;
 const wrapper = { a: Foo };
 const { a: { from } } = wrapper;

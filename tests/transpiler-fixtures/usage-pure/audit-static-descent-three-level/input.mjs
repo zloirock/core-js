@@ -1,5 +1,5 @@
-// 3-level static descent through `wrapper.a.b.c.Array` lifts the constructor leaf.
-// Each instance call must narrow precisely so the body-extract alias registers per call site.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const wrapper = { a: { b: { c: Array } } };
 const { a: { b: { c: { from } } } } = wrapper;
 const arr = from('xyz');

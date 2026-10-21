@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-// An assignment in the receiver runs before a later computed-key effect.
-// The stored value and the static polyfill survive the receiver rewrite.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const log = [];
 let r1;
 (r1 = _globalThis)[_pushMaybeArray(log).call(log, typeof r1), "Array"];
@@ -11,9 +11,7 @@ use(o1, r1);
 let r2;
 const [{
   of: o2
-}] = [((r2 = _globalThis)[_pushMaybeArray(log).call(log, typeof r2), "Array"], {
-  of: _Array$of
-})];
+}] = [(r2 = _globalThis)[_pushMaybeArray(log).call(log, typeof r2), "Array"]];
 use(o2, r2);
 let r3, o3;
 (r3 = _globalThis)[_pushMaybeArray(log).call(log, typeof r3), "Array"];

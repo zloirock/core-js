@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// Every selected receiver keeps its own instance methods beside the constructor arm.
-// Unknown arrays and strings both remain possible when no caller type is known.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 export function flat(flag, user) {
   const _ref = flag ? {
       from: _Array$from,
@@ -17,14 +17,9 @@ export function nested(flag, user) {
   const {
       w: _ref2
     } = {
-      w: flag ? {
-        from: _Array$from,
-        includes: Array.includes
-      } : user
+      w: flag ? Array : user
     },
-    {
-      from
-    } = _ref2,
+    from = _ref2 === Array ? _Array$from : _ref2.from,
     includes = _includes(_ref2);
   return [from, includes];
 }

@@ -1,5 +1,5 @@
-// Discarded wrapper slots still evaluate in source order before the property reads.
-// Their effects remain in the captured array or lift with a fully consumed wrapper.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
 const rows = [[1, 2]];
 const [, { Array: { prototype: { at: viaSurface } } }] = [log.push('n'), (log.push('e'), globalThis)];

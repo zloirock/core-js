@@ -1,6 +1,5 @@
-// a store in an `&&` the build decides keeps the value it stores as under a decided ternary: the leaf
-// extracts as under the store spelled alone, and the store runs ahead of it - in a declaration and an
-// assignment alike, `Array` included, whose static a native read off the slot would miss
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 var stash;
 export const { C: { groupBy } } = typeof Symbol != 'undefined' && (stash = { C: Map });
 var kept;

@@ -83,7 +83,8 @@ const {
 let all, allRest;
 ({
   Promise: _ref
-} = _globalThis), all = _Promise$all, {
+} = _globalThis);
+all = _Promise$all, {
   all: _unused9,
   ...allRest
 } = _ref;

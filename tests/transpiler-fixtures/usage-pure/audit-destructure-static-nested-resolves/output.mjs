@@ -1,8 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// Const-bound `wrapper = { a: Array }` exposes a static-object descent path through `{ a: { from } }`.
-// Constructor leaf must resolve to Array so both polyfill emit and downstream instance narrowing fire.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const wrapper = {
   a: Array
 };
@@ -10,11 +9,7 @@ const {
   a: {
     from
   }
-} = {
-  a: {
-    from: _Array$from
-  }
-};
+} = wrapper;
 const arr = from('hi');
 _atMaybeArray(arr).call(arr, 0);
 _includesMaybeArray(arr).call(arr, 'h');

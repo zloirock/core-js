@@ -1,11 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$is from "@core-js/pure/actual/object/is";
-import _Object$keys from "@core-js/pure/actual/object/keys";
-// A nested loop slot reads statics from the constructors returned by its element calls.
-// Equal receivers permit direct extraction; differing callees retain an identity guard.
-// Every call and its effects remain in the iterable.
-// A member read off the head binding resolves the same receiver.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
 let n = 0;
 const e = t => {
   n += t.length;
@@ -16,45 +13,50 @@ const g = t => {
   return Array;
 };
 const out = [];
-for (const _ref4 of [{
+for (const {
+  w: {
+    entries: viaSole
+  }
+} of [{
   w: e('a')
-}]) {
-  const viaSole = _Object$entries;
-  _pushMaybeArray(out).call(out, viaSole);
-}
-for (const _ref of [{
+}]) _pushMaybeArray(out).call(out, viaSole);
+for (const {
+  w: {
+    entries: viaSibling
+  },
+  at
+} of [{
   w: e('a'),
   at: e('b')
-}]) {
-  const viaSibling = _Object$entries;
-  const {
-    at
-  } = _ref;
-  _pushMaybeArray(out).call(out, viaSibling, at);
-}
-for (const _ref5 of [{
+}]) _pushMaybeArray(out).call(out, viaSibling, at);
+for (const {
+  w: {
+    is: viaTwoSameCalls
+  }
+} of [{
   w: e('a')
 }, {
   w: e('b')
-}]) {
-  const viaTwoSameCalls = _Object$is;
-  _pushMaybeArray(out).call(out, viaTwoSameCalls);
-}
-for (const _ref3 of [{
+}]) _pushMaybeArray(out).call(out, viaTwoSameCalls);
+for (const _ref5 of [{
   w: e('a')
 }, {
   w: g('b')
 }]) {
   const {
-      w: _ref2
-    } = _ref3,
-    viaDifferentCallees = _ref2 === Object ? _Object$is : _ref2.is;
+      w: _ref4
+    } = _ref5,
+    viaDifferentCallees = _ref4 === Object ? _Object$is : _ref4.is;
   _pushMaybeArray(out).call(out, viaDifferentCallees);
 }
 for (const item of [{
   w: e('a')
 }]) {
-  const viaBodyDestructure = _Object$keys;
+  const {
+    w: {
+      keys: viaBodyDestructure
+    }
+  } = item;
   _pushMaybeArray(out).call(out, viaBodyDestructure);
 }
 for (const item of [{

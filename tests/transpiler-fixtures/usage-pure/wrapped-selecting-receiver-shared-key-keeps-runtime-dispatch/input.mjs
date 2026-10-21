@@ -1,7 +1,5 @@
-// a key both the constructor and an instance carry, read through a wrapper level off a selecting receiver,
-// keeps runtime dispatch: an identity guard on the constructor serves its static and the generic instance
-// helper any other value - under a key or an array element under it - and a parameter's default hands
-// the generic helper the arm it mirrors
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 function viaParamDefault([{ entries: e }] = [c ? Object : userObj]) { return e; }
 const { w: { keys: viaKeyed } } = { w: c ? Object : userObj };
 const { w: [{ values: viaKeyedArray }] } = { w: [c ? Object : userObj] };

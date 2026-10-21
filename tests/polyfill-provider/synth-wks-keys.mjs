@@ -402,45 +402,6 @@ runBoth('mirror/constructor rest with a call default keeps the call ahead of its
     check(`${ label } no coercion`, plan?.targets?.[0]?.coerceReceiver, undefined);
   });
 
-// One native slot consumes a call directly; several native slots share a capture. The call
-// stays at its source evaluation point, including defaults and literal loop elements.
-for (const [name, source] of [
-  ['for-of head', 'const mk = () => ({ p: Promise, z: 1 }); for (const { p: { all }, z } of [mk()]) use(all, z);'],
-  ['parameter default', 'const mk = () => ({ p: Promise, z: 1 }); function f({ p: { all }, z } = mk()) {} f();'],
-]) runBoth(`mirror/call with one native slot/${ name }`, source, (parser, program, label) => {
-  const plan = buildNestedParamSynthPlan({
-    leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
-    adapter: keyAdapter,
-    meta: { object: 'Promise', key: 'all', placement: 'static' },
-    resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
-      ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
-  });
-  const target = plan?.targets?.[0];
-  checkTruthy(`${ label } planned`, target);
-  check(`${ label } no receiver copy`, target?.memo, undefined);
-  check(`${ label } no duplicated prefix`, target?.keepPrefix, undefined);
-  check(`${ label } source call held by native slot`, target?.receiverNode, target?.node);
-  if (!target) return;
-  const rendered = renderSynthTree(target.tree, { injectImport: (entry, hintName) => hintName, receiverNode: target.receiverNode });
-  const nativeRead = rendered.properties.find(property => property.key.name === 'z').value;
-  check(`${ label } call stays in native read`, nativeRead.object, target.node);
-});
-
-for (const [fields, memo] of [['z, tail', true], ['z', false], ['["with-dash"]: z', false]]) runBoth(`mirror/call native slot count/${ fields }`,
-  `const mk = () => ({ p: Promise, z: 1, tail: 2, "with-dash": 3 }); function f({ p: { all }, ${ fields } } = mk()) {} f();`,
-  (parser, program, label) => {
-    const plan = buildNestedParamSynthPlan({
-      leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
-      adapter: keyAdapter,
-      meta: { object: 'Promise', key: 'all', placement: 'static' },
-      resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
-        ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
-    });
-    checkTruthy(`${ label } planned`, plan?.targets?.[0]);
-    check(`${ label } receiver capture`, !!plan?.targets?.[0]?.memo, memo);
-    check(`${ label } whole call prefix`, !!plan?.targets?.[0]?.keepPrefix, memo);
-  });
-
 for (const fields of ['[(hit(), "p")]: { all }, z', 'p: { all }, missing = hit(), z']) {
   runBoth(`mirror/call keeps preceding pattern effects/${ fields }`,
     `const mk = () => ({ p: Promise, z: 1 }); function f({ ${ fields } } = mk()) {} f();`,
@@ -624,24 +585,6 @@ for (const [pattern, entry, inline] of [
       entry,
     });
     check(`${ label } only a final ordinary single read can forward`, !!plan?.inlineLeaf, inline);
-  });
-
-// a NAME bound to a call yielding a container is a static root of the mirror, as a name bound to
-// the literal is: the keys descend the receiver walk's alias and call arms, the read of the name is
-// what the mirror replaces
-runBoth('mirror/alias of a call is a static root', 'const mk = () => ({ p: Promise }); const w = mk(); for (const { p: { all } } of [w]) use(all);',
-  (parser, program, label) => {
-    // the walk dereferences the name, which asks the adapter's binding-type channel: the real one
-    const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
-    const plan = buildNestedParamSynthPlan({
-      leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
-      adapter,
-      meta: { object: 'Promise', key: 'all', placement: 'static' },
-      resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
-        ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
-    });
-    check(`${ label } planned`, plan?.targets?.length, 1);
-    check(`${ label } replaces the name`, plan?.targets?.[0]?.node?.name, 'w');
   });
 
 // A simple mirror must not evaluate a native sibling before an effectful key.

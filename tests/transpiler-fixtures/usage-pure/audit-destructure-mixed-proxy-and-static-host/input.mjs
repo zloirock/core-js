@@ -1,5 +1,5 @@
-// Two destructure-host shapes coexist: proxy-global `globalThis` and a const-bound `{ a: Object }`.
-// Each must resolve to its own constructor (Array vs Object) without leaking through the other path.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const { Array: { from } } = globalThis;
 const wrapper = { a: Object };
 const { a: { entries } } = wrapper;

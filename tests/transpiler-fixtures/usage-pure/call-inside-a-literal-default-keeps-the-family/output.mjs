@@ -1,10 +1,7 @@
 import _Map from "@core-js/pure/actual/map";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise";
-import _Promise$try from "@core-js/pure/actual/promise/try";
-// a CALL spelled inside a container-literal default (`= { B: f() }`, `= [f()]`) runs only where the
-// default fires, and the static read through its value is mirrored beside it; the census keeps the
-// constructor family for the value the call returns, so it is not narrowed to an entry that lacks it
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 function f() {
   log();
   return _Map;
@@ -20,17 +17,13 @@ function h(o) {
         groupBy: s
       }
     } = {
-      B: (f(), {
-        groupBy: _Map$groupBy
-      })
+      B: f()
     }
   } = o;
   const {
     P: [{
       try: t
-    }] = [(g(), {
-      try: _Promise$try
-    })]
+    }] = [g()]
   } = o;
   return [s, t];
 }

@@ -474,6 +474,40 @@ for (const [label, receiver, expected, pureReads] of [
     });
 }
 
+// Retiring a standalone capture must leave the same work as retiring one inside a sequence.
+for (const [label, body, keptRead, pureReads] of [
+  ['own receiver', 'var _ref; _ref = _realm; use(_ref);', false, 2],
+  ['source receiver', 'const source = {}; var _ref; _ref = source; use(_ref);', true, 1],
+  ['commented capture', 'var _ref; /* keep capture comment */ _ref = _realm; use(_ref);', false, 2],
+  ['directive barrier', 'function read() { var _ref; _ref = _realm; "use strict"; return _ref; }', true, 3],
+]) runBoth(`census/retired standalone capture/${ label }`,
+  `import _realm from '@core-js/pure/actual/global-this'; ${ body }`, (parser, programPath, name) => {
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const injector = new TestInjector({ mode: 'actual', pkg: '@core-js/pure', importStyle: 'import' });
+    injector.addPureImport('global-this', 'realm');
+    injector.generateLocalRef();
+    const census = collectInjectorCensus(programPath.node, {
+      mintedRefNames: new Set(['_ref']), pureNames: new Set(['_realm']), memoReuse: true,
+    });
+    unwrapWriteOnlyGuardMemos(census, {
+      injectorState: injector,
+      contextForMemo(id, write, occurrence) {
+        let path = programPath;
+        for (let at = 1; at < occurrence.ancestors.length; at++) {
+          path = occurrence.listKeys[at] ? path.get(occurrence.listKeys[at])[occurrence.keys[at]] : path.get(occurrence.keys[at]);
+        }
+        return { scope: path.scope, path, adapter };
+      },
+    });
+    const statements = label === 'directive barrier' ? programPath.node.body.at(-1).body.body : programPath.node.body;
+    check(`${ name }/${ label }/source read or directive barrier`, statements.some(node => node.type === 'ExpressionStatement'
+      && unwrapRuntimeExpr(node.expression).type === 'Identifier'), keptRead);
+    check(`${ name }/${ label }/import liveness`, census.pureCounts.get('_realm'), pureReads);
+    if (label === 'commented capture' && parser.name === 'babel') {
+      check(`${ name }/${ label }/comment retained`, statements.at(-1).leadingComments?.some(comment => comment.value.includes('keep capture comment')) ?? false, true);
+    }
+  });
+
 // a memo no read reached - a later claim consumed its readers - folds into the next initialized declarator
 // of its statement list as a loop header's does: its effects lead that initializer and an own pure terminal
 // leaves with it; a memo a read reaches, or one with no initialized declarator after it, stays, and so does

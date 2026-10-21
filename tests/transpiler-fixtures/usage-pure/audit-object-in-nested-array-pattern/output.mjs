@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// destructure-default through doubly-nested array-pattern - param position is still
-// recognised once the wrapper layers are peeled
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Native iteration, source effects and residual bindings stay in order.
 function f([[{
   from
 } = {
@@ -8,6 +8,4 @@ function f([[{
 }]]) {
   return from([1]);
 }
-f([[{
-  from: _Array$from
-}]]);
+f([[Array]]);

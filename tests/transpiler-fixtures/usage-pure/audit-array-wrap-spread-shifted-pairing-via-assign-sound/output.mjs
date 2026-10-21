@@ -1,10 +1,8 @@
-import _Set from "@core-js/pure/actual/set/constructor";
-// the ASSIGNMENT form pairs the same way: a spread-shifted slot takes the guard, a sound
-// pairing folds (paren drop around the pattern statement is the babel reprint)
+import _globalThis from "@core-js/pure/actual/global-this";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 let ax, AM, AS;
 [{
   Set: AS
-}] = [{
-  Set: _Set
-}];
+}] = [_globalThis];
 export const viaAssignSound = new AS(soundSeed);

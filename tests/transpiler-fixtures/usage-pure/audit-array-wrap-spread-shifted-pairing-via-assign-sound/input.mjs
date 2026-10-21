@@ -1,5 +1,5 @@
-// the ASSIGNMENT form pairs the same way: a spread-shifted slot takes the guard, a sound
-// pairing folds (paren drop around the pattern statement is the babel reprint)
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 let ax, AM, AS;
 ([{ Set: AS }] = [globalThis]);
 export const viaAssignSound = new AS(soundSeed);

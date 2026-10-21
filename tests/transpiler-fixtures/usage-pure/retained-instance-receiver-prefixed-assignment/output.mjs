@@ -9,5 +9,6 @@ const host = {
 let at;
 ({
   m: _ref
-} = (prefixes++, host)), at = _atMaybeArray(_ref);
+} = (prefixes++, host));
+at = _atMaybeArray(_ref);
 console.log(at, prefixes);

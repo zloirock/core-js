@@ -1,3 +1,5 @@
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 function assignForms(f, g) {
   let nestedSeq;
   let seqDefault;
@@ -9,8 +11,6 @@ function assignForms(f, g) {
   ({ w: { Map: hopOrDefault } } = { w: globalThis || {} });
   ({ w: { Array: { from: hopNav } } } = { w: globalThis });
   ({ w: { Map: hopOptional } } = { w: globalThis?.globalThis });
-  // ... and a SLOT carrying the prefix: the literal stays as a statement of its own, running the
-  // prefix where the source ran it, and the level consumes
   let hopSeq;
   let hopSeqDefault;
   ({ w: { Array: { from: hopSeq } } } = { w: (f(), (g(), globalThis)) });

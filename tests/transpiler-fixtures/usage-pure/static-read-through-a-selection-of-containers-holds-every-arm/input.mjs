@@ -1,6 +1,5 @@
-// every arm of a selection of containers is a constructor the pattern may read a static back off, so
-// each one owning the static the pattern names is held - not only the first arm holding a constructor.
-// a single container the extraction serves holds nothing
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const promises = { C: Promise };
 const maps = { C: Map };
 export const { C: { groupBy } } = flag ? promises : maps;

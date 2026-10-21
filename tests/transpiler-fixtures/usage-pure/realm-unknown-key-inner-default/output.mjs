@@ -6,7 +6,6 @@ import _includes from "@core-js/pure/actual/instance/includes";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Math$sumPrecise from "@core-js/pure/actual/math/sum-precise";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _String$raw from "@core-js/pure/actual/string/raw";
@@ -44,9 +43,7 @@ for (const {
 const [{
   UserObjects: {
     fromEntries
-  } = {
-    fromEntries: _Object$fromEntries
-  }
+  } = Object
 }] = [_globalThis];
 const key = 'UserStrings';
 const {

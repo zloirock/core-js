@@ -1,6 +1,5 @@
-// CTOR-LEAF probe navs: the init's VALUE decides the probe, not its leaf NAME - a constructor
-// leaf discards through the same full-consume gate, and the probe reads the first key off the
-// two-halves guard (the erase verdict's `?.` object as the test, the ctor ponyfill alternate)
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 export const { of: viaCtorLeaf } = globalThis.window?.Array;
 export const { from: viaCtorLeafRenamed } = globalThis.window?.Array;
 export const { of: viaCtorLeafDeep } = globalThis.window?.self.Array;

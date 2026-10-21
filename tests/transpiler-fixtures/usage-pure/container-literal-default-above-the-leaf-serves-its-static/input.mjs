@@ -1,7 +1,5 @@
-// a CONTAINER-literal default ABOVE the leaf's level (`= { B: Map }`, `= [Object]`) holds the value
-// the static is read through where the default fires: the read takes its polyfill off the literal's
-// slot at any depth, beside a sibling, in a declaration, an assignment, a parameter, a loop head and a
-// catch clause, and a named container default is read whole, its own declaration left as written
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 function h1(o) { const { A: { B: { groupBy: s } } = { B: Map } } = o; return s; }
 const { A: { B: { try: t2 } } = { B: Promise } } = {};
 function h3(o) { const { A: { B: { C: { from: f } } } = { B: { C: Iterator } } } = o; return f; }

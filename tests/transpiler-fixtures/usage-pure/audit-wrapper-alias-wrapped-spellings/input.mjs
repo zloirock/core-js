@@ -1,7 +1,5 @@
-// a wrapper alias's WRAPPED spellings hand the same runtime value as the bare one, so the
-// follow judges the EFFECTIVE value: a paren around the slot element, a paren around the init
-// and a sequence tail all extract like the bare spelling. the NEGATIVE pins the boundary: a
-// spread hidden by the wrapper still makes the union incomplete, and the follow declines whole
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const [parenElement] = [([globalThis])];
 export const [{ Object: { fromEntries: viaParenElement } }] = parenElement;
 const [parenInit] = ([[globalThis]]);

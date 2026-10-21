@@ -486,15 +486,15 @@ for (const [emitter, imports] of [
   check(`default coverage/different receiver [${ emitter }]: supplied static`, imports.has('core-js/modules/es.map.group-by'), true);
 }
 
-// A caller's static remains actionable beside an opaque default. The pure argument mirror
-// patches that call without replacing the custom method supplied by the default.
+// Literal-wrapper caller arguments stay native beside an opaque default.
+// Their supplied static does not require a separate pure helper.
 const opaqueDefault = 'function outer(Array) { function read([{ of } = Array]) { return of(1); }'
   + ' return [read([globalThis.Array]), read([undefined])]; } outer({ of: x => x });';
 for (const [emitter, imports] of [
   ['babel', await babelImports(opaqueDefault, PURE)],
   ['unplugin', unpluginImports(opaqueDefault, PURE)],
 ]) {
-  check(`opaque default [${ emitter }]: caller static`, imports.has('@core-js/pure/actual/array/of'), true);
+  check(`opaque default [${ emitter }]: caller static`, imports.has('@core-js/pure/actual/array/of'), false);
 }
 
 // A computed key off a constructor whose VALUES the file spells names those keys and no others:
@@ -627,16 +627,19 @@ for (const [label, source] of [
 ]) check(`opted-out native static/${ label } [${ emitter }]: narrow constructor`, imports.has('@core-js/pure/actual/map'), false);
 
 // A constructor used only as a constructor owes no own static after the pairing change.
-for (const source of ['const [C] = [Map]; use(new C());', 'const [{ groupBy }] = [Map]; use(groupBy);']) {
+for (const source of ['const [C] = [Map]; use(new C());']) {
   for (const [emitter, imports] of [
     ['babel', await babelImports(source, PURE)],
     ['unplugin', unpluginImports(source, PURE)],
   ]) check(`array pattern narrow control [${ emitter }]: ${ source }`, imports.has('@core-js/pure/actual/map'), false);
 }
 
-// A positional read that resolves to its own static import owes no constructor namespace.
-// Keep the raw-pattern controls above: those still read through the substituted constructor.
+// A retained wrapper read consumes the substituted constructor. Its whole entry must
+// carry the static even when a reaching write or decided arm identifies one constructor.
 for (const [label, source, entry, staticEntry] of [
+  ['literal wrapper', 'const [{ groupBy }] = [Map]; use(groupBy);', 'map', 'group-by'],
+  ['computed key default', 'const key = "userSlot"; const [{ [key]: { groupBy } = Map }] = [globalThis]; use(groupBy);', 'map', 'group-by'],
+  ['opaque key default', 'const [{ [key]: { groupBy } = Map }] = [globalThis]; use(groupBy);', 'map', 'group-by'],
   ['reassigned nested container', 'let rows = [{ C: Object }]; rows = [{ C: Promise }]; const [{ C: { race } }] = rows; use(race);', 'promise', 'race'],
   ['chained container write', 'let rows = [Object], other; rows = other = [Promise]; const [{ allSettled }] = rows; use(allSettled);', 'promise', 'all-settled'],
   ['decided container', 'const rows = typeof Symbol != "undefined" ? [Map] : [Object]; const [{ groupBy }] = rows; use(groupBy);', 'map', 'group-by'],
@@ -646,12 +649,12 @@ for (const [label, source, entry, staticEntry] of [
   ['babel', await babelImports(source, PURE)],
   ['unplugin', unpluginImports(source, PURE)],
 ]) {
-  check(`served positional static/${ label } [${ emitter }]: static`, imports.has(`@core-js/pure/actual/${ entry }/${ staticEntry }`), true);
-  check(`served positional static/${ label } [${ emitter }]: constructor`, imports.has(`@core-js/pure/actual/${ entry }/constructor`), true);
-  check(`served positional static/${ label } [${ emitter }]: namespace`, imports.has(`@core-js/pure/actual/${ entry }`), false);
+  check(`retained positional static/${ label } [${ emitter }]: static`, imports.has(`@core-js/pure/actual/${ entry }/${ staticEntry }`), false);
+  check(`retained positional static/${ label } [${ emitter }]: constructor`, imports.has(`@core-js/pure/actual/${ entry }/constructor`), false);
+  check(`retained positional static/${ label } [${ emitter }]: namespace`, imports.has(`@core-js/pure/actual/${ entry }`), true);
 }
 
-// Serving one read cannot discharge another retained read of the same constructor.
+// Every retained wrapper read is covered by the same constructor namespace.
 for (const [label, source] of [
   ['loop read', `let rows = [Object]; rows = [Promise]; const [{ race }] = rows; use(race);
 for (let i = 0; i < 1; i++) { rows = [Promise]; const [{ allSettled }] = rows; use(allSettled); }`],
@@ -662,7 +665,7 @@ const [{ allSettled }] = rows; use(allSettled);`],
   ['babel', await babelImports(source, PURE)],
   ['unplugin', unpluginImports(source, PURE)],
 ]) {
-  check(`independent positional static/${ label } [${ emitter }]: served static`, imports.has('@core-js/pure/actual/promise/race'), true);
+  check(`independent positional static/${ label } [${ emitter }]: separate static`, imports.has('@core-js/pure/actual/promise/race'), false);
   check(`independent positional static/${ label } [${ emitter }]: retained namespace`, imports.has('@core-js/pure/actual/promise'), true);
 }
 

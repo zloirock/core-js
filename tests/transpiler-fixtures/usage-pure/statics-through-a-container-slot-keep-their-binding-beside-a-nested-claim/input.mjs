@@ -1,7 +1,5 @@
-// A static read through a container slot, in a nested level whose instance claim reads the level through one
-// memo: the static still binds its ponyfill once, and an effectful key it was read by still runs in the
-// residual where the source wrote it - beside a plain nested pattern, beside a defaulted one, whose level
-// the claims take apart declarator by declarator, and with both together.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const box = { A: Array, B: Promise };
 const { A: { [(e(), 'from')]: from, name, other: { q } } } = box;
 const { B: { all, name: label, more: { r } = { r: 6 } } } = box;

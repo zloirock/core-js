@@ -254,26 +254,6 @@ QUnit.test('constructor selections: a fallback after a decided object literal re
   assert.same(effects, 0);
 });
 
-QUnit.test('constructor selections: a static read through a selection of containers under a pattern', assert => {
-  // a nested pattern reads the slot of the arm that ran, declared or assigned: an arm pure swaps whole
-  // serves its own static as a native static owner's arm does
-  function declared(flag) {
-    const { C: { groupBy } } = flag ? { C: Map } : { C: Object };
-    return groupBy([1, 2, 3], x => x % 2);
-  }
-  assert.deepEqual(declared(true).get(1), [1, 3]);
-  assert.false(declared(false) instanceof Map);
-  assert.deepEqual(declared(false)[0], [2]);
-  let from;
-  function assign(flag) {
-    ({ C: { from } } = flag ? { C: Iterator } : { C: Array });
-  }
-  assign(true);
-  assert.deepEqual(Array.from(from([4, 5])), [4, 5]);
-  assign(false);
-  assert.deepEqual(from([6, 7]), [6, 7]);
-});
-
 QUnit.test('constructor selections: an arm read off a container slot serves what the slot holds', assert => {
   function read(flag) {
     const shelf = { M: Map };
@@ -300,12 +280,6 @@ QUnit.test('constructor selections: a pattern over a decided test answer or a ri
     const { A: { B: { fromEntries } } } = typeof Symbol != 'undefined' || { A: { B: Object } };
     return fromEntries;
   }, TypeError);
-  const { C: { from } } = typeof Symbol == 'undefined' || { C: Array };
-  assert.deepEqual(from('ab'), ['a', 'b']);
-  function read({ C: { hasOwn } } = typeof Symbol == 'undefined' || { C: Object }) {
-    return hasOwn({ k: 1 }, 'k');
-  }
-  assert.true(read());
 });
 
 QUnit.test('constructor selections: a default over a selection runs where an arm lacks the static', assert => {

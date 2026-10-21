@@ -36,7 +36,8 @@ b! = _Array$of;
 });
 ({
   Object: _ref
-} = _globalThis), f! = _Object$entries, {
+} = _globalThis);
+f! = _Object$entries, {
   entries: _unused2,
   ...rest
 } = _ref;

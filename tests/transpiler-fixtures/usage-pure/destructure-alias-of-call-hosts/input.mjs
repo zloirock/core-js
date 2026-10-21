@@ -1,6 +1,5 @@
-// a NAME bound to a call pairs as the call does under every host: resolution reads the name as the
-// container the call yields and the wrapper walks follow the binding to it - a declarator, a for-of
-// head, a parameter default and an argument, an array wrapper. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const built = () => ({ a: Math });
 const builtAlias = built();
 const { a: { imul: viaAliasOfCall } } = builtAlias;

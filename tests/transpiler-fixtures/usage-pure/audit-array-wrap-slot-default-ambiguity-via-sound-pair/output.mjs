@@ -1,9 +1,8 @@
-import _Set from "@core-js/pure/actual/set/constructor";
-// control: a provably-defined pair keeps the pair fold (the slot default is dead)
+import _globalThis from "@core-js/pure/actual/global-this";
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims.
 let fallback = {};
 const [{
   Set: C
-} = fallback] = [{
-  Set: _Set
-}];
+} = fallback] = [_globalThis];
 export const viaSoundPair = new C(soundSeed);

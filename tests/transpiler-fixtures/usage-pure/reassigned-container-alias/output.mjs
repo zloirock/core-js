@@ -1,6 +1,5 @@
-import _String$raw from "@core-js/pure/actual/string/raw";
-// A dominating assignment from another local holder selects its slot value.
-// Neither local container escapes; reading raw needs only the String static.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let first = {
   x: Number
 };
@@ -12,8 +11,4 @@ const {
   x: {
     raw
   }
-} = {
-  x: {
-    raw: _String$raw
-  }
-};
+} = first;

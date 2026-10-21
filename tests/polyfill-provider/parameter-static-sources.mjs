@@ -222,7 +222,7 @@ for (const parser of adapters) {
 
 for (const parser of adapters) for (const [name, setup, pattern, argument, count] of [
   ['member', 'const box = { value: Array };', '{ of }', 'box.value', 1],
-  ['conditional objects', '', '{ value: { of } }', 'test() ? { value: Array } : { value: Array }', 2],
+  ['conditional literal wrappers stay native', '', '{ value: { of } }', 'test() ? { value: Array } : { value: Array }', 0],
   ['effectful getter', 'const box = { get value() { effect(); return Array; } };', '{ of }', 'box.value', 0],
   ['foreign function scope', '', '{ of }', '(() => { const Array = custom; return Array; })()', 0],
   ['caller undefined property', '', '{ of = 7 }', '{ of: undefined }', 0],

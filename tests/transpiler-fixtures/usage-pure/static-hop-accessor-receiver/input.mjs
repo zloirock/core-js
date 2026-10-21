@@ -1,5 +1,5 @@
-// Static receiver reads through accessors keep their effects exactly once.
-// Nested, array-wrapped, aliased and sibling forms all receive the pure method.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 const log = [];
 const { w: { from: one } } = { w: ({ get w() { log.push('a'); return Array; } }).w };
 const { a: { b: { from: two } } } = { a: { b: ({ get w() { log.push('b'); return Array; } }).w } };

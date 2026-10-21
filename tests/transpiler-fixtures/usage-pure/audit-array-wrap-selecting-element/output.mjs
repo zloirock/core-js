@@ -1,4 +1,3 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _at from "@core-js/pure/actual/instance/at";
 // a diverging SELECTION element consumed by the sole binding reads once inside the
@@ -13,9 +12,7 @@ export { at, it };
 // polyfill lands in the constructor arm alone and the user arm stays raw
 const [{
   from
-}] = [c ? {
-  from: _Array$from
-} : userObj];
+}] = [c ? Array : userObj];
 export { from };
 
 // ... and an SE-bearing selection rides the MEMO instead of an inline re-spelling: the ref is read

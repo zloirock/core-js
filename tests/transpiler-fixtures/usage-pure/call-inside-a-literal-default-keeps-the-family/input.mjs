@@ -1,6 +1,5 @@
-// a CALL spelled inside a container-literal default (`= { B: f() }`, `= [f()]`) runs only where the
-// default fires, and the static read through its value is mirrored beside it; the census keeps the
-// constructor family for the value the call returns, so it is not narrowed to an entry that lacks it
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 function f() { log(); return Map; }
 function g() { log(); return Promise; }
 function h(o) {

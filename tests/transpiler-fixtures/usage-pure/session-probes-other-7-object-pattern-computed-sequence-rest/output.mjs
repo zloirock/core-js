@@ -1,5 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+// Computed keys run in source order beside native object rest.
+// The instance leaf keeps its dispatch; the static leaf under a literal
+// object wrapper retains its native read and key effect.
 function eff() {
   return Object;
 }
@@ -27,8 +29,6 @@ function eff() {
     },
     ...r
   } = {
-    w: {
-      from: _Array$from
-    }
+    w: Array
   };
 }

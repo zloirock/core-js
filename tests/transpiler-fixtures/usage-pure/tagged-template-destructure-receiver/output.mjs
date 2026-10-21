@@ -1,11 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
-// A tagged template is a call of its tag, so a destructure whose RECEIVER is one names what the tag
-// hands back the way a call's receiver does - the tag still runs ahead of the extraction. Each host
-// reads a different static, because a shared one would let a single injection mask the others.
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 function tagArray() {
   return Array;
 }
@@ -22,15 +19,11 @@ const {
     groupBy
   }
 } = {
-  w: (tagMap`y`, {
-    groupBy: _Map$groupBy
-  })
+  w: tagMap`y`
 };
 const [{
   withResolvers
-}] = [(wrap`z${_Promise}`, {
-  withResolvers: _Promise$withResolvers
-})];
+}] = [wrap`z${_Promise}`];
 export const flat = from([1]);
 export const nested = groupBy([2], x => x);
 export const wrapped = withResolvers();

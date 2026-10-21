@@ -1,14 +1,8 @@
-import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Promise$try from "@core-js/pure/actual/promise/try";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
-import _Symbol$for from "@core-js/pure/actual/symbol/for";
-// A mirror re-reads a receiver valued as a global by that global's name where its literal stands, and a
-// binding of that name there - a parameter, a catch parameter, a local, an import - holds the user's own
-// value: the read goes through the realm instead, from a nested container and in an assignment alike. A
-// served constructor's read is its ponyfill, which no binding of the name shadows (`Symbol`).
+import _self from "@core-js/pure/actual/self";
+import _Symbol from "@core-js/pure/actual/symbol";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 import { Array } from './array.js';
 export function viaParameter(Map) {
   const {
@@ -17,10 +11,7 @@ export function viaParameter(Map) {
       prototype
     }
   } = {
-    a: {
-      groupBy: _Map$groupBy,
-      prototype: _globalThis.Map.prototype
-    }
+    a: _globalThis.Map
   };
   return [groupBy, prototype];
 }
@@ -34,10 +25,7 @@ export function viaCatch() {
         prototype
       }
     } = {
-      a: {
-        try: _Promise$try,
-        prototype: _globalThis.Promise.prototype
-      }
+      a: _self.Promise
     };
     return [attempt, prototype];
   }
@@ -53,10 +41,7 @@ export function viaLocal() {
     }
   } = {
     a: {
-      b: {
-        from: _Iterator$from,
-        prototype: _globalThis.Iterator.prototype
-      }
+      b: _globalThis.Iterator
     }
   };
   return [from, prototype, Iterator];
@@ -68,10 +53,7 @@ let of, prototype;
     prototype
   }
 } = {
-  a: {
-    of: _Array$of,
-    prototype: _globalThis.Array.prototype
-  }
+  a: _globalThis.Array
 });
 export function viaServed(Symbol) {
   const {
@@ -80,10 +62,7 @@ export function viaServed(Symbol) {
       prototype: symbols
     }
   } = {
-    a: {
-      for: _Symbol$for,
-      prototype: _Symbol.prototype
-    }
+    a: _Symbol
   };
   return [forKey, symbols];
 }

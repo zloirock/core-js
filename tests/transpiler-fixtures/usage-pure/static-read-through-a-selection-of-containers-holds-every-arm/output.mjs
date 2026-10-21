@@ -1,11 +1,10 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Symbol$for from "@core-js/pure/actual/symbol/for";
+import _Symbol from "@core-js/pure/actual/symbol";
 import _URL from "@core-js/pure/actual/url";
-// every arm of a selection of containers is a constructor the pattern may read a static back off, so
-// each one owning the static the pattern names is held - not only the first arm holding a constructor.
-// a single container the extraction serves holds nothing
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const promises = {
   C: _Promise
 };
@@ -31,7 +30,5 @@ export const {
     for: named
   }
 } = {
-  C: {
-    for: _Symbol$for
-  }
+  C: _Symbol
 };

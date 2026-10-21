@@ -1,19 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
-import _Object$getOwnPropertyDescriptors from "@core-js/pure/actual/object/get-own-property-descriptors";
-import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$is from "@core-js/pure/actual/object/is";
-import _Object$keys from "@core-js/pure/actual/object/keys";
-import _Object$values from "@core-js/pure/actual/object/values";
-// a for-of head whose iterated LITERAL stands behind a wrapper - parentheses, a TS assertion - that
-// one parser keeps as a node and the other drops: every reader of the head (the pattern in the head,
-// the alias bound by the head, the census that keys the head's element as a container) reads the
-// same elements through the wrapper, so the leaf resolves to the constructor's STATIC on both legs
-// rather than to the instance dispatcher, and the global flavor injects the static's own module.
-// a parenthesized CALLEE in a same-callee element list is the same wrapper one level down. one static
-// per row: the global flavor is read by its import set, where two rows on one method mask each other
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
 let n = 0;
 const e = t => {
   n += t.length;
@@ -25,27 +14,21 @@ for (const {
     values: viaParenHead
   }
 } of [{
-  w: {
-    values: _Object$values
-  }
+  w: Object
 }]) _pushMaybeArray(out).call(out, viaParenHead);
 for (const {
   w: {
     entries: viaDoubleParenHead
   }
 } of [{
-  w: {
-    entries: _Object$entries
-  }
+  w: Object
 }]) _pushMaybeArray(out).call(out, viaDoubleParenHead);
 for (const {
   w: {
     keys: viaAsConst
   }
 } of [{
-  w: {
-    keys: _Object$keys
-  }
+  w: Object
 }] as const) _pushMaybeArray(out).call(out, viaAsConst);
 for (const item of [{
   w: Object
@@ -58,18 +41,14 @@ for (const {
     getOwnPropertyDescriptor: viaNonNull
   }
 } of [{
-  w: {
-    getOwnPropertyDescriptor: _Object$getOwnPropertyDescriptor
-  }
+  w: Object
 }]!) _pushMaybeArray(out).call(out, viaNonNull);
 for (const {
   w: {
     getOwnPropertyDescriptors: viaSatisfies
   }
 } of [{
-  w: {
-    getOwnPropertyDescriptors: _Object$getOwnPropertyDescriptors
-  }
+  w: Object
 }] satisfies unknown) _pushMaybeArray(out).call(out, viaSatisfies);
 for (const item of [{
   w: Object
@@ -77,12 +56,13 @@ for (const item of [{
   const viaAsAnyMember = _Object$fromEntries;
   _pushMaybeArray(out).call(out, viaAsAnyMember);
 }
-for (const _ref of [{
+for (const {
+  w: {
+    getOwnPropertyNames: viaParenCallee
+  }
+} of [{
   w: e('a')
 }, {
   w: e('b')
-}]) {
-  const viaParenCallee = _Object$getOwnPropertyNames;
-  _pushMaybeArray(out).call(out, viaParenCallee);
-}
+}]) _pushMaybeArray(out).call(out, viaParenCallee);
 export { out, n };
