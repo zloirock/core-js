@@ -94,20 +94,13 @@ import {
   cloneNode,
   expressionStatement,
   identifier,
-  literal,
-  memberExpression,
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
-  nullFirstGuardTest,
   renderClaimProbe,
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
-  renderShortCircuitGuard,
-  renderNavGuardTest,
-  renderNavCollapseValue,
   renderStaticDefaultGuard,
-  memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
 
 // The local binding name, including a slot default (`{ flat: method = fallback }`).
@@ -1030,16 +1023,20 @@ export function duplicateReceiver(node, injector) {
 // a nav whose live `?.` sits over an ERASABLE hop renders as the guard the collapse would
 // spell: the hop's object is the probe, the hop's own ponyfill the alternate, and the tail
 // above it hangs back on. null where no such hop carries the short-circuit
-export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport }) {
+export function guardedNavPassthrough(receiver, metaPath, ctx) {
+  const { adapter, resolveGlobalPolyfill } = ctx;
   const plan = guardedNavPassthroughPlan(receiver, ({ name }) => resolveGlobalPolyfill(name),
     { ...nodeSite(receiver, metaPath), adapter });
-  if (!plan) return null;
-  const probe = substituteProxyRootsInClone(renderNavGuardTest(plan.test, {
-    injectImport: injectPureImport, cloneHost: cloneStamped, own: node => node,
-  }), metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
-  const value = renderNavCollapseValue(plan, identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)),
-    { cloneHost: cloneStamped });
-  return renderShortCircuitGuard(nullFirstGuardTest(probe), value);
+  return plan && renderPassthroughProbe(plan, metaPath, ctx);
+}
+
+// A retained native subtree is cloned at drain time. Its free realm names still need the
+// binding's substitution walk; the common renderer owns the guard, tail and sealed read.
+function renderPassthroughProbe(plan, metaPath, ctx) {
+  return renderClaimProbe(plan, {
+    injectImport: ctx.injectPureImport,
+    cloneHost: source => substituteProxyRootsInClone(cloneStamped(source), metaPath, ctx),
+  });
 }
 
 // the sealed receiver READ a swap erases, PLANNED on the pristine tree: the seal's inner nav
@@ -1062,8 +1059,8 @@ export function captureSealedNavProbe(receiver, metaPath, ctx) {
   return captureProbePlan(planSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
 }
 
-// Render the accepted sealed read through the common renderer; the legacy passthrough
-// remains a standalone nav consumer until B.2c.
+// Render the accepted sealed read through the common renderer. A passthrough binds its
+// retained native receiver at drain time; the boundary read is part of the same render.
 export function renderSealedNavProbe(plan, metaPath, ctx) {
   if (!plan) return null;
   let node;
@@ -1071,10 +1068,9 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
     injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
   });
   else {
-    const navRead = guardedNavPassthrough(plan.boundary.inner, metaPath, ctx);
-    node = navRead && (plan.boundary.member.computed
-      ? memberExpression(navRead, literal(plan.key), { computed: true })
-      : memberFromKeyName(navRead, plan.key));
+    const passthrough = guardedNavPassthroughPlan(plan.boundary.inner, ({ name }) => ctx.resolveGlobalPolyfill(name),
+      { ...nodeSite(plan.boundary.inner, metaPath), adapter: ctx.adapter });
+    node = passthrough && renderPassthroughProbe({ ...passthrough, boundary: plan.boundary, key: plan.key }, metaPath, ctx);
   }
   if (node) probeFacts.set(node, plan.residual);
   return node;
