@@ -547,13 +547,11 @@ export default function createSynthSwapEmitter({
     // including MID-CHAIN wrappers (`((a = globalThis).self as any).Array`) - by alternating the
     // wrapper step with the member step; mirroring the canonical descent (which must terminate at
     // exactly this identifier) keeps the two walks in lockstep, and a non-peelable parent (call
-    // argument, unary operand, ...) self-limits the loop. `allowSideEffectKeys`: advance THROUGH
-    // a SE-bearing proxy hop too (`globalThis[(eff(), 'self')].X`) - the collapse below routes it
-    // to the call-rooted plan, which HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
+    // argument, unary operand, ...) self-limits the loop.
     for (;;) {
       if (recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression()) {
         if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
-          { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
+          { throughChainAssign: true }) !== recPath.node) break;
         allProxyMember = recPath;
       } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== anchorRoot) {
         if (allProxyMember) {
@@ -566,7 +564,7 @@ export default function createSynthSwapEmitter({
     }
     if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
-    if (!maximalProxyGlobalHop(recPath.node, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
+    if (!maximalProxyGlobalHop(recPath.node, aliasCtx, { throughChainAssign: true })) return false;
     // a LIVE `?.` in the collapsed span testing a short-circuitable value (`(globalThis.window
     // ?.self.window)?.X` - the sealed nav CAN be undefined) may not erase: the render drops the
     // `?.` with the hops and runs the member where native short-circuits. the guard channels own

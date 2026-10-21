@@ -1,7 +1,5 @@
-// Dotted, literal and constant-bound realm keys name the same slot and land alike.
-// A plain middle hop collapses with its backed receiver; a computed-key effect runs
-// once before the stored value lands. Terminal environment-probe values retain
-// their slots under every key spelling.
+// Dotted, literal and bound quiet realm keys land alike; terminal probes keep their slots.
+// An effectful realm key retains its source read and store.
 const bk = 'window';
 let c = 0, w;
 export const dottedHop = (w = globalThis.self.window.Array)?.from([]);

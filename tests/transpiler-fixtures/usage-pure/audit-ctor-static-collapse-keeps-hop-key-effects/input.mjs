@@ -1,6 +1,5 @@
-// a collapse that discards the hops below its leaf discards their computed keys too, so the
-// effects buried in them re-emit with the leaf's own, in native order (root side first). the
-// sequence-tail rebind cuts the same way. the last row has no hop key - it pins the plain shape
+// Constructor and static leaf keys retain their effect channels.
+// An effectful realm-hop key instead keeps its source read.
 let u;
 let g = 0;
 let e = 0;

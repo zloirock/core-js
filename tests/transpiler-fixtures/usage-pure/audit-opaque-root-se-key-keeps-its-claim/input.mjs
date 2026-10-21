@@ -1,6 +1,5 @@
-// A live optional over an opaque root or an excluded realm root keeps its null guard.
-// The function-name read still needs its ponyfill, and every key effect runs once.
-// A plain key has the same guard obligation as an effect-bearing key.
+// Opaque and excluded roots retain live guards and function-name claims.
+// Effectful realm keys keep source navigation; quiet static claims remain supported.
 let c = 0;
 function probeHost() {
   return globalThis.window;

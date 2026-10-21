@@ -1,19 +1,11 @@
-// a deeper nav under a non-proxy leaf chain with a CALL root: the receiver plan's member
-// recursion must reach the call-rooted collapse exactly like the identifier-rooted twin
-// (`_globalThis.foo`), never leave the raw `.window` hop standing over the inlined call
+// Call-rooted quiet navigation retains its existing collapse. Effectful realm keys stay native, including under a symbol receiver.
 typeof (() => globalThis)().window.foo[Symbol.iterator];
 typeof (() => globalThis)().window.foo?.[Symbol.iterator];
 typeof globalThis.window.foo?.[Symbol.iterator];
-// boundary forms of the same collapse: an SE-bearing computed hop key keeps its effect as the
-// collapsed base's prefix, and a computed user leaf keeps its own spelling over the folded base
 let c = 0;
 typeof (() => globalThis)()[(c++, 'window')].foo?.[Symbol.iterator];
 typeof (() => globalThis)()[(c++, 'window')]['foo-bar']?.[Symbol.iterator];
 
-// a claimless nav on a DEFINED-yield call root collapses onto the deepest ponyfill-backed
-// realm hop, like its identifier twin, with a sequence prefix re-emitted ahead of the base;
-// the PROBE-yield twin keeps the same leaf collapse, and an effect-bearing call keeps the
-// leaf too, retaining the call once before the user property read
 export const viaDefinedCallRoot = (() => globalThis)().window.self.userSlot;
 export const viaDefinedCallRootClaim = (() => globalThis)().window.self.Array.of(3);
 let sq = 0;

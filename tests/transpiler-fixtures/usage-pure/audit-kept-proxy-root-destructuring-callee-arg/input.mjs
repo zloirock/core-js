@@ -1,7 +1,4 @@
-// a kept store over an effect-keyed proxy chain, handed to a callee that destructures it: the argument
-// becomes a literal of the claimed statics, so the hop collapse yields to that claim and the key runs once.
-// NEGATIVES where no callee destructures the value - a ternary carrier, a `??` over the same global, a
-// `??` over a user binding - keep the collapse; the user fallback takes the identity guard instead.
+// A retained effectful realm receiver keeps native destructuring and user fallback selection.
 let c2 = 0;
 let ks;
 export const ofSynthKept = (({ of } = {}) => of)((ks = globalThis.window)?.[(c2++, 'self')].Array ?? {});
