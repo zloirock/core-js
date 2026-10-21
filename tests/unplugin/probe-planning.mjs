@@ -1,8 +1,17 @@
 // Ignoring a probe question must not claim its children. Only accepting the plan may do so,
 // while the paths are live; the queued read keeps its original guard and the live child slot.
+import { pathOfNode } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { renderClaimProbe } from '../../packages/core-js-polyfill-provider/render.js';
 import { adapters, createChecker } from '../polyfill-provider/harness.mjs';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { captureSealedNavProbe, planSealedNavProbe } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
+import {
+  captureProbePlan,
+  planDiscardedInitProbe,
+  captureSealedNavProbe,
+  planSealedNavProbe,
+  renderDiscardedInitProbe,
+  probeResidualEffects,
+} from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
 
 const { check, checkTruthy, finish } = createChecker('unplugin-probe-planning');
 const source = 'const value = (globalThis.window?.[([1].at(0), "Array")]).of || {};';
@@ -25,7 +34,8 @@ const label = 'ignored sealed read';
   check(`${ label }/query leaves source intact`, JSON.stringify(path.node.init), before);
   check(`${ label }/leaf decision`, question?.kind, 'leaf');
   const accepted = captureSealedNavProbe(path.node.init, path, ctx);
-  check(`${ label }/acceptance claims once`, claims.length, 1);
+  check(`${ label }/acceptance visits the key and guard source`, claims.length, 2);
+  check(`${ label }/key accepted once`, claims.filter(node => node === accepted.keyEffects[0]).length, 1);
   check(`${ label }/live effect identity`, claims[0], accepted.keyEffects[0]);
   check(`${ label }/effects source survives capture`, accepted.effectsHost, question.effectsHost);
   checkTruthy(`${ label }/guard is captured`, accepted.guardObject !== accepted.leafPlan.guardObject);
@@ -33,5 +43,68 @@ const label = 'ignored sealed read';
   accepted.leafPlan.guardObject.object.name = 'changed';
   check(`${ label }/guard survives rewriting`, JSON.stringify(accepted.guardObject), snapshot);
   check(`${ label }/terminal read stays observable`, accepted.foldLeafOntoBase, false);
+}
+// A child replacement detaches the original expression. Capture reads its native container
+// slot after acceptance; a guard/holder snapshot also survives later source rewrites.
+for (const input of [
+  'const value = globalThis.window?.[([1].at(0), "Array")];',
+  'let stored; const value = ((stored = globalThis.window?.self)?.window).Math;',
+]) {
+  const tree = parser.parseAndScope(input);
+  const at = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'value');
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  let replacements = 0;
+  function resolvePure({ name }) {
+    return name === 'globalThis' || name === 'self' ? { entry: name, hintName: name } : null;
+  }
+  const plan = captureProbePlan(planSealedNavProbe(at.node.init, at, { adapter, resolvePure })
+    ?? planDiscardedInitProbe(at.node.init, at, { adapter, resolvePure }), at, {
+    adapter,
+    resolvePure,
+    claimLive(nodes, anchor) {
+      for (const node of nodes) {
+        if (node.type === 'CallExpression') {
+          pathOfNode(anchor, node).replaceWith({ type: 'Identifier', name: 'liveKey' });
+          replacements++;
+        } else if (input.includes('stored')) {
+          pathOfNode(anchor, node).replaceWith({ type: 'Identifier', name: 'liveHolder' });
+          replacements++;
+        }
+      }
+    },
+  });
+  checkTruthy(`${ input }/live replacement reached`, replacements > 0);
+  const rendered = renderClaimProbe(plan, { injectImport: name => `_${ name }` });
+  const snapshot = JSON.stringify(rendered);
+  checkTruthy(`${ input }/render reads current child`, snapshot.includes(input.includes('stored') ? 'liveHolder' : 'liveKey'));
+  check(`${ input }/old child left behind`, snapshot.includes('"at"'), false);
+  at.node.init = { type: 'Identifier', name: 'later' };
+  check(`${ input }/capture survives another rewrite`, JSON.stringify(renderClaimProbe(plan, { injectImport: name => `_${ name }` })), snapshot);
+}
+// Alias holders retain the natural child traversal; accepting one cannot eagerly rebase its
+// enclosing receiver. Drain binds source paths after a child has replaced the stored value.
+{
+  const input = 'let stored; const value = (before(), (stored = globalThis.window?.self).Array);';
+  const tree = parser.parseAndScope(input);
+  const at = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'value');
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  function resolvePure({ name }) {
+    return name === 'globalThis' || name === 'self' ? { entry: name, hintName: name } : null;
+  }
+  let claims = 0;
+  const ctx = { adapter, resolvePure, injectPureImport: name => `_${ name }`, claimLive: () => { claims++; } };
+  const decision = planDiscardedInitProbe(at.node.init, at, ctx);
+  const accepted = captureProbePlan(decision, at, ctx);
+  check('alias holder stays with natural traversal', claims, 0);
+  check('alias holder source stays live', accepted.aliasProbe.object, decision.aliasProbe.object);
+  accepted.aliasProbe.object.right = { type: 'Identifier', name: 'liveHolder' };
+  const rendered = renderDiscardedInitProbe([{ initProbePlan: accepted, metaPath: at }], ctx);
+  const snapshot = JSON.stringify(rendered);
+  check('alias prefix survives capture', probeResidualEffects(rendered).length, 1);
+  check('alias prefix remains live', probeResidualEffects(rendered)[0].callee.name, 'before');
+  checkTruthy('alias drain reads the rewritten child', snapshot.includes('liveHolder'));
+  check('alias drain leaves no stale navigation', snapshot.includes('"window"'), false);
+  accepted.aliasProbe.object.right = { type: 'Identifier', name: 'later' };
+  check('emitted alias read owns its copy', JSON.stringify(rendered), snapshot);
 }
 finish();

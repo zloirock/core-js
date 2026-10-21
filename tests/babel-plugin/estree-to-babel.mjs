@@ -45,7 +45,7 @@ import {
   voidZero,
   hostSlot,
   renderInstanceDefaultGuard,
-  renderDirectClaimProbe,
+  renderClaimProbe,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { claimIsInert, isRenderedProbeRead, markRenderedProbeRead } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { directClaimProbePlan } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
@@ -90,7 +90,7 @@ runBoth('direct probe source frame', 'const value = (globalThis.window?.self).Ar
   }
   const plan = directClaimProbePlan(path.node.init, resolve, { scope: path.scope, adapter, path });
   const source = JSON.stringify(path.node.init);
-  const converted = estreeToBabel(renderDirectClaimProbe(plan, { injectImport: entry => `_${ entry }`, embed: hostSlot }));
+  const converted = estreeToBabel(renderClaimProbe(plan, { injectImport: entry => `_${ entry }`, embed: hostSlot }));
   const test = converted.object.test.right;
   check(`${ label }/source unchanged`, JSON.stringify(path.node.init), source);
   checkTruthy(`${ label }/distinct clone`, test !== plan.test.source.source);
