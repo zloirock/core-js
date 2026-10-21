@@ -5481,6 +5481,80 @@ export function claimProbeSourceSlot(source, resolvePure, ctx) {
   return { source, served, deopt, root, children };
 }
 
+// A retained receiver with a live optional realm hop keeps that probe and hangs its plain
+// tail on the hop's ponyfill. Computed tails and unbacked hops retain their source spelling.
+export function guardedNavPassthroughPlan(receiver, resolvePure, ctx) {
+  if (chainReadsThroughSeal(receiver, resolvePure, ctx)) return null;
+  const hops = [];
+  let cur = unwrapRuntimeExpr(receiver);
+  while (isMemberAccessNode(cur) && !cur.optional) {
+    if (cur.computed || cur.property?.type !== 'Identifier') return null;
+    hops.unshift({ name: cur.property.name, node: cur });
+    cur = peelTransparentExpr(cur.object);
+  }
+  if (!isMemberAccessNode(cur)) return null;
+  const name = realmHopKeyName(cur, ctx);
+  const leafPure = name && resolvePure({ kind: 'global', name });
+  if (!leafPure) return null;
+  return { hops, collapseIdx: -1, leafPure, test: { source: claimProbeSourceSlot(cur.object, resolvePure, ctx) } };
+}
+
+// A terminal value has no reader retaining its unbacked tail. Fold that quiet remainder
+// onto the backed leaf; a kept store or a consumer reading through the value owns it instead.
+export function terminalNavCollapsePlan(plan, { node, consumer }) {
+  const readsThrough = (isMemberAccessNode(consumer) && consumer.object === node)
+    || (isCallShape(consumer) && consumer.callee === node)
+    || (consumer?.type === 'AssignmentExpression' && consumer.right === node);
+  let { collapseIdx } = plan;
+  if (!readsThrough && !plan.rootAssign && !plan.topAssign) {
+    while (collapseIdx + 1 < plan.hops.length
+      && (!plan.hops[collapseIdx + 1].node.computed || !mayHaveSideEffects(plan.hops[collapseIdx + 1].node.property))
+      && unbackedProxyHopKey(plan.hops[collapseIdx + 1].node, plan.resolvePure)) collapseIdx++;
+  }
+  return collapseIdx === plan.collapseIdx ? plan : { ...plan, collapseIdx };
+}
+
+// The test of a decided navigation: either the backed base or the retained source read.
+// A call's nullable yield is the probe itself; its own optional invocation still keeps the hop.
+export function navGuardTestPlan(plan) {
+  const { resolvePure, ctx } = plan;
+  const base = navGuardTestBase(plan);
+  let probe = plan.hops[plan.lastUnresolvableIdx].node;
+  const below = unwrapRuntimeExpr(probe.object);
+  if (isCallShape(below) && !below.optional
+    && proxyReceiverValueCanBeUndefined(below, resolvePure, ctx, { throughChainAssign: true })) probe = below;
+  const test = base ? { base, prefix: plan.rootAssign ? [claimProbeSourceSlot(plan.rootAssign, resolvePure, ctx)] : [] }
+    : { source: claimProbeSourceSlot(probe, resolvePure, ctx) };
+  if (plan.assignWrap) test.assign = plan.assignWrap;
+  return test;
+}
+
+// A guard may read through collapsed navigation, but never through a load-bearing seal.
+// Its prefix effects stay on the leaf before the retained tail, in source evaluation order.
+export function navGuardSourcePlan(guard, resolvePure, ctx) {
+  let root = guard;
+  const rehang = [];
+  function planFor(node) {
+    return planProvenNavGuardCollapse({ rootNode: node, ...ctx, resolvePure,
+      allowSequenceRoot: true, descendSequenceTail: true });
+  }
+  const sealedRead = chainReadsThroughSeal(guard, resolvePure, ctx);
+  let plan = !sealedRead && planFor(root);
+  if (!plan && !sealedRead && isMemberAccessNode(root) && !root.computed && root.property?.type === 'Identifier') {
+    rehang.push({ name: root.property.name, liveOptional: !!root.optional, node: root });
+    root = unwrapRuntimeExpr(root.object);
+    plan = planFor(root);
+  }
+  if (!plan || plan.topAssign || !plan.leafPure) return { source: claimProbeSourceSlot(guard, resolvePure, ctx) };
+  const prefix = navHopSequencePrefixes(guard, { unwrap: unwrapRuntimeExpr, ctx }).all;
+  if (plan.rootAssign) prefix.push(plan.rootAssign);
+  if (plan.rootEffectCall && inlineCallHasObservableEffects({ callNode: plan.rootEffectCall, ...ctx })) {
+    prefix.push(plan.rootEffectCall);
+  }
+  return { pure: plan.leafPure, prefix: prefix.map(node => claimProbeSourceSlot(node, resolvePure, ctx)),
+    tail: [...plan.hops.slice(plan.collapseIdx + 1), ...rehang] };
+}
+
 // Rendering facts for ordinary claims and receiver rebases. Pattern/deferred consumers keep
 // their capture contract; this adds no live claims or host mutations to the shared question.
 export function directClaimProbePlan(source, resolvePure, ctx, options) {
@@ -5520,39 +5594,10 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
   let test;
   if (decision.kind === 'value' || decision.preserveRead) {
     test = { source: slot(leafPlan.guardObject) };
-  } else if (decision.kind === 'nav') {
-    const base = navGuardTestBase(navPlan);
-    let sourceTest = navPlan.hops[navPlan.lastUnresolvableIdx].node;
-    const below = unwrapRuntimeExpr(sourceTest.object);
-    if (isCallShape(below) && !below.optional && proxyReceiverValueCanBeUndefined(below,
-      resolvePure, ctx, { throughChainAssign: true })) sourceTest = below;
-    test = base ? { base, prefix: navPlan.rootAssign ? [slot(navPlan.rootAssign)] : [] } : { source: slot(sourceTest) };
-    if (navPlan.assignWrap) test.assign = navPlan.assignWrap;
   } else {
-    const guard = leafPlan.guardObject;
-    // A claim-ending test can collapse its navigation, but never across a load-bearing seal.
-    let root = guard;
-    const rehang = [];
-    function planFor(node) {
-      return planProvenNavGuardCollapse({ rootNode: node, ...ctx, resolvePure,
-        allowSequenceRoot: true, descendSequenceTail: true });
-    }
-    const sealedRead = chainReadsThroughSeal(guard, resolvePure, ctx);
-    let plan = !sealedRead && planFor(root);
-    if (!plan && !sealedRead
-      && isMemberAccessNode(root) && !root.computed && root.property?.type === 'Identifier') {
-      rehang.push({ name: root.property.name, liveOptional: !!root.optional, node: root });
-      root = unwrapRuntimeExpr(root.object);
-      plan = planFor(root);
-    }
-    if (plan && !plan.topAssign && plan.leafPure) {
-      const prefix = navHopSequencePrefixes(guard, { unwrap: unwrapRuntimeExpr, ctx }).all;
-      if (plan.rootAssign) prefix.push(plan.rootAssign);
-      if (plan.rootEffectCall && inlineCallHasObservableEffects({ callNode: plan.rootEffectCall, ...ctx })) {
-        prefix.push(plan.rootEffectCall);
-      }
-      test = { pure: plan.leafPure, prefix: prefix.map(slot), tail: [...plan.hops.slice(plan.collapseIdx + 1), ...rehang] };
-    } else test = { source: slot(guard) };
+    test = decision.kind === 'nav' ? navGuardTestPlan(navPlan) : navGuardSourcePlan(leafPlan.guardObject, resolvePure, ctx);
+    if (test.source) retained.push(test.source.source);
+    else retained.push(...test.prefix.map(item => item.source));
   }
   const navPrefix = navHopSequencePrefixes(boundary.inner, { unwrap: unwrapRuntimeExpr, ctx }).all;
   const prefix = navPrefix.filter(effect => retained.every(node => !subtreeContainsNode(node, effect)));

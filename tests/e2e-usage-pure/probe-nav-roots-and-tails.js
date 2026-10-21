@@ -278,3 +278,35 @@ QUnit.test('destructure probes: a cloned IIFE keeps its own temporaries on reent
   });
 });
 /* eslint-enable no-unsafe-optional-chaining -- deferred receiver probes */
+
+// A residual native slot keeps the memoized receiver and its live child claims.
+QUnit.test('probe navigation: a partial parameter memo keeps the sealed receiver', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let depth = 0;
+    function make() {
+      const arr = [depth++];
+      Object.defineProperty(arr, 'at', { get() {
+        if (arr[0] === 0) read();
+        return function () { return this[0]; };
+      } });
+      return arr;
+    }
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the source seal must throw when absent
+    function read({ of, length } = ((() => {
+      log.push(make().at(0));
+      return globalThis.window;
+    })()?.self).Array) {
+      return [of(3), length];
+    }
+    let value;
+    try {
+      value = read();
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [[3], 1] : 'TypeError', 'the memo serves one slot and retains the other');
+    assert.deepEqual(log, live ? [1, 0] : [1], 'a nested activation keeps its own receiver temporary');
+    assert.deepEqual(read({ of: n => [n + 1], length: 4 }), [[4], 4], 'a supplied receiver bypasses the memo');
+  });
+});
