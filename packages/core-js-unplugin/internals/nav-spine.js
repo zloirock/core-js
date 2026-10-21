@@ -40,6 +40,7 @@ import {
   nullFirstGuardTest,
   renderShortCircuitGuard,
   renderKeptSequenceTail,
+  renderNavCollapseValue,
   memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional } from './emit-shared.js';
@@ -103,12 +104,8 @@ export function emitNestedGuardNavValue(metaPath, node, {
   const prefixNode = plan.hops[plan.lastUnresolvableIdx].node;
   if (!provenRoot || provenRoot.start < prefixNode.start || provenRoot.end > prefixNode.end) return false;
   substituteProbeProxyRoot(prefixNode);
-  let built = identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName));
-  for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
-    built = hop.node.computed
-      ? memberExpression(built, cloneNode(hop.node.property), { computed: true, optional: !!hop.liveOptional })
-      : memberFromKeyName(built, hop.name, { optional: !!hop.liveOptional });
-  }
+  const built = renderNavCollapseValue(plan,
+    identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)), { cloneHost: cloneNode });
   markRewrite();
   metaPath.replaceWith(renderShortCircuitGuard(nullFirstGuardTest(prefixNode), built));
   return true;

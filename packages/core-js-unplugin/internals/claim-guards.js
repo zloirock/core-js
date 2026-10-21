@@ -12,7 +12,6 @@ import {
   realmRootIsSpellable,
   sealedChainBoundary,
   unbackedProxyHopKey,
-  vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   CHAIN_HOP_WRAPPER_TYPES,
@@ -22,7 +21,6 @@ import {
   invocationCalleeOf,
   isPristineProxyGlobal,
   memberKeyName,
-  navComputedKeyEffects,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
   singleSequenceTail,
@@ -35,7 +33,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
-  cloneNode,
   sequenceExpression,
   renderDeleteShortCircuitGuard,
   renderShortCircuitGuard,
@@ -684,26 +681,6 @@ export function optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePur
   if (!sawWrite && probeObject?.type === 'CallExpression' && !probeObject.optional) return true;
   return proxyReceiverValueCanBeUndefined(probeObject, m => resolvePure(m, metaPath),
     { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true, observableRead });
-}
-
-// a probe's OWN spelling: the source read cloned, its proxy root substituted and the dead
-// `?.` hops dropped (the shared vestigial verdict - a hop over the always-defined ponyfill
-// reads plainly)
-export function probeSpelling(probeNode, { resolveHere, aliasCtx, substituteProbeProxyRoot, keepLive = null }) {
-  // the probe rides the ORIGINAL spelling when a keep-live registry is handed in: claims
-  // inside its kept computed keys (`(log.push('k'), 'window')`) fire later in the walk and
-  // land in place - the caller's skip mark walks around them
-  let probe = keepLive ? probeNode : cloneNode(probeNode);
-  if (keepLive) for (const expr of navComputedKeyEffects(probeNode)) keepLive.add(expr);
-  for (const hop of vestigialNavOptionals(probe, resolveHere, aliasCtx)) hop.optional = false;
-  substituteProbeProxyRoot(probe);
-  // seals whose every `?.` the drops erased are dead wrappers - peeled, or an assignment
-  // left inside a ChainExpression prints without its required parens
-  while (probe?.type === 'ChainExpression' && !receiverCarriesOptional(probe.expression)
-    && probe.expression?.optional !== true) {
-    probe = probe.expression;
-  }
-  return probe;
 }
 
 // does a LOAD-BEARING seal below the claim own the render? the read it made observable rides
