@@ -1,7 +1,8 @@
 // The erased claim and the discarded initializer ask one owner for source facts. Queries must
 // leave the source untouched, and a retained holder must not acquire a second inline store.
 import {
-  directClaimProbePlan, directClaimProbeEffects, destructureProbePlan, discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan,
+  claimProbeSourceSlot, directClaimProbePlan, directClaimProbeEffects, destructureProbePlan,
+  discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -163,4 +164,20 @@ runBoth('discarded alias keeps the whole source frame',
     check(`${ label }/source includes its prefix`, plan.source, path.node.init);
     check(`${ label }/prefix remains ahead of the probe`, directClaimProbeEffects({ decision: plan, node }, [effect])[0], effect);
   });
+for (const [source, children, root] of [
+  ['const value = globalThis.window;', [], 'globalThis'],
+  ['const value = (before(), globalThis.window);', ['CallExpression'], 'globalThis'],
+  ['let held; const value = (held = globalThis.window);', ['Identifier', 'MemberExpression'], 'globalThis'],
+  ['const value = globalThis[key()];', ['CallExpression'], 'globalThis'],
+  ['const value = (() => globalThis.window)();', ['CallExpression'], null],
+  ['function f(globalThis) { const value = globalThis.window; }', [], null],
+]) runBoth(`probe child slots: ${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(path.node.init);
+  const slot = claimProbeSourceSlot(path.node.init, resolvePure, { scope: path.scope, adapter, path });
+  check(`${ label }/independent children`, slot.children.map(node => unwrapRuntimeExpr(node).type).join(','), children.join(','));
+  check(`${ label }/root stays a source fact`, slot.root?.pure.hintName ?? null, root);
+  check(`${ label }/query preserves the source`, JSON.stringify(path.node.init), before);
+});
 finish();

@@ -104,7 +104,6 @@ import {
   resolveSynthKeys,
   isCallShape,
   memberTargetTakesExtraction,
-  discardedInitProbeNavStart,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
@@ -352,6 +351,7 @@ export default function createAstDestructureEmitter({
   // root substitution every probe clone owes - the channel render joins after this object exists
   const probeRenderCtx = {
     adapter,
+    injector,
     resolvePure,
     resolveGlobalPolyfill,
     injectPureImport,
@@ -2754,10 +2754,9 @@ export default function createAstDestructureEmitter({
         keyClaimInit: buriedKeyClaimInit(declarator.init),
         seqDirectClaimInit: initSeqDirectClaim(declarator.init),
         rawKeyRootInit: initRawKeyOnRoot(declarator.init),
-        // ... and the same timing for the guard the discarded read renders through, plus the offset
-        // that read starts at - the effect channel splits the init's effects on it
+        // ... and the same timing for the guard the discarded read renders through;
+        // its source plan owns the effects the drain places around that read
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
-        initProbeNavStart: discardedInitProbeNavStart(declarator.init),
         // A logical selection observes the nested leaf after selecting its receiver.
         // Keep that final property read in the discarded probe.
         initProbeReadsLeaf: selecting?.type === 'LogicalExpression',
@@ -3436,7 +3435,6 @@ export default function createAstDestructureEmitter({
           prop, pattern, chain, kind, entry, hintName, declarator,
           local: propLocalName(prop), host: 'memo-decl', exported, metaPath,
           initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
-          initProbeNavStart: discardedInitProbeNavStart(declarator.init),
           sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
         },
       });
@@ -3630,7 +3628,6 @@ export default function createAstDestructureEmitter({
         // the shape of the read a full consume discards, planned on the PRISTINE tree: by drain
         // time the walk has collapsed the nav and the probe's own question is unanswerable
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
-        initProbeNavStart: discardedInitProbeNavStart(declarator.init),
         sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         readsReceiver: kind === 'instance',
@@ -4048,9 +4045,6 @@ export default function createAstDestructureEmitter({
     // the read a full consume DISCARDS, planned on the PRISTINE tree: by drain time the
     // walk has rendered the guard and the probe's own question is unanswerable
     const initProbePlan = planDiscardedInitProbe(hostParent.node.right, metaPath, { adapter, resolvePure });
-    // ... and where the read that probe reproduces begins, off the SOURCE spelling: the effect
-    // channel of this host splits its lift on the same offset the declarator host does
-    const initProbeNavStart = discardedInitProbeNavStart(hostParent.node.right);
     // a BODYLESS host with an SE SEQUENCE init lifts its prefix into the wrapping block
     // (`if (x) ({ Map: { g } } = (eff(), globalThis));` -> `{ eff(); g = _Map$groupBy; }`);
     // the receiver is the quiet TAIL
@@ -4281,7 +4275,6 @@ export default function createAstDestructureEmitter({
       // the shape of the read a full consume DISCARDS, planned on the PRISTINE tree - the
       // declaration host's own pair, asked of the assignment's right
       initProbePlan,
-      initProbeNavStart,
       sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure }),
       // an SE-keyed prop in an ASSIGNMENT host keeps its ORIGINAL binding in the residual -
       // the overwrite channel re-binds it right after, so no sentinel mints (babel's shape);

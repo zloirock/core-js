@@ -19702,6 +19702,33 @@ function * generateDestructureProbeEffects() {
   }
 }
 
+// Deferred keys ask the same pristine receiver. Prefix claims remain live until the
+// parameter default or caller argument is applied, and the sealed read still throws first.
+function * generateDeferredProbeSiblings() {
+  const receiver = '(globalThis.window?.self).Array';
+  for (const [name, body] of [
+    ['parameter', `function f({ of, from } = ${ receiver }) { return [of(3), from([4])]; } return f();`],
+    ['parameter-prefix', `function f({ of, from } = (log.push([7].at(0)), ${ receiver })) { return [of(3), from([4])]; } return f();`],
+    ['caller', `return (({ of, from }) => [of(3), from([4])])(${ receiver });`],
+    ['caller-prefix', `return (({ of, from }) => [of(3), from([4])])((log.push([7].at(0)), ${ receiver }));`],
+    ['fallback', `function f({ of, from } = ${ receiver } || Array) { return [of(3), from([4])]; } return f();`],
+    ['reentry', `function f({ of, from } = (log.push('prefix'), ${ receiver })) { return [of(3), from([4])]; } return [f(), f()];`],
+    ['nested', `return [0].concat((({ of, from }) => [of(3), from([4])])(${ receiver }));`],
+    ['frame', `let depth = 0; function make() {
+      const arr = [depth++]; Object.defineProperty(arr, 'at', { get() {
+        if (arr[0] === 0) f(); return function () { return this[0]; };
+      } }); return arr;
+    } function f({ of, from } = ((() => { log.push(make().at(0)); return globalThis.window; })()?.self).Array) {
+      return [of(3), from([4])];
+    } return f();`],
+    ['supplied', `function f({ of, from } = (log.push('default'), ${ receiver })) { return [of(3), from([4])]; }
+      return f({ of: n => [n + 1], from: ns => ns[0] });`],
+  ]) for (const rig of [false, true]) {
+    yield { ...snippet(`deferred-probe-siblings/${ name }/${ rig ? 'window' : 'off-window' }`,
+      `(() => { try { ${ body } } catch (error) { return error.name; } })()`, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20069,4 +20096,5 @@ export function * generate() {
   yield * generateRetainedWrapperNamespaces();
   yield * generateDirectClaimProbes();
   yield * generateDestructureProbeEffects();
+  yield * generateDeferredProbeSiblings();
 }

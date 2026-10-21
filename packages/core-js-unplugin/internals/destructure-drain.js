@@ -38,7 +38,6 @@ import {
 import {
   decidedRunningPart,
   discardRescueNodes,
-  partitionEffectsAtProbe,
   navValueCanShortCircuit,
   proxyGlobalMemberCtorPureSwap,
   proxyGlobalRootName,
@@ -152,8 +151,7 @@ import {
   orderDeclaratorJobs,
   orderResidualDeclarators,
   patternHasPolyfillableDefault,
-  probeCarriesWrite,
-  probeNavStartOf,
+  probeEffectNodes,
   probeResidualEffects,
   jobBindingTarget,
   propBindingTarget,
@@ -1007,11 +1005,9 @@ export default function createDestructureDrains(ctx) {
     // a PARAM-default host keeps it - babel spells the read there
     const rescueOverBinding = rescueSource?.type === 'MemberExpression'
       && peelTransparentExpr(rescueSource.object)?.type === 'Identifier';
-    // a SEALED left is an observable read the swap erases - it re-emits whole, the way the
-    // non-logical twin does (`((null == _globalThis.window ? void 0 : (c5++, _self)).Object, ...)`);
-    // every other logical left keeps the harvest, its value being one the literal replaces
-    const sealedLeft = receiver.type === 'LogicalExpression' || branchMirror
-      ? renderSealedNavProbe(pending.sealedProbePlan, metaPath, probeRenderCtx) : null;
+    // The same captured read serves plain receivers, fallback lefts and branch mirrors.
+    // Reconstructing it from the rewritten receiver loses its source ownership and frame.
+    const sealedLeft = renderSealedNavProbe(pending.sealedProbePlan, metaPath, probeRenderCtx);
     // the multi-hop proxy drop and the per-branch mirror both ERASE the read instead of keeping it
     const dropRescueReceiver = shouldDropRescueReceiver(rescueSource)
       || (branchMirror && !insideParamPosition(metaPath)
@@ -1020,10 +1016,10 @@ export default function createDestructureDrains(ctx) {
     // WHOLE, the way babel's swap spells it, because a navigation the literal replaces is
     // observable beyond the effects it buries (it throws off an absent host). everything else asks
     // the rescue canon, which owns what a DISCARD silently drops
-    const rescue = sealedLeft ? [sealedLeft]
-      : pending.rescueSe && !dropRescueReceiver ? [cloneStamped(rescueSource)]
+    const rescue = sealedLeft ? probeEffectNodes(sealedLeft)
+      : pending.rescueSe && !dropRescueReceiver ? [duplicateReceiver(rescueSource, injector)]
       : discardRescueNodes({ node: rescueSource, ...nodeSite(rescueSource, metaPath), adapter })
-        .map(node => cloneStamped(node));
+        .map(node => duplicateReceiver(node, injector));
     // the clone is built at DRAIN time, past the walk: a proxy root the registration
     // suppressed (its spine was the memo plan's tail) would ship raw, so the clone
     // substitutes it here (`(() => { eff(); return globalThis; })().self.Array`)
@@ -1202,12 +1198,12 @@ export default function createDestructureDrains(ctx) {
         const sealedProbe = pending.sealedProbePlan
           ? renderSealedNavProbe(pending.sealedProbePlan, pending.metaPath, probeRenderCtx)
           : sealedNavProbeRead(receiver, pending.metaPath, probeRenderCtx);
-        if (sealedProbe) rendered = sequenceExpression([sealedProbe, rendered]);
+        if (sealedProbe) rendered = sequenceExpression([...probeEffectNodes(sealedProbe), rendered]);
         // a collapsed logical re-runs its left sequence prefix ahead of the literal - what of it runs something,
         // the shared trim canon's cut (a dead `0,` is a comma the source wrote)
         const leading = leadingEffects && pending.metaPath ? observablePrefixElements(leadingEffects.expressions.slice(0, -1),
           { ...nodeSite(receiver, pending.metaPath), adapter }) : leadingEffects?.expressions.slice(0, -1) ?? [];
-        if (leading.length) rendered = sequenceExpression([...leading, rendered]);
+        if (!sealedProbe && leading.length) rendered = sequenceExpression([...leading, rendered]);
       }
       if (replaceNodeInTree(program, receiver, rendered)) {
         markRewrite();
@@ -1457,16 +1453,14 @@ export default function createDestructureDrains(ctx) {
   // returns 'consumed' when the re-anchor took the declarator whole
   function emitStaticMemoRescues({ hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe }) {
     const [{ metaPath }] = declJobs;
-    // Captured source facts exclude every effect the probe already carries. Legacy producers
-    // still partition by the read's offset; no offset leaves that fallback rescue empty.
-    const probeOffset = probeNavStartOf(consumeProbe);
-    const sourceRescues = consumeProbe && !probeOffset ? [] : partitionEffectsAtProbe(discardRescueNodesWithReads({
+    // The accepted probe owns its source effects and writes. Without a probe the discarded
+    // receiver still takes the ordinary rescue plan, including an observable whole read.
+    const rescues = consumeProbe ? probeResidualEffects(consumeProbe) : discardRescueNodesWithReads({
       node: declarator.init,
       scope: metaPath.scope,
       adapter,
       path: metaPath,
-    }), consumeProbe ? probeOffset : null).ahead;
-    const rescues = consumeProbe ? probeResidualEffects(consumeProbe, sourceRescues) : sourceRescues;
+    });
     // the collapse rewrote the init in place, so what the spine bottoms out on NOW is what
     // survived it: a call the nav read THROUGH but could not erase (`wrap(g()).Object`), or a
     // pure binding it folded onto (`mk().self.Array` -> `_self.Array`)
@@ -1604,13 +1598,11 @@ export default function createDestructureDrains(ctx) {
       // it - respelled from the seal boundary, carrying the holder - so lifting it here too would
       // run the write twice. where the probe DECLINED, this lift carries that read instead
       const storeRead = discardedReadOverWrite(declarator.init, rescueAssign);
-      // asked of what the probe this host RENDERED actually carries: a probe holding the store
-      // already spells this read, where one rendered from another arm carries no write at all and
-      // the read is still owed - the existence of a probe is not the question, its content is
-      // ... and where the collapse has already folded that key away, the read is rebuilt off the
+      // Carried writes are absent from the captured residual list. Where the collapse has
+      // already folded that key away, the read is rebuilt off the
       // LIVE store (its own value is rewritten by now) plus the key the source spelled
       const storeReadKey = declJobs.find(job => job.absentableStoreReadKey)?.absentableStoreReadKey ?? null;
-      const readOverWrite = !probeCarriesWrite(consumeProbe, rescueAssign) && storeReadKey !== null
+      const readOverWrite = storeReadKey !== null
         ? storeRead ?? (rescueAssign?.type === 'AssignmentExpression'
           ? memberFromKeyName(cloneNode(rescueAssign), storeReadKey) : null)
         : null;
@@ -2937,11 +2929,10 @@ export default function createDestructureDrains(ctx) {
     // ... and a read the consume discards (`discardedRead`) is that whole right already: it lifts once,
     // ahead of the extractions, and the whole-right lift stands down for it as every channel here does
     const stmtSeqPrefix = probeLead && !memoRef && assignment.left.properties?.length === 0
-      ? liftedPrefixStatements(probeResidualEffects(probeLead, discardRescueNodes({ node: assignment.right, ...frame })), frame)
+      ? liftedPrefixStatements(probeResidualEffects(probeLead), frame)
       : anchorRhsPrefix || carriesPrefix || residualCarriesPrefix || (wholeRhsLift && discardedRead) ? []
       : wholeRhsLift ? (probeLead
-        ? liftedPrefixStatements(partitionEffectsAtProbe(
-          discardRescueNodes({ node: assignment.right, ...frame }), probeNavStartOf(probeLead)).ahead)
+        ? liftedPrefixStatements(probeResidualEffects(probeLead), frame)
         // ... a nav off a call the census resolves to a realm keeps only what the call owes (the
         // shared rule) - the whole read printed a dead `mk().Array;` where the babel leg lifts nothing -
         // as ONE expression, the flat consume's shape below (`eff(), mk(); g = _Map$groupBy;`).

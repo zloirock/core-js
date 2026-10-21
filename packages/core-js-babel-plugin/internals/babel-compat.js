@@ -2265,7 +2265,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       embed: hostSlot,
     }));
     mintedEffectNodes.add(node);
-    return { node, decision, rootEffectCall: decision.navPlan?.rootEffectCall ?? null };
+    return { node, decision };
   }
 
   // a RECEIVERLESS static erase loses the read the source performs on a value that can be

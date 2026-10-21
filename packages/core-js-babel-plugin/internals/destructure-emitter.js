@@ -3009,7 +3009,7 @@ export default function createDestructureEmitter({
       declarator.requeue();
     }
     const fullConsumeProbeKey = patternEmpties && extracted.length ? probedNavProbeKey(plan) : null;
-    let probeOwnedCall = null;
+    let sourceProbe = null;
     if (fullConsumeProbeKey) {
       const navBase = plan.probedNavNode ?? declarator.node.init;
       const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
@@ -3017,7 +3017,7 @@ export default function createDestructureEmitter({
       if (guarded) {
         const [first] = extracted;
         first.init = t.sequenceExpression([probeKeyReadNode(guarded.node, fullConsumeProbeKey), first.init]);
-        probeOwnedCall = guarded.rootEffectCall;
+        sourceProbe = guarded;
       }
     }
     if (patternEmpties && plan.discardSe) {
@@ -3025,13 +3025,11 @@ export default function createDestructureEmitter({
       // a loop head's sequence init survives whole as its own sink declarator (`convertForInitSESink`),
       // the discarded setup in it - a replay would run that setup twice
       if (forInitSESinkParts(declarator.node, forInit)) return [];
-      // the probe's guard test runs an effect-bearing CALL root exactly once - the discard
-      // replay must not re-run it (identity plus span symmetry with the harvested node).
-      // a WRITE the synth receiver carries is spelled there for the same reason
-      const replayable = plan.discardSe.filter(node => !synthReceiverOwnedSe.has(node)
-        && (!probeOwnedCall || (node !== probeOwnedCall
-          && !(node.start >= probeOwnedCall.start && node.end <= probeOwnedCall.end)
-          && !(probeOwnedCall.start >= node.start && probeOwnedCall.end <= node.end))));
+      // The common source facts exclude the probe's calls, keys and writes. A synth receiver
+      // owns its effects separately; neither channel infers ownership from generated nodes.
+      const discarded = plan.discardSe.filter(node => !synthReceiverOwnedSe.has(node));
+      const replayable = sourceProbe
+        ? directClaimProbeEffects({ ...sourceProbe, node: null }, discarded).filter(Boolean) : discarded;
       const replayed = replayable.map(node => cloneReplayedEffect(node, declarator));
       // a SOLE extraction rides the setup inside its own value; SEVERAL readers of one init cannot each
       // hold it, so on a statement host it is handed back to the lift ahead of them all, and in a LOOP

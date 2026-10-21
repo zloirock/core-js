@@ -5442,6 +5442,8 @@ export function claimProbeSourceSlot(source, resolvePure, ctx) {
   const dead = new Set(vestigialNavOptionals(unwrapRuntimeExpr(source), resolvePure, ctx));
   const served = [];
   const deopt = [];
+  const children = [];
+  let visitChildren = true;
   let root = null;
   let path = [];
   for (let node = source, depth = 0; node && depth++ < MAX_KEY_DEPTH;) {
@@ -5450,14 +5452,20 @@ export function claimProbeSourceSlot(source, resolvePure, ctx) {
       path = [...path, 'expression'];
       node = node.expression;
     } else if (isMemberAccessNode(node)) {
+      if (visitChildren && node.computed) children.push(node.property);
       served.push(path);
       if (dead.has(node)) deopt.push(path);
       path = [...path, 'object'];
       node = node.object;
     } else if (node.type === 'SequenceExpression') {
+      if (visitChildren) children.push(...node.expressions.slice(0, -1));
       path = [...path, 'expressions', node.expressions.length - 1];
       node = node.expressions.at(-1);
     } else if (node.type === 'AssignmentExpression') {
+      // A stored RHS computes a value of its own, including navigation below the write.
+      // Visit that value once, rather than separately accepting each of its descendants.
+      if (visitChildren) children.push(node.left, node.right);
+      visitChildren = false;
       path = [...path, 'right'];
       node = node.right;
     } else {
@@ -5466,10 +5474,11 @@ export function claimProbeSourceSlot(source, resolvePure, ctx) {
         const pure = resolvePure({ kind: 'global', name: node.name });
         if (pure) root = { path, pure };
       }
+      if (visitChildren && node.type !== 'Identifier' && node.type !== 'ThisExpression') children.push(node);
       break;
     }
   }
-  return { source, served, deopt, root };
+  return { source, served, deopt, root, children };
 }
 
 // Rendering facts for ordinary claims and receiver rebases. Pattern/deferred consumers keep
@@ -5482,7 +5491,9 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
 // Enrich a decided read or guarded value with source slots shared by both render channels.
 // A value probe preserves its terminal read; only a direct claim can fold the test navigation.
 function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
-  if (decision.kind === 'passthrough') return decision;
+  // The legacy navigation renderer retains this whole source read. Its effects still
+  // have the same source owner as the other probes; deferred drains need no offset fallback.
+  if (decision.kind === 'passthrough') return { ...decision, retained: [decision.boundary.inner], consumed: [] };
   const { source } = decision;
   const retained = [];
   function slot(node) {

@@ -43,7 +43,8 @@ import createPlugin, {
   neutralizeUnwalkedParamPatterns,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
-import { drainSequenceAssignments, liveTailOf, probeCarriesWrite } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
+import { drainSequenceAssignments, liveTailOf } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
+import { directClaimProbeEffects } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import createDestructureDrains from '../../packages/core-js-unplugin/internals/destructure-drain.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
@@ -5529,8 +5530,11 @@ for (const receiver of ['arr', '(arr)', '(arr as number[][][])']) {
   const [statement] = program.body;
   const host = unwrapNode(statement.expression.expressions[1]);
   const write = exprOf('held = capture();');
-  check('probe recognizes a carried write', probeCarriesWrite(write, write), true);
-  check('probe rejects an unrelated write', probeCarriesWrite(host, write), false);
+  const sourceFacts = { consumed: [], retained: [write], navStart: 0 };
+  check('probe excludes a carried source write', directClaimProbeEffects({ decision: sourceFacts, node: host }, [write]).includes(write), false);
+  check('probe preserves an unrelated source write', directClaimProbeEffects({
+    decision: { ...sourceFacts, retained: [] }, node: host,
+  }, [write]).includes(write), true);
   let rewrites = 0;
   const jobs = [{ seqHostStatement: statement, host: 'assignment' }];
   drainSequenceAssignments(new Map([[host, { hostPath: { node: host }, jobs }]]), {
