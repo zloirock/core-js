@@ -45,11 +45,16 @@ import {
   voidZero,
   hostSlot,
   renderInstanceDefaultGuard,
+  renderDirectClaimProbe,
 } from '../../packages/core-js-polyfill-provider/render.js';
+import { claimIsInert, isRenderedProbeRead, markRenderedProbeRead } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { directClaimProbePlan } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 
 const generate = generateModule.default ?? generateModule;
-const { check, checkTruthy, finish } = createChecker('estree-to-babel');
+const { check, checkTruthy, finish, runBoth } = createChecker('estree-to-babel');
 
 function print(node) {
   return generate(estreeToBabel(node), { comments: true }).code;
@@ -63,6 +68,37 @@ function caught(node) {
     return error.message;
   }
 }
+
+// Conversion transfers served-read ownership, without claiming any source child slot.
+{
+  const key = callExpression(identifier('key'), []);
+  const read = markRenderedProbeRead(memberExpression(identifier('held'), hostSlot(key), { computed: true }));
+  const converted = estreeToBabel(read);
+  check('probe read survives conversion', isRenderedProbeRead(converted), true);
+  check('probe read cannot be reclaimed', claimIsInert({ node: converted }), true);
+  check('probe key remains live', isRenderedProbeRead(converted.property), false);
+  check('probe embedded key keeps identity', converted.property, key);
+  check('source lookalike is not served', isRenderedProbeRead(memberExpression(identifier('held'), identifier('key'))), false);
+}
+
+// Applying a source-based probe may neither rename its input nor lose the clone's provenance.
+runBoth('direct probe source frame', 'const value = (globalThis.window?.self).Array;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  function resolve({ name }) {
+    return ['globalThis', 'self'].includes(name) ? { entry: name, hintName: name } : null;
+  }
+  const plan = directClaimProbePlan(path.node.init, resolve, { scope: path.scope, adapter, path });
+  const source = JSON.stringify(path.node.init);
+  const converted = estreeToBabel(renderDirectClaimProbe(plan, { injectImport: entry => `_${ entry }`, embed: hostSlot }));
+  const test = converted.object.test.right;
+  check(`${ label }/source unchanged`, JSON.stringify(path.node.init), source);
+  checkTruthy(`${ label }/distinct clone`, test !== plan.test.source.source);
+  check(`${ label }/source start`, test.start, plan.test.source.source.start);
+  check(`${ label }/source end`, test.end, plan.test.source.source.end);
+  check(`${ label }/detached root substitution`, test.object.name, '_globalThis');
+  check(`${ label }/served cloned read`, isRenderedProbeRead(test), true);
+});
 
 // A complete method render uses only the closed vocabulary; embedded argument slots stay
 // live until apply, and a generated memo is registered before the argument is embedded.

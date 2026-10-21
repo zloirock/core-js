@@ -1,6 +1,8 @@
 // The erased claim and the discarded initializer ask one owner for source facts. Queries must
 // leave the source untouched, and a retained holder must not acquire a second inline store.
-import { discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import {
+  directClaimProbePlan, directClaimProbeEffects, discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan,
+} from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -84,6 +86,44 @@ for (const [source, leafIsProbe, alias] of [
   check(`${ label }/probe leaf`, !!plan?.leafIsProbe, leafIsProbe);
   check(`${ label }/alias boundary`, !!plan?.aliasProbe, alias);
 });
+
+// A retained alias probes its first served constructor read, without reading THROUGH a native
+// constructor that the target can lack. A denied constructor entry keeps the original read.
+runBoth('alias probe above a served constructor',
+  'const held = globalThis.window; const value = held.Promise.resolve;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const plan = directClaimProbePlan(path.node.init, resolvePure, ctx);
+    check(`${ label }/probe ends below the served value`, plan?.aliasProbe.key, 'Promise');
+    check(`${ label }/no native constructor dereference`, plan?.aliasProbe.innerKeys.length, 0);
+    const denied = directClaimProbePlan(path.node.init, meta => meta.name === 'Promise' ? null : resolvePure(meta), ctx);
+    check(`${ label }/unserved constructor`, denied?.aliasProbe.key, 'resolve');
+    check(`${ label }/unserved intermediate read`, denied?.aliasProbe.innerKeys.join('.'), 'Promise');
+  });
+
+// An outer seal ending at a claim does not hide the inner throwing boundary.
+runBoth('nested seal source facts',
+  'const value = (before(), (globalThis.window?.self).Array).of(after());', (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.property?.name === 'of');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const source = path.node.callee;
+    const before = JSON.stringify(source);
+    const plan = directClaimProbePlan(source, resolvePure, ctx);
+    check(`${ label }/inner read`, plan?.key, 'Array');
+    check(`${ label }/source anchor`, plan?.source, source);
+    check(`${ label }/retained test`, plan?.test.source.source, plan?.navPlan.hops[0].node);
+    check(`${ label }/served source reads`, plan?.test.source.served.length, 1);
+    check(`${ label }/explicit root`, plan?.test.source.root.pure.hintName, 'globalThis');
+    const prefix = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'before').node;
+    const [after] = path.node.arguments;
+    const rendered = { type: 'Identifier', name: 'probe' };
+    const effects = directClaimProbeEffects({ decision: plan, node: rendered }, [prefix, plan.test.source.source, after]);
+    check(`${ label }/remaining effect count`, effects.length, 3);
+    [prefix, rendered, after].forEach((effect, index) => check(`${ label }/effect ${ index }`, effects[index], effect));
+    check(`${ label }/query is pure`, JSON.stringify(source), before);
+  });
 
 // Provenance admits a copy; a true minted read must not recursively acquire a probe.
 runBoth('probe source provenance', 'const held = globalThis.window; const value = held.Array;', (parser, program, label) => {
