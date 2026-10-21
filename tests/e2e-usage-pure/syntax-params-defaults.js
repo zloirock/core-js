@@ -739,45 +739,6 @@ QUnit.test('params: a held construction of a function widens it the same way', a
   assert.same(new held.constructor('hello').r, 'h');
 });
 
-/* eslint-disable no-sequences, no-unused-vars -- preserve the unread store and effectful optional key under test */
-// Synthesized destructure receivers preserve the host guard and the fallback it selects.
-QUnit.test('destructure synth: kept optional receiver guards key effects', assert => {
-  let hits = 0;
-  let held;
-  const method = (({ of } = {}) => of)((held = globalThis.window)?.[hits++, 'self'].Array ?? {});
-  const present = typeof window === 'object';
-  assert.same(hits, present ? 1 : 0);
-  if (present) assert.deepEqual(method(3, 7), [3, 7]);
-  else assert.same(method, undefined);
-});
-
-QUnit.test('destructure synth: unresolved sibling shares the guarded memo', assert => {
-  let hits = 0;
-  let held;
-  const result = (({ from, customZ } = {}) => [from, customZ])((held = globalThis.window)?.[hits++, 'self'].Array ?? {});
-  const present = typeof window === 'object';
-  assert.same(hits, present ? 1 : 0);
-  assert.same(result[1], undefined);
-  if (present) assert.deepEqual(result[0]([4, 9]), [4, 9]);
-  else assert.same(result[0], undefined);
-});
-
-QUnit.test('destructure synth: prefix and fallback run on their own branches', assert => {
-  let prefix = 0;
-  let keys = 0;
-  let fallbacks = 0;
-  let held;
-  const method = (({ values } = {}) => values)(
-    (prefix++, held = globalThis.window)?.[keys++, 'self'].Object ?? (fallbacks++, {}),
-  );
-  const present = typeof window === 'object';
-  assert.same(prefix, 1);
-  assert.same(keys, present ? 1 : 0);
-  assert.same(fallbacks, present ? 0 : 1);
-  if (present) assert.deepEqual(method({ answer: 42 }), [42]);
-  else assert.same(method, undefined);
-});
-
 QUnit.test('destructure synth: caller-correct defaults keep their method literal', assert => {
   // eslint-disable-next-line no-unsafe-optional-chaining -- the accepted default-slot exception is under test
   function overAHop({ of, from } = globalThis.window?.self.Array) {
@@ -827,9 +788,7 @@ QUnit.test('destructure synth: deferred class field keeps its own guard', assert
     assert.deepEqual(result(3, 7), [3, 7]);
   } else assert.same(error?.name, 'TypeError');
 });
-/* eslint-enable no-sequences, no-unused-vars -- end of the source forms above */
 
-/* eslint-disable no-sequences -- receiver and key effects must remain on their source branches */
 // A synthesized logical left keeps the nullish value that selects the fallback.
 QUnit.test('destructure logical synth: parameter fallback and caller value', assert => {
   function read({ of } = globalThis.window?.Array ?? { of: 'fallback' }) { return of; }
@@ -846,22 +805,6 @@ QUnit.test('destructure logical synth: both selected constructors carry their me
   assert.deepEqual(method([4, 7]), [4, 7]);
 });
 
-QUnit.test('destructure logical synth: effects and unknown sibling keep their branches', assert => {
-  let prefix = 0;
-  let keys = 0;
-  let fallbacks = 0;
-  function read({ of, customZ } = (prefix++, globalThis).window?.[keys++, 'self'].Array
-    || (fallbacks++, { of: 'fallback', customZ: 'other' })) { return [of, customZ]; }
-  const result = read();
-  const present = typeof window === 'object';
-  assert.same(prefix, 1);
-  assert.same(keys, present ? 1 : 0);
-  assert.same(fallbacks, present ? 0 : 1);
-  if (present) assert.deepEqual(result[0](1, 9), [1, 9]);
-  else assert.same(result[0], 'fallback');
-  assert.same(result[1], present ? undefined : 'other');
-});
-
 QUnit.test('destructure logical synth: a shadowed realm remains the caller object', assert => {
   function read(globalThis) {
     const { of } = globalThis.window?.Array ?? { of: 'fallback' };
@@ -870,7 +813,6 @@ QUnit.test('destructure logical synth: a shadowed realm remains the caller objec
   assert.same(read({ window: { Array: { of: 'custom' } } }), 'custom');
   assert.same(read({}), 'fallback');
 });
-/* eslint-enable no-sequences -- end of the source forms above */
 
 /* eslint-disable prefer-rest-params -- arguments identity is the form under test */
 

@@ -421,7 +421,7 @@ export function replaceGuardedHop({
   }
   // the climb may reach a path an earlier emission in the same chain already replaced
   if (target.removed) return;
-  // dropped-hop key effects ride as a sequence prefix around the WHOLE alternate - the
+  // supported static-leaf key effects ride as a sequence prefix around the WHOLE alternate - the
   // native order runs them past the guard, before the leaf read
   function withLeafKeySe(alternate) {
     return leafKeySe?.length ? sequenceExpression([...leafKeySe, alternate]) : alternate;
@@ -471,8 +471,8 @@ export function replaceGuardedHop({
   } else if (test) {
     // a tail (or the chain wrapper) was absorbed: swap the hop for its emission in place,
     // then wrap what the climb collected as the alternate
-    // a MEMBER tail hangs OUTSIDE the dropped-hop key effects - they belong to the read the
-    // substitution replaced (`(k++, _self).host.w`); a CALL tail keeps them around the whole
+    // a MEMBER tail hangs OUTSIDE the leaf-key effects - they belong to the read the
+    // substitution replaced (`(k++, _Array).host.w`); a CALL tail keeps them around the whole
     // invocation, where the source spelled them (`(k++, _Array$of(1, 2))`)
     // a consumed TS wrapper spans the replacement but is NOT part of it: the alternate reads
     // through it, so the assertion goes with the source spelling it wrapped
@@ -824,8 +824,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   let alternate = planRoute
     ? plan.hops.slice(plan.collapseIdx + 1).reduce(
       (base, hop) => memberFromKeyName(base, hop.name, { optional: !!hop.liveOptional }),
-      withSideEffects(identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)),
-        plan.liveKeySeExprs().slice(plan.testKeySeCount)))
+      identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)))
     : leafPlan?.leafPure ? identifier(injectPureImport(leafPlan.leafPure.entry, leafPlan.leafPure.hintName))
     // an unbacked leaf over a ponyfill base reads off that base - folded onto it where the plan says
     // so, else as its member (the plan's verdict, shared with the destructure probe and the other leg)
@@ -847,11 +846,11 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
     : memberFromKeyName(guarded, key);
   // the test SPELLS the kept write, so the harvested copy of it must not run a second time -
   // the consumer filters its own effect list on this
-  // the folded KEY effects are spelled INSIDE this render (test and alternate): a consumer
+  // supported leaf-key effects are spelled INSIDE the fallback render: a consumer
   // replaying the claim's own effect list must skip them, or the source's single run doubles
   return {
     node: read,
-    consumed: [...planRoute ? plan.keySeExprs : leafKeyEffects, ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
+    consumed: [...planRoute ? [] : leafKeyEffects, ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
   };
 }
 

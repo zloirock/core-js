@@ -90,7 +90,7 @@ QUnit.test('iterator method getter cannot replace the argument-call receiver', a
   assert.same(arr[0], 'swapped');
 });
 
-QUnit.test('computed symbol key retains a collapsed proxy receiver hop effect', assert => {
+QUnit.test('computed symbol key retains a native proxy receiver hop effect', assert => {
   const realm = Function('return this')();
   const log = [];
   withTemporaryProperty(realm, 'self', realm, () => {
@@ -119,7 +119,7 @@ QUnit.test('computed symbol key retains a sealed proxy receiver prefix and hop e
   });
 });
 
-QUnit.test('aliased symbol consumption keeps folded receiver effects once', assert => {
+QUnit.test('aliased symbol consumption keeps native receiver effects once', assert => {
   const realm = Function('return this')();
   const iteratorKey = Symbol.iterator;
   const log = [];
@@ -136,7 +136,7 @@ QUnit.test('aliased symbol consumption keeps folded receiver effects once', asse
   });
 });
 
-QUnit.test('aliased symbol argument call keeps folded receiver effects once', assert => {
+QUnit.test('aliased symbol argument call keeps native receiver effects once', assert => {
   const realm = Function('return this')();
   const iteratorKey = Symbol.iterator;
   const log = [];

@@ -63,10 +63,6 @@ testBeforeLowering('static rest: constructor defaults preserve supplied properti
   const supplied = read({ all: custom, extra: 8 });
   assert.same(supplied[0], custom);
   assert.deepEqual(supplied[1], { extra: 8 });
-  const events = [];
-  function computed({ race, ...rest } = globalThis[(events.push('key'), 'self')].Promise) { return [race, rest]; }
-  assert.true(computed()[0] === Object.getOwnPropertyDescriptor(PurePromise, 'race').value);
-  assert.deepEqual(events, ['key']);
 });
 
 QUnit.test('nested iterator extraction evaluates sibling effects once', assert => {

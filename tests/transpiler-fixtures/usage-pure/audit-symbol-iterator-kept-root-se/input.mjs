@@ -1,8 +1,5 @@
-// well-known-symbol access over a KEPT chain-assign root (the stored value navigates an
-// unresolvable hop, so the assignment stays the receiver): the harvested receiver SE - a
-// sequence prefix around the root, a dropped-hop key effect - must ride ahead of the collapsed
-// receiver on BOTH emitters (one used to drop it silently), and a live `?.` keeps its guard
-// (the kept value can be absent - the helper would throw where native short-circuits)
+// Symbol access retains stores, receiver prefixes and symbol-key effects in source order.
+// Effectful realm-hop keys keep their native receiver access.
 let a;
 export const keptPlain = (a = globalThis.window).self[Symbol.iterator];
 let b;

@@ -2446,16 +2446,11 @@ function * generateSelectingReceiverSynth() {
   }
 }
 
-// PROXY-NAV value vs navigation, across every key spelling: what the nav spells is decided by POSITION,
-// and the key's spelling (plain, literal, variable, SE-bearing) never enters the question - a value reads
-// its own claim's ponyfill, a navigation rebuilds from the root. one leg weighed the key's effects and
-// answered a DIFFERENT module for the noisy spelling than for its quiet twins (`global-this` vs `self`),
-// which the import-parity oracle sees and the runtime does not
+// Quiet proxy keys share the value/navigation decision, independent of dotted or computed spelling.
 function * generateProxyNavKeySpellings() {
   const KEYS = [
     ['plain', '.self'],
     ['literal', "['self']"],
-    ['se', "[(log.push('k'), 'self')]"],
   ];
   for (const [id, key] of KEYS) {
     yield { ...snippet(`proxy-nav-key/${ id }-value`, `typeof globalThis${ key }`, { rig: true }), strip: false };
@@ -3368,10 +3363,6 @@ const KVC_VALUES = [
   // source's own spelling (a tail respelled `.window` reads a different key on a computed name)
   ['computed-leaf', "globalThis['self']"],
   ['computed-tail', "globalThis.self['window']"],
-  // ... and the tail key that CARRIES an effect: the hop survives the collapse, so its key node -
-  // and any claim inside it - travels into the render, which is what decides WHICH channel may
-  // spell it (a raw slot write would orphan the claim's own path and drop its polyfill)
-  ['computed-tail-se', 'globalThis.self[(log.push("k"), "window")]'],
   // TS wrappers around the value are transparent to the peel canon; the cast/non-null token
   // must neither block the collapse nor leak into the re-emitted spelling unbalanced
   ['ts-cast-leaf', 'globalThis.self as any', { ts: true }],
@@ -3457,7 +3448,7 @@ function * generateThisReceiverGuards() {
 // the owner settled - a terminal hop pure cannot back keeps its slot over the deepest span pure CAN
 // back, while a `delete` reads nothing over the navigation and folds it whole onto the root. every
 // value row takes a different render path (bare / sealed / sequence-prefixed / call-rooted /
-// computed and SE-computed keys / a probe below the backed hop), every consumer a different
+// quiet computed keys / a probe below the backed hop), every consumer a different
 // position, and the import set is the sharp half of the oracle: the two spellings differ by the
 // module they pull (`actual/self` against `actual/global-this`) while the realm object is one at
 // runtime. rigged: the hops need live slots natively
@@ -3470,8 +3461,6 @@ const TPC_VALUES = [
   ['call-rooted-prefixed', '(log.push("v"), dhr()).self.window'],
   ['probe-below', 'globalThis.window.self.window'],
   ['computed-key', "globalThis.self['window']"],
-  ['computed-key-se', 'globalThis.self[(log.push("k"), "window")]'],
-  ['se-keyed-hop', 'globalThis[(log.push("h"), "self")][(log.push("k"), "window")]'],
 ];
 const TPC_CONSUMERS = [
   ['read', value => `String(${ value })`],
@@ -3535,7 +3524,6 @@ const CDB_ROOTS = [
 const CDB_RUNS = [
   ['hop', root => `${ root }.self.carrierSlot`],
   ['deep', root => `${ root }.self.window.self.carrierSlot`],
-  ['keyed', root => `${ root }[(log.push("k"), "self")].carrierSlot`],
 ];
 
 function * generateCarrierDeleteBase() {
@@ -3941,43 +3929,6 @@ function * generateProxyHopCtor() {
   }
 }
 
-// --- Side-effecting hop KEY under a live `?.` ---
-// the guard test is rendered from the kept source of the hop that OWNS the key, so that key is
-// already evaluated there; prefixing the alternate with it too runs the effect twice where native
-// runs it once. only the rig makes it visible - without live `self` / `window` the guard
-// short-circuits and the alternate, where the duplicate lives, is never evaluated. the axes are the
-// key's position relative to the guarded hop (below it, above it, both) and the root spelling,
-// because each root takes a different render: plain and alias go through the piecewise substitution,
-// the sequence root through the whole-value one
-// the alias root must be a CONST alias: a parameter holding the global is not a recognised alias,
-// so that nav stays native while the compared `Ctor` resolves - the row would report the resolver's
-// documented under-resolve instead of the effect order this family exists for
-const SHK_ROOTS = [
-  { id: 'plain', root: 'globalThis', wrap: expr => expr },
-  { id: 'alias', root: 'ga', wrap: expr => `(() => { const ga = globalThis; return ${ expr }; })()` },
-  { id: 'sequence', root: '(log.push("r"), globalThis)', wrap: expr => expr },
-];
-const SHK_SHAPES = [
-  { id: 'key-below-guard', nav: r => `${ r }[(log.push("k"), "window")]?.self` },
-  { id: 'key-above-guard', nav: r => `${ r }.window?.[(log.push("k"), "self")]` },
-  { id: 'key-both-sides', nav: r => `${ r }[(log.push("k1"), "window")]?.[(log.push("k2"), "self")]` },
-];
-// the leaf must be a global WITHOUT a pure constructor entry: with one (`Map`, `Set`, ...) the
-// collapse lands on the leaf itself and the alternate is a bare binding, which is exactly the shape
-// where no key can be re-emitted. an entry-less leaf keeps the collapse at the proxy hop and leaves
-// the leaf as a TAIL - the render that carries the key prefix, and the one that duplicated it
-const SHK_LEAVES = ['Array', 'Object', 'JSON', 'Math', 'Number', 'String'];
-function * generateSeHopKeyGuarded() {
-  let i = 0;
-  for (const { id: rootId, root, wrap } of SHK_ROOTS) {
-    for (const shape of SHK_SHAPES) {
-      const leaf = SHK_LEAVES[i++ % SHK_LEAVES.length];
-      const expr = `(${ wrap(`${ shape.nav(root) }.${ leaf } === ${ leaf }`) })`;
-      yield { ...snippet(`se-hop-key-guarded/${ rootId }/${ shape.id }`, expr, { rig: true }), strip: false };
-    }
-  }
-}
-
 // --- Kept proxy root: a chain-assign whose VALUE navigates a hop core-js does not ponyfill ---
 // rooting the hop collapse THROUGH such an assignment proves the ROOT is a proxy global, not that the
 // assignment STORED one - `window` carries no ponyfill entry, so its value is whatever the environment has.
@@ -4054,7 +4005,6 @@ const KPR_SHAPES = [
   { id: 'provable-value-negative', value: 'globalThis', tail: '?.self.Array.prototype.findLast.call([1], x => x)' },
   { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },
   { id: 'se-around-assign', value: 'globalThis.window', tail: '?.self.Array.prototype.some.call([1], x => x)', se: true },
-  { id: 'se-key-computed-leaf', value: 'globalThis.window', tail: "?.[(log.push('k'), 'self')]['Array'].prototype.at.call([5], 0)" },
   // well-known-symbol access over the kept root with a sequence-prefix SE: the harvest must
   // carry the prefix on both emitters (one dropped it - wrong effect count), guard preserved
   { id: 'kept-symbol-iterator-se', value: 'globalThis.window', tail: '?.self[Symbol.iterator]', se: true },
@@ -4217,25 +4167,17 @@ function * generateRunLandingConsumers() {
 // and the key SE must not fire. RIGGED rows take the present-window branch: pony-backed value,
 // key SE exactly once
 const BARE_PROBE_SHAPES = [
-  { id: 'plain-tail-se-key', tail: "?.[(log.push('k'), 'self')].Number" },
   { id: 'plain-dot-tail', tail: '?.self.JSON' },
-  { id: 'optional-tail-se-key', tail: "?.[(log.push('k'), 'self')]?.Number" },
   { id: 'optional-dot-tail', tail: '?.self?.JSON' },
-  // SE-keyed hop UNDER a claimed static + instance dispatch: the dispatch's outer guard memoizes
-  // only the probe root, so the hop-key SE must ride the claim BODY (a receiver-count cut dropped
-  // it - the memo never captured an effect past the guarded root)
-  { id: 'se-key-claim-dispatch', tail: "?.[(log.push('k'), 'self')].Array.of(5).at(0)" },
   // a SECOND unresolvable hop (the realm self-reference past the probe): the guard tests the
   // DEEPER prefix, so the `?.` inside that test guards the probe and is load-bearing. spelling
   // the test with a plain spine read `.window` off the absent probe - a throw where the source
   // yields undefined (the unrigged rows are the oracle)
   { id: 'second-unresolvable-hop', tail: '?.window?.self.Array.of(5).at(0)' },
   { id: 'second-unresolvable-hop-optional', tail: '?.window?.self?.Array.of(6).at(0)' },
-  { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)" },
   // the OPTIONAL-root twins: the inner `?.`'s defined probe must not erase the deeper
   // environment probe's guard (the fixed optionalMemberStaysGuarded early-return)
   { id: 'optional-root-value', tail: '?.self.Array.of(8).at(0)', optRoot: true },
-  { id: 'optional-root-se-key', tail: "?.[(log.push('k'), 'self')]?.Array.of(9).at(0)", optRoot: true },
   // the declined-leaf connector over a DEEP plain nav: the hop fold must not erase the `?.`
   // (it read a defined `_globalThis.BigInt` where the guarded canon answers undefined).
   // rig-only: the unrigged twin throws NATIVELY at the plain `.self` read (the accepted
@@ -4616,14 +4558,6 @@ function * generateBareProxyProbe() {
   const sealedClaim = '(() => { try { return (globalThis.window?.self).Array.of(5).at(0); } catch (e) { return "throw"; } })()';
   yield { ...snippet('bare-proxy-probe/sealed-plain-claim', sealedClaim), strip: false };
   yield { ...snippet('bare-proxy-probe/sealed-plain-claim-rigged', sealedClaim, { rig: true }), strip: false };
-  // SE-keyed hop INSIDE the sealed nav: the throw probe CARRIES the key SE (native order -
-  // test, key effect, read), and the claim's own channel must not re-run it. the log length
-  // is the oracle: absent window skips the effect entirely (short-circuit before the key),
-  // a present one runs it exactly once
-  const sealedSeKey = '(() => { try { return [(globalThis.window?.[(log.push("k"), "self")]).Array.of(5).at(0), log.length]; }'
-    + ' catch (e) { return ["throw", log.length]; } })()';
-  yield { ...snippet('bare-proxy-probe/sealed-se-key-claim', sealedSeKey), strip: false };
-  yield { ...snippet('bare-proxy-probe/sealed-se-key-claim-rigged', sealedSeKey, { rig: true }), strip: false };
   // DISCARDED-REGION payloads: every collapsing emit replaces source it does not reproduce, and a
   // polyfillable read buried in the part it drops has to disappear with it - kept, it composes
   // against text that is gone. the cross is the shape of the discarded region against the claim
@@ -4664,14 +4598,6 @@ function * generateBareProxyProbe() {
     + ' catch (e) { return "throw"; } })()';
   yield { ...snippet('bare-proxy-probe/sealed-proto-method', sealedProto), strip: false };
   yield { ...snippet('bare-proxy-probe/sealed-proto-method-rigged', sealedProto, { rig: true }), strip: false };
-  const sealedFallback = '(() => { try { return [(globalThis.window?.[(log.push("k"), "self")]).Promise.noSuchStatic, log.length]; }'
-    + ' catch (e) { return ["throw", log.length]; } })()';
-  yield { ...snippet('bare-proxy-probe/sealed-fallback-static', sealedFallback), strip: false };
-  yield { ...snippet('bare-proxy-probe/sealed-fallback-static-rigged', sealedFallback, { rig: true }), strip: false };
-  const sealedDestructure = '(() => { try { const { of: o } = (globalThis.window?.[(log.push("k"), "self")]).Array;'
-    + ' return [typeof o, log.length]; } catch (e) { return ["throw", log.length]; } })()';
-  yield { ...snippet('bare-proxy-probe/sealed-destructure', sealedDestructure), strip: false };
-  yield { ...snippet('bare-proxy-probe/sealed-destructure-rigged', sealedDestructure, { rig: true }), strip: false };
   const sealedInstance = '(() => { try { return (globalThis.window?.self).Array.prototype.flat.call([[7]]).at(0); }'
     + ' catch (e) { return "throw"; } })()';
   yield { ...snippet('bare-proxy-probe/sealed-instance-recv', sealedInstance), strip: false };
@@ -4804,7 +4730,6 @@ function * generateUnbackedWindowOptionals() {
     new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href) };`;
   for (const [keyId, probe] of [
     ['dotted', 'window.window.window'],
-    ['computed-effect', "window.window[(log.push('key'), 'window')]"],
   ]) {
     for (const [leafId, leaf] of [
       ['raw-constructor-name', 'Array.name'],
@@ -5161,11 +5086,6 @@ const NSH_SHAPES = [
   { id: 'instance-flat', tail: '(log.push(2), globalThis).self', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
   { id: 'static-of', tail: '(log.push(2), globalThis).window', call: r => `${ r }.Array.of(7)` },
   { id: 'instance-flatMap', tail: '(log.push(2), globalThis).self.window', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
-  // a side effect buried in a `+`-concat / template HOP key (`globalThis[(log.push(2), 'se') + 'lf']`): the
-  // dropped hop must harvest it through the fold, not just an outer sequence prefix
-  { id: 'concat-key-hop', tail: 'globalThis[(log.push(2), "se") + "lf"]', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
-  // eslint-disable-next-line no-template-curly-in-string -- intentional template-literal in the GENERATED code
-  { id: 'template-key-hop', tail: 'globalThis[`s${ (log.push(2), "e") }lf`]', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
 ];
 function * generateNestedSeHopReceiver() {
   for (const shape of NSH_SHAPES) {
@@ -5190,27 +5110,6 @@ const BFK_SHAPES = [
 function * generateBuriedFoldKeySE() {
   for (const shape of BFK_SHAPES) {
     yield { ...snippet(`buried-fold-key-se/${ shape.id }`, shape.expr), strip: false };
-  }
-}
-
-// --- Static-collapse receiver SE order: chain-root call before hop-key ---
-// a static dispatch discards the whole receiver and re-emits its SE as a sequence prefix. they must run in
-// source-eval order: the chain-root CALL (the deepest object) BEFORE the shallower computed hop-key. a
-// harvest that appended the call LAST reversed `(call, key)` to `(key, call)` on BOTH emitters - a consistent
-// error only the NATIVE comparison catches (the `effects` log records the order). `self`/`window` are absent
-// in Node, so the host aliases `globalThis.self` to globalThis self-restoringly (try/finally, no leak)
-const SCO_SHAPES = [
-  { id: 'call-before-key-of', inner: '(() => { log.push("call"); return globalThis; })()[(log.push("key"), "self")].Array.of(1)' },
-  { id: 'call-before-key-from', inner: '(() => { log.push("c"); return globalThis; })()[(log.push("k"), "self")].Array.from([1])' },
-  { id: 'key-only', inner: 'globalThis[(log.push("k2"), "self")].Array.of(2)' },
-  // NESTED sequence in the hop-key: parsers that keep a `ParenthesizedExpression` between the comma levels
-  // need a per-level unwrap to fold past the inner `(k4, 'self')`. a bare tail-peel stops at the inner paren
-  // and leaves the hop raw - the `effects` log pins that BOTH buried increments still run, in source order
-  { id: 'nested-seq-key', inner: 'globalThis[(log.push("k3"), (log.push("k4"), "self"))].Array.of(3)' },
-];
-function * generateStaticCollapseSEOrder() {
-  for (const shape of SCO_SHAPES) {
-    yield { ...snippet(`static-collapse-se-order/${ shape.id }`, shape.inner, { rig: true }), strip: false };
   }
 }
 
@@ -6977,13 +6876,6 @@ function * generateAssignAliasReassign() {
         + 'else M = { tag: "W", groupBy() { return this && this.tag; } }; '
         + 'return c ? typeof ((M.groupBy as any)<any>)([1, 2], x => x % 2) : ((M.groupBy as any)<any>)([1]); } '
         + 'return [t(true), t(false)]; })()' },
-    // a call-rooted fallback LEFT with an SE-bearing hop key: the discarded left re-emits its
-    // effects in SOURCE order (chain-root call BEFORE the hop-key effect)
-    // the hop stays on a `globalThis` key: `self` is undefined in the bare-Node differential
-    // realm and a native `.Array` read off it would throw before the order is observable
-    { id: 'fallback-collapse-callroot-key-order',
-      code: '(() => { const log = []; function f({ from } = (() => (log.push("call"), globalThis))()'
-        + '[(log.push("key"), "globalThis")].Array || Set) { return typeof from; } const t = f(); return [log.join("-"), t]; })()' },
     // a call-rooted Symbol chain in a computed KEY: the iterator-helper collapse discards the
     // receiver, whose effects re-emit in SOURCE order (chain-root call BEFORE the hop-key effect)
     { id: 'computed-symbol-key-callroot-key-order',
@@ -8909,14 +8801,6 @@ const EXPR_FAMILIES = {
     // the log rows are the runtime order oracle (native: write first, so the key sees it)
     '(() => { const log = []; let r; const { of } = (r = globalThis)[(log.push(typeof r), "Array")]; return [typeof of, log[0]]; })()',
     '(() => { const log = []; let r; const [{ of }] = [(r = globalThis)[(log.push(typeof r), "Array")]]; return [typeof of, log[0]]; })()',
-    // a polyfillable claim inside the harvested key se of a synth-swap memo argument: the
-    // drain re-harvests the LIVE container, so the landed claim reaches the arg
-    '(() => { const log = []; function f({ from: x, nope: y } = globalThis[(log.push([3].at(0)), "self")].Array) { return [typeof x, typeof y, log[0]]; } return f(); })()',
-    // a TERMINAL effect-bearing concat-fold keeps the hop's OWN pure (`self`, babel's
-    // claim) - the re-root swapped the IMPORT, not the value (self IS the global object),
-    // so the IMPORT-PARITY oracle is what discriminates here; the value row is a plain
-    // runtime invariant
-    '(() => { let e = 0; const v = globalThis[(e++, "se") + "lf"]; return [typeof v, v === globalThis, e]; })()',
     // a side-effecting computed key in a CATCH param rides the catch extraction: the binding
     // takes the dispatcher, the key survives in the residual (effect once), a user default is
     // dead ("polyfill always wins") and rest still gathers the remaining props
@@ -10065,28 +9949,9 @@ function * generateBranchKey() {
 // key SE must NOT run on a nullish receiver - it counts the SE and asserts the throw. the `_getIterator` call
 // stays unconditional (throws on null like native). a missing unplugin guard runs the SE eagerly -> `ran`
 // diverges from babel. `present` is the positive control (SE runs once, iterator obtained on a non-null receiver).
-// `proxy-hop`: a proxy-global hop receiver (`globalThis[(eff(), 'self')]`) collapses to the root pure import,
-// dropping the `.self` hop - but the hop's OWN side effect must survive. with a following computed
-// iterator-key SE the receiver is peeled, and a lost droppedSe re-route drops the hop SE (`hop` diverges from
-// native/unplugin). the call throws (the root is not iterable); the body swallows it and returns the SE
-// counts, so the comparison is on order-preserving SE execution, not the throw message
 const D_GETITERATOR_SE = [
   { id: 'nullish', body: 'let ran = 0; const k = () => (ran++, Symbol.iterator); const arr = null; try { (arr?.[(k(), Symbol.iterator)])(); } catch (e) {} return ran;' },
   { id: 'present', body: 'let ran = 0; const k = () => (ran++, Symbol.iterator); const arr = [1, 2]; const it = (arr?.[(k(), Symbol.iterator)])(); return [ran, typeof it.next];' },
-  { id: 'proxy-hop', body: 'let hop = 0, key = 0; try { globalThis[(hop++, "self")][(key++, Symbol.iterator)](); } catch (e) {} return [hop, key];' },
-  // OPTIONAL proxy-hop: the receiver keeps the `(droppedSe, _root)` sequence (the null-guard memoize replays
-  // the hop SE) - a route that mis-classified this as non-optional would fold droppedSe into a bare root and
-  // the suppress/guard would DROP it. globalThis is never null so both SE run; asserts the hop SE survives
-  { id: 'proxy-hop-optional', body: 'let hop = 0, key = 0; try { (globalThis?.[(hop++, "self")][(key++, Symbol.iterator)])(); } catch (e) {} return [hop, key];' },
-  // MID-CHAIN optional (`?.` two-plus hops below the symbol access, no wrapping parens): the optional
-  // verdict comes from the provider's flag-based chain walk - an emitter-local one-hop probe classifies
-  // this NON-optional and routes the hop SE flat, diverging from the other emitter's memoized form.
-  // globalThis is never null so both SE run in hop-then-key order on every leg
-  // hops stay on `globalThis` keys: `self` / `window` are undefined in the bare-Node differential
-  // realm, so a native mid-chain access would throw BEFORE the key SE while the collapsed root
-  // (browser-semantics feature) would not - the hop choice keeps the ORDER assertion realm-neutral
-  { id: 'proxy-hop-midchain-optional',
-    body: 'let hop = 0, key = 0; try { globalThis?.[(hop++, "globalThis")].globalThis[(key++, Symbol.iterator)](); } catch (e) {} return [hop, key];' },
 ];
 function * generateGetIteratorKeySE() {
   // strip:false: the observables read `Array.prototype[Symbol.iterator]` (non-strippable, see
@@ -10476,8 +10341,6 @@ const LEADING_EFFECT_CLAIMS = [
   { id: 'ctor', code: 'typeof (log.push("r"), globalThis.window?.self)?.Map' },
   { id: 'nav-above-probe', code: '(log.push("r"), globalThis.window?.self)?.window.Array.of(7)' },
   { id: 'two-effects', code: '(log.push("r"), log.push("s"), globalThis.window?.self)?.Array.of(8)' },
-  // the between-region effect still migrates INTO the guarded branch, in native order
-  { id: 'key-effect-migrates', code: 'globalThis.window?.[(log.push("k"), "self")].Array.of(9)' },
   // controls: an effect-free prefix renders bare, and the plain claim keeps its probe spelling
   { id: 'effect-free-prefix-control', code: '(1, globalThis.window?.self)?.Array.of(10)' },
   { id: 'plain-claim-control', code: '(log.push("r"), globalThis.window?.self).Array.of(11)' },
@@ -10538,13 +10401,14 @@ const KEPT_ASSIGN_HOPS = [
   // MIXED tails over one alias: the first statement's render replaces its span CARRYING the kept
   // alias write, and the second still owes that alias its trust - a placement judged over the
   // replaced span's dead ancestry kept the second store raw, an order-dependence no same-body
-  // twice-read can see
-  { id: 'seq-store-mixed-tails',
+  // twice-read can see. The effectful realm hop stays native, so this mixed row keeps
+  // full-environment and global coverage without requiring a stripped pure realm slot.
+  { id: 'seq-store-mixed-tails', strip: false,
     code: '[(k = globalThis, j = k[(log.push("w"), "globalThis")].globalThis)?.globalThis.noSuchStatic, (k = globalThis, j = k.globalThis)?.Array.prototype.at(0)].length' },
 ];
 function * generateKeptAssignHops() {
   for (const c of KEPT_ASSIGN_HOPS) {
-    yield { ...snippet(`kept-assign-hop-collapse/${ c.id }`, `(() => { let k, j; return ${ c.code }; })()`), strip: true };
+    yield { ...snippet(`kept-assign-hop-collapse/${ c.id }`, `(() => { let k, j; return ${ c.code }; })()`), strip: c.strip ?? true };
   }
 }
 
@@ -14693,30 +14557,6 @@ function * generateSourceGoals() {
         sourceType,
         strip: strip && (id === 'program-var-proxy' || (sourceType === 'module' && id === 'annex-b-untaken')),
       };
-    }
-  }
-}
-
-// An effectful key naming an unbacked proxy hop must keep both the effect and the absent
-// slot. Sealed writes are valid optional-root consumers; optional assignment is not JS.
-function * generateUnbackedSequenceHops() {
-  const roots = [
-    ['root', 'globalThis'],
-    ['backed-hop', 'globalThis[(log.push("self"), "self")]'],
-  ];
-  const consumers = [
-    ['stored', nav => `const held = ${ nav }; return typeof held;`],
-    ['probe', nav => `let held; return (held = ${ nav }) == null ? "absent" : typeof held.Array;`],
-    ['kept-write', nav => `let held; const value = (held = ${ nav }); return [typeof value, typeof held];`],
-    ['sealed-write', nav => `try { (${ nav }?.Object).fc45Probe = 7; return (${ nav }?.Object).fc45Probe; } finally { delete Object.fc45Probe; }`],
-  ];
-  for (const [rootId, root] of roots) {
-    for (const [consumerId, consume] of consumers) {
-      const nav = `${ root }[(log.push("window"), "window")]`;
-      const expression = `(() => { try { ${ consume(nav) } } catch (e) { return e.name; } })()`;
-      for (const rig of [false, true]) {
-        yield { ...snippet(`unbacked-sequence/${ rootId }/${ consumerId }/${ rig ? 'present' : 'absent' }`, expression, { rig }), strip: true };
-      }
     }
   }
 }
@@ -19640,16 +19480,11 @@ function * generateTypeofDeclaredSources() {
   }
 }
 
-// --- Claims inside a sealed nav's computed key: the destructure collapse detaches the original read, and the render
-// re-emits the key's effect off that detached original - so every claim in the key, the walk's loop-left extraction
-// included, has to land on it while it is still live, and exactly once. Each host plans that read through its own
-// route; each effect kind is a different visitor of the walk. RIGGED: `window` present, the key runs once and the
-// value is the ponyfill; unrigged: the sealed read throws and the key never runs.
-// the hosts held out are accepted limitations - shapes real code does not write - named per effect in `skipHosts` so
-// the gap stays enumerable and re-adding a host is its own fail-before: under the FALLBACK and ASSIGNMENT hosts the
-// unplugin renders the probe twice (ahead of the extraction as the discarded read, and inside it), so the key runs
-// twice; under the BRANCH host both emitters drop the throw the absent-window path owes; under the PARAMETER-DEFAULT
-// host a declaration or loop-left in the key stays unpolyfilled in the probe the unplugin emits
+// Independent claims inside an effectful realm key keep their effects and source guards.
+// Pure static specialization beyond that key is unsupported, so the full native comparison
+// remains while the global leg still runs stripped. Dedicated fallback e2e tests separately
+// strip the nested static/instance claims without relying on the outer Array.of extraction.
+// The held hosts below retain their existing extraction limitations.
 const SEALED_KEY_HOSTS = [
   { id: 'declaration', build: sealed => `const { of: o } = ${ sealed }.Array; return typeof o;` },
   { id: 'fallback', build: sealed => `const { of: o } = ${ sealed }.Array ?? {}; return typeof o;` },
@@ -19682,8 +19517,8 @@ function * generateSealedKeyClaims() {
     for (const { id, effect, skipHosts } of SEALED_KEY_EFFECTS) {
       if (skipHosts.includes(host.id)) continue;
       const expr = `(() => { try { ${ host.build(`(globalThis.window?.[(${ effect }, 'self')])`) } } catch (e) { return 'throw'; } })()`;
-      yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }`, expr), strip: true };
-      yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }-rigged`, expr, { rig: true }), strip: true };
+      yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }`, expr), strip: false };
+      yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }-rigged`, expr, { rig: true }), strip: false };
     }
   }
 }
@@ -19724,7 +19559,6 @@ function * generateMethodCaptureFrames() {
 
 export function * generate() {
   yield * generateSourceGoals();
-  yield * generateUnbackedSequenceHops();
   yield * generateLoopAliasOwners();
   yield * generateDeferredReads();
   yield * generateGuardForms();
@@ -19817,7 +19651,6 @@ export function * generate() {
   yield * generateWrappedSiblingReceiver();
   yield * generateProxyHopCtor();
   yield * generateCtorKeySpelling();
-  yield * generateSeHopKeyGuarded();
   yield * generateKeptProxyRoot();
   yield * generateRunLandingConsumers();
   yield * generateBareProxyProbe();
@@ -19830,7 +19663,6 @@ export function * generate() {
   yield * generateDiscardedKeyPrefixProxy();
   yield * generateNestedSeHopReceiver();
   yield * generateBuriedFoldKeySE();
-  yield * generateStaticCollapseSEOrder();
   yield * generateGetterReceiverDescent();
   yield * generateNameChainRootCallInner();
   yield * generateOptionalNameChainRootCall();

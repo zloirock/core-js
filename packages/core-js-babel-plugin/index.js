@@ -1584,7 +1584,7 @@ export default function plugin(api, options) {
           // the same nav gets, on both emitters (`(eff(), null == _globalThis.window ? void 0 :
           // _self).Array.prototype.at = 1`). the write target itself is untouched
           if (renderWriteHostProbeGuard(path)) return;
-          if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
+          if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx)) {
             let rootPath = path;
             while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
             // a hop a nav-collapse render already emitted keeps the shape the plan chose - re-run

@@ -20,5 +20,5 @@ export const callRoot = stored = _self.window;
 export const prefixed = stored = (e++, _self).window;
 
 export const callPrefixed = stored = (e++, _self).window;
-export const seKeyed = stored = _self[(e++, "window")];
+export const seKeyed = stored = _self[(e++, 'window')];
 export { e, stored };

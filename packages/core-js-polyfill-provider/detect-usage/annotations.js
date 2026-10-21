@@ -413,11 +413,11 @@ export function isPolyfillableOptional({
   // is preserved by the receiver collapse, NOT dropped by the deopt). matches both emitters' SE-tail collapse
   const objCore = obj?.type === 'SequenceExpression' ? unwrapRuntimeExpr(unwrapTransparentSeq(obj.expressions.at(-1))) : obj;
   // a member-shape `?.` whose receiver is ENTIRELY proxy navigation (`globalThis.self`, multi-hop `.self.window`,
-  // a SE-bearing computed hop `globalThis[(eff(), 'self')]`, a chain-assign root `(q = globalThis).self`,
+  // a quiet computed hop `globalThis['self']`, a chain-assign root `(q = globalThis).self`,
   // or any of those sequence-wrapped) is dead: the chain collapses to the always-defined pure root, and the
-  // hop-key / prefix / assignment effect rides the collapsed receiver, NOT the dropped guard.
-  // `globalProxyMemberName` below is literal-only (a SE computed key yields null), so resolve this directly
-  // off the SE-aware maximal prefix - both emitters then drop the guard identically. `throughChainAssign`
+  // prefix / assignment effect rides the collapsed receiver, NOT the dropped guard.
+  // Effectful realm keys retain the original navigation and cannot prove this collapse.
+  // Both emitters ask the maximal prefix for that proof. `throughChainAssign`
   // matches the emit-side collapse walkers, which see through the assignment and preserve it as a SE
   // an UNDEFINABLE receiver VALUE keeps its `?.` LIVE against EVERY member-shape deopt arm
   // below (they all reason "always-defined once collapsed", which needs a value-defined
@@ -432,7 +432,7 @@ export function isPolyfillableOptional({
     && !undefinableReceiver
     && realmRootIsSpellable(objCore, resolve)
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
-      { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
+      { throughChainAssign: true }) === objCore
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
     // the raw nav reads through a value that can be undefined - the guard must survive
     // the landing verdict runs FIRST: it bails O(1) when the file mutates nothing, where the root
