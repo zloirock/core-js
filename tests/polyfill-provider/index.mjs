@@ -64,6 +64,7 @@ import './fallback-branches.mjs';
 import './parameter-call-sites.mjs';
 import './parameter-static-sources.mjs';
 import './guard-canon.mjs';
+import './claim-probe.mjs';
 import './wrapper-peels.mjs';
 import './detect-syntax.mjs';
 import './syntax-set-measurement.mjs';

@@ -75,6 +75,7 @@ import {
   memberKeyName,
   memberProxyHopName,
   mutatedStaticKey,
+  navComputedKeyEffects,
   nodeCarriesSourceSpan,
   noReassignmentReachesUsage,
   pathOfNode,
@@ -96,6 +97,7 @@ import {
   peelChainAssignmentDeep,
   peelMemoizeWrappers,
   peelProxyGlobalObject,
+  peelTransparentExpr,
   peelSequenceTail,
   peelZeroArgIifeReturn,
   plainSynthKeyName,
@@ -5379,6 +5381,82 @@ export function partitionEffectsAtProbe(effects, navStart) {
   const after = sideEffectsPastOffset(navStart, effects);
   const past = new Set(after);
   return { ahead: effects.filter(effect => !past.has(effect)), after };
+}
+
+// Choose the read a claim would erase, on the pristine source and its read-site context.
+// `preserveRead` is for a discarded initializer: its terminal environment read remains observable,
+// even when a claim-only probe can fold that hop onto its ponyfill base. `allowStoreHolder` means
+// the consumer discards the whole holder; a retained holder or an array mirror already runs it.
+// This is a question only: no imports, skips, live claims or AST edits. Source identities and the
+// position belong to this read; deferred consumers capture the guard before rewriting, retain
+// the live effectsHost for child claims, and never cache the answer across source mutations.
+export function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
+  preserveRead = false, allowStoreHolder = false,
+} = {}) {
+  const value = peelTransparentExpr(source);
+  // A fallback changes the bound value, but its left read always runs, including its throw.
+  const read = preserveRead && value?.type === 'LogicalExpression' ? value.left : source;
+  const boundary = sealedChainBoundary(read);
+  const key = boundary ? memberKeyName(boundary.member) : null;
+  function aliasPlan() {
+    if (preserveRead) return null;
+    const member = boundary?.member ?? read;
+    // Source clones retain a span or location; a true mint must not recursively probe itself.
+    if (!nodeCarriesSourceSpan(member)) return null;
+    const aliasProbe = aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder });
+    return aliasProbe ? { kind: 'alias', source, aliasProbe, navStart: aliasProbe.navStart } : null;
+  }
+  // A transparent seal over an alias hides no short-circuit, but its binding read can still throw.
+  if (!boundary || key === null || !proxyReceiverValueCanBeUndefined(boundary.inner,
+    resolvePure, aliasCtx, { throughChainAssign: true })) return aliasPlan();
+  const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner };
+  const navPlan = !preserveRead && planProvenNavGuardCollapse({
+    rootNode: boundary.inner, ...aliasCtx, resolvePure,
+    throughKeptAssign: true, allowSequenceRoot: true, descendSequenceTail: true,
+  });
+  if (navPlan && !navPlan.topAssign && navPlan.kind === 'nested' && navPlan.leafPure) {
+    return { ...facts, kind: 'nav', navPlan };
+  }
+  const leafPlan = sealedClaimLeafGuardPlan(boundary.inner, resolvePure, aliasCtx);
+  if (!leafPlan?.leafPure && !leafPlan?.leafName) {
+    return preserveRead ? { ...facts, kind: 'passthrough' } : aliasPlan();
+  }
+  const keyEffects = navComputedKeyEffects(boundary.inner);
+  const alternateEffects = keyEffects.filter(expr => !subtreeContainsNode(leafPlan.guardObject, expr));
+  return {
+    ...facts, kind: 'leaf', navPlan: navPlan || null, leafPlan, keyEffects, alternateEffects,
+    guardEffects: discardRescueNodes({ node: leafPlan.guardObject, ...aliasCtx }),
+    foldLeafOntoBase: !preserveRead && !!leafPlan.foldLeafOntoBase,
+  };
+}
+
+// where the READ a rendered probe reproduces begins - asked of the SOURCE spelling, at plan time:
+// by drain time the collapse has rebuilt the init and its minted nodes carry no span, so the split
+// would hand the probe's own read back to the effect channel and run it twice
+export function discardedInitProbeNavStart(initNode) {
+  const tail = peelReceiverSequenceTail(initNode);
+  // no SEQUENCE around the init means nothing precedes the read the probe reproduces: every effect
+  // the harvest found lives INSIDE that read, and the probe carries it. `0` says exactly that -
+  // the tail's own start would put the read's own effects ahead of it and run them twice
+  return tail && tail !== unwrapRuntimeExpr(initNode) ? tail.start ?? 0 : 0;
+}
+
+// A fully consumed pattern needs the value's own probe, or the alias read through its first seal.
+// A sequence contributes its tail; a one-element array's mirror already owns an inline store.
+// As with sealedClaimProbePlan, this retains source facts without committing any host effects.
+export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
+  const peeled = unwrapRuntimeExpr(peelReceiverSequenceTail(initNode));
+  const arrayWrapped = peeled?.type === 'ArrayExpression';
+  let nav = arrayWrapped && peeled.elements.length === 1 ? unwrapRuntimeExpr(peeled.elements[0]) : peeled;
+  if (nav?.type === 'ConditionalExpression') {
+    nav = agreeingTernaryArm(nav, aliasCtx.path, aliasCtx.adapter) ?? nav;
+  }
+  if (!nav) return null;
+  const leafPlan = sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx, { probeLeaf: true });
+  if (leafPlan) return leafPlan;
+  const aliasProbe = aliasHeldClaimProbe(sealedChainBoundary(nav)?.member ?? nav,
+    resolvePure, aliasCtx, { allowStoreHolder: !arrayWrapped });
+  return aliasProbe ? { aliasProbe } : null;
 }
 
 // the guarded VALUE of a sealed nav that ENDS AT a claim, as a decision both emitters render their
