@@ -104,6 +104,7 @@ import {
   resolveSynthKeys,
   isCallShape,
   memberTargetTakesExtraction,
+  discardedInitProbeNavStart,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
@@ -183,7 +184,6 @@ import {
   chainThroughNamedDefaults,
   climbPatternChain,
   defaultedSoleConsumes,
-  discardedInitProbeNavStart,
   divergingSelection,
   divergingSentinelSelectorDeclines,
   duplicateReceiver,
@@ -211,6 +211,7 @@ import {
   planLiftedRhsPrefix,
   planLiteralRoute,
   planSealedNavProbe,
+  captureSealedNavProbe,
   planSentinelMemo,
   propLocalName,
   proxyNavSynthBase,
@@ -625,7 +626,7 @@ export default function createAstDestructureEmitter({
         memoArgPlan,
         // ... and the SHAPE of the sealed read the swap erases, planned on the PRISTINE tree:
         // by drain time the walk has rendered that nav into its guard and the seal is gone
-        sealedProbePlan: planSealedNavProbe(receiver, metaPath, probeRenderCtx),
+        sealedProbePlan: captureSealedNavProbe(receiver, metaPath, probeRenderCtx),
         // The guard proves its probe on the alternate branch. Preserve the collapse plan from
         // the pristine receiver so unresolved literal slots read through that proven branch.
         guardedReceiverPlan: synthGuard ? planProxyReceiver(synthGuard.fallback?.left ?? receiver, {
@@ -1205,7 +1206,7 @@ export default function createAstDestructureEmitter({
           memoReceiver: inner,
           // ... and the sealed read this ARM erases, planned on the PRISTINE tree like the
           // flat swap's (`cond ? ((<guard>).Object, { assign: _Object$assign }) : ...`)
-          sealedProbePlan: planSealedNavProbe(inner, metaPath, probeRenderCtx),
+          sealedProbePlan: captureSealedNavProbe(inner, metaPath, probeRenderCtx),
         };
         pendingBranchSynths.set(inner, pending);
       }
@@ -1251,7 +1252,7 @@ export default function createAstDestructureEmitter({
       // has rendered that nav into its guard and the seal is no longer visible
       pending = {
         plan, receiver: inner, slots: new Map(), metaPath, ...branchBase,
-        sealedProbePlan: planSealedNavProbe(inner, metaPath, probeRenderCtx),
+        sealedProbePlan: captureSealedNavProbe(inner, metaPath, probeRenderCtx),
       };
       pendingBranchSynths.set(inner, pending);
     }
@@ -2756,7 +2757,7 @@ export default function createAstDestructureEmitter({
         absentableStoreReadKey: absentableStoreReadKeyOf(declarator.init,
           { scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath) }),
         // ... and the SEALED shape of the same read, for the same reason
-        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
+        sealedProbePlan: captureSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
       },
     });
     return 'handled';
@@ -3424,7 +3425,7 @@ export default function createAstDestructureEmitter({
           local: propLocalName(prop), host: 'memo-decl', exported, metaPath,
           initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
           initProbeNavStart: discardedInitProbeNavStart(declarator.init),
-          sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
+          sealedProbePlan: captureSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
         },
       });
       markRewrite();
@@ -3618,7 +3619,7 @@ export default function createAstDestructureEmitter({
         // time the walk has collapsed the nav and the probe's own question is unanswerable
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
         initProbeNavStart: discardedInitProbeNavStart(declarator.init),
-        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
+        sealedProbePlan: captureSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         readsReceiver: kind === 'instance',
         consumeResidualRead: literalPlan.consumeResidualRead,
@@ -4269,7 +4270,7 @@ export default function createAstDestructureEmitter({
       // declaration host's own pair, asked of the assignment's right
       initProbePlan,
       initProbeNavStart,
-      sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure, claimLive }),
+      sealedProbePlan: captureSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure, claimLive }),
       // an SE-keyed prop in an ASSIGNMENT host keeps its ORIGINAL binding in the residual -
       // the overwrite channel re-binds it right after, so no sentinel mints (babel's shape);
       // a rest sibling still renames (the key must keep excluding it from rest)
