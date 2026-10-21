@@ -1,8 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 for (const [,] = [Array], of = _Array$of, {
     of: _unused,
     ...r
@@ -12,13 +11,10 @@ for (const [,] = [Array], of = _Array$of, {
 }
 for (const [{
   from
-}, extra] = [{
-  from: _Array$from
-}, 1];;) {
+}, extra] = [Array, 1];;) {
   from([2, extra]);
   break;
 }
-// a multi-declarator header takes the sibling polyfill mid-list
 for (let i = 0, [,] = [Array], fromAsync = _Array$fromAsync, {
     fromAsync: _unused2,
     ...more

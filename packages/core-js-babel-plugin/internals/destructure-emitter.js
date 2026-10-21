@@ -105,6 +105,7 @@ import {
   discardRescueNodesWithReads,
   observablePrefixElements,
   destructurePatternHostPath,
+  destructureRetainsLiteralWrapper,
   fallbackDestructureHasPolyfillableBranch,
   firstPatternProp,
   flattenArrayWrapperInits,
@@ -605,7 +606,18 @@ export default function createDestructureEmitter({
   // root visit could collapse it, and the clone's insertion traversal re-derives nothing) -
   // without this the replay froze a raw proxy nav into what the assignment stores
   function cloneReplayedEffect(node, path) {
-    return collapseLiftedStore(t.cloneNode(node, true), path, node);
+    const claims = [];
+    t.traverseFast(node, item => {
+      if (item.type === 'ObjectProperty') claims.push(skippedNodes.has(item));
+    });
+    const clone = t.cloneNode(node, true);
+    let index = 0;
+    // A mirror inside the replay already serves its pattern. Cloning loses node
+    // identity, so carry its property ownership while keeping keys/defaults live.
+    t.traverseFast(clone, item => {
+      if (item.type === 'ObjectProperty' && claims[index++]) skippedNodes.add(item);
+    });
+    return collapseLiftedStore(clone, path, node);
   }
 
   // ... and a store LIFTED out of an init keeps the same obligation: the node leaves the slot the
@@ -1946,7 +1958,7 @@ export default function createDestructureEmitter({
     if (discardsInit && assigns.length) {
       const cascadeProbeKey = probedNavProbeKey(plan);
       if (cascadeProbeKey) {
-        const navBase = plan.probedNavNode ?? plan.initElement ?? assignPath.node.right;
+        const navBase = plan.probedNavNode ?? assignPath.node.right;
         const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
         const guarded = probedNavGuardValueNode?.(probedNavNode, assignPath);
         if (guarded) {
@@ -2221,15 +2233,6 @@ export default function createDestructureEmitter({
     return pure && pure.kind !== 'instance' ? pure : null;
   }
 
-  // can the host re-emit, as statements ahead of the render, what a consumed array wrapper drops
-  // beside the element? every statement host can (the assignment cascade keeps such an init
-  // whole anyway); a for-init HEAD has no slot and keeps the wrapper native, the other leg's answer
-  function planHostLiftsTrailing(path) {
-    if (!path || path.isAssignmentExpression?.()) return true;
-    const declaration = path.isVariableDeclaration?.() ? path : path.findParent?.(p => p.isVariableDeclaration());
-    return !declaration || !isForInitDeclaration(declaration.parentPath?.node, declaration.node);
-  }
-
   // the shared provider plan for a flatten-eligible host: the SAME decision tree the other
   // leg renders. babel's resolvePure already carries the mutated-static and disable
   // gates, so plan resolution matches the per-leaf detection pipeline. `declaratorNode` is
@@ -2245,7 +2248,6 @@ export default function createDestructureEmitter({
       resolvePure: (meta, at = path) => resolvePure(meta, at),
       resolveGlobalPolyfill: resolveGlobalPure,
       isDisabledProp: node => isDisabled(node) || (spent ??= spentSentinelProps(path)).has(node),
-      liftsTrailingEffects: planHostLiftsTrailing(path),
     });
     // ctor-alias extractions register through the checked trust path here (a refused registration
     // only withholds the member-narrow hint; the value swap stays - see the helper docstring)
@@ -2295,12 +2297,6 @@ export default function createDestructureEmitter({
     if (!plan) return false;
     const declaration = declarator.parentPath;
     const isExport = declaration.parentPath.isExportNamedDeclaration();
-    for (const mirror of plan.array.mirrors ?? []) renderNestedParamSynth({
-      prop: mirror.propPath,
-      meta: mirror.meta,
-      deps: synthPlanDeps,
-      fallbackOnBail: true,
-    });
     const rendered = renderArrayDestructurePlan(plan, {
       kind: declaration.node.kind ?? 'const',
       init: declarator.node.init,
@@ -2318,12 +2314,10 @@ export default function createDestructureEmitter({
         if (source) t.inheritsComments(plan.array.inDeclaration ? statement.declarations[0] : statement, source);
         return hostSlot(wrapAsExportIf(statement, exported));
       },
-      read: (extraction, receiver) => extraction.kind === 'static'
-        ? hostSlot(extractionValueExpr(extraction, declarator.node.init, plan, prop.scope))
-        : hostSlot(markThrowingExtraction(t.callExpression(
-          injectPureImport(extraction.entry, extraction.hint),
-          [estreeToBabel(receiver)],
-        ))),
+      read: (extraction, receiver) => hostSlot(markThrowingExtraction(t.callExpression(
+        injectPureImport(extraction.entry, extraction.hint),
+        [estreeToBabel(receiver)],
+      ))),
     }).map(node => inheritSpan(estreeToBabel(node), declaration.node));
     // Preserve the provider's preceding group if an earlier object extraction has
     // already scheduled this declaration for the generic split drain.
@@ -2374,7 +2368,16 @@ export default function createDestructureEmitter({
         isExport && node.type !== 'ExportNamedDeclaration' && plan.array.exportFrom !== null && index >= plan.array.exportFrom,
       ));
       const { scope } = declaration;
-      rebindLiveDeclarators((isExport ? declaration.parentPath : declaration).replaceWithMultiple(statements), scope);
+      const { kind } = declaration.node;
+      const writes = new Map(declaration.get('declarations').flatMap(item => [
+        ...releaseMovedBindings(item, Object.keys(t.getBindingIdentifiers(item.node.id))),
+      ]));
+      const replacements = (isExport ? declaration.parentPath : declaration).replaceWithMultiple(statements);
+      const paths = replacements.flatMap(statement => {
+        const emitted = statement.isExportNamedDeclaration() ? statement.get('declaration') : statement;
+        return emitted.isVariableDeclaration() ? emitted.get('declarations') : [];
+      });
+      rebindMovedBindings(scope, paths, kind, writes);
     }
     // A retained claim is re-visited at its new path. The caller's source path no
     // longer owns this host after replacement, even when that claim stayed native.
@@ -2585,7 +2588,7 @@ export default function createDestructureEmitter({
     // an ANCHORED plan's symbol leaf reads the iterator method off the anchored
     // CONSTRUCTOR, not the proxy root - the same base the anchored residual reads
     if (plan.anchor) return anchorInitNode(plan);
-    const { tail } = peelNestedSequenceExpressions(plan.initElement ?? initNode);
+    const { tail } = peelNestedSequenceExpressions(initNode);
     const isAliasedIdentifier = tail?.type === 'Identifier' && tail.name !== plan.receiver;
     const pure = !isAliasedIdentifier && plan.receiver ? resolveGlobalPure(plan.receiver) : null;
     if (!pure) return t.cloneNode(tail);
@@ -2826,7 +2829,7 @@ export default function createDestructureEmitter({
       // read ahead of the first assign, once per pattern - same canon as the declarator host
       const cascadeProbeKey = assignExprs.length ? probedNavProbeKey(plan) : null;
       if (cascadeProbeKey) {
-        const navBase = plan.probedNavNode ?? plan.initElement ?? assignPath.node.right;
+        const navBase = plan.probedNavNode ?? assignPath.node.right;
         const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
         const guarded = probedNavGuardValueNode?.(probedNavNode, assignPath);
         if (guarded) {
@@ -2993,9 +2996,6 @@ export default function createDestructureEmitter({
   //   consume keeps the declarator with its init, so the setup already runs there); several
   //   extractions - or a store among the setup - hand it to the statement lift, or to a loop
   //   head's own sink declarator
-  // - ... unless the consumed wrapper also drops TRAILING neighbours: native runs the setup
-  //   before them, and the neighbours lift as statements, so the setup is handed back to the
-  //   caller's lift (`returned`) to land ahead of them instead of behind, on the extraction
   function applyAnchoredInitRebuilds(plan, declarator, extracted, patternEmpties) {
     if (plan.anchor && !patternEmpties) {
       const oldInit = declarator.node.init;
@@ -3014,25 +3014,13 @@ export default function createDestructureEmitter({
     const fullConsumeProbeKey = patternEmpties && extracted.length ? probedNavProbeKey(plan) : null;
     let probeOwnedCall = null;
     if (fullConsumeProbeKey) {
-      // an array-wrapped init's probe value is the DESCENDED element, not the wrapper array
-      const navBase = plan.probedNavNode ?? plan.initElement ?? declarator.node.init;
+      const navBase = plan.probedNavNode ?? declarator.node.init;
       const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
       const guarded = probedNavGuardValueNode?.(probedNavNode, declarator);
       if (guarded) {
         const [first] = extracted;
         first.init = t.sequenceExpression([probeKeyReadNode(guarded.node, fullConsumeProbeKey), first.init]);
         probeOwnedCall = guarded.rootEffectCall;
-      }
-    } else if (patternEmpties && extracted.length && plan.initElement) {
-      // the ALIAS-held flavor of the array-wrapped rule: no guard value to read the pattern
-      // key off - the ELEMENT read itself is the probe (`[{ of }] = [a.Array]` throws reading
-      // `.Array` where the extraction just binds), riding the first extraction once per
-      // pattern; the per-prop channel never sees the wrapper, so this is its only owner
-      const throwProbe = sealedClaimThrowProbeNode?.(declarator, unwrapRuntimeExpr(plan.initElement));
-      if (throwProbe) {
-        skippedNodes.add(throwProbe.node);
-        const [first] = extracted;
-        first.init = t.sequenceExpression([throwProbe.node, first.init]);
       }
     }
     if (patternEmpties && plan.discardSe) {
@@ -3048,7 +3036,6 @@ export default function createDestructureEmitter({
           && !(node.start >= probeOwnedCall.start && node.end <= probeOwnedCall.end)
           && !(probeOwnedCall.start >= node.start && probeOwnedCall.end <= node.end))));
       const replayed = replayable.map(node => cloneReplayedEffect(node, declarator));
-      if (plan.trailingEffects) return replayed;
       // a SOLE extraction rides the setup inside its own value; SEVERAL readers of one init cannot each
       // hold it, so on a statement host it is handed back to the lift ahead of them all, and in a LOOP
       // HEAD - which hosts no statement - it takes a sink declarator of its own ahead of them, where the
@@ -3060,7 +3047,10 @@ export default function createDestructureEmitter({
       // the same init - so a prefix carried into the first extraction would run after it
       const readers = extracted.length
         + plan.outerProps.filter(outer => outer.kind === 'consumed' && !outer.extractions?.length).length;
-      if (replayed.length > 0 && (readers > 1 || (!forInit && replayable.some(node => isChainAssignment(node))))) {
+      // An indirect container has no receiver binding: replay its source before the
+      // extraction, as the shared fallback's ordinary host does on either emitter.
+      if (replayed.length > 0 && (readers > 1
+        || (!forInit && (plan.receiver === null || replayable.some(node => isChainAssignment(node)))))) {
         if (!forInit) return replayed;
         const sink = t.variableDeclarator(generateUnusedId(), replayed.length === 1 ? replayed[0] : t.sequenceExpression(replayed));
         if (emptiedHostSinkValue(sink.init).stores) extracted.unshift(sink);
@@ -3534,7 +3524,12 @@ export default function createDestructureEmitter({
         ctx: { scope: prop.scope, adapter, path: prop },
       });
       if (rendered.expression) {
-        const statement = restPlan.capture?.inlineLeaf && assignmentInStatementPosition(declarator)
+        // A complete leaf is stable as statements. A split capture still owns native
+        // siblings; keep that group together so both bindings leave those reads native.
+        const statement = restPlan.capture && (!restPlan.capture.splitCapture || restPlan.capture.inlineLeaf
+          || restPlan.capture.ancestors.every(level => level.pattern.properties.length === 1))
+          && rendered.expression.type === 'SequenceExpression'
+          && assignmentInStatementPosition(declarator)
           ? peelToExpressionStatement(declarator)?.exprStmt : null;
         if (statement) {
           const statements = rendered.expression.expressions.map(item => t.expressionStatement(estreeToBabel(item)));
@@ -3568,17 +3563,12 @@ export default function createDestructureEmitter({
     });
     const sourceNames = t.getBindingIdentifiers(declarator.node.id);
     const capture = estreeToBabel(rendered.capture);
-    declarator.get('id').replaceWith(capture.id);
-    forgetDestructurePlan(adapter, declarator.node);
-    // Requeued properties resolve each fresh receiver through its captured source slot.
-    // Register only these new bindings; the moved source bindings keep their cached facts.
-    declarator.scope.registerBinding(declaration.node.kind, declarator.get('id'), declarator);
     const nodes = rendered.elements.flatMap(element => element.declarator ? [estreeToBabel(element.declarator)] : []);
     const leafAlias = capturedLeafCtorAlias({
       capture: plan, rendered, leafPattern: prop.parentPath.node, kind, meta, ctx: { scope: prop.scope, adapter, path: prop },
     });
     if (leafAlias) injector.registerGlobalAlias(leafAlias.ref, leafAlias.ctorName, { trusted: true, minted: true });
-    declarator.insertAfter(nodes);
+    installCaptureDeclarators(declarator, [t.variableDeclarator(capture.id, declarator.node.init), ...nodes]);
     joinHopStaticsIntoCapture(declaration, declarator);
     if (declaration.parentPath?.isExportNamedDeclaration()) {
       memoDeclarators.add(declarator.node);
@@ -4973,6 +4963,13 @@ export default function createDestructureEmitter({
       && renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
     if (sekeySymbolKeepsKeySwap(prop, meta, entry)) return;
     if (renderArrayFlattenPlan(prop)) return;
+    if (destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter })) {
+      if (kind === 'static' && prop.node.value.type === 'Identifier') {
+        injector.registerBodyExtractAlias(prop.node.value.name, entry, prop.scope.getBinding(prop.node.value.name));
+      }
+      renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true });
+      return;
+    }
     if (!meta?.fromFallback && (computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))
       || destructureKeyReadPlan(prop, aliasCtxFromPath(prop))?.sole)
       && handleSideEffectComputedKey({ prop, kind, entry, hintName, meta })) return;
@@ -5630,7 +5627,7 @@ export default function createDestructureEmitter({
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
       const sink = decided && !sinkInit ? null
-        : t.variableDeclarator(generateLocalRef(scope), sinkInit ?? t.cloneDeep(parent.node.init));
+        : t.variableDeclarator(generateLocalRef(scope), sinkInit ?? cloneReplayedEffect(parent.node.init, parent));
       const extracted = t.variableDeclarator(localBinding, value);
       decls[idx] = extracted;
       const firstExtraction = decls.findIndex(d => forInitExtractionDecls.has(d));

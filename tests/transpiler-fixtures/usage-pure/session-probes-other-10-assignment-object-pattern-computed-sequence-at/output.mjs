@@ -9,5 +9,6 @@ function eff() {
     [(eff('k'), 'w')]: _ref
   } = {
     w: [1]
-  }), f17 = _atMaybeArray(_ref);
+  });
+  f17 = _atMaybeArray(_ref);
 }

@@ -1,6 +1,5 @@
-// Effectful outer keys retain the captured static receiver type.
-// Both keys execute before their method binding initializes, and the method is
-// polyfilled through either a realm hop or a property of an ordinary literal.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const events = [];
 var { [(events.push('realm'), 'Array')]: { [(events.push(typeof from), 'from')]: from } } = globalThis;
 var { [(events.push('literal'), 'w')]: { [(events.push(typeof of), 'of')]: of } } = { w: Array };

@@ -1,7 +1,5 @@
-// a nested level read through a user GETTER (`{ M: KE.I }`) by a static and an instance member
-// memoizes the getter's value once, AHEAD of the static's binding - the getter runs before the
-// pattern binds anything - as a `const` whatever the host's kind, and the replay of the flattened
-// level does not read the getter a second time
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 class KE { static get I() { log(); return Iterator; } static get A() { log(); return Array; } }
 const { M: { from: fromConst, name: constName } } = { M: KE.I };
 let { M: { concat: concatLet, name: letName } } = { M: KE.I };

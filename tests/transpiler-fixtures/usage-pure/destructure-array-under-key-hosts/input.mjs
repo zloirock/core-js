@@ -1,6 +1,5 @@
-// an ARRAY PATTERN under an object KEY: the wrapper indexes the level the key reached, so the hops
-// descend in the order the runtime reads them, under every host - a declarator, one beside a sibling
-// element, an assignment, a for-of head and its assignment form, a parameter default. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 const held = { k: [Math] };
 const { k: [{ trunc: viaAlias }] } = held;
 use(viaAlias(1.5));

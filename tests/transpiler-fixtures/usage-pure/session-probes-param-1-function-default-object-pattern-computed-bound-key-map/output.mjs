@@ -1,4 +1,6 @@
-import _Map from "@core-js/pure/actual/map";
+import _globalThis from "@core-js/pure/actual/global-this";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 {
   const boundKey = 'w';
   function boundKeyParam({
@@ -6,9 +8,7 @@ import _Map from "@core-js/pure/actual/map";
       Map: v
     }
   } = {
-    w: {
-      Map: _Map
-    }
+    w: _globalThis
   }) {
     return v;
   }

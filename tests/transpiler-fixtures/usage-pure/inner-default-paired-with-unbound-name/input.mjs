@@ -1,7 +1,5 @@
-// an unbound name reads a realm slot, and a capitalised one is no more proven present than any other:
-// where another script left that slot `undefined` the default fires, so the default keeps its
-// polyfill and the paired name stays a native read - on every pairing host alike. the last row is
-// the control: a known built-in is always defined, so its pair is what the pattern reads
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 function use() {/* empty */}
 const [{ groupBy } = Map] = [UserMaps];
 for (const [{ fromAsync } = Array] of [[UserArrays]]) use(fromAsync);

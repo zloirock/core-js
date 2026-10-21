@@ -1,5 +1,5 @@
-// a BOUND computed hop key folds through the consuming canon on the mirroring hosts too, and an IIFE
-// argument's sequence TAIL is what the instance synth types (the prefix stays where the call wrote it)
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 const hopKey = 'w';
 function boundKeyParam({ [hopKey]: { Map: viaBoundKeyParam } } = { w: globalThis }) {
   return viaBoundKeyParam;

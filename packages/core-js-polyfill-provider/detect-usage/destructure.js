@@ -35,7 +35,6 @@ import {
   trustedIdentifierAliasWrite,
   destructureReceiverNode,
   destructureReceiverSlot,
-  findArrayWrappedDestructureHost,
   findEnclosingFunctionLikePath,
   findIifeCallSite,
   findObjectKeyBeforeSpread,
@@ -2131,6 +2130,9 @@ export function qualifiesForParamBodyExtract({ propPath, localId, receiverCaptur
   let top = propPath.parentPath;
   while (top?.parentPath && PATTERN_WRAPPERS.has(top.parentPath.node?.type)) top = top.parentPath;
   if (top?.parentPath?.node !== fnPath.node) return null;
+  // An inner receiver default cannot justify replacing a value supplied by the caller.
+  if (!receiverCapture && patternParentType === 'AssignmentPattern'
+    && top.node !== propPath.parentPath.parentPath.node) return null;
   const site = !receiverCapture && top.node.type === 'AssignmentPattern' ? findIifeCallSite(fnPath, top.node) : null;
   if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
     () => !!site.callPath.scope?.getBinding?.('undefined'))) return null;
@@ -5618,6 +5620,23 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
   return { pattern: objectPattern?.node, indices, hops, host: cursor?.parentPath, hostPatternPath: cursor };
 }
 
+// Common captures may expose a supported flat read. A remaining static/global claim
+// below a literal container keeps its native pattern on both emitters. An independent
+// live receiver default owns its branch; dead or empty defaults read the outer source.
+export function destructureRetainsLiteralWrapper({ propPath, kind, adapter }) {
+  if (kind === 'instance') return false;
+  const walked = destructureHostThroughWrappers(propPath.parentPath, adapter, true);
+  if (!walked?.host || walked.hostPatternPath === propPath.parentPath) return false;
+  const { host, hops } = walked;
+  const root = ownRelocatedHeadElement(host) ?? relocatedHeadElement(host) ?? destructureReceiverNode(host);
+  const defaultNode = hops?.findLast(hop => hop.defaultNode)?.defaultNode;
+  const init = defaultNode && !nearestInnerDefaultDead(propPath.parentPath, adapter) ? defaultNode : root;
+  const ctx = { scope: propPath.scope, adapter, path: propPath };
+  const source = followConstIdentifierInit({ node: peelChainRootValue(decidedRunningOperand(init, ctx)), ctx });
+  const value = unwrapRuntimeExpr(peelChainRootValue(decidedRunningOperand(source.node, source.ctx)));
+  return value?.type === 'ObjectExpression' || value?.type === 'ArrayExpression';
+}
+
 // the value an OUTER destructure reads from, for the SE-key gate's "diverging conditional?" check.
 // `const [{ Array: { [se]: f } }] = [c ? globalThis : u]` resolves to the TERNARY, not the `[...]`
 // wrapper - so the gate sees the divergence that the bare `declarator.init` (an ArrayExpression) misses.
@@ -5634,27 +5653,6 @@ export function outerDestructureReceiver(leafPattern, scope = null, adapter = nu
     : receiverNode;
   const running = descended && scope && adapter ? decidedRunningValue(descended, { scope, adapter, path: host }) : descended;
   return running ? unwrapExpressionChain(peelNestedSequenceExpressions(running).tail) : null;
-}
-
-// shared DECISION for array-wrapped residual-static extraction (`[, { Array: { from } }] = [0, R]`): both
-// emitters re-implemented this guard sequence then rendered per-substrate. single-sourced so they can't drift -
-// a conditional/logical array element cedes to the receiver-aware mirror, else a static binds unconditionally.
-// returns `{ localId, declaration, isExport, declarationKind }` or null; caller injects + renders off `declaration`
-export function planArrayWrappedStaticExtract({ propNode, parentPath, scope, adapter, kind }) {
-  if (kind === 'instance') return null;
-  const localId = propBindingIdentifier(propNode.value);
-  if (!localId) return null;
-  const recv = outerDestructureReceiver(parentPath, scope, adapter);
-  if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return null;
-  if (!arrayWrappedReceiverProven(parentPath, adapter)) return null;
-  // a SOLE wrapper beside an effect-bearing neighbour is not this route's: the flatten plan drops
-  // the wrapper and lifts the neighbour, or keeps a sentinel residual where a spread iterates
-  const host = findArrayWrappedDestructureHost(parentPath);
-  if (!host?.needsResidualExtraction) return null;
-  const declaration = host.declarator.parentPath;
-  if (declaration?.node?.type !== 'VariableDeclaration') return null;
-  const isExport = declaration.parentPath?.node?.type === 'ExportNamedDeclaration';
-  return { localId, declaration, isExport, declarationKind: declaration.node.kind };
 }
 
 // Descend array wrappers by outermost-first runtime indices. Missing, opaque or unpaired slots
@@ -6233,15 +6231,19 @@ function containerSelectionArms(node, ctx) {
 // `hostPattern`: the pattern the hops start from - what a walk that ends above its first hop mirrors
 // `hostless`: no host spells a slot for the pattern (a catch parameter, a parameter no caller census
 // closes, a head over a held iterable) - the NEAREST default's walk alone answers, its arm open
+// `pairContainers`: instance/caller mirrors and read-only queries may extract literal slots.
+// Static mirrors may pair only to locate an independent receiver default; live slots stay native.
 // `verdictOnly`: the walk answers the arms alone, so it may read a named callee's returned literal and keep a slot
 // foreign to the host - nothing it reaches is rewritten
 function mirrorReceiverNodes({
   receiverSources, hops, host, adapter, wholeArrayLevels = false, hostPattern = null, hostless = false, verdictOnly = false,
+  pairContainers = true,
 }) {
   const receiverNodes = [];
   // did a walk end above an array level on a foreign container? the mirror then spells that level
   // whole, or - where it cannot - leaves the host to its other routes rather than bailing
   let foreign = false;
+  let nativeReads = false;
   // the receivers a level's DEFAULT supplied (below): they stand in the host's PATTERN, not in the
   // slot the plan named, so the span rule below does not apply and the render locates them from
   // the host itself
@@ -6256,6 +6258,7 @@ function mirrorReceiverNodes({
     const results = [];
     // one walk per live arm: `from` is the hop it starts at, `startBorn` whether a default supplied
     // it, and a forked walk inherits the level the fork stood at - the default IS that slot's value
+    // eslint-disable-next-line max-statements -- shared slot/default walk, with pure container admission at each level
     function walk(start, from, startBorn, startDepth = 0, startPattern = null) {
       let node = start;
       let run = [];
@@ -6263,6 +6266,7 @@ function mirrorReceiverNodes({
       let pattern = startPattern;
       let born = startBorn;
       let reachedArm = false;
+      let paired = false;
       // the array pattern the pending run of index hops starts at: what the mirror renders whole
       // where the run stays unconsumed
       let runPattern = null;
@@ -6300,6 +6304,7 @@ function mirrorReceiverNodes({
           return node !== null;
         }
         node = descendArrayWrapperInit({ node, ctx }, run, { throughStores: false })?.node ?? null;
+        paired ||= level?.type === 'ArrayExpression';
         run = [];
         return node !== null;
       }
@@ -6341,6 +6346,7 @@ function mirrorReceiverNodes({
       for (let at = from; at < hops.length; at++) {
         const hop = hops[at];
         if (hop.index !== undefined) {
+          if (!pairContainers && armHop < at && levelLiteral()?.type === 'ArrayExpression') return false;
           if (!run.length) runPattern = hop.level;
           run.push(hop.index);
           // the pattern under an array level is the element's own, like the one under a key
@@ -6352,6 +6358,7 @@ function mirrorReceiverNodes({
           if (!flushIndices()) return forkAtArm(at) === FORK_ONLY;
           const level = levelLiteral();
           node = descendArrayWrapperInit({ node, ctx }, [index], { throughStores: false })?.node ?? null;
+          paired ||= level?.type === 'ArrayExpression';
           const absent = node === null && level?.type === 'ArrayExpression'
             && level.elements.slice(0, index + 1).every(item => item?.type !== 'SpreadElement');
           const settled = settle(hop, at, absent, depth);
@@ -6373,6 +6380,7 @@ function mirrorReceiverNodes({
           if (armHop >= at && !slotValueProvablyDefined(node, ctx)) return forkAtArm(at) === FORK_ONLY;
           break;
         }
+        if (!pairContainers && armHop < at) return false;
         const match = findObjectKeyBeforeSpread(literal.properties, prop => spelledSlotName(prop) === hop.key);
         if (match && literal.properties.slice(literal.properties.indexOf(match) + 1)
           .some(prop => spelledSlotName(prop) === null)) return false;
@@ -6381,6 +6389,7 @@ function mirrorReceiverNodes({
         // absent from a literal whose every key is spelled - no spread or computed key could be it
         const absent = !match && literal.properties.every(prop => spelledSlotName(prop) !== null);
         node = match ? objectPropertyReadValue(match, { preservesBody: true }) : null;
+        paired = true;
         const settled = settle(hop, at, absent, depth + 1);
         if (!settled) return false;
         if (settled === FORK_ONLY) return true;
@@ -6388,6 +6397,10 @@ function mirrorReceiverNodes({
         pattern = hop.pattern;
       }
       if (!flushIndices()) return false;
+      if (!pairContainers && paired && pattern && !born) {
+        nativeReads = true;
+        return armHop !== -1;
+      }
       // a walk that ended above the nearest default never judged it: the runtime decides that arm
       if (!reachedArm && from <= armHop) arms.add('open');
       // the pattern this walk mirrors is the one under the last hop it consumed - the host's own where
@@ -6426,7 +6439,7 @@ function mirrorReceiverNodes({
       if (!receiverNodes.includes(tail)) receiverNodes.push(tail);
     }
   }
-  return { receiverNodes, patternNode, patterns, defaultBorn, arms, foreign };
+  return { receiverNodes, patternNode, patterns, defaultBorn, arms, foreign, nativeReads };
 }
 
 // The whole index an object rest in `patternNode` over this constructor reads, or null - the one answer
@@ -6899,6 +6912,7 @@ export function buildNestedParamSynthPlan({
     || (host?.node.type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type));
   const mirrored = mirrorReceiverNodes({
     receiverSources, hops: walked.hops, host: host ?? leafPatternPath, adapter, wholeArrayLevels, hostPattern: walked.pattern, hostless,
+    pairContainers: instanceClaim,
   });
   if (!mirrored) return null;
   const { receiverNodes, defaultBorn, arms } = mirrored;
@@ -7191,6 +7205,10 @@ export function buildNestedParamSynthPlan({
 
   // eslint-disable-next-line max-statements -- one ordered property walk shared by all mirror receiver kinds
   function mirrorPattern(patternNode, ctx) {
+    // Literal-container mirrors remain available to instance/caller capture only.
+    // Static/global literal slots stay native. Class and call roots keep their common fallback.
+    if (ctx?.kind === 'static' && !instanceClaim
+      && boundStaticContainer({ node: ctx.receiverNode, ...receiverCtx, calls: false })) return null;
     if (patternNode?.type !== 'ObjectPattern' || !ctx || ctx.kind === 'instance'
       && !patternComputedKeysSynthSafe({ objectPatternNode: patternNode, ...keyCtx, distinctReads: true })) {
       return patternNode?.type === 'ArrayPattern' && ctx?.kind === 'static'
@@ -7808,6 +7826,8 @@ export function buildNestedParamSynthPlan({
     : targets.some(target => defaultLeaves.has(target.node)) ? 'mirrored'
     : arms.size && [...arms].every(verdict => verdict === 'dead') ? 'dead' : 'open';
   if (!targets.length) {
+    if (mirrored.nativeReads) return { bail: true, nativeReads: true, defaultArm };
+    if (defaultArm === 'dead') return { bail: true, defaultArm };
     // A constructor rest source already receives its full index through ordinary global
     // substitution. A declined mirror must not split its methods into body extractions.
     if (constructorRestIndex({ name: meta.object, patternNode: leafPatternPath.node, resolveGlobalPolyfill })) {
@@ -7833,13 +7853,15 @@ export function buildNestedParamSynthPlan({
     return declined;
   }
   // Quarantine only leaves covered on every reachable branch; user passthroughs stay live.
-  const claimedProperties = targets.length === targetLeaves.length
+  // A mirrored default does not cover the native read from a supplied literal slot.
+  const allReadsMirrored = !mirrored.nativeReads && targets.length === targetLeaves.length;
+  const claimedProperties = allReadsMirrored
     ? targets[0].claimedProperties.filter(prop => targets.every(target => target.claimedProperties.includes(prop))) : [];
-  const readProperties = targets.length === targetLeaves.length
+  const readProperties = allReadsMirrored
     ? targets[0].readProperties.filter(prop => targets.every(target => target.readProperties.includes(prop))) : [];
   // A mirrored binding names a static only when every reachable value supplies the same
   // entry. Preserve that proof after replacing the receiver with the synthesized literal.
-  const staticBindings = targets.length === targetLeaves.length
+  const staticBindings = allReadsMirrored
     ? [...targets[0].staticBindings].filter(([prop, entry]) => targets.every(target => target.staticBindings.get(prop) === entry)) : [];
   // ... and a default the literal fills the slot of that the build drops as dead (`defaultDroppedAsDead`), asked while
   // the source still reads the realm: the render drops it, the imports it alone held leaving with it
@@ -8083,7 +8105,7 @@ function treeInjectionMetrics(tree) {
 // selection over one is truthy. a name a PATTERN binds holds the slot it pairs with, never the whole
 // init (`const [n] = [null]` binds `null`), and a name a write may reach holds the one value that write
 // leaves there, or none (`readsReachedAlias`: `if (c) N = null` leaves `N || { C: Object }` selecting)
-function boundStaticContainer({ node: name, scope: nameScope, adapter, path, classes = false }) {
+function boundStaticContainer({ node: name, scope: nameScope, adapter, path, classes = false, calls = true }) {
   let node = name;
   let scope = nameScope;
   let binding;
@@ -8124,7 +8146,8 @@ function boundStaticContainer({ node: name, scope: nameScope, adapter, path, cla
   const init = live === selection ? written : unwrapExpressionChain(live);
   const held = classes && (declaratorNode?.type === 'ClassDeclaration' || init?.type === 'ClassExpression') ? 'ObjectExpression'
     : init?.type === 'ObjectExpression' || init?.type === 'ArrayExpression' ? init.type
-    : invocationNode(init) ? callYieldedLiteral({ node: init, readNode: init, seen: new Set(), ctx: declCtx })?.literal.type : null;
+    : calls && invocationNode(init)
+      ? callYieldedLiteral({ node: init, readNode: init, seen: new Set(), ctx: declCtx })?.literal.type : null;
   return (held === 'ObjectExpression' || held === 'ArrayExpression') && varInitDominatesUsage({
     declaratorNode, usagePath: path, usageNode: node, kind: binding.kind,
   }) ? held : null;
@@ -8922,9 +8945,9 @@ export function applyNestedParamSynthPlan({
   // un-mirrorable pattern with a non-proxy value branch: handled by leaving the destructure native
   // (no inline default that would corrupt the branch's legitimate undefined). nothing to render
   // A validated receiver capture can take over without assuming which branch supplied the value.
-  // ... and a DEAD default arm needs no fallback either: the slot it defends holds a value, so
-  // the swap of the default would be text nothing runs
-  if (plan.bail) return !fallbackOnBail || plan.defaultArm === 'dead';
+  // Retained native reads must not fall through to an inline default that assumes a realm source.
+  // A DEAD default arm needs no fallback either: the slot it defends already holds a value.
+  if (plan.bail) return !fallbackOnBail || plan.nativeReads || plan.defaultArm === 'dead';
   let replaced = 0;
   const collapsedSelections = new Set();
   for (const target of plan.targets) {

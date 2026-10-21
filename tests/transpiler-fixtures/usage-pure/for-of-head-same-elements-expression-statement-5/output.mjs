@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Object$is from "@core-js/pure/actual/object/is";
-// ... and ahead of the STATICS the host extracted earlier: the source ran the element first
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
 const known = {
   w: Object,
   y: [1]
@@ -9,10 +9,9 @@ const known = {
 const [,] = [known, _pushMaybeArray(log).call(log, 's')];
 const {
   w: {
-    is: _unused
+    is: viaEmptiedStatic
   }
 } = known;
-const viaEmptiedStatic = _Object$is;
 const viaEmptiedStaticAt = _atMaybeArray(known.y);
 [viaEmptiedStatic, viaEmptiedStaticAt];
 export { viaEmptiedStatic };

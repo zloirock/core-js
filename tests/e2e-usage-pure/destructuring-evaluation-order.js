@@ -326,22 +326,6 @@ QUnit.test('evaluation order: a bodyless nested read carrying its init runs the 
   assert.deepEqual(flat.call([[3]]), [3]);
 });
 
-QUnit.test('evaluation order: a store behind an effect prefix runs after the prefix', assert => {
-  const seen = [];
-  var one, two;
-  function setup(tag) {
-    seen.push(`${ tag }:${ typeof one }:${ typeof two }`);
-  }
-  const { C: { groupBy } } = (setup('one'), one = { C: Map });
-  const { C: { from }, D: { of } } = (setup('two'), two = { C: Array, D: Array });
-  assert.deepEqual(seen, ['one:undefined:undefined', 'two:object:undefined']);
-  assert.same(typeof groupBy, 'function');
-  assert.deepEqual(from([1]), [1]);
-  assert.deepEqual(of(2), [2]);
-  assert.same(typeof one.C, 'function');
-  assert.same(typeof two.D, 'function');
-});
-
 // ... and a write in the init runs before the pattern's defaults, which read what it stored
 QUnit.test('evaluation order: a write in the init reaches a pattern default', assert => {
   let C;

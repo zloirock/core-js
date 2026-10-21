@@ -1,17 +1,13 @@
-// TS casts around a container initializer or write target preserve the slot identity.
-// An unconditional Map write kills the initial Object candidate: pure keeps the native
-// destructuring without an Object guard, and retains Map with its statics.
-// Clean slots still resolve through casts; type positions do not mutate their values.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const clean = { k: Object } as { k: typeof Object };
 const { k: { keys } } = clean;
 const written = { k: Object } as { k: unknown };
 (written as { k: unknown }).k = Map;
 // @ts-expect-error the member read is the probe, and the right answer is a type without it
 const { k: { groupBy } } = written;
-// a const-tuple cast on an ARRAY container is transparent the same way
 const tuple = [Object] as const;
 const { 0: { entries } } = tuple;
-// a TYPE position does not detach a repositioner, while a non-null assertion is transparent to it
 const typedOnly = [Object];
 type TypedRead = typeof typedOnly.reverse;
 const { 0: { getOwnPropertyNames } } = typedOnly;

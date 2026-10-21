@@ -46,7 +46,8 @@ export const t3 = (() => {
   let of, rest;
   ({
     Array: _ref
-  } = cond && _globalThis), {} = _ref, of = _Array$of, {
+  } = cond && _globalThis);
+  ({} = _ref), of = _Array$of, {
     of: _unused,
     ...rest
   } = _ref;

@@ -1,20 +1,16 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
-var _ref, _unused, _unused2;
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+var _unused;
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 let from, rest, other;
-[,] = [Array];
-from = _Array$from, {
+[,] = [Array], from = _Array$from, {
   from: _unused,
   ...rest
 } = Array;
 from([1]);
 rest;
-[, _ref] = [Array, 1];
-from = _Array$of, {
-  of: _unused2,
+[{
+  of: from,
   ...rest
-} = Array;
-other = _ref;
+}, other] = [Array, 1];
 from(2);

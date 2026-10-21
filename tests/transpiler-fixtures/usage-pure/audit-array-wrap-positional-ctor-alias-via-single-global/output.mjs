@@ -1,7 +1,7 @@
-import _Set from "@core-js/pure/actual/set/constructor";
+import _globalThis from "@core-js/pure/actual/global-this";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const [{
   Set: S
-}] = [{
-  Set: _Set
-}];
+}] = [_globalThis];
 export const viaSingleGlobal = new S(singleSeed);

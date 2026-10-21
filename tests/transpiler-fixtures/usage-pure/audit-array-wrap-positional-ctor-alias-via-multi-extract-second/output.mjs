@@ -1,16 +1,10 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
-// two whole-ctor extractions off ONE declarator keep their own per-name registrations: each
-// alias's STATIC read folds through its own hint (a single per-declarator entry let the second
-// registration clobber the first, stranding the first alias's reads on the local name)
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const [{
   Symbol: SM
 }, {
   Promise: MG
-}] = [{
-  Symbol: _Symbol
-}, {
-  Promise: _Promise
-}];
+}] = [_globalThis, _globalThis];
 export const viaMultiExtractSecond = _Promise$resolve(ready);

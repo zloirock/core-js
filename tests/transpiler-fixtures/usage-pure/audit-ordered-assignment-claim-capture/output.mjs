@@ -7,5 +7,6 @@ let at, flat;
   value: _ref
 } = {
   value: (record(), [1])
-}), at = _atMaybeArray(_ref), flat = _flatMaybeArray(_ref);
+});
+at = _atMaybeArray(_ref), flat = _flatMaybeArray(_ref);
 export { at, flat };

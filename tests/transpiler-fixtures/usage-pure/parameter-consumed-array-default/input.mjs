@@ -1,5 +1,5 @@
-// A named array parameter consumes the supplied element or its own Array default.
-// Every known call needs an extraction; custom methods retain their identity.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims.
 function read([{ from } = Array]) { return from; }
 function ownFrom(value) { return value; }
 read([Array])([1]);

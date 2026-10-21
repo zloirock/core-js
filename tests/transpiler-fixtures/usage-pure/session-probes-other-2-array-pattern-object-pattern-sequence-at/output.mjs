@@ -1,8 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// probe corpus of the defense cycles over the destructure wrappers, family "other", part 2:
-// every block is one probed form, self-contained over the header bindings, locked on both legs
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 let pick = 1;
 const userObj = {};
 const arr = [1, 2];
@@ -14,16 +13,12 @@ function mark(t, v) {
 {
   const [{
     from: f
-  }] = [(mark++, pick ? {
-    from: _Array$from
-  } : userObj)];
+  }] = [(mark++, pick ? Array : userObj)];
 }
 {
   const [{
     from: f
-  }] = [pick ? (mark++, {
-    from: _Array$from
-  }) : userObj];
+  }] = [pick ? (mark++, Array) : userObj];
 }
 {
   const [_ref] = [{

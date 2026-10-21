@@ -1,5 +1,5 @@
-// Spread getters finish constructing the receiver before the pattern writes a binding.
-// The static under the final known slot remains polyfilled beside the spread.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
 const extra = { get value() { log.push(typeof from); return 7; } };
 let from = 'old', value;

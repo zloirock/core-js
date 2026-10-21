@@ -6623,9 +6623,10 @@ function patternSourceSlotRead(rhs, key, ctx, nested = false) {
 // `selectionLevels` collects each level whose value SELECTS (the arms `flattenBranchingValueNodes`
 // splits) with its pattern, for a caller reading the level one arm per run: no slot is read off the
 // selection here
-// `positionalReads` collects slots reached through a nonliteral array source. Their synthesized
-// member reads are a census approximation; the scoped claim may resolve a single reaching value.
-// `rawReads` collects each slot reached through a STORE below the source - or through one at all where
+// `positionalReads` collects slots reached through a nonliteral array source. Their retained
+// static reads need the constructor namespace, just like a slot under a literal wrapper.
+// `rawReads` also collects reads under a literal wrapper: static synthesis no longer serves them.
+// It collects each slot reached through a STORE below the source - or through one at all where
 // the source itself stands below the host's (`belowSource`: a default, a for-of element): pure's mirror
 // steps through no such store, which would rewrite a container the store hands to another reader, and
 // the routes it falls back to name a static through one only on some hosts and levels. a slot such a
@@ -6646,6 +6647,7 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
 }
 
 // one level of that pairing; each level below re-enters through `patternReceiverSlotNodes`
+// eslint-disable-next-line max-statements -- pair source slots and independent defaults without reordering receiver records
 function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
   const out = [];
   rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
@@ -6672,6 +6674,7 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
         const slots = patternReceiverSlotNodes(slot, candidate, name, ctx);
         out.push(...slots);
         if (rhs?.type !== 'ArrayExpression') for (const read of slots) ctx?.positionalReads?.add(read);
+        else for (const read of slots) ctx?.rawReads?.add(read);
       }
       if (element.type === 'AssignmentPattern') out.push(...patternReceiverSlotNodes(slot, element.right, name, ctx));
     }
@@ -6689,10 +6692,17 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
     const key = patternPropKey(prop, ctx, pattern);
     if (key === null) {
       if (prop.computed && rhs) ctx?.opaqueKeys?.push({ receiver: rhs, key: prop.key });
+      // An unknown source key does not hide the default's own receiver. It still
+      // supplies the nested reads whenever the runtime slot is undefined.
+      if (isDestructurePattern(slot) && prop.value.type === 'AssignmentPattern') {
+        out.push(...patternReceiverSlotNodes(slot, prop.value.right, name, ctx));
+      }
       continue;
     }
+    const pairedProperty = rhs?.type === 'ObjectExpression'
+      ? findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key) : null;
     const paired = rhs?.type === 'ObjectExpression'
-      ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key), ctx ?? {})
+      ? objectPropertyReadValue(pairedProperty, ctx ?? {})
       : arrayLiteralSlotValue(rhs, key);
     // ... the same sources `patternSlotValues` pairs against: the container slot, the receiver read
     // and the slot's own default. the first two are exclusive by construction - a paired value means
@@ -6704,7 +6714,11 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
         recordPatternReceiverSlot(out, prop, rhs, ctx);
       }
       const source = paired ?? received;
-      if (source) out.push(...patternReceiverSlotNodes(slot, source, name, ctx));
+      if (source) {
+        const slots = patternReceiverSlotNodes(slot, source, name, ctx);
+        out.push(...slots);
+        if (paired && pairedProperty?.kind !== 'get') for (const read of slots) ctx?.rawReads?.add(read);
+      }
       if (prop.value.type === 'AssignmentPattern') {
         out.push(...patternReceiverSlotNodes(slot, prop.value.right, name, ctx));
       }

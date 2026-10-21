@@ -1,11 +1,9 @@
-import _from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _of from "@core-js/pure/actual/array/of";
 import _getIterator from "@core-js/pure/actual/get-iterator";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getPrototypeOf from "@core-js/pure/actual/object/get-prototype-of";
 // fixture-size: 32 -- The getter installs an iterator return accessor during the same parameter read. Installation, read and restoration must share one input to test that order.
-// A visible late return accessor keeps IteratorClose around the original native reads.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 const events = [];
 const rawArray = Function('return Array')();
 const iteratorPrototype = _Object$getPrototypeOf(_getIterator([]));
@@ -36,8 +34,6 @@ function read([{
   length,
   fc551ParameterSibling: sibling
 }] = [Array]) {
-  of = _of;
-  from = _from;
   return [of(3)[0], from([4])[0], length, sibling];
 }
 let result;

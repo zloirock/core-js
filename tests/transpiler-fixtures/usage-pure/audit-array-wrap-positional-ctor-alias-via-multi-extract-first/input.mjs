@@ -1,5 +1,4 @@
-// two whole-ctor extractions off ONE declarator keep their own per-name registrations: each
-// alias's STATIC read folds through its own hint (a single per-declarator entry let the second
-// registration clobber the first, stranding the first alias's reads on the local name)
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const [{ Symbol: SM }, { Promise: MG }] = [globalThis, globalThis];
 export const viaMultiExtractFirst = SM.for(dedupeKey);

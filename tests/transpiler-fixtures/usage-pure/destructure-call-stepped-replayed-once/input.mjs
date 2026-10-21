@@ -1,7 +1,5 @@
-// A call the destructure steps through runs once, where the source runs it: a keyed element read off
-// the call replays it once ahead of the binding, an alias of a call ran it at its own declaration.
-// A call whose callee returns ANOTHER call keeps the pure read native - not every route steps that
-// chain - while the global import follows the chain to the literal.
+// The existing keyed call fallback replays the call once before extraction.
+// Held and positional array wrappers keep their native static reads.
 let hits = 0;
 const make = () => (hits++, [Math]);
 const { 0: { trunc: viaKeyed } = {} } = make();

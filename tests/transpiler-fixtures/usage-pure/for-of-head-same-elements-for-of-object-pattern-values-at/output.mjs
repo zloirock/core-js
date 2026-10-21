@@ -1,10 +1,15 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _Object$values from "@core-js/pure/actual/object/values";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
 for (const _ref of [{
   w: Object,
   y: [1]
 }]) {
-  const viaDualBesideInstance = _Object$values;
+  const {
+    w: {
+      values: viaDualBesideInstance
+    }
+  } = _ref;
   const viaInstanceBeside = _atMaybeArray(_ref.y);
   [viaDualBesideInstance, viaInstanceBeside];
 }

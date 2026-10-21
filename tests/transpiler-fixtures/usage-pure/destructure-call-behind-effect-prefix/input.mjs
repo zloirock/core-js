@@ -1,7 +1,5 @@
-// A call standing behind a sequence prefix runs after that prefix, which a lifted extraction would
-// reorder, so the destructure keeps its native read; an OPTIONAL call to a proven callee is stepped
-// like a plain one, whichever parser spells it. The prefixed literal twin mirrors its element in
-// place, the prefix still first.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const log = [];
 const make = () => (log.push('make'), [Math]);
 const [{ trunc: viaPrefixed } = {}] = (log.push('prefix'), make());

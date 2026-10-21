@@ -1,6 +1,5 @@
-// A retained getter supplies a nested constructor between ordinary siblings.
-// Its binding initializes before either trailing getter reads it.
-// The exported constructor includes its static methods for external consumers.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const log = [];
 export const { before, box: { first, realm: { WeakSet: Value }, last }, after } = {
   get before() { log.push('before'); return 1; },

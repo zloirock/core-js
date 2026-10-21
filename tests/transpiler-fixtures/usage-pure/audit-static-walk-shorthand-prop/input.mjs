@@ -1,7 +1,5 @@
-// shorthand property in static-wrapper ObjectExpression: `{ Array }` is shorthand for
-// `{ Array: Array }`. walker reads prop.key (Identifier name 'Array') and prop.value
-// (Identifier reference to Array). The shorthand shape must classify the same as the
-// explicit form for static-object descent. distinct prototype methods on later receiver
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const Array = globalThis.Array;
 const wrapper = { Array };
 const { Array: { from } } = wrapper;

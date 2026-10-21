@@ -3,31 +3,24 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Capturing an instance leaf keeps outer static siblings live.
-// A preceding declarator rewrite must also preserve a queued computed read.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 export function captured(effect) {
   let held;
-  const [{
-    Array: {
-      prototype: {
-        at
-      }
-    },
+  const [_ref] = [held = (effect(), _globalThis)];
+  const at = _atMaybeArray(_ref.Array.prototype);
+  const {
     Object: {
       keys
-    },
-    other
-  }] = [(held = (effect(), _globalThis), {
-    Array: {
-      prototype: {
-        at: _atMaybeArray(_globalThis.Array.prototype)
-      }
-    },
+    }
+  } = {
     Object: {
       keys: _Object$keys
-    },
-    other: _globalThis.other
-  })];
+    }
+  };
+  const {
+    other
+  } = _ref;
   return [at, keys, other, held];
 }
 export function following(effect) {

@@ -1,13 +1,10 @@
-import _Array$of from "@core-js/pure/actual/array/of";
 import _Math$expm1 from "@core-js/pure/actual/math/expm1";
 import _Math$log1p from "@core-js/pure/actual/math/log1p";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
-var _ref, _ref2;
-// the pattern ASSIGNMENT forms pair through the call the same way: object and array slots of the
-// write, a computed key resolved through a pattern write, a container primary kept alive by one, the
-// for-of assignment head, and the array write beside a bound sibling. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const assign = () => ({
   a: Object,
   b: [Math]
@@ -46,10 +43,7 @@ for ({
 } of [headed()]) use((viaAssignedHead === Math ? _Math$log1p : viaAssignedHead.log1p.bind(viaAssignedHead))(1));
 const builtPair = () => [Array];
 let viaAssignSibling, besideAssign;
-[_ref, _ref2] = builtPair();
-const {
-  of: _unused
-} = _ref;
-viaAssignSibling = _Array$of;
-besideAssign = _ref2;
+[{
+  of: viaAssignSibling
+}, besideAssign] = builtPair();
 use(viaAssignSibling(26), besideAssign);

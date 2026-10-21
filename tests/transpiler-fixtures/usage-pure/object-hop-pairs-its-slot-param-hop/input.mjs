@@ -1,7 +1,5 @@
-// A literal container pairs the hop key with its slot on parameter defaults, loop elements and
-// IIFE arguments. Constructors and statics can mirror that slot; a plain instance parameter
-// dispatches on the actual supplied receiver. A completed mirror is never mirrored again:
-// a pattern-valued leaf under a mirrored static receives the ponyfill value.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 function paramHop({ w: { Map: viaParamCtor } } = { w: globalThis }) {
   return viaParamCtor;
 }

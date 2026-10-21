@@ -2,9 +2,10 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _globalThis from "@core-js/pure/actual/global-this";
 var _ref;
-// Known static imports are defined, so their user defaults remain dead.
-// Instance leaves still test the dispatch result before choosing a fallback.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 const fb = 0;
 const K = 'from';
 function k() {
@@ -56,18 +57,12 @@ const {
   },
   z
 } = {
-  w: {
-    Array: {
-      from: _Array$from
-    }
-  },
+  w: _globalThis,
   z: 1
 };
 const [{
   from: viaWrapped = fb
-}] = [{
-  from: _Array$from
-}];
+}] = [Array];
 const {
   of: {
     name: viaPatternDefault

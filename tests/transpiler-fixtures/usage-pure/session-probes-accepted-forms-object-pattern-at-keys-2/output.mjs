@@ -1,4 +1,5 @@
-import _Object$keys from "@core-js/pure/actual/object/keys";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const k = 'k';
 function eff() {
   return Object;
@@ -11,10 +12,7 @@ function eff() {
     },
     z
   } = {
-    w: (eff(), {
-      at: Object.at,
-      keys: _Object$keys
-    }),
+    w: eff(),
     z: 1
   };
   use(m, k, z);

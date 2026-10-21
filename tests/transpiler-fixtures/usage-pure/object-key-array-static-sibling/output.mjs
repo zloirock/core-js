@@ -1,15 +1,10 @@
-import _Math$sign from "@core-js/pure/actual/math/sign";
-// The object key and native array iteration select a static receiver once.
-// The static getter remains ahead of its binding and the neighbouring element binding.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 const held = {
   k: [Math]
 };
-const {
-  k: [_ref, _ref2]
+export const {
+  k: [{
+    sign
+  }, tail]
 } = held;
-const {
-  sign: _unused
-} = _ref;
-const sign = _Math$sign;
-const tail = _ref2;
-export { sign, tail };

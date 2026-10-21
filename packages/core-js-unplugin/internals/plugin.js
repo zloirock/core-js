@@ -828,7 +828,6 @@ export default function createPlugin(options) {
       // every install's never-run answer is settled on the tree as the source wrote it, before a render
       // rebuilds the node an install stands in
       settleCensusWrites({ mutatedSet: mutatedStatics, adapter: estreeAdapter });
-      prePass?.heldReads?.settle(estreeAdapter, resolvePure);
       if (readsCensus) injector.seedReservedNames(bindingNames);
       // user-owned global-object slot names the raw identifier scan above misses: computed
       // STRING-key member spellings (`globalThis['_ref']`) and string-key mutator writes

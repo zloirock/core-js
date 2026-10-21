@@ -8,7 +8,8 @@ let at, atBare;
   C: _ref
 } = (eff(), o.s = {
   C: []
-})), at = _atMaybeArray(_ref);
+}));
+at = _atMaybeArray(_ref);
 o.t = {
   C: []
 };

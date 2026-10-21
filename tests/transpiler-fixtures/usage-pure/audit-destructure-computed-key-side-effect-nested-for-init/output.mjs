@@ -1,13 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// A nested computed static key in a loop initializer follows its receiver capture.
-// The key runs once before the method binding initializes; all declarations stay
-// in the loop header, without lifting work across the surrounding loop.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 for (const {
-  x: {
-    [(effectful(), 'from')]: f
-  }
-} = {
-  x: {
-    from: _Array$from
-  }
-}; cond;) use(f);
+    x: _ref
+  } = {
+    x: Array
+  }, f = (effectful(), _Array$from); cond;) use(f);

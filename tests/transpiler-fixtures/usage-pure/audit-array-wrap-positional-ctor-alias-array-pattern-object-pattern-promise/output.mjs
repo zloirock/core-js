@@ -1,16 +1,10 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
-// a same-name `var` redeclaration MERGES its per-binding entries (last write's hint serves the
-// use - runtime last-write-wins); a CONDITIONAL `var` refuses flow-trust and folds through the
-// runtime constructor guard instead, keeping the untaken path faithful
+import _globalThis from "@core-js/pure/actual/global-this";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 /* eslint-disable no-redeclare, vars-on-top, block-scoped-var -- redeclaration shapes under test */
 var [{
   Symbol: VB
-}] = [{
-  Symbol: _Symbol
-}];
+}] = [_globalThis];
 var [{
   Promise: VB
-}] = [{
-  Promise: _Promise
-}];
+}] = [_globalThis];

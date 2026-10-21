@@ -1,7 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-// Each block locks an independent form: a destructuring assignment, declaration or catch parameter,
-// or a computed member write.
-// Computed keys, stored receiver values and sibling bindings keep their source order.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 let pick = 1;
 const userObj = {};
 {
@@ -11,8 +9,6 @@ const userObj = {};
       from: f
     }
   } = {
-    w: pick ? {
-      from: _Array$from
-    } : userObj
+    w: pick ? Array : userObj
   });
 }

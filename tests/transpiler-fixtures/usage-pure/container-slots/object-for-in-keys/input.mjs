@@ -1,4 +1,5 @@
-// For-in exposes property names without handing out or replacing the constructor slot.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const forInKeysLeakNothing = (function () {
   const inBox = { k: Object };
   let last;

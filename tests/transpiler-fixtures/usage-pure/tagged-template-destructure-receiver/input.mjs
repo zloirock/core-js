@@ -1,6 +1,5 @@
-// A tagged template is a call of its tag, so a destructure whose RECEIVER is one names what the tag
-// hands back the way a call's receiver does - the tag still runs ahead of the extraction. Each host
-// reads a different static, because a shared one would let a single injection mask the others.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 function tagArray() { return Array; }
 function tagMap() { return Map; }
 function wrap(strings, value) { return value; }

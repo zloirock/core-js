@@ -213,6 +213,7 @@ export default function createDestructureDrains(ctx) {
     pendingBranchSynths,
     pendingSplits,
     probeRenderCtx,
+    registerDeclaratorBindings,
     program,
     resolveGlobalPolyfill,
     resolvePropertyObjectType,
@@ -3314,6 +3315,7 @@ export default function createDestructureDrains(ctx) {
     // same fact through its own scope
     const [headDeclarator] = path.get('left').get('declarations');
     path.scope?.registerBinding?.(assignment ? 'const' : left.kind, headDeclarator.get('id'), headDeclarator);
+    if (!assignment) registerDeclaratorBindings(path.get('body').get('body')[0].get('declarations')[0]);
     noteRelocation(path, {
       slotOwner: assignment ? path.node : declarator,
       field: assignment ? 'left' : 'id',

@@ -1,16 +1,20 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _WeakMap from "@core-js/pure/actual/weak-map";
-// a destructure that runs before every write of a global's slot sees the slot this build serves, through
-// whichever channel renders it: a nested pattern under a realm hop, a selection with the global as an arm,
-// a static under a constructor key off the realm, a rest beside one and a prototype pattern under one
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const ns = {
   root: _globalThis
 };
-const M = _Map;
+const {
+  root: {
+    self: {
+      Map: M
+    }
+  }
+} = ns;
 const {
   groupBy
 } = shim || {

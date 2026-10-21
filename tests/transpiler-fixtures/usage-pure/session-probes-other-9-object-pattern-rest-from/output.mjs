@@ -1,4 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 {
   const {
     w: {
@@ -6,8 +7,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
     },
     ...r
   } = {
-    w: {
-      from: _Array$from
-    }
+    w: Array
   };
 }

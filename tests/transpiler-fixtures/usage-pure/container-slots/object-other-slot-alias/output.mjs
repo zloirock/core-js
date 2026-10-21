@@ -1,6 +1,6 @@
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Object$keys from "@core-js/pure/actual/object/keys";
-// Reading an alias of one constructor slot leaves a different constructor slot available.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const aliasLeakIsPairPrecise = function () {
   const twoSlots = {
     M: _Map,
@@ -12,11 +12,7 @@ const aliasLeakIsPairPrecise = function () {
     P: {
       keys
     }
-  } = {
-    P: {
-      keys: _Object$keys
-    }
-  };
+  } = twoSlots;
   return keys;
 }();
 export { aliasLeakIsPairPrecise };

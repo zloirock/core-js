@@ -1,5 +1,5 @@
-import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
-// An own method call on the container leaves its independent constructor slot available.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const selfMethodCallLeaksNothing = function () {
   const selfCall = {
     k: Object,
@@ -12,11 +12,7 @@ const selfMethodCallLeaksNothing = function () {
     k: {
       getOwnPropertyNames
     }
-  } = {
-    k: {
-      getOwnPropertyNames: _Object$getOwnPropertyNames
-    }
-  };
+  } = selfCall;
   return getOwnPropertyNames;
 }();
 export { selfMethodCallLeaksNothing };

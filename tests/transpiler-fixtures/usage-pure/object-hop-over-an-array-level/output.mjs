@@ -1,8 +1,6 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Array$of from "@core-js/pure/actual/array/of";
-// Object hops pair by property key and array levels pair by position.
-// Calls and tagged calls keep their effects once while each static receives its pure value.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
 const mk = () => {
   _pushMaybeArray(log).call(log, 'mk');
@@ -18,28 +16,21 @@ const {
     from: alsoViaCall
   }]
 } = {
-  c: [(mk(), {
-    of: _Array$of,
-    from: _Array$from
-  })]
+  c: [mk()]
 };
 const {
   c: [{
     of: viaTag
   }]
 } = {
-  c: [(tag`x`, {
-    of: _Array$of
-  })]
+  c: [tag`x`]
 };
 const {
   c: [{
     from: viaBare
   }]
 } = {
-  c: [{
-    from: _Array$from
-  }]
+  c: [Array]
 };
 const {
   a: {
@@ -49,9 +40,7 @@ const {
   }
 } = {
   a: {
-    c: [(mk(), {
-      of: _Array$of
-    })]
+    c: [mk()]
   }
 };
 export { viaCall, alsoViaCall, viaTag, viaBare, twoHops, log };

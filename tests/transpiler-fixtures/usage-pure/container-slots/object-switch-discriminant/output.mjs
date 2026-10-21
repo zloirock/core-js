@@ -1,5 +1,5 @@
-import _Object$seal from "@core-js/pure/actual/object/seal";
-// A switch discriminant compares the container without replacing its constructor slot.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const switchDiscriminantLeaksNothing = function () {
   const switchBox = {
     k: Object
@@ -12,11 +12,7 @@ const switchDiscriminantLeaksNothing = function () {
     k: {
       seal: viaSwitch
     }
-  } = {
-    k: {
-      seal: _Object$seal
-    }
-  };
+  } = switchBox;
   return viaSwitch;
 }();
 export { switchDiscriminantLeaksNothing };

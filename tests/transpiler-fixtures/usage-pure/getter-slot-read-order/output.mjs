@@ -3,23 +3,18 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// A kept getter runs before its destructured binding initializes. Its returned realm still
-// supplies a polyfilled constructor, through a direct literal, an alias and an assignment.
-// The assignment getter observes the old binding, then the assignment installs the ponyfill.
-// A constructor escaping through the getter includes its static methods.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 export function direct(log) {
   const {
-    w: {
-      WeakSet: Value
-    }
-  } = {
-    get w() {
-      _pushMaybeArray(log).call(log, 'direct');
-      return {
-        WeakSet: _WeakSet
-      };
-    }
-  };
+      w: _ref
+    } = {
+      get w() {
+        _pushMaybeArray(log).call(log, 'direct');
+        return _globalThis;
+      }
+    },
+    Value = _ref === _globalThis ? _WeakSet : _ref.WeakSet;
   return Value;
 }
 export function aliased(log) {
@@ -30,24 +25,21 @@ export function aliased(log) {
     }
   };
   const {
-      w: _ref
+      w: _ref2
     } = source,
-    Value = _ref === _globalThis ? _WeakMap : _ref.WeakMap;
+    Value = _ref2 === _globalThis ? _WeakMap : _ref2.WeakMap;
   return Value;
 }
 export function assigned(log) {
+  var _ref3;
   let Value = 'before';
   ({
-    w: {
-      Map: Value
-    }
+    w: _ref3
   } = {
     get w() {
       _pushMaybeArray(log).call(log, Value);
-      return {
-        Map: _Map
-      };
+      return _globalThis;
     }
-  });
+  }), Value = _ref3 === _globalThis ? _Map : _ref3.Map;
   return Value;
 }

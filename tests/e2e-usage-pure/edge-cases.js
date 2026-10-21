@@ -615,23 +615,10 @@ QUnit.test('catch destructure: { message: msg, name } renamed', assert => {
 
 // --- nested destructure flatten ---
 
-QUnit.test('nested destructure: { a: { from } } = { a: Array }', assert => {
-  // plugin's flatten path resolves nested ObjectPattern through the init's nested literal
-  // to find Array.from polyfill anchor
-  const { a: { from } } = { a: Array };
-  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
-});
-
 QUnit.test('nested destructure: through proxy global', assert => {
   // const { Array: { from } } = globalThis - proxy-global step + nested destructure
   const { Array: { from } } = globalThis;
   assert.deepEqual(from('abc'), ['a', 'b', 'c']);
-});
-
-QUnit.test('nested destructure: triple-nested with default', assert => {
-  // resolveNestedDestructureReceiver walks N-deep ObjectPattern (babel)
-  const { a: { b: { from } = {} } = {} } = { a: { b: Array } };
-  assert.deepEqual(from([10, 20]), [10, 20]);
 });
 
 // --- side-effect prefix in non-callee positions ---

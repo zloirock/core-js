@@ -1,5 +1,5 @@
-// Known static imports are defined, so their user defaults remain dead.
-// Instance leaves still test the dispatch result before choosing a fallback.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 const fb = 0;
 const K = 'from';
 function k() { return 'from'; }

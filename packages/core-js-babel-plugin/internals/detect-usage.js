@@ -5,7 +5,6 @@ import {
 import {
   beginMutationPrePass,
   createDetectionAdapter,
-  heldPatternReadCollector,
   mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
@@ -68,18 +67,14 @@ function stringLiteralValue(node) {
   return inner?.type === 'StringLiteral' ? inner.value : null;
 }
 
-// One scoped pre-pass collects mutation sites and the property paths requested by the census.
-// Each lane has its own cheap gate; a file with neither obligation pays no scoped traversal.
-// Both lanes share the read side's canonical receiver resolution through `mutations`.
+// Collect scoped mutation sites only when the census reports a possible mutation.
 export function collectMutationPrePass(programPath, adapter, census = null, resolveStaticKey = null) {
   const { mutated, handleSite, finalize } = beginMutationPrePass(
     { resolveStaticKey, rootNode: programPath.node, adapter, census },
   );
-  const heldReads = heldPatternReadCollector(census);
-  if (!handleSite && !heldReads) return { mutated };
+  if (!handleSite) return { mutated };
   programPath.traverse({
     ...handleSite ? mutationSiteVisitors(handleSite) : {},
-    ...heldReads ? { ObjectPattern: heldReads.ObjectPattern } : {},
     // babel's Optional* dialect twins of the shared member / call sites: without them an
     // optional-chain mutation (`Object?.assign(Array, {...})`) escapes detection and
     // usage-pure substitutes over the user patch
@@ -95,7 +90,7 @@ export function collectMutationPrePass(programPath, adapter, census = null, reso
     },
   });
   finalize?.();
-  return { mutated, heldReads };
+  return { mutated };
 }
 
 // babel's own binding lookup, before any correction the provider applies to it

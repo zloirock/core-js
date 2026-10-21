@@ -1,5 +1,5 @@
-// A getter hop read by a static and an instance member is memoized once, ahead of the static,
-// in an exported declarator.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 class KE {
   static get P() { log(); return Promise; }
 }

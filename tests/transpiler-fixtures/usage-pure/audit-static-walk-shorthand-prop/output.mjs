@@ -1,11 +1,8 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
 var _ref;
-// shorthand property in static-wrapper ObjectExpression: `{ Array }` is shorthand for
-// `{ Array: Array }`. walker reads prop.key (Identifier name 'Array') and prop.value
-// (Identifier reference to Array). The shorthand shape must classify the same as the
-// explicit form for static-object descent. distinct prototype methods on later receiver
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const Array = _globalThis.Array;
 const wrapper = {
   Array
@@ -14,9 +11,5 @@ const {
   Array: {
     from
   }
-} = {
-  Array: {
-    from: _Array$from
-  }
-};
+} = wrapper;
 _atMaybeArray(_ref = from(['x'])).call(_ref, 0);

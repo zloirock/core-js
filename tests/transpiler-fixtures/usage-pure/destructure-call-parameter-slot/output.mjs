@@ -1,13 +1,9 @@
-import _Array$of from "@core-js/pure/actual/array/of";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Math$log10 from "@core-js/pure/actual/math/log10";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
-import _String$raw from "@core-js/pure/actual/string/raw";
-// a slot the callee fills from a PARAMETER holds the argument THIS call passes: an object slot, one
-// beside a literal slot, an array wrapper's element, a keyed slot under the wrapper. another call of
-// the same callee passing Map (whose value owes its constructor entry) leaves the Object row with its
-// own argument alone - no `groupBy` of Map rides on it. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 const wrap = value => ({
   a: value
 });
@@ -27,19 +23,16 @@ const {
 export const fromLiteralBeside = _Object$fromEntries([]);
 export const fromParamBeside = _Math$log10(100);
 const wrapArr = value => [value];
-const [_ref] = wrapArr(String);
-const {
-  raw: _unused
-} = _ref;
-const viaWrappedParam = _String$raw;
+const [{
+  raw: viaWrappedParam
+}] = wrapArr(String);
 export const fromWrappedParam = viaWrappedParam`x`;
 const wrapKeyed = value => [{
   a: value
 }];
 const [{
   a: {
-    of: _unused2
+    of: viaWrappedKeyed
   }
 }] = wrapKeyed(Array);
-const viaWrappedKeyed = _Array$of;
 export const fromWrappedKeyed = viaWrappedKeyed(13);

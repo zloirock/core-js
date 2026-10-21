@@ -1,42 +1,28 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$seal from "@core-js/pure/actual/object/seal";
-import _Object$values from "@core-js/pure/actual/object/values";
-// Literal array spreads pair their elements at known positions.
-// Each supported static receives its own pure value; unknown spreads keep uncertain slots native.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const [{
   from: viaSole
-}] = [...[{
-  from: _Array$from
-}]];
+}] = [Array];
 const [, {
   of: viaShifted
-}] = [...[0, {
-  of: _Array$of
-}]];
+}] = [0, Array];
 const [[{
   fromEntries: viaNested
-}]] = [...[[...[{
-  fromEntries: _Object$fromEntries
-}]]]];
+}]] = [[Object]];
 const viaInstance = _atMaybeArray([1]);
 const [_ref] = [...[c ? Object : userObj]],
   viaSelecting = _ref === Object ? _Object$entries : _entries(_ref);
-// ... and through the transparent wrappers a source may spell around the spread array
 const [{
   groupBy: viaParens
-}] = [...[{
-  groupBy: _Object$groupBy
-}]];
+}] = [Object];
 const viaIifeParens = (([{
   freeze: fr
 }]) => fr)(...[[c ? {
@@ -47,21 +33,14 @@ const viaIifeSwap = (({
 }) => ho)(...[{
   hasOwn: _Object$hasOwn
 }]);
-// the argument a returning directive hands on is read at the same coordinate: `viaDirective` is the
-// spread array's element, so its `.at` is the array's (the `seal` claim is the row's carrier)
 const viaDirective = _Object$seal(...[[1]]);
 _atMaybeArray(viaDirective).call(viaDirective, 0);
 export { viaSole, viaShifted, viaNested, viaInstance, viaSelecting, viaParens, viaIifeParens, viaIifeSwap, viaDirective };
-
-// Nested literal spreads still pair exactly; binding spreads remain unknown.
-// A hole spreads as `undefined` and supplies no static claim.
 const [_ref2] = [...wrapped];
 const viaAlias = _keys(_ref2);
 const [{
   values: viaDoubleSpread
-}] = [...[...[{
-  values: _Object$values
-}]]];
+}] = [Object];
 const [{
   assign: viaHole
 }] = [...[, Object]];

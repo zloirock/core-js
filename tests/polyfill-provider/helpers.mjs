@@ -3608,6 +3608,8 @@ for (const [label, source, receivers, shallow] of [
   ['array then object', 'const [{ entry: { groupBy: value } }] = list;', ['list.0.entry'], []],
   ['invocation receiver', 'const [{ groupBy: value }] = list();', ['list.0'], []],
   ['slot default', 'const [{ groupBy: value } = Map] = list;', ['list.0', 'Map'], ['Map']],
+  ['unknown key default', 'const { [key]: { groupBy: value } = Map } = list;', ['Map'], ['Map']],
+  ['wrapped unknown key default', 'const [{ [key]: { groupBy: value } = Map }] = [globalThis];', ['Map'], ['Map']],
   ['different candidate sources', 'const [{ groupBy: value }] = [...items, Map, Object];', ['Map', 'Object'], ['Map', 'Object']],
   ['hole before slot', 'const [, { groupBy: value }] = list;', ['list.1'], []],
   ['rest after slot', 'const [{ groupBy: value }, ...rest] = list;', ['list.0'], []],

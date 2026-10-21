@@ -22,7 +22,8 @@ v = _Object$values;
 } = Object);
 ({
   Array: _ref
-} = _globalThis), (sink.r as any) = _Array$fromAsync, {
+} = _globalThis);
+(sink.r as any) = _Array$fromAsync, {
   fromAsync: _unused,
   ...rest
 } = _ref;

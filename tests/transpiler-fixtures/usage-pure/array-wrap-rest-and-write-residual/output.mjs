@@ -1,48 +1,36 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// A static extracted beside an object rest or a sibling keeps its initializer's effects and writes:
-// a bare effect prefix runs first as a statement of its own, while a write stays where the source
-// wrote it - in the wrapper's slot, which then hands the claim and its sibling a literal of their
-// own, or in the residual's initializer. The flat forms are the twins the wrapped rows answer to.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 let kw;
-eff('a');
-const fromEntries = _Object$fromEntries;
 const [{
   Object: {
-    fromEntries: _unused,
+    fromEntries,
     ...restA
   }
-}] = [_globalThis];
+}] = [(eff('a'), _globalThis)];
 const [{
   Object: {
     entries
   },
   other
-}] = [(kw = (eff('b'), _globalThis), {
-  Object: {
-    entries: _Object$entries
-  },
-  other: _globalThis.other
-}), 7];
+}] = [kw = (eff('b'), _globalThis), 7];
 eff('c');
-// the flat twins: the bare prefix runs first, the write stays in the residual's initializer
 const hasOwn = _Object$hasOwn;
 const {
   Object: {
-    hasOwn: _unused2,
+    hasOwn: _unused,
     ...restB
   }
 } = _globalThis;
 const keys = _Object$keys;
 const {
   Object: {
-    keys: _unused3,
+    keys: _unused2,
     ...restC
   }
 } = kw = (eff('d'), _globalThis);

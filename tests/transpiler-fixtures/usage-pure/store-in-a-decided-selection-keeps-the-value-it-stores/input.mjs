@@ -1,6 +1,5 @@
-// a store in the operand a selection the build decides runs keeps the value it stores: the leaf extracts
-// as under the store spelled alone, the store runs ahead, and the stored container is the source's - in a
-// declaration and an assignment alike, `Array` included, whose static a native read off the slot would miss
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 var stash;
 export const { C: { groupBy } } = typeof Symbol != 'undefined' ? (stash = { C: Map }) : { C: Object };
 var held;

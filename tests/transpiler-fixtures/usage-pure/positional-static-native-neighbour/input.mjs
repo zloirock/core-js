@@ -1,5 +1,5 @@
-// A static binding precedes a neighbouring native getter, including through a stored array.
-// Capturing both positions preserves the getter's observation of the preceding binding.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 let sign, other;
 const source = { get other() { return typeof sign; } };
 const rows = [Math, source];
