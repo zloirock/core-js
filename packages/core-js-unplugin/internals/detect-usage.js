@@ -36,7 +36,6 @@ import {
   jsxTagRootReferencesBinding,
   memberContextPath,
   memoizeBindingLookup,
-  namespaceScopedBindingBlock,
   pathContainedBy,
   pathOfNode,
   peelTransparentExprAncestorPath,
@@ -47,6 +46,7 @@ import {
   usableAliasInfo,
   useAnchorStart,
   unwrapTransparentSeq,
+  varScopeBlockOfBinding,
   wrapScopeBindingLookup,
   writesPastCeiling,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -194,13 +194,15 @@ function isAmbientBinding(binding) {
 
 // estree-toolkit over-hoists a binding declared inside `namespace N {}` / `declare global {}` (a
 // TSModuleBlock) - var/let/const, class, function alike - to the enclosing function / program
-// scope, so `scope.getBinding` surfaces it for a use OUTSIDE the namespace body. true when `native`
-// is such a binding and `path` does NOT sit inside its block, so the namespace-local declaration
-// must not shadow the real global used outside. hasRuntimeBinding + getBinding + getBindingNodeType
-// share this so they stay consistent - matching babel, which scopes namespaces correctly
-function isOverHoistedNamespaceBinding(native, path) {
+// scope, and files one a class static block declares on the CLASS scope, so `scope.getBinding`
+// surfaces it for a use OUTSIDE the block - a method reading the global past `static { let Promise;
+// }`. true when `native` is such a binding and `path` does NOT sit inside its block, so the
+// block-local declaration must not shadow the real global used outside. hasRuntimeBinding +
+// getBinding + getBindingNodeType share this so they stay consistent - matching babel, which scopes
+// both blocks correctly
+function isOverHoistedBlockBinding(native, path) {
   if (!native || !path) return false;
-  const block = namespaceScopedBindingBlock(native);
+  const block = varScopeBlockOfBinding(native);
   return !!block && !pathContainedBy(path, block);
 }
 
@@ -210,7 +212,9 @@ const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration'
 const caseBlockSwitchCache = new WeakMap();
 function caseBlockSwitchOf(native) {
   if (caseBlockSwitchCache.has(native)) return caseBlockSwitchCache.get(native);
-  let p = native.path;
+  // above the declaration, as the namespace climb starts: a function declaration's binding path is
+  // the declaration itself, which the boundary test below would stop at
+  let p = native.path?.parentPath;
   while (p?.node && p.node.type !== 'SwitchCase') {
     if (FUNCTION_NODE_TYPES.has(p.node.type) || p.node.type === 'Program') break;
     p = p.parentPath;
@@ -287,70 +291,71 @@ function isLoopHeadShadowedAtUse(native, path) {
   return !!shadow && pathContainedBy(path, shadow.region);
 }
 
-// the declarations namespace blocks make of a binding's name, by the block making each (`{ region, twin,
-// declared }` as for a loop body): estree-toolkit gives a TSModuleBlock no scope of its own either, so a
-// declaration there lands on an outer binding declared before it as a declaration violation, where the
-// block binds it apart and shadows the outer binding inside it
-const namespaceTwinsCache = new WeakMap();
-function namespaceTwinsOf(native) {
+// the declarations namespace bodies and class static blocks make of a binding's name, by the block making each
+// (`{ region, twin, declared }` as for a loop body): estree-toolkit gives neither block a scope of its own either,
+// so a declaration there lands on a binding declared before it - outside the block, or in another such block of the
+// same scope - as a declaration violation, where the block binds it apart and shadows that binding inside it
+const blockTwinsCache = new WeakMap();
+function blockTwinsOf(native) {
   if (!native?.constantViolations?.length) return null;
-  if (namespaceTwinsCache.has(native)) return namespaceTwinsCache.get(native);
-  const ownBlock = namespaceScopedBindingBlock(native);
+  if (blockTwinsCache.has(native)) return blockTwinsCache.get(native);
+  const ownBlock = varScopeBlockOfBinding(native);
   let twins = null;
   for (const violation of native.constantViolations) {
     const declared = violationDeclarationOf(violation);
-    const region = declared && namespaceScopedBindingBlock({ path: declared });
+    const region = declared && varScopeBlockOfBinding({ path: declared });
     if (region && region !== ownBlock && !twins?.has(region)) (twins ??= new Map()).set(region, { region, twin: violation, declared });
   }
-  namespaceTwinsCache.set(native, twins);
+  blockTwinsCache.set(native, twins);
   return twins;
 }
 
-// ... the one whose block holds the use - the nearest, where namespaces nest
-function namespaceTwinAtUse(native, path) {
-  const twins = path ? namespaceTwinsOf(native) : null;
+// ... the one whose block holds the use - the nearest, where the blocks nest. a lookup anchored at the block
+// itself is in it: a guard's shadow check asks from the block hosting the statements it scans
+function blockTwinAtUse(native, path) {
+  const twins = path ? blockTwinsOf(native) : null;
   if (!twins) return null;
-  for (let cur = path.parentPath; cur?.node; cur = cur.parentPath) {
+  for (let cur = path; cur?.node; cur = cur.parentPath) {
     const twin = twins.get(cur.node);
     if (twin) return twin;
   }
   return null;
 }
 
-// a native binding that does not actually cover the use site: an over-hoisted namespace-local
-// declaration, a case-block lexical binding consulted from outside the cases region, a loop head
-// the loop's body redeclares, consulted inside the body, or a binding a namespace block redeclares,
-// consulted inside the block. callers fall through to the TS-runtime / var-hoist fallbacks - a
-// nested-block `var` may still bind
+// a native binding that does not actually cover the use site: a namespace-local or static-block
+// declaration over-hoisted past its block, a case-block lexical binding consulted from outside the
+// cases region, a loop head the loop's body redeclares, consulted inside the body, or a binding a
+// namespace body or static block redeclares, consulted inside the block. callers fall through to the
+// TS-runtime / var-hoist fallbacks - a nested-block `var` may still bind
 function nativeBindingInvisibleAtUse(native, path) {
-  return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path)
-    || isLoopHeadShadowedAtUse(native, path) || !!namespaceTwinAtUse(native, path)
+  return isOverHoistedBlockBinding(native, path) || isCaseBlockBindingOutsideCases(native, path)
+    || isLoopHeadShadowedAtUse(native, path) || !!blockTwinAtUse(native, path)
     || bindingInvisibleFromUseRegion(native?.path, path);
 }
 
 // estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a
-// same-named `namespace N {}` / `declare global {}` twin (over-hoisted onto the real binding), and a
-// for-init `let`/`const` recording its own declarator. both surface as an Identifier a declaration
+// same-named `namespace N {}` / `declare global {}` or class static block twin (filed onto the real
+// binding's scope), and a for-init `let`/`const` recording its own declarator. both surface as an Identifier a declaration
 // declares, through any pattern (`violationDeclarationOf`), never a write. drop exactly those
 // PATH-PRESERVING (a real reassignment's parent is an Assignment/Update/for-x head, and
 // `findPrecedingBlockAssignment` still reads the real write paths), so the resolver's reassignment
 // gates stop bailing on a phantom. estree-only - babel's default hook keeps the raw list (babel scopes
 // namespaces correctly). a declaration is phantom iff it is EITHER the binding's own declaration
-// (for-init self) OR over-hoisted from a namespace block; a same-scope `function`/`class`
+// (for-init self) OR declared in a namespace body or a static block; a same-scope `function`/`class`
 // redeclaration is neither, so its real last-wins shadow is kept (a same-scope `var` redecl records
 // no violation; a `let`/`const` one is a SyntaxError)
 function isPhantomDeclarationViolation(violation, binding) {
   const declPath = violationDeclarationOf(violation);
-  return !!declPath && (declPath.node === binding?.path?.node || !!namespaceScopedBindingBlock({ path: declPath }));
+  return !!declPath && (declPath.node === binding?.path?.node || !!varScopeBlockOfBinding({ path: declPath }));
 }
 
 // ... and so is every violation inside a block the tracker gives no scope of its own that redeclares the
-// name - a loop body (`loopBodyTwinOf`), a namespace block (`namespaceTwinsOf`): the declaration and the
-// writes there belong to the block's binding, which shadows this one inside it
+// name - a loop body (`loopBodyTwinOf`), a namespace body or static block (`blockTwinsOf`): the declaration
+// and the writes there belong to the block's binding, which shadows this one inside it
 function isTwinRegionViolation(violation, binding) {
   const loopTwin = loopBodyTwinOf(binding);
   if (loopTwin && pathContainedBy(violation, loopTwin.region)) return true;
-  const twins = namespaceTwinsOf(binding);
+  const twins = blockTwinsOf(binding);
   for (let cur = twins ? violation.parentPath : null; cur?.node; cur = cur.parentPath) {
     if (twins.has(cur.node)) return true;
   }
@@ -494,16 +499,18 @@ export function registerAliasPrePassSites(sites, { adapter, injector }) {
 // namespace declarator and the real declaration survives only as a declaration-violation (the
 // namespace-SECOND order is the mirrored shape the phantom filter already strips). re-anchor the
 // binding onto that real declaration so a use outside the block keeps its narrow instead of
-// degrading to generic. exactly one visible candidate re-anchors - ambiguity stays on the walk.
-// a use inside a loop body or a namespace block redeclaring the name re-anchors onto that
-// declaration (`loopBodyTwinOf`, `namespaceTwinAtUse`), whose writes are the ones inside that
+// degrading to generic. exactly one visible candidate re-anchors - ambiguity stays on the walk. a
+// static block's binding passes the same gate, but all that can share its class scope is another
+// block's twin, which no use outside that block sees.
+// a use inside a loop body, a namespace body or a static block redeclaring the name re-anchors onto
+// that declaration (`loopBodyTwinOf`, `blockTwinAtUse`), whose writes are the ones inside that
 // region - the binding's own declarator and its writes outside it belong to the binding
 // memoized per (binding, anchor): identity consumers downstream (per-binding resolver caches,
 // closure membership Sets) key by object identity, so a fresh copy per call would miss them all
 const reanchoredBindings = new WeakMap();
 function visibleSameScopeDeclarationTwin(native, path) {
-  const shadow = (isLoopHeadShadowedAtUse(native, path) ? loopBodyTwinOf(native) : null) ?? namespaceTwinAtUse(native, path);
-  if (!shadow && !namespaceScopedBindingBlock(native)) return null;
+  const shadow = (isLoopHeadShadowedAtUse(native, path) ? loopBodyTwinOf(native) : null) ?? blockTwinAtUse(native, path);
+  if (!shadow && !varScopeBlockOfBinding(native)) return null;
   const candidates = shadow ? [shadow.twin] : (native.constantViolations ?? []).filter(v => {
     const decl = v?.parentPath?.node;
     return decl && decl.id === v.node && decl !== native.path?.node
