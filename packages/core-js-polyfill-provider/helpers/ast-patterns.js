@@ -3775,10 +3775,16 @@ export function wrapScopeBindingLookup(lookup, nestedTSRuntimeDeclarations = () 
     // ... and neither is one a TS runtime declaration between the read and the block declaring the
     // binding shadows: neither tracker registers an enum or a namespace, so both hand back the binding
     // further out. the block is the one the declaration stands in - estree-toolkit files a namespace
-    // block's declarations on the scope around it, and a namespace merged with one (`class Box {}`
-    // beside `namespace Box {}`) is that same binding, not a shadow
-    const scopeNode = path && binding.path && nestedTSRuntimeDeclarations()
-      ? namespaceScopedBindingBlock(binding) ?? binding.scope?.block ?? binding.scope?.path?.node : null;
+    // block's or a static block's declarations on the scope around it, so that block bounds the walk,
+    // but a nested block's lexical declaration is scoped by its own block, which both trackers scope and
+    // which lies inside it: an enum between the two is further out than the binding. a namespace merged
+    // with one (`class Box {}` beside `namespace Box {}`) is that same binding, not a shadow
+    let scopeNode = null;
+    if (path && binding.path && nestedTSRuntimeDeclarations()) {
+      const block = varScopeBlockOfBinding(binding);
+      const own = binding.scope?.path;
+      scopeNode = block && !(own && pathContainedBy(own, block)) ? block : binding.scope?.block ?? own?.node;
+    }
     if (scopeNode && findTSRuntimeBindingInPath(lookupAnchorPath(scope, path, read), name, scopeNode)) return undefined;
     let entry = cache.get(binding);
     if (!entry) cache.set(binding, entry = { wrapped: withCanonicalViolations(withoutPhantomWrites(binding), name), judged: -1 });
@@ -8459,25 +8465,28 @@ export function reassignmentBlocksGlobalResolve({ binding, adapter, path, usageN
 }
 
 // the climb below is asked of every native binding on every lookup, so it runs once per binding object
-const namespaceScopedBindingBlockCache = new WeakMap();
+const varScopeBlockOfBindingCache = new WeakMap();
 
-// if this native scope binding is declared DIRECTLY inside a namespace / declare-global block
-// (a TSModuleBlock - `namespace N { ... }` / `declare global { ... }`), return that block node;
-// else null. estree-toolkit's scope tracker over-hoists EVERY such binding - var/let/const, class,
-// function - to the enclosing function / program scope, so its `scope.hasBinding` falsely reports a
-// shadow for a use-site OUTSIDE the namespace body. callers re-validate position so the
-// namespace-local binding only shadows references that actually sit inside the block. requires the
-// binding's `path` to expose `parentPath` (estree-toolkit native bindings do)
-export function namespaceScopedBindingBlock(binding) {
+// if this native scope binding is declared inside a block owning a var scope - a namespace / declare-global
+// body (a TSModuleBlock - `namespace N { ... }` / `declare global { ... }`) or a class static block - with no
+// function nearer, return that block node; else null. a declaration in a block nested there answers the same
+// block: a `var` is that block's, and a lexical one sits inside it all the same, though its own block, which
+// both trackers scope, is nearer. estree-toolkit's scope tracker gives neither block a scope of its own: it
+// over-hoists EVERY namespace binding - var/let/const, class, function - to the enclosing function / program
+// scope and files a static block's on the class scope, so its `scope.hasBinding` falsely reports a shadow
+// for a use-site OUTSIDE the block. callers re-validate position so the block-local binding only shadows
+// references that actually sit inside the block. requires the binding's `path` to expose `parentPath`
+// (estree-toolkit native bindings do)
+export function varScopeBlockOfBinding(binding) {
   const decl = binding?.path;
   if (!decl?.parentPath) return null;
-  if (namespaceScopedBindingBlockCache.has(binding)) return namespaceScopedBindingBlockCache.get(binding);
+  if (varScopeBlockOfBindingCache.has(binding)) return varScopeBlockOfBindingCache.get(binding);
   // start ABOVE the declaration so we classify the scope that CONTAINS it: its nearest enclosing
-  // var-scope owner is the TSModuleBlock only when the binding is declared in the namespace body
-  // (a function-scoped declaration resolves to a function-like / Program / StaticBlock owner)
+  // var-scope owner is the block only when the binding is declared in the block's body (a
+  // function-scoped declaration resolves to a function-like / Program owner)
   const owner = findNearestVarScopeOwner(decl.parentPath);
-  const block = owner?.node.type === 'TSModuleBlock' ? owner.node : null;
-  namespaceScopedBindingBlockCache.set(binding, block);
+  const block = owner?.node.type === 'TSModuleBlock' || owner?.node.type === 'StaticBlock' ? owner.node : null;
+  varScopeBlockOfBindingCache.set(binding, block);
   return block;
 }
 
