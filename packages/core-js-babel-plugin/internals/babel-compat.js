@@ -3,6 +3,7 @@
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import {
   directClaimProbePlan,
+  destructureProbePlan,
   composableNavGuardPlan,
   planProvenNavGuardCollapse,
   planKeptSequenceTail,
@@ -97,7 +98,7 @@ import {
   hostSlot,
   literal,
   nullFirstGuardTest,
-  renderDirectClaimProbe,
+  renderClaimProbe,
   renderMethodCall,
   planMethodCall,
   renderDeleteShortCircuitGuard,
@@ -2250,6 +2251,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return { node: renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)), rootEffectCall: plan.rootEffectCall ?? null };
   }
 
+  // Convert the common immediate-pattern probe at the insertion boundary. The caller owns
+  // placement; the decision retains source effects and writes for its residual reconciliation.
+  function destructureProbeNode(source, anchorPath) {
+    const adapter = getAdapter?.();
+    if (!adapter || !anchorPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
+    const decision = destructureProbePlan(source, ({ name }) => resolvePureGlobalEntry(name, anchorPath),
+      { scope: anchorPath.scope, adapter, path: anchorPath });
+    if (!decision) return null;
+    const node = estreeToBabel(renderClaimProbe(decision, {
+      injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+      cloneHost: value => t.cloneNode(value),
+      embed: hostSlot,
+    }));
+    mintedEffectNodes.add(node);
+    return { node, decision, rootEffectCall: decision.navPlan?.rootEffectCall ?? null };
+  }
+
   // a RECEIVERLESS static erase loses the read the source performs on a value that can be
   // absent - through a SEAL (`(globalThis.window?.self.window).Array.of(6)` - an absent `window`
   // throws at `.Array` where the erased claim just runs). build that read back as a THROW
@@ -2264,7 +2282,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const decision = directClaimProbePlan(probeNode ?? memberPath.node,
       ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx, { allowStoreHolder });
     if (!decision) return null;
-    const node = estreeToBabel(renderDirectClaimProbe(decision, {
+    const node = estreeToBabel(renderClaimProbe(decision, {
       injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
       cloneHost: source => t.cloneNode(source),
       embed: hostSlot,
@@ -3210,6 +3228,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       markRenderedPlanTail: node => renderedPlanTails.add(node) }),
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
+    destructureProbeNode,
     renderWriteHostProbeGuard,
     sealedClaimThrowProbeNode,
     flushKeptNavCollapseAt,

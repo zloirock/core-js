@@ -144,3 +144,73 @@ QUnit.test('probe navigation: served alias reads and nested seals keep their thr
     assert.deepEqual(log, live ? ['prefix', 7] : ['prefix'], 'the prefix precedes the probe; arguments follow it');
   });
 });
+
+// Fully consumed and residual patterns keep the initializer's key in its guarded branch.
+// The nested instance claim must work in the stripped realm too.
+/* eslint-disable no-sequences, no-unsafe-optional-chaining, no-unreachable-loop -- discarded initializer probes */
+QUnit.test('destructure probes: consumed initializer keeps live key effects', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let value;
+    try {
+      const { of } = globalThis.window?.[log.push([7].at(0)), 'Array'];
+      value = of(3);
+      log.push('bound');
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [3] : 'TypeError', 'the pattern preserves its value or throw');
+    assert.deepEqual(log, live ? [7, 'bound'] : [], 'the key runs once before the binding');
+  });
+});
+QUnit.test('destructure probes: assignment and residual keep live key effects', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let of, value;
+    try {
+      ({ of } = globalThis.window?.[log.push([8].at(0)), 'Array']);
+      value = of(4);
+      const { of: second, ...rest } = globalThis.window?.[log.push([9].at(0)), 'Array'];
+      value = [value, second(5), typeof rest];
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [[4], [5], 'object'] : 'TypeError', 'both hosts preserve the result');
+    assert.deepEqual(log, live ? [8, 9] : [], 'each host evaluates its own key once');
+  });
+});
+QUnit.test('destructure probes: declaration siblings and loop header keep one read', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let value;
+    try {
+      const before = (log.push('before'), 1),
+            { of } = globalThis.window?.[log.push([7].at(0)), 'Array'],
+            after = (log.push('after'), 2);
+      for (const { from } = globalThis.window?.[log.push([8].at(0)), 'Array']; ;) {
+        value = [before, of(3), after, from([4])];
+        break;
+      }
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [1, [3], 2, [4]] : 'TypeError', 'the original initializer position is preserved');
+    assert.deepEqual(log, live ? ['before', 7, 'after', 8] : ['before'], 'siblings and the loop evaluate their effects once');
+  });
+});
+QUnit.test('destructure probes: a bodyless assignment rejects its nullish source', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let of, value;
+    try {
+      if (log.push('before')) ({ of } = globalThis.window?.[log.push([7].at(0)), 'Array']);
+      value = of(3);
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [3] : 'TypeError', 'coercion precedes the first extracted write');
+    assert.same(typeof of, live ? 'function' : 'undefined', 'a failed destructure leaves its target unwritten');
+    assert.deepEqual(log, live ? ['before', 7] : ['before'], 'the guarded key keeps its original position');
+  });
+});
+/* eslint-enable no-sequences, no-unsafe-optional-chaining, no-unreachable-loop -- discarded initializer probes */

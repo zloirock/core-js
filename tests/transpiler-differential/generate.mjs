@@ -19683,6 +19683,25 @@ function * generateDirectClaimProbes() {
   }
 }
 
+// A discarded initializer owes one guarded key evaluation, including its nested claims.
+// Full extraction, assignment, residual and multiple bindings share the same receiver contract.
+function * generateDestructureProbeEffects() {
+  const receiver = 'globalThis.window?.[(log.push([7].at(0)), "Array")]';
+  for (const [name, body] of [
+    ['declaration', `const { of } = ${ receiver }; return of(3);`],
+    ['assignment', `let of; ({ of } = ${ receiver }); return of(3);`],
+    ['residual', `const { of, ...rest } = ${ receiver }; return [of(3), typeof rest];`],
+    ['multiple', `const { of, from } = ${ receiver }; return [of(3), from([4])];`],
+    ['prefix', `const { of } = (log.push('prefix'), ${ receiver }); return of(3);`],
+    ['multi-decl', `const before = (log.push('before'), 1), { of } = ${ receiver }, after = (log.push('after'), 2); return [before, of(3), after];`],
+    ['for-init', `for (const { of } = ${ receiver };;) { return of(3); }`],
+    ['bodyless', `let of; if (log.push('before')) ({ of } = ${ receiver }); return of(3);`],
+  ]) for (const rig of [false, true]) {
+    yield { ...snippet(`destructure-probe-effects/${ name }/${ rig ? 'window' : 'off-window' }`,
+      `(() => { try { ${ body } } catch (error) { return error.name; } })()`, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20049,4 +20068,5 @@ export function * generate() {
   yield * generateRetainedWrapperOrder();
   yield * generateRetainedWrapperNamespaces();
   yield * generateDirectClaimProbes();
+  yield * generateDestructureProbeEffects();
 }

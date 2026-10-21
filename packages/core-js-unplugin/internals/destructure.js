@@ -208,6 +208,7 @@ import {
   overwriteRebindEmitted,
   peelDeadChainMarker,
   planDiscardedInitProbe,
+  captureProbePlan,
   planLiftedRhsPrefix,
   planLiteralRoute,
   planSealedNavProbe,
@@ -359,7 +360,7 @@ export default function createAstDestructureEmitter({
 
   // the drain half rides the same per-transform state; `resolveProxyNavReceiver` is hoisted,
   // so handing it across at creation time is safe
-  const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg, recordJob } = createDestructureDrains({
+  const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg, recordJob: recordPristineJob } = createDestructureDrains({
     adapter,
     capturedSiblingHosts,
     hopHosts,
@@ -389,6 +390,17 @@ export default function createAstDestructureEmitter({
     skippedNodes,
     synthLedger,
   });
+
+  // Record every pristine host fact before live child claims can replace the initializer.
+  // A receiver dispatch keeps its own init live; only a discarded value needs a captured probe.
+  function recordJob(options) {
+    recordPristineJob(options);
+    const { job } = options;
+    if (job.kind !== 'instance' && !job.readsReceiver) {
+      job.initProbePlan = captureProbePlan(job.initProbePlan, job.metaPath, probeRenderCtx);
+    }
+    job.sealedProbePlan = captureProbePlan(job.sealedProbePlan, job.metaPath, probeRenderCtx);
+  }
 
   // Render the shared receiver-mirror plan, or its caller-argument variant, into live source slots.
   // Keep preserved receiver/probe nodes live and retire only completed claims. With `argumentSites`,
@@ -2757,7 +2769,7 @@ export default function createAstDestructureEmitter({
         absentableStoreReadKey: absentableStoreReadKeyOf(declarator.init,
           { scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath) }),
         // ... and the SEALED shape of the same read, for the same reason
-        sealedProbePlan: captureSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
+        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
       },
     });
     return 'handled';
@@ -3425,7 +3437,7 @@ export default function createAstDestructureEmitter({
           local: propLocalName(prop), host: 'memo-decl', exported, metaPath,
           initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
           initProbeNavStart: discardedInitProbeNavStart(declarator.init),
-          sealedProbePlan: captureSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
+          sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
         },
       });
       markRewrite();
@@ -3619,7 +3631,7 @@ export default function createAstDestructureEmitter({
         // time the walk has collapsed the nav and the probe's own question is unanswerable
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
         initProbeNavStart: discardedInitProbeNavStart(declarator.init),
-        sealedProbePlan: captureSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, claimLive }),
+        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         readsReceiver: kind === 'instance',
         consumeResidualRead: literalPlan.consumeResidualRead,
@@ -4270,7 +4282,7 @@ export default function createAstDestructureEmitter({
       // declaration host's own pair, asked of the assignment's right
       initProbePlan,
       initProbeNavStart,
-      sealedProbePlan: captureSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure, claimLive }),
+      sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure }),
       // an SE-keyed prop in an ASSIGNMENT host keeps its ORIGINAL binding in the residual -
       // the overwrite channel re-binds it right after, so no sentinel mints (babel's shape);
       // a rest sibling still renames (the key must keep excluding it from rest)

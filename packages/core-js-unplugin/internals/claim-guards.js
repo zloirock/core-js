@@ -39,7 +39,7 @@ import {
   sequenceExpression,
   renderDeleteShortCircuitGuard,
   renderShortCircuitGuard,
-  renderDirectClaimProbe,
+  renderClaimProbe,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import { markSubtreeSkipped, optionalHeirAbove } from './nav-spine.js';
@@ -758,7 +758,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
   const decision = directClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
   return decision ? {
-    node: renderDirectClaimProbe(decision, { injectImport: injectPureImport }),
+    node: renderClaimProbe(decision, { injectImport: injectPureImport }),
     decision,
     consumed: decision.consumed,
     navStart: decision.navStart,
