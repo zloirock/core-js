@@ -153,7 +153,7 @@ import {
   probeRunIsTheSourceValue,
   staticMayEraseReceiver,
   storedUserAssignmentOf,
-  partitionEffectsAtProbe,
+  directClaimProbeEffects,
   unbackedRealmHopFoldAbove,
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
@@ -881,15 +881,6 @@ export default function plugin(api, options) {
         }
       }
 
-      // the probe node between the effect halves the shared rule splits
-      function probeOrderedEffects(throwProbe, effects) {
-        // the probe READ is an already-decided render - the alias arm spells it from a RAW
-        // source read the member visitor would otherwise re-claim on insertion. the seed depth
-        const { ahead, after } = partitionEffectsAtProbe(effects, throwProbe.navStart);
-        skippedNodes.add(throwProbe.node);
-        return [...ahead, throwProbe.node, ...after];
-      }
-
       // `X in Y` rewrite. The branch decision and side-effect harvest live in the shared
       // planInExpression; here we only render the chosen shape into babel AST
       const foldedInTests = new WeakSet();
@@ -1539,10 +1530,8 @@ export default function plugin(api, options) {
           // owes no polyfill - stand down whole, the unplugin leg's twin verdict on this swap
           if (!throwProbe && !path.node.optional && path.scope
             && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
-          const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
-          const fbEffects = probeSe ? allEffects.filter(se => !probeSe.has(se)) : allEffects;
           receiverPath.replaceWith(withSideEffects(fallbackId(),
-            throwProbe ? probeOrderedEffects(throwProbe, fbEffects) : fbEffects));
+            throwProbe ? directClaimProbeEffects(throwProbe, allEffects) : allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
           // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
@@ -1947,15 +1936,14 @@ export default function plugin(api, options) {
             // of the claim - an absent `window` throws exactly where the source does. the probe
             // carries the nav's key SE, so those nodes leave the claim's own SE channel
             const throwProbe = sealedClaimThrowProbeNode(path);
-            const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
-            const claimEffects = probeSe ? (allEffects ?? []).filter(se => !probeSe.has(se)) : allEffects;
+            const orderedEffects = throwProbe ? directClaimProbeEffects(throwProbe, allEffects ?? []) : allEffects;
+            const claimEffects = throwProbe ? orderedEffects.filter(effect => effect !== throwProbe.node) : orderedEffects;
             // is the probe run standing over this claim the value the SOURCE reads? asked HERE,
             // while the spine is still standing - after the swap the path holds the ponyfill, and
             // both halves of the verdict read the member this claim came in on
             const probeRunIsTheValue = proxyHopClaim && probeRunIsTheSourceValue(path,
               { resolvePure: m => resolvePure(m, path), effects: claimEffects });
-            replacePath.replaceWith(withSideEffects(id,
-              throwProbe ? probeOrderedEffects(throwProbe, claimEffects ?? []) : claimEffects));
+            replacePath.replaceWith(withSideEffects(id, orderedEffects));
             // ... and where it is not, the realm hops left standing over the ponyfill this swap put
             // in read the realm it already is and fold onto it - the unplugin leg's fold-above twin,
             // the same core verdict. BEFORE the `?.` normalization below: that one reads the chain

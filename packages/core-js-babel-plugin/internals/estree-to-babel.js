@@ -1,5 +1,7 @@
 import { HOST_SLOT } from '@core-js/polyfill-provider/render';
-import { isRenderedStoredValue, markRenderedStoredValue } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isRenderedProbeRead, markRenderedProbeRead, isRenderedStoredValue, markRenderedStoredValue,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 // the binding-side converter of the render canon: canonical ESTree nodes (the closed
 // builder vocabulary of the core's emission) become babel nodes at the insertion boundary.
 // TOTAL over that vocabulary and defined on nothing else - an unknown node type THROWS,
@@ -68,6 +70,7 @@ function copyMeta(source, target) {
   // re-hang each on the babel twin (rendered-store mark: the alias-follow classifies a
   // stored guard through it, and this leg stores the CONVERTED node)
   if (isRenderedStoredValue(source)) markRenderedStoredValue(target);
+  if (isRenderedProbeRead(source)) markRenderedProbeRead(target);
   return target;
 }
 

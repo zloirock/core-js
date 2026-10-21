@@ -117,3 +117,30 @@ QUnit.test('probe navigation: a realm-named key on a user object is read through
     });
   });
 });
+
+// Direct claim probes keep their read through requeue, including below another sealed claim.
+QUnit.test('probe navigation: served alias reads and nested seals keep their throws', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    // The holder is observable; the constructor above it is served even when absent natively.
+    withTemporaryProperty(globalThis, 'Promise', undefined, () => {
+      const held = globalThis.window;
+      let alias;
+      try {
+        alias = typeof held.Promise.resolve;
+      } catch (error) {
+        alias = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      assert.same(alias, live ? 'function' : 'TypeError', 'an inner alias read is not reclaimed');
+    });
+    const log = [];
+    let value;
+    try {
+      // eslint-disable-next-line no-unsafe-optional-chaining -- the inner sealed read must throw
+      value = (log.push('prefix'), (globalThis.window?.self).Array).of((log.push([7].at(0)), 3));
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [3] : 'TypeError', 'the inner seal owns the throwing read');
+    assert.deepEqual(log, live ? ['prefix', 7] : ['prefix'], 'the prefix precedes the probe; arguments follow it');
+  });
+});
