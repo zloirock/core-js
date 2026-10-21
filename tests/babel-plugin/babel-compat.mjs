@@ -18,7 +18,7 @@ const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
 import createASTHelpers, { cloneWriteTarget, rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
-import { isValidIdentifierName, peelNestedSequenceExpressions } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { isValidIdentifierName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 
@@ -1169,6 +1169,7 @@ for (const [label, annotation, expression, expected, entry] of [
 
 // A receiver already served by this pass is reused in its rendered spelling. Source bindings,
 // getter receivers and guarded environment reads retain their evaluation boundaries.
+// An effectful realm key keeps its native receiver access, rooted at the global-this import.
 for (const [label, source, entry, captures] of [
   ['bare realm', 'globalThis.flat?.().includes(1);', 'global-this', 0],
   ['parenthesized realm', '(globalThis).flat?.().includes(1);', 'global-this', 0],
@@ -1184,18 +1185,18 @@ for (const [label, source, entry, captures] of [
   ['guarded static default', 'function take(x = (globalThis.window?.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(2)) { return x; }', 'number/max-safe-integer', 0],
   ['stored realm static', 'let c = 0, d = 0, k; (d++, (c++, k = globalThis.window.self))?.Number.MAX_SAFE_INTEGER.toFixed(1);', 'number/max-safe-integer', 0],
   ['effectful receiver tail', 'globalThis?.[(hop(), "self")].window[(key(), Symbol.iterator)]();', 'global-this', 0],
-  ['sealed receiver tail', '(globalThis?.[(hop(), "self")][(key(), Symbol.iterator)])();', 'self', 0],
+  ['sealed receiver tail', '(globalThis?.[(hop(), "self")][(key(), Symbol.iterator)])();', 'global-this', 0],
   ['sequence realm optional method', '(before(), globalThis).flat?.().includes(1);', 'global-this', 0],
   ['alias sequence before call result', 'const g = globalThis; let c = 0, d = 0; (d++, (c++, g.self))?.foo().at(0);', 'self', 0],
   ['direct sequence before call result', 'let c = 0, d = 0; (d++, (c++, globalThis.self))?.foo().at(0);', 'self', 0],
   ['alias sequence before prototype read', 'const ga = globalThis; let c = 0, d = 0; (d++, (c++, ga.window.self))?.Array.prototype.at;', 'self', 0],
   ['alias sequence before explicit prototype call', 'const g = globalThis; let c = 0, d = 0; (c++, (d++, g.self))?.Array.prototype.map.call([1], x => x);', 'self', 0],
   ['opaque call sequence before guarded static', 'let bodyCount = 0; const db = () => { bodyCount++; return globalThis; }; db()?.self?.window?.Array.of(11).at(0);', 'self', 0],
-  ['sealed aliased symbol call', 'const key = Symbol.iterator; function getRealm() { setup(); return globalThis; } (getRealm()[(hop(), "self")]?.[key])();', 'self', 0],
+  ['sealed aliased symbol call', 'const key = Symbol.iterator; function getRealm() { setup(); return globalThis; } (getRealm()[(hop(), "self")]?.[key])();', 'global-this', 0],
   [
     'sealed aliased symbol argument call',
     'const key = Symbol.iterator; function getRealm() { setup(); return globalThis; } (getRealm()[(hop(), "self")]?.[key])(42);',
-    'self',
+    'global-this',
     0,
   ],
   ['foreign constructor import', 'import Promise from "foreign-module"; Promise.noSuchStatic?.().includes(0);', 'foreign-module', 1],
@@ -1225,7 +1226,8 @@ for (const [label, source, entry, captures] of [
   check(`rendered receiver handoff/${ label }: imported receiver captures`, copiedReceiver, captures);
 }
 
-// The exact fixture is the source oracle. Realm bindings below are VM-local; instance helpers are real.
+// The exact fallback fixture is the source oracle. Realm bindings are VM-local; instance helpers
+// are real. R1 constructor synthesis is absent, while nested lookups and default order stay live.
 {
   const source = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/audit-synth-memo-live-se-claims/input.mjs',
     import.meta.url), 'utf8');
@@ -1242,18 +1244,10 @@ for (const [label, source, entry, captures] of [
     plugins: [[babelPlugin, options.plugins[0][1]]],
   });
   const imports = ast.program.body.filter(node => node.type === 'ImportDeclaration');
-  const mapImport = imports.find(node => node.source.value.endsWith('/actual/map/constructor'));
-  checkTruthy('synth receiver handoff: own Map import survives', mapImport);
-  const mapName = mapImport.specifiers[0].local.name;
-  let mapCopies = 0;
+  check('synth receiver fallback: no R1 constructor collapse',
+    imports.some(node => node.source.value.endsWith('/actual/map/constructor')), false);
   let getObjSnapshots = 0;
-  let proxyParameters = 0;
   t.traverseFast(ast, node => {
-    const values = node.type === 'AssignmentExpression' ? [node.right]
-      : node.type === 'VariableDeclarator' && node.init ? [node.init]
-      : node.type === 'CallExpression' && node.callee.type === 'FunctionExpression'
-        ? node.arguments.filter((arg, index) => node.callee.params[index]) : [];
-    mapCopies += values.filter(value => peelNestedSequenceExpressions(value).tail?.type === 'Identifier' && peelNestedSequenceExpressions(value).tail.name === mapName).length;
     if (node.type !== 'CallExpression') return;
     const helper = node.callee.type === 'MemberExpression' && node.callee.property.name === 'call'
       ? node.callee.object : null;
@@ -1262,23 +1256,8 @@ for (const [label, source, entry, captures] of [
       && assignment.right.callee.name === 'getObj' && node.arguments[0]?.name === assignment.left.name) {
       getObjSnapshots++;
     }
-    if (node.callee.type !== 'FunctionExpression') return;
-    node.arguments.forEach((argument, index) => {
-      const value = peelNestedSequenceExpressions(argument).tail;
-      const parameter = node.callee.params[index];
-      if (value?.type !== 'MemberExpression' || value.property.name !== 'Array' || !parameter) return;
-      let readsUnknownSlot = false;
-      t.traverseFast(node.callee.body, child => {
-        if (child.type === 'MemberExpression' && child.object.name === parameter.name && child.property.name === 'nope') {
-          readsUnknownSlot = true;
-        }
-      });
-      if (readsUnknownSlot) proxyParameters++;
-    });
   });
-  check('synth receiver handoff: own Map copies including IIFE params', mapCopies, 0);
   check('synth receiver handoff: mandatory getObj lookup/this snapshots', getObjSnapshots, 2);
-  check('synth receiver handoff: unknown proxy Array parameter', proxyParameters, 1);
 
   const values = await Promise.all(imports.map(async node => (await import(node.source.value)).default));
   const importsByName = Object.fromEntries(imports.map((node, index) => [node.specifiers[0].local.name, values[index]]));
@@ -1288,7 +1267,7 @@ for (const [label, source, entry, captures] of [
     const entry = node.source.value;
     return entry.endsWith('/actual/map/constructor') ? [`const ${ name } = Map;`]
       : entry.endsWith('/actual/map/group-by') ? [`const ${ name } = Map.groupBy;`]
-      : entry.endsWith('/actual/self') ? [`const ${ name } = globalThis;`] : [];
+      : entry.endsWith('/actual/self') || entry.endsWith('/actual/global-this') ? [`const ${ name } = globalThis;`] : [];
   }).join('\n');
   const emitted = code.replaceAll(/^import .*;$/gm, '');
   const ordinary = ['getObj:0', 'at:0', 'call:0:true', 'more:0', 'more2:1', 'getObj:1', 'at:1', 'call:1:true', 'Array:1'];

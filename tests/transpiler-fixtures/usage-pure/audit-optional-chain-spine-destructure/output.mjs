@@ -6,22 +6,16 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref;
-// Destructuring follows optional realm hops, including computed keys and stored receivers.
-// Supported static and instance leaves receive polyfills while key effects and rest exclusions survive.
+// Quiet realm and ordinary leaf keys keep static, instance, rest and caller handling.
+// Effectful realm keys retain the source receiver and its effects.
 let c = 0;
 const {
   Symbol: {
     iterator
   }
-} = (c++, {
-  Symbol: {
-    iterator: _Symbol$iterator
-  }
-});
+} = _globalThis[c++, 'self'];
 export const r1 = [typeof iterator, c];
 let d = 0;
 const {
@@ -29,12 +23,7 @@ const {
     resolve
   },
   other
-} = (d++, {
-  Promise: {
-    resolve: _Promise$resolve
-  },
-  other: _self.other
-});
+} = _globalThis[d++, 'self'];
 export const r2 = [typeof resolve, typeof other, d];
 const of = _Array$of;
 export const r3 = typeof of;

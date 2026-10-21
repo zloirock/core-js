@@ -1,13 +1,5 @@
-// A `?.` whose subject is ENTIRELY proxy navigation - a chain-assign root with proxy hops
-// (`(q = globalThis).self`), paren-wrapped, or SE-prefixed - is dead: the subject collapses to
-// the always-defined pure root, the guard deopts, and the collapse owns the emit, preserving the
-// assignment and prefix effects as a sequence. a kept guard would memoize the raw `.self` hop
-// (undefined off-engine) and silently swallow the polyfill. an alias subject deopts the same way,
-// keeping its identifier. a BARE chain-assign subject (hops only AFTER the `?.`) collapses too:
-// both emitters deopt the guard outright - the assign value is the always-defined pure root, so
-// a guard would be dead, and the tail's redundant hop is dropped off the collapsed subject.
-// a non-proxy leaf and a non-global assign value keep their guards untouched
-// (those subjects may legitimately be undefined).
+// Quiet realm subjects retain their optional fold through stores, aliases and prefixes.
+// Effectful realm keys keep native navigation; non-realm subjects retain their guards.
 let q1, q2, q3, q4, q5, q6;
 let c = 0;
 let other;
@@ -19,8 +11,6 @@ const g = globalThis;
 export const aliasSubject = g?.self.Array.prototype.findLastIndex;
 export const nonProxyLeaf = (q5 = globalThis).foo?.bar.at(1);
 export const nonGlobalAssign = (q6 = other).self?.Array.prototype.at.call([1], 0);
-// a SE-bearing computed hop key deopts too, its effect harvested into the collapsed sequence;
-// a LOGICAL subject whose left the build decides folds to that left, collapsing it, under its kept guard
 let q7, q8;
 export const seKeyHopSubject = (q7 = globalThis)?.[(c++, 'self')].Array.prototype.findLast;
 export const logicalSubject = ((q8 = globalThis).self || other)?.Array.prototype.flat;

@@ -261,15 +261,11 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
     collapseRetainedProxyReceiver(synthSwap, receiver, 'right', aliasCtx);
     return;
   }
-  // `true` (allowSideEffectKeys): a SE-bearing computed proxy hop (`(c++, (d++, globalThis))[(e++, 'self')]
-  // .Array`) otherwise bails the gate to the bare root and leaves the operand RAW (a bare `globalThis` -
-  // ie:11 ReferenceError - under a `|| {}` logical); collapseProxyGlobalReceiver routes the dropped key SE
-  // through the call-rooted plan, matching the instance source gate and the unplugin operand collapse
   // through a kept chain-ASSIGN too: a residual reading off a store rides the same landing every
   // other run does - the shared plan keeps the store as its base where the stored value can be
   // absent, and drops the redundant hops off it
   if (!receiver || !maximalProxyGlobalHop(receiver, aliasCtx,
-    { allowSideEffectKeys: true, throughChainAssign: true })) return;
+    { throughChainAssign: true })) return;
   const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver, { aliasCtx, throughChainAssign: true });
   if (collapsed) slotParent[slotKey] = collapsed;
 }
@@ -5121,10 +5117,7 @@ export default function createDestructureEmitter({
       // wrapping it in the instance polyfill: the wrap hides it from the post-statement collapseRetainedProxyReceiver
       // and the natural visitor skips it (the provider marks the wrapped root handled). mirrors the instance-call path
       const instAliasCtx = aliasCtxFromPath(prop);
-      // `true` (allowSideEffectKeys): a SE-bearing computed proxy hop (`(e++, globalThis)[(c++, 'self')].Array
-      // .prototype`) otherwise bails the prefix to the bare root, hiding the hop from this gate; the collapse
-      // itself routes the dropped key SE through the call-rooted plan (`(e++, c++, _globalThis).Array.prototype`)
-      const collapsedObj = instAliasCtx && maximalProxyGlobalHop(objectNode, instAliasCtx, { allowSideEffectKeys: true })
+      const collapsedObj = instAliasCtx && maximalProxyGlobalHop(objectNode, instAliasCtx)
         ? synthSwap.collapseProxyGlobalReceiver(objectNode, { aliasCtx: instAliasCtx }) : null;
       // through the shared receiver copy: the kept-nav collapse of a chain-assign inside the
       // receiver is deferred and matches by NODE, so the copy this emit hands the helper has to
