@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
+import './probe-planning.mjs';
 import './fixture-output-normalization.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { Traverser } from 'estree-toolkit/dist-es/traverse';
