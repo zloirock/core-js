@@ -5,6 +5,7 @@ import {
   proxyRunValueIsProven,
   navValueCanShortCircuit,
   navGuardTestBase,
+  directClaimProbeEffects,
   keptProbeStore,
   writtenRunKeptProbeStore,
   navHasUnresolvableProxyHop,
@@ -141,7 +142,6 @@ import {
   stepOverKeptWrite,
   swallowDeadSeqWrapper,
 } from './nav-spine.js';
-import { effectsPastThrowProbe } from './se-dispatch.js';
 
 // the value a chain of CARRIERS hands on, effects and all: the fold leaves a kept write and a
 // re-emitted effect prefix around the binding it landed, and what a member above them reads is
@@ -2376,13 +2376,10 @@ export default function createProxySpineChannel(ctx) {
     // reproduces (`(seq++, <probe>, _Array$of)(11)`); one the probe already spells drops
     // the probe node rides UNCLONED - it carries its own skip mark, and a copy would be
     // re-visited and claimed into the very ponyfill it stands ahead of
-    // ... and one the probe's RENDER already spells runs there: a prefix copy would evaluate it
-    // twice (`(dheCombo(), (null == dheCombo().window ? ...).Array, _Array$of)`). the render holds
-    // clones, which carry their source spans - the span is what identifies the effect in it
     const replacement = throwProbe
       ? sequenceExpression([
-        ...effectsPastThrowProbe(effects, throwProbe).map(effect => cloneNode(effect)),
-        throwProbe.node, identifier(id),
+        ...directClaimProbeEffects(throwProbe, effects).map(effect => effect === throwProbe.node ? effect : cloneNode(effect)),
+        identifier(id),
       ])
       : withSideEffects(identifier(id), effects);
     target.replaceWith(replacement);
@@ -2517,7 +2514,6 @@ export default function createProxySpineChannel(ctx) {
   }
 
   return {
-    buildNavGuardTest,
     collapseProxyHopSpine,
     deleteHostForClaim,
     deoptionalizeOverSubstituted,

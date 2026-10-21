@@ -1,7 +1,7 @@
 // guard rendering for claims over undefinable receivers: the null-probe tests, seals,
 // absorbed tails and the guarded-hop replacement every channel spells through
 import {
-  sealedClaimProbePlan,
+  directClaimProbePlan,
   callYieldCanBeUndefined,
   deleteHostAboveCarriedChain,
   descendToChainRoot,
@@ -36,17 +36,12 @@ import {
 import {
   chainExpression,
   cloneNode,
-  identifier,
-  literal,
-  memberExpression,
   sequenceExpression,
-  nullFirstGuardTest,
   renderDeleteShortCircuitGuard,
   renderShortCircuitGuard,
-  renderAliasHeldProbeRead,
-  memberFromKeyName,
+  renderDirectClaimProbe,
 } from '@core-js/polyfill-provider/render';
-import { receiverCarriesOptional, replaceNodeInTree, stampReplacementSpan, withSideEffects } from './emit-shared.js';
+import { receiverCarriesOptional, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import { markSubtreeSkipped, optionalHeirAbove } from './nav-spine.js';
 
 // does the receiver below a member hop end on an optional CALL (`arr.flat?.()`)? that segment
@@ -759,51 +754,15 @@ export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure
 // rebuild that read as a THROW PROBE riding ahead of the ponyfill - the sealed value through
 // the shared guard plan, the boundary key re-spelling the source read
 export function sealedClaimThrowProbe(node, metaPath, ctx) {
-  const { adapter, resolvePure, resolveGlobalPolyfill, injectPureImport, skippedNodes } = ctx;
+  const { adapter, resolveGlobalPolyfill, injectPureImport } = ctx;
   const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-  function resolveHere(m) {
-    return resolvePure(m, metaPath);
-  }
-  // Probe proofs are global questions, even when the erased claim itself is static.
-  const decision = sealedClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
-  if (!decision) return null;
-  if (decision.kind === 'alias') {
-    const read = renderAliasHeldProbeRead(decision.aliasProbe, cloneNode(decision.aliasProbe.object));
-    markSubtreeSkipped(skippedNodes, read);
-    return { node: read, consumed: [] };
-  }
-  const { boundary, key, navPlan: plan, leafPlan } = decision;
-  const planRoute = decision.kind === 'nav';
-  // the hops ABOVE the collapse respell over the ponyfill leaf, each keeping the `?.` the plan's
-  // own tail verdict gives it. a plain REALM hop is not among them - the plan folded it onto the
-  // leaf, so what reaches here is a computed key and its effects
-  let alternate = planRoute
-    ? plan.hops.slice(plan.collapseIdx + 1).reduce(
-      (base, hop) => memberFromKeyName(base, hop.name, { optional: !!hop.liveOptional }),
-      identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)))
-    : leafPlan?.leafPure ? identifier(injectPureImport(leafPlan.leafPure.entry, leafPlan.leafPure.hintName))
-    // an unbacked leaf over a ponyfill base reads off that base - folded onto it where the plan says
-    // so, else as its member (the plan's verdict, shared with the destructure probe and the other leg)
-    : leafPlan?.leafBasePure ? (leafPlan.foldLeafOntoBase
-      ? identifier(injectPureImport(leafPlan.leafBasePure.entry, leafPlan.leafBasePure.hintName))
-      : memberFromKeyName(identifier(injectPureImport(leafPlan.leafBasePure.entry, leafPlan.leafBasePure.hintName)), leafPlan.leafName))
-    : leafPlan?.leafName ? identifier(leafPlan.leafName) : null;
-  if (leafPlan) alternate = withSideEffects(alternate, decision.alternateEffects);
-  const test = planRoute ? ctx.buildNavGuardTest(plan, { metaPath, aliasCtx, resolveHere })
-    : probeSpelling(leafPlan.guardObject, { resolveHere, aliasCtx, substituteProbeProxyRoot: ctx.substituteProbeProxyRoot });
-  if (!planRoute) markSubtreeSkipped(skippedNodes, test);
-  const guarded = renderShortCircuitGuard(nullFirstGuardTest(test), alternate);
-  const read = boundary.member.computed
-    ? memberExpression(guarded, literal(key), { computed: true })
-    : memberFromKeyName(guarded, key);
-  // the test SPELLS the kept write, so the harvested copy of it must not run a second time -
-  // the consumer filters its own effect list on this
-  // supported leaf-key effects are spelled INSIDE the fallback render: a consumer
-  // replaying the claim's own effect list must skip them, or the source's single run doubles
-  return {
-    node: read,
-    consumed: [...planRoute ? [] : decision.keyEffects, ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
-  };
+  const decision = directClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
+  return decision ? {
+    node: renderDirectClaimProbe(decision, { injectImport: injectPureImport }),
+    decision,
+    consumed: decision.consumed,
+    navStart: decision.navStart,
+  } : null;
 }
 
 // did the source spell the callee through explicit parens (the paren-lookup class)?
