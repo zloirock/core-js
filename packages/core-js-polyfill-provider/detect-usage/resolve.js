@@ -5496,7 +5496,14 @@ export function guardedNavPassthroughPlan(receiver, resolvePure, ctx) {
   const name = realmHopKeyName(cur, ctx);
   const leafPure = name && resolvePure({ kind: 'global', name });
   if (!leafPure) return null;
-  return { hops, collapseIdx: -1, leafPure, test: { source: claimProbeSourceSlot(cur.object, resolvePure, ctx) } };
+  return {
+    kind: 'nav',
+    source: receiver,
+    boundary: { inner: receiver },
+    prefix: [],
+    navPlan: { hops, collapseIdx: -1, leafPure },
+    test: { source: claimProbeSourceSlot(cur.object, resolvePure, ctx) },
+  };
 }
 
 // A terminal value has no reader retaining its unbacked tail. Fold that quiet remainder
@@ -5678,8 +5685,34 @@ export function destructureProbePlan(source, resolvePure, ctx) {
   return discardedInitProbePlan(source, resolvePure, ctx);
 }
 
-// the guarded VALUE of a sealed nav that ENDS AT a claim, as a decision both emitters render their
-// own way: the nav plan has no ponyfillable hop leaf to build a guard from there, so the erase
+// A residual guarded value keeps the navigation plan's declines. Otherwise a sealed read
+// takes precedence over the leaf's definedness: the leaf cannot discharge that source throw.
+// A leaf-only value folds its guard navigation, while discarded initializer probes retain it.
+export function probedNavGuardValuePlan(source, resolvePure, ctx) {
+  const navPlan = planProvenNavGuardCollapse({ rootNode: source, ...ctx, resolvePure });
+  if (navPlan) {
+    if (navPlan.topAssign || navPlan.kind !== 'nested') return null;
+    return claimProbeRenderPlan({ kind: 'nav', source, navPlan, boundary: { inner: source } }, resolvePure, ctx);
+  }
+  const boundary = sealedChainBoundary(source) && directClaimProbePlan(source, resolvePure, ctx);
+  if (boundary && !boundary.consumed.length) return boundary;
+  const leafPlan = sealedClaimLeafGuardPlan(unwrapRuntimeExpr(source), resolvePure, ctx, { probeLeaf: true });
+  if (!leafPlan || (!leafPlan.leafPure && !leafPlan.leafIsProbe && !leafPlan.leafBasePure
+    && !isValidIdentifierName(leafPlan.leafName))) return null;
+  const keyEffects = navComputedKeyEffects(source);
+  return claimProbeRenderPlan({
+    kind: 'leaf',
+    source,
+    boundary: { inner: source },
+    leafPlan,
+    keyEffects,
+    alternateEffects: keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect)),
+    foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
+  }, resolvePure, ctx);
+}
+
+// the guarded VALUE of a sealed nav that ENDS AT a claim, as a shared decision: the
+// nav plan has no ponyfillable hop leaf to build a guard from there, so the erase
 // verdict names the `?.` object to test and the claim's own leaf supplies the always-defined
 // alternate. `leafPure` when core-js ponyfills that leaf as a constructor; otherwise `leafName` -
 // the source's own global name, which IS that value (the probe reads a property off it exactly as
