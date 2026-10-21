@@ -29,7 +29,7 @@ import {
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
 import { readStandsOverAbsentableStore, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  aliasHeldClaimProbe,
+  discardedInitProbePlan,
   consumableHopSlotName,
   discardRescueNodes,
   findProxyGlobal,
@@ -37,14 +37,12 @@ import {
   peelChainRootValue,
   peelRealmLogicalDefault,
   peelReceiverSequenceTail,
-  proxyReceiverValueCanBeUndefined,
   realmHopKeyName,
   realmSelectionCollapseOperand,
   resolveObjectName,
   agreeingTernaryArm,
   resolveSynthKeys,
-  sealedChainBoundary,
-  sealedClaimLeafGuardPlan,
+  sealedClaimProbePlan,
   undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -1060,51 +1058,31 @@ function sealedLeafKeyEffects(nav) {
 // the inner nav no longer answers the undefinability question the probe exists for
 export function planSealedNavProbe(receiver, metaPath, ctx) {
   if (!metaPath || !receiver) return null;
-  // a FALLBACK operand changes what the pattern binds, never whether the LEFT read ran: the
-  // seal's own throw is the source's either way (`(g.window?.self).Object || {}`)
   const read = peelTransparentExpr(receiver)?.type === 'LogicalExpression'
     ? peelTransparentExpr(receiver).left : receiver;
-  const boundary = sealedChainBoundary(read);
-  if (!boundary) return null;
-  const key = memberKeyName(boundary.member);
-  if (key === null) return null;
-  const aliasCtx = { ...nodeSite(read, metaPath), adapter: ctx.adapter };
-  function resolveHere(meta) {
-    return ctx.resolvePure(meta, metaPath);
-  }
-  if (!proxyReceiverValueCanBeUndefined(boundary.inner, resolveHere, aliasCtx,
-    { throughChainAssign: true })) return null;
-  const leafPlan = sealedClaimLeafGuardPlan(boundary.inner, resolveHere, aliasCtx);
-  if (!leafPlan?.leafPure && !leafPlan?.leafName) {
-    return { boundary, key, passthrough: true };
-  }
-  // the render harvests the kept key's effects off this original: a claim inside one (`log.push('k')`)
-  // fires now, while its path is live - the walk reaches it only after the collapse detached it
-  ctx.claimLive?.(sealedLeafKeyEffects(boundary.inner), metaPath);
-  return {
-    boundary,
-    key,
-    leafPlan,
-    // a leaf pure cannot back reads off the ponyfill base the guard proved - folded onto it or as
-    // its member - the plan's own verdict, shared with the other leg's render
-    basePure: leafPlan.leafBasePure ?? null,
-    // The seal makes the terminal environment read observable. Keep it over
-    // the backed base instead of folding it into that base.
-    foldLeafOntoBase: false,
-    guardObject: cloneStamped(leafPlan.guardObject),
-    effectsHost: boundary.inner,
-  };
+  return sealedClaimProbePlan(receiver, meta => ctx.resolvePure(meta, metaPath),
+    { ...nodeSite(read, metaPath), adapter: ctx.adapter }, { preserveRead: true });
+}
+
+// Accept a read while its child paths are live, for a queued job or immediate rendering.
+// The pure question above is also used speculatively; only acceptance claims leaf effects
+// and snapshots the guard spelling.
+export function captureSealedNavProbe(receiver, metaPath, ctx) {
+  const plan = planSealedNavProbe(receiver, metaPath, ctx);
+  if (!plan || plan.kind === 'passthrough') return plan;
+  ctx.claimLive?.(sealedLeafKeyEffects(plan.effectsHost), metaPath);
+  return { ...plan, guardObject: cloneStamped(plan.leafPlan.guardObject) };
 }
 
 export function renderSealedNavProbe(plan, metaPath, ctx) {
   if (!plan) return null;
   const { boundary, key } = plan;
   let navRead;
-  if (plan.passthrough) navRead = guardedNavPassthrough(boundary.inner, metaPath, ctx);
+  if (plan.kind === 'passthrough') navRead = guardedNavPassthrough(boundary.inner, metaPath, ctx);
   else {
     const probe = substituteProxyRootsInClone(cloneStamped(plan.guardObject), metaPath, ctx);
-    const baseId = plan.basePure
-      && identifier(ctx.injectPureImport(plan.basePure.entry, plan.basePure.hintName));
+    const basePure = plan.leafPlan.leafBasePure;
+    const baseId = basePure && identifier(ctx.injectPureImport(basePure.entry, basePure.hintName));
     let leaf = plan.leafPlan.leafPure
       ? identifier(ctx.injectPureImport(plan.leafPlan.leafPure.entry, plan.leafPlan.leafPure.hintName))
       : baseId
@@ -1121,44 +1099,15 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
 }
 
 export function sealedNavProbeRead(receiver, metaPath, ctx) {
-  return renderSealedNavProbe(planSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
+  return renderSealedNavProbe(captureSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
 }
 
 // the SHAPE of the read a fully-consumed pattern discards, planned on the PRISTINE tree: by
 // drain time the walk has collapsed the nav, and the guard render spells its own leaf. null
 // where the value cannot be undefined - there is nothing for the read to throw on
 export function planDiscardedInitProbe(initNode, metaPath, ctx) {
-  // an ARRAY-wrapped pattern reads its ELEMENT, and that read is the one native performs;
-  // the chain wrapper an inner `?.` wears is transparent to the plan
-  // a SEQUENCE around the init hands its TAIL on: that tail is the read the consume discards, and
-  // the prefix stays with the effect channel (`probeNavStartOf` is what splits them)
-  const peeled = unwrapRuntimeExpr(peelReceiverSequenceTail(initNode));
-  let nav = peeled?.type === 'ArrayExpression' && peeled.elements.length === 1
-    ? unwrapRuntimeExpr(peeled.elements[0]) : peeled;
-  // an AGREEING ternary reads its arm whichever way the test goes - that read is the one the
-  // consume discards, and the dead test drops with the selection
-  if (nav?.type === 'ConditionalExpression') nav = agreeingTernaryArm(nav, metaPath, ctx.adapter) ?? nav;
-  if (!nav) return null;
-  // `probeLeaf`: a full consume of the PROBE ITSELF has no hop to read off the guard - the test
-  // operand doubles as the alternate (`{ Array: { of } } = globalThis.window`)
-  const plan = sealedClaimLeafGuardPlan(nav, m => ctx.resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, { probeLeaf: true });
-  if (plan) return plan;
-  // an alias BINDING holding an absent-able value makes the discarded read observable with no
-  // `?.` for the guard plan to key on (`{ of } = a.Array` off `a = globalThis.window` - native
-  // throws reading `.Array` where the extraction just binds): the alias arm's probe re-emits
-  // the init read verbatim, the other leg's spelling
-  // the consume DISCARDS the init whole, so an inline store holder is re-emitted exactly once -
-  // the claim channels, whose renders keep the store, take the named-binding arm alone.
-  // a SEAL the source wrote is where its observable read happens (`(w = nav).self.Array` reads
-  // `.self` off the sealed store), so the probe respells from that boundary, not from the run's end.
-  const probeMember = sealedChainBoundary(nav)?.member ?? nav;
-  // an ARRAY-wrapped init hands its element to the mirror channel, which re-emits that element's
-  // read itself: a store probe here would spell the read - and its write - a second time
-  const arrayWrapped = peeled?.type === 'ArrayExpression';
-  const aliasProbe = aliasHeldClaimProbe(probeMember, m => ctx.resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, { allowStoreHolder: !arrayWrapped });
-  return aliasProbe ? { aliasProbe } : null;
+  return discardedInitProbePlan(initNode, meta => ctx.resolvePure(meta, metaPath),
+    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath });
 }
 
 // the KEY a discarded read spells over a kept store the realm may leave void, or null: by drain time
@@ -1169,18 +1118,7 @@ export function absentableStoreReadKeyOf(initNode, ctx) {
   return read ? memberKeyName(read) : null;
 }
 
-// where the READ a rendered probe reproduces begins - asked of the SOURCE spelling, at plan time:
-// by drain time the collapse has rebuilt the init and its minted nodes carry no span, so the split
-// would hand the probe's own read back to the effect channel and run it twice
-export function discardedInitProbeNavStart(initNode) {
-  const tail = peelReceiverSequenceTail(initNode);
-  // no SEQUENCE around the init means nothing precedes the read the probe reproduces: every effect
-  // the harvest found lives INSIDE that read, and the probe carries it. `0` says exactly that -
-  // the tail's own start would put the read's own effects ahead of it and run them twice
-  return tail && tail !== unwrapRuntimeExpr(initNode) ? tail.start ?? 0 : 0;
-}
-
-// ... and the same offset by probe NODE, for the drain that only sees the rendered probe
+// The source offset by probe NODE, for the drain that only sees the rendered probe
 const probeNavStarts = new WeakMap();
 
 export function probeNavStartOf(probe) {
