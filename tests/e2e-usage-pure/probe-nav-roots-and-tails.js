@@ -214,3 +214,67 @@ QUnit.test('destructure probes: a bodyless assignment rejects its nullish source
   });
 });
 /* eslint-enable no-sequences, no-unsafe-optional-chaining, no-unreachable-loop -- discarded initializer probes */
+
+/* eslint-disable no-unsafe-optional-chaining -- deferred receiver probes */
+QUnit.test('destructure probes: deferred keys share the pristine receiver', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    function read({ of, from } = (log.push([7].at(0)), (globalThis.window?.self).Array)) {
+      return [of(3), from([4])];
+    }
+    let value;
+    try {
+      value = [read(), read()];
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [[[3], [4]], [[3], [4]]] : 'TypeError', 'both keys are served on every activation');
+    assert.deepEqual(log, live ? [7, 7] : [7], 'the live prefix runs once per attempted default');
+    assert.deepEqual(read({ of: n => [n + 1], from: ns => ns[0] }), [[4], 4], 'a supplied receiver bypasses the default');
+    assert.deepEqual(log, live ? [7, 7] : [7], 'a supplied receiver adds no prefix effects');
+  });
+});
+QUnit.test('destructure probes: deferred IIFE keys and receiver children stay live', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let value;
+    try {
+      value = (({ of, from }) => [of([3].at(0)), from([4])])(
+        (log.push([8].at(0)), (globalThis.window?.self).Array),
+      );
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [[3], [4]] : 'TypeError', 'both argument keys use their pure static');
+    assert.deepEqual(log, [8], 'the argument prefix keeps its nested claim and runs once');
+  });
+});
+QUnit.test('destructure probes: a cloned IIFE keeps its own temporaries on reentry', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let depth = 0;
+    function make() {
+      const arr = [depth++];
+      Object.defineProperty(arr, 'at', { get() {
+        if (arr[0] === 0) read();
+        return function () { return this[0]; };
+      } });
+      return arr;
+    }
+    function read({ of, from } = ((() => {
+      log.push(make().at(0));
+      return globalThis.window;
+    })()?.self).Array) {
+      return [of(3), from([4])];
+    }
+    let value;
+    try {
+      value = read();
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(value, live ? [[3], [4]] : 'TypeError', 'the nested activation completes before the outer read');
+    assert.deepEqual(log, live ? [1, 0] : [1], 'reentry cannot overwrite the outer call receiver');
+  });
+});
+/* eslint-enable no-unsafe-optional-chaining -- deferred receiver probes */

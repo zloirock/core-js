@@ -30,6 +30,7 @@ import {
   peelChainAssignment,
   invocationNode,
   runtimeChainRoot,
+  pathOfNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
@@ -59,6 +60,7 @@ import {
   renderSynthReceiverGuard,
   renderProxyReceiverPlan,
   renderSynthSlotRead,
+  renderClaimProbe,
   synthEntryKey,
   synthKeyMustBeComputed,
 } from '@core-js/polyfill-provider/render';
@@ -88,6 +90,8 @@ import {
   peelReceiverSequenceTail,
   decidedLiveOperandKey,
   decidedRunningPath,
+  directClaimProbePlan,
+  directClaimProbeEffects,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 import { disableDirectiveKind } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -123,7 +127,6 @@ export default function createSynthSwapEmitter({
   adapter,
   injectPureImport,
   injector,
-  sealedClaimThrowProbeNode,
   resolvePure,
   skippedNodes,
   t,
@@ -298,6 +301,16 @@ export default function createSynthSwapEmitter({
     } else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
+      // Decide once on the source. Native slots keep child claims live until apply, while
+      // the source identities decide which effects the read owns before any rewrite.
+      const probeSource = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
+      const probePlan = directClaimProbePlan(probeSource, resolvePure,
+        { scope: targetPath.scope, adapter, path: targetPath });
+      const probeEffects = probePlan && directClaimProbeEffects({ decision: probePlan, node: null },
+        discardRescueNodes({ node: probeSource, scope: targetPath.scope, adapter, path: targetPath }));
+      const probeSlots = probePlan && new Map([
+        ...probePlan.retained, ...probePlan.prefix ?? [], ...probePlan.alternateEffects ?? [], ...probeEffects.filter(Boolean),
+      ].map(node => [node, pathOfNode(targetPath, node)]));
       // Keep the registered keys when a sibling extraction removes its pattern property.
       // The mirror still supplies that receiver read to the extracted instance dispatcher.
       pending = {
@@ -305,6 +318,9 @@ export default function createSynthSwapEmitter({
         polyfills: new Map(),
         callBranch,
         rescueSe,
+        probePlan,
+        probeEffects,
+        probeSlots,
         // the live probe's root rewrites before apply; preserve the source's landing plan
         // now, while its direct realm root has not become an injector-owned alias.
         guardedReceiverPlan: synthGuard ? planProxyReceiver(synthGuard.fallback?.left ?? receiver, {
@@ -931,25 +947,17 @@ export default function createSynthSwapEmitter({
         // is undefined off-browser. shared `shouldDropRescueReceiver` keeps the drop decision
         // identical across emitters
         const dropRescueReceiver = pending.rescueSe && shouldDropRescueReceiver(path.node);
-        // a SEALED probe receiver (`{ values } = (globalThis.window?.self).Object`): the swap
-        // drops the read the source performs on the sealed VALUE - re-emit it as a THROW
-        // probe (carrying the nav's key SE - the rescue harvest drops those nodes) ahead of
-        // the literal. the swap runs at apply() time (post-traversal, `path.skip()`), so the
-        // probe's raw proxy root substitutes BY HAND - no re-enter ever visits it
-        // a fallback-LOGICAL receiver probes through its LEFT branch (the branch the value
-        // reads through; the collapse supplants exactly that read)
-        const probeSource = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
-        const throwProbe = !needMemo ? sealedClaimThrowProbeNode?.(path, probeSource) : null;
-        if (throwProbe) {
-          const cond = throwProbe.node.object;
-          const prefixNode = cond?.test?.left?.type === 'NullLiteral' ? cond.test.right : cond?.test?.left;
-          const { root } = descendToChainRoot(prefixNode ?? {}, true);
-          if (root?.type === 'Identifier' && !path.scope.hasBinding(root.name, true)) {
-            const sub = resolvePure({ kind: 'global', name: root.name });
-            if (sub) root.name = injectPureImport(sub.entry, sub.hintName).name;
-          }
+        // The shared source plan supplies root substitution and effect ownership. Bind only
+        // the native child slots here; no generated guard shape is an analysis input.
+        function cloneProbeSource(source) {
+          const slot = pending.probeSlots?.get(source);
+          return t.cloneNode(slot?.container[slot.key] ?? source, true);
         }
-        const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
+        const throwProbe = !needMemo && pending.probePlan ? estreeToBabel(renderClaimProbe(pending.probePlan, {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          cloneHost: cloneProbeSource,
+          embed: hostSlot,
+        })) : null;
         // what the literal's discard of this receiver would silently drop (the rescue canon). a
         // fallback-logical has its own harvest below - the leftSe plan asks the same canon about the
         // LEFT branch, and asking about the whole `||` here as well would run the effects twice
@@ -964,11 +972,10 @@ export default function createSynthSwapEmitter({
             [memoArg])
           // The first rendered receiver retains its effects; later reads use its stable value.
           : reusableMemo ? t.sequenceExpression([memoArg, literal])
-          // a throw probe already CARRIES every rescue node the discard would re-emit (the probe is
-          // built from the same key-SE list), so no discard prefix rides ahead of it - the
-          // unplugin emitter emits the probe alone here too
+          // The source decision orders residual effects around the read. Their live slots
+          // carry rewrites made since registration, including nested calls and defaults.
           : throwProbe
-            ? t.sequenceExpression([throwProbe.node, literal])
+            ? t.sequenceExpression([...pending.probeEffects.map(node => node ? cloneProbeSource(node) : throwProbe), literal])
           : dropRescueReceiver
             ? t.sequenceExpression([
               ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
@@ -994,13 +1001,10 @@ export default function createSynthSwapEmitter({
         // left effect (`[1].at(0)`, an IIFE reading `globalThis`) carries its rewrite. a pure left
         // plans nothing, so the clean collapse is unchanged (no fixture churn). suppressed when
         // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
-        if (!needMemo && !reusableMemo && path.node.type === 'LogicalExpression') {
-          // the probe carries the left's read (and its key SE) - the rescue re-emits only the
-          // effects the probe does not already run. harvested HERE, not reused from registration:
-          // the tree changes between the two phases (sibling visitors polyfill inside the receiver),
-          // so the registration-time answer is a different, wrong list
-          const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path })
-            .filter(n => !probeSe?.has(n));
+        if (!needMemo && !reusableMemo && !throwProbe && path.node.type === 'LogicalExpression') {
+          // No probe owns this read: harvest the rewritten left through the ordinary rescue
+          // canon. A captured probe already carries its complete source effect order above.
+          const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path });
           if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
         }
         path.replaceWith(replacement);
