@@ -342,6 +342,21 @@ QUnit.test('switch: discriminant closure write retargets the outer alias', asser
   assert.deepEqual(seen, [0]);
 });
 
+// a function declared in a case is block-scoped like a case-level `let`, so the discriminant reads the global
+// and takes its polyfill, while the case reads its own function. Babel's block-scoping lowering renames the
+// discriminant's reference along with the case function, so post-only detection receives a local read
+QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('switch: case-level function declaration leaves the discriminant on the global', assert => {
+  const seen = [];
+  // eslint-disable-next-line sonarjs/no-small-switch -- the case-block scope of a function declaration IS the case under test
+  switch (typeof Iterator.zip) {
+    case 'function':
+      // eslint-disable-next-line no-case-declarations -- the case-level function shadow IS the case under test
+      function Iterator() { return 'local'; }
+      seen.push(Iterator());
+  }
+  assert.deepEqual(seen, ['local']);
+});
+
 QUnit.test('control-flow: one early exit narrows several bindings', assert => {
   function probe(a, b) {
     if (typeof a !== 'string' || typeof b !== 'string') return null;

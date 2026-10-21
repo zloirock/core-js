@@ -25,7 +25,7 @@ import {
   sequenceElementsKept,
   sortedPrefixLength,
   mutatedGlobalSlotNames,
-  namespaceScopedBindingBlock,
+  varScopeBlockOfBinding,
   peelParenAndTSParentPath,
   peelTransparentExpr,
   performsNothing,
@@ -421,12 +421,13 @@ export default function createPlugin(options) {
     spellsMemberKey: key => currentMemberKeyNames?.has(key) ?? true,
     nestedTSRuntimeDeclarations: () => currentNestedTSRuntimeDeclarations ?? true,
     // estree-toolkit OVER-HOISTS `namespace N { export var x }` bindings to the enclosing
-    // program / function scope - a raw lookup surfaced the namespace twin for a use OUTSIDE
-    // the block and narrowed the outer binding to the WRONG flavor. position-aware (the
-    // mirror of the detect adapter's over-hoist filter): with a use path, the namespace
-    // binding only shadows uses INSIDE its block; without one (path-less resolver routes)
-    // the namespace binding is dropped conservatively - generic dispatch, never a wrong
-    // narrow. babel scopes namespaces correctly and keeps the factory's raw default
+    // program / function scope and files a class static block's on the class scope - a raw
+    // lookup surfaced the block's twin for a use OUTSIDE the block and narrowed the outer
+    // binding to the WRONG flavor. position-aware (the mirror of the detect adapter's
+    // over-hoist filter): with a use path, the block's binding only shadows uses INSIDE its
+    // block; without one (path-less resolver routes) it is dropped conservatively - generic
+    // dispatch, never a wrong narrow. babel scopes both blocks correctly and keeps the
+    // factory's raw default
     getScopeBinding(scope, name, path = null) {
       // shared visible-binding canon (the walk the detect adapter runs): a case-block lexical or
       // over-hoisted namespace binding that doesn't cover the use continues the lookup ABOVE it,
@@ -434,9 +435,9 @@ export default function createPlugin(options) {
       // regions natively). `path` keeps frame-scope lookups position-aware among same-name shadows
       const binding = closestVisibleNativeBinding(scope, name, path);
       if (!binding) return binding;
-      // a namespace-scoped binding consulted WITHOUT a position cannot prove the use sits
-      // inside its block - drop conservatively (generic dispatch, never a wrong narrow)
-      if (!path && namespaceScopedBindingBlock(binding)) return null;
+      // a namespace- or static-block-scoped binding consulted WITHOUT a position cannot prove the
+      // use sits inside its block - drop conservatively (generic dispatch, never a wrong narrow)
+      if (!path && varScopeBlockOfBinding(binding)) return null;
       // drop estree-toolkit's phantom declaration-violations (over-hoisted namespace twin,
       // for-init self) so the resolver's reassignment gates don't abandon a sound narrow
       // babel performs; path-preserving, so real reassignment paths still reach
