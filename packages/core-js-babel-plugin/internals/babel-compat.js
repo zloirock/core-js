@@ -30,8 +30,7 @@ import {
   navGuardTestPlan,
   navGuardSourcePlan,
   proxyReceiverValueCanBeUndefined,
-  sealedChainBoundary,
-  sealedClaimLeafGuardPlan,
+  probedNavGuardValuePlan,
   foldableRealmHop,
   handsValueOn,
   mutationGuardKeepingHop,
@@ -63,7 +62,6 @@ import {
   memberKeyName,
   memberProxyHopName,
   migratableClaimSe,
-  navComputedKeyEffects,
   nodeSpan,
   observableSequenceElements,
   optionalCallReceiverGuard,
@@ -2112,50 +2110,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return true;
   }
 
-  // guard-value render of a bare undefinable probe nav (`globalThis.window?.self` and its
-  // sealed spelling) as a NODE: the shared plan's 'nested' collapse (`null == _globalThis
-  // .window ? void 0 : _self`), for channels re-emitting a discarded probed nav - the
-  // anchored destructure residual base. null when the plan does not resolve this shape
-  // (no ponyfillable leaf / assign-wrapped / SE hop key) - callers keep their defined-nav
-  // renders there
+  // Bind the common residual value to Babel's source slots. The shared decision retains
+  // the throw boundary and reports an observed call root to the residual replay consumer.
   function probedNavGuardValueNode(rootNode, anchorPath) {
     const adapter = getAdapter?.();
     if (!adapter || !anchorPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
-    const plan = planProvenNavGuardCollapse({
-      rootNode, scope: anchorPath.scope, adapter, path: anchorPath,
-      resolvePure: ({ name }) => resolvePureGlobalEntry(name, anchorPath),
-    });
-    // a nav the collapse plan does not own AT ALL (its explicit declines - kept assign /
-    // sequence root / SE key - keep their reasons) still has two guarded spellings:
-    //   - a SEALED read (`(globalThis.window?.self).Array` - the seal makes the read
-    //     observable): the boundary probe IS the guarded value, `(null == ... ? void 0 :
-    //     _self).Array` throws exactly where the source does;
-    //   - a leaf that is a claimable constructor (`globalThis.window?.Array`): the two-halves
-    //     guard - the erase verdict's `?.` object as the test, the ctor ponyfill alternate
-    if (!plan) {
-      const boundaryProbe = sealedChainBoundary(rootNode)
-        ? sealedClaimThrowProbeNode(anchorPath, rootNode) : null;
-      if (boundaryProbe && !boundaryProbe.keySeExprs.length) {
-        return { node: boundaryProbe.node, rootEffectCall: null };
-      }
-      const leafGuard = sealedClaimLeafGuardNode(rootNode, anchorPath,
-        { scope: anchorPath.scope, adapter, path: anchorPath }, { probeLeaf: true });
-      return leafGuard ? { node: leafGuard, rootEffectCall: null } : null;
-    }
-    if (plan.topAssign || plan.kind !== 'nested') return null;
-    const { leafPure: pure } = plan;
-    // CLONE the guard-test prefix and PRE-substitute its proxy root: the caller discards
-    // (skip-seeds) the original init subtree and may insert this render only at program
-    // exit, so neither the live node nor the clone ever meets the natural identifier
-    // rewrite - a raw `globalThis` would ride into the test (ie11 ReferenceError)
-    const hop = plan.hops[plan.lastUnresolvableIdx];
-    plan.hops[plan.lastUnresolvableIdx] = {
-      ...hop,
-      node: cloneWithSubstitutedProxyRoot(hop.node, anchorPath, { t, resolvePureGlobalEntry, injectPureGlobal }),
-    };
-    // the render runs an effect-bearing CALL root exactly once inside the test - report it
-    // so destructure replay channels filter it out instead of re-running it
-    return { node: renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)), rootEffectCall: plan.rootEffectCall ?? null };
+    const decision = probedNavGuardValuePlan(rootNode, ({ name }) => resolvePureGlobalEntry(name, anchorPath),
+      { scope: anchorPath.scope, adapter, path: anchorPath });
+    if (!decision) return null;
+    // A raw leaf becomes a value reference, so the host's grammar check still applies.
+    const leaf = decision.leafPlan;
+    if (leaf && !leaf.leafPure && !leaf.leafIsProbe && !leaf.leafBasePure
+      && !t.isValidIdentifier(leaf.leafName)) return null;
+    const node = estreeToBabel(renderClaimProbe(decision, {
+      injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+      cloneHost: source => t.cloneNode(source), embed: hostSlot,
+    }));
+    return { node, rootEffectCall: decision.navPlan?.rootEffectCall ?? null };
   }
 
   // Convert the common immediate-pattern probe at the insertion boundary. The caller owns
@@ -2196,40 +2167,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     }));
     mintedEffectNodes.add(node);
     return { node, decision, keySeExprs: decision.consumed, navStart: decision.navStart };
-  }
-
-  // the guarded VALUE of a sealed nav that ends AT a claim, as a NODE: the erase verdict names the
-  // `?.` object to test, the claim's own ponyfill is the always-defined alternate. null when no
-  // single `?.` expresses the short-circuit, or the leaf has neither a ponyfill nor a plain name
-  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx, { probeLeaf = false } = {}) {
-    const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolvePureGlobalEntry(name, anchorPath), aliasCtx, { probeLeaf });
-    let alternate = !plan ? null
-      : plan.leafPure ? injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName)
-      // the value IS the probe: the test operand doubles as the alternate (a second read of
-      // the same slot, benign on the proxy globals every render here already reads freely)
-      : plan.leafIsProbe ? cloneWithSubstitutedProxyRoot(plan.guardObject, anchorPath,
-        { t, resolvePureGlobalEntry, injectPureGlobal })
-      // an unbacked leaf over a ponyfill base reads off that base - folded onto it where the plan
-      // says so, else as its member (the plan's verdict, shared with the other leg's render)
-      : plan.leafBasePure ? (plan.foldLeafOntoBase
-        ? injectPureGlobal(plan.leafBasePure.entry, plan.leafBasePure.hintName)
-        : t.memberExpression(injectPureGlobal(plan.leafBasePure.entry, plan.leafBasePure.hintName), t.identifier(plan.leafName)))
-      : t.isValidIdentifier(plan.leafName) ? t.identifier(plan.leafName) : null;
-    if (!alternate) return null;
-    // Folded keys above the test run only in its reached branch, before the leaf read.
-    const leafEffects = navComputedKeyEffects(nav)
-      .filter(expr => !subtreeContainsNode(plan.guardObject, expr));
-    if (leafEffects.length) alternate = withSideEffects(alternate, leafEffects.map(expr => t.cloneNode(expr)));
-    // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
-    // shared spelling only clones the source, and a write below the hops kept `_globalThis.self`
-    // standing there - a host read off the ponyfill, undefined in the realms the polyfill is for.
-    // the operand is CLONED with its proxy root pre-substituted - consumers may insert this
-    // render where no identifier rewrite runs again
-    const testObject = cloneWithSubstitutedProxyRoot(plan.guardObject, anchorPath,
-      { t, resolvePureGlobalEntry, injectPureGlobal });
-    return estreeToBabel(renderShortCircuitGuard(
-      nullFirstGuardTest(navGuardTestNode(testObject, anchorPath, null, testObject), { embed: hostSlot }),
-      hostSlot(alternate)));
   }
 
   // flush THIS assignment's kept nav-collapse at its own EXIT: every claim resolver over the
