@@ -1,18 +1,16 @@
 // guard rendering for claims over undefinable receivers: the null-probe tests, seals,
 // absorbed tails and the guarded-hop replacement every channel spells through
 import {
-  aliasHeldClaimProbe,
+  sealedClaimProbePlan,
   callYieldCanBeUndefined,
   deleteHostAboveCarriedChain,
   descendToChainRoot,
   guardTailPullCount,
   inlineCallProxyGlobalRoot,
-  planProvenNavGuardCollapse,
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
   sealedChainBoundary,
-  sealedClaimLeafGuardPlan,
   unbackedProxyHopKey,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -25,7 +23,6 @@ import {
   isPristineProxyGlobal,
   memberKeyName,
   navComputedKeyEffects,
-  nodeCarriesSourceSpan,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
   singleSequenceTail,
@@ -729,23 +726,6 @@ export function sealedThrowRidesTheClaim(node, metaPath, ctx) {
     { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, { throughChainAssign: true });
 }
 
-// RENDER half of the alias-held claim probe (the decision is the shared `aliasHeldClaimProbe`):
-// the claim's own member read spelled verbatim - the alias binding IS the test, no guard needed.
-// a SYNTHETIC member is a render, not a source read, and probing one would loop the visitor
-export function aliasHeldClaimProbeNode(member, aliasCtx, { resolveGlobalPolyfill, skippedNodes }) {
-  // source provenance admits the probe (a split's de-optionalized spine re-dispatches its
-  // claims - the read is still the source's); a true mint has no span at all, and probing OUR
-  // render would ponyfill what it stands ahead of
-  if (!nodeCarriesSourceSpan(member)) return null;
-  const probe = aliasHeldClaimProbe(member, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
-  if (!probe) return null;
-  const read = renderAliasHeldProbeRead(probe, cloneNode(probe.object));
-  // the probe IS the source read spelled verbatim - a re-visit claiming it would substitute the
-  // very ponyfill it stands ahead of
-  markSubtreeSkipped(skippedNodes, read);
-  return { node: read, consumed: [] };
-}
-
 // a PRISTINE proxy hop read through a SEAL names the same surface the seal produced: the hop
 // DROPS and the read above it lands on the guard, where the source's own throw lives
 // (`(g.window?.self).self.box.at(0)` -> `(null == _g.window ? void 0 : _self).box`). swapping the
@@ -780,44 +760,20 @@ export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure
 // the shared guard plan, the boundary key re-spelling the source read
 export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const { adapter, resolvePure, resolveGlobalPolyfill, injectPureImport, skippedNodes } = ctx;
-  const boundary = sealedChainBoundary(node);
   const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-  if (!boundary) return aliasHeldClaimProbeNode(node, aliasCtx, { resolveGlobalPolyfill, skippedNodes });
-  const key = memberKeyName(boundary.member);
-  if (key === null) {
-    return aliasHeldClaimProbeNode(boundary.member, aliasCtx, { resolveGlobalPolyfill, skippedNodes });
-  }
   function resolveHere(m) {
     return resolvePure(m, metaPath);
   }
-  if (!proxyReceiverValueCanBeUndefined(boundary.inner, resolveHere, aliasCtx, { throughChainAssign: true })) {
-    // the sealed VALUE proves defined, but the seal may still wrap a run an alias BINDING makes
-    // observable (`(a.Array).of` off `a = globalThis.window` - reading `.Array` throws where the
-    // value canon sees no undefined): a seal over a plain navigation is not load-bearing, so the
-    // run probes exactly like its unsealed twin - the alias arm's own verdict decides
-    return aliasHeldClaimProbeNode(boundary.member, aliasCtx, { resolveGlobalPolyfill, skippedNodes });
+  // Probe proofs are global questions, even when the erased claim itself is static.
+  const decision = sealedClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
+  if (!decision) return null;
+  if (decision.kind === 'alias') {
+    const read = renderAliasHeldProbeRead(decision.aliasProbe, cloneNode(decision.aliasProbe.object));
+    markSubtreeSkipped(skippedNodes, read);
+    return { node: read, consumed: [] };
   }
-  const plan = planProvenNavGuardCollapse({
-    rootNode: boundary.inner,
-    scope: metaPath.scope,
-    adapter,
-    path: metaPath,
-    resolvePure: resolveHere,
-    throughKeptAssign: true,
-    allowSequenceRoot: true,
-    descendSequenceTail: true,
-  });
-  // the plan renders a guard whose LEAF is a proxy hop; a sealed nav that ends AT the claim
-  // (`(globalThis.window?.Array).of`) has none, so the same shape builds from its two halves -
-  // the erase verdict's `?.` object as the test, the claim's own ponyfill as the alternate.
-  // that verdict is a GLOBAL question: a static resolvable in the chain does not answer
-  // whether the sealed value can be absent (the spelling both other legs ask with)
-  // a FOLDED computed key rides the alternate with its effects, where the source ran them - past
-  // the guard, before the leaf read (`?.[(c++, 'self')]` -> `... ? void 0 : (c++, _self)`)
-  const planRoute = !!plan && !plan.topAssign && plan.kind === 'nested' && !!plan.leafPure;
-  const leafPlan = planRoute ? null
-    : sealedClaimLeafGuardPlan(boundary.inner, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
-  const leafKeyEffects = leafPlan ? navComputedKeyEffects(boundary.inner) : [];
+  const { boundary, key, navPlan: plan, leafPlan } = decision;
+  const planRoute = decision.kind === 'nav';
   // the hops ABOVE the collapse respell over the ponyfill leaf, each keeping the `?.` the plan's
   // own tail verdict gives it. a plain REALM hop is not among them - the plan folded it onto the
   // leaf, so what reaches here is a computed key and its effects
@@ -832,11 +788,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
       ? identifier(injectPureImport(leafPlan.leafBasePure.entry, leafPlan.leafBasePure.hintName))
       : memberFromKeyName(identifier(injectPureImport(leafPlan.leafBasePure.entry, leafPlan.leafBasePure.hintName)), leafPlan.leafName))
     : leafPlan?.leafName ? identifier(leafPlan.leafName) : null;
-  // a seal the guard renders nothing for (a value-transparent layer over a bare alias -
-  // `(held).of`) hides no short-circuit: the alias question stands
-  if (!alternate) return aliasHeldClaimProbeNode(boundary.member, aliasCtx, { resolveGlobalPolyfill, skippedNodes });
-  if (leafPlan) alternate = withSideEffects(alternate,
-    leafKeyEffects.filter(expr => !subtreeContainsNode(leafPlan.guardObject, expr)));
+  if (leafPlan) alternate = withSideEffects(alternate, decision.alternateEffects);
   const test = planRoute ? ctx.buildNavGuardTest(plan, { metaPath, aliasCtx, resolveHere })
     : probeSpelling(leafPlan.guardObject, { resolveHere, aliasCtx, substituteProbeProxyRoot: ctx.substituteProbeProxyRoot });
   if (!planRoute) markSubtreeSkipped(skippedNodes, test);
@@ -850,7 +802,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   // replaying the claim's own effect list must skip them, or the source's single run doubles
   return {
     node: read,
-    consumed: [...planRoute ? [] : leafKeyEffects, ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
+    consumed: [...planRoute ? [] : decision.keyEffects, ...planRoute && plan.rootAssign ? [plan.rootAssign] : []],
   };
 }
 
