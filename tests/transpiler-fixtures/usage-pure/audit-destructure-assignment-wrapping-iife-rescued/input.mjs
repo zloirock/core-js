@@ -1,5 +1,5 @@
-// the rescued chain-assignment may itself wrap an SE-bearing IIFE: ONE rescue carries the
-// binding update AND the setup, each exactly once, with the inner globalThis still rewritten
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 let calls = 0;
 let a;
 const [{

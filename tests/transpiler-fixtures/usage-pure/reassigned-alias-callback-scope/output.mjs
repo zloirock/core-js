@@ -1,7 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-// Callback-local aliases share the lexical source seen by their assignments.
-// Cross assignments keep the captured Array holder; nested destructuring
-// must replace Array.from even though the callback body declares both aliases.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 function invoke(callback) {
   return callback();
 }
@@ -18,11 +16,7 @@ export const result = invoke(() => {
     x: {
       from
     }
-  } = {
-    x: {
-      from: _Array$from
-    }
-  };
+  } = first;
   return from({
     0: 'callback',
     length: 1

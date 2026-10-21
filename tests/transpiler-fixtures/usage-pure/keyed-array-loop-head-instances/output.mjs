@@ -21,7 +21,8 @@ for (const _ref4 of [{
   var _ref3, _ref5;
   ({
     w: _ref3
-  } = _ref4), [_ref5] = _ref3, includes = _includesMaybeString(_ref5), startsWith = _startsWithMaybeString(_ref5);
+  } = _ref4);
+  [_ref5] = _ref3, includes = _includesMaybeString(_ref5), startsWith = _startsWithMaybeString(_ref5);
   break;
 }
 use(includes, startsWith);

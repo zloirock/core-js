@@ -1,9 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// computed key inside a static-wrapper ObjectExpression: `{ [dynamicKey]: Array }` where
-// `dynamicKey` is a const-bound string literal. the destructure path must fold the key
-// to its static value so descent into `Array` resolves and `from` dispatches statically
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const dynamicKey = 'a';
 const wrapper = {
   [dynamicKey]: Array
@@ -12,10 +10,6 @@ const {
   a: {
     from
   }
-} = {
-  a: {
-    from: _Array$from
-  }
-};
+} = wrapper;
 from;
 _atMaybeArray(_ref = [1]).call(_ref, 0);

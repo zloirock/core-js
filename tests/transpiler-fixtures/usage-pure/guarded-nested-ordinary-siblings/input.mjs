@@ -1,6 +1,5 @@
-// Ordinary instance reads on both sides join the nested guarded slot's schedule.
-// The first method binds before the receiver getter, and the last sees the constructor.
-// A constructor escaping through the getter includes its static methods.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const log = [];
 const { at: first, realm: { WeakSet: Value }, includes: last } = {
   get at() { log.push('first'); return function () { return 41; }; },

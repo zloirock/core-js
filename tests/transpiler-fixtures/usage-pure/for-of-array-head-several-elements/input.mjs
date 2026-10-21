@@ -1,5 +1,5 @@
-// A head over SEVERAL elements mirrors each of its own, one static per row: a bound container, a call, an
-// IIFE, a parameter-filled slot under a nested level and a name bound to a call.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 const held = [Math];
 for (const [{ sinh: viaMixedAlias }] of [held, [Math]]) use(viaMixedAlias(1));
 const build = () => [Math];

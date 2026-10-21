@@ -1,5 +1,5 @@
-// Discarded receiver prefixes preserve their observable effects once.
-// Effect-free reads need no replay; prefixes kept inside a live expression retain their source order.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 function eff() {}
 function eff2() {}
 let a, b, c, d, e;

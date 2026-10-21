@@ -1,18 +1,15 @@
-import _Object$keys from "@core-js/pure/actual/object/keys";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions.
 {
   for (const {
     w: {
       keys
     }
   } of [{
-    w: {
-      keys: _Object$keys
-    }
+    w: Object
   }, {
     get w() {
-      return {
-        keys: _Object$keys
-      };
+      return Object;
     }
   }]) keys;
 }

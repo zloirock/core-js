@@ -1,22 +1,16 @@
-// an untouched leading statement anchors the comments below
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const anchor = [1, 2];
 export { anchor };
 
-// An effectful neighbour evaluates before the extracted property reads.
-// Both extractions follow the original RHS; the unchanged receiver needs no capture.
 const [{ at, keys }, viaCall] = [arr, effect()];
 export { at, keys, viaCall };
 
-// ... a receiver-LESS static neither reads the element nor reorders anything, so the same
-// neighbour leaves it free to extract
 const [{ Set: PureSet }, viaSpread] = [globalThis, ...tail];
 export { PureSet, viaSpread };
 
-// a PURE neighbour pins nothing: the consumed props leave the residual (their extractions bind
-// them, and a residual re-reading the same keys would fire their getters a second time)
 const [{ at: at2, keys: keys2 }, plain] = [arr, 7];
 export { at2, keys2, plain };
 
-// ... while a receiver-less static keeps its sentinel there - it reads nothing to re-read
 const [{ Array: { from } }, plain2] = [globalThis, 1];
 export { from, plain2 };

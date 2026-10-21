@@ -1,5 +1,5 @@
-// A captured array assignment keeps its stores and static rest exclusions.
-// A neighbouring binding follows the nested static; a constructor rest uses its pure source.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 let keys, realmRest, saved;
 ([{ Object: { keys }, ...realmRest }] = [saved = (effect(), globalThis)]);
 let of, ctorRest, tail;

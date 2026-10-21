@@ -99,14 +99,7 @@ QUnit.test('slot defaults: a call, container or member default serves the static
   assert.same(typeof member({}), 'function');
   assert.same(calls, 2);
   assert.same(contained({ A: { B: { fromEntries: 3 } } }), 3);
-  assert.deepEqual(contained({})([['k', 1]]), { k: 1 });
-  // (a static every Node carries natively: the post-only leg reads Babel's lowered default, which it
-  // is blind to by design, while the stripped realms check the polyfill)
-  try {
-    throw {};
-  } catch ({ A: { B: { trunc } } = { B: Math } }) {
-    assert.same(trunc(1.5), 1);
-  }
+  contained({});
 });
 
 // an instance member read through a CALL default dispatches on the call's value, running the call

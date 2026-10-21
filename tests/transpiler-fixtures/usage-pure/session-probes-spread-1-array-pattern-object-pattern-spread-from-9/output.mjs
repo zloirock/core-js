@@ -1,4 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 const arr = [1, 2];
 const nb = {
   y: arr
@@ -6,9 +7,7 @@ const nb = {
 {
   const [{
       from: f
-    }] = [...[{
-      from: _Array$from
-    }]],
+    }] = [...[Array]],
     [{
       z
     }] = [...[nb]];

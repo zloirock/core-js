@@ -1,4 +1,3 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Map from "@core-js/pure/actual/map";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
@@ -31,7 +30,5 @@ export const {
     from
   }
 } = {
-  W: d ? store.I : {
-    from: _Array$from
-  }
+  W: d ? store.I : Array
 };

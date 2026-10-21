@@ -1,5 +1,5 @@
-// Object hops pair by property key and array levels pair by position.
-// Calls and tagged calls keep their effects once while each static receives its pure value.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
 const mk = () => { log.push('mk'); return Array; };
 function tag() { log.push('tag'); return Array; }

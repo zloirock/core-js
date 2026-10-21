@@ -1,5 +1,5 @@
-// A getter hop read by a static and an instance member is memoized once, ahead of the static,
-// beside a second hop.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 class KE {
   static get I() { log(); return Iterator; }
 }

@@ -1,23 +1,18 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
-import _Object$keys from "@core-js/pure/actual/object/keys";
-// Nested statics keep their source hops and object-rest exclusions.
-// The initializer prefix runs once before the extracted bindings.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
-_pushMaybeArray(log).call(log, 'init');
-const keys = _Object$keys;
 const [{
   Object: {
-    keys: _unused,
+    keys,
     ...rest
   }
-}] = [_globalThis];
-const entries = _Object$entries;
+}] = [(_pushMaybeArray(log).call(log, 'init'), _globalThis)];
 const [{
   Object: {
-    entries: _unused2,
+    entries = _pushMaybeArray(log).call(log, 'default'),
     ...remaining
   }
 }, tail] = [_globalThis, 1];

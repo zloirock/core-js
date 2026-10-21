@@ -1,5 +1,5 @@
-// A proven returned array retains the call, native iteration and static property read.
-// An empty element default stays in the native pattern for both call spellings.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 const makeMath = () => [Math];
 const [{ sign } = {}] = makeMath?.();
 const makeArray = () => [Array, 0];

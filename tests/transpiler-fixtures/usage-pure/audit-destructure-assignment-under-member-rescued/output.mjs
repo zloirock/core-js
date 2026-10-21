@@ -1,10 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// a chain-assignment buried under the member leaf of a discarded init: rescued WHOLE ahead of
-// the extraction - the binding update survives the flatten (it was once silently dropped)
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 let a;
 const [{
   from
-}] = [((a = _globalThis).Array, {
-  from: _Array$from
-})];
+}] = [(a = _globalThis).Array];

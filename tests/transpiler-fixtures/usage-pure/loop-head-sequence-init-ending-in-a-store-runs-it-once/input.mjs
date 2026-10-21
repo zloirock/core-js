@@ -1,6 +1,5 @@
-// a loop head whose sequence init ends in a store keeps that init whole as a sink ahead of the extraction,
-// so the store runs once, as the source performs it - a binding store alike; a store with no prefix rides
-// the extraction itself
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const box = {};
 for (const { C: { groupBy } } = (setup(), box.slot = { C: Map }); ; ) break;
 let held;

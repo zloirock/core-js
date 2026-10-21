@@ -1,5 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 function assignForms(f, g) {
   let nestedSeq;
   let seqDefault;
@@ -22,9 +25,7 @@ function assignForms(f, g) {
       Map: hopOrDefault
     }
   } = {
-    w: {
-      Map: _Map
-    }
+    w: _globalThis
   });
   ({
     w: {
@@ -33,23 +34,15 @@ function assignForms(f, g) {
       }
     }
   } = {
-    w: {
-      Array: {
-        from: _Array$from
-      }
-    }
+    w: _globalThis
   });
   ({
     w: {
       Map: hopOptional
     }
   } = {
-    w: {
-      Map: _Map
-    }
+    w: _globalThis
   });
-  // ... and a SLOT carrying the prefix: the literal stays as a statement of its own, running the
-  // prefix where the source ran it, and the level consumes
   let hopSeq;
   let hopSeqDefault;
   ({
@@ -59,20 +52,14 @@ function assignForms(f, g) {
       }
     }
   } = {
-    w: (f(), g(), {
-      Array: {
-        from: _Array$from
-      }
-    })
+    w: (f(), g(), _globalThis)
   });
   ({
     w: {
       Map: hopSeqDefault
     }
   } = {
-    w: (f(), {
-      Map: _Map
-    })
+    w: (f(), _globalThis)
   });
   return [nestedSeq, seqDefault, hopOrDefault, hopNav, hopOptional, hopSeq, hopSeqDefault];
 }

@@ -1,7 +1,5 @@
-// the mirror swaps the arm IN PLACE and keeps the level whole, so what a dropping consumer has to refuse
-// stays pairable: an INLINE-array spread is a longer literal, and a later spread or a key nothing names
-// overrides the mirrored slot exactly as it overrides the source's (last wins). a spread of a BINDING
-// shifts the element by a length nothing knows, and a later getter replaces the slot: both stay native
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 const [{ hasOwn: viaSpreadShift }] = [...[c ? Object : userObj]];
 const [, { getOwnPropertyNames: viaSpreadAhead }] = [...[0], c ? Object : userObj];
 const { w: { is: viaSpreadLevel } } = { w: c ? Object : userObj, ...more };

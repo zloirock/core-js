@@ -110,12 +110,13 @@ for (const [emitter, transform] of transforms) {
   }
 
   check(`${ emitter }: untouched static is injected`, (await transform('Array.from([1]);')).includes('/array/from'), true);
+  // Wrapper statics stay native regardless of when the container is handed out.
   for (const [label, source, expected, entry = 'from'] of [
-    ['later handout', 'const source = [Array]; const [{ from }] = source; use(source); from([1]);', true],
+    ['later handout', 'const source = [Array]; const [{ from }] = source; use(source); from([1]);', false],
     ['earlier handout', 'const source = [Array]; use(source); const [{ from }] = source; from([1]);', false],
     ['selected container identity',
       'const source = [Array]; function read([{ from, ...rest }]) { return from([1]); } read(source);'
-        + ' const [{ of }] = source; of(2);', true, 'of'],
+        + ' const [{ of }] = source; of(2);', false, 'of'],
     ['selected leaf can replace a deeper slot',
       'const source = [{ w: Array }]; function install([held]) { held.w = {}; } install(source);'
         + ' const [{ w: { from } }] = source; from([1]);', false],

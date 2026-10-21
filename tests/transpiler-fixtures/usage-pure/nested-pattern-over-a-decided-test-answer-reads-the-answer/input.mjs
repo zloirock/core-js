@@ -1,7 +1,5 @@
-// a nested pattern over a selection the build decides to its test's own answer - an `&&` whose test
-// fails, a `||` / `??` whose test holds - reads off that answer, natively a TypeError: the operand it
-// skips names no static, at any depth, beside a sibling, under an array level or off the realm. a test
-// that runs the `&&` right leaves the pattern reading that right
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 export const { C: { groupBy } } = typeof Symbol == 'undefined' && { C: Map };
 const { A: { B: { isInteger } } } = typeof Symbol == 'undefined' && { A: { B: Number } };
 let { C: { allSettled }, D } = typeof Symbol == 'undefined' && { C: Promise, D: 1 };
