@@ -550,21 +550,21 @@ export function renderInExpressionPlan(plan, { injectImport, embed = node => nod
   return { replace: withLeadingSe(literal(true)) };
 }
 
-// the alias-held claim PROBE read (`aliasHeldClaimProbe` decides there is one): the claim's own
-// member spelled verbatim off the alias binding, the dotted run between them respelled with it -
-// the source's own computed flag decides the spelling, not the key's validity, because the probe
-// reproduces a read the source performs
-export function renderAliasHeldProbeRead(probe, object, own = node => node) {
+// A decided probe read, off its alias holder or guarded pattern value. A live computed
+// pattern key is supplied as a node; other keys retain their source computed spelling.
+// Only the read is owned, so claims inside its receiver and key remain independent.
+export function renderAliasHeldProbeRead(probe, object, own = markRenderedProbeRead) {
   const base = (probe.innerKeys ?? []).reduce((acc, key) => own(memberFromKeyName(acc, key)), object);
-  return own(probe.computed
-    ? memberExpression(base, literal(probe.key), { computed: true })
+  return own(probe.property
+    ? memberExpression(base, probe.property, { computed: true })
+    : probe.computed ? memberExpression(base, literal(probe.key), { computed: true })
     : memberExpression(base, identifier(probe.key)));
 }
 
-// The complete direct probe. Source-slot edits and effect ownership are plan facts; hosts only
+// A direct read or guarded pattern value. Source-slot edits and effect ownership are plan facts; hosts only
 // clone/embed their dialect and allocate imports. Served reads are marked individually so a
 // nested key or argument is still visited, while requeue cannot erase the probe's own throw.
-export function renderDirectClaimProbe(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
+export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
   function pure(entry) {
     return identifier(injectImport(entry.entry, entry.hintName));
   }
@@ -608,11 +608,11 @@ export function renderDirectClaimProbe(plan, { injectImport, cloneHost = cloneNo
     : leafPlan.leafPure ? pure(leafPlan.leafPure)
     : leafPlan.leafBasePure ? (plan.foldLeafOntoBase ? pure(leafPlan.leafBasePure)
       : own(memberFromKeyName(pure(leafPlan.leafBasePure), leafPlan.leafName)))
-    : identifier(leafPlan.leafName);
+    : leafPlan.leafIsProbe ? source(test.source) : identifier(leafPlan.leafName);
   if (plan.alternateEffects?.length) alternate = sequence(plan.alternateEffects.map(clone), alternate);
   const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
-  const read = own(plan.boundary.member.computed
-    ? memberExpression(guarded, literal(plan.key), { computed: true }) : memberFromKeyName(guarded, plan.key));
+  const read = plan.boundary.member ? own(plan.boundary.member.computed
+    ? memberExpression(guarded, literal(plan.key), { computed: true }) : memberFromKeyName(guarded, plan.key)) : guarded;
   return sequence(plan.prefix.map(clone), read);
 }
 

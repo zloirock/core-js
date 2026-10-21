@@ -1,7 +1,7 @@
 // The erased claim and the discarded initializer ask one owner for source facts. Queries must
 // leave the source untouched, and a retained holder must not acquire a second inline store.
 import {
-  directClaimProbePlan, directClaimProbeEffects, discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan,
+  directClaimProbePlan, directClaimProbeEffects, destructureProbePlan, discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -136,4 +136,31 @@ runBoth('probe source provenance', 'const held = globalThis.window; const value 
   check(`${ label }/source copy`, sealedClaimProbePlan({ ...minted, replacedSpan: { start, end } }, resolvePure, ctx)?.kind, 'alias');
   check(`${ label }/location copy`, sealedClaimProbePlan({ ...minted, loc: { start: { index: start } } }, resolvePure, ctx)?.kind, 'alias');
 });
+// Immediate consumers share a complete guarded-value decision, including the key effect
+// inside the reached arm and the fact that the pattern still owes its first property read.
+runBoth('discarded initializer live key facts',
+  'const value = globalThis.window?.[(effect(), "Array")];', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const before = JSON.stringify(path.node.init);
+    destructureProbePlan(path.node.init, resolvePure, ctx);
+    const plan = destructureProbePlan(path.node.init, resolvePure, ctx);
+    check(`${ label }/guarded value`, plan?.kind, 'value');
+    check(`${ label }/pattern still owes its read`, plan.readsSource, false);
+    check(`${ label }/one branch effect`, plan.alternateEffects.length, 1);
+    check(`${ label }/consumed source effect`, plan.consumed.includes(plan.alternateEffects[0]), true);
+    check(`${ label }/source root fact`, plan.test.source.root.pure.entry, 'globalThis');
+    check(`${ label }/ignored question leaves source intact`, JSON.stringify(path.node.init), before);
+  });
+runBoth('discarded alias keeps the whole source frame',
+  'const held = globalThis.window; const value = (effect(), held.Array);', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = discardedInitProbePlan(path.node.init, resolvePure, { scope: path.scope, adapter, path });
+    const effect = parser.pickPath(program, 'CallExpression').node;
+    const node = { type: 'Identifier', name: 'probe' };
+    check(`${ label }/source includes its prefix`, plan.source, path.node.init);
+    check(`${ label }/prefix remains ahead of the probe`, directClaimProbeEffects({ decision: plan, node }, [effect])[0], effect);
+  });
 finish();

@@ -2373,12 +2373,14 @@ export function renderRetainedObjectCapture(plan, {
     const spelled = next.type === 'SequenceExpression' ? next.expressions : [next];
     if (discarded.length) declarations[0] = variableDeclarator(id, sequenceExpression([...discarded, ...spelled]));
   }
+  // A fully consumed assignment still rejects a nullish source before writing its first target.
+  const unreadInit = !receiverRead && !plan.provenReceiver ? assignmentExpression('=', objectPattern([]), init) : init;
   return plan.assignment ? {
     refName,
     expression: sequenceExpression([
       ...plan.receiverAlreadyEvaluated || plan.inlineReceiver ? [] : plan.reuseReceiver
         ? coerceReuse ? [assignmentExpression('=', objectPattern([]), init)] : prefixedReuse ? discarded ?? [init] : []
-        : plan.receiverRef ? [] : refName ? [assignmentExpression('=', ref(), init)] : discarded ?? [init],
+        : plan.receiverRef ? [] : refName ? [assignmentExpression('=', ref(), init)] : discarded ?? [unreadInit],
       ...plan.coerceReceiver && !plan.reuseReceiver ? [assignmentExpression('=', objectPattern([]), ref())] : [],
       ...assignments,
       ...result ? [result] : [],

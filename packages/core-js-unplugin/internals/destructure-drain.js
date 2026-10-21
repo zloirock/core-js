@@ -154,6 +154,7 @@ import {
   patternHasPolyfillableDefault,
   probeCarriesWrite,
   probeNavStartOf,
+  probeResidualEffects,
   jobBindingTarget,
   propBindingTarget,
   reanchoredInit,
@@ -1456,20 +1457,16 @@ export default function createDestructureDrains(ctx) {
   // returns 'consumed' when the re-anchor took the declarator whole
   function emitStaticMemoRescues({ hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe }) {
     const [{ metaPath }] = declJobs;
-    // the extraction's own probe re-emits the discarded READ whole, buried effects included, so a
-    // lift of the same nodes would run them twice - babel spells the rule at its swap, where the
-    // rescue keeps only what the probe does not already carry
-    // the probe re-emits the discarded READ whole, buried effects included, so a lift of the same
-    // nodes would run them twice - the rescue keeps only what the probe does NOT carry, split on
-    // the offset that read starts at. no offset means nothing precedes it: the harvest is not even
-    // asked, the way this channel has always answered a probe-carried init
+    // Captured source facts exclude every effect the probe already carries. Legacy producers
+    // still partition by the read's offset; no offset leaves that fallback rescue empty.
     const probeOffset = probeNavStartOf(consumeProbe);
-    const rescues = consumeProbe && !probeOffset ? [] : partitionEffectsAtProbe(discardRescueNodesWithReads({
+    const sourceRescues = consumeProbe && !probeOffset ? [] : partitionEffectsAtProbe(discardRescueNodesWithReads({
       node: declarator.init,
       scope: metaPath.scope,
       adapter,
       path: metaPath,
     }), consumeProbe ? probeOffset : null).ahead;
+    const rescues = consumeProbe ? probeResidualEffects(consumeProbe, sourceRescues) : sourceRescues;
     // the collapse rewrote the init in place, so what the spine bottoms out on NOW is what
     // survived it: a call the nav read THROUGH but could not erase (`wrap(g()).Object`), or a
     // pure binding it folded onto (`mk().self.Array` -> `_self.Array`)
@@ -1944,6 +1941,11 @@ export default function createDestructureDrains(ctx) {
       // the init's SOURCE prefix runs before its tail: it leads the slot the discarded tail keeps, and
       // rides the first extraction where the tail keeps none (carried there, a slot planted ahead of
       // that extraction ran the tail first)
+      if (probeRead) {
+        carryForInitPrefixIntoFirst(extracted, probeResidualEffects(probeRead));
+        declarations.push(...extracted);
+        continue;
+      }
       const carried = declJobs.every(job => !job.initRidesValue && !job.seCarried)
         ? takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)) : [];
       // ... unless the init needs no slot of its own: it already RIDES its own extraction (the
@@ -2934,7 +2936,9 @@ export default function createDestructureDrains(ctx) {
     if (carriesPrefix) carryInitPrefix(soleDispatch, rhsExprs.slice(0, -1));
     // ... and a read the consume discards (`discardedRead`) is that whole right already: it lifts once,
     // ahead of the extractions, and the whole-right lift stands down for it as every channel here does
-    const stmtSeqPrefix = anchorRhsPrefix || carriesPrefix || residualCarriesPrefix || (wholeRhsLift && discardedRead) ? []
+    const stmtSeqPrefix = probeLead && !memoRef && assignment.left.properties?.length === 0
+      ? liftedPrefixStatements(probeResidualEffects(probeLead, discardRescueNodes({ node: assignment.right, ...frame })), frame)
+      : anchorRhsPrefix || carriesPrefix || residualCarriesPrefix || (wholeRhsLift && discardedRead) ? []
       : wholeRhsLift ? (probeLead
         ? liftedPrefixStatements(partitionEffectsAtProbe(
           discardRescueNodes({ node: assignment.right, ...frame }), probeNavStartOf(probeLead)).ahead)

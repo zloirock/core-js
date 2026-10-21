@@ -27,9 +27,14 @@ import {
   staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
-import { readStandsOverAbsentableStore, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import { harvestDiscardedReceiverSE, readStandsOverAbsentableStore, shouldDropRescueReceiver } from
+  '@core-js/polyfill-provider/detect-usage/members';
 import {
   discardedInitProbePlan,
+  directClaimProbePlan,
+  directClaimProbeEffects,
+  partitionEffectsAtProbe,
+  claimProbeSourceSlot,
   consumableHopSlotName,
   discardRescueNodes,
   findProxyGlobal,
@@ -42,7 +47,6 @@ import {
   resolveObjectName,
   agreeingTernaryArm,
   resolveSynthKeys,
-  sealedClaimProbePlan,
   undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -60,6 +64,7 @@ import {
   memberKeyName,
   observableSequenceElements,
   patternBindingCount,
+  pathOfNode,
   patternHasSeveralSeKeys,
   patternLevelKeepsEffectfulHop,
   spelledWriteSlot,
@@ -96,6 +101,7 @@ import {
   variableDeclaration,
   variableDeclarator,
   nullFirstGuardTest,
+  renderClaimProbe,
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
   renderShortCircuitGuard,
@@ -1042,15 +1048,6 @@ export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlob
   return renderShortCircuitGuard(nullFirstGuardTest(probe), navTail);
 }
 
-// the effects a sealed nav's supported LEAF key carries (`?.[(c++, 'Array')]`): native runs them past
-// the short-circuit and before the read, which is inside the guard's alternate
-function sealedLeafKeyEffects(nav) {
-  const leaf = peelTransparentExpr(nav);
-  if (leaf?.type !== 'MemberExpression' || !leaf.computed) return [];
-  const key = peelTransparentExpr(leaf.property);
-  return key?.type === 'SequenceExpression' ? key.expressions.slice(0, -1) : [];
-}
-
 // the sealed receiver READ a swap erases, PLANNED on the pristine tree: the seal's inner nav
 // renders the guard the collapse spells (its `?.` object the probe, its own ponyfill the
 // alternate, the hop's key effects riding inside it) and the boundary member hangs back on.
@@ -1060,7 +1057,7 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
   if (!metaPath || !receiver) return null;
   const read = peelTransparentExpr(receiver)?.type === 'LogicalExpression'
     ? peelTransparentExpr(receiver).left : receiver;
-  return sealedClaimProbePlan(receiver, meta => ctx.resolvePure(meta, metaPath),
+  return directClaimProbePlan(receiver, meta => ctx.resolvePure(meta, metaPath),
     { ...nodeSite(read, metaPath), adapter: ctx.adapter }, { preserveRead: true });
 }
 
@@ -1068,36 +1065,21 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
 // The pure question above is also used speculatively; only acceptance claims leaf effects
 // and snapshots the guard spelling.
 export function captureSealedNavProbe(receiver, metaPath, ctx) {
-  const plan = planSealedNavProbe(receiver, metaPath, ctx);
-  if (!plan || plan.kind === 'passthrough') return plan;
-  ctx.claimLive?.(sealedLeafKeyEffects(plan.effectsHost), metaPath);
-  return { ...plan, guardObject: cloneStamped(plan.leafPlan.guardObject) };
+  return captureProbePlan(planSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
 }
 
+// Render the accepted sealed read through the common renderer; the legacy passthrough
+// remains a standalone nav consumer until B.2c.
 export function renderSealedNavProbe(plan, metaPath, ctx) {
   if (!plan) return null;
-  const { boundary, key } = plan;
-  let navRead;
-  if (plan.kind === 'passthrough') navRead = guardedNavPassthrough(boundary.inner, metaPath, ctx);
-  else {
-    const probe = substituteProxyRootsInClone(cloneStamped(plan.guardObject), metaPath, ctx);
-    const basePure = plan.leafPlan.leafBasePure;
-    const baseId = basePure && identifier(ctx.injectPureImport(basePure.entry, basePure.hintName));
-    let leaf = plan.leafPlan.leafPure
-      ? identifier(ctx.injectPureImport(plan.leafPlan.leafPure.entry, plan.leafPlan.leafPure.hintName))
-      : baseId
-        ? plan.foldLeafOntoBase ? baseId : memberExpression(baseId, identifier(plan.leafPlan.leafName))
-        : identifier(plan.leafPlan.leafName);
-    const liveEffects = sealedLeafKeyEffects(plan.effectsHost).map(expr => cloneNode(expr));
-    if (liveEffects.length) leaf = sequenceExpression([...liveEffects, leaf]);
-    navRead = renderShortCircuitGuard(nullFirstGuardTest(probe), leaf);
-  }
-  if (!navRead) return null;
-  return boundary.member.computed
-    ? memberExpression(navRead, literal(key), { computed: true })
-    : memberFromKeyName(navRead, key);
+  if (plan.kind !== 'passthrough') return renderClaimProbe(plan, { injectImport: ctx.injectPureImport, cloneHost: cloneStamped });
+  const navRead = guardedNavPassthrough(plan.boundary.inner, metaPath, ctx);
+  return navRead && (plan.boundary.member.computed
+    ? memberExpression(navRead, literal(plan.key), { computed: true })
+    : memberFromKeyName(navRead, plan.key));
 }
 
+// Accept and render one immediate sealed read while its child paths are still available.
 export function sealedNavProbeRead(receiver, metaPath, ctx) {
   return renderSealedNavProbe(captureSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
 }
@@ -1110,6 +1092,35 @@ export function planDiscardedInitProbe(initNode, metaPath, ctx) {
     { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath });
 }
 
+// Retain native slots before accepting children: a replacement updates the container, not
+// the old node or path. Guard/holder proofs stay pristine; their source children settle before
+// the snapshot, and source-spine edit paths are then bound to that actual captured spelling.
+// Deferred callers register their pristine host facts before accepting this plan.
+export function captureProbePlan(plan, metaPath, ctx) {
+  if (!plan || plan.kind === 'passthrough') return plan;
+  const remaining = directClaimProbeEffects({ decision: plan, node: null }, harvestDiscardedReceiverSE(plan.source,
+    { ...nodeSite(plan.source, metaPath), adapter: ctx.adapter })).filter(Boolean);
+  const residual = remaining.map(node => ({ node, slot: pathOfNode(metaPath, node) }));
+  // An alias holder stays live until drain, as before: eagerly walking a stored RHS can
+  // rebase its enclosing receiver before the natural claim reaches it.
+  if (plan.kind === 'alias') return { ...plan, residual };
+  const effects = plan.alternateEffects ?? [];
+  const sources = [plan.test?.source?.source].filter(Boolean);
+  const nodes = [...effects, ...sources];
+  const slots = nodes.map(node => pathOfNode(metaPath, node));
+  ctx.claimLive?.([...effects, ...sources.map(node => node.type === 'AssignmentExpression' ? node.right : node)], metaPath);
+  const live = nodes.map((node, index) => slots[index]?.container[slots[index].key] ?? node);
+  let index = effects.length;
+  function capture(source) {
+    return source && claimProbeSourceSlot(cloneStamped(live[index++]), meta => ctx.resolvePure(meta, metaPath),
+      { ...nodeSite(source.source, metaPath), adapter: ctx.adapter });
+  }
+  const test = capture(plan.test?.source);
+  return { ...plan, residual, guardObject: test?.source,
+    alternateEffects: live.slice(0, effects.length),
+    test: test ? { ...plan.test, source: test } : plan.test };
+}
+
 // the KEY a discarded read spells over a kept store the realm may leave void, or null: by drain time
 // the collapse may have folded that key into the extraction, and the lift rebuilds the read from
 // this name off the live store. the VERDICT is the shared canon's - this only names its answer
@@ -1118,13 +1129,22 @@ export function absentableStoreReadKeyOf(initNode, ctx) {
   return read ? memberKeyName(read) : null;
 }
 
-// The source offset by probe NODE, for the drain that only sees the rendered probe
-const probeNavStarts = new WeakMap();
+// Source facts by probe node; legacy producers still contribute only their original offset.
+const probeFacts = new WeakMap();
 
+// The read boundary for deferred consumers that have not migrated to source residual slots.
 export function probeNavStartOf(probe) {
   // unknown means NOTHING precedes the read: the split then hands every harvested effect to the
   // probe, which is the safe half - a wrong `ahead` re-emits effects the probe already carries
-  return probe ? probeNavStarts.get(probe) ?? 0 : 0;
+  return probe ? probeFacts.get(probe)?.navStart ?? 0 : 0;
+}
+
+// The immediate probe's source residual, bound to live native slots before child replacement.
+// Older deferred callers without captured facts keep their source-offset partition for now.
+export function probeResidualEffects(probe, effects = []) {
+  const residual = probeFacts.get(probe)?.residual;
+  return residual ? residual.map(({ node, slot }) => slot?.container[slot.key] ?? node)
+    : partitionEffectsAtProbe(effects, probeNavStartOf(probe)).ahead;
 }
 
 // does a rendered probe already carry THIS write? the read a probe reproduces may hold the kept
@@ -1149,8 +1169,8 @@ export function renderDiscardedInitProbe(jobs, ctx) {
 
   const navStart = job?.initProbeNavStart ?? null;
   const rendered = renderDiscardedInitProbeRead(jobs, ctx);
-  if (rendered && Number.isInteger(navStart)) probeNavStarts.set(rendered, navStart);
-  return rendered;
+  if (rendered) probeFacts.set(rendered.node, { navStart, residual: rendered.plan?.residual });
+  return rendered?.node ?? null;
 }
 
 function renderDiscardedInitProbeRead(jobs, ctx) {
@@ -1162,45 +1182,21 @@ function renderDiscardedInitProbeRead(jobs, ctx) {
   // performs (`(globalThis.window?.[(c++, 'self')]).Object` - the pattern key never reaches it)
   const sealed = renderSealedNavProbe(job.sealedProbePlan, metaPath, ctx)
     ?? sealedNavProbeRead(job.declarator?.init ?? job.assignment?.right, metaPath, ctx);
-  if (sealed) return sealed;
+  if (sealed) return { node: sealed, plan: job.sealedProbePlan };
   if (!plan) return null;
-  // the alias-arm probe is the init read spelled verbatim - no guard to build, nothing to
-  // substitute (the alias is the user's own binding, and the drain's inserts are not re-visited)
-  if (plan.aliasProbe) {
-    const read = renderAliasHeldProbeRead(plan.aliasProbe, cloneNode(plan.aliasProbe.object));
-    // a holder the source wrote INLINE carries a nav of its own, and this clone leaves the walk
-    // before its claim would land - the root substitutes here or a raw `globalThis` reaches the
-    // output. a named holder is the user's own binding and the walk answers nothing for it
-    ctx.substituteProbeProxyRoot?.(read);
-    return read;
-  }
+  // The alias holder's child slots finish their natural claims before drain. Rebind only
+  // source-spelling paths to that live value; the read decision remains the pristine one.
+  const captured = plan.kind === 'alias' ? { ...plan, object: claimProbeSourceSlot(plan.aliasProbe.object,
+    meta => ctx.resolvePure(meta, metaPath), { ...nodeSite(plan.aliasProbe.object, metaPath), adapter: ctx.adapter }) } : plan;
+  const guarded = renderClaimProbe(captured, { injectImport: ctx.injectPureImport, cloneHost: cloneStamped });
+  if (plan.kind === 'alias') return { node: guarded, plan };
   const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
-  // a HOP chain reads its OUTERMOST key off the init - that is the read native performs
-  // (`{ Math: { cbrt } } = (guard)` probes `(guard).Math`)
+  // The outermost pattern hop is the first read; a logical selection keeps its leaf read.
   const keyProp = job.chain?.length && !job.initProbeReadsLeaf ? job.chain.at(-1).hopProp : job.prop;
   const { lookupKey } = resolveSynthKeys({ node: keyProp, ...aliasCtx });
   if (typeof lookupKey !== 'string') return null;
-  const probe = substituteProxyRootsInClone(cloneStamped(plan.guardObject), metaPath, ctx);
-  // a leaf the ctor canon could not back may still BE a possible-global with a pure of its own
-  // (`dh().window?.self` -> `_self`): a bare spelling there is a ReferenceError off-browser
-  const leafGlobal = plan.leafPure || plan.leafIsProbe ? null : ctx.resolveGlobalPolyfill?.(plan.leafName);
-  // a plan whose LEAF is the probe itself spells the test operand twice - the read the source
-  // performs off a value only the probe proved absent-able (`null == _globalThis.window ? void 0
-  // : _globalThis.window`)
-  const leaf = plan.leafIsProbe ? cloneNode(probe)
-    : plan.leafPure ? identifier(ctx.injectPureImport(plan.leafPure.entry, plan.leafPure.hintName))
-    : leafGlobal ? identifier(ctx.injectPureImport(leafGlobal.entry, leafGlobal.hintName))
-    : identifier(plan.leafName);
-  const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), leaf);
-  // a computed key BOUND to a name reads through the spelling the walk left in the pattern - a
-  // well-known symbol through its polyfilled binding (`[_Symbol$iterator]`), never through the
-  // name it resolves to; a literal spelling normalises to the dotted read below
-  if (keyProp.computed && keyProp.key?.type === 'Identifier') {
-    return memberExpression(guarded, cloneNode(keyProp.key), { computed: true });
-  }
-  return isValidIdentifierName(lookupKey)
-    ? memberExpression(guarded, identifier(lookupKey))
-    : memberExpression(guarded, literal(lookupKey), { computed: true });
+  return { node: renderAliasHeldProbeRead({ key: lookupKey, computed: !isValidIdentifierName(lookupKey),
+    property: keyProp.computed && keyProp.key?.type === 'Identifier' ? cloneNode(keyProp.key) : null }, guarded), plan };
 }
 
 // the SE prefix of a RE-ANCHORED assignment init lifts to its own statement: the anchored read

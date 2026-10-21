@@ -413,7 +413,7 @@ export default function plugin(api, options) {
     collapseKeptNavValueNode,
     collapseClaimlessCallRootedNav,
     collapseShortCircuitNavInPlace,
-    probedNavGuardValueNode,
+    destructureProbeNode,
     renderWriteHostProbeGuard,
     sealedClaimThrowProbeNode,
     flushKeptNavCollapseAt,
@@ -2317,9 +2317,8 @@ export default function plugin(api, options) {
           t,
           resolvedType,
           markThrowingExtraction,
-          probedNavGuardValueNode,
+          destructureProbeNode,
           collapseKeptNavValueNode,
-          sealedClaimThrowProbeNode,
         });
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
