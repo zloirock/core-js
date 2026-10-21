@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
-- Nothing
+- Compat data improvements:
+  - Added [Opera for Android 103](https://forums.opera.com/topic/89817/opera-for-android-103) compat data mapping
 
 ### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
 - Changes [v3.50.0...v3.51.0](https://github.com/zloirock/core-js/compare/v3.50.0...v3.51.0) (62 commits)
