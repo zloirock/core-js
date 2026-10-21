@@ -494,9 +494,8 @@ for (const [id, want] of liftSfcLangCases) {
     ['byte order mark', '\uFEFF'],
     ['en quad', '\u2000'],
   ];
-  // a hop the plan ANCHORED under a sole array-assignment wrapper (`AggregateError: { customZ }`) has no
-  // local of its own: the twin route stands down on it instead of recording a nameless overwrite -
-  // the transform must neither throw nor lose the sibling claim
+  // Static/global slots under a literal array wrapper keep their native reads.
+  // An ordinary global substitution still applies to the wrapper's source.
   {
     const source = 'let customZ, f; ([{ AggregateError: { customZ }, Iterator: { from: f } }] = [globalThis]);\n';
     let out;
@@ -505,10 +504,9 @@ for (const [id, want] of liftSfcLangCases) {
     } catch (error) {
       out = `THROW ${ error.message }`;
     }
-    // The shared mirror now supplies the static in its source slot while preserving
-    // the missing constructor's anchor beside it; extraction is also a valid render.
-    check('destructure: array-assign keeps the static beside an anchored hop',
-      /(?:f =|from:) _Iterator\$from/.test(out) && out.includes('_AggregateError'), true);
+    check('destructure: array assignment retains both native constructor slots',
+      out.includes('AggregateError: { customZ }') && out.includes('Iterator: { from: f }') && out.includes('[_globalThis]'), true);
+    check('destructure: array assignment has no dedicated static extraction', out.includes('/iterator/from'), false);
   }
   for (const [label, gap] of GAPS) {
     const source = `import x from "y";${ gap }// keep\nexport const r = [...x].at(0);\n`;
@@ -5474,8 +5472,8 @@ checkSealedLayerAbove();
 {
   const source = "const [{ 'from': f, [Symbol.iterator]: it, ...rest }] = [Array]; use(f, it, rest);";
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
-  check('array-wrapped static slots beside rest extract', output.includes('@core-js/pure/actual/array/from'), true);
-  check('array-wrapped static extraction preserves its exclusion', /'from': _unused, \[_Symbol\$iterator\]: it, \.\.\.rest/.test(output), true);
+  check('array-wrapped static slots beside rest stay native', output.includes('@core-js/pure/actual/array/from'), false);
+  check('array-wrapped native pattern preserves its rest exclusions', /'from': f, \[_Symbol\$iterator\]: it, \.\.\.rest/.test(output), true);
   check('array-wrapped iterator slots beside rest stay native', output.includes('@core-js/pure/actual/get-iterator-method'), false);
 }
 

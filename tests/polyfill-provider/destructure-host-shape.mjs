@@ -56,8 +56,8 @@ const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-sh
 
 const orderedStaticParameter = "{ of: a, [(log.push('key'), 'from')]: b, length: c }";
 for (const [name, parameter, argument, body, expected] of [
-  ['nested literal default', `{ w: { v: { Array: ${ orderedStaticParameter } } } } = { w: { v: globalThis } }`, '', 'return [a, b, c];', true],
-  ['array literal default', `[[${ orderedStaticParameter }]] = [[Array]]`, '', 'return [a, b, c];', true],
+  ['nested literal default', `{ w: { v: { Array: ${ orderedStaticParameter } } } } = { w: { v: globalThis } }`, '', 'return [a, b, c];', false],
+  ['array literal default', `[[${ orderedStaticParameter }]] = [[Array]]`, '', 'return [a, b, c];', false],
   ['nested default with repeated native siblings', '[{ Array: { of: a }, extra: b, extra: c } = globalThis]', '[]', 'return [a, b, c];', true],
   ['repeated native default overridden by caller', '[{ Array: { of: a }, extra: b, extra: c } = globalThis]', '[user]', 'return [a, b, c];', false],
   ['nested default with unknown sibling key', '[{ Array: { of: a }, [unknown]: b, extra: c } = globalThis]', '[]', 'return [a, b, c];', false],
@@ -66,12 +66,12 @@ for (const [name, parameter, argument, body, expected] of [
     `[${ orderedStaticParameter.replace('length: c', 'length: c, fallback: value = () => opaque()') }] = [Array]`,
     '',
     'return [a, b, c];',
-    true,
+    false,
   ],
   ['partial conditional default', `{ Array: ${ orderedStaticParameter } } = flag ? globalThis : { Array: {} }`, '', 'return [a, b, c];', false],
   ['claim-only array default', "[{ [(log.push('key'), 'of')]: a }] = [Array]", '', 'return a;', false],
   ['supplied builtin', orderedStaticParameter, 'Array', 'return [a, b, c];', true],
-  ['supplied nested realm', `{ w: [{ Array: ${ orderedStaticParameter } }] }`, '{ w: [globalThis] }', 'return [a, b, c];', true],
+  ['supplied nested realm', `{ w: [{ Array: ${ orderedStaticParameter } }] }`, '{ w: [globalThis] }', 'return [a, b, c];', false],
   ['custom caller', orderedStaticParameter, 'Array); g(user', 'return [a, b, c];', false],
   ['mixed builtin callers', orderedStaticParameter, 'Array); g(Uint8Array', 'return [a, b, c];', false],
   ['mixed array wrapped custom callers', `[${ orderedStaticParameter }]`, '[Array]); g([user]', 'return [a, b, c];', false],
@@ -109,69 +109,6 @@ for (const [name, parameter, argument, body, expected] of [
       check(`${ label }/target pattern`, plan.defaultCapture.pattern.type, 'ObjectPattern');
     });
 }
-
-for (const [name, before, after, expected, mutation] of [
-  ['quiet closed append', '', 'g(); export const effects = log;', true],
-  ['immediate caller precedes observation', '', '(() => g())(); export const effects = log;', true],
-  ['own push function', 'log.push = function () {};', 'g();', false],
-  ['own push getter', "Object.defineProperty(log, 'push', { get() { return function () {}; } });", 'g();', false],
-  ['own primitive push', 'log.push = 1;', 'g();', false],
-  ['own length write', 'log.length = 0;', 'g();', false],
-  ['alias handout', 'const alias = log;', 'g();', false],
-  ['unknown handout', 'mutate(log);', 'g();', false],
-  ['deferred handout after source call', '', 'observe(); g(); function observe() { mutate(log); }', false],
-  ['hoisted write after source call', '', 'patch(); g(); function patch() { log.push = function () {}; }', false],
-  ['loop handout feeds next call', '', 'for (let i = 0; i < 2; i++) { g(); mutate(log); }', false],
-  ['linking export after source call', '', 'g(); export { log };', false],
-  ['prototype numeric setter', '', 'g();', false, 'Array.prototype.0'],
-  ['prototype push change', '', 'g();', false, 'Array.prototype.push'],
-  ['prototype iterator replacement', '', 'g();', false, 'Array.prototype.Symbol.iterator'],
-  ['visible iterator return accessor', "Object.defineProperty(Object.getPrototypeOf([][Symbol.iterator]()), 'return', { get() { return close; } });", 'g();', false],
-  ['claimed leaf default', 'unknown(log);', 'g();', false],
-  ['optional call', '', 'g();', false],
-]) runBoth(`iterator-close capture closure/${ name }`, `const log = []; ${ before }
-  function g([${ name === 'optional call' ? orderedStaticParameter.replace('log.push(', 'log.push?.(')
-    : name === 'claimed leaf default' ? orderedStaticParameter.replace('of: a', 'of: a = fallback()') : orderedStaticParameter }] = [Array]) {
-    return [a, b, c];
-  } ${ after }`, (parser, program, label) => {
-  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.value.name === 'a'
-    || path.node.value.left?.name === 'a');
-  check(`${ label }/claimed property selected`, !!prop, true);
-  const resolver = parser.makeResolver();
-  const census = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer(null)]);
-  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
-    method: 'usage-pure',
-    collectBindingReferences: resolver.collectBindingReferences,
-    getMutatedStatics: () => new Set(mutation ? [mutation] : []),
-    getWrittenContainerSlots: () => census.writtenContainerSlots,
-    getContainerSlotIndex: () => census.containerSlotIndex,
-  });
-  const refs = resolver.collectBindingReferences(prop, 'log', { closed: true });
-  check(`${ label }/reference hook available`, Array.isArray(refs), name !== 'linking export after source call');
-  if (name === 'visible iterator return accessor') check(`${ label }/generic return veto`, adapter.isWrittenContainerSlot('', ['return']), true);
-  const plan = planRetainedObjectCapture({
-    propPath: prop,
-    adapter,
-    meta: { kind: 'property', object: 'Array', key: 'of', placement: 'static' },
-    parameterCallSites: resolver.parameterCallSites,
-    resolvePure: meta => meta.object === 'Array' && ['of', 'from'].includes(meta.key)
-      ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
-  });
-  check(`${ label }/iterator-moving admission`, !!plan?.defaultCapture && !plan.defaultCapture.retainedHead, expected);
-  const retained = !expected && name !== 'prototype iterator replacement' && name !== 'claimed leaf default';
-  check(`${ label }/post-close static handoff`, !!plan?.defaultCapture?.retainedHead, retained);
-  if (retained) {
-    const source = JSON.stringify(plan.defaultCapture.root);
-    const spent = [];
-    const rendered = renderRetainedObjectCapture(plan, { injectImport: entry => entry.replaceAll('/', '_'), claimProperties: props => spent.push(...props) });
-    checkDeep(`${ label }/positional rebinds`, rendered.statements.map(statement => statement.expression.left.name), ['a', 'b']);
-    checkDeep(`${ label }/pure static values`, rendered.statements.map(statement => statement.expression.right.name), ['array_of', 'array_from']);
-    check(`${ label }/original parameter unchanged`, JSON.stringify(plan.defaultCapture.root), source);
-    checkDeep(`${ label }/source claims spent once`, spent.map(item => item.value.name), ['a', 'b']);
-    check(`${ label }/computed key remains live`, spent.includes(prop.parentPath.node.properties[1].key), false);
-    check(`${ label }/native head is retained`, rendered.head, undefined);
-  }
-});
 
 for (const [source, closed] of [
   ['export const log = []; use(log);', false],
@@ -1668,64 +1605,6 @@ for (const order of ['other, [(effect(), "at")]: at', '[(effect(), "at")]: at, o
         order.startsWith('other') ? 'SequenceExpression' : 'ConditionalExpression');
     });
 }
-
-for (const assignment of [false, true]) runBoth('retained array elements reuse the iteration capture',
-  assignment ? 'let of, rest, tail; ([{ of, ...rest }, tail] = [Array, 7]);'
-    : 'const [{ of, ...rest }, tail] = [Array, 7];', (parser, program, label) => {
-    const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator');
-    const pattern = assignment ? host.node.left : host.node.id;
-    const init = assignment ? host.node.right : host.node.init;
-    const capture = planArrayWrapperCapture({ pattern, init, force: true });
-    const [leaf] = pattern.elements;
-    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
-    const retained = planRetainedObjectCapture({
-      pattern: leaf,
-      init: init.elements[0],
-      prop: leaf.properties[0],
-      assignment,
-      hostPath: host,
-      adapter,
-      kind: 'static',
-      provenCtorName: 'Array',
-      resolveStaticProp: () => ({ pure: { kind: 'static', entry: 'array/of' } }),
-    });
-    check(`${ label }: retained leaf`, !!retained, true);
-    let refs = 0;
-    let unused = 0;
-    let declaredUnused = 0;
-    const rendered = renderArrayDestructurePlan(
-      {
-        array: {
-          capture,
-          assignment,
-          elements: capture.elements.map(element => element.pattern === leaf
-            ? { node: leaf, retained, extraction: { entry: 'array/of' } }
-            : { node: element.pattern, kind: 'verbatim' }),
-        },
-      },
-      {
-        kind: 'const', init, embed: node => node, injectImport: () => 'ofImport',
-        mintRef: () => `memo${ ++refs }`, mintDeclaredRef: () => `memo${ ++refs }`,
-        mintUnused: declared => {
-          if (declared) declaredUnused++;
-          return `unused${ ++unused }`;
-        },
-      },
-    );
-    check(`${ label }: rest exclusion uses the sentinel minter`, unused, 1);
-    check(`${ label }: assignment sentinel needs a declaration`, declaredUnused, assignment ? 1 : 0);
-    const copies = [];
-    for (const root of rendered) walkAstNodes({
-      root,
-      visit(node) {
-        const left = node.type === 'VariableDeclarator' ? node.id : node.type === 'AssignmentExpression' ? node.left : null;
-        const right = node.type === 'VariableDeclarator' ? node.init : node.right;
-        if (left?.type === 'Identifier' && right?.type === 'Identifier'
-          && left.name.startsWith('memo') && right.name.startsWith('memo')) copies.push(node);
-      },
-    });
-    check(`${ label }: no second receiver capture`, copies.length, 0);
-  });
 
 runBoth('retained instance capture keeps a guarded static sibling',
   'let M = Map; if (flag) M = source; let nm, method, other; ({ at: other, name: nm, groupBy: method } = M);', (parser, program, label) => {

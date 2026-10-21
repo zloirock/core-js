@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const heldProbe = globalThis.window;
 export const { of: viaAliasChainDecl } = heldProbe.Array;
 let viaAliasChainAssign;
@@ -7,6 +7,5 @@ let viaAliasChainAssign;
 export { viaAliasChainAssign };
 export const [{ of: viaAliasChainWrapped }] = [heldProbe.Array];
 export const { Array: { of: viaAliasChainNested } } = heldProbe;
-// In a full consume, the throw probe precedes the first extracted binding.
 export const { of: viaAliasChainMultiA, from: viaAliasChainMultiB } = heldProbe.Array;
 export const { of: viaAliasChainRestA, ...viaAliasChainRest } = heldProbe.Array;

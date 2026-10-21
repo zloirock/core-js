@@ -1,5 +1,5 @@
-// A captured wrapper retains its effectful static key beside an opaque instance leaf.
-// Narrowing the constructor cannot shed the capture or duplicate the key evaluation.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 export function read(unknown) {
   const log = [];
   for (const e of [Array]) {

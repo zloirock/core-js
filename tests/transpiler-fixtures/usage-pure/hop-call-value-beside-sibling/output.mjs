@@ -1,9 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// A static reached through a call keeps that call and neighboring effects in source order.
-// Known constructor arms receive pure values; user branches keep their own members, and an arm the
-// selection never reaches drops with it.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const c = 1;
 const userObj = {};
 const log = [];
@@ -17,9 +16,7 @@ const {
   },
   q: q1
 } = {
-  w: (eff(), {
-    keys: _Object$keys
-  }),
+  w: eff(),
   q: 1
 };
 const {
@@ -29,10 +26,7 @@ const {
   },
   q: q2
 } = {
-  w: (eff(), {
-    at: Object.at,
-    keys: _Object$keys
-  }),
+  w: eff(),
   q: 1
 };
 const {
@@ -41,9 +35,7 @@ const {
   },
   q: q3
 } = {
-  w: (eff(), {
-    keys: _Object$keys
-  }),
+  w: eff(),
   q: 1
 };
 const {
@@ -52,9 +44,7 @@ const {
   },
   q: q4
 } = {
-  w: (eff(), {
-    keys: _Object$keys
-  }),
+  w: eff(),
   q: 1
 };
 const {
@@ -63,9 +53,7 @@ const {
   },
   q: q5
 } = {
-  w: (eff(), {
-    keys: _Object$keys
-  }),
+  w: eff() || userObj,
   q: 1
 };
 const {
@@ -74,11 +62,7 @@ const {
   },
   q: q7
 } = {
-  w: c ? (eff(), {
-    keys: _Object$keys
-  }) : {
-    keys: _Object$keys
-  },
+  w: c ? eff() : Object,
   q: 1
 };
 const {
@@ -87,9 +71,7 @@ const {
   },
   q: q8
 } = {
-  w: c ? (eff(), {
-    keys: _Object$keys
-  }) : userObj,
+  w: c ? eff() : userObj,
   q: 1
 };
 const _ref2 = {
@@ -109,9 +91,7 @@ const {
   },
   q: q10
 } = {
-  w: (_pushMaybeArray(log).call(log, 2), eff(), {
-    keys: _Object$keys
-  }),
+  w: (_pushMaybeArray(log).call(log, 2), eff()),
   q: 1
 };
 const {
@@ -119,9 +99,7 @@ const {
     keys: viaSole
   }
 } = {
-  w: (eff(), {
-    keys: _Object$keys
-  })
+  w: eff()
 };
 const {
   a: {

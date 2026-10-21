@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// A computed key under an array wrapper observes its binding before initialization.
-// The static method is polyfilled after that key; the second element stays paired.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 let seen;
 function observe() {
   try {
@@ -10,9 +10,7 @@ function observe() {
     seen = _nameMaybeFunction(error);
   }
 }
-const [{
-  [(observe(), 'from')]: from
-}, other] = [{
-  from: _Array$from
-}, {}];
+const [{}, _ref] = [Array, {}],
+  from = (observe(), _Array$from),
+  other = _ref;
 export const result = [seen, from([7]), other];

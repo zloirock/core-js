@@ -10,6 +10,7 @@ import {
   computedRootMemoChain,
   decidedSelection,
   destructurePropLeafMeta,
+  destructureRetainsLiteralWrapper,
   isReReferenceableAcrossReads,
   residualInitRunsEffects,
   resolveNestedReceiverChain,
@@ -26,6 +27,27 @@ import { collectFileCensus, isPropertyNode, patternFullyConsumed, walkAstNodes }
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
+
+for (const [name, source, expected, kind = 'static'] of [
+  ['literal array', 'const [{ from }] = [Array];', true],
+  ['literal object', 'const { w: { from } } = { w: Array };', true],
+  ['held array', 'const held = [Array]; const [{ from }] = held;', true],
+  ['assignment', 'let from; ({ w: { from } } = { w: Array });', true],
+  ['container default', 'function read({ w: { from } } = { w: Array }) {}', true],
+  ['inner container default', 'function read({ w: { x: { from } } = { x: Array } }) {}', true],
+  ['direct realm', 'const { Array: { from } } = globalThis;', false],
+  ['empty default', 'const { Array: { from } = {} } = globalThis;', false],
+  ['independent receiver default', 'const [{ from } = Array] = source;', false],
+  ['call fallback', 'const { 0: { from } = {} } = make();', false],
+  ['instance sibling', 'const [{ from }] = [Array.prototype];', false, 'instance'],
+]) runBoth(`retained literal wrapper/${ name }`, source, (parser, program, label) => {
+  const propPath = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    item => item.parentPath.node.type === 'ObjectPattern' && item.node.key.name === 'from');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(propPath.node);
+  check(label, destructureRetainsLiteralWrapper({ propPath, kind, adapter }), expected);
+  check(`${ label }/query keeps source`, JSON.stringify(propPath.node), before);
+});
 
 // Plain deep proxy navigation uses the receiver's throw proof; live guards and a
 // shadowed host still need the source's runtime selection.
@@ -203,7 +225,7 @@ for (const [pattern, captured] of [['{ at }', true], ['{ other, at }', true], ['
 for (const [source, kind, captured] of [
   ['const [{ at, ...rest }] = [source];', 'instance', true],
   ['const [{ [(effect(), "at")]: at }] = [source];', 'instance', true],
-  ['const [{ [(effect(), "from")]: from }] = [Array];', 'static', true],
+  ['const [{ [(effect(), "from")]: from }] = [Array];', 'static', false],
   ['const [{ from, ...rest }] = [Array];', 'static', false],
   ['const [{ at }] = [source];', 'instance', false],
   ['const [{ y: { at } }, other] = [make(), effect()];', 'instance', true],
@@ -232,15 +254,15 @@ for (const [source, kind, captured] of [
   check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
-for (const [pattern, init, names, sentinels] of [
-  ['[{ from, ...rest }]', '[Array]', ['from'], 1],
-  ['[{ "from": from, ...rest }, other]', '[Array, {}]', ['from'], 1],
-  ['[{ [Symbol.iterator]: iterator, of, ...rest }]', '[Array]', ['of'], 1],
-  ['[{ from = fallback(), ...rest }]', '[Array]', ['from'], 1],
-  ['[{ from, other }, tail]', '[Array, 1]', ['from'], 0],
-  // The singleton without rest belongs to the ordinary object flatten plan.
-  ['[{ from, other }]', '[Array]', [], 0],
-  ['[{ at, ...rest }]', '[source]', [], 0],
+for (const [pattern, init] of [
+  ['[{ from, ...rest }]', '[Array]'],
+  ['[{ "from": from, ...rest }, other]', '[Array, {}]'],
+  ['[{ [Symbol.iterator]: iterator, of, ...rest }]', '[Array]'],
+  ['[{ from = fallback(), ...rest }]', '[Array]'],
+  ['[{ from, other }, tail]', '[Array, 1]'],
+  // Static wrapper leaves stay native with or without rest.
+  ['[{ from, other }]', '[Array]'],
+  ['[{ at, ...rest }]', '[source]'],
 ]) runBoth(`array plan/static exclusions ${ pattern }`, `const ${ pattern } = ${ init };`, (parser, program, label) => {
   const arrayPath = parser.pickPath(program, 'VariableDeclarator');
   const original = JSON.stringify(arrayPath.node);
@@ -254,37 +276,7 @@ for (const [pattern, init, names, sentinels] of [
       hintName: meta.key,
     } : null,
   });
-  checkDeep(`${ label } static claims`, plan?.extractions.map(extraction => extraction.localName) ?? [], names);
-  check(`${ label } rest exclusions`, plan?.array.elements.flatMap(element => element.children ?? [])
-    .filter(child => child.sentinel).length ?? 0, sentinels);
-  if (plan) {
-    check(`${ label } original iteration retained`, !!plan.array.capture, false);
-    check(`${ label } statics need no receiver memo`, plan.array.memos.length, 0);
-    check(`${ label } import owns dead default`, plan.extractions.some(extraction => extraction.defaultNode), false);
-  }
-  check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
-});
-
-for (const [source, lifted] of [
-  ['const [{ Object: { keys, ...rest } }] = [globalThis];', 0],
-  ['const [{ Object: { keys, ...rest } }] = [(effect(), globalThis)];', 1],
-  ['const [{ Object: { keys = fallback(), ...rest } }] = [(effect(), globalThis)];', 1],
-  ['export const [{ Object: { keys, ...rest } }] = [globalThis];', 0],
-  ['const before = effect(), [{ Object: { keys, ...rest } }] = [globalThis], after = effect();', 0],
-]) runBoth('array plan/nested static exclusions', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-  const original = JSON.stringify(arrayPath.node);
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => meta.object === 'Object' && meta.key === 'keys'
-      ? { kind: 'static', entry: 'actual/object/keys', hintName: 'keys' } : null,
-  });
-  checkDeep(`${ label } static leaf`, plan?.extractions.map(extraction => extraction.localName), ['keys']);
-  check(`${ label } prefix owns effects`, plan?.array.leading.length, lifted);
-  check(`${ label } source hop remains`, plan?.array.residualPattern.elements[0].properties[0].key.name, 'Object');
-  check(`${ label } rest keeps its exclusion`, plan?.array.elements[0].children.at(0).sentinel, true);
+  check(`${ label } wrapper remains native`, plan, null);
   check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
@@ -416,44 +408,6 @@ for (const [source, positions, reads] of [
 });
 
 for (const source of [
-  'const [{ trunc }] = [Math];',
-  'export const [{ from }] = [globalThis.Array];',
-  'const outer = [Array]; const alias = outer; const [{ from }] = alias;',
-  'export const source = [Array]; export const [{ from }] = source;',
-  'const make = value => [value]; const [{ raw }] = make(String);',
-  'const wrapper = [[Array]]; const [[{ from }]] = wrapper;',
-]) runBoth('array plan/captured singleton static', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => ['trunc', 'from', 'raw'].includes(meta.key)
-      ? { kind: 'static', entry: `actual/${ meta.object.toLowerCase() }/${ meta.key }`, hintName: meta.key } : null,
-  });
-  check(`${ label } captures the source`, plan?.array.capture?.init, arrayPath.node.init);
-  check(`${ label } preserves the native read`, plan?.array.elements.at(0).children.at(0).sentinel, true);
-  check(`${ label } exported placement`, !!plan?.array.inDeclaration, source.startsWith('export'));
-});
-
-runBoth(
-  'array plan/optional call retains its native selection',
-  'const make = () => [Array]; const [{ of }] = make?.();',
-  (parser, program, label) => {
-    const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-    const plan = buildNestedDestructurePlan({
-      arrayPath,
-      adapter,
-      resolvePure: meta => meta.key === 'of'
-        ? { kind: 'static', entry: 'actual/array/of', hintName: 'of' } : null,
-    });
-    check(`${ label } optional call runs before the binding`, plan?.array.capture?.init, arrayPath.node.init);
-    check(`${ label } native property read retained`, plan?.array.elements[0].children.at(0).nativeStatic, true);
-  },
-);
-
-for (const source of [
   'const rows = [Object, source]; let keys, at; ([{ keys }, { at }] = rows);',
   'const source = { get native() { return 1; } }; const rows = [Object, source]; let keys, native; ([{ keys }, { native }] = rows);',
   'const make = () => [Object, 1]; let keys, tail; ([{ keys }, tail] = make());',
@@ -466,31 +420,11 @@ for (const source of [
     resolvePure: meta => meta.key === 'keys' ? { kind: 'static', entry: 'actual/object/keys', hintName: 'keys' }
       : meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
   });
-  checkTruthy(`${ label } owns native positions`, plan?.array.positional);
-  check(`${ label } first write is static`, plan?.extractions[0].kind, 'static');
-  checkTruthy(`${ label } retains static native read`, plan?.array.elements[0].children.at(0).nativeStatic);
-  check(`${ label } keeps original receiver`, plan?.array.capture.init, arrayPath.node.right);
-});
-
-for (const source of [
-  'const held = { k: [Math] }; const { k: [{ sign }, tail] } = held;',
-  'const held = { k: [Math] }; export const { k: [{ sign }, tail] } = held;',
-]) runBoth('array plan/static under a captured object key', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => meta.key === 'sign' ? { kind: 'static', entry: 'actual/math/sign', hintName: 'sign' } : null,
-  });
-  check(`${ label } retains the key selection in its native position`, plan?.array.capture.pattern, arrayPath.node.id);
-  checkTruthy(`${ label } keeps the outer native key`, plan?.array.capture.keyed.has(arrayPath.node.id));
-  checkTruthy(`${ label } native static getter`, plan?.array.elements[0].children.at(0).nativeStatic);
-  check(`${ label } keeps the neighbouring binding`, plan?.array.elements[1].node.name, 'tail');
+  checkDeep(`${ label } only independent instance extracts`, plan?.extractions.map(read => read.localName) ?? [], source.includes('{ at }') ? ['at'] : []);
 });
 
 runBoth(
-  'array plan/conditional neighbour retains its original mirror',
+  'array plan/conditional static neighbour stays native',
   'const [{ at }, { from }] = [source, pick ? Array : other];',
   (parser, program, label) => {
     const arrayPath = parser.pickPath(program, 'VariableDeclarator');
@@ -503,36 +437,16 @@ runBoth(
         : meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
     });
     checkTruthy(`${ label } capture owns both positions`, plan?.array.capture);
-    check(`${ label } mirror still names the original property`, plan?.array.mirrors[0].propPath.node.key.name, 'from');
+    check(`${ label } static sibling stays native`, plan?.array.elements[1].kind, 'verbatim');
     checkDeep(`${ label } instance decision retained`, plan?.extractions.map(item => item.localName), ['at']);
     check(`${ label } planning does not apply the mirror`, JSON.stringify(arrayPath.node), original);
   },
 );
 
 for (const source of [
-  'const [{ native }, { from }] = [source, pick ? Array : other];',
-  'let native, from; ([{ native }, { from }] = [source, pick ? Array : other]);',
-]) runBoth('array plan/mirror alone preserves native neighbour order', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(
-    program,
-    source.startsWith('const') ? 'VariableDeclarator' : 'AssignmentExpression',
-    item => (item.node.id ?? item.node.left)?.type === 'ArrayPattern',
-  );
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => meta.key === 'from' ? { kind: 'static', entry: 'actual/array/from', hintName: 'from' } : null,
-  });
-  checkTruthy(`${ label } capture remains despite no independent extraction`, plan?.array.capture);
-  checkDeep(`${ label } native reads remain native`, plan?.extractions, []);
-  check(`${ label } original mirror retained`, plan?.array.mirrors.length, 1);
-});
-
-for (const source of [
   'const [{ from, at }] = [pick ? Array : user];',
   'let from, at; ([{ from, at }] = [pick ? Array : user]);',
-]) runBoth('array plan/mirror and instance share the original receiver decision', source, (parser, program, label) => {
+]) runBoth('array plan/native static and instance share the original receiver decision', source, (parser, program, label) => {
   const arrayPath = parser.pickPath(
     program,
     source.startsWith('const') ? 'VariableDeclarator' : 'AssignmentExpression',
@@ -546,12 +460,12 @@ for (const source of [
       : meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
   });
   checkTruthy(`${ label } capture owns original array`, plan?.array.capture);
-  check(`${ label } original branch mirror`, plan?.array.mirrors.length, 1);
+  check(`${ label } static sibling stays native`, plan?.array.elements[0].children.at(0).kind, 'verbatim');
   checkDeep(`${ label } original instance decision`, plan?.extractions.map(item => item.localName), ['at']);
 });
 
 runBoth(
-  'array plan/sole static mirror needs no capture',
+  'array plan/sole static wrapper needs no capture',
   'const [{ from }] = [pick ? Array : user];',
   (parser, program, label) => {
     const arrayPath = parser.pickPath(program, 'VariableDeclarator');
@@ -562,13 +476,13 @@ runBoth(
       resolvePure: meta => meta.key === 'from'
         ? { kind: 'static', entry: 'actual/array/from', hintName: 'from' } : null,
     });
-    check(`${ label } mirror preserves the sole read without moving it`, plan, null);
+    check(`${ label } native fallback preserves the sole read`, plan, null);
   },
 );
 
 for (const receiver of ['pick ? globalThis : user', 'user || globalThis', 'pick && globalThis']) {
   runBoth(
-    'array plan/selected nested static stays with its branch mirror',
+    'array plan/selected nested static stays with its source branch',
     `const [, { Array: { from } }] = [0, ${ receiver }];`,
     (parser, program, label) => {
       const arrayPath = parser.pickPath(program, 'VariableDeclarator');
@@ -583,49 +497,6 @@ for (const receiver of ['pick ? globalThis : user', 'user || globalThis', 'pick 
     },
   );
 }
-
-runBoth(
-  'array plan/positional namespace uses a proven pure anchor',
-  'const held = [globalThis]; const [{ Reflect: { ownKeys } }] = held;',
-  (parser, program, label) => {
-    const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-    const plan = buildNestedDestructurePlan({
-      arrayPath,
-      adapter,
-      resolvePure: meta => meta.kind === 'global' && meta.name === 'Reflect'
-        ? { kind: 'global', entry: 'actual/reflect/namespace', hintName: 'Reflect' }
-        : meta.key === 'ownKeys' ? { kind: 'static', entry: 'actual/reflect/own-keys', hintName: 'ownKeys' } : null,
-    });
-    check(`${ label } common anchor`, plan?.array.elements[0].anchorPure.entry, 'actual/reflect/namespace');
-    check(`${ label } capture still evaluates original alias`, plan?.array.capture.init, arrayPath.node.init);
-  },
-);
-
-for (const source of [
-  'for (const [{ Array: { of }, ...rest }] = [(effect(), globalThis)]; false;) {}',
-  'if (ok) var [{ Array: { of }, ...rest }] = [(effect(), globalThis)];',
-  'export const [{ Array: { of }, ...rest }] = [(effect(), globalThis)];',
-  'const before = effect(), [{ Array: { of }, ...rest }] = [globalThis], after = of(1);',
-  'let of, rest, tail; ([{ of, ...rest }, tail] = [Array, 1]);',
-  'let keys, rest, saved; ([{ Object: { keys }, ...rest }] = [saved = (effect(), globalThis)]);',
-  'let fromAsync, rest; ([{ Array: { fromAsync }, ...rest }] = [(effect(), globalThis)]);',
-]) runBoth('array plan/static rest uses the retained object decision', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'AssignmentExpression', item => item.node.left.type === 'ArrayPattern')
-    ?? parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => meta.kind === 'global' && meta.name === 'Array'
-      ? { kind: 'global', entry: 'actual/array', hintName: 'Array' }
-      : ['of', 'keys', 'fromAsync'].includes(meta.key)
-        ? { kind: 'static', entry: `actual/${ meta.object.toLowerCase() }/${ meta.key }`, hintName: meta.key } : null,
-  });
-  checkTruthy(`${ label } captures the original array`, plan?.array.capture);
-  checkTruthy(`${ label } owns the rest source`, plan?.array.elements[0].retained);
-  check(`${ label } initializer remains in place`, plan?.array.capture?.init, arrayPath.node.right ?? arrayPath.node.init);
-});
 
 for (const [source, captured] of [
   ['const [{ [(effect(), "at")]: at }] = [Array.prototype, ...tail];', true],
@@ -652,7 +523,7 @@ for (const [name, source, expected] of [
   ['constructor guard', 'function read(flag, user) { const [[{ entries }], tail] = [[flag ? Object : user], 0]; return entries; }', false],
   ['nested guard', 'function read(flag, user) { const [{ w: { entries } }] = [{ w: flag ? Object : user }]; return entries; }', false],
   ['static sibling', 'let of, from, length, tail; [{ of, [(effect(), "from")]: from, length }, tail] = [Array, 31];', false],
-  ['ordinary static', 'const [{ of }] = [Array];', true],
+  ['ordinary static', 'const [{ of }] = [Array];', false],
 ]) runBoth(`array plan/per-property owner/${ name }`, source, (parser, program, label) => {
   const arrayPath = parser.pickPath(program, source.startsWith('let') ? 'AssignmentExpression' : 'VariableDeclarator',
     item => item.node.id?.type === 'ArrayPattern' || item.node.left?.type === 'ArrayPattern');
@@ -669,32 +540,6 @@ for (const [name, source, expected] of [
   check(`${ label } full array admission`, !!plan, expected);
 });
 
-for (const source of [
-  'const wrapper = [globalThis]; const [{ Object: { fromEntries } }] = wrapper;',
-  'const make = value => [value]; export const [{ Object: { fromEntries } }] = make(globalThis);',
-  'const list = [{ P: Promise }]; const [{ P: { race } }] = list;',
-  'const wrapper = [(() => Array)()]; const [{ from }] = wrapper;',
-  'const held = [Math]; const [{ sign } = {}] = held;',
-  'const make = () => [Math]; const [{ sign } = {}] = make();',
-  'const make = () => [Math]; const [{ sign } = {}] = make?.();',
-]) runBoth('array plan/proven nested static alias', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => ['fromEntries', 'race', 'from', 'sign'].includes(meta.key)
-      ? { kind: 'static', entry: `actual/${ meta.object.toLowerCase() }/${ meta.key }`, hintName: meta.key } : null,
-  });
-  check(`${ label } preserves native iteration and reads`, plan?.array.nativeStatic, true);
-  checkDeep(
-    `${ label } static extraction`,
-    plan?.extractions.map(read => read.localName),
-    [source.includes('race') ? 'race' : source.includes('(() => Array)') ? 'from'
-      : source.includes('sign') ? 'sign' : 'fromEntries'],
-  );
-});
-
 runBoth(
   'array plan/native static cannot cross a missing constructor',
   'const wrapper = [globalThis]; const [{ Promise: { resolve } }] = wrapper;',
@@ -709,28 +554,10 @@ runBoth(
         ? { kind: 'global', entry: 'actual/promise', hintName: 'Promise' }
         : meta.key === 'resolve' ? { kind: 'static', entry: 'actual/promise/resolve', hintName: 'resolve' } : null,
     });
-    check(`${ label } no raw native hop`, !!plan?.array.nativeStatic, false);
     check(`${ label } original remains available to mirror`, JSON.stringify(arrayPath.node), original);
+    check(`${ label } static wrapper stays native`, plan, null);
   },
 );
-
-for (const source of [
-  'const wrapped = [{ k: [Object] }]; const [{ k: [{ is }] }] = wrapped;',
-  'const wrapped = [{ k: [Object] }]; export const [{ k: [{ is }] }] = wrapped;',
-]) runBoth('array plan/nested static retains native array iterations', source, (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    resolvePure: meta => meta.key === 'is'
-      ? { kind: 'static', entry: 'actual/object/is', hintName: 'is' } : null,
-  });
-  check(`${ label } keeps the whole native pattern`, plan?.array.nativeStatic, true);
-  check(`${ label } native source pattern`, plan?.pattern, arrayPath.node.id);
-  check(`${ label } export starts at pure binding`, plan?.array.exportFrom, 1);
-  checkDeep(`${ label } pure static binding`, plan?.extractions.map(read => read.localName), ['is']);
-});
 
 for (const source of [
   'const { w: [{ at }] } = { w: [[1]] };',
@@ -902,24 +729,6 @@ runBoth(
   },
 );
 
-runBoth(
-  'array plan/nested static after trailing effect',
-  'const w3 = [globalThis]; const [[{ Object: { hasOwn } }]] = [w3, effect()];',
-  (parser, program, label) => {
-    const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
-    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-    const plan = buildNestedDestructurePlan({
-      arrayPath,
-      adapter,
-      resolvePure: meta => meta.key === 'hasOwn'
-        ? { kind: 'static', entry: 'actual/object/has-own', hintName: 'hasOwn' } : null,
-    });
-    check(`${ label } native iteration before pure binding`, plan?.array.nativeStatic, true);
-    check(`${ label } effect stays in the native initializer`, arrayPath.node.init.elements[1].type, 'CallExpression');
-    check(`${ label } no duplicated lifted prefix`, plan?.array.leading, undefined);
-  },
-);
-
 for (const [source, assignment] of [
   ['const [{ [(effect(), "w")]: { at } }] = [{ w: [1] }];', false],
   ['export const [{ [(effect(), "w")]: { at } }] = [{ w: [1] }];', false],
@@ -965,8 +774,8 @@ for (const pattern of ['[{ w: { is }, y: { at } }]', '[{ y: { at }, w: { is } }]
       });
       check(`${ label } native positions`, plan?.array.capture?.init, arrayPath.node.init);
       check(`${ label } no re-detection`, !!plan?.array.normalize, false);
-      checkDeep(`${ label } source property order`, plan?.extractions.map(read => read.localName), pattern.startsWith('[{ w') ? ['is', 'at'] : ['at', 'is']);
-      check(`${ label } static native read survives`, plan?.array.elements[0].children.find(child => child.extractions?.[0].kind === 'static')?.nativeStatic, true);
+      checkDeep(`${ label } source property order`, plan?.extractions.map(read => read.localName), ['at']);
+      check(`${ label } static subtree stays native`, plan?.array.elements[0].children.find(child => child.prop.key.name === 'w')?.kind, 'verbatim');
       check(`${ label } original host unchanged`, JSON.stringify(arrayPath.node), original);
     },
   );
@@ -1045,19 +854,6 @@ for (const [source, admitted, names] of [
   check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
-runBoth('array plan/already claimed sibling', 'const [{ from: ignored, of, ...rest }] = [Array];', (parser, program, label) => {
-  const arrayPath = parser.pickPath(program, 'VariableDeclarator');
-  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const plan = buildNestedDestructurePlan({
-    arrayPath,
-    adapter,
-    isClaimedProp: (path, meta) => path.node.value.name === 'ignored' && meta.key === 'from',
-    resolvePure: meta => ({ kind: 'static', entry: `actual/array/${ meta.key }`, hintName: meta.key }),
-  });
-  checkDeep(`${ label } only the new claim extracts`, plan?.extractions.map(extraction => extraction.localName), ['of']);
-  check(`${ label } prior sentinel stays native`, plan?.array.elements[0].children.at(0).kind, 'verbatim');
-});
-
 for (const [pattern, names, positions] of [
   ['[{ at }]', ['at'], [[0]]],
   ['[{ at: first }, { includes: second }]', ['first', 'second'], [[0], [1]]],
@@ -1103,9 +899,9 @@ runBoth('array plan/positional static sibling ownership', 'const [{ values }, { 
     adapter,
     resolvePure: meta => ({ kind: meta.key === 'values' ? 'static' : 'instance', entry: `actual/instance/${ meta.key }`, hintName: meta.key }),
   });
-  checkDeep(`${ label } consumes both reads in order`, plan?.extractions.map(item => item.localName), ['values', 'at']);
-  checkDeep(`${ label } captures both original slots`, plan?.array.capture.elements.map(item => item.path), [[0], [1]]);
-  check(`${ label } static read remains native`, plan?.array.elements[0].children.at(0).nativeStatic, true);
+  checkDeep(`${ label } instance still extracts`, plan?.extractions.map(item => item.localName), ['at']);
+  checkDeep(`${ label } captures the instance slot`, plan?.array.capture.elements.map(item => item.path), [[1]]);
+  check(`${ label } static slot remains in the pattern`, plan?.array.capture.pattern.elements[0].properties[0].key.name, 'values');
   check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
@@ -2346,5 +2142,24 @@ for (const [name, source, names, positions] of [
   }
   check(`${ label } source unchanged`, JSON.stringify(path.node), original);
 });
+
+runBoth(
+  'array plan/native receiver default beside an instance claim',
+  'const [{ from } = Array, { at }] = [undefined, [7, 8]];',
+  (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator');
+    const original = JSON.stringify(arrayPath.node);
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const plan = buildNestedDestructurePlan({
+      arrayPath,
+      adapter,
+      resolvePure: meta => meta.key === 'from' ? { kind: 'static', entry: 'actual/array/from', hintName: 'from' }
+        : meta.key === 'at' ? { kind: 'instance', entry: 'actual/array/instance/at', hintName: 'at' } : null,
+    });
+    checkDeep(`${ label } independent instance claim`, plan?.extractions.map(item => item.localName), ['at']);
+    check(`${ label } default stays native`, plan?.array.elements[0].kind, 'verbatim');
+    check(`${ label } query keeps the source`, JSON.stringify(arrayPath.node), original);
+  },
+);
 
 finish();

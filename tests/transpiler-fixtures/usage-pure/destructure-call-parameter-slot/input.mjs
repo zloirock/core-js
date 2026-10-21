@@ -1,7 +1,5 @@
-// a slot the callee fills from a PARAMETER holds the argument THIS call passes: an object slot, one
-// beside a literal slot, an array wrapper's element, a keyed slot under the wrapper. another call of
-// the same callee passing Map (whose value owes its constructor entry) leaves the Object row with its
-// own argument alone - no `groupBy` of Map rides on it. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 const wrap = value => ({ a: value });
 const { a: viaParam } = wrap(Object);
 export const fromParam = viaParam.groupBy([1], v => v);

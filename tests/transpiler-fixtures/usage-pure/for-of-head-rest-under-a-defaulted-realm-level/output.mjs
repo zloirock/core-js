@@ -8,7 +8,8 @@ for (const _ref2 of [_globalThis]) {
   var _ref, _unused;
   ({
     Array: _ref = {}
-  } = _ref2), {} = _ref, from2 = _Array$from, {
+  } = _ref2);
+  ({} = _ref), from2 = _Array$from, {
     from: _unused,
     ...r2
   } = _ref;

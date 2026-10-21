@@ -1,7 +1,5 @@
-// a reassigned container's read observes the value written last before it: a write after the read leaves
-// the init, an identity self-assign is no write, a cross-write captures what it reads at its own assignment,
-// an identity write beside a real one leaves the real one dominating, and an inner shadow's write never
-// reaches the outer binding - pure resolves each read to that one value
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let rw4 = { a: Object };
 const { keys: beforeWrite } = rw4.a;
 rw4 = { a: Map };

@@ -1,21 +1,15 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
-import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
-import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
-// A level default holding a selection of containers reads the slot of the arm that runs where it fires:
-// a selection the build decides mirrors its live arm alone, an undecided one mirrors every arm - under an
-// object level, an array level and an element default alike.
+import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise from "@core-js/pure/actual/promise/constructor";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 const {
   W: {
     C: {
       groupBy: viaDecided
     }
   } = {
-    C: {
-      groupBy: _Map$groupBy
-    }
+    C: _Map
   }
 } = {};
 const {
@@ -24,13 +18,9 @@ const {
       from: viaUndecided
     }
   } = c ? {
-    C: {
-      from: _Array$from
-    }
+    C: Array
   } : {
-    C: {
-      from: _Iterator$from
-    }
+    C: _Iterator
   }
 } = {};
 const {
@@ -39,25 +29,19 @@ const {
       allSettled: viaFreshLeft
     }
   } = {
-    C: {
-      allSettled: _Promise$allSettled
-    }
+    C: _Promise
   }
 } = {};
 const {
   T: [{
     hasOwn: viaArrayLevel
-  }] = [{
-    hasOwn: _Object$hasOwn
-  }]
+  }] = [Object]
 } = {};
 const [{
   C: {
     of: viaElement
   }
 } = {
-  C: {
-    of: _Array$of
-  }
+  C: Array
 }] = [];
 export { viaDecided, viaUndecided, viaFreshLeft, viaArrayLevel, viaElement };

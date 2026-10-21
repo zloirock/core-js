@@ -1,6 +1,5 @@
-// a destructure that runs before every write of a global's slot sees the slot this build serves, through
-// whichever channel renders it: a nested pattern under a realm hop, a selection with the global as an arm,
-// a static under a constructor key off the realm, a rest beside one and a prototype pattern under one
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const ns = { root: globalThis };
 const { root: { self: { Map: M } } } = ns;
 const { groupBy } = shim || Map;

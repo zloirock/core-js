@@ -1,5 +1,5 @@
-// Defaults on known static slots remain dead; instance slots retain their runtime guards.
-// Array wrappers preserve sibling bindings and the source assignment value.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 let o;
 [{ of: o = fb }] = [Array];
 use(o);

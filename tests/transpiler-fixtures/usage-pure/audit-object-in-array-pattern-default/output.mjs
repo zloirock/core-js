@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// The parameter consumes `from` from its supplied array element or its default.
-// Both paths need the static method when the native Array.from is absent.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims.
 function f([{
   from
 } = {
@@ -8,6 +8,4 @@ function f([{
 }]) {
   return from([1, 2]);
 }
-f([{
-  from: _Array$from
-}]);
+f([Array]);

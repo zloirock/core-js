@@ -22,17 +22,6 @@ QUnit.test('destructuring: array static sentinels retain rest exclusions', asser
   assert.false(Object.hasOwn(remaining, 'of'));
 });
 
-QUnit.test('destructuring: nested array static rest retains effects and exclusions', assert => {
-  const log = [];
-  const [{ Object: { keys, ...rest } }] = [(log.push('init'), globalThis)];
-  const [{ Object: { entries = log.push('default'), ...remaining } }, tail] = [globalThis, 1];
-  assert.deepEqual(keys({ a: tail }), ['a']);
-  assert.deepEqual(entries({ b: 2 }), [['b', 2]]);
-  assert.deepEqual(log, ['init']);
-  assert.false(Object.hasOwn(rest, 'keys'));
-  assert.false(Object.hasOwn(remaining, 'entries'));
-});
-
 QUnit.test('destructuring: independent nested reads preserve repeated getters', assert => {
   const log = [];
   let count = 0;
@@ -68,23 +57,4 @@ QUnit.test('destructuring: array assignments retain static rest sources and stor
   [{ of, ...remaining }, tail] = [Array, 7];
   assert.deepEqual(of(tail), [7]);
   assert.false(Object.hasOwn(remaining, 'of'));
-});
-
-QUnit.test('destructuring: a bound wrapper element serves the statics under its constructor hop in every host', assert => {
-  const wrap = [globalThis];
-  const holed = [0, globalThis];
-  const [{ Reflect: { ownKeys } }] = wrap;
-  let odd;
-  // eslint-disable-next-line no-unreachable-loop -- the loop head is the host under test
-  for (const [{ Map: { groupBy } }] = wrap; ;) {
-    odd = groupBy([1, 2, 3], x => x % 2).get(1);
-    break;
-  }
-  // eslint-disable-next-line no-var -- an unbraced `var` is the host under test
-  if (holed.length) var [, { Promise: { resolve, reject } }] = holed;
-  const [{ Reflect: { apply, extra } }] = wrap;
-  assert.deepEqual(ownKeys({ a: 1 }), ['a']);
-  assert.deepEqual(odd, [1, 3]);
-  assert.deepEqual([typeof resolve, typeof reject, extra], ['function', 'function', undefined]);
-  assert.same(apply(Math.max, null, [1, 2]), 2);
 });

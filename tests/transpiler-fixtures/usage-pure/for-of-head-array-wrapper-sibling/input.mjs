@@ -1,6 +1,5 @@
-// A for-of head has no statement slot for a residual extraction, so a static read through a
-// multi-element array wrapper takes the head mirror: the iterated literal's element carries the
-// polyfill and the sibling slot keeps its own effect in source order.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
 const eff = t => (log.push(t), t);
 const out = [];

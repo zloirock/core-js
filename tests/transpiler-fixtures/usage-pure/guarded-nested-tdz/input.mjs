@@ -1,5 +1,5 @@
-// The retained getter reads its own binding before initialization and must throw.
-// A guarded constructor replacement cannot run early or reach the trailing getter.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const log = [];
 let caught;
 try {

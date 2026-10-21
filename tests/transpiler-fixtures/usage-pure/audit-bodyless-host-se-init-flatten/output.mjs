@@ -1,9 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Array$of from "@core-js/pure/actual/array/of";
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// Bodyless control statements keep initializer effects and pure bindings under the same guard.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 let c = 1;
@@ -16,19 +17,11 @@ if (c) var {
     from: _Array$from
   }
 });
-
-// array-wrapped twin: the wrapper descent and the block-wrap compose
 if (c) var [{
   Array: {
     of
   }
-}] = [(eff('b'), {
-  Array: {
-    of: _Array$of
-  }
-})];
-
-// bodyless loop arm
+}] = [(eff('b'), _globalThis)];
 while (c--) var {
   Array: {
     fromAsync
@@ -38,8 +31,6 @@ while (c--) var {
     fromAsync: _Array$fromAsync
   }
 });
-
-// assignment host on a bodyless slot keeps its own channel
 let groupBy;
 if (seen.length) ({
   Map: {

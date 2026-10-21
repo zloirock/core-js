@@ -815,12 +815,14 @@ export function chainThroughNamedDefaults(chain) {
   return chain.some(level => level.hopProp.value?.type === 'AssignmentPattern' && namedDefaultReceiver(level.hopProp.value.right));
 }
 
-// the literal-route receiver resolution shared state: the strict walk first, the SE-free
+// Instance receiver resolution through a literal: the strict walk first, the SE-free
 // single-read relaxation second - direct when the residual dies with the extraction, else
 // through the `_ref` memo (the memo is the single source read - getter fires once)
 // the residual is DEAD when this extraction takes every binding of a single-declarator
 // declaration - the shared plan's `soleBindingInDeclaration`
-export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null }) {
+export function planLiteralRoute({
+  metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null,
+}) {
   const patternCtx = { ...nodeSite(prop, metaPath), adapter };
   const declaratorConsumedWhole = patternBindingCount(declarator.id) === patternBindingCount(prop.value);
   const soleBinding = declaration.declarations.length === 1 && declaratorConsumedWhole;
@@ -828,7 +830,7 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   let relaxedReceiver = false;
   let carriedLive = null;
   const throughNamedDefaults = chainThroughNamedDefaults(chain);
-  if (!pureNav && chain.length > 0) {
+  if (kind === 'instance' && !pureNav && chain.length > 0) {
     const receiverPlan = declaratorConsumedWhole && !sentinel && !throughNamedDefaults
       && resolveDestructureReceiverPlan(metaPath, {
         allowSeFreeSingleRead: true, adapter,
@@ -858,7 +860,7 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
       // already performs (`const { y: { at } } = { y: nb.y }, zn = 1`)
       // ... and only where the residual DIES: a level an effectful hop key keeps would run the
       // carried effect a second time beside the dispatch
-      if (!literalReceiver && declaratorConsumedWhole && !sentinel && !hostLevelSurvives(declarator, { ctx: patternCtx })) {
+      if (!literalReceiver && declaratorConsumedWhole && !sentinel) {
         const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
         if (carried && receiverPerformsEveryInitEffect(declarator.init, carried,
           adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null)) {
@@ -879,7 +881,7 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   // observable property stands BEFORE the slot: hoisting the read would fire its getter ahead of
   // that property, so the memo is written in the slot instead
   // ... a level an effectful hop key keeps is a residual beside the claim exactly like a rest's
-  const memoCandidate = (!literalReceiver || relaxedReceiver)
+  const memoCandidate = kind === 'instance' && (!literalReceiver || relaxedReceiver)
     && (!declaratorConsumedWhole || hostLevelSurvives(declarator, { ctx: patternCtx }))
     && chain.length > 0 ? nestedSlotMemoPlan(metaPath, { adapter }) : null;
   const slotMemo = memoCandidate && (!literalReceiver || !memoCandidate.hoist) ? memoCandidate : null;

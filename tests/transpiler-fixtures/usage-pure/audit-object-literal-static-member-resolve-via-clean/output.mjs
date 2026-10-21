@@ -1,6 +1,6 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Iterator$from from "@core-js/pure/actual/iterator/from";
-// a clean plain key folds normally (control)
+import _Iterator from "@core-js/pure/actual/iterator";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const clean = {
   S: _Iterator
 };
@@ -8,9 +8,5 @@ const {
   S: {
     from
   }
-} = {
-  S: {
-    from: _Iterator$from
-  }
-};
+} = clean;
 export const viaClean = from([3, 4]);

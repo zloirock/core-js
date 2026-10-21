@@ -1,5 +1,3 @@
-// ... beside a leaf the mirror cannot answer, the head relocates for that leaf and the static
-// still extracts: the relocated pattern reads the iterated literal's element, not the minted name
-// (a pattern the source wrote that way reads the same), and a primitive slot differing per pass
-// carries no claim
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions.
 for (const { w: { entries: viaDualBesideData }, at: viaDataBeside } of [{ w: Object, at: 1 }]) [viaDualBesideData, viaDataBeside];

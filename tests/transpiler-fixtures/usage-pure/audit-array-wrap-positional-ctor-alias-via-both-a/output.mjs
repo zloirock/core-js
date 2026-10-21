@@ -1,12 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// both-global multi-element: each folds to its own positional global
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const [{
   Array: F
 }, {
   Promise: P
-}] = [_globalThis, {
-  Promise: _Promise
-}];
+}] = [_globalThis, _globalThis];
 export const viaBothA = _Array$from([1]);

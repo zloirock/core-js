@@ -1,3 +1,5 @@
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 {
 const boundKey = 'w'; function boundKeyParam({ [boundKey]: { Map: v } } = { w: globalThis }) { return v; } use(boundKeyParam());
 }

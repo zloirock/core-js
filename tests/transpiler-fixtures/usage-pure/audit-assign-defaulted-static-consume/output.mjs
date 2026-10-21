@@ -1,15 +1,12 @@
 import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3;
-// Defaults on known static slots remain dead; instance slots retain their runtime guards.
-// Array wrappers preserve sibling bindings and the source assignment value.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
 let o;
 [{
   of: o = fb
-}] = [{
-  of: _Array$of
-}];
+}] = [Array];
 use(o);
 let m;
 [,] = [arr];

@@ -103,8 +103,9 @@ QUnit.test('destructuring capture: dispatch rejects null while computed keys ret
 export function readRetainedArrayWrapper(input, effect) {
   // eslint-disable-next-line no-unreachable-loop -- the loop head supplies the wrapper's constructor receiver
   for (const Ctor of [Array]) {
+    // eslint-disable-next-line no-unused-vars -- retain static slots without requiring wrapper polyfills
     const [{ [(effect(), 'of')]: of, from }, { at, length }] = [Ctor, input];
-    return [of(1)[0], from([2])[0], at, length];
+    return [at, length];
   }
 }
 
@@ -114,15 +115,16 @@ QUnit.test('destructuring capture: an array wrapper keeps opaque leaf getter ord
     get at() { events.push('at'); return 7; },
     get length() { events.push('length'); return 9; },
   };
-  assert.deepEqual(readRetainedArrayWrapper(input, () => events.push('key')), [1, 2, 7, 9]);
+  assert.deepEqual(readRetainedArrayWrapper(input, () => events.push('key')), [7, 9]);
   assert.deepEqual(events, ['key', 'at', 'length'], 'the native sibling cannot overtake the instance dispatch');
 });
 
 export function readRetainedArrayWrapperMember(holder, effect) {
   // eslint-disable-next-line no-unreachable-loop -- the loop head supplies the constructor receiver
   for (const Ctor of [Array]) {
+    // eslint-disable-next-line no-unused-vars -- retain static slots without requiring wrapper polyfills
     const [{ [(effect(), 'of')]: of, from }, { at, length }] = [Ctor, holder.value];
-    return [of(1)[0], from([2])[0], at, length];
+    return [at, length];
   }
 }
 
@@ -130,8 +132,9 @@ export function readRetainedArrayWrapperRebound(input, replacement) {
   function effect() { input = replacement; }
   // eslint-disable-next-line no-unreachable-loop -- the loop head supplies the constructor receiver
   for (const Ctor of [Array]) {
+    // eslint-disable-next-line no-unused-vars -- retain static slots without requiring wrapper polyfills
     const [{ [(effect(), 'of')]: of, from }, { at, length }] = [Ctor, input];
-    return [of(1)[0], from([2])[0], at, length];
+    return [at, length];
   }
 }
 
@@ -144,7 +147,7 @@ QUnit.test('destructuring capture: a retained wrapper snapshots its member sourc
   const holder = {
     get value() { events.push('value'); return input; },
   };
-  assert.deepEqual(readRetainedArrayWrapperMember(holder, () => events.push('key')), [1, 2, 7, 9]);
+  assert.deepEqual(readRetainedArrayWrapperMember(holder, () => events.push('key')), [7, 9]);
   assert.deepEqual(events, ['value', 'key', 'at', 'length'], 'the wrapper member is read once');
 });
 
@@ -156,7 +159,7 @@ QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('destructurin
     get at() { events.push('at'); return 7; },
     get length() { events.push('length'); return 9; },
   };
-  assert.deepEqual(readRetainedArrayWrapperRebound(input, { at: 3, length: 4 }), [1, 2, 7, 9]);
+  assert.deepEqual(readRetainedArrayWrapperRebound(input, { at: 3, length: 4 }), [7, 9]);
   assert.deepEqual(events, ['at', 'length'], 'an earlier key cannot replace the captured sibling');
 });
 

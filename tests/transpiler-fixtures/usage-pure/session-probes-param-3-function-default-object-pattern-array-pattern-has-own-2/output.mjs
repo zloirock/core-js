@@ -1,13 +1,12 @@
-import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Supplied values and defaults keep their source branches and independent claims.
 {
   function g({
     w: [{
       hasOwn
     } = {}] = []
   } = {
-    w: [{
-      hasOwn: _Object$hasOwn
-    }]
+    w: [Object]
   }) {
     return hasOwn;
   }

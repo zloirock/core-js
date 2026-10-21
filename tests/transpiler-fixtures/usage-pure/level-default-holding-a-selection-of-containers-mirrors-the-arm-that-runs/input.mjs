@@ -1,6 +1,5 @@
-// A level default holding a selection of containers reads the slot of the arm that runs where it fires:
-// a selection the build decides mirrors its live arm alone, an undecided one mirrors every arm - under an
-// object level, an array level and an element default alike.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 const { W: { C: { groupBy: viaDecided } } = typeof Symbol != 'undefined' ? { C: Map } : { C: Object } } = {};
 const { V: { C: { from: viaUndecided } } = c ? { C: Array } : { C: Iterator } } = {};
 const { U: { C: { allSettled: viaFreshLeft } } = { C: Promise } || { C: Object } } = {};

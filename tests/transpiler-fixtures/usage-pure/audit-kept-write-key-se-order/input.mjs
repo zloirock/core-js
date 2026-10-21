@@ -1,5 +1,5 @@
-// An assignment in the receiver runs before a later computed-key effect.
-// The stored value and the static polyfill survive the receiver rewrite.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const log = [];
 let r1;
 const { of: o1 } = (r1 = globalThis)[(log.push(typeof r1), "Array")];

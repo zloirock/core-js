@@ -1,16 +1,13 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Accessor reads inside a receiver literal run once even when their values are discarded.
-// Unclaimed sibling slots retain their effects beside the mirrored static.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 const log = [];
 const {
   w: {
     from: besideSibling
   }
 } = {
-  w: {
-    from: _Array$from
-  },
+  w: Array,
   s: {
     get g() {
       _pushMaybeArray(log).call(log, 'sibling');
@@ -18,14 +15,13 @@ const {
     }
   }.g
 };
-// NEGATIVE: a plain data slot answers without running anything, so nothing is replayed for it
 const {
   w: {
     from: plainSlot
   }
 } = {
   w: {
-    from: _Array$from
-  }
+    w: Array
+  }.w
 };
 export { besideSibling, plainSlot, log };

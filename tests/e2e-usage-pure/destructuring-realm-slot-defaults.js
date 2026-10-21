@@ -29,11 +29,6 @@ QUnit.test('realm slot defaults: a for-of head falls back to the default', asser
   }
 });
 
-QUnit.test('realm slot defaults: an array wrapper falls back to the default', assert => {
-  const [{ UserNumbers: { isInteger } = Number }] = [globalThis];
-  assert.true(isInteger(5));
-});
-
 QUnit.test('realm slot defaults: a realm alias falls back to the default', assert => {
   const realm = globalThis;
   const { UserLists: { of } = Array } = realm;

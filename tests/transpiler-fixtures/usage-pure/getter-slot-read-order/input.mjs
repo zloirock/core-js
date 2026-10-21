@@ -1,7 +1,5 @@
-// A kept getter runs before its destructured binding initializes. Its returned realm still
-// supplies a polyfilled constructor, through a direct literal, an alias and an assignment.
-// The assignment getter observes the old binding, then the assignment installs the ponyfill.
-// A constructor escaping through the getter includes its static methods.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 export function direct(log) {
   const { w: { WeakSet: Value } } = { get w() { log.push('direct'); return globalThis; } };
   return Value;

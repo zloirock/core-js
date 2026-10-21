@@ -1,7 +1,5 @@
-// A mirror re-reads a receiver valued as a global by that global's name where its literal stands, and a
-// binding of that name there - a parameter, a catch parameter, a local, an import - holds the user's own
-// value: the read goes through the realm instead, from a nested container and in an assignment alike. A
-// served constructor's read is its ponyfill, which no binding of the name shadows (`Symbol`).
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 import { Array } from './array.js';
 export function viaParameter(Map) {
   const { a: { groupBy, prototype } } = { a: globalThis.Map };
