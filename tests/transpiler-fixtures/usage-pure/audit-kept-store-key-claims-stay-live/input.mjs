@@ -1,6 +1,5 @@
-// Claims inside a kept store's computed key survive the proxy fold and execute once.
-// Plain window.self navigation stores the backed self value in value, plain-member
-// and claimed-static consumers; key effects stay ahead of that store.
+// Independent claims in a retained realm key execute once before the source store.
+// The stored value and sealed reads keep their native behavior.
 let held;
 const keyLog = [];
 export const storedKeyClaimValue = (held = globalThis[(keyLog.push(1), 'window')].self)?.customQ;

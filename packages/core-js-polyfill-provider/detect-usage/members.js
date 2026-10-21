@@ -213,10 +213,14 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   // be a proxy-global name. `resolveObjectName(hop)` is too weak - it returns truthy for a real ctor
   // leaf (`<root>.self.Map` resolves `'Map'`), wrongly accepting `globalThis.self.Map.prototype` as
   // proxy navigation and dropping `Map` to `_globalThis.prototype` (undefined off-engine)
-  const hopKey = resolveKey({ node: hopMember.property, computed: hopMember.computed, scope, adapter, path });
+  const hopKey = resolveKey({ node: hopMember.property, computed: hopMember.computed,
+    bailOnSideEffectKey: true, scope, adapter, path });
   // ... and a pristine one: a MUTATED hop slot holds the user's own object, so the run stops below it and
   // the hop stays spelled, as every other collapse keeps it (`maximalProxyGlobalPrefix`)
   if (!hopKey || !isPristineProxyGlobal(adapter, hopKey, path && { node: hopMember, path })) return null;
+  // The whole receiver must still prove the realm; a quiet last hop does not erase an
+  // effectful key below it. Read that proof before the root-only landing question.
+  if (!asProxyGlobalName(resolveObjectName({ objectNode: hopMember, scope, adapter, path }))) return null;
   // a chain-ASSIGN root whose VALUE is a NAVIGATION is not this plan's shape: it leaked in through
   // `resolveObjectName`, which peels the assignment and reports the value's LEAF
   // (`(k = globalThis.self)?.self` -> 'self') as the "root" - the render then substituted the leaf's
@@ -231,9 +235,7 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   // alike then read off the always-pure `_globalThis`, where the leaf-hop `window` may carry no pure entry
   const rootName = proxyGlobalChainRootName({ node: hopMember, scope, adapter, path });
   if (!rootName) return null;
-  // harvest EVERY SE the collapse drops from the proxy-hop prefix: the chain-root call AND any hop-key SE
-  // buried in a computed hop (`globalThis[(c++, 'self')]`). returning only the chain-root call missed a
-  // key-buried effect in the memo path, silently dropping it on babel while unplugin kept it (desync + lost SE)
+  // Preserve the root call and sequence prefixes when the quiet navigation collapses.
   const rescue = seedChainRootCallRescue({ node: receiver, scope, adapter, path });
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, { rescue, ctx: { scope, adapter, path } }) };
 }
@@ -241,7 +243,7 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
 // whole-swap plan for a DISCARDED call/IIFE-rooted proxy receiver whose LEAF is a pure global
 // ctor (`(f()).self.Symbol` consumed by a fully-extracted destructure): the value is discarded,
 // so the leaf swaps to its pure ctor and every side effect the dropped navigation carried (an
-// SE-bearing chain-root call, a computed hop-key effect) re-emits ahead - `(f(), c++, _Symbol)`.
+// SE-bearing chain-root call, a computed leaf-key effect) re-emits ahead - `(f(), c++, _Symbol)`.
 // the root-collapse twin (`planCallRootedProxyReceiver` below) BAILS on a pure-ctor leaf because
 // a LIVE receiver's leaf is whole-swapped elsewhere; a discarded receiver has no elsewhere, so
 // this plan IS that swap. babel needs no explicit call site - its lifted residual re-enters the
@@ -270,11 +272,7 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // substrates. this is the single source; each emitter RENDERS the result. null when
 // not collapsible. uses only shared provider primitives + the passed `resolvePure`. shapes:
 //   { kind: 'collapse', rootBinding: { alias: node } | { keep: node } | { pure: { entry, hintName } },
-//     harvestedSE: node[], keyPrefixSE: node[], property: node, computed: bool, optional: bool }
-// `keyPrefixSE` (kept roots only): effects from DROPPED hops' computed keys. they may not ride ahead of
-// the root (the assignment evaluates first; under a live guard the key never evaluates at all when the
-// guard fires), so the renderer folds them into the surviving leaf key as a sequence prefix -
-// `X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]` - reproducing the native order by construction
+//     harvestedSE: node[], property: node, computed: bool, optional: bool }
 //   { kind: 'member', inner: <plan>, property: node, computed: bool }  // deeper nav under a kept leaf chain
 // the three root kinds differ in what the renderer owes them. `alias` is an identifier whose OWN declaration
 // the pass already rewrote, so it is emitted verbatim. `pure` is swapped for an injected binding. `keep` is
@@ -359,20 +357,7 @@ export function planProxyReceiver(receiver, {
   // per-id rewrite does not reach it there
   const throughRoot = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
   if (isWriteTarget) objectCore = peelReceiverSequenceTail(objectCore);
-  // a KEPT root admits SE-BEARING hop keys into the prefix: their effects cannot ride ahead of the root
-  // (the pre-root harvest every other root uses) because the kept root is an assignment evaluated FIRST -
-  // and, under a live guard, the key natively evaluates only PAST it. instead each dropped hop's key
-  // effect MIGRATES into the surviving leaf key (`X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]`),
-  // which reproduces the native order by construction: root, guard, key effects, read
-  // ... and a root this build cannot spell hands the run to the deepest backed span below it: that
-  // swap re-emits the dropped keys' effects the way the kept-root canon does, so an SE-bearing key is
-  // no barrier to the walk here either (a spellable root keeps the read channel's rule)
-  // ... and no ROOT form gates the admission: what a dropped key's effects need is a SLOT, and every
-  // root has one - the kept root migrates them into the surviving key, every other takes the pre-root
-  // harvest. gating on the root's shape instead answered for the wrong thing, and the run then kept
-  // its hop: a hop kept over a probe is a NATIVE realm read, `self` off the environment, which is the
-  // one slot the ponyfill exists to stand in for
-  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: true, throughChainAssign }) !== objectCore) {
+  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver({ receiver, aliasCtx, resolvePure, deleteFold: deleteConsumer });
     if (callRooted) return callRooted;
     // the deeper nav decides for itself: the recursion re-asks every root form this plan owns
@@ -424,18 +409,6 @@ export function planProxyReceiver(receiver, {
       deleteFold: deleteConsumer,
     }) : rootPure;
   if (!isAliasRoot && !landingPure) return null;
-  // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their
-  // computed keys carry the effects that migrate into the surviving leaf key (in source order)
-  const keyPrefixSE = [];
-  if (keptAssignRoot) {
-    const hops = [];
-    for (let cur = objectCore; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
-      cur = peelReceiverSequenceTail(cur.object)) hops.unshift(cur);
-    for (const hop of hops) {
-      if (hop.computed) keyPrefixSE.push(...collectFoldedReceiverSideEffects(hop.property, { ctx: aliasCtx }));
-    }
-  }
-  const keyPrefixSet = new Set(keyPrefixSE);
   return {
     kind: 'collapse',
     rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
@@ -443,11 +416,9 @@ export function planProxyReceiver(receiver, {
         : { pure: { entry: landingPure.entry, hintName: landingPure.hintName } },
     // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
-    // assignment and still have to ride ahead, in source order. dropped-hop KEY effects are exempt too:
-    // they ride the surviving key instead (`keyPrefixSE`), where the native order puts them
+    // assignment and still have to ride ahead, in source order.
     harvestedSE: collectFoldedReceiverSideEffects(receiver.object, { ctx: aliasCtx })
-      .filter(effect => effect !== keptAssignRoot && !keyPrefixSet.has(effect)),
-    keyPrefixSE,
+      .filter(effect => effect !== keptAssignRoot),
     // the `?.` of the hop READING the kept root slides onto the leaf that now reads off it - the
     // store-fold verdict: only that hop can see the store's void, a deeper `?.` guards a realm
     // object the first read already proved and never travels. UNLESS a seal stands between them
@@ -1177,6 +1148,9 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   // multi-valued key, and its union enumeration is empty by mode gate anyway
   const branchKeyedOnly = !key && node.computed && unionKeyedCarrierRides({ computedKeyNode, scope, adapter, path });
   if ((!key && !branchKeyedOnly) || key === 'prototype') return null;
+  // Effectful realm keys remain source reads in pure mode. Their independent key claims
+  // still run through the ordinary traversal; static and instance leaf keys keep this channel.
+  if (adapter.method === 'usage-pure' && POSSIBLE_GLOBAL_OBJECTS.has(key) && keyEffects.length) return null;
   let meta = key ? tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) : null;
   // an effect-bearing ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
   // .has`, the deeper `(c++, globalThis).self.Map.prototype.has`, or a computed-KEY effect

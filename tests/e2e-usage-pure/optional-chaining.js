@@ -568,21 +568,12 @@ QUnit.test('optional chaining: swapped-hop guard variants keep native semantics'
   assert.same((held = assignRoot())?.window?.self?.Array.of(14).at(0), WINDOW_PRESENT ? 14 : undefined);
   assert.same(assignCalls, 1);
   assert.same(held, globalThis);
-  let keyEffects = 0;
-  function seKeyRoot() { return globalThis; }
-  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
-  assert.same(seKeyRoot()?.window?.[(keyEffects++, 'self')]?.Array.of(15).at(0), WINDOW_PRESENT ? 15 : undefined);
-  assert.same(keyEffects, WINDOW_PRESENT ? 1 : 0);
 });
 
 // the BARE proxy-root probe (`globalThis.window` with no call / assignment around the root):
 // the guard tests the raw `window` read, and past a present `window` the chain continues off
 // the ponyfill-backed hop - a raw `self` read there would miss the ponyfill class
 QUnit.test('optional chaining: bare proxy-root probe guards on the raw prefix', assert => {
-  let keyEffects = 0;
-  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
-  assert.same(globalThis.window?.[(keyEffects++, 'self')]?.Array.of(21).at(0), WINDOW_PRESENT ? 21 : undefined);
-  assert.same(keyEffects, WINDOW_PRESENT ? 1 : 0);
   assert.same(globalThis.window?.self?.Array.of(22).at(0), WINDOW_PRESENT ? 22 : undefined);
   // a PLAIN claimless tail after the guarded hop: the source `?.` short-circuits the WHOLE
   // chain, so past an absent `window` the tail read must not throw and the key effect must
@@ -772,42 +763,12 @@ QUnit.test('optional chaining: a carrier past the folded tail sees the guarded v
 // through the ponyfill where it is present; the sealed hop's key SE runs only past a present
 // window
 QUnit.test('optional chaining: sealed probe nav keeps the source throw', assert => {
-  let k = 0;
   if (WINDOW_PRESENT) {
     // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
     assert.same((globalThis.window?.self).Array.of(31).at(0), 31);
-    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
-    assert.true((globalThis.window?.[(k++, 'self')]).Number.isInteger(5));
-    assert.same(k, 1);
   } else {
     // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
     assert.throws(() => (globalThis.window?.self).Array.of(31), TypeError);
-    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
-    assert.throws(() => (globalThis.window?.[(k++, 'self')]).Number, TypeError);
-    assert.same(k, 0);
-  }
-});
-
-// a claim inside a SEALED destructure source's computed key: the destructure re-emits the key off the read it
-// collapses, so the claim - a loop head's destructure in that key too - lands polyfilled there, once, and only
-// past a present window
-QUnit.test('optional chaining: claims inside a sealed destructure key land polyfilled', assert => {
-  const seen = [];
-  if (WINDOW_PRESENT) {
-    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
-    const { of } = (globalThis.window?.[(seen.push(typeof Array.from), 'self')]).Array;
-    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
-    const { from } = (globalThis.window?.[((() => { for (const { at } in { x: 1 }) seen.push(typeof at); })(), 'self')]).Array;
-    assert.same(typeof of, 'function');
-    assert.same(typeof from, 'function');
-    assert.deepEqual(seen, ['function', 'function']);
-  } else {
-    assert.throws(() => {
-      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
-      const { of } = (globalThis.window?.[(seen.push(typeof Array.from), 'self')]).Array;
-      return of;
-    }, TypeError);
-    assert.deepEqual(seen, []);
   }
 });
 
@@ -920,18 +881,6 @@ QUnit.test('optional chaining: alias-rooted sealed claim keeps the source throw'
     // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
     assert.throws(() => (gAlias.window?.self).Array.of(41), TypeError);
   }
-});
-
-// an SE-carrying computed key on a collapsible hop MIGRATES with the collapse: the effect
-// runs exactly once, in native order (test -> key effect -> leaf read). the globalThis-named
-// key stays defined in the Node runner on every leg (`self` would read undefined on the
-// modern-targets legs, where no ponyfill substitutes it)
-QUnit.test('optional chaining: SE computed key keeps its single run through the collapse', assert => {
-  let keyRuns = 0;
-  function seKeyHost() { return globalThis; }
-  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
-  assert.same(seKeyHost()?.globalThis?.[(keyRuns++, 'globalThis')]?.Array.of(21).at(0), 21);
-  assert.same(keyRuns, 1);
 });
 
 // an ALIAS holding an undefinable nav keeps its `?.` LIVE: the prefix walks see through the

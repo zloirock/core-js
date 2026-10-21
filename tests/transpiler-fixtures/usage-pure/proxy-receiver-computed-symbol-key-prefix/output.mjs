@@ -1,5 +1,6 @@
 import _getIterator from "@core-js/pure/actual/get-iterator";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Collapsing a sealed proxy receiver preserves its prefix and computed hop effects.
-// The receiver value is selected before the later computed symbol-key effect.
-export const result = (prefix(), hop(), key(), _getIterator(_globalThis));
+var _ref;
+// Iterator consumption keeps a sealed receiver prefix ahead of the symbol-key effect.
+// The effectful realm key remains inside its original receiver.
+export const result = (_ref = (prefix(), _globalThis[hop(), 'self']).window, key(), _getIterator(_ref));

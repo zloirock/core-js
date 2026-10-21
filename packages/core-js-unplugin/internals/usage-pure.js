@@ -411,7 +411,7 @@ export default function createAstUsagePureCallback({
   // a proxy-nav symbol receiver collapses through the shared plan: redundant hops drop, a
   // kept chain-assign root re-emits itself, harvested effects ride the collapsed spine
   // (`(a = globalThis.window).self[S]` -> `_gim(a = _globalThis.window)`), a dropped hop's
-  // `?.` re-hangs as the member's own, and dropped-hop key effects precede the root
+  // `?.` re-hangs as the member's own. Effectful realm keys keep their source access.
   function collapseSymbolReceiver(meta, metaPath, state) {
     const { node } = metaPath;
     const { object } = state;
@@ -427,12 +427,7 @@ export default function createAstUsagePureCallback({
     const rendered = proxyPlan?.kind === 'collapse' || proxyPlan?.kind === 'member'
       ? renderProxyReceiverPlan(proxyPlan, { injectImport: injectPureImport }) : null;
     if (!rendered) return;
-    let base = rendered.object;
-    if (proxyPlan.keyPrefixSE?.length) {
-      base = sequenceExpression([...proxyPlan.keyPrefixSE.map(expr => cloneNode(expr)),
-        ...base.type === 'SequenceExpression' ? base.expressions : [base]]);
-    }
-    state.object = base;
+    state.object = rendered.object;
     state.memberOptional ||= !!proxyPlan.optional;
     state.proxyPlanFired = true;
     // effects the plan spelled into its render are consumed - a 'member' plan spells its
@@ -440,7 +435,7 @@ export default function createAstUsagePureCallback({
     // still route through the SE channel over the collapsed receiver
     const planConsumed = new Set();
     for (let level = proxyPlan; level; level = level.inner) {
-      for (const expr of [...level.keyPrefixSE ?? [], ...level.harvestedSE ?? []]) planConsumed.add(expr);
+      for (const expr of level.harvestedSE ?? []) planConsumed.add(expr);
     }
     state.pendingEffects = state.pendingEffects.filter(effect => !planConsumed.has(effect));
     state.pendingReceiverOnly = false;
