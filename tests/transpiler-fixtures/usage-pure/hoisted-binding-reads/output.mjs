@@ -2,12 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
-// A binding read ahead of its own initializer holds `undefined` (a hoisted `var` declared below the
-// read) or throws (a lexical binding in its TDZ). Every resolution that follows a binding to the
-// literal it holds - the static container, the alias chain, the array-wrapper slot, the folded key,
-// the inner default's slot - proves the initializer ran first (the dominance canon), or the rewrite
-// would bind where the source throws: those reads stay native here, while their declared-before
-// twins resolve. Both legs read one follower.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 let r1, r2, r3, r4, r5;
 try {
   const {
@@ -76,16 +72,10 @@ const {
   a: {
     from: declaredFrom
   }
-} = {
-  a: {
-    from: _Array$from
-  }
-};
-const [_ref] = wrapper;
-const {
-  from: _unused
-} = _ref;
-const wrappedFrom = _Array$from;
+} = container;
+const [{
+  from: wrappedFrom
+}] = wrapper;
 const keyedFrom = _Array$from;
 const [{
   of: slotOf

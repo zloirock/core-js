@@ -821,18 +821,16 @@ QUnit.test('optional chaining: rest sibling over a probe nav keeps the source th
   }
 });
 
-// FULL consumes outside the anchor gate carry the same once-per-pattern probe: a flat
-// single-level pattern re-reads its own key off the guarded value, an array wrapper probes
-// the descended element - an absent `window` throws before any binding, a present one
-// extracts the polyfills
-QUnit.test('optional chaining: flat and wrapped full consumes keep the probe throw', assert => {
+// The flat claim is polyfilled; the retained wrapper reads its native slot, which may be absent.
+// Both forms still throw before binding when window is absent.
+QUnit.test('optional chaining: flat claims and retained wrappers keep the source throw', assert => {
   if (WINDOW_PRESENT) {
     // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed probe source IS the case
     const { structuredClone: pickedClone } = (globalThis.window?.self);
     assert.same(typeof pickedClone, 'function');
     // eslint-disable-next-line @stylistic/no-extra-parens -- the sealed probe source IS the case
     const [{ Math: { hypot: pickedHypot } }] = [(globalThis.window?.self)];
-    assert.same(pickedHypot(3, 4), 5);
+    assert.same(pickedHypot, Object.getOwnPropertyDescriptor(Math, 'hypot')?.value, 'the wrapper keeps the native slot, including its absence');
   } else {
     assert.throws(() => {
       // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the probe throw IS the case

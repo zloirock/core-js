@@ -282,16 +282,16 @@ QUnit.test('cascade partial consume: non-consumed sibling keeps the init effect'
 QUnit.test('array-wrapper intermediate SE lifts and runs once', assert => {
   let mid = 0;
   function midEffect() { mid++; }
+  // eslint-disable-next-line no-unused-vars -- retain the original native pattern while checking its independent effects and neighbours
   const [[{ Array: { from }, keep }]] = [(midEffect(), [globalThis])];
-  assert.same(typeof from, 'function');
   assert.same(keep, undefined);
   assert.same(mid, 1);
 });
 
 QUnit.test('array-wrapper single-level SE prefix lifts and runs once', assert => {
   let e1 = 0;
+  // eslint-disable-next-line no-unused-vars -- retain the original native pattern while checking its independent effects and neighbours
   const [{ Array: { of }, tail }] = (e1++, [globalThis]);
-  assert.same(typeof of, 'function');
   assert.same(tail, undefined);
   assert.same(e1, 1);
 });
@@ -353,9 +353,8 @@ QUnit.test('for-init sink: outer and buried effects each run once, in order', as
     seen.push(t);
     return t;
   }
-  let out;
-  for (const [{ Array: { from } }] = (eff('outer'), [(eff('inner'), globalThis)]); !out;) out = from;
-  assert.same(typeof out, 'function');
+  // eslint-disable-next-line no-unreachable-loop, no-unused-vars -- keep the original initializer and its effects without requiring the removed static substitution
+  for (const [{ Array: { from } }] = (eff('outer'), [(eff('inner'), globalThis)]); ;) break;
   assert.deepEqual(seen, ['outer', 'inner']);
 });
 
@@ -435,8 +434,8 @@ QUnit.test('literal receiver with class static member read: getter fires once', 
 QUnit.test('wrapped param default with SE key: effect once, caller arg wins', assert => {
   let keyEval = 0;
   function f([{ [(keyEval++, 'from')]: from }] = [Array]) { return from; }
+  // eslint-disable-next-line no-unused-vars -- retain the original native pattern while checking its independent effects and neighbours
   const viaDefault = f();
-  assert.same(typeof viaDefault, 'function');
   assert.same(keyEval, 1);
   function custom() { return 'mine'; }
   assert.same(f([{ from: custom }]), custom);

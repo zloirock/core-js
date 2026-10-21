@@ -1,5 +1,5 @@
-// A container reassigned after a nested destructure still supplies its earlier captured constructor.
-// The static read at that earlier site receives the pure method.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let w = { Arr: Array };
 const { Arr: { from } } = w;
 from([1, 2, 3]);

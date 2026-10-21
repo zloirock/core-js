@@ -1,13 +1,12 @@
-import _Object$entries from "@core-js/pure/actual/object/entries";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions.
 {
   for (const {
     w: {
       entries
     }
   } of [{
-    w: {
-      entries: _Object$entries
-    }
+    w: Object
   }]) {
     entries = 1;
   }

@@ -1,6 +1,4 @@
-// A computed LITERAL key registers like the plain form; a CALL-spelled computed key keeps its own slot verbatim (the call runs
-// once in the residual) while its binding still names the global the bound identity callee hands back, and the SIBLING element
-// narrows through its sound positional pairing; a slot write of ONE hint's global deopts only that alias - the sibling keeps
-// folding.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 const [{ ['WeakSet']: WS }, { Promise: PR }] = [globalThis, globalThis];
 export const viaComputedSibling = PR.allSettled([]);

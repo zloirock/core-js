@@ -3,8 +3,8 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Discarded wrapper slots still evaluate in source order before the property reads.
-// Their effects remain in the captured array or lift with a fully consumed wrapper.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const log = [];
 const rows = [[1, 2]];
 const [,,] = [_pushMaybeArray(log).call(log, 'n'), (_pushMaybeArray(log).call(log, 'e'), _globalThis)];
@@ -14,25 +14,18 @@ const viaMemo = _atMaybeArray(_ref);
 const {
   length: memoLength
 } = _ref;
-const [, {
-  Array: {
-    prototype: {
-      at: mixedInstance
-    }
-  },
+const [,,] = [_pushMaybeArray(log).call(log, 'x'), _globalThis];
+const mixedInstance = _atMaybeArray(_globalThis.Array.prototype);
+const {
   Object: {
     keys: mixedStatic
-  },
-  other
-}] = [_pushMaybeArray(log).call(log, 'x'), {
-  Array: {
-    prototype: {
-      at: _atMaybeArray(_globalThis.Array.prototype)
-    }
-  },
+  }
+} = {
   Object: {
     keys: _Object$keys
-  },
-  other: _globalThis.other
-}];
+  }
+};
+const {
+  other
+} = _globalThis;
 export const r = [typeof viaSurface, viaMemo(0), memoLength, typeof mixedInstance, typeof mixedStatic, typeof other, log.length];

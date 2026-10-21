@@ -1,20 +1,17 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// The getter executes while the destructured declaration is still uninitialized.
-// Reading that binding must keep its temporal-dead-zone failure after rewriting.
-// A constructor escaping through the getter includes its static methods.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
 export function readBeforeBinding(log) {
   const {
-    w: {
-      WeakSet: Value
-    }
-  } = {
-    get w() {
-      _pushMaybeArray(log).call(log, typeof Value);
-      return {
-        WeakSet: _WeakSet
-      };
-    }
-  };
+      w: _ref
+    } = {
+      get w() {
+        _pushMaybeArray(log).call(log, typeof Value);
+        return _globalThis;
+      }
+    },
+    Value = _ref === _globalThis ? _WeakSet : _ref.WeakSet;
   return Value;
 }

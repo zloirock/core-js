@@ -21,10 +21,12 @@ let at, includes;
 } = {
   z: source.z,
   y: source.y
-}), at = _atMaybeArray(_ref);
+});
+at = _atMaybeArray(_ref);
 ({
   y: _ref2
 } = {
   y: source.y,
   z: source.z
-}), includes = _includesMaybeArray(_ref2);
+});
+includes = _includesMaybeArray(_ref2);

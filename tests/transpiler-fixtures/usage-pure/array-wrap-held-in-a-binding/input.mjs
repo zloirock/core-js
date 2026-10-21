@@ -1,7 +1,5 @@
-// An array literal held in a binding hands its element to a later destructure: the binding's own
-// declaration keeps every effect of the literal, so the static extracts whatever trails the element,
-// at any depth. An inline wrapper around such a binding keeps its own trailing effect in the native
-// initializer, ahead of both iterations.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const wrap = [(eff('h'), globalThis), eff('i')];

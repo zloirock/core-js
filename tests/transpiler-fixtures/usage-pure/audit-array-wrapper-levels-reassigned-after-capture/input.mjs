@@ -1,7 +1,5 @@
-// two array-wrapper levels over a const alias of a reassigned array: the outer literal captured the
-// ORIGINAL inner array, so a write to `inner` after that capture cannot change the leaf - it stays
-// Array and `from` resolves. the deeper level anchors at the capture (the outer declarator), not at
-// the destructure host; a write BEFORE the capture reaches the leaf and decides it (Object here)
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 
 let inner = [Array];
 const outer = [inner];

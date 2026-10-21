@@ -4,7 +4,6 @@ import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usa
 import {
   beginMutationPrePass,
   createDetectionAdapter,
-  heldPatternReadCollector,
   mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -441,18 +440,16 @@ export function collectPrePassSites({
   const wantsAliases = !!isDisabled
     && (census ? census.hasCtorAliasShapes : hasCtorAliasCandidateShapes(ast));
   const aliasSites = [];
-  const heldReads = collectMutations ? heldPatternReadCollector(census) : null;
-  if (!handleSite && !wantsAliases && !heldReads) return { mutated, aliasSites };
-  let siteVisitors = wantsAliases
+  if (!handleSite && !wantsAliases) return { mutated, aliasSites };
+  const siteVisitors = wantsAliases
     ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
     : handleSite ? mutationSiteVisitors(handleSite) : {};
-  if (heldReads) siteVisitors = mergeVisitors(siteVisitors, { ObjectPattern: heldReads.ObjectPattern });
   traverse(ast, {
     $: { scope: true },
     ...siteVisitors,
   });
   finalize?.();
-  return { mutated, aliasSites, heldReads };
+  return { mutated, aliasSites };
 }
 
 // the ctor-alias lane's collectors: the destructure-of-global sites in document order, each

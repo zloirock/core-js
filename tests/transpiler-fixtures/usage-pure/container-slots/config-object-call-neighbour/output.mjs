@@ -1,6 +1,6 @@
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
-import _Object$keys from "@core-js/pure/actual/object/keys";
-// Passing a data-only configuration object leaves a separate constructor container unchanged.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live.
 const configObjectIsNoContainer = function () {
   const config = {
     handler() {
@@ -16,11 +16,7 @@ const configObjectIsNoContainer = function () {
     k: {
       keys
     }
-  } = {
-    k: {
-      keys: _Object$keys
-    }
-  };
+  } = neighbour;
   return keys;
 }();
 export { configObjectIsNoContainer };

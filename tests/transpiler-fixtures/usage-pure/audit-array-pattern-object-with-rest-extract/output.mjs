@@ -1,11 +1,12 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Native iteration, source effects and residual bindings stay in order.
+const [,] = [Array];
 const from = _Array$from;
-const [{
+const {
   from: _unused,
   ...rest
-}] = [Array];
+} = Array;
 from([1]);
 rest;
 const nb = {
@@ -18,14 +19,12 @@ const [{
   },
   ...wrapRest
 }] = [nb];
-// ... and the FLAT twin, whose shape this one now spells: the two hosts answer alike
 const {
   y: {
     at: viaFlatHopRename
   },
   ...flatRest
 } = nb;
-// a NEIGHBOUR element pairs by index, so the rename reads the element this pattern stands on
 const [zLead, {
   y: {
     at: viaWrapSecondSlot

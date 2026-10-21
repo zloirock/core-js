@@ -1,6 +1,5 @@
-// for-init SE-sink with an effect at BOTH wrapper levels (a top-level prefix and one buried in
-// the array element): the canonical descent flattens both into the sink sequence in source
-// order - the discarded wrapper drops, the effects and the substituted proxy root survive
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const seen = [];
 const eff = t => (seen.push(t), t);
 let out;

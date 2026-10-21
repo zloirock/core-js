@@ -1,4 +1,5 @@
-import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Supplied values and defaults keep their source branches and independent claims.
 {
   const r = (({
     w: [{
@@ -6,9 +7,7 @@ import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
     }]
   }) => hasOwn)({
     get w() {
-      return [{
-        hasOwn: _Object$hasOwn
-      }];
+      return [Object];
     }
   });
 }

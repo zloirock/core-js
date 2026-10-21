@@ -23,7 +23,8 @@ o.f = _Object$fromEntries;
 } = Object);
 ({
   Array: _ref
-} = _globalThis), o.a = _Array$from, {
+} = _globalThis);
+o.a = _Array$from, {
   from: _unused3,
   ...rest3
 } = _ref;

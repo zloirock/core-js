@@ -1,18 +1,9 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
-// Array-wrapped statics and surviving siblings stay inside their control body.
-// A bodyless loop or conditional must keep all reads and writes under its guard.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Native iteration, source effects and residual bindings stay in order.
 
-// bodyless do-while: two bare statements in the body would be unparsable without the join
 do var [{
   of: o
-}, tail] = [{
-  of: _Array$of
-}, 0]; while (c);
-
-// bodyless while: a distinct static - the residual must stay inside the loop, not run once after it
+}, tail] = [Array, 0]; while (c);
 while (c) var [{
   from: g
-}, rest] = [{
-  from: _Array$from
-}, 1];
+}, rest] = [Array, 1];

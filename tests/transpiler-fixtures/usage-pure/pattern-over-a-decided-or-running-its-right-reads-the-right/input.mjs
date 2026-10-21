@@ -1,7 +1,5 @@
-// a `||` whose test the build decides false runs its right, and a pattern reads through it as through
-// that right spelled alone, as through the `&&` twin whose test holds: declared, assigned, as a parameter
-// default, in a for-of head, beside a rest or an effectful key, for an instance method - a parameter's own
-// default among them - and where the test is an `&&` whose own test fails
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 export const { C: { groupBy } } = typeof Symbol == 'undefined' || { C: Map };
 let fromAsync;
 ({ C: { fromAsync } } = typeof Symbol == 'undefined' || { C: Array });

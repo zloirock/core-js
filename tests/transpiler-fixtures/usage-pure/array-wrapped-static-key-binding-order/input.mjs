@@ -1,5 +1,5 @@
-// A computed key under an array wrapper observes its binding before initialization.
-// The static method is polyfilled after that key; the second element stays paired.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
 let seen;
 function observe() {
   try { seen = typeof from; } catch (error) { seen = error.name; }

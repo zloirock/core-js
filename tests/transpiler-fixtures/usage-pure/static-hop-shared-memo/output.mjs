@@ -1,7 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// A destructured static method supplies the receiver of its nested function properties.
-// The name slot uses a function helper; sibling reads and rest share that selected method.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const c = 1;
 function eff() {}
 const {
@@ -26,50 +26,33 @@ const {
     foo: _Array$of.foo
   }
 };
+const viaWrapped = _nameMaybeFunction(_Array$of);
 const [{
-  of: {
-    name: viaWrapped,
-    foo: f3
-  }
-}] = [{
-  of: {
-    name: _nameMaybeFunction(_Array$of),
-    foo: _Array$of.foo
-  }
-}];
-const [{
-  of: {
-    name: viaWrappedDefault,
+  foo: f3
+}] = [_Array$of];
+const [,] = [Array],
+  {
+    of: _ref = {}
+  } = {
+    of: {
+      name: _nameMaybeFunction(_Array$of),
+      foo: _Array$of.foo
+    }
+  },
+  viaWrappedDefault = _nameMaybeFunction(_ref),
+  {
     foo: f4
-  } = {}
-}] = [{
-  of: {
-    name: _nameMaybeFunction(_Array$of),
-    foo: _Array$of.foo
-  }
-}];
+  } = _ref;
+const viaWrappedSibling = _nameMaybeFunction(_Array$of);
 const [{
-  of: {
-    name: viaWrappedSibling,
-    foo: f5
-  }
-}, z1] = [{
-  of: {
-    name: _nameMaybeFunction(_Array$of),
-    foo: _Array$of.foo
-  }
-}, 1];
-const [z2, {
-  of: {
-    name: viaWrappedBehindEffect,
-    foo: f6
-  }
-}] = [eff(), {
-  of: {
-    name: _nameMaybeFunction(_Array$of),
-    foo: _Array$of.foo
-  }
-}];
+  foo: f5
+}, z1] = [_Array$of, 1];
+const [_ref2,,] = [eff(), Array];
+const z2 = _ref2;
+const viaWrappedBehindEffect = _nameMaybeFunction(_Array$of);
+const {
+  foo: f6
+} = _Array$of;
 for (const {
   of: {
     name: viaForInit,

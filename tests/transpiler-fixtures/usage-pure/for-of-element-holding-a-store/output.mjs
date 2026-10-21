@@ -1,9 +1,7 @@
 import _Map from "@core-js/pure/actual/map";
-import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// a for-of element stands below the head's own source, so the head reads a static off a store in
-// it as written, and the constructor it lands on takes its whole entry. an element holding the
-// container without a store keeps the static named
+import _Promise from "@core-js/pure/actual/promise";
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Binding identity, writes and later reads retain their existing inference and ordering.
 let cache;
 for (const {
   D: {
@@ -19,8 +17,4 @@ for (const {
   D: {
     allSettled
   }
-} of [{
-  D: {
-    allSettled: _Promise$allSettled
-  }
-}]) console.log(allSettled);
+} of [box]) console.log(allSettled);

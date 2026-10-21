@@ -1,4 +1,5 @@
-// A positional capture keeps the preceding static claim live at its replacement path.
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const array = [2, 7], rows = [Object, array];
 let keys, at;
 [{ keys }, { at }] = rows;

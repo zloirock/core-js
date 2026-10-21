@@ -1,9 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-import _Math$sinh from "@core-js/pure/actual/math/sinh";
 import _Object$is from "@core-js/pure/actual/object/is";
-// a for-of HEAD over call elements pairs the same way: the alias holds the element's slot value, the
-// head's nested claim mirrors the callee's literal in the element with the call kept ahead, and a
-// head over SEVERAL elements - an IIFE and a call among them - claims per element. one static per row
+// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// Reads and effects remain inside their source control-flow positions.
 const headed = () => ({
   a: Object
 });
@@ -30,11 +28,5 @@ for (const {
     sinh: viaTwoElements
   }
 } of [(() => ({
-  a: {
-    sinh: _Math$sinh
-  }
-}))(), (built(), {
-  a: {
-    sinh: _Math$sinh
-  }
-})]) use(viaTwoElements(1));
+  a: Math
+}))(), built()]) use(viaTwoElements(1));

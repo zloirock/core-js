@@ -5,11 +5,8 @@ import _Map from "@core-js/pure/actual/map";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// an effect prefix on a destructure init runs once, ahead of every read the pattern makes, wherever the
-// extraction leaves it room: a statement of its own where one fits - in the block a bodyless `if` gains,
-// between the halves of a split declaration - else the head of the sequence an assignment becomes, the
-// first extracted initializer (in a for-init, ahead of a computed key's effect) or its place in a
-// mirrored literal
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 function eff() {}
 function pre() {}
 var bm, bo;
@@ -40,9 +37,7 @@ for (var fw = (eff(), _WeakSet), {
   } = _globalThis; false;) break;
 var [{
   Map: aw
-}, alsoWrapped] = (eff(), [{
-  Map: _Map
-}, 1]);
+}, alsoWrapped] = (eff(), [_globalThis, 1]);
 for (const nf = (eff(), _Array$from), {
     Array: _unused,
     ...rest

@@ -1,15 +1,14 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 {
-  var _ref;
+  var _ref2;
   const {
-    x: {
-      [(effectful(), 'from')]: f2
-    }
-  } = {
-    x: {
-      from: _Array$from
-    }
-  };
-  const doubled = _flatMaybeArray(_ref = [1, [2]]).call(_ref);
+      x: _ref
+    } = {
+      x: Array
+    },
+    f2 = (effectful(), _Array$from);
+  const doubled = _flatMaybeArray(_ref2 = [1, [2]]).call(_ref2);
 }

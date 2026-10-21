@@ -1,5 +1,4 @@
-// A nested computed static key evaluates once after its receiver is captured.
-// The key precedes initialization of its source binding, and the pure method wins.
-// The following instance call retains its own polyfill.
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 const { x: { [(effectful(), "from")]: f } } = { x: Array };
 const doubled = [1, [2]].flat();

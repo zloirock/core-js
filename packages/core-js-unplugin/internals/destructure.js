@@ -9,8 +9,11 @@ import {
   dispatchMayReadNav,
   consumedAssignmentSlotPrunes,
   destructureAssignmentValueIsCaptured,
+  destructureHostInitNode,
+  receiverPerformsEveryInitEffect,
   destructureKeyReadPlan,
   destructurePatternHostPath,
+  destructureRetainsLiteralWrapper,
   fallbackBranchSwapKeepsSelection,
   fallbackBranchWalk,
   liftedPrefixSplit,
@@ -370,6 +373,7 @@ export default function createAstDestructureEmitter({
     pendingBranchSynths,
     pendingSplits,
     probeRenderCtx,
+    registerDeclaratorBindings,
     program,
     resolveGlobalPolyfill,
     resolvePropertyObjectType,
@@ -676,6 +680,7 @@ export default function createAstDestructureEmitter({
   function handlePerBranch({ metaPath, claimObject = null }) {
     const prop = metaPath.node;
     if (prop.type !== 'Property') return;
+    if (destructureRetainsLiteralWrapper({ propPath: metaPath, kind: 'static', adapter })) return;
     const patternPath = metaPath.parentPath;
     const pattern = patternPath?.node;
     if (pattern?.type !== 'ObjectPattern') return;
@@ -1621,11 +1626,6 @@ export default function createAstDestructureEmitter({
     if (!plan) return false;
     const declaration = declarator.parentPath;
     const exported = declaration.parentPath.node.type === 'ExportNamedDeclaration';
-    for (const mirror of plan.array.mirrors ?? []) renderNestedParamSynth({
-      metaPath: mirror.propPath,
-      meta: mirror.meta,
-      fallbackOnBail: true,
-    });
     const rendered = renderArrayDestructurePlan(plan, {
       kind: declaration.node.kind ?? 'const',
       injectImport: injectPureImport,
@@ -1638,9 +1638,7 @@ export default function createAstDestructureEmitter({
       decorate: (node, source, isExport) => exportWrap(node, isExport),
       read: (extraction, receiver) => {
         const id = identifier(injectPureImport(extraction.entry, extraction.hint));
-        if (extraction.kind !== 'static') return callExpression(id, [receiver]);
-        injectorState.registerBodyExtractAlias(extraction.localName, extraction.entry, metaPath.scope.getBinding(extraction.localName));
-        return id;
+        return callExpression(id, [cloneNode(receiver)]);
       },
     });
     if (exported && !plan.array.inDeclaration && plan.array.exportedSiblings?.length) rendered.push({
@@ -1810,9 +1808,21 @@ export default function createAstDestructureEmitter({
       const declarations = rendered.elements.flatMap(element => element.declarator ? [element.declarator] : []);
       capturedSiblingHosts.add(rendered.capture);
       for (const declaration of declarations) capturedSiblingHosts.add(declaration);
-      const [capture] = restHost.replaceWithMultiple([rendered.capture, ...declarations]);
-      registerDeclaratorBindings(capture);
+      for (const replacement of restHost.replaceWithMultiple([rendered.capture, ...declarations])) {
+        registerDeclaratorBindings(replacement);
+      }
       markRewrite();
+      return;
+    }
+    // Common captures above may expose a flat read. Remaining literal-wrapper
+    // static/global slots retain their source patterns on every host.
+    if (destructureRetainsLiteralWrapper({ propPath: metaPath, kind, adapter })) {
+      // A retained plain static binding still has its known return type. A native
+      // default may supply another function, so only the unguarded binding is an alias.
+      if (kind === 'static' && metaPath.node.value.type === 'Identifier') registerExtractAliases({
+        metaPath, kind, entry, prop: metaPath.node,
+      });
+      renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true });
       return;
     }
     const prop = metaPath.node;
@@ -2045,8 +2055,13 @@ export default function createAstDestructureEmitter({
       markRewrite();
       return;
     }
-    const sentinel = hasRestSibling(pattern, keyCtx) || (prop.computed && computedKeyHasSideEffects(prop, keyCtx))
-      || destructureHostLiteralSurvives(metaPath, adapter);
+    let sentinel = hasRestSibling(pattern, keyCtx) || (prop.computed && computedKeyHasSideEffects(prop, keyCtx));
+    if (!sentinel && destructureHostLiteralSurvives(metaPath, adapter)) {
+      // A sole instance read can carry every initializer effect in its dispatch.
+      // Other residuals still need their original key and source slot.
+      const receiver = kind === 'instance' && resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter });
+      sentinel = !receiver || !receiverPerformsEveryInitEffect(destructureHostInitNode(metaPath), receiver, keyCtx);
+    }
     // a sentinel-kept DEFAULTED prop retires whole (`[(se, 'at')]: _unused` - the default
     // lives on in the extraction's guard ternary); other pattern-valued props stay. a MEMBER slot the
     // gate above admitted retires the same way on the host's own level: the extraction writes into it.
@@ -2544,6 +2559,15 @@ export default function createAstDestructureEmitter({
           metaPath,
         });
         if (forInitValue) {
+          // ... and so does a HOP whose DEFAULT carries an EFFECT, the assignment host's same arm
+          if (hopDefaultCarriesEffect(chain)) {
+            // the SHARED plan answers first, as it does on the other binding: it reads the slot the
+            // default pairs with and mirrors the arm there, where the per-branch route below only sees
+            // the leaf's own meta and leaves a passthrough sibling's tree unrenderable
+            if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return 'handled';
+            routeSelectionMirror(metaPath, handlePerBranch, meta?.object);
+            return 'handled';
+          }
           registerExtractAliases({ metaPath, kind, entry, hintName, prop, declaration: declarationPath.node, declarationPath });
           recordJob({
             hostPath: exported ? declarationPath.parentPath : declarationPath,
@@ -2685,15 +2709,6 @@ export default function createAstDestructureEmitter({
     if (prop.value.type === 'AssignmentPattern' && !defaultedIdent) return 'handled';
     if (chain.length > 0 && kind === 'instance') return 'handled';
     if (capturedSelectionDeclinesExtraction({ selecting, meta, metaPath, soleBinding, chain, kind })) {
-      routeSelectionMirror(metaPath, handlePerBranch, meta?.object);
-      return 'handled';
-    }
-    // ... and so does a HOP whose DEFAULT carries an EFFECT, the assignment host's same arm
-    if (hopDefaultCarriesEffect(chain)) {
-      // the SHARED plan answers first, as it does on the other binding: it reads the slot the
-      // default pairs with and mirrors the arm there, where the per-branch route below only sees
-      // the leaf's own meta and leaves a passthrough sibling's tree unrenderable
-      if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return 'handled';
       routeSelectionMirror(metaPath, handlePerBranch, meta?.object);
       return 'handled';
     }
@@ -3289,18 +3304,19 @@ export default function createAstDestructureEmitter({
     // walks through the literal and hands back the nav those hops name, which is what dispatches
     // (`{ w: { Array: { prototype: { at } } } } = { w: globalThis }` reads `_globalThis.Array
     // .prototype`, exactly as its identifier-init twin does)
-    const navDispatch = chain.length > 0 ? resolveNestedNavDispatch(metaPath, { adapter }) : null;
+    const navDispatch = kind === 'instance' && chain.length > 0 ? resolveNestedNavDispatch(metaPath, { adapter }) : null;
     const pureNav = ((forInit || seCarried
       ? isPureNavAfterSePrefix(carriedInitValue, guardCtx)
       : isPureNavReceiver(declarator.init, guardCtx)) && navRootReReadable(declarator.init, metaPath))
       || allProxyInit
-      || (!!navDispatch?.dispatch?.root && isPureNavReceiver(navDispatch.dispatch.node, guardCtx));
+      || (!!navDispatch?.dispatch?.root && isPureNavReceiver(navDispatch.dispatch.node, guardCtx)
+        && (sentinel || receiverPerformsEveryInitEffect(declarator.init, navDispatch.dispatch.node, keyCtx)));
     const { pure: typedHopPure, defaultHost: typedHopDefaultHost } = typedHopFor({
       chain, kind, entry, metaPath, receiverPath: hostReceiverPath(hostParent),
     });
     const typedNavChain = typedNavChainFor({ kind, entry, chain, metaPath, allowSurfaceBase: true });
     const literalRoute = planLiteralRoute({
-      metaPath, prop, sentinel, chain, declarator, declaration, pureNav: pureNav || !!typedHopPure, forInit, adapter,
+      metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav: pureNav || !!typedHopPure, forInit, adapter,
     });
     const { soleBinding, declaratorConsumedWhole, relaxedReceiver, carriedLive, receiverConsumesInit } = literalRoute;
     let { literalReceiver } = literalRoute;
@@ -3314,7 +3330,7 @@ export default function createAstDestructureEmitter({
     // the receiver may be resolved THROUGH it, so the dispatch spells the value the read yields
     // (`{ w: (g(), globalThis) }` dispatches on `_globalThis` while the husk still runs `g()`).
     // a literal the consume DROPS keeps the whole sequence in the dispatch - nothing else runs it
-    if (chain.length > 0 && destructureHostLiteralSurvives(metaPath, adapter)) {
+    if (sentinel && chain.length > 0 && destructureHostLiteralSurvives(metaPath, adapter)) {
       literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, allowSePeeledFragment: true })
         ?? (literalReceiver?.type === 'SequenceExpression'
           ? peelReceiverSequenceTail(literalReceiver) : literalReceiver);

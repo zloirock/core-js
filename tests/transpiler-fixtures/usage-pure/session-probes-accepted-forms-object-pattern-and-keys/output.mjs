@@ -1,4 +1,5 @@
-import _Object$keys from "@core-js/pure/actual/object/keys";
+// Shared capture and receiver-default routes preserve independently supported claims.
+// Receiver evaluation, residual reads and independent claims remain live.
 function eff() {
   return Object;
 }
@@ -9,9 +10,7 @@ function eff() {
     },
     q: andQ
   } = {
-    w: eff() && {
-      keys: _Object$keys
-    },
+    w: eff() && Object,
     q: 1
   };
   [andHop, andQ];
