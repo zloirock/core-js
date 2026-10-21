@@ -6,6 +6,7 @@ import {
   probeRenderedReceiver,
   peelReceiverSequenceTail,
   sealedChainBoundary,
+  directClaimProbeEffects,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
@@ -200,8 +201,6 @@ export default function createAstUsagePureCallback({
   // an optional-spine shape whose babel spelling is not ported yet
   const STAGED_SPLIT = Symbol('staged');
   // what the module-scope sealed-probe render needs from this closure.
-  // the channel renders (`buildNavGuardTest`, `substituteProbeProxyRoot`) join after the
-  // channel below is created - the two objects cross-reference
   const sealedProbeCtx = {
     adapter,
     resolvePure,
@@ -259,7 +258,6 @@ export default function createAstUsagePureCallback({
   // the proxy-spine channel shares this transform's closure state; the ctx objects above get
   // its renders assigned back before anything runs
   const {
-    buildNavGuardTest,
     collapseProxyHopSpine,
     deleteHostForClaim,
     deoptionalizeOverSubstituted,
@@ -292,7 +290,6 @@ export default function createAstUsagePureCallback({
     sealedProbeCtx,
     skippedNodes,
   });
-  Object.assign(sealedProbeCtx, { buildNavGuardTest, substituteProbeProxyRoot });
   Object.assign(destructureEmit.probeRenderCtx, { substituteProbeProxyRoot });
   Object.assign(nestedGuardCtx, { substituteProbeProxyRoot });
   const {
@@ -1055,11 +1052,10 @@ export default function createAstUsagePureCallback({
       if (!objectProbe && !node.optional && aliasRootedReadMayThrow(node.object, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath })) return;
       markRewrite();
-      // the probe render SPELLS the folded key effects itself (its `consumed` channel) - replaying
-      // them beside it would run the source's single evaluation twice
-      const probeSe = objectProbe && new Set(objectProbe.consumed);
-      metaPath.get('object').replaceWith(withSideEffects(identifier(id), objectProbe
-        ? [objectProbe.node, ...fallbackRecvSe.filter(effect => !probeSe.has(effect))] : fallbackRecvSe));
+      metaPath.get('object').replaceWith(objectProbe
+        ? sequenceExpression([...directClaimProbeEffects(objectProbe, fallbackRecvSe)
+          .map(effect => effect === objectProbe.node ? effect : cloneNode(effect)), identifier(id)])
+        : withSideEffects(identifier(id), fallbackRecvSe));
       return;
     }
     dropDeclinedNavSpine({ meta, metaPath, node });

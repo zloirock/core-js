@@ -9523,6 +9523,7 @@ export function foldedOperandNeedsValue(operand, slot) {
 // the JSX one inside on one leg and beside it on the other
 export function claimIsInert({ node, path, isDisabled, skippedNodes, isInTypeAnnotation }) {
   return !!isDisabled?.(node) || !!skippedNodes?.has(node)
+    || isRenderedProbeRead(node)
     || node?.type === 'JSXIdentifier' || !!isInTypeAnnotation?.(path)
     || !!nonEmittedExpressionAncestor(path);
 }
@@ -14676,6 +14677,18 @@ export function isUndefinedNode(node) {
 // nodes die with their AST, and a re-parse (the sandwich's second pass) sees fresh unmarked
 // nodes - by then the reads are already claimed, so the gate's decline is vacuous there
 const renderedStoredValues = new WeakSet();
+// Reads deliberately retained by the probe render are already served. Only those nodes are
+// owned: their computed keys, call arguments and other source children keep their own claims.
+const renderedProbeReads = new WeakSet();
+// Record one served read, without claiming its live child slots.
+export function markRenderedProbeRead(node) {
+  renderedProbeReads.add(node);
+  return node;
+}
+// Whether this read is already owned by the shared probe render.
+export function isRenderedProbeRead(node) {
+  return !!node && renderedProbeReads.has(node);
+}
 // returns the node so a render site can mark in the value position it writes
 export function markRenderedStoredValue(node) {
   if (node) renderedStoredValues.add(node);

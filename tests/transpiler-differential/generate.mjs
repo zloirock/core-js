@@ -19669,6 +19669,20 @@ function * generateRetainedWrapperNamespaces() {
     `await (async () => { const C = ${ name }; ${ setup } ${ read } return ${ call }; })()`), strip: true };
 }
 
+// Direct probes preserve the absent holder, the first throwing seal and both effect halves.
+// The stripped leg is required: a native constructor must not hide a read through its absence.
+function * generateDirectClaimProbes() {
+  for (const [name, read] of [
+    ['alias', 'typeof held.Promise.resolve'],
+    ['nav', '(log.push("prefix"), (globalThis.window?.self).Array).of((log.push([7].at(0)), 3))'],
+    ['leaf', '(globalThis.window?.[(log.push([7].at(0)), "Array")]).of(3)'],
+    ['rebase', '(log.push("prefix"), (globalThis.window?.self).Array).name'],
+  ]) for (const rig of [false, true]) {
+    const body = `(() => { const held = globalThis.window; try { return ${ read }; } catch (error) { return error.name; } })()`;
+    yield { ...snippet(`direct-claim-probes/${ name }/${ rig ? 'window' : 'off-window' }`, body, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20034,4 +20048,5 @@ export function * generate() {
   yield * generateRetainedWrapperDefaults();
   yield * generateRetainedWrapperOrder();
   yield * generateRetainedWrapperNamespaces();
+  yield * generateDirectClaimProbes();
 }

@@ -3,6 +3,7 @@ import {
   PRIMITIVE_LITERAL_TYPES,
   markGeneratedMemoDeclarator,
   markRenderedStoredValue,
+  markRenderedProbeRead,
   callArgumentMayBeObserved,
   classifyReceiverSE,
   isReusableReceiver,
@@ -553,11 +554,66 @@ export function renderInExpressionPlan(plan, { injectImport, embed = node => nod
 // member spelled verbatim off the alias binding, the dotted run between them respelled with it -
 // the source's own computed flag decides the spelling, not the key's validity, because the probe
 // reproduces a read the source performs
-export function renderAliasHeldProbeRead(probe, object) {
-  const base = (probe.innerKeys ?? []).reduce((acc, key) => memberFromKeyName(acc, key), object);
-  return probe.computed
+export function renderAliasHeldProbeRead(probe, object, own = node => node) {
+  const base = (probe.innerKeys ?? []).reduce((acc, key) => own(memberFromKeyName(acc, key)), object);
+  return own(probe.computed
     ? memberExpression(base, literal(probe.key), { computed: true })
-    : memberExpression(base, identifier(probe.key));
+    : memberExpression(base, identifier(probe.key)));
+}
+
+// The complete direct probe. Source-slot edits and effect ownership are plan facts; hosts only
+// clone/embed their dialect and allocate imports. Served reads are marked individually so a
+// nested key or argument is still visited, while requeue cannot erase the probe's own throw.
+export function renderDirectClaimProbe(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
+  function pure(entry) {
+    return identifier(injectImport(entry.entry, entry.hintName));
+  }
+  function clone(node) {
+    return embed(cloneHost(node));
+  }
+  function sequence(effects, value) {
+    return effects.length ? sequenceExpression([...effects, value]) : value;
+  }
+  const own = markRenderedProbeRead;
+  function source(slot) {
+    const node = cloneHost(slot.source);
+    function at(path) {
+      return path.reduce((value, key) => value[key], node);
+    }
+    for (const path of slot.served) own(at(path));
+    for (const path of slot.deopt) {
+      const hop = at(path);
+      if (hop.type === 'OptionalMemberExpression') hop.type = 'MemberExpression';
+      hop.optional = false;
+    }
+    if (slot.root) at(slot.root.path).name = injectImport(slot.root.pure.entry, slot.root.pure.hintName);
+    return embed(node);
+  }
+  function tail(base, hops) {
+    const result = renderNavCollapseTail({ hops, collapseIdx: -1 }, base, { cloneHost: clone, own });
+    return hops.some(hop => hop.liveOptional) ? chainExpression(result) : result;
+  }
+  if (plan.kind === 'alias') {
+    return renderAliasHeldProbeRead(plan.aliasProbe, source(plan.object), own);
+  }
+  const { test, navPlan, leafPlan } = plan;
+  let probe = test.source ? source(test.source)
+    : test.base ? own(renderNavGuardTestBase(test.base, { prefix: test.prefix.map(source), injectImport }))
+    : tail(sequence(test.prefix.map(source), pure(test.pure)), test.tail);
+  if (test.assign) {
+    noteRenderRetiredWrites(test.assign);
+    probe = assignmentExpression(test.assign.operator, clone(test.assign.left), probe);
+  }
+  let alternate = plan.kind === 'nav' ? tail(pure(navPlan.leafPure), navPlan.hops.slice(navPlan.collapseIdx + 1))
+    : leafPlan.leafPure ? pure(leafPlan.leafPure)
+    : leafPlan.leafBasePure ? (plan.foldLeafOntoBase ? pure(leafPlan.leafBasePure)
+      : own(memberFromKeyName(pure(leafPlan.leafBasePure), leafPlan.leafName)))
+    : identifier(leafPlan.leafName);
+  if (plan.alternateEffects?.length) alternate = sequence(plan.alternateEffects.map(clone), alternate);
+  const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
+  const read = own(plan.boundary.member.computed
+    ? memberExpression(guarded, literal(plan.key), { computed: true }) : memberFromKeyName(guarded, plan.key));
+  return sequence(plan.prefix.map(clone), read);
 }
 
 // the render half of `planKeptSequenceTail`: the tail folds onto its outermost hop's own ponyfill,
@@ -572,12 +628,12 @@ export function renderKeptSequenceTail(plan, { injectImport, embed = node => nod
 // computed hop stays computed, a named one takes the key-name spelling, and a live `?.` rides
 // where the source wrote it. it hangs off the LEAF, never off a whole guard - there it would
 // read the short-circuited `void 0` instead of the ponyfill
-export function renderNavCollapseTail(plan, base, { cloneHost = node => node } = {}) {
+export function renderNavCollapseTail(plan, base, { cloneHost = node => node, own = node => node } = {}) {
   let built = base;
   for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
-    built = hop.node.computed
+    built = own(hop.node.computed
       ? memberExpression(built, cloneHost(hop.node.property), { computed: true, optional: !!hop.liveOptional })
-      : memberFromKeyName(built, hop.name, { optional: !!hop.liveOptional });
+      : memberFromKeyName(built, hop.name, { optional: !!hop.liveOptional }));
   }
   return built;
 }
@@ -599,9 +655,10 @@ export function renderGuardedChainTail(tail, base, { cloneHost = node => node, c
 // the guard TEST a resolvable base supplies (`navGuardTestBase` decides there IS one): the probe
 // hop read off the ponyfilled base, with a kept root write riding ahead of it in a sequence
 // (`(w = _globalThis, _self).window`) - the write is the source's own act and evaluates first
-export function renderNavGuardTestBase(base, { rootAssign = null, injectImport, embed = node => node }) {
+export function renderNavGuardTestBase(base, { rootAssign = null, prefix = [], injectImport, embed = node => node }) {
   const pure = identifier(injectImport(base.basePure.entry, base.basePure.hintName));
-  const root = rootAssign ? sequenceExpression([embed(cloneNode(rootAssign)), pure]) : pure;
+  const effects = rootAssign ? [...prefix, embed(cloneNode(rootAssign))] : prefix;
+  const root = effects.length ? sequenceExpression([...effects, pure]) : pure;
   return memberExpression(root, identifier(base.probeName));
 }
 
