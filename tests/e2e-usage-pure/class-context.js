@@ -575,3 +575,38 @@ QUnit.test('class context: a key write reaches a static field read above it', as
   assert.false(Keyed.grouped instanceof Map);
   assert.deepEqual(Keyed.grouped[1], [1, 3]);
 });
+
+// a static block scopes what it declares - a `var` and a function too - so the other elements of the class read
+// the OUTER name past a block-local one: a field, another static block and a static method take the global's
+// polyfill, while the block's own reads stay on its locals. the statics read here are native on no Node of the
+// supported range, so every leg observes a lost polyfill
+QUnit.test('class context: a static block declaration covers only its own block', assert => {
+  let local, ranged;
+  class Shadowed {
+    static {
+      const Iterator = { zip: 'const' };
+      // eslint-disable-next-line no-var -- a static block's `var` is one of the declaration kinds under test
+      var Math = { sumPrecise: 'var' };
+      local = [Iterator.zip, Math.sumPrecise];
+    }
+
+    static {
+      function Iterator() { return 'function'; }
+      local.push(Iterator());
+    }
+
+    static total = Math.sumPrecise([1, 2, 3]);
+
+    static {
+      ranged = Array.from(Iterator.range(0, 3));
+    }
+
+    static zipped() {
+      return Array.from(Iterator.zip([[1, 2], [3, 4]]));
+    }
+  }
+  assert.deepEqual(local, ['const', 'var', 'function']);
+  assert.same(Shadowed.total, 6);
+  assert.deepEqual(ranged, [0, 1, 2]);
+  assert.deepEqual(Shadowed.zipped(), [[1, 3], [2, 4]]);
+});
