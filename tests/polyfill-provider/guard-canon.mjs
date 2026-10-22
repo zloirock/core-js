@@ -23,12 +23,14 @@ import {
   inlineCallReturnExpression,
   moduleDefaultSource,
   resolveInlineCalleeFunction,
+  seBearingChainRootCall,
   navRootPrefixNodes,
   planKeptSequenceTail,
   planProvenNavGuardCollapse,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import {
   walkAstNodes,
+  withCanonQuestion,
   unwrapRuntimeExpr,
   wrapScopeBindingLookup,
   peelParenAndTSSlotPath,
@@ -38,6 +40,7 @@ import {
 import { createChecker } from './harness.mjs';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('guard-canon');
 
@@ -392,6 +395,144 @@ runBoth('callee aliases reuse their binding records',
     check(`${ label }/returned context keeps the original adapter`, resolved?.ctx.adapter, counted);
     firstAvailable = false;
     check(`${ label }/the next query sees an unavailable binding`, resolveInlineCalleeFunction(callHop), null);
+  });
+
+// Opaque bindings repeat within one receiver question after lowering. Reuse only that
+// terminal refusal; another question must read the binding again, including after a throw.
+for (const source of [
+  'import f from "opaque"; f();',
+  'import * as f from "opaque"; f();',
+  'import { f } from "opaque"; f();',
+  'function host(f) { f(); }',
+]) runBoth(`opaque callee question/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'CallExpression');
+  const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  let reads = 0;
+  const counted = { ...reader, getBinding(ask) {
+    reads++;
+    return reader.getBinding(ask);
+  } };
+  const callHop = { node: path.node, ctx: { adapter: counted, scope: path.scope, path }, seen: new Set() };
+  let firstReads;
+  withCanonQuestion(() => {
+    check(`${ label }/first refusal`, resolveInlineCalleeFunction(callHop), null);
+    firstReads = reads;
+    checkTruthy(`${ label }/real binding proof`, firstReads > 0);
+    for (let i = 0; i < 8; i++) check(`${ label }/repeat ${ i }`, resolveInlineCalleeFunction(callHop, {
+      allowIdentityParam: true, allowAsync: true, allowUninitializedCallee: true,
+    }), null);
+    check(`${ label }/same absent read anchor`, resolveInlineCalleeFunction({ ...callHop, readNode: null }), null);
+    check(`${ label }/callee span owns the read`, resolveInlineCalleeFunction({ ...callHop, readNode: path.node }), null);
+    check(`${ label }/one proof per question`, reads, firstReads);
+  });
+  withCanonQuestion(() => check(`${ label }/fresh question`, resolveInlineCalleeFunction(callHop), null));
+  check(`${ label }/fresh binding proof`, reads, firstReads * 2);
+  const sentinel = {};
+  try {
+    withCanonQuestion(() => {
+      resolveInlineCalleeFunction(callHop);
+      throw sentinel;
+    });
+  } catch (error) {
+    check(`${ label }/question forwards the exception`, error, sentinel);
+  }
+  resolveInlineCalleeFunction(callHop);
+  check(`${ label }/exception released the answers`, reads, firstReads * 4);
+});
+
+// An opaque callee is not a pure call. A discard consumer must keep the source
+// call even after another question established that its body cannot be inlined.
+runBoth('opaque callee still owes its source call', 'import f from "opaque"; f().Array;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { adapter, scope: path.scope, path };
+  withCanonQuestion(() => {
+    check(`${ label }/no local body`, resolveInlineCalleeFunction({ node: path.node.object, ctx, seen: new Set() }), null);
+    check(`${ label }/discard keeps the call`, seBearingChainRootCall({ node: path.node, ...ctx }), path.node.object);
+  });
+});
+
+// The same call node can be queried from another binding context. Keep the scope,
+// adapter and path in the key rather than treating a node as an immutable answer.
+runBoth('opaque callee context keys', 'import f from "opaque"; f(); function local() { return Map; }',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression');
+    const local = parser.pickPath(program, 'FunctionDeclaration');
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const adapter = { ...reader, getBinding(ask) {
+      const useLocal = ask.scope === local.scope || ask.path === local;
+      return reader.getBinding(useLocal && ask.name === 'f' ? { ...ask, name: 'local' } : ask);
+    } };
+    const replacement = { ...reader, getBinding(ask) {
+      return reader.getBinding(ask.name === 'f' ? { ...ask, name: 'local' } : ask);
+    } };
+    const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+    withCanonQuestion(() => {
+      check(`${ label }/original import`, resolveInlineCalleeFunction(callHop), null);
+      for (const [key, value] of [['scope', local.scope], ['adapter', replacement], ['path', local]]) {
+        check(`${ label }/${ key } changes the proof`, resolveInlineCalleeFunction({
+          ...callHop, ctx: { ...callHop.ctx, [key]: value },
+        })?.node.type, 'FunctionDeclaration');
+      }
+    });
+  });
+
+// A spanless callee uses the explicit read node to decide whether a parameter write
+// has run. Both reads share the call node, scope, adapter and path.
+runBoth('opaque callee read anchor', 'function host(f) { f(); f = () => Map; f(); }', (parser, program, label) => {
+  const calls = parser.collectPaths(program, 'CallExpression');
+  const [path] = calls;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const node = { ...path.node, callee: { ...path.node.callee, start: undefined } };
+  const callHop = { node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+  withCanonQuestion(() => {
+    check(`${ label }/before the write`, resolveInlineCalleeFunction({ ...callHop, readNode: path.node }), null);
+    check(`${ label }/after the write`, resolveInlineCalleeFunction({ ...callHop, readNode: calls[1].node })?.node.type,
+      'ArrowFunctionExpression');
+  });
+});
+
+// A refusal from a guard or an option is not an opaque declaration. The next proof
+// can reach a function in the same question; receiver invokers still pair their target.
+for (const [source, first, second, expected] of [
+  ['async function f() {} f();', {}, { allowAsync: true }, 'FunctionDeclaration'],
+  ['function f(value) {} f(1);', {}, { allowIdentityParam: true }, 'FunctionDeclaration'],
+  ['if (condition) { var f = function () {}; } f();', {}, { allowUninitializedCallee: true }, 'FunctionExpression'],
+  ['const first = () => Map; const f = first; f();', { seen: new Set(['first']) }, {}, 'ArrowFunctionExpression'],
+  ['const f = () => Map; f();', { seen: new Set(['f']) }, {}, 'ArrowFunctionExpression'],
+]) runBoth(`callee refusal stays live/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'CallExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+  withCanonQuestion(() => {
+    check(`${ label }/first refusal`, resolveInlineCalleeFunction({ ...callHop, seen: first.seen ?? callHop.seen }, first), null);
+    check(`${ label }/fresh proof`, resolveInlineCalleeFunction(callHop, second)?.node.type, expected);
+  });
+});
+
+// The metadata question must finish before the emitter can change the binding view.
+// Keeping the scope around onUsage would replay the former opaque verdict here.
+runBoth('member question ends before emission', 'import f from "opaque"; f().from; function local() { return Map; }',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression');
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    let replaced = false;
+    let emissions = 0;
+    let reads = 0;
+    const adapter = { ...reader, getBinding(ask) {
+      if (ask.name === 'f') reads++;
+      return reader.getBinding(replaced && ask.name === 'f' ? { ...ask, name: 'local' } : ask);
+    } };
+    const core = createUsageHandlerCore({ adapter, method: 'usage-pure', onUsage() {
+      emissions++;
+      check(`${ label }/metadata shares its receiver proof`, reads, 1);
+      replaced = true;
+      check(`${ label }/emission reads current bindings`, resolveInlineCalleeFunction({
+        node: path.node.object, readNode: null, ctx: { adapter, scope: path.scope, path }, seen: new Set(),
+      })?.node.type, 'FunctionDeclaration');
+    } });
+    core.emitMemberUsage(path);
+    check(`${ label }/emitter was reached`, emissions, 1);
   });
 
 // Speculative module lookup must not ask for writes on ordinary local callees.
