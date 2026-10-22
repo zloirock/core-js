@@ -59,6 +59,7 @@ import {
   isMemberAccessNode,
   isReusableReceiver,
   mayHaveSideEffects,
+  calleeParenWrapped,
   memberKeyName,
   memberProxyHopName,
   migratableClaimSe,
@@ -97,6 +98,7 @@ import {
   renderClaimProbe,
   renderMethodCall,
   planMethodCall,
+  planOptionalMethodCall,
   renderDeleteShortCircuitGuard,
   renderKeptSequenceTail,
   renderNavCollapseValue,
@@ -633,16 +635,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // range-less useNode fails the param/loop-header escape check and strands the `var` in the
   // function body, unreachable from a parameter-default use (ReferenceError at call time for
   // a TS parameter-property default)
-  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
-    node = prepareMemoReceiver(node, ctx);
+  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false, optionalPlan = null) {
+    node = optionalPlan ? optionalPlan.firstReceiver : prepareMemoReceiver(node, ctx);
     const { prefix, tail } = peelNestedSequenceExpressions(node);
-    // The first read runs the prefix once; later reads need only its stable rendered value.
-    if (prefix.length && isReusableReceiver(tail, { interveningEffects, directCallee, ctx })) {
-      return [t.cloneNode(node), t.removeComments(t.cloneNode(tail))];
-    }
-    // The first evaluation owns the source comments; a reread must not duplicate them.
-    if (isReusableReceiver(node, { interveningEffects, directCallee, ctx })) {
-      return [t.cloneNode(node), t.removeComments(t.cloneNode(node))];
+    // Optional callers already asked the provider before allocating in this frame.
+    // Other memo users retain the same adjacent-read canon. The first read owns comments.
+    const value = optionalPlan ? optionalPlan.receiver : prefix.length ? tail : node;
+    if (optionalPlan ? !optionalPlan.capture : isReusableReceiver(value, { interveningEffects, directCallee, ctx })) {
+      return [t.cloneNode(node), t.removeComments(t.cloneNode(value))];
     }
     const ref = generateRef(scope, anchorNode);
     const assign = t.assignmentExpression('=', t.cloneNode(ref), node);
@@ -1233,29 +1233,32 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const lookupId = optionalMethodLookupId(calleePath);
     const linkCheck = optionalCallReceiverGuard(calleePath.node) === 'link'
       ? extractCheck(calleePath, skipOptional)[0] : null;
-    const receiverNode = collapsedSplitReceiver(calleePath.node.object, linkCheck, calleePath);
-    const testsReceiver = calleePath.node.optional === true;
+    const ctx = { scope, path: calleePath, adapter: getAdapter?.(), injectorState: getInjector() };
+    const receiverNode = prepareMemoReceiver(collapsedSplitReceiver(calleePath.node.object, linkCheck, calleePath), ctx);
+    const decision = planOptionalMethodCall({ callee: calleePath.node, receiver: receiverNode, ctx });
+    const testsReceiver = decision.receiverGuard === 'value';
     const methodNode = t.cloneNode(calleePath.node);
     // read off the memo, an in-chain member is plain unless it carries its own `?.`
     if (methodNode.type === 'OptionalMemberExpression' && !methodNode.optional) deoptionalizeAstNode(methodNode);
-    const ctx = { scope, path: calleePath, adapter: getAdapter?.(), injectorState: getInjector() };
-    const interveningEffects = !!calleePath.node.computed && mayHaveSideEffects(calleePath.node.property, ctx);
     let callReceiver;
     let receiverMemo = null;
-    if (t.isSuper(receiverNode)) {
+    let receiverRead;
+    if (decision.superReceiver) {
       callReceiver = t.thisExpression();
     } else {
-      const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node, interveningEffects, ctx);
+      const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node, false, ctx, false, decision);
       // the memo may hold a resolvable surface (a proxy global, or a CTOR read off one):
       // tag the ref so the re-traversed method read keeps resolving through it
       // (`_ref = (t = _globalThis, _globalThis).Array` serves `_ref?.from` -> `_Array$from`)
       tagProxyGlobalMemoRef(receiverRef, receiverNode, scope);
-      receiverMemo = isReusableReceiver(assign, { interveningEffects, ctx }) ? null : assign;
+      receiverRead = assign;
+      receiverMemo = decision.capture ? assign : null;
       callReceiver = t.cloneNode(receiverRef);
       // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
-      methodNode.object = t.cloneNode(receiverRef);
+      // A stable tail needs no memo, but its raw lookup still owns the full first read.
+      methodNode.object = t.cloneNode(decision.capture ? receiverRef : decision.firstReceiver);
     }
-    const lookupArg = receiverMemo && !testsReceiver ? receiverMemo : t.cloneNode(callReceiver);
+    const lookupArg = testsReceiver ? t.cloneNode(callReceiver) : receiverRead;
     const [methodMemo, methodRef] = memoize(lookupId ? t.callExpression(lookupId, [lookupArg]) : methodNode,
       scope, chainStart.node);
     const invocation = estreeToBabel(renderMethodCall(planMethodCall({
@@ -1270,7 +1273,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!lookupId) {
       // when recv is memoized, fold its assignment ahead of the method memo so it runs first
       checks = [receiverMemo ? t.sequenceExpression([receiverMemo, methodMemo]) : methodMemo];
-    } else checks = testsReceiver ? [receiverMemo ?? t.cloneNode(callReceiver), methodMemo] : [methodMemo];
+    } else checks = testsReceiver ? [receiverRead, methodMemo] : [methodMemo];
     checks = [...guardChecks(linkCheck), ...checks];
     return checks.length === 1 ? checks[0] : checks;
   }
@@ -2699,7 +2702,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
       && parent.callee === callerPath.node;
     const isParenLookupOnly = isCall && !t.isOptionalCallExpression(parent)
-      && isWrappedInParens(path) && path.isOptionalMemberExpression();
+      && calleeParenWrapped(parent) && path.isOptionalMemberExpression();
     return { callerPath, parent, isCall, isParenLookupOnly };
   }
 
@@ -2948,20 +2951,22 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       adapter: getAdapter?.(),
       injectorState: getInjector(),
     };
-    const innerKeyEffects = !!innerCallee.computed && mayHaveSideEffects(innerCallee.property, receiverCtx);
     const linkChecks = receiverGuard === 'link'
       ? guardChecks(extractCheck(innerCalleePath, skipOptional)[0]) : [];
-    const [anAssign, aRef] = memoize(collapsedSplitReceiver(innerCallee.object, linkChecks, outerPath),
-      scope, outerPath.node, innerKeyEffects, receiverCtx);
+    const receiverNode = prepareMemoReceiver(collapsedSplitReceiver(innerCallee.object, linkChecks, outerPath), receiverCtx);
+    const decision = planOptionalMethodCall({
+      callee: innerCallee, receiver: receiverNode, call: chainStartNode,
+      continuation: hasHops ? null : outerPath.node, ctx: receiverCtx,
+    });
+    const [anAssign, aRef] = memoize(receiverNode, scope, outerPath.node, false, receiverCtx, false, decision);
     // an untested receiver folds its assignment into the method-get, so a non-bare one still
     // evaluates exactly once
-    const testsReceiver = receiverGuard === 'value';
+    const testsReceiver = decision.receiverGuard === 'value';
     const methodGet = t.callExpression(t.cloneNode(innerId),
       [testsReceiver ? t.cloneNode(aRef) : anAssign]);
     // An adjacent optional result guard also handles the optional method's absent value.
     // Non-optional results and intervening hops still need the distinct method guard.
-    const compactMethod = !hasHops && outerPath.node.optional && chainStartNode?.optional
-      && unwrapRuntimeExpr(outerPath.node.object) === chainStartNode;
+    const { compactMethod } = decision;
     const mRef = compactMethod ? null : generateRef(scope, outerPath.node);
     const mCall = estreeToBabel(renderMethodCall(planMethodCall({
       receiver: aRef, prepared: true, methodGuarded: !compactMethod, optional: compactMethod, args: innerArgs,

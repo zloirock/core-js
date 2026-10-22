@@ -9691,6 +9691,18 @@ export function optionalCallReceiverGuard(callee) {
   return receiverCarriesLiveOptional(callee?.object) ? 'link' : null;
 }
 
+// Explicit parens in the callee seal its optional chain while preserving its method
+// reference. Babel records a flag, ESTree a wrapper node; TS/Flow and chain markers
+// only carry that boundary. A parenthesized receiver inside the member is not this seal.
+export function calleeParenWrapped(callNode) {
+  for (let wrapper = callNode.callee; wrapper;) {
+    if (wrapper.type === 'ParenthesizedExpression' || wrapper.extra?.parenthesized) return true;
+    if (CHAIN_HOP_WRAPPER_TYPES.has(wrapper.type)) wrapper = wrapper.expression;
+    else return false;
+  }
+  return false;
+}
+
 // node types whose value is always a freshly-made object - the only left operands of `&&` that
 // cannot hand `in` something it throws on
 export const ALWAYS_TRUTHY_OBJECT_NODES = new Set([
