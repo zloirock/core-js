@@ -14,7 +14,6 @@ import {
   callExpression,
   cloneNode,
   identifier,
-  memberExpression,
   sequenceExpression,
   nullGuardTest,
   composeNullGuardTest,
@@ -239,10 +238,9 @@ export function inheritedStaticCalleeSplit(node, callee, metaPath, ctx) {
   return {
     hopKind: 'call',
     disjuncts: [],
-    receiver: callExpression(
-      memberExpression(identifier(ctx.injectPureImport(result.entry, result.hintName)), identifier('call')),
-      [{ type: 'ThisExpression' }, ...node.arguments.map(argument => cloneNode(argument))],
-    ),
+    receiver: renderMethodCall(planMethodCall({
+      receiver: { type: 'ThisExpression' }, prepared: true, methodGuarded: true, args: node.arguments,
+    }), { lookup: identifier(ctx.injectPureImport(result.entry, result.hintName)), embed: cloneNode }),
   };
 }
 

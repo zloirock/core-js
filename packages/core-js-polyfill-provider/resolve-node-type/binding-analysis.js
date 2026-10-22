@@ -526,7 +526,7 @@ export function createBindingAnalysis({
   }
 
   // shared per-program CENSUS: ONE walk collects this cluster's raw material (reference
-  // Identifier paths - the cheap filters run here, the per-identifier scope resolution is
+  // Identifier paths by spelling - the cheap filters run here, the scope resolution is
   // deferred to `buildProgramIndex` below - plus the `NewExpression`-by-callee-name map)
   // AND every visitor bundle the factory contributes from sibling clusters (the module-field
   // index). visitor keys across contributions are disjoint - the factory owns that invariant.
@@ -537,7 +537,7 @@ export function createBindingAnalysis({
   let currentTreeReferences = false;
   function programCensus(programPath) {
     return memoize(programCensusCache, programPath, () => {
-      const referenceIdentifierPaths = [];
+      const referenceIdentifiersByName = new Map();
       const newExprByName = new Map();
       const visitors = {
         Identifier(p) {
@@ -550,7 +550,7 @@ export function createBindingAnalysis({
           // through to `'leak'`, disabling the narrow
           if (isBindingDeclarationPath(p)) return;
           if (isNonReferencePosition(p.parent, p.node)) return;
-          referenceIdentifierPaths.push(p);
+          pushByKey(referenceIdentifiersByName, p.node.name, p);
         },
         // a JSX tag name is a runtime reference too: the element hands the component to a renderer
         // that calls it with props, which is a CALLER the file does not otherwise spell. babel's
@@ -558,7 +558,7 @@ export function createBindingAnalysis({
         // read as "no callers", which is the one wrong answer every consumer here is unsound on
         JSXIdentifier(p) {
           if (!jsxIdentifierReferencesBinding(p.node, p.parent)) return;
-          referenceIdentifierPaths.push(p);
+          pushByKey(referenceIdentifiersByName, p.node.name, p);
         },
         NewExpression(p) {
           const callee = unwrapRuntimeExpr(p.node.callee);
@@ -570,7 +570,7 @@ export function createBindingAnalysis({
       const contributions = extraProgramCensusCollectors?.() ?? [];
       for (const contribution of contributions) Object.assign(visitors, contribution.visitors);
       programPath.traverse(visitors);
-      const census = { referenceIdentifierPaths, newExprByName };
+      const census = { referenceIdentifiersByName, newExprByName };
       for (const contribution of contributions) Object.assign(census, contribution.finish());
       return census;
     });
@@ -578,19 +578,27 @@ export function createBindingAnalysis({
 
   // the `Identifier`-by-binding map (used by `collectBindingReferences` for the
   // estree-toolkit fallback and by `closure-analysis` temporal bound classification),
-  // derived LAZILY from the census: the per-identifier scope resolution is the expensive half,
-  // so only files that genuinely query it pay for the lookups - and the program walk itself is
-  // already amortized into the census. lazy, NOT parser-conditional: the reference fallback
-  // short-circuits on babel, but the closure temporal bound reads the index outright on both
-  // emitters, so both pay it once per program that resolves a closure-narrowed field
+  // derived lazily per spelling from the census. A query for one binding must not resolve
+  // every unrelated reference in the file. Spelling only selects candidates: scope resolution
+  // still separates namesakes, and declaration identity still joins equivalent binding views.
+  // The closure temporal bound requests the full index; it fills only the remaining names.
+  // Both views share the Program path lifetime and reset with the source-reference census.
   let programIndexCache = new WeakMap();
-  function buildProgramIndex(programPath) {
-    return memoize(programIndexCache, programPath, () => {
-      const { referenceIdentifierPaths, newExprByName } = programCensus(programPath);
+  function buildProgramIndex(programPath, wantedName = null) {
+    const index = memoize(programIndexCache, programPath, () => {
+      const { referenceIdentifiersByName, newExprByName } = programCensus(programPath);
+      return {
+        identifierByBinding: new Map(), bindingByDeclaration: new Map(), newExprByName,
+        pendingNames: new Map(referenceIdentifiersByName),
+      };
+    });
+    const { pendingNames, bindingByDeclaration } = index;
+    for (const [spelling, paths] of wantedName === null ? pendingNames : [[wantedName, pendingNames.get(wantedName)]]) {
+      if (!paths) continue;
       const identifierByBinding = new Map();
       // the binding each reference position resolves to, null for one that names no binding
       const bindingAtPosition = new Map();
-      for (const p of referenceIdentifierPaths) {
+      for (const p of paths) {
         const binding = getScopeBinding({ scope: p.scope, name: p.node.name, path: p });
         bindingAtPosition.set(nodeSpan(p.node)?.start ?? p.node, binding ?? null);
         if (binding) pushByKey(identifierByBinding, binding, p);
@@ -608,8 +616,8 @@ export function createBindingAnalysis({
       // a scope tracker may hand a later lookup another object for the same binding: its declaration and
       // its name identify it, so the references are found through that too - by both, since a pattern, a
       // catch parameter or a parameter list declares several bindings at one node
-      const bindingByDeclaration = new Map();
       for (const [binding, indexed] of identifierByBinding) {
+        index.identifierByBinding.set(binding, indexed);
         const declaration = binding.path?.node ?? binding.node;
         const name = indexed[0]?.node.name;
         if (!declaration || !name) continue;
@@ -617,8 +625,9 @@ export function createBindingAnalysis({
         if (!byName) bindingByDeclaration.set(declaration, byName = new Map());
         if (!byName.has(name)) byName.set(name, binding);
       }
-      return { identifierByBinding, bindingByDeclaration, newExprByName };
-    });
+      pendingNames.delete(spelling);
+    }
+    return index;
   }
 
   // Merge the tracker's current references with census-only source positions. A selective
@@ -674,7 +683,7 @@ export function createBindingAnalysis({
     }
     const program = findProgramPath(anchorPath);
     if (!program) return null;
-    const { identifierByBinding, bindingByDeclaration } = buildProgramIndex(program);
+    const { identifierByBinding, bindingByDeclaration } = buildProgramIndex(program, bindingBoundName(binding));
     const sameDeclaration = bindingByDeclaration.get(binding.path?.node ?? binding.node);
     const indexed = identifierByBinding.get(binding) ?? identifierByBinding.get(sameDeclaration?.get(bindingBoundName(binding))) ?? [];
     return !currentTreeReferences && Array.isArray(binding.references)
