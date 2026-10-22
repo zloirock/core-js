@@ -37,6 +37,8 @@ import {
   renderMemoActivation,
   exportDeclaration,
   renderDestructureStatements,
+  renderDestructureDeclarators,
+  renderDestructureHeadCapture,
   planMethodCall,
   renderMethodCall,
   planOptionalMethodCall,
@@ -268,6 +270,50 @@ check('varRequire', print(varRequire('_at', '@core-js/pure/actual/array/at')),
   });
   check('export/live scope registers binding', bindings.join(','), 'value');
   checkTruthy('export/live insertion prints export', inserted.code.includes('export const value = read(_receiver);'));
+}
+
+// A moved head keeps the source pattern and the separately tracked receiver read. In an
+// assignment loop the fresh head is const, but the body's original targets remain writes.
+runBoth('activation capture identity', 'let { [key()]: value = fallback(), ...rest } = source;', (parser, program, label) => {
+  const source = parser.pickPath(program, 'VariableDeclarator').node;
+  const binding = identifier('_head');
+  const receiver = identifier('_head');
+  const original = JSON.stringify(source);
+  for (const kind of ['let', 'const', 'var']) for (const assignment of [false, true]) {
+    const rendered = renderDestructureHeadCapture(source.id, { binding, receiver, kind, assignment, embed: hostSlot });
+    const head = estreeToBabel(rendered.head);
+    const statement = estreeToBabel(rendered.statement);
+    const read = assignment ? statement.expression : statement.declarations[0];
+    check(`${ label }/${ kind }/${ assignment }/pattern identity`, assignment ? read.left : read.id, source.id);
+    check(`${ label }/${ kind }/${ assignment }/read identity`, assignment ? read.right : read.init, receiver);
+    check(`${ label }/${ kind }/${ assignment }/binding identity`, assignment ? head.declarations[0].id : head, binding);
+    check(`${ label }/${ kind }/${ assignment }/body kind`, assignment ? read.operator : statement.kind, assignment ? '=' : kind);
+    if (assignment) check(`${ label }/private head kind`, head.kind, 'const');
+  }
+  check(`${ label }/source unchanged`, JSON.stringify(source), original);
+  const capture = renderDestructureHeadCapture(source.id, { binding, embed: hostSlot });
+  check(`${ label }/catch binding is mutable`, capture.statement.kind, 'let');
+  check(`${ label }/catch may reuse its binding identity`, estreeToBabel(capture.statement).declarations[0].init, binding);
+});
+
+// For-init slots stay in source order without cloning native residuals or declarators.
+{
+  const native = estreeToBabel(variableDeclarator(identifier('read'), callExpression(identifier('load'), [])));
+  const residual = estreeToBabel(variableDeclarator(identifier('rest'), identifier('_head')));
+  const binding = identifier('_head');
+  const init = { type: 'AwaitExpression', argument: identifier('source') };
+  for (const residualAt of [0, 1, 2]) {
+    const built = renderDestructureDeclarators([native, { id: identifier('tail'), init: null }], {
+      capture: { id: binding, init }, residual, residualAt, embed: hostSlot,
+    }).map(node => estreeToBabel(node));
+    check(`for-init/${ residualAt }/capture binding`, built[0].id, binding);
+    check(`for-init/${ residualAt }/opaque capture source`, built[0].init, init);
+    check(`for-init/${ residualAt }/residual identity`, built[residualAt + 1], residual);
+    check(`for-init/${ residualAt }/read identity`, built[residualAt === 0 ? 2 : 1], native);
+    check(`for-init/${ residualAt }/uninitialized binding`, built[residualAt === 2 ? 2 : 3].init, null);
+  }
+  check('for-init/empty reads', renderDestructureDeclarators([]).length, 0);
+  check('for-init/residual alone', renderDestructureDeclarators([], { residual })[0], residual);
 }
 
 // --- the chain dialect: ChainExpression dissolves into Optional*Expression links ---
