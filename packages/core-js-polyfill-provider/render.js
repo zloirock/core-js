@@ -5,6 +5,7 @@ import {
   markRenderedStoredValue,
   markRenderedProbeRead,
   callArgumentMayBeObserved,
+  callResultIsChainBase,
   classifyReceiverSE,
   isReusableReceiver,
   isMemberAccessNode,
@@ -77,7 +78,7 @@ export function memberExpression(object, property, { computed = false, optional 
 // register a newly allocated ref before asking any subsequent scope question about it.
 export function planMethodCall({
   receiver, sourceReceiver = receiver, sideEffects = [], receiverEffectCount = 0,
-  prepared = false, methodGuarded = false, args = [], optional = false, ctx = null,
+  prepared = false, methodGuarded = false, args = [], optional = false, callPath = null, ctx = null,
 }) {
   const sequence = prepared ? null : peelNestedSequenceExpressions(receiver);
   const tail = sequence?.prefix.length ? sequence.tail : receiver;
@@ -96,6 +97,7 @@ export function planMethodCall({
     keyEffects,
     args,
     optional,
+    continues: optional && callResultIsChainBase(callPath),
     methodGuarded,
     ctx,
   };
@@ -147,13 +149,13 @@ function renderMethodCallMember(method, { optional = false, methodGuarded = fals
 // All slots are read at apply time; nested claims stay live. `chain` seals a callee-optional
 // invocation only where the host has no continuing chain around it.
 export function renderMethodCall(plan, {
-  helper, lookup = null, lookupGuard = null, chain = true,
+  helper, lookup = null, lookupGuard = null, chain = true, leadingEffects = [],
   mintRef, embed = node => node, recordCapture = node => node,
 }) {
   // A stable whole receiver under the lookup guard needs no duplicate pre-key read.
   // A prefixed first read still owns work that its stable tail does not perform.
   const firstReadEffects = lookupGuard && plan.firstReceiver === plan.receiver ? [] : plan.firstReadEffects;
-  const effects = [...plan.prefixEffects, ...firstReadEffects].map(node => embed(node, 'effect'));
+  const effects = [...leadingEffects ?? [], ...plan.prefixEffects, ...firstReadEffects].map(node => embed(node, 'effect'));
   let receiver;
   if (lookup) {
     receiver = embed(plan.receiver, 'receiver');
@@ -179,6 +181,11 @@ export function renderMethodCall(plan, {
     lookup = renderShortCircuitGuard(lookupGuard, effects.length ? sequenceExpression([...effects, lookup]) : lookup);
     effects.length = 0;
   }
+  // Keep an optional call connected to its source continuation after lifting key effects.
+  if (plan.continues && effects.length) {
+    lookup = sequenceExpression([...effects, lookup]);
+    effects.length = 0;
+  }
   const args = [receiver, ...plan.args.map(node => embed(node, 'argument'))];
   const call = callExpression(renderMethodCallMember(lookup, plan), args);
   const result = plan.optional && chain ? chainExpression(call) : call;
@@ -198,6 +205,34 @@ export function renderReceiverMemo({ firstReceiver, receiver = firstReceiver, ca
       : embed(firstReceiver, 'lookup'),
     makeBase: () => embed(name ? identifier(name) : receiver, 'receiver'),
   };
+}
+
+// A receiver guard owns the first read and leaves key effects in its live branch. A sealed
+// method lookup leaves invocation arguments outside that branch; a whole-call helper instead
+// keeps its own nullish rejection and only guards the key effects. Prepared navigation supplies
+// its existing checks and receiver. All choices are shared; hooks only bind live source slots.
+export function renderGuardedMethodCall(plan, {
+  helper, guard = null, invoke = true, sealed = false, chain = true,
+  mintRef, embed = node => node, recordCapture = node => node,
+}) {
+  const memo = !guard && renderReceiverMemo({ ...plan, capture: !!plan.capture }, { mintRef, embed, recordCapture });
+  const prefix = !guard && plan.prefixEffects.map(node => embed(node, 'effect'));
+  const checks = guard ? guard.checks : [prefix.length ? sequenceExpression([...prefix, memo.firstRead]) : memo.firstRead];
+  const makeBase = guard ? () => embed(guard.receiver, 'receiver') : memo.makeBase;
+  const effects = plan.keyEffects.map(node => embed(node, 'effect'));
+  const test = sealed ? composeNullGuardTest(checks) : null;
+  const lookup = callExpression(helper, [makeBase()]);
+  const lookupEffects = sealed || invoke && plan.continues;
+  const built = invoke ? renderMethodCall({
+    ...plan, receiver: makeBase(), prefixEffects: [], firstReadEffects: [],
+    keyEffects: lookupEffects ? effects : [], args: plan.args.map(node => embed(node, 'argument')),
+  }, { lookup, lookupGuard: sealed ? test : null, chain }) : lookup;
+  if (sealed) {
+    return { checks: [], built: invoke ? built : sequenceExpression([
+      renderShortCircuitGuard(test, sequenceExpression([...effects, voidZero()])), built,
+    ]) };
+  }
+  return { checks, built: !lookupEffects && effects.length ? sequenceExpression([...effects, built]) : built };
 }
 
 // Split an optional method invocation into ordered null checks and its live continuation.
@@ -553,7 +588,7 @@ function isLeadingIdentLike(node) {
 // convention rather than by construction. `embed` wraps the carried check for a binding whose
 // dialect is not canonical; the SHAPE question is asked of the raw node, so it is asked first
 export function nullGuardTest(check, { embed = node => node } = {}) {
-  return isLeadingIdentLike(check)
+  return isLeadingIdentLike(hostSlotNode(check))
     ? binaryExpression('==', embed(check), literal(null))
     : binaryExpression('==', literal(null), embed(check));
 }
@@ -791,12 +826,10 @@ export function renderCapturedReceiver(recv, value, built) {
 // receiver matching none of them falls through to. the DECISION - which ctors are candidates and
 // in what order - is the shared plan's; this spells it. `spellRecv` mints the test's receiver read
 // per binding (the babel leg marks its clone handled on the way out).
-// `invoke` clones the host invocation around each callee when the plan moves a call into
-// its branches; its second argument says whether that callee is the RAW one, the only branch an
-// absorbed `?.()` keeps its short-circuit in - the pure entry is always callable, so its branch
-// spells a plain call. Arguments remain live for later transformation; only one branch executes.
-// its third, the receiver an instance-dispatched raw branch invokes its method on, leads the arguments
-// of that `.call`, the `?.` of an absorbed `?.()` riding the `.call` read.
+// Absorbed calls keep their optional guard only in the raw branch; a dispatched instance
+// fallback invokes on its receiver through the ordinary method-call canon. `cloneCall` retains
+// host call metadata around the already-decided callee, arguments and optional flag. Arguments
+// remain live for later transformation; only one branch executes.
 // `captureReceiver`, where the plan has one, is the receiver VALUE the branches read through: the
 // memo is written first and the whole narrow rides inside that sequence.
 // every branch is spelled by EITHER a pure entry or a name, and that is the plan's own invariant:
@@ -804,8 +837,20 @@ export function renderCapturedReceiver(recv, value, built) {
 // empty here. a branch carrying neither would mint a nameless identifier and print `undefined`
 // A scalar destructure default tests the raw read once; its source stays claim-live through `embed`.
 export function renderCtorIdentityNarrow(plan, rawBranch, {
-  injectImport, spellRecv, captureReceiver = null, invoke = node => node, mintRef, embed = node => node,
+  injectImport, spellRecv, captureReceiver = null, call = null,
+  cloneCall = (_source, callee, args, optional) => callExpression(callee, args, { optional }),
+  mintRef, embed = node => node, ctx = null,
 }) {
+  function invoke(callee, raw, receiver = null) {
+    if (!call) return callee;
+    const optional = raw && !!call.optional;
+    const args = call.arguments.map(argument => embed(argument, 'argument'));
+    if (receiver) return renderMethodCall(planMethodCall({
+      receiver, prepared: true, optional, args, ctx,
+    }), { lookup: callee });
+    const built = cloneCall(call, callee, args, optional);
+    return optional ? chainExpression(built) : built;
+  }
   let rawThis = null;
   if (plan.instanceFallback?.kind === 'instance') {
     const pure = plan.instanceFallback;
@@ -814,7 +859,6 @@ export function renderCtorIdentityNarrow(plan, rawBranch, {
     // first, any value but a function would throw ahead of the arguments, and an absorbed `?.()` would test
     // the bound function instead of the method
     if (plan.callInBranches) {
-      rawBranch = memberExpression(rawBranch, identifier('call'));
       rawThis = spellRecv();
     } else if (plan.isCallee) rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
   }

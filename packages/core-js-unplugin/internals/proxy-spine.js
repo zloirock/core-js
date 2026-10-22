@@ -94,8 +94,6 @@ import {
   renderShortCircuitGuard,
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
-  renderMethodCall,
-  planMethodCall,
   renderDestructureAssignments,
   renderNavCollapseValue,
   renderNavGuardTest,
@@ -226,9 +224,10 @@ export default function createProxySpineChannel(ctx) {
   // `captureSource` is the receiver VALUE the branches read through, handed to the render unless the
   // plan hoists its short-circuit INSIDE that capture - there the hoist writes the memo itself, and
   // passing it here too would assign the ref twice
-  function guardChainNode(plan, rawBranch, invoke, captureSource, mintRef, live = null) {
+  function guardChainNode(plan, rawBranch, call, captureSource, mintRef, live = null, receiverCtx = null) {
     return renderCtorIdentityNarrow(plan, rawBranch, {
-      injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name), invoke,
+      injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name), call, ctx: receiverCtx,
+      cloneCall: (source, callee, args, optional) => ({ ...cloneNode(source), callee, arguments: args, optional }),
       captureReceiver: plan.hoistInsideCapture ? null : captureSource,
       mintRef,
       embed: node => {
@@ -267,21 +266,9 @@ export default function createProxySpineChannel(ctx) {
     const liveArguments = plan.callInBranches ? new Set() : null;
     // arguments of an absorbed call keep their own claims: the guard's subtree mark walks around them
     const tailArguments = new Set();
-    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? (callee, raw, thisArg) => {
-      const optional = raw && Boolean(parent.optional);
-      const call = { ...cloneNode(parent), callee, optional };
-      for (const arg of call.arguments) liveArguments.add(arg);
-      // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
-      if (thisArg) {
-        const decision = planMethodCall({
-          receiver: thisArg, prepared: true, optional, args: call.arguments,
-          ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState: injector },
-        });
-        return renderMethodCall(decision, { lookup: callee.object });
-      }
-      // an absorbed optional call is its own chain in the branch it lands in
-      return optional ? chainExpression(call) : call;
-    } : undefined, captureSource);
+    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? parent : null,
+      captureSource, undefined, liveArguments,
+      { scope: metaPath.scope, path: metaPath, adapter, injectorState: injector });
     // the plan's continuation rides inside the live branch, the short-circuit is spelled once above
     // it, and the replaced target climbs to the outermost absorbed step
     let tailTarget = null;

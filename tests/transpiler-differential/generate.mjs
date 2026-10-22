@@ -19799,6 +19799,46 @@ function * generateOptionalContinuationFrames() {
   }
 }
 
+// Key effects belong to the receiver guard, while a sealed invocation still evaluates
+// its arguments. Cross the consume envelopes with local memo frames and nullish exits.
+function * generateGuardedCallEffects() {
+  const forms = [
+    ['member', 'get()?.[(key(), "at")](argument())'],
+    ['sealed member', '(get()?.[(key(), "at")])(argument())'],
+    ['optional method', 'get()[(key(), "at")]?.(argument())'],
+    ['sealed symbol', '(get()?.[(key(), Symbol.iterator)])(argument())'],
+    ['sealed symbol consume', '(get()?.[(key(), Symbol.iterator)])()'],
+    ['optional symbol', 'get()?.[(key(), Symbol.iterator)]?.(argument())'],
+    ['optional symbol continuation', 'get()[(key(), Symbol.iterator)]?.(argument()).valueOf()'],
+    ['optional guarded symbol continuation', 'get()?.[(key(), Symbol.iterator)]?.(argument()).valueOf()'],
+  ];
+  for (const [form, call] of forms) for (const frame of ['body', 'parameter', 'field']) {
+    for (const outcome of ['callable', 'null receiver', 'null method']) {
+      const read = frame === 'parameter' ? `function read(get, key, argument, value = ${ call }) { return value; }`
+        : `function read(get, key, argument) { return ${ frame === 'field' ? `new class { value = ${ call }; }().value` : call }; }`;
+      yield {
+        name: `guarded-call-effects/${ form }/${ frame }/${ outcome }`,
+        code: `export const effects = [];
+          ${ read }
+          const receiver = ${ outcome === 'null receiver' ? 'null' : `{ get ${ form.includes('symbol') ? '[Symbol.iterator]' : 'at' }() {
+            effects.push('lookup');
+            return ${ outcome === 'null method' ? 'null' : `function () {
+              effects.push(this === receiver ? 'this' : 'wrong this'); return [2];
+            }` };
+          } }` };
+          let r;
+          try {
+            const value = read(() => { effects.push('receiver'); return receiver; },
+              () => effects.push('key'), () => { effects.push('argument'); return [2].at(0); });
+            r = value?.includes(2);
+          } catch (error) { r = error.name; }
+          export { r };`,
+        strip: true,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20170,4 +20210,5 @@ export function * generate() {
   yield * generateNavigationMemoReads();
   yield * generateGuardedResidualValues();
   yield * generateOptionalContinuationFrames();
+  yield * generateGuardedCallEffects();
 }

@@ -125,6 +125,7 @@ function sides(test) {
 // only an identifier-like check heads a test bare; everything else takes the literal first, which
 // is what keeps a replacement safe as a statement-leading token
 check('shape/identifier reads ident-first', sides(nullGuardTest(identifier('x'))), 'Identifier/null');
+check('shape/host identifier reads ident-first', nullGuardTest(hostSlot(identifier('x'))).left.type, HOST_SLOT);
 check('shape/this reads ident-first', sides(nullGuardTest({ type: 'ThisExpression' })), 'ThisExpression/null');
 check('shape/assignment takes the literal first',
   sides(nullGuardTest(assign('_ref', identifier('x')))), 'null/AssignmentExpression');
@@ -258,14 +259,14 @@ for (const [source, expected] of [
   const rendered = renderCtorIdentityNarrow(plan, identifier('raw'), {
     injectImport,
     spellRecv: () => identifier('ref'),
-    invoke: (callee, raw, thisArg) => ({
-      type: 'CallExpression', callee, arguments: [...thisArg ? [thisArg] : [], identifier('argument')],
-    }),
+    call: { ...path.parentPath.node, arguments: [identifier('argument')] },
   });
   check(`${ label }/pure call`, rendered.consequent.callee.name, '_Object$entries');
-  check(`${ label }/raw dispatcher`, rendered.alternate.callee.object.callee.name, '_entries');
-  check(`${ label }/raw invokes through call`, rendered.alternate.callee.property.name, 'call');
-  check(`${ label }/raw receiver leads the arguments`, rendered.alternate.arguments.map(node => node.name).join(','), 'ref,argument');
+  const rawCall = unwrapRuntimeExpr(rendered.alternate);
+  check(`${ label }/raw optional flag`, rawCall.callee.optional, !!path.parentPath.node.optional);
+  check(`${ label }/raw dispatcher`, rawCall.callee.object.callee.name, '_entries');
+  check(`${ label }/raw invokes through call`, rawCall.callee.property.name, 'call');
+  check(`${ label }/raw receiver leads the arguments`, rawCall.arguments.map(node => node.name).join(','), 'ref,argument');
 });
 
 // WHICH invocation a captured receiver may move into the guard's branches: an ordinary call and a
@@ -296,12 +297,13 @@ for (const [source, expected] of [
     type: 'MemberExpression', object: identifier('ref'), property: identifier('of'), computed: false,
   }, {
     injectImport, spellRecv: () => identifier('ref'),
-    invoke: callee => ({ type: 'CallExpression', callee, arguments: [identifier('argument')] }),
+    call: { ...path.parentPath.node, arguments: [identifier('argument')] },
   });
   check(`${ label }/pure call`, rendered.consequent.type, 'CallExpression');
-  check(`${ label }/raw call keeps member receiver`, rendered.alternate.callee.object.name, 'ref');
+  const rawCall = unwrapRuntimeExpr(rendered.alternate);
+  check(`${ label }/raw call keeps member receiver`, rawCall.callee.object.name, 'ref');
   check(`${ label }/pure argument`, rendered.consequent.arguments[0].name, 'argument');
-  check(`${ label }/raw argument`, rendered.alternate.arguments[0].name, 'argument');
+  check(`${ label }/raw argument`, rawCall.arguments[0].name, 'argument');
 });
 
 // which slot a call hands back is found whatever the parameter LIST looks like - a tagged template

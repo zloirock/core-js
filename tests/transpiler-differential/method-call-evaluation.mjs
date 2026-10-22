@@ -25,6 +25,7 @@ const rows = [
   ['optional factory and result', 'getReceiver()?.at?.(argument())?.toString()?.at(0)'],
   ['optional prefix and continuation', '(effect(), receiver).at?.(argument())?.toString().at(0)'],
   ['optional keyed continuation', 'receiver[(effect(), "at")]?.(argument())?.toString().at(0)'],
+  ['optional result with keyed method', 'receiver.at?.(argument())?.[(effect(), "at")](argument())'],
   ['live link and continuation', 'box?.rows.at?.(argument())?.toString().at(0)', 'const box = receiver === null ? null : { rows: receiver };'],
   ['sealed link and continuation', '(box?.rows).at?.(argument())?.toString().at(0)', 'const box = receiver === null ? null : { rows: receiver };'],
   ['raw optional continuation', 'receiver.raw?.(argument())?.toString().at(0)'],
@@ -45,7 +46,26 @@ const rows = [
   ['sealed optional receiver', '(receiver?.at)(argument())'],
   ['sealed optional receiver with key effects', '(receiver?.[(effect(), "at")])(argument())'],
   ['symbol method', 'getReceiver()[Symbol.iterator](argument())'],
-  ['optional symbol method', 'getReceiver()[Symbol.iterator]?.(argument())'],
+  ['optional symbol method', 'getReceiver()[Symbol.iterator]?.(argument())', '', null, true],
+  ['optional symbol receiver', 'getReceiver()?.[Symbol.iterator](argument())'],
+  ['optional symbol receiver and method', 'getReceiver()?.[Symbol.iterator]?.(argument())', '', null, true],
+  ['optional symbol computed key', 'getReceiver()[(effect(), Symbol.iterator)]?.(argument())', '', null, true],
+  ['optional symbol keyed continuation', 'getReceiver()[(effect(), Symbol.iterator)]?.(argument()).toString()', '', null, true],
+  ['optional symbol guarded keyed continuation', 'getReceiver()?.[(effect(), Symbol.iterator)]?.(argument()).toString()', '', null, true],
+  ['sealed symbol key and arguments', '(getReceiver()?.[(effect(), Symbol.iterator)])(argument())'],
+  ['sealed symbol key consume', '(getReceiver()?.[(effect(), Symbol.iterator)])()'],
+  ['symbol key consume', 'getReceiver()?.[(effect(), Symbol.iterator)]()'],
+  ['extracted method call', 'receiver[(effect(), "at")].call(receiver, argument())'],
+  ['extracted method apply', 'receiver[(effect(), "at")].apply(receiver, [argument()])'],
+  ['extracted method bind', 'receiver[(effect(), "at")].bind(receiver)(argument())'],
+  ['identity instance optional', 'Ctor.entries?.(argument())', 'const Ctor = effect ? receiver : Object;'],
+  ['identity raw optional', 'Ctor.from?.(argument())', 'const Ctor = effect ? receiver : Array;'],
+  ['captured identity instance optional', 'realm.Object.entries?.(argument())',
+    'const realm = effect ? { Object: receiver } : globalThis;'],
+  ['captured identity raw optional', 'realm.Array.from?.(argument())',
+    'const realm = effect ? { Array: receiver } : globalThis;'],
+  ['captured identity pure optional', 'realm.Object.entries?.(argument())',
+    'const realm = effect ? globalThis : { Object: receiver };'],
   ['parameter capture', '((value = getReceiver()[(effect(), "at")](argument())) => value)()'],
   ['field capture', 'new class { value = getReceiver()[(effect(), "at")](argument()); }().value'],
   ['spread', 'receiver.at(...argument())'],
@@ -79,7 +99,7 @@ const rows = [
   ['selected static quiet argument', 'Ctor.from(argument)', 'const Ctor = effect ? receiver : Array;', false],
 ];
 
-for (const [label, expression, before = '', needsGuard = null] of rows) {
+for (const [label, expression, before = '', needsGuard = null, optionalIterator = false] of rows) {
   const source = `export function invoke(receiver, argument, effect, getReceiver) { ${ before } return ${ expression }; }`;
   const native = runInNewContext(`${ source.replace('export ', '') }; invoke;`, { externalArgument: 7 });
   for (const method of ['usage-global', 'usage-pure']) {
@@ -105,7 +125,7 @@ for (const [label, expression, before = '', needsGuard = null] of rows) {
       for (const value of [undefined, null, 0, false, '', 17, 'callable', 'null receiver']) {
         // The iterator helper's existing falsy fallback is outside native-equivalent dispatch.
         // Keep its runtime contract unchanged; these values do not test call rendering.
-        if (label === 'optional symbol method' && method === 'usage-pure' && [0, false, ''].includes(value)) continue;
+        if (optionalIterator && method === 'usage-pure' && [0, false, ''].includes(value)) continue;
         for (const argumentThrows of [false, true]) {
           function observe(call) {
             const events = [];

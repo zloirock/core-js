@@ -34,6 +34,73 @@ export function invokeSelectedStaticFallback(receiver, argument) {
   return Ctor.entries(argument());
 }
 
+// eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- retain the sealed call inside its default frame
+export function invokeSealedSymbolDefault(get, key, argument, value = (get()?.[(key(), Symbol.iterator)])(argument())) {
+  return value;
+}
+
+export function invokeSymbolContinuation(get, key, argument) {
+  // eslint-disable-next-line no-sequences -- observe the computed key before the optional call
+  return get()?.[key(), Symbol.iterator]?.(argument()).toString();
+}
+
+QUnit.test('symbol call: key effects do not seal the optional continuation', assert => {
+  for (const outcome of ['callable', 'null receiver', 'null method']) {
+    const events = [];
+    const receiver = outcome === 'null receiver' ? null : { get [Symbol.iterator]() {
+      events.push('lookup');
+      return outcome === 'null method' ? null : function (value) {
+        assert.same(this, receiver);
+        return value;
+      };
+    } };
+    const result = invokeSymbolContinuation(() => {
+      events.push('receiver');
+      return receiver;
+    }, () => events.push('key'), () => {
+      events.push('argument');
+      return 42;
+    });
+    assert.same(result, outcome === 'callable' ? '42' : undefined);
+    assert.deepEqual(events, outcome === 'callable' ? ['receiver', 'key', 'lookup', 'argument']
+      : outcome === 'null receiver' ? ['receiver'] : ['receiver', 'key', 'lookup']);
+  }
+});
+
+QUnit.test('symbol call: sealed key effects and arguments keep their frame during reentry', assert => {
+  for (const present of [false, true]) {
+    const events = [];
+    const inner = { [Symbol.iterator](value) {
+      assert.same(this, inner);
+      events.push('inner body');
+      return value;
+    } };
+    const receiver = present ? { get [Symbol.iterator]() {
+      events.push('lookup');
+      invokeSealedSymbolDefault(() => inner, () => 0, () => 0);
+      return function (value) {
+        assert.same(this, receiver);
+        events.push('body');
+        return value;
+      };
+    } } : null;
+    function run() {
+      return invokeSealedSymbolDefault(() => {
+        events.push('receiver');
+        return receiver;
+      }, () => events.push('key'), () => {
+        events.push('argument');
+        return 42;
+      });
+    }
+    if (present) assert.same(run(), 42);
+    else assert.throws(run, TypeError);
+    assert.deepEqual(events, present
+      ? ['receiver', 'key', 'lookup', 'inner body', 'argument', 'body']
+      : ['receiver', 'argument']);
+  }
+});
+
 // A raw optional lookup can re-read a stable receiver, but still owes its sequence prefix.
 export function invokeRawOptionalChain(receiver, prefix, argument) {
   return (prefix(), receiver).read?.(argument()).includes(2);

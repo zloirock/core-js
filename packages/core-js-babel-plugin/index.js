@@ -103,8 +103,6 @@ import {
   renderGuardedChainTail,
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
-  renderMethodCall,
-  planMethodCall,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
@@ -1008,20 +1006,13 @@ export default function plugin(api, options) {
         // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
         const callPath = plan.callInBranches ? peelParenAndTSSlotPath(path).parentPath : null;
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
-          invoke: callPath ? (callee, raw, thisArg) => {
-            const call = t.cloneNode(callPath.node);
-            const optional = raw && !!callPath.node.optional;
-            if (!thisArg) return hostSlot({ ...call, callee: estreeToBabel(callee), optional });
-            // the `.call` read carries the absorbed `?.()`: `_entries(_ref)?.call(_ref, x)`
-            const decision = planMethodCall({
-              receiver: estreeToBabel(thisArg),
-              prepared: true,
-              optional,
-              args: call.arguments,
-              ctx: { scope: path.scope, path, adapter, injectorState: injector },
-            });
-            return renderMethodCall(decision, { lookup: callee.object, embed: hostSlot });
-          } : undefined,
+          call: callPath?.node,
+          ctx: { scope: path.scope, path, adapter, injectorState: injector },
+          embed: node => hostSlot(t.cloneNode(node)),
+          cloneCall: (source, callee, args, optional) => hostSlot({
+            ...t.cloneNode(source), callee: estreeToBabel(callee),
+            arguments: args.map(estreeToBabel), optional,
+          }),
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
           spellRecv: () => {
