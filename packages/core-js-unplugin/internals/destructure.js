@@ -174,6 +174,7 @@ import {
   variableDeclaration,
   variableDeclarator,
   renderParameterInstanceCapture,
+  exportDeclaration,
 } from '@core-js/polyfill-provider/render';
 import {
   absentableStoreReadKeyOf,
@@ -190,7 +191,6 @@ import {
   duplicateReceiver,
   eagerSentinelMemoName,
   emitAssignStaticDefaultOverwrite,
-  exportWrap,
   guardedSlotValue,
   hasRestSibling,
   hopChainKeys,
@@ -1650,7 +1650,7 @@ export default function createAstDestructureEmitter({
       mintRef: plan.array.assignment ? () => injector.generateDeclaredRef(metaPath) : mintRefName,
       mintDeclaredRef: () => injector.generateDeclaredRef(metaPath),
       mintUnused: declared => declared ? injector.declareUnusedRef(metaPath) : mintUnusedName(),
-      decorate: (node, source, isExport) => exportWrap(node, isExport),
+      decorate: (node, source, isExport) => exportDeclaration(node, isExport),
       read: (extraction, receiver) => {
         const id = identifier(injectPureImport(extraction.entry, extraction.hint));
         return callExpression(id, [cloneNode(receiver)]);
@@ -1690,7 +1690,7 @@ export default function createAstDestructureEmitter({
       declaration.insertAfter(rendered.slice(1));
     } else {
       const statement = exported ? declaration.parentPath : declaration;
-      const statements = rendered.map((node, index) => exportWrap(
+      const statements = rendered.map((node, index) => exportDeclaration(
         node,
         exported && node.type !== 'ExportNamedDeclaration' && plan.array.exportFrom !== null && index >= plan.array.exportFrom,
       ));
