@@ -34,47 +34,10 @@ export function stampReplacementSpan(next, source) {
   return next;
 }
 
-// the SLOT a node occupies - its owner plus the key or index holding it. an address survives what
-// an identity does not: a claim INSIDE the node renders by REPLACING it, and a plan holding the old
-// node then finds nothing to swap while the tree keeps the rewrite (a memo shipped the stale source
-// read beside a residual that evaluated the same thing again)
-export function findNodeSlot(root, target, depth = 0) {
-  // this walk descends every OWN key, not the AST's child slots, so what ends it is the shape of the
-  // object graph it is handed rather than the source's nesting - the same reason the canon walker
-  // carries a ceiling. it THROWS rather than answering, because its answer would be indistinguishable
-  // from the honest "not in this subtree" the recursion itself relies on: a caller reading that as
-  // "no slot" keeps the receiver spelled beside its memo and reads it twice, and most callers do not
-  // read the answer at all. a real tree comes nowhere near this (the corpora peak at 14), so reaching
-  // it means a cycle or a graph this walker should never have been handed - both are bugs, not inputs
-  if (depth >= 1024) {
-    throw new TypeError(brand('findNodeSlot: object graph deeper than the walk supports (cycle, or a non-AST graph)'));
-  }
-  if (Array.isArray(root)) {
-    const at = root.indexOf(target);
-    if (at !== -1) return { owner: root, key: at };
-    for (const item of root) {
-      const found = findNodeSlot(item, target, depth + 1);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (!root || typeof root !== 'object') return null;
-  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in root) {
-    const value = root[key];
-    if (value === target) return { owner: root, key };
-    if (value && typeof value === 'object') {
-      const found = findNodeSlot(value, target, depth + 1);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
+// Replace a node only through native AST nodes and arrays, retaining its source span.
+// Throw on an over-deep graph: returning false would claim the target is absent and
+// let a caller emit statements around a replacement that never happened.
 export function replaceNodeInTree(root, target, next, depth = 0) {
-  // ... and the same here, for the same reason: `false` is what "not in this subtree" says, and most
-  // callers ignore it entirely - a give-up that spells itself the same way leaves the tree unrewritten
-  // while the statements built around the swap go out regardless
   if (depth >= 1024) {
     throw new TypeError(brand('replaceNodeInTree: object graph deeper than the walk supports (cycle, or a non-AST graph)'));
   }

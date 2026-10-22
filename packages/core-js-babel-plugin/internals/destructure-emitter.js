@@ -214,6 +214,7 @@ import {
   isForInitDeclaration,
   planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
+  groupDestructureDeclarators,
   keyedReadEvaluation,
   keyedReadReceiverProven,
   renderRetainedObjectCapture,
@@ -6066,7 +6067,7 @@ export default function createDestructureEmitter({
   // one statement per declarator. A private receiver memo stays local and uses const.
   function splitDeclarators(decls, kind, isExport) {
     if (!decls.length) return [];
-    const groups = decls.some(d => t.isObjectPattern(d.id)) ? [decls] : decls.map(d => [d]);
+    const groups = groupDestructureDeclarators(decls, { keepPatterns: true });
     return groups.flatMap(g => {
       // a receiver memo is an internal temp: standalone `const`, never export-wrapped
       const memo = g.length === 1 && memoDeclarators.has(g[0]);
@@ -6464,18 +6465,10 @@ export default function createDestructureEmitter({
       // a TDZ-safe trailing declarator stays grouped with its predecessor; a host memoized WHOLE
       // prints memo, extractions and residual as three statements, its extractions in one
       const pruned = prunedResidualOf.get(declaration.node);
-      const memoHost = decls.some(d => wholeInitMemoized.has(d));
-      const slotHost = slotMemoHosts.get(declaration.node);
-      const slotJoin = !!slotHost && (decls.includes(slotHost) || slotHost === pruned) && patternBindingCount(slotHost.id) > 0;
-      const groups = [];
-      for (const d of decls) {
-        // ... an extraction that trailed a PRUNED residual never joins the memo that stood before it
-        const joinsPrev = groups.length && ((attachToPrevDeclarator.has(d) && !(pruned && memoDeclarators.has(groups.at(-1)[0])))
-          || (memoHost && !memoDeclarators.has(d) && !memoDeclarators.has(groups.at(-1)[0]) && !wholeInitMemoized.has(d))
-          || (slotJoin && !memoDeclarators.has(d) && !memoDeclarators.has(groups.at(-1)[0])));
-        if (joinsPrev) groups.at(-1).push(d);
-        else groups.push([d]);
-      }
+      const groups = groupDestructureDeclarators(decls, {
+        memos: memoDeclarators, attached: attachToPrevDeclarator, wholeInit: wholeInitMemoized,
+        slotHost: slotMemoHosts.get(declaration.node), pruned,
+      });
       if (groups.length <= 1) continue;
       const isExport = declaration.parentPath.isExportNamedDeclaration();
       const target = isExport ? declaration.parentPath : declaration;

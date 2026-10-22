@@ -62,6 +62,7 @@ import {
 import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
 import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
 import {
+  findNodeSlot,
   ancestorChainDetached,
   unwrapRuntimeExpr as unwrapNode,
   isTopLevelImportLike,
@@ -2097,12 +2098,12 @@ async function checkAstInternalsCore() {
   function threw(label) {
     try {
       if (label === 'replace') es.replaceNodeInTree(cyclic, b.identifier('ghost'), b.identifier('x'));
-      else es.findNodeSlot(cyclic, b.identifier('ghost'));
+      else findNodeSlot(cyclic, b.identifier('ghost'));
       return 'no throw';
     } catch (error) { return error instanceof TypeError && /deeper than the walk supports/.test(error.message) ? 'threw' : 'wrong error'; }
   }
   check('emit-shared replaceNodeInTree throws on a cyclic graph rather than reporting "not found"', threw('replace'), 'threw');
-  check('emit-shared findNodeSlot throws on a cyclic graph rather than reporting "no slot"', threw('find'), 'threw');
+  check('shared findNodeSlot throws on a cyclic graph rather than reporting "no slot"', threw('find'), 'threw');
   const injectorState = { pureImports: new Map([['actual/self', '_self'], ['actual/array/of', '_Array$of']]) };
   check('emit-shared mintedProxyGlobalName resolves a minted proxy root', es.mintedProxyGlobalName('_self', injectorState), 'self');
   check('emit-shared mintedProxyGlobalName rejects a minted non-proxy', es.mintedProxyGlobalName('_Array$of', injectorState), null);
