@@ -25,6 +25,7 @@ import {
   exportDeclaration,
   renderDestructureStatements,
   renderDestructureDeclarators,
+  renderDestructureKeySegments,
   renderDestructureHeadCapture,
 } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
@@ -159,6 +160,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   buildNestedDestructurePlan,
+  planDestructureKeySegments,
   forgetDestructurePlan,
   isSymbolIteratorPatternClaim,
   isSymbolIteratorPatternProp,
@@ -214,7 +216,6 @@ import {
   isForInitDeclaration,
   planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
-  groupDestructureDeclarators,
   keyedReadEvaluation,
   keyedReadReceiverProven,
   renderRetainedObjectCapture,
@@ -226,7 +227,7 @@ import {
   renderNestedKeyedPatternCapture,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import { cloneReceiverForEmit, cloneWriteTarget, landInSequenceTail, removePatternSlot } from './babel-compat.js';
-import { planDestructureEmission, STRATEGIES } from './destructure-emission-plan.js';
+import { planDestructureEmission, groupNativeDeclarators, STRATEGIES } from './destructure-emission-plan.js';
 
 // when a residual destructure keeps a proxy-global member-chain receiver in the output (a
 // surviving sibling / ...rest still reads off it, or it stays as a param default), collapse
@@ -3298,12 +3299,14 @@ export default function createDestructureEmitter({
     if (!objectPattern.isObjectPattern()) return;
     const hostDeclarator = objectPattern.parentPath;
     if (!hostDeclarator.isVariableDeclarator() || hostDeclarator.node.id !== objectPattern.node) return;
-    const props = objectPattern.node.properties;
-    const idx = props.indexOf(prop.node);
-    if (idx === -1 || idx === props.length - 1) return;
-    if (props.some(pr => isRestProperty(pr))) return;
-    const moved = props.splice(idx + 1);
-    const segment = t.variableDeclarator(t.objectPattern(moved), t.cloneNode(hostDeclarator.node.init));
+    const segments = planDestructureKeySegments(objectPattern.node, [prop.node]);
+    if (!segments || segments.length < 2) return;
+    objectPattern.node.properties = segments[0].properties;
+    const [segment] = renderDestructureKeySegments(
+      segments.slice(1),
+      hostDeclarator.node.init,
+      { embed: hostSlot, cloneSource: t.cloneNode },
+    ).map(node => estreeToBabel(node));
     if (guardPath?.isVariableDeclaration?.()) {
       // catch-born: the guard is a standalone `let` after the residual - the segment follows
       // as its own `let { ... } = _ref;` (the moved props' paths requeue and re-visit there).
@@ -6067,7 +6070,7 @@ export default function createDestructureEmitter({
   // one statement per declarator. A private receiver memo stays local and uses const.
   function splitDeclarators(decls, kind, isExport) {
     if (!decls.length) return [];
-    const groups = groupDestructureDeclarators(decls, { keepPatterns: true });
+    const groups = groupNativeDeclarators(decls, { keepPatterns: true });
     return groups.flatMap(g => {
       // a receiver memo is an internal temp: standalone `const`, never export-wrapped
       const memo = g.length === 1 && memoDeclarators.has(g[0]);
@@ -6465,10 +6468,16 @@ export default function createDestructureEmitter({
       // a TDZ-safe trailing declarator stays grouped with its predecessor; a host memoized WHOLE
       // prints memo, extractions and residual as three statements, its extractions in one
       const pruned = prunedResidualOf.get(declaration.node);
-      const groups = groupDestructureDeclarators(decls, {
-        memos: memoDeclarators, attached: attachToPrevDeclarator, wholeInit: wholeInitMemoized,
-        slotHost: slotMemoHosts.get(declaration.node), pruned,
-      });
+      const groups = groupNativeDeclarators(
+        decls,
+        {
+          memos: memoDeclarators,
+          attached: attachToPrevDeclarator,
+          wholeInit: wholeInitMemoized,
+          slotHost: slotMemoHosts.get(declaration.node),
+          pruned,
+        },
+      );
       if (groups.length <= 1) continue;
       const isExport = declaration.parentPath.isExportNamedDeclaration();
       const target = isExport ? declaration.parentPath : declaration;
@@ -6480,9 +6489,15 @@ export default function createDestructureEmitter({
         const entry = splitLiftedPrefixes.get(g[0]?.id);
         // a memo is its own `const`, but in a bodyless slot it takes the host's `var`, so the block
         // the split braces joins back into one `var`
-        const statement = g.length === 1 && memoDeclarators.has(g[0])
-          ? t.variableDeclaration(bodylessVar ? 'var' : 'const', g)
-          : wrapAsExportIf(t.variableDeclaration(declaration.node.kind, g), isExport);
+        const privateMemo = g.length === 1 && memoDeclarators.has(g[0]);
+        const [statement] = renderDestructureStatements(
+          [g],
+          {
+            kind: privateMemo ? bodylessVar ? 'var' : 'const' : declaration.node.kind,
+            exported: !privateMemo && isExport,
+            embed: hostSlot,
+          },
+        ).map(node => estreeToBabel(node));
         return entry?.statements?.length ? [...entry.statements, statement] : [statement];
       });
       // an unbraced control slot takes exactly one statement

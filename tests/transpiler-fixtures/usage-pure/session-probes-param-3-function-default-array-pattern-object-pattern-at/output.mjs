@@ -1,10 +1,8 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 {
-  function g([{
-    at
-  }] = [{
-    at: _atMaybeArray([1, 2])
-  }]) {
+  function g(_ref = [[1, 2]]) {
+    let [_ref2] = _ref;
+    let at = _at(_ref2);
     return at;
   }
 }

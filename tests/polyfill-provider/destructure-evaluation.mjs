@@ -6,6 +6,7 @@ import {
   buildNestedDestructurePlan,
   chainThroughNamedDefaults,
   forInitNeedsReceiverMemo,
+  planDestructureKeySegments,
   planLiteralResidual,
   planLiteralRoute,
   planLoopHeadExtraction,
@@ -14,13 +15,13 @@ import {
   residualPrecedesExtractions,
   synthPlanFullyCovered,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { buildNestedParamSynthPlan, destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { groupDestructureDeclarators, keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { buildNestedParamSynthPlan, destructureKeyReadPlan, planStaticPatternInstances } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker, findNode } from './harness.mjs';
 import { isExpandedClassifiableReceiver } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { hostSlot, renderMemoReadTarget, renderSynthActivation } from '../../packages/core-js-polyfill-provider/render.js';
+import { hostSlot, renderDestructureKeySegments, renderMemoReadTarget, renderSynthActivation } from '../../packages/core-js-polyfill-provider/render.js';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-evaluation');
 
@@ -92,26 +93,6 @@ for (const receiver of ['Array', '(effect(), Array)']) runBoth(`live keyed slots
       check(`${ label }/live initializer`, plan.receiver, host.node.init);
     }
     check(`${ label }/pristine proof`, evaluation.proven, proof);
-  });
-
-runBoth('deferred declaration groups', 'const memo = receiver, first = 1, { other } = memo, last = 2;',
-  (parser, program, label) => {
-    const declaration = parser.pickPath(program, 'VariableDeclaration').node;
-    const [memo, first, residual, last] = declaration.declarations;
-    const { declarations } = declaration;
-    function names(groups) { return groups.map(group => group.map(item => declarations.indexOf(item))); }
-    const memos = new WeakSet([memo]);
-    checkDeep(`${ label }/split`, names(groupDestructureDeclarators(declarations)), [[0], [1], [2], [3]]);
-    checkDeep(`${ label }/pending visits`, names(groupDestructureDeclarators(declarations, { keepPatterns: true })), [[0, 1, 2, 3]]);
-    checkDeep(`${ label }/capture group`, names(groupDestructureDeclarators(declarations, { memos, slotHost: residual })), [[0], [1, 2, 3]]);
-    checkDeep(`${ label }/whole capture`, names(groupDestructureDeclarators(declarations, {
-      memos, wholeInit: new WeakSet([residual]),
-    })), [[0], [1], [2, 3]]);
-    const attached = new WeakSet([first, last]);
-    checkDeep(`${ label }/attached`, names(groupDestructureDeclarators(declarations, { memos, attached })), [[0, 1], [2, 3]]);
-    checkDeep(`${ label }/pruned capture`, names(groupDestructureDeclarators(declarations, { memos, attached, pruned: residual })),
-      [[0], [1], [2, 3]]);
-    check(`${ label }/identity retained`, declaration.declarations, declarations);
   });
 
 for (const [receiver, kind, allProxyInit, expected] of [
@@ -437,6 +418,59 @@ for (const [setup, argument, expected] of [
     isExpandedClassifiableReceiver({ node: path.node, ...ctx });
     check(label, isExpandedClassifiableReceiver({ node: path.node, ...ctx }), expected);
     check(`${ label }/query preserves source`, JSON.stringify(path.node), before);
+  });
+
+// Segmentation preserves native property identity and order, with each extracted read
+// between its own key/default and the next source property. Rest owns one exclusion set.
+runBoth('key segmentation', 'const { first, [key()]: at = fallback(), middle, [other()]: includes, last } = held;',
+  (parser, program, label) => {
+    const host = hostOf(parser, program).node;
+    const properties = [...host.id.properties];
+    const claims = [properties[1], properties[3]];
+    const before = JSON.stringify(host);
+    const segments = planDestructureKeySegments(host.id, claims);
+    checkDeep(`${ label }/partition`, segments.map(segment => segment.properties.map(prop => properties.indexOf(prop))),
+      [[0, 1], [2, 3], [4]]);
+    checkDeep(`${ label }/claim order`, segments.map(segment => claims.indexOf(segment.claim)), [0, 1, -1]);
+    check(`${ label }/query preserves source`, JSON.stringify(host), before);
+    const reads = claims.map((prop, index) => ({ id: { type: 'Identifier', name: `read${ index }` }, init: prop.value }));
+    const rendered = renderDestructureKeySegments(segments, host.init, { read: prop => reads[claims.indexOf(prop)], embed: hostSlot });
+    check(`${ label }/five ordered slots`, rendered.length, 5);
+    for (const [index, segment] of segments.entries()) {
+      const result = rendered[index * 2];
+      checkDeep(`${ label }/native properties ${ index }`, result.id.properties.map(slot => slot.node), segment.properties);
+      checkTruthy(`${ label }/fresh receiver ${ index }`, result.init.node !== host.init);
+    }
+    check(`${ label }/first live read`, rendered[1].init.node, properties[1].value);
+    check(`${ label }/second live read`, rendered[3].init.node, properties[3].value);
+    check(`${ label }/independent receiver refs`, rendered[0].init.node === rendered[2].init.node, false);
+    check(`${ label }/foreign claim refused`, planDestructureKeySegments(host.id, [{ ...claims[0] }]), null);
+  });
+runBoth('rest segmentation refusal', 'const { [key()]: at, ...rest } = held;', (parser, program, label) => {
+  const pattern = hostOf(parser, program).node.id;
+  check(label, planDestructureKeySegments(pattern, [pattern.properties[0]]), null);
+});
+
+for (const [pattern, options, expected] of [
+  ['{ at, name }', {}, ['at', 'name']],
+  ['{ name }', {}, null],
+  ['{ at = fallback() }', {}, null],
+  ['{ at = fallback() }', { defaults: true }, ['at']],
+  ['{ at, at: again }', {}, null],
+  ['{ at, [key]: other }', {}, null],
+  ['{ at, ...rest }', {}, null],
+  ['{ at, __proto__: other }', {}, null],
+  ['{ at: holder.value }', { assignment: true }, ['at']],
+  ['{ at: holder().value }', { assignment: true }, null],
+]) runBoth(`static pattern instances/${ pattern }/${ JSON.stringify(options) }`,
+  options.assignment ? `(${ pattern } = source);` : `const ${ pattern } = source;`, (parser, program, label) => {
+    const target = parser.pickPath(program, 'ObjectPattern').node;
+    const before = JSON.stringify(target);
+    const plan = planStaticPatternInstances(target, { ...options, resolvePure: meta => meta.key === 'at'
+      ? { kind: 'instance', entry: 'instance/at' } : null });
+    checkDeep(`${ label }/leaves`, plan?.map(leaf => leaf.key) ?? null, expected);
+    check(`${ label }/source intact`, JSON.stringify(target), before);
+    if (plan) check(`${ label }/dispatch retained`, plan[0].pure.entry, 'instance/at');
   });
 
 finish();

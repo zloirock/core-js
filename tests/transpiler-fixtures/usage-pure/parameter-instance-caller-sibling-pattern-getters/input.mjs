@@ -1,6 +1,5 @@
-// Independent patterns of one caller argument retain their method getter order.
-// Both instance reads happen when the parameter consumes its own array position.
-// A foreign prototype handout leaves the iterator and its yielded receiver families open.
+// Independent instance reads retain their method getter order after positional capture.
+// A foreign prototype handout leaves the yielded receiver families open.
 import { restoreProperty } from '../../../helpers/restore-property.cjs';
 const priorAt = Object.getOwnPropertyDescriptor(Array.prototype, 'at');
 const priorFlat = Object.getOwnPropertyDescriptor(Array.prototype, 'flat');

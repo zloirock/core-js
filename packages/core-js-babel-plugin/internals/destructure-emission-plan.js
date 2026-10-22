@@ -3,12 +3,11 @@
 // multi-decl / bodyless / SE / static-vs-instance polyfill / pattern-emptied-after-extraction)
 // returns the named mutation strategy. the caller (`destructure-emitter.js`) owns AST mutation;
 // this module owns the decision tree.
-// strategies are babel-specific by design: each names a per-prop AST mutation primitive
-// (`replaceWith`, `insertBefore`, `splice`, ...). unplugin uses a batched text-rewrite
-// model (one transforms.add per declaration after accumulating every prop) and makes
-// different decisions (final-text shape, not per-prop placement), so reusing this enum
-// there would force-fit the wrong abstraction. the planner has no babel imports - it
-// just sits in `babel-plugin/internals/` because that's the actual consumer.
+// Each strategy selects a native NodePath edit and its requeue obligations. The unplugin
+// binding drains queued native AST edits after traversal; it does not use these incremental
+// strategies. Source decisions and rendered values come from the shared provider.
+
+import { patternBindingCount } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // strategy enum. callers (`destructure-emitter.js`) reference via `STRATEGIES.WRAP_BODYLESS_SE`
 // rather than the raw string to centralize the literal in one place; a mistyped key reads
@@ -100,4 +99,27 @@ function planAssignmentExpression({ isEmpty, isBodyless, isStaticValue, hasSideE
   if (!isEmpty) return STRATEGIES.INSERT_BEFORE_ASSIGNMENT;
   if (isBodyless && isStaticValue && hasSideEffects) return STRATEGIES.WRAP_BODYLESS_SE_ASSIGN;
   return isStaticValue ? STRATEGIES.LIFT_SE_AND_REPLACE_ASSIGN : STRATEGIES.REPLACE_ASSIGNMENT;
+}
+
+// Restore declaration adjacency after Babel's per-property insertions have finished. These
+// identity tables describe live paths, private declarations and insertAfter attachments;
+// they do not decide receiver capture, read order or residual placement. Before that boundary,
+// a surviving pattern keeps its siblings attached for queued child visits. The shared renderer
+// receives the resulting groups unchanged and owns their statement/export spelling.
+export function groupNativeDeclarators(
+  declarations,
+  { keepPatterns = false, memos = null, attached = null, wholeInit = null, slotHost = null, pruned = null } = {},
+) {
+  if (keepPatterns && declarations.some(item => item.id.type === 'ObjectPattern')) return [declarations];
+  const memoHost = declarations.some(item => wholeInit?.has(item));
+  const slotJoin = slotHost && (declarations.includes(slotHost) || slotHost === pruned) && patternBindingCount(slotHost.id) > 0;
+  const groups = [];
+  for (const item of declarations) {
+    const previous = groups.at(-1);
+    const joins = previous && (attached?.has(item) && !(pruned && memos?.has(previous[0]))
+      || !memos?.has(item) && !memos?.has(previous[0]) && (slotJoin || memoHost && !wholeInit.has(item)));
+    if (joins) previous.push(item);
+    else groups.push([item]);
+  }
+  return groups;
 }

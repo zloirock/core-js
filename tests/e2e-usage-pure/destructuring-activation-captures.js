@@ -87,3 +87,60 @@ QUnit.test('a loop initializer keeps prefix and sibling reads around its capture
   assert.same(read(), 5);
   assert.deepEqual(events, ['before', 1, 2]);
 });
+
+QUnit.test('positional parameters serve supplied and default instance receivers', assert => {
+  const events = [];
+  function source() {
+    events.push('default');
+    return [[4, 5]];
+  }
+  function full([{ at }]) { return at.call([7, 9], -1); }
+  function partial([{ at, length }] = source()) { return [at.call([7, 9], -1), length]; }
+  assert.same(full([[4]]), 9);
+  assert.deepEqual(partial(), [9, 2]);
+  assert.deepEqual(partial([[6, 7, 8]]), [9, 3]);
+  assert.deepEqual(events, ['default']);
+  assert.same(full([{ at() { return 'own'; } }]), 'own');
+  assert.throws(() => partial([null]), TypeError);
+});
+
+QUnit.test('a positional assignment preserves native siblings and outer bindings', assert => {
+  let at, length;
+  const readers = [];
+  for ([{ at, length }] of [[[4, 5]], [[6, 7, 8]]]) readers.push([at.call([9], 0), length]);
+  assert.deepEqual(readers, [[9, 2], [9, 3]]);
+  assert.same(length, 3);
+  assert.same(at.call([7], 0), 7);
+});
+
+QUnit.test('a positional parameter retains one iterator and closes it once', assert => {
+  const events = [];
+  const iterable = {
+    [Symbol.iterator]() {
+      events.push('iterator');
+      return {
+        next() { events.push('next'); return { value: [4, 5], done: false }; },
+        return() { events.push('close'); return {}; },
+      };
+    },
+  };
+  function read([{ at, length }]) {
+    events.push('body');
+    return [at.call([9], 0), length];
+  }
+  assert.deepEqual(read(iterable), [9, 2]);
+  assert.deepEqual(events, ['iterator', 'next', 'close', 'body']);
+});
+
+// Babel lowering erases TDZ; the differential keeps the original ReferenceError lock.
+QUnit.test('a positional parameter keeps closure reads at parameter initialization', assert => {
+  function read(probe = () => at, [{ at }] = [{ get at() { return probe(); } }]) {
+    return at;
+  }
+  assert.same(read(), undefined);
+  // eslint-disable-next-line default-param-last -- the getter must precede the last parameter binding
+  function later(probe = () => value, [{ at }] = [{ get at() { return probe(); } }], value) {
+    return [at, value];
+  }
+  assert.deepEqual(later(undefined, undefined, 9), [undefined, 9]);
+});

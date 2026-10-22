@@ -78,7 +78,20 @@ import {
   isUndefinedNode,
   invocationNode,
 } from '../helpers/ast-patterns.js';
-import { memberFromKeyName, objectPattern } from '../render.js';
+import {
+  callExpression,
+  chainExpression,
+  cloneNode,
+  identifier,
+  memberFromKeyName,
+  objectExpression,
+  objectPattern,
+  renderClaimProbe,
+  renderProxyReceiverPlan,
+  renderSynthEntryKey,
+  renderSynthProperty,
+  renderSynthSlotRead,
+} from '../render.js';
 import { nodeRangeContains } from '../resolve-node-type/base.js';
 import {
   classifyVariableDeclarationHost,
@@ -90,7 +103,7 @@ import {
   reusableArrayCaptureReceiver,
 } from '../destructure-host-shape.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { computedPropKeyHostsMachinery } from './members.js';
+import { computedPropKeyHostsMachinery, planProxyReceiver } from './members.js';
 import { SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
 import {
   chainSealsAShortCircuit,
@@ -98,6 +111,7 @@ import {
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
   globalProxyMemberName,
+  guardedNavPassthroughPlan,
   proxyGlobalMemberCtorPure,
   decidedSelectionValue,
   guaranteedRealmObjectName,
@@ -115,6 +129,11 @@ import {
   yieldedSlotValue,
 } from './resolve.js';
 import {
+  instanceHopDispatch,
+  renderSynthTree,
+  resolvePassthroughRef,
+  staticHopPure,
+  instanceSynthReceiverPure,
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
   namedDefaultReceiver,
@@ -2926,6 +2945,25 @@ export function sentinelMemoInitShape(init, allProxyInit) {
     || isConstantLiteralReceiver(init);
 }
 
+// Split native key reads immediately after each claimed property. An extraction/default
+// then runs before the next segment's keys. Rest retains the entire exclusion set, and
+// a nested claim belongs to its own level, so neither can split this pattern.
+export function planDestructureKeySegments(pattern, claims) {
+  if (pattern?.type !== 'ObjectPattern' || pattern.properties.some(isRestProperty)
+    || claims.some(prop => !pattern.properties.includes(prop))) return null;
+  const claimed = new Set(claims);
+  const segments = [];
+  let properties = [];
+  for (const prop of pattern.properties) {
+    properties.push(prop);
+    if (!claimed.has(prop)) continue;
+    segments.push({ properties, claim: prop });
+    properties = [];
+  }
+  if (properties.length) segments.push({ properties, claim: null });
+  return segments;
+}
+
 // does the surviving residual sit ahead of every extraction in SOURCE order? `sharedHop`
 // admits the extraction's own hop as "ahead": a DECLARATION splits the hop into its own
 // statement and the extraction leads it, while an ASSIGNMENT cascade keeps the nested
@@ -3071,8 +3109,139 @@ export function planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure }) {
   return {
     readReceiver,
     pure,
-    receiverCtorName: globalPure && globalPure.kind !== 'instance' ? readReceiver.name
+    receiverCtorName: readReceiver.type === 'Identifier' && isStaticPlacement(readReceiver.name) ? readReceiver.name
       : aliasCtx && pure ? globalProxyMemberName({ node: readReceiver, ...aliasCtx }) : null,
     selectsInstance: receiver.type === 'LogicalExpression' || receiver.type === 'ConditionalExpression',
   };
+}
+
+// A flat synth has one value selection per source property: a resolved static, an instance
+// dispatch on the runtime receiver, or a retained read. The saved entries own classification;
+// native bindings supply imported names and cloning only. A captured receiver replaces every
+// read, while a selection must stay whole for instance dispatch.
+export function renderSynthLiteral(entries, {
+  receiver,
+  memo = null,
+  aliasCtx = null,
+  guardedReceiverPlan = null,
+  sealedReceiverPlan = null,
+  resolvePure,
+  injectImport,
+  slotFor = entry => entry.polyfill,
+  cloneHost = cloneNode,
+  cloneKey = cloneHost,
+  embed = node => node,
+  markSkipped = null,
+  receiverPath = null,
+  requireCoverage = false,
+  resolvedSpelling = false,
+  adapter = aliasCtx?.adapter,
+}) {
+  function imported(slot) { return identifier(slot.name ?? injectImport(slot.entry, slot.hintName)); }
+  let receiverPlan;
+  function planReceiver() {
+    return receiverPlan ??= planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure });
+  }
+  let reference;
+  function receiverRef() {
+    if (reference) return cloneNode(reference);
+    const { readReceiver, pure } = planReceiver();
+    if (memo) reference = embed(cloneHost(memo));
+    else if (pure) reference = imported(pure);
+    else {
+      const plan = guardedReceiverPlan ?? planProxyReceiver(readReceiver, { aliasCtx, resolvePure });
+      const collapsed = plan && renderProxyReceiverPlan(plan, { injectImport, embed, cloneHost });
+      const guarded = !collapsed && aliasCtx && guardedNavPassthroughPlan(
+        readReceiver,
+        ({ name }) => resolvePure({ kind: 'global', name }),
+        aliasCtx,
+      );
+      const sealed = !collapsed && !guarded && sealedReceiverPlan;
+      const probe = sealed?.kind === 'passthrough' && aliasCtx ? guardedNavPassthroughPlan(
+        sealed.boundary.inner,
+        ({ name }) => resolvePure({ kind: 'global', name }),
+        aliasCtx,
+      ) : null;
+      reference = collapsed ?? (guarded || sealed && (sealed.kind !== 'passthrough' || probe)
+        ? renderClaimProbe(
+          guarded ?? (probe ? { ...probe, boundary: sealed.boundary, key: sealed.key } : sealed),
+          { injectImport, embed, cloneHost },
+        ) : embed(cloneHost(readReceiver)));
+      if (collapsed ? plan.kind === 'member' || plan.optional : receiverCarriesLiveOptional(readReceiver)) {
+        reference = chainExpression(reference);
+      }
+    }
+    return cloneNode(reference);
+  }
+  const properties = [];
+  for (const entry of entries) {
+    const spelled = renderSynthEntryKey(
+      entry,
+      { resolvedSpelling, resolvePure, injectImport, embed, cloneHost: node => cloneKey(node, entry) },
+    );
+    if (!spelled) return null;
+    const { key, computed } = spelled;
+    let slot = entry.optedOut ? null : slotFor(entry);
+    if (slot?.unresolved || requireCoverage && !slot) return null;
+    const receiverCtorName = !slot && !receiverPath && !entry.optedOut && !entry.raw && !computed
+      ? planReceiver().receiverCtorName : null;
+    if (!receiverPath && !slot && !entry.optedOut && !computed && receiverCtorName) {
+      const candidate = resolvePure({ kind: 'property', object: receiverCtorName, key: entry.lookupKey, placement: 'static' });
+      if (candidate?.kind === 'static') slot = candidate;
+    }
+    const dispatch = !slot && !entry.optedOut && entry.wks !== 'iterator' && !computed && receiverCtorName
+      ? instanceHopDispatch({ ctorName: receiverCtorName, key: entry.lookupKey, resolvePure }) : null;
+    function pathRead() {
+      const ref = resolvePassthroughRef(
+        {
+          keyPath: [...receiverPath.keys, entry.lookupKey],
+          receiverName: receiverPath.name,
+          receiverIsProxy: receiverPath.proxy,
+          adapter,
+          resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }),
+          resolveStaticPolyfill: (ctorName, slotKey) => staticHopPure({ ctorName, key: slotKey, resolvePure }),
+          raw: entry.optedOut || entry.raw,
+        },
+      );
+      let base = ref.pure ? imported(ref.pure) : identifier(ref.name);
+      const pathDispatch = !ref.static && !computed && key.type !== 'Literal' && ref.path.length === 1
+        && ref.path[0] === entry.lookupKey && aliasCtx ? instanceHopDispatch(
+          { ctorName: ref.pure ? ref.ctor : ref.name, key: entry.lookupKey, resolvePure },
+        ) : null;
+      if (pathDispatch) return callExpression(imported(pathDispatch), [base]);
+      for (const hop of ref.path) base = hop === entry.lookupKey
+        ? renderSynthSlotRead({ base, key, computed, lookupKey: hop }) : memberFromKeyName(base, hop);
+      return base;
+    }
+    let value;
+    if (slot?.children) {
+      const base = slot.name ? imported(slot) : pathRead();
+      value = renderSynthTree(
+        {
+          kind: 'object',
+          entries: slot.children.map(
+            leaf => ({ key: leaf.key, child: leaf.helper ? { kind: 'instance', entry: leaf.helper } : { kind: 'passthrough' } }),
+          ),
+        },
+        { receiverNode: base, injectImport: name => name, renderPassthrough: cloneNode },
+      );
+    } else if (slot?.instance) {
+      const source = slot.receiver;
+      const sourcePure = source && aliasCtx && instanceSynthReceiverPure(source, { ...aliasCtx, resolvePure });
+      const argument = source ? sourcePure ? imported(sourcePure) : embed(cloneHost(source))
+        : planReceiver().selectsInstance ? embed(cloneHost(memo ?? receiver)) : receiverRef();
+      value = callExpression(imported(slot), [argument]);
+    } else if (slot) value = imported(slot);
+    else if (!receiverPath && (dispatch || entry.wks === 'iterator' && !entry.optedOut)) {
+      value = callExpression(imported(dispatch ?? SYMBOL_ITERATOR_PURE_RESULT), [receiverRef()]);
+    } else {
+      value = receiverPath ? pathRead() : renderSynthSlotRead({ base: receiverRef(), key, computed, lookupKey: entry.lookupKey });
+      if (entry.wks === 'iterator' && !entry.optedOut && value.type === 'MemberExpression') {
+        value = callExpression(imported(SYMBOL_ITERATOR_PURE_RESULT), [value.object]);
+      }
+    }
+    if (entry.optedOut || entry.raw) markSkipped?.(value);
+    properties.push(renderSynthProperty(key, value, { computed }));
+  }
+  return objectExpression(properties);
 }

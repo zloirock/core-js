@@ -3,7 +3,6 @@
 // literal renders. created per transform over the visit half's shared context
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import {
-  instanceSynthReceiverPure,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   destructurePatternHostPath,
@@ -16,7 +15,6 @@ import {
   resolveNestedReceiverBase,
   resolvePassthroughRef,
   staticHopPure,
-  instanceHopDispatch,
   provenRealmCallRoot,
   discardRescueNodesWithReads,
   observablePrefixElements,
@@ -26,10 +24,10 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   bodylessSlotReplacement,
-  groupDestructureDeclarators,
   keyedReadEvaluation,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
+  renderSynthLiteral,
   hostLevelSurvives,
   planCatchClauseExtraction,
   planLoopHeadExtraction,
@@ -43,8 +41,6 @@ import {
 import {
   decidedRunningPart,
   discardRescueNodes,
-  navValueCanShortCircuit,
-  proxyGlobalMemberCtorPureSwap,
   proxyGlobalRootName,
   resolveObjectName,
   realmLevelNamesCtor,
@@ -86,7 +82,6 @@ import { replaceNodeInTree } from './emit-shared.js';
 import {
   assignmentExpression,
   callExpression,
-  chainExpression,
   cloneNode,
   expressionStatement,
   identifier,
@@ -99,13 +94,9 @@ import {
   renderKeyedDestructureRead,
   renderSynthReceiverGuard,
   renderSynthActivation,
-  renderSynthProperty,
   renderMemoReadTarget,
   renderStaticDefaultGuard,
-  renderSynthSlotRead,
-  renderSynthEntryKey,
   memberFromKeyName,
-  renderProxyReceiverPlan,
   exportDeclaration,
   renderDestructureStatements,
   renderDestructureDeclarators,
@@ -133,7 +124,6 @@ import {
   emitLiteralReceiverMemos,
   foldSinkPrefixIntoResidual,
   forInitMemoVerdicts,
-  guardedNavPassthrough,
   guardedPureBinding,
   hopChainKeys,
   insideParamPosition,
@@ -173,32 +163,10 @@ import {
   withoutCtorHopJobsWithLiveSiblings,
 } from './destructure-helpers.js';
 import { cloneStamped, markSubtreeSkipped, nodeSite } from './nav-spine.js';
-import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
 // the host patterns the emptied-hop prune has already walked: it runs once per host, whichever
 // job's removal reaches it first
 const prunedHosts = new WeakSet();
-
-// an uncovered STATIC slot off a CONSTRUCTOR receiver is that static's polyfill, not a raw read
-// (`{ [Symbol.iterator]: it, hasOwn }` over `Object` spells `hasOwn: _Object$hasOwn`, the other
-// leg's mirror): pushed where it resolves, so the fresh-read fallback never spells `Object.hasOwn`
-function pushConstructorStaticSlot({ receiverNode, key, metaPath, resolvePure, injectPureImport, pushSlot }) {
-  if (receiverNode?.type !== 'Identifier' || typeof key !== 'string') return false;
-  const pure = resolvePure({ kind: 'property', object: receiverNode.name, key, placement: 'static' }, metaPath);
-  if (pure?.kind !== 'static') return false;
-  pushSlot(identifier(injectPureImport(pure.entry, pure.hintName)));
-  return true;
-}
-
-// the receiver spelling an instance synth hands its helper: the shared rule answers which bare
-// globals arrive as their injected pure binding, and everything else is a clone of the source node -
-// the synth literal is re-emitted where no visitor reaches it again, so a raw name would stay raw
-function synthInstanceReceiver(receiver, metaPath, { adapter, resolvePure, injectPureImport }) {
-  const pure = metaPath && instanceSynthReceiverPure(receiver, {
-    adapter, scope: metaPath.scope, path: metaPath, resolvePure: m => resolvePure(m, metaPath),
-  });
-  return pure ? identifier(injectPureImport(pure.entry, pure.hintName)) : cloneNode(receiver);
-}
 
 export default function createDestructureDrains(ctx) {
   const {
@@ -708,9 +676,8 @@ export default function createDestructureDrains(ctx) {
     return read;
   }
 
-  // Render registered slots and passthrough reads over the retained receiver. Key and
-  // data-property spelling are shared; native skip marks stay on inserted source clones.
-  // eslint-disable-next-line max-statements -- one ordered render pass over every slot class
+  // The ledger owns imported binding identities and source frames. The common renderer owns
+  // flat and nested slot values; only native skip marks and source clones are applied here.
   function renderPatternLiteral({
     plan,
     receiver,
@@ -720,217 +687,46 @@ export default function createDestructureDrains(ctx) {
     slots,
     rawSlots = null,
     requireFullCoverage = false,
-    // the RESOLVED key spelling (`from:` for a folded `[k]`) is the nested mirror's canon
-    // whether or not coverage is required; the flat routes keep the source spelling
     resolvedSpelling = requireFullCoverage,
     memoBaseName = null,
     instanceReceiver = null,
     metaPath = null,
-    sealedProbePlan = null,
     guardedReceiverPlan = null,
+    sealedProbePlan = null,
     passthroughBase = null,
   }) {
-    // the read one slot passes through: the branch root's own name (its pure proxy import where the
-    // canon names one) walked down the accumulated key path. `asRef` hands back the unwalked
-    // resolution the generic render spells its own key hops onto; null where the receiver has no name
-    function passthroughSlotRef(planEntry, { asRef = false } = {}) {
-      const passthroughName = baseName ?? (receiver?.type === 'Identifier' ? receiver.name : null);
-      if (!passthroughName) return null;
-      const ref = resolvePassthroughRef({
-        keyPath: [...passthroughPrefix ?? [], planEntry.lookupKey],
-        receiverName: passthroughName,
-        // the MINTED spelling of a proxy global answers this like its source name does: the alias IS
-        // that realm, and reading it as an ordinary receiver left every key under it unresolved -
-        // a static below a hop then rendered raw off `_self` where its source-spelled twin resolved
-        receiverIsProxy: baseIsProxy || isMintedOrProxyName(passthroughName, injectorState),
-        resolveGlobalPolyfill,
+    const name = baseName ?? (receiver?.type === 'Identifier' ? receiver.name : null);
+    const receiverPath = resolvedSpelling && passthroughPrefix?.length && name
+      ? { name, keys: passthroughPrefix, proxy: baseIsProxy || isMintedOrProxyName(name, injectorState) } : null;
+    return renderSynthLiteral(
+      rawSlots?.size ? plan.map(entry => ({ ...entry, raw: rawSlots.has(entry.dedupKey) })) : plan,
+      {
+        receiver: instanceReceiver ?? passthroughBase ?? receiver,
+        memo: memoBaseName ? identifier(memoBaseName) : null,
+        receiverPath,
+        requireCoverage: requireFullCoverage,
+        resolvedSpelling,
         adapter,
-        // ... and a slot REACHING a polyfillable static takes that static's own ponyfill, which is
-        // the shared tree's answer for the same slot: what a literal puts there is a VALUE, so the
-        // target writes it exactly as a binding target would. without the resolver this leg read the
-        // static raw off the realm (`_globalThis.Object.keys`) beside a sibling slot carrying its own
-        // ponyfill in the same literal - a lost polyfill, and a leg split once the tree stopped bailing
-        resolveStaticPolyfill: (ctorName, key) => staticHopPure({
-          ctorName, key, resolvePure: meta => resolvePure(meta, metaPath ?? null),
-        }),
-        raw: planEntry.optedOut || !!rawSlots?.has(planEntry.dedupKey),
-      });
-      if (asRef) return ref;
-      let read = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
-      for (const hop of ref.path) read = memberFromKeyName(read, hop);
-      return read;
-    }
-
-    const entries = [];
-    for (const planEntry of plan) {
-      const spelled = renderSynthEntryKey(planEntry, {
-        resolvedSpelling, injectImport: injectPureImport,
-        resolvePure: meta => metaPath && resolvePure(meta, metaPath),
-      });
-      if (!spelled) return null;
-      const { key, computed } = spelled;
-      // ... and an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper,
-      // the one spelling both emitters print for that read anywhere else - a raw
-      // `receiver[_Symbol$iterator]` answers undefined off-engine
-      const gimPassthrough = !planEntry.optedOut && planEntry.wks === 'iterator' && !slots.get(planEntry.dedupKey);
-      function slotRead(base) {
-        return renderSynthSlotRead({ base, key, computed, lookupKey: planEntry.lookupKey });
-      }
-      function pushSlot(value) {
-        entries.push(renderSynthProperty(key, gimPassthrough && value.type === 'MemberExpression'
-          ? callExpression(identifier(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry,
-            SYMBOL_ITERATOR_PURE_RESULT.hintName)), [value.object])
-          : value, { computed }));
-      }
-      const binding = planEntry.optedOut ? null : slots.get(planEntry.dedupKey);
-      // an instance slot whose hop read the passthrough could not name (a branch root that is no
-      // identifier) has nothing to dispatch on - the literal declines rather than spell a bare hop
-      if (binding?.instanceHop) return null;
-      // a DESCENDED static slot spells the pattern's own keys off the ponyfill, the claiming ones
-      // through their dispatch - the pattern above it then binds off this literal, as it bound off
-      // the flat ponyfill before
-      if (binding?.descended) {
-        pushSlot(objectExpression(binding.descended.map(leaf => renderSynthProperty(identifier(leaf.key), leaf.helper
-          ? callExpression(identifier(leaf.helper), [identifier(binding.base)])
-          : memberExpression(identifier(binding.base), identifier(leaf.key))))));
-        continue;
-      }
-      // a DESCENDED HOP - a slot the constructor polyfills no static for - has no ponyfill to spell
-      // off, so its keys read through the hop's own value at the branch root, the claiming ones
-      // through their dispatch on that read. the other leg reaches the same shape by re-traversing
-      // the flat passthrough it emitted, a second pass this drain does not have
-      if (binding?.descendedHop) {
-        const hopBase = passthroughSlotRef(planEntry);
-        if (!hopBase) return null;
-        pushSlot(objectExpression(binding.descendedHop.map(leaf => renderSynthProperty(identifier(leaf.key), leaf.helper
-          ? callExpression(identifier(leaf.helper), [cloneNode(hopBase)])
-          : memberFromKeyName(cloneNode(hopBase), leaf.key)))));
-        continue;
-      }
-      if (binding) {
-        // an INSTANCE slot dispatches on a CLONE of the receiver the literal replaces
-        // (`{ at } = [1, 2]` -> `{ at: _atMaybeArray([1, 2]) }`) - through the receiver's own pure
-        // binding where the shared rule names one, since this literal is re-emitted where no visitor
-        // reaches it again and a bare `Iterator` there would read the name the pass replaces
-        pushSlot(typeof binding === 'string' ? identifier(binding)
-          : callExpression(identifier(binding.helper),
-            [synthInstanceReceiver(binding.receiver, metaPath, { adapter, resolvePure, injectPureImport })]));
-        continue;
-      }
-      // a memoized receiver: unresolved slots read the memo param (`other: _ref.other`)
-      if (memoBaseName) {
-        const literalKey = planEntry.keyNode?.type === 'Literal';
-        const read = memberExpression(identifier(memoBaseName),
-          literalKey ? cloneNode(planEntry.keyNode) : computed ? cloneNode(key) : identifier(planEntry.lookupKey),
-          { computed: computed || literalKey });
-        pushSlot(read);
-        continue;
-      }
-      // an uncovered STATIC slot off a constructor receiver is that static's polyfill, not a raw
-      // read (`{ [Symbol.iterator]: it, hasOwn }` over `Object` spells `hasOwn: _Object$hasOwn`,
-      // the other leg's mirror) - asked before the fresh-read fallback below
-      if (!computed && !planEntry.optedOut && pushConstructorStaticSlot({
-        receiverNode: instanceReceiver, key: planEntry.lookupKey, metaPath, resolvePure, injectPureImport, pushSlot,
-      })) continue;
-      // an INSTANCE-synth receiver is re-readable by construction, so an uncovered slot
-      // reads through a clone of it (`other: [1, 2].other` - a fresh read, matching the
-      // native fresh-value semantics)
-      if (instanceReceiver) {
-        pushSlot(slotRead(cloneNode(instanceReceiver)));
-        continue;
-      }
-      // a `this` receiver is re-readable by construction: an uncovered slot reads through a
-      // fresh clone of it (`custom: this.custom` - the static-`this` synth's own passthrough)
-      if (receiver?.type === 'ThisExpression') {
-        pushSlot(slotRead({ type: 'ThisExpression' }));
-        continue;
-      }
-      // Inside a synthesized guard's live branch its probe is already known to be defined.
-      // Read unresolved siblings through the pristine collapse plan captured before traversal.
-      if (guardedReceiverPlan) {
-        const guardedBase = renderProxyReceiverPlan(guardedReceiverPlan, { injectImport: injectPureImport });
-        if (guardedBase) {
-          pushSlot(slotRead(guardedBase));
-          continue;
-        }
-      }
-      // a receiver whose navigation SHORT-CIRCUITS cannot be re-read off the collapsed root:
-      // that answers a defined value where the source answers undefined. re-read through the
-      // SOURCE nav instead, its own root substituted (`(_globalThis.window?.Array).other`)
-      // ... unless the LEAF whole-swaps to a pure ctor: that binding is always defined and the
-      // read goes through it (`globalThis.window?.Map` -> `_Map.other`)
-      const navAliasCtx = metaPath ? { ...nodeSite(receiver, metaPath), adapter } : null;
-      // ... and only a `?.` that can GENUINELY short-circuit: one over a proven root is dead
-      // text and the nav collapses like its plain twin
-      const navPassthrough = navAliasCtx && receiver && receiverCarriesLiveOptional(receiver)
-        && navValueCanShortCircuit(receiver, m => resolvePure(m, metaPath), navAliasCtx)
-        && !proxyGlobalMemberCtorPureSwap({
-          receiver, aliasCtx: navAliasCtx, resolvePure: m => resolvePure(m, metaPath),
-        });
-      if (navPassthrough) {
-        // the GUARDED collapse when the live `?.` sits over an erasable hop: its object is the
-        // probe, its own ponyfill the alternate, the tail hanging back on
-        // (`globalThis.window?.self.Object` -> `(null == _globalThis.window ? void 0 : _self.Object)`)
-        const navRead = guardedNavPassthrough(receiver, metaPath,
-          { adapter, resolveGlobalPolyfill, injectPureImport }) ?? (() => {
-          const clone = substituteProxyRootsInClone(cloneStamped(receiver), metaPath,
-            { adapter, resolveGlobalPolyfill, injectPureImport });
-          // the read sits OUTSIDE the chain the nav carries: fused in, it would short-circuit too
-          return chainExpression(clone);
-        })();
-        pushSlot(slotRead(navRead));
-        continue;
-      }
-      // a nested mirror has no passthrough base (the hop nav was consumed) - every slot
-      // must be a polyfill
-      if (requireFullCoverage) return null;
-      // a SEALED receiver reads through the guard the source's own read performs: the collapsed
-      // root would answer a defined value where the seal throws. the plan is the PRISTINE one -
-      // by drain time the walk has erased the `?.` this passthrough is about
-      // (`customK: (null == _g.window ? void 0 : _self).Object.customK`)
-      const sealedBase = sealedProbePlan ? renderSealedNavProbe(sealedProbePlan, metaPath, probeRenderCtx) : null;
-      if (sealedBase) {
-        pushSlot(slotRead(sealedBase));
-        continue;
-      }
-      // passthrough needs a NAMED base to read through; a bare member receiver without one
-      // serves only a fully-covered pattern, and so does the left a collapsed fallback re-spells
-      // (`passthroughBase`: `{ groupBy: _Map$groupBy, prototype: mkM().prototype }` for `mkM() || Object`).
-      // a `?.` it carries is a dead one (a live one took the nav branch above), sealed off from the
-      // read past it all the same, as the other leg prints the chain (`(box?.U).prototype`)
-      const spelledBase = passthroughBase ?? (receiver?.type === 'MemberExpression' ? receiver : null);
-      if (!baseName && spelledBase) {
-        const clone = cloneStamped(spelledBase);
-        const read = metaPath ? substituteProxyRootsInClone(clone, metaPath,
-          { adapter, resolveGlobalPolyfill, injectPureImport }) : clone;
-        pushSlot(slotRead(receiverCarriesLiveOptional(read) ? chainExpression(read) : read));
-        continue;
-      }
-      const ref = passthroughSlotRef(planEntry, { asRef: true });
-      if (!ref) return null;
-      let base = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
-      // ... a slot the constructor base - raw or its pure binding - answers through an INSTANCE
-      // dispatch reads through it (`instanceHopDispatch`)
-      const dispatch = !ref.static && !computed && key.type !== 'Literal' && ref.path.length === 1
-        && ref.path[0] === planEntry.lookupKey && metaPath ? instanceHopDispatch({
-          ctorName: ref.pure ? ref.ctor : ref.name, key: ref.path[0], resolvePure: m => resolvePure(m, metaPath),
-        }) : null;
-      if (dispatch) {
-        pushSlot(callExpression(identifier(injectPureImport(dispatch.entry, dispatch.hintName)), [base]));
-        continue;
-      }
-      // a string-spelled source key reads back computed with the same literal
-      // (`"z": Array["z"]`), and a `[k]`-slot passthrough reads through the same computed
-      // identifier (`[k]: Array[k]`) - the babel spellings
-      for (const hop of ref.path) {
-        if (hop === planEntry.lookupKey && (computed || key.type === 'Literal')) {
-          base = memberExpression(base, cloneNode(key), { computed: true });
-        } else base = memberFromKeyName(base, hop);
-      }
-      if (planEntry.optedOut || rawSlots?.has(planEntry.dedupKey)) markSubtreeSkipped(skippedNodes, base);
-      pushSlot(base);
-    }
-    return objectExpression(entries);
+        aliasCtx: metaPath ? { ...nodeSite(receiver, metaPath), adapter } : null,
+        guardedReceiverPlan,
+        sealedReceiverPlan: sealedProbePlan,
+        resolvePure: meta => resolvePure(meta, metaPath),
+        injectImport: injectPureImport,
+        slotFor(entry) {
+          const slot = slots.get(entry.dedupKey);
+          return typeof slot === 'string' ? { name: slot } : slot?.descended || slot?.descendedHop
+            ? { name: slot.base, children: slot.descended ?? slot.descendedHop }
+            : slot ? { name: slot.helper, instance: true, receiver: slot.receiver, unresolved: slot.instanceHop } : null;
+        },
+        cloneHost: source => metaPath ? substituteProxyRootsInClone(
+          duplicateReceiver(source, injector),
+          metaPath,
+          { adapter, resolveGlobalPolyfill, injectPureImport },
+        ) : cloneStamped(source),
+        cloneKey: cloneStamped,
+        markSkipped: value => markSubtreeSkipped(skippedNodes, value),
+      },
+    );
   }
 
   // Bind the source decision and native cloning. Memo ordering and proxy rendering
@@ -2312,8 +2108,9 @@ export default function createDestructureDrains(ctx) {
     let group = [];
     let splitRemaining = false;
     function flushGroup() {
-      if (group.length) appendStatements.push(...(splitRemaining ? groupDestructureDeclarators(group) : [group])
-        .map(items => exportDeclaration(variableDeclaration(hostNode.kind, items), appendExported)));
+      if (group.length) appendStatements.push(
+        ...renderDestructureStatements(splitRemaining ? group : [group], { kind: hostNode.kind, exported: appendExported }),
+      );
       group = [];
     }
     for (const declarator of hostNode.declarations) {
@@ -2358,8 +2155,10 @@ export default function createDestructureDrains(ctx) {
       const leading = extractions.filter((item, index) => !declJobsHere[index].siblingAppend
         || declJobsHere[index].capturedSibling && !residualFirst);
       // ... and a residual left reading only what the claims read leaves the join
-      group.push(...leading, ...residualDies(declarator, declJobsHere) ? [] : [declarator],
-        ...extractions.filter(item => !leading.includes(item)));
+      group.push(...renderDestructureDeclarators(
+        [...leading, ...extractions.filter(item => !leading.includes(item))],
+        { residual: residualDies(declarator, declJobsHere) ? null : declarator, residualAt: leading.length },
+      ));
     }
     flushGroup();
     markRewrite();
