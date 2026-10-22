@@ -24,6 +24,8 @@ import {
   renderStaticDefaultGuard,
   exportDeclaration,
   renderDestructureStatements,
+  renderDestructureDeclarators,
+  renderDestructureHeadCapture,
 } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { firstSpelledOffset, ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -110,7 +112,6 @@ import {
   destructurePatternHostPath,
   destructureRetainsLiteralWrapper,
   fallbackDestructureHasPolyfillableBranch,
-  firstPatternProp,
   flattenArrayWrapperInits,
   noteRelocation,
   hopSplitPlan,
@@ -166,6 +167,7 @@ import {
   leafPatternHoldsClaimedHop,
   hopNamesMissingAbleCtor,
   planCatchClauseExtraction,
+  planLoopHeadExtraction,
   probedNavProbeKey,
   resolvePolyfillableStaticProp,
   symbolIteratorInstanceLeaf,
@@ -1375,9 +1377,9 @@ export default function createDestructureEmitter({
     // demoting the directive into a no-op statement and silently flipping the function
     // out of strict mode. babel parser typically lifts directives to `node.directives[]`
     // (separate slot), but inline-injected ExpressionStatements with `.directive` survive
-    const newDecl = t.variableDeclaration('let', [
-      t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id)),
-    ]);
+    const [newDecl] = renderDestructureStatements([{ id: valueNode, init: id }], {
+      kind: 'let', embed: node => hostSlot(t.cloneNode(node)),
+    }).map(node => estreeToBabel(node));
     bodyExtractLastInsert.set(fnPath.node, insertBodyExtractDecl(fnPath, newDecl));
     skippedNodes.add(prop.node);
     if (prop.node.value) skippedNodes.add(prop.node.value);
@@ -5133,10 +5135,11 @@ export default function createDestructureEmitter({
     // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
     // - keeps one naming scheme across the plugin and matches unplugin's output shape
     const ref = injector.generateLocalRef(path.scope);
-    const relocated = t.variableDeclaration('let', [t.variableDeclarator(param, ref)]);
+    const rendered = renderDestructureHeadCapture(param, { binding: ref, embed: hostSlot });
+    const relocated = estreeToBabel(rendered.statement);
     catchBornDeclarations.add(relocated);
     path.get('body').unshiftContainer('body', [relocated]);
-    path.node.param = ref;
+    path.node.param = estreeToBabel(rendered.head);
     path.scope.registerBinding('let', path.get('param'), path);
     noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated, name: ref.name });
   }
@@ -5145,30 +5148,12 @@ export default function createDestructureEmitter({
   // The head binds a fresh name; the body's first statement declares the original bindings,
   // in the head's own kind, or assigns the original targets. Brace a bodyless loop.
   function extractLoopLeft(path) {
-    const left = path.get('left');
-    const assignment = left.isObjectPattern() || left.isArrayPattern();
-    if (!assignment && (!left.isVariableDeclaration() || left.node.declarations.length !== 1)) return;
-    const declarator = assignment ? { id: left.node } : left.node.declarations[0];
-    if (declarator.init || !declarator.id || declarator.id.type === 'Identifier') return;
-    const patternPath = assignment ? left : left.get('declarations')[0].get('id');
-    const typeProbe = firstPatternProp(patternPath);
-    if (typeProbe) primeDestructureReceiverTypes(typeProbe);
-    const elementType = path.node.type === 'ForOfStatement' ? resolveForOfResolvedElement(path)
-      : typeProbe ? resolvePropertyObjectType(typeProbe) : null;
-    const plan = planCatchClauseExtraction({
-      paramNode: declarator.id,
-      bodyNode: path.node.body,
-      scope: path.scope,
-      adapter,
-      path,
-      resolvePure: meta => resolvePure(meta, path),
-      walkNode: traverseWithParent,
-      objectHint: toHint?.(elementType) ?? null,
-      iterableNode: path.node.right,
-      mirrorHosts: !!forOfHeadIterableElements(assignment ? left : left.get('declarations')[0]),
-      assignment,
+    const plan = planLoopHeadExtraction(path, {
+      adapter, resolvePure: meta => resolvePure(meta, path), walkNode: traverseWithParent,
+      primeDestructureReceiverTypes, resolveForOfResolvedElement, resolvePropertyObjectType, toHint,
     });
     if (!plan) return;
+    const { left, declarator, assignment, elementType } = plan;
     for (const p of plan.unobservable) skippedNodes.add(p);
     const ref = injector.generateLocalRef(path.scope);
     const slot = t.cloneNode(ref);
@@ -5180,16 +5165,17 @@ export default function createDestructureEmitter({
     if (elementType) resolvedType.set(slot, elementType);
     // the relocated declaration keeps the head's kind: a `const` binding written in the body throws
     // as the source's does. such a host is an ordinary `const` for its guard refs
-    const relocated = assignment
-      ? t.expressionStatement(t.assignmentExpression('=', declarator.id, slot))
-      : t.variableDeclaration(left.node.kind, [t.variableDeclarator(declarator.id, slot)]);
+    const rendered = renderDestructureHeadCapture(declarator.id, {
+      binding: ref, receiver: slot, kind: left.node.kind, assignment, embed: hostSlot,
+    });
+    const relocated = estreeToBabel(rendered.statement);
     if (!assignment && left.node.kind !== 'const') catchBornDeclarations.add(relocated);
     const bodyless = path.get('body').isBlockStatement() ? null : path.node.body;
     if (bodyless) path.get('body').replaceWith(t.inherits(t.blockStatement([bodyless]), bodyless));
     path.get('body').unshiftContainer('body', [relocated]);
     const pattern = declarator.id;
-    if (assignment) left.replaceWith(t.variableDeclaration('const', [t.variableDeclarator(ref)]));
-    else declarator.id = ref;
+    if (assignment) left.replaceWith(estreeToBabel(rendered.head));
+    else declarator.id = estreeToBabel(rendered.head);
     noteRelocation(path, {
       slotOwner: assignment ? path.node : declarator,
       field: assignment ? 'left' : 'id',
@@ -5587,9 +5573,13 @@ export default function createDestructureEmitter({
       const decls = declaration.node.declarations;
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
-      const sink = decided && !sinkInit ? null
-        : t.variableDeclarator(generateLocalRef(scope), sinkInit ?? cloneReplayedEffect(parent.node.init, parent));
-      const extracted = t.variableDeclarator(localBinding, value);
+      const rendered = renderDestructureDeclarators([{ id: localBinding, init: value }], {
+        capture: decided && !sinkInit ? null
+          : { id: generateLocalRef(scope), init: sinkInit ?? cloneReplayedEffect(parent.node.init, parent) },
+        embed: hostSlot,
+      }).map(node => estreeToBabel(node));
+      const extracted = rendered.pop();
+      const [sink = null] = rendered;
       decls[idx] = extracted;
       const firstExtraction = decls.findIndex(d => forInitExtractionDecls.has(d));
       if (sink) decls.splice(firstExtraction === -1 ? idx : firstExtraction, 0, sink);

@@ -30,6 +30,7 @@ import {
   createInstanceNodeCache,
   followConstIdentifierInit,
   followConstLiteralAlias,
+  forOfHeadIterableElements,
   forEachPatternWriteMember,
   isChainAssignment,
   isDestructurePattern,
@@ -2675,6 +2676,31 @@ function nestedClaimBeyondMirror(node, receivers, {
     return nestedClaimBeyondMirror(prop.value, below,
       { scope, adapter, path, resolvePure, sharedTop, sharedReceivers, unmirrored: childUnmirrored });
   });
+}
+
+// Read the source loop head and receiver proof before either binding relocates it. A
+// declaration preserves its kind; a bare pattern assigns its existing targets each iteration.
+// Receiver typing is primed before the catch/head admission query, including refused mirrors.
+export function planLoopHeadExtraction(path, {
+  adapter, resolvePure, walkNode, primeDestructureReceiverTypes,
+  resolveForOfResolvedElement, resolvePropertyObjectType, toHint,
+}) {
+  const left = path.get('left');
+  const assignment = isDestructurePattern(left.node);
+  if (!assignment && (left.node?.type !== 'VariableDeclaration' || left.node.declarations.length !== 1)) return null;
+  const declarator = assignment ? { id: left.node } : left.node.declarations[0];
+  if (declarator.init || !declarator.id || declarator.id.type === 'Identifier') return null;
+  const host = assignment ? left : left.get('declarations')[0];
+  const typeProbe = firstPatternProp(assignment ? left : host.get('id'));
+  if (typeProbe) primeDestructureReceiverTypes?.(typeProbe);
+  const elementType = path.node.type === 'ForOfStatement' ? resolveForOfResolvedElement?.(path) ?? null
+    : typeProbe ? resolvePropertyObjectType?.(typeProbe) ?? null : null;
+  const plan = planCatchClauseExtraction({
+    paramNode: declarator.id, bodyNode: path.node.body, scope: path.scope, adapter, path,
+    resolvePure, walkNode, objectHint: toHint?.(elementType) ?? null,
+    iterableNode: path.node.right, mirrorHosts: !!forOfHeadIterableElements(host), assignment,
+  });
+  return plan ? { ...plan, left, declarator, assignment, elementType } : null;
 }
 
 export function planCatchClauseExtraction({
