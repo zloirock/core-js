@@ -24,7 +24,7 @@ import {
   planSideEffectKeyStrategy,
   renderSynthTree,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
+import { renderSynthEntryKey, synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -633,5 +633,31 @@ for (const [receiver, fields, expected] of [
     if (expected) check(`${ label } inner claims remain live`, instanceSynthSpellsReceiver(wrapper.node.right), true);
     check(`${ label } read-only`, JSON.stringify(program.node), before);
   });
+
+// A deferred mirror retains the source lookup decision while the key slot is rewritten.
+runBoth('late synth key source slot', 'const { ["from"]: from } = Array;', (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const [entry] = buildPatternRenderPlan(host.node.id, { scope: host.scope, path: host, adapter });
+  const [sourceProperty] = host.node.id.properties;
+  const key = { type: 'Identifier', name: 'rewrittenKey' };
+  sourceProperty.key = key;
+  const rendered = renderSynthEntryKey(entry, { resolvePure: () => null, injectImport: () => 'unused' });
+  check(`${ label }/source meaning retained`, entry.lookupKey, 'from');
+  check(`${ label }/current key spelling`, rendered.key.name, 'rewrittenKey');
+  check(`${ label }/copied key is independent`, rendered.key === key, false);
+  check(`${ label }/computed form retained`, rendered.computed, true);
+});
+runBoth('late synth symbol spelling', 'const { [Symbol.iterator]: iterator } = Array;', (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const [entry] = buildPatternRenderPlan(host.node.id, { scope: host.scope, path: host, adapter });
+  const options = { resolvePure: meta => meta.object === 'Symbol' && meta.key === 'iterator'
+    ? { entry: 'symbol/iterator', hintName: 'iterator' } : null, injectImport: (name, hint) => `_${ hint }` };
+  const rendered = renderSynthEntryKey(entry, options);
+  check(`${ label }/imported symbol`, rendered.key.name, '_iterator');
+  check(`${ label }/symbol is computed`, rendered.computed, true);
+  check(`${ label }/excluded symbol declines`, renderSynthEntryKey(entry, { ...options, resolvePure: () => null }), null);
+});
 
 finish();

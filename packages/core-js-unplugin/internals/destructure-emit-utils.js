@@ -120,5 +120,5 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
   const site = nodeSite(rawArgReceiver, wrapperPath);
   const argReceiver = rawArgReceiver
     && unwrapSafeSequenceTail(decidedRunningOperand(rawArgReceiver, { scope: site.scope, adapter, path: site.path }));
-  return isExpandedClassifiableReceiver({ node: argReceiver }) ? argReceiver : null;
+  return isExpandedClassifiableReceiver({ node: argReceiver, ...site, adapter }) ? argReceiver : null;
 }

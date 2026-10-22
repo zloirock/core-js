@@ -19993,6 +19993,29 @@ function * generateDeferredPatternSources() {
   }
 }
 
+// Late synths keep argument/default children live while deciding their receiver once.
+function * generateLateSynthReceivers() {
+  for (const [shape, receiver] of [
+    ['prefix', '(log.push([7].at(0)), Array)'],
+    ['call', '(() => (log.push([7].at(0)), Array))()'],
+    ['realm', '(() => (log.push([7].at(0)), globalThis))().Array'],
+    ['fallback', '(() => (log.push([7].at(0)), Array))() || Set'],
+  ]) for (const partial of [false, true]) {
+    const pattern = partial ? '{ of, length }' : '{ of, from }';
+    const result = partial ? '[of(3), length]' : '[of(3), from([4])]';
+    for (const [host, body] of [
+      ['default', `function read(${ pattern } = ${ receiver }) { return ${ result }; } return [read(), read()];`],
+      ['argument', `return ((${ pattern }) => ${ result })(${ receiver });`],
+      ['selection', `function read(flag) {
+        return ((${ pattern }) => ${ result })(flag ? ${ receiver } : (log.push('alternate'), Array));
+      } return [read(true), read(false)];`],
+      ['supplied', `function read(${ pattern } = ${ receiver }) { return ${ result }; }
+        return read({ of: value => [value + 1], from: value => value, length: 9 });`],
+    ]) yield { ...snippet(`late-synth-receivers/${ shape }/${ partial ? 'partial' : 'full' }/${ host }`,
+      `(() => { ${ body } })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20369,4 +20392,5 @@ export function * generate() {
   yield * generateImmediateDestructureStatements();
   yield * generateActivationDestructureCapture();
   yield * generateDeferredPatternSources();
+  yield * generateLateSynthReceivers();
 }

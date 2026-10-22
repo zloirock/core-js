@@ -17,7 +17,10 @@ import {
 import { buildNestedParamSynthPlan, destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { groupDestructureDeclarators, keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { createChecker } from './harness.mjs';
+import { createChecker, findNode } from './harness.mjs';
+import { isExpandedClassifiableReceiver } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
+import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { hostSlot, renderMemoReadTarget, renderSynthActivation } from '../../packages/core-js-polyfill-provider/render.js';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-evaluation');
 
@@ -358,5 +361,82 @@ for (const [source, accepted, assignment, typed] of [
     check(`${ label }/source pattern identity`, plan.declarator.id, assignment ? loop.node.left : loop.node.left.declarations[0].id);
   }
 });
+
+// The memo target is a source decision; late replacement changes only its carried slots.
+for (const ctor of ['Array', 'Date']) runBoth(`late synth memo/${ ctor }`,
+  `const { from, other } = (prefix(), (effect(), globalThis).self.${ ctor });`, (parser, program, label) => {
+    const host = hostOf(parser, program);
+    const source = host.node.init;
+    const aliasCtx = context(parser, host);
+    let queries = 0;
+    function resolveMemoPure(meta) {
+      queries++;
+      return ['Array', 'globalThis', 'self'].includes(meta.name) ? { entry: meta.name, hintName: meta.name } : null;
+    }
+    const before = JSON.stringify(source);
+    planMemoReadTarget(source, { aliasCtx, resolvePure: resolveMemoPure });
+    const plan = planMemoReadTarget(source, { aliasCtx, resolvePure: resolveMemoPure });
+    checkTruthy(`${ label }/accepted`, plan);
+    check(`${ label }/query preserves source`, JSON.stringify(source), before);
+    const queriesBeforeRender = queries;
+    for (const name of ['prefix', 'effect']) {
+      const call = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === name);
+      call.container[call.key] = { type: 'Identifier', name: `rewritten_${ name }` };
+    }
+    const built = renderMemoReadTarget(plan, { injectImport: (entry, hint) => `_${ hint }`, embed: hostSlot });
+    check(`${ label }/no late proof`, queries, queriesBeforeRender);
+    for (const name of ['prefix', 'effect']) {
+      checkTruthy(`${ label }/live ${ name }`, findNode(built, node => node.type === 'Identifier' && node.name === `rewritten_${ name }`));
+      check(`${ label }/no frozen ${ name }`, findNode(built, node => node.type === 'Identifier' && node.name === name), null);
+    }
+    checkTruthy(`${ label }/source landing`, findNode(built, node => node.type === 'Identifier'
+      && node.name === (ctor === 'Array' ? '_Array' : '_self')));
+  });
+
+for (const receiver of ['unknown', 'getUnknown()']) runBoth(`late memo decline/${ receiver }`,
+  `const { from } = ${ receiver };`, (parser, program, label) => {
+    const host = hostOf(parser, program);
+    check(label, planMemoReadTarget(host.node.init, { aliasCtx: context(parser, host), resolvePure: () => null }), null);
+  });
+
+// Both dialects use the same activation: the argument is outside the function,
+// its null rejection is inside, and the fallback follows the completed invocation.
+runBoth('late synth activation', 'const value = source(); const memo = held; const fallback = other();',
+  (parser, program, label) => {
+    const argument = parser.pickPath(program, 'CallExpression').node;
+    const memo = { type: 'Identifier', name: 'held' };
+    const value = { type: 'Identifier', name: 'synth' };
+    const fallback = { operator: '??', right: parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'other').node };
+    const guarded = renderSynthActivation(value, { guard: { fallback }, memo, argument }, { embed: hostSlot });
+    check(`${ label }/fallback outside`, guarded.type, 'LogicalExpression');
+    check(`${ label }/argument outside`, guarded.left.arguments[0].node, argument);
+    check(`${ label }/function activation`, guarded.left.callee.type, 'FunctionExpression');
+    check(`${ label }/guard inside`, guarded.left.callee.body.body[0].argument.type, 'ConditionalExpression');
+    check(`${ label }/single argument`, guarded.left.arguments.length, 1);
+    const reused = renderSynthActivation(value, { memo, argument, reusable: true }, { embed: hostSlot });
+    check(`${ label }/stable tail avoids activation`, reused.type, 'SequenceExpression');
+    check(`${ label }/stable tail keeps first read`, reused.expressions[0].node, argument);
+    check(`${ label }/covered literal`, renderSynthActivation(value), value);
+  });
+
+for (const [setup, argument, expected] of [
+  ['', '(() => Array)()', true],
+  ['', '(() => (effect(), Array))()', true],
+  ['const give = () => Array;', 'give()', true],
+  ['const give = () => Array;', 'give?.()', true],
+  ['', 'getUnknown()', false],
+  ['const Array = own;', '(() => Array)()', false],
+  ['', '(flag => flag ? Array : Map)(unknown)', false],
+  ['', '((C) => { C = own; return C; })(Array)', false],
+]) runBoth(`synth call argument/${ setup }/${ argument }`, `${ setup } const { of } = ${ argument };`,
+  (parser, program, label) => {
+    const host = hostOf(parser, program);
+    const path = host.get('init');
+    const ctx = context(parser, path);
+    const before = JSON.stringify(path.node);
+    isExpandedClassifiableReceiver({ node: path.node, ...ctx });
+    check(label, isExpandedClassifiableReceiver({ node: path.node, ...ctx }), expected);
+    check(`${ label }/query preserves source`, JSON.stringify(path.node), before);
+  });
 
 finish();

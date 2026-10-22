@@ -36,6 +36,7 @@ import {
   peelProxyGlobalObject,
   peelIifeReturnTarget,
   propertyKeyName,
+  invocationNode,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
   unwrapRuntimeExpr,
@@ -58,6 +59,7 @@ import {
 // adapters run it from inside their own `getBinding`
 import {
   globalProxyMemberName,
+  resolveObjectName,
   isKnownStaticGlobal,
   isProxyGlobalIdentifierNode,
   withBindingLookupGuard,
@@ -1045,11 +1047,12 @@ export function isUsableFallbackReceiverArg(node, scope, adapter) {
     || peeled?.type === 'ConditionalExpression' || peeled?.type === 'LogicalExpression';
 }
 
-// permissive: no wrapper-default - accept bare Identifier OR proxy-global MemberExpression
-// so `globalThis.X.key` resolves the same as the bare-Identifier IIFE path
+// Without a parameter default, a known argument is the receiver to synthesize.
+// Calls use the same value proof as member reads; an opaque call remains native.
 export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
   if (node?.type === 'Identifier') return true;
-  return globalProxyMemberName({ node, scope, adapter, path }) !== null;
+  return globalProxyMemberName({ node, scope, adapter, path }) !== null
+    || !!invocationNode(node) && !!resolveObjectName({ objectNode: node, scope, adapter, path });
 }
 
 // mark a synth-swap receiver and all inner sub-nodes as owned by skippedNodes so the

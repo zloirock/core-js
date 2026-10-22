@@ -164,6 +164,15 @@ function build(node) {
       return { type: 'BlockStatement', body: node.body.map(statement => convert(statement)), directives: [] };
     case 'ReturnStatement':
       return { type: 'ReturnStatement', argument: convert(node.argument) };
+    case 'FunctionExpression':
+      return {
+        type: 'FunctionExpression',
+        id: node.id ? convert(node.id) : null,
+        params: node.params.map(param => convert(param)),
+        body: convert(node.body),
+        async: !!node.async,
+        generator: !!node.generator,
+      };
     case 'ArrowFunctionExpression':
       return {
         type: 'ArrowFunctionExpression',
