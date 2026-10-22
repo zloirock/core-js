@@ -43,6 +43,26 @@ const rows = [
     Object.setPrototypeOf(Parent.prototype, receiver);
     class Child extends Parent { read() { return super.raw?.(argument())?.toString().at(0); } }
   `],
+  ['inherited static receiver', 'Child.read()', `
+    class Child extends Array { static read() {
+      const result = super.from([argument()]); return result instanceof Child && result.at(0);
+    } }
+  `],
+  ['inherited optional static continuation', 'Child.read()', `
+    class Child extends Array { static read() { return super.from?.([argument()]).at(0); } }
+  `],
+  ['inherited keyed static receiver', 'Child.read()', `
+    class Child extends Array { static read() {
+      const result = this[(effect(), "from")]?.([argument()]); return result instanceof Child && result.at(0);
+    } }
+  `],
+  ['inherited keyed super continuation', 'Child.read()', `
+    class Child extends Array { static read() { return super[(effect(), "from")]([argument()]).at(0); } }
+  `],
+  ['free optional stable callee', '(effect(), read)?.(argument()).at(0)', 'const read = value => [value];'],
+  ['free optional captured callee', 'getRead()?.(argument()).at(0)', `
+    function getRead() { effect(); return receiver === null ? null : value => [value]; }
+  `],
   ['sealed optional receiver', '(receiver?.at)(argument())'],
   ['sealed optional receiver with key effects', '(receiver?.[(effect(), "at")])(argument())'],
   ['symbol method', 'getReceiver()[Symbol.iterator](argument())'],
