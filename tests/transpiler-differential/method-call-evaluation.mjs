@@ -20,6 +20,21 @@ const rows = [
   ['optional method', 'receiver.at?.(argument())'],
   ['optional method with key effects', 'receiver[(effect(), "at")]?.(argument())'],
   ['optional receiver and method', 'receiver?.at?.(argument())'],
+  ['optional method adjacent result', 'receiver.at?.(argument())?.toString().includes("2")'],
+  ['optional receiver method continuation', 'receiver?.at?.(argument()).toString().includes("2")'],
+  ['optional factory and result', 'getReceiver()?.at?.(argument())?.toString()?.at(0)'],
+  ['optional prefix and continuation', '(effect(), receiver).at?.(argument())?.toString().at(0)'],
+  ['optional keyed continuation', 'receiver[(effect(), "at")]?.(argument())?.toString().at(0)'],
+  ['live link and continuation', 'box?.rows.at?.(argument())?.toString().at(0)', 'const box = receiver === null ? null : { rows: receiver };'],
+  ['sealed link and continuation', '(box?.rows).at?.(argument())?.toString().at(0)', 'const box = receiver === null ? null : { rows: receiver };'],
+  ['raw optional continuation', 'receiver.raw?.(argument())?.toString().at(0)'],
+  ['raw optional prefix and result guard', '(effect(), receiver).raw?.(argument())?.toString().at(0)'],
+  ['raw optional prefix and continuation', '(effect(), receiver).raw?.(argument()).toString().at(0)'],
+  ['raw super optional continuation', 'new Child().read()', `
+    class Parent {}
+    Object.setPrototypeOf(Parent.prototype, receiver);
+    class Child extends Parent { read() { return super.raw?.(argument())?.toString().at(0); } }
+  `],
   ['sealed optional receiver', '(receiver?.at)(argument())'],
   ['sealed optional receiver with key effects', '(receiver?.[(effect(), "at")])(argument())'],
   ['symbol method', 'getReceiver()[Symbol.iterator](argument())'],
@@ -97,7 +112,7 @@ for (const [label, expression, before = '', needsGuard = null] of rows) {
             if (receiver) {
               const descriptor = Object.getOwnPropertyDescriptor(receiver, 'at');
               Object.defineProperties(receiver, {
-                [Symbol.iterator]: descriptor, values: descriptor, from: descriptor, groupBy: descriptor, entries: descriptor,
+                [Symbol.iterator]: descriptor, values: descriptor, from: descriptor, groupBy: descriptor, entries: descriptor, raw: descriptor,
               });
             }
             function argument() {
