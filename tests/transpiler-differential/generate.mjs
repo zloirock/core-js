@@ -19930,6 +19930,42 @@ function * generateImmediateDestructureStatements() {
   };
 }
 
+// Captures belong to each invocation or iteration; a moved head must preserve binding
+// kind as well as the receiver's native residual. The var closures deliberately share.
+function * generateActivationDestructureCapture() {
+  for (const shape of ['flat', 'nested', 'array']) for (const partial of [false, true]) {
+    const leaf = `{ at: method${ partial ? ', length: size' : '' } }`;
+    const pattern = shape === 'flat' ? leaf : shape === 'nested' ? `{ slot: ${ leaf } }` : `[${ leaf }]`;
+    function wrap(value) { return shape === 'flat' ? value : shape === 'nested' ? `{ slot: ${ value } }` : `[${ value }]`; }
+    const init = wrap('source()');
+    const result = `[method.call(values, -1), ${ partial ? 'size' : '0' }]`;
+    for (const [host, body] of [
+      ['default', `function read(${ pattern } = ${ init }) { return ${ result }; }
+        const r = [read(), read(${ wrap('[6, 7, 8]') })];`],
+      ['supplied', `function read(${ pattern }) { return ${ result }; }
+        const r = [read(${ init }), read(${ wrap('[6, 7, 8]') })];`],
+      ['catch', `let r; try { throw ${ init }; } catch (${ pattern }) { r = ${ result }; }`],
+      ...['const', 'let', 'var'].map(kind => [`for-of-${ kind }`, `const readers = [];
+        for (${ kind } ${ pattern } of [${ init }, ${ wrap('[6, 7, 8]') }]) readers.push(() => ${ result });
+        const r = readers.map(read => read());`]),
+      ['assignment', `let method, size; const r = [];
+        for (${ pattern } of [${ init }, ${ wrap('[6, 7, 8]') }]) r.push(${ result });`],
+      ['for-init', `let r; for (const ${ pattern } = ${ init };;) { r = ${ result }; break; }`],
+    ]) yield {
+      name: `activation-destructure-capture/${ shape }/${ partial ? 'partial' : 'full' }/${ host }`,
+      code: `const effects = [];
+        const values = [4, 5];
+        function source() { effects.push('source'); return values; }
+        ${ body }
+        export { r, effects };`,
+      // Positional parameter capture only serves a complete default mirror; a supplied
+      // array parameter and a partial positional assignment keep native reads today.
+      // Retain their full-realm and global controls without claiming pure strip coverage.
+      strip: !(shape === 'array' && (host === 'supplied' || partial && (host === 'default' || host === 'assignment'))),
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20304,4 +20340,5 @@ export function * generate() {
   yield * generateGuardedCallEffects();
   yield * generateDestructureEvaluation();
   yield * generateImmediateDestructureStatements();
+  yield * generateActivationDestructureCapture();
 }

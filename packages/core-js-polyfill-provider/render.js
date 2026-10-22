@@ -370,9 +370,21 @@ export function renderParameterInstanceCapture(plan, { receiverName, unusedName,
     head: plan.root.type === 'AssignmentPattern'
       ? assignmentPattern(identifier(receiverName), embed(plan.root.right)) : identifier(receiverName),
     padding: plan.paddingRequired ? assignmentPattern(identifier(unusedName), voidZero()) : null,
-    declaration: variableDeclaration('let', plan.pattern.properties.map(prop => variableDeclarator(
-      embed({ ...plan.pattern, properties: [prop] }), identifier(receiverName),
-    ))),
+    declaration: variableDeclaration('let', renderDestructureDeclarators(plan.pattern.properties.map(prop => ({
+      id: { ...plan.pattern, properties: [prop] }, init: identifier(receiverName),
+    })), { embed })),
+  };
+}
+
+// A catch or for-x head captures the receiver in its own activation. The body keeps the
+// source binding kind, or writes the original assignment targets; only the fresh head is const.
+// Bindings allocate the refs and pass distinct read/write nodes where their trackers require it.
+export function renderDestructureHeadCapture(pattern, {
+  binding, receiver = binding, kind = 'let', assignment = false, embed = node => node,
+}) {
+  return {
+    head: assignment ? variableDeclaration('const', [variableDeclarator(embed(binding))]) : embed(binding),
+    statement: renderDestructureStatements([{ id: pattern, init: receiver }], { kind: assignment ? null : kind, embed })[0],
   };
 }
 
@@ -978,9 +990,26 @@ export function exportDeclaration(statement, exported) {
     : statement;
 }
 
-// Compose an immediate destructure's statements from its ordered reads and residual slot.
-// Declaration reads are declarators (or a group that must stay joined); assignment reads
-// carry the same id/init pair. An already-decorated read uses an explicit statement slot.
+// Ordered declaration slots, also usable directly in a for-init head. Existing native
+// declarators retain identity; read pairs build only their shell. A receiver capture precedes
+// the reads and residual, whose position is already decided by the source plan.
+export function renderDestructureDeclarators(reads, {
+  capture = null, residual = null, residualAt = reads.length, embed = node => node,
+} = {}) {
+  const declarations = capture ? [variableDeclarator(embed(capture.id), embed(capture.init))] : [];
+  for (let index = 0; index <= reads.length; index++) {
+    if (residual && index === residualAt) declarations.push(embed(residual));
+    if (index === reads.length) break;
+    const read = reads[index];
+    declarations.push(read.type === 'VariableDeclarator' ? embed(read)
+      : variableDeclarator(embed(read.id), read.init ? embed(read.init) : null));
+  }
+  return declarations;
+}
+
+// Compose destructure statements from their ordered reads and residual slot. Declaration
+// reads are native declarators or id/init pairs (or a group that must stay joined);
+// assignment reads carry id/init pairs. A decorated read uses an explicit statement slot.
 // Prefix effects precede the capture, which stays private even
 // in an export. The residual keeps its planned position, including before the first read.
 // `embed` carries native nodes without cloning them implicitly: the binding owns source
@@ -998,7 +1027,7 @@ export function renderDestructureStatements(reads, {
     if (index === reads.length) break;
     const read = reads[index];
     statements.push(read.statement ? embed(read.statement) : kind
-      ? exportDeclaration(variableDeclaration(kind, (Array.isArray(read) ? read : [read]).map(embed)), exported)
+      ? exportDeclaration(variableDeclaration(kind, renderDestructureDeclarators(Array.isArray(read) ? read : [read], { embed })), exported)
       : expressionStatement(assignmentExpression('=', embed(read.id), embed(read.init))));
   }
   return statements;
