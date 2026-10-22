@@ -8,6 +8,7 @@ import {
   forInitNeedsReceiverMemo,
   planLiteralResidual,
   planLiteralRoute,
+  planLoopHeadExtraction,
   planSentinelMemo,
   planSynthLiteralReceiver,
   residualPrecedesExtractions,
@@ -15,7 +16,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { buildNestedParamSynthPlan, destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
-import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-evaluation');
@@ -272,5 +273,46 @@ for (const [initial, written] of [['[4, 5]', '"xy"'], ['"xy"', '[4, 5]']]) {
     check(`${ label }/source read keeps its own frame`, target.receiverRead.path.node, target.receiverRead.node);
   });
 }
+
+// Head admission sees the original pattern and primes its receiver before asking its type.
+// A refused relocation must still leave that source proof available to later consumers.
+for (const [source, accepted, assignment, typed] of [
+  ['for (const { at } of rows) use(at);', true, false, 'element'],
+  ['for (let { at } of rows) { use(at); }', true, false, 'element'],
+  ['for (var [{ at }] of rows) use(at);', true, false, 'element'],
+  ['let at; for ({ at } of rows) {} use(at);', true, true, 'element'],
+  ['for (const { at } in rows) use(at);', true, false, 'property'],
+  ['for (const { at } of rows) { let at = own; use(at); }', false, false, 'element'],
+  ['for (const { unrelated } of rows) use(unrelated);', false, false, 'element'],
+  ['for (const item of rows) use(item);', false, false, null],
+]) runBoth(`activation head/${ source }`, source, (parser, program, label) => {
+  const loop = parser.pickPath(program, source.includes(' in ') ? 'ForInStatement' : 'ForOfStatement');
+  const before = JSON.stringify(loop.node);
+  const events = [];
+  const elementType = {};
+  const { adapter } = context(parser, loop);
+  const options = {
+    adapter,
+    resolvePure: meta => meta.kind === 'property' && meta.key === 'at'
+      ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null,
+    walkNode: (root, visit) => walkAstNodes({ root, visit }),
+    primeDestructureReceiverTypes: () => events.push('prime'),
+    resolveForOfResolvedElement: () => { events.push('element'); return elementType; },
+    resolvePropertyObjectType: () => { events.push('property'); return elementType; },
+    toHint: value => { check(`${ label }/same type proof`, value, elementType); return null; },
+  };
+  planLoopHeadExtraction(loop, options);
+  events.length = 0;
+  const plan = planLoopHeadExtraction(loop, options);
+  check(`${ label }/admission`, !!plan, accepted);
+  checkDeep(`${ label }/query order`, events, typed ? ['prime', typed] : []);
+  check(`${ label }/query preserves source`, JSON.stringify(loop.node), before);
+  if (plan) {
+    check(`${ label }/assignment kind`, plan.assignment, assignment);
+    check(`${ label }/source head identity`, plan.left.node, loop.node.left);
+    check(`${ label }/receiver proof identity`, plan.elementType, elementType);
+    check(`${ label }/source pattern identity`, plan.declarator.id, assignment ? loop.node.left : loop.node.left.declarations[0].id);
+  }
+});
 
 finish();
