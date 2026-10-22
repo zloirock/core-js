@@ -16,6 +16,7 @@ import {
   computedKeyHasSideEffects,
   forOfHeadIterableElements,
   findNearestVarScopeOwner,
+  findNodeSlot,
   FUNCTION_LIKE_NODE_TYPES,
   functionScopeBindsVarOrFunction,
   collectFileCensus,
@@ -39,6 +40,7 @@ import {
   objectLevelPairedProperty,
   ownRelocatedHeadElement,
   patternBoundAliasSlotInit,
+  patternBindingCount,
   patternKeepsEffectfulKey,
   patternSlotTarget,
   patternSlotCertainDefault,
@@ -2034,6 +2036,29 @@ export function keyedReadReceiverProven({ init, hostPath, adapter, nested = fals
   return proven(running);
 }
 
+// Partition an ordered declaration after all claims have applied. Private captures stay
+// separate; a surviving slot capture joins its residual and following reads. Whole-init
+// captures join only the reads ahead of their residual. An attached read cannot join a
+// private capture after its residual was pruned. Before traversal finishes, keepPatterns
+// preserves a native object pattern's siblings so their child visits remain attached.
+// Identity sets belong to the binding and expire with its file; this query never mutates them.
+export function groupDestructureDeclarators(declarations, {
+  keepPatterns = false, memos = null, attached = null, wholeInit = null, slotHost = null, pruned = null,
+} = {}) {
+  if (keepPatterns && declarations.some(item => item.id.type === 'ObjectPattern')) return [declarations];
+  const memoHost = declarations.some(item => wholeInit?.has(item));
+  const slotJoin = slotHost && (declarations.includes(slotHost) || slotHost === pruned) && patternBindingCount(slotHost.id) > 0;
+  const groups = [];
+  for (const item of declarations) {
+    const previous = groups.at(-1);
+    const joins = previous && (attached?.has(item) && !(pruned && memos?.has(previous[0]))
+      || !memos?.has(item) && !memos?.has(previous[0]) && (slotJoin || memoHost && !wholeInit.has(item)));
+    if (joins) previous.push(item);
+    else groups.push([item]);
+  }
+  return groups;
+}
+
 // what a sole keyed read owes a receiver nothing reads: proven, it takes no null rejection, and served
 // by name, it takes no dispatch, so no capture is read and the receiver is owed only what discarding it
 // runs (the rescue canon), ahead of the keys. null where a read needs the receiver bound
@@ -2052,9 +2077,13 @@ export function keyedReadEvaluation(plan, {
   proven = keyedReadReceiverProven({ init, hostPath, adapter: ctx?.adapter }),
   discarded = keyedReadDiscardedReceiver({ receiver, proven, readsReceiver, ctx }),
 }) {
+  const discardedSlots = ctx && discarded?.map(node => node === receiver ? plan.receiverSlot : findNodeSlot(receiver, node));
   const inlineReceiver = proven && plan.inlineReceiver;
   const reuseReceiver = inlineReceiver || plan.reuseReceiver && unwrapRuntimeExpr(receiver)?.type === 'Identifier';
-  return { proven, discarded, inlineReceiver, reuseReceiver,
+  return { proven, inlineReceiver, reuseReceiver,
+    get discarded() {
+      return discardedSlots ? discardedSlots.map((slot, index) => slot ? slot.owner[slot.key] : discarded[index]) : discarded;
+    },
     storeReceiver: plan.exported && !reuseReceiver && !discarded };
 }
 

@@ -15,7 +15,7 @@ import {
   synthPlanFullyCovered,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { buildNestedParamSynthPlan, destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { groupDestructureDeclarators, keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
@@ -64,7 +64,51 @@ for (const [receiver, readsReceiver, expected] of [
       receiver: live, proven: evaluation.proven, discarded: evaluation.discarded,
     });
     check(`${ label }/saved proof`, deferred.proven, evaluation.proven);
-    check(`${ label }/saved effects`, deferred.discarded, evaluation.discarded);
+    checkDeep(`${ label }/saved effects`, deferred.discarded, evaluation.discarded);
+  });
+
+// A queued read keeps its original proof while children replace the source slots.
+for (const receiver of ['Array', '(effect(), Array)']) runBoth(`live keyed slots/${ receiver }`,
+  `const { [(effect(), "from")]: from } = ${ receiver };`, (parser, program, label) => {
+    const host = hostOf(parser, program);
+    const [prop] = host.get('id').get('properties');
+    const ctx = context(parser, prop);
+    const plan = destructureKeyReadPlan(prop, ctx);
+    const evaluation = keyedReadEvaluation(plan, { init: host.node.init, hostPath: host, readsReceiver: false, ctx });
+    const proof = evaluation.proven;
+    const key = unwrapRuntimeExpr(prop.node.key);
+    const replacement = { type: 'Identifier', name: 'changedKey' };
+    key.expressions[0] = replacement;
+    check(`${ label }/live key`, plan.keys[0], replacement);
+    const init = unwrapRuntimeExpr(host.node.init);
+    if (init.type === 'SequenceExpression') {
+      init.expressions[0] = { type: 'Identifier', name: 'changedEffect' };
+      check(`${ label }/live discarded effect`, evaluation.discarded[0], init.expressions[0]);
+    } else {
+      host.node.init = { type: 'Identifier', name: 'changedReceiver' };
+      check(`${ label }/live initializer`, plan.receiver, host.node.init);
+    }
+    check(`${ label }/pristine proof`, evaluation.proven, proof);
+  });
+
+runBoth('deferred declaration groups', 'const memo = receiver, first = 1, { other } = memo, last = 2;',
+  (parser, program, label) => {
+    const declaration = parser.pickPath(program, 'VariableDeclaration').node;
+    const [memo, first, residual, last] = declaration.declarations;
+    const { declarations } = declaration;
+    function names(groups) { return groups.map(group => group.map(item => declarations.indexOf(item))); }
+    const memos = new WeakSet([memo]);
+    checkDeep(`${ label }/split`, names(groupDestructureDeclarators(declarations)), [[0], [1], [2], [3]]);
+    checkDeep(`${ label }/pending visits`, names(groupDestructureDeclarators(declarations, { keepPatterns: true })), [[0, 1, 2, 3]]);
+    checkDeep(`${ label }/capture group`, names(groupDestructureDeclarators(declarations, { memos, slotHost: residual })), [[0], [1, 2, 3]]);
+    checkDeep(`${ label }/whole capture`, names(groupDestructureDeclarators(declarations, {
+      memos, wholeInit: new WeakSet([residual]),
+    })), [[0], [1], [2, 3]]);
+    const attached = new WeakSet([first, last]);
+    checkDeep(`${ label }/attached`, names(groupDestructureDeclarators(declarations, { memos, attached })), [[0, 1], [2, 3]]);
+    checkDeep(`${ label }/pruned capture`, names(groupDestructureDeclarators(declarations, { memos, attached, pruned: residual })),
+      [[0], [1], [2, 3]]);
+    check(`${ label }/identity retained`, declaration.declarations, declarations);
   });
 
 for (const [receiver, kind, allProxyInit, expected] of [

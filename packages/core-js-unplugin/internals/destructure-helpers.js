@@ -78,7 +78,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { forInitNeedsReceiverMemo, sentinelMemoInitShape } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
+import { groupDestructureDeclarators, bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
@@ -1879,8 +1879,8 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
   for (const statement of statements) {
     if (statement.declarations.length <= 1) continue;
     const at = target.body.indexOf(statement);
-    target.body.splice(at, 1, ...statement.declarations.flatMap(item => renderDestructureStatements([item], {
-      kind: memoDeclarators.has(item) ? 'const' : statement.kind,
+    target.body.splice(at, 1, ...groupDestructureDeclarators(statement.declarations).flatMap(group => renderDestructureStatements([group], {
+      kind: memoDeclarators.has(group[0]) ? 'const' : statement.kind,
     })));
     markRewrite();
   }

@@ -114,6 +114,7 @@ import {
   assignmentValueDiscarded,
   climbTransparentWrapperPath,
   computedKeyHasSideEffects,
+  findNodeSlot,
   forOfHeadIterableElements,
   hasRestSiblingExcept,
   hostsExportList,
@@ -159,7 +160,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { detectIifeArgReceiverPath, findSynthSwapReceiver } from './destructure-emit-utils.js';
 import { nodeSite, stampNodeSite } from './nav-spine.js';
-import { findNodeSlot, replaceNodeInTree } from './emit-shared.js';
+import { replaceNodeInTree } from './emit-shared.js';
 import {
   assignmentExpression,
   blockStatement,
@@ -2009,14 +2010,12 @@ export default function createAstDestructureEmitter({
       const declaratorPath = patternPath.parentPath;
       const { init } = declaratorPath.node;
       const evaluation = keyedReadEvaluation(keyReadPlan, { init, hostPath: metaPath, readsReceiver: kind === 'instance', ctx: keyCtx });
-      const { proven, discarded, inlineReceiver } = evaluation;
-      const receiverSlot = keyReadPlan.receiver === init ? null : findNodeSlot(init, keyReadPlan.receiver);
+      const { discarded, inlineReceiver } = evaluation;
       const receiverName = evaluation.storeReceiver ? injector.generateDeclaredRef(metaPath) : null;
       let value = buildValue({
         kind, entry, hintName, receiverNode: declaratorPath.node.init, prop, metaPath,
         literalRoute: true,
-        liveReceiver: inlineReceiver ? () => receiverSlot
-          ? receiverSlot.owner[receiverSlot.key] : declaratorPath.node.init : null,
+        liveReceiver: inlineReceiver ? () => keyReadPlan.receiver : null,
       });
       if (!value) return;
       // a single instance leaf binds its own dispatch over the helper result, as the extraction does
@@ -2046,14 +2045,9 @@ export default function createAstDestructureEmitter({
           collapseLeafName: keyedLeaf?.localName ?? null,
           keyReadPlan,
           receiverName,
-          // the operand of a decided init the read evaluates, addressed by its slot: a claim inside
-          // renders by replacing it, and the drain reads what stands there then
-          receiverSlot,
-          // ... and what discarding a receiver nothing reads runs, addressed the same way
-          discardedSlots: discarded?.map(node => findNodeSlot(declaratorPath.node, node)),
+          evaluation,
           metaPath,
           declarationPath: declaratorPath.parentPath,
-          proven,
           readsReceiver: kind === 'instance',
         } });
       // the bound name registers as the static's alias during the walk, as an extraction's does: a

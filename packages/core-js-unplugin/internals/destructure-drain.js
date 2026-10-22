@@ -3,7 +3,6 @@
 // literal renders. created per transform over the visit half's shared context
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import {
-  destructureKeyReadPlan,
   instanceSynthReceiverPure,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
@@ -28,6 +27,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   bodylessSlotReplacement,
+  groupDestructureDeclarators,
   keyedReadEvaluation,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -1229,26 +1229,22 @@ export default function createDestructureDrains(ctx) {
       const exported = exportBody?.find(node => node.type === 'ExportNamedDeclaration'
         && node.declaration?.declarations?.includes(job.declarator));
       if (exported) declaration = exported.declaration;
-      const running = job.receiverSlot ? job.receiverSlot.owner[job.receiverSlot.key] : job.declarator.init;
+      const running = job.keyReadPlan.receiver;
       const receiver = unwrapRuntimeExpr(running);
-      const discarded = job.discardedSlots?.map(({ owner, key }) => owner[key]);
+      const { proven, discarded } = job.evaluation;
       const { inlineReceiver, reuseReceiver, storeReceiver } = keyedReadEvaluation(job.keyReadPlan, {
-        receiver: running, proven: !!job.proven, discarded,
+        receiver: running, proven, discarded,
       });
       const receiverRef = reuseReceiver ? receiver.name : discarded ? null : job.receiverName ?? mintRefName();
-      const liveKeys = destructureKeyReadPlan({
-        node: job.prop,
-        parentPath: { node: job.declarator.id },
-      }, patternFrame(job.metaPath))?.keys ?? [];
       const rendered = renderKeyedDestructureRead({
         receiverName: receiverRef,
         receiver: running,
         binding: job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop),
-        keys: liveKeys.map(key => cloneNode(key)),
+        keys: job.keyReadPlan.keys.map(key => cloneNode(key)),
         read: job.value(inlineReceiver ? null : receiverRef),
         storeReceiver,
         reuseReceiver,
-        proven: !!job.proven,
+        proven,
         discarded,
       });
       const slot = declaration.declarations.indexOf(job.declarator);
@@ -2374,7 +2370,7 @@ export default function createDestructureDrains(ctx) {
     let group = [];
     let splitRemaining = false;
     function flushGroup() {
-      if (group.length) appendStatements.push(...(splitRemaining ? group.map(item => [item]) : [group])
+      if (group.length) appendStatements.push(...(splitRemaining ? groupDestructureDeclarators(group) : [group])
         .map(items => exportDeclaration(variableDeclaration(hostNode.kind, items), appendExported)));
       group = [];
     }
