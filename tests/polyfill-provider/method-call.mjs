@@ -1,5 +1,7 @@
 // Ordinary invocation decisions retain source slots and never allocate or mutate on a query.
-import { planMethodCall, planOptionalMethodCall } from '../../packages/core-js-polyfill-provider/render.js';
+import {
+  cloneNode, hostSlot, identifier, planMethodCall, planOptionalMethodCall, renderOptionalMethodCall, renderReceiverMemo,
+} from '../../packages/core-js-polyfill-provider/render.js';
 import { calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -167,6 +169,51 @@ for (const [source, sealed] of [
 ]) runBoth(`callee seal ${ source }`, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'CallExpression') ?? parser.pickPath(program, 'OptionalCallExpression');
   check(label, calleeParenWrapped(path.node), sealed);
+});
+
+// Rendering reads the current source slots and registers captures before arguments.
+// Neither a repeated render nor a prepared receiver guard may capture the value twice.
+runBoth('optional render live slots', 'getRows().at?.(before());', (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression', member => member.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const decision = planOptionalMethodCall({ callee: path.node, ctx: { scope: path.scope, path, adapter } });
+  const call = path.parentPath.node;
+  call.arguments[0].callee.name = 'after';
+  const before = JSON.stringify(program.node);
+  const registered = [];
+  const argumentsSeen = [];
+  const product = renderOptionalMethodCall(decision, {
+    callee: path.node, args: call.arguments, helper: identifier('lookup'),
+    mintRef: role => `_${ role }`,
+    recordCapture(node, role) {
+      registered.push(role);
+      return node;
+    },
+    embed(node, role) {
+      if (role === 'argument') {
+        argumentsSeen.push(node.callee.name);
+        checkDeep(`${ label } captures registered before argument`, registered, ['receiver', 'method']);
+      }
+      return hostSlot(cloneNode(node));
+    },
+  });
+  checkDeep(`${ label } live argument slot`, argumentsSeen, ['after']);
+  check(`${ label } one method check carries receiver capture`, product.disjuncts.length, 1);
+  check(`${ label } source unchanged by apply`, JSON.stringify(program.node), before);
+  const prepared = renderOptionalMethodCall(decision, {
+    callee: path.node, args: [], helper: identifier('lookup'),
+    guard: { checks: [identifier('earlierCheck')], receiver: identifier('earlierReceiver') },
+    mintRef(role) {
+      check(`${ label } existing receiver not recaptured`, role, 'method');
+      return '_method';
+    },
+    embed: node => hostSlot(cloneNode(node)),
+  });
+  check(`${ label } earlier guard retained first`, prepared.disjuncts[0].name, 'earlierCheck');
+  const memo = renderReceiverMemo(decision, { mintRef: () => '_value', embed: node => hostSlot(cloneNode(node)) });
+  const first = memo.makeBase();
+  const second = memo.makeBase();
+  check(`${ label } receiver read nodes do not alias`, first === second, false);
 });
 
 finish();

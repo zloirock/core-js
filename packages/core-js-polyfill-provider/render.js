@@ -150,7 +150,10 @@ export function renderMethodCall(plan, {
   helper, lookup = null, lookupGuard = null, chain = true,
   mintRef, embed = node => node, recordCapture = node => node,
 }) {
-  const effects = [...plan.prefixEffects, ...plan.firstReadEffects].map(node => embed(node, 'effect'));
+  // A stable whole receiver under the lookup guard needs no duplicate pre-key read.
+  // A prefixed first read still owns work that its stable tail does not perform.
+  const firstReadEffects = lookupGuard && plan.firstReceiver === plan.receiver ? [] : plan.firstReadEffects;
+  const effects = [...plan.prefixEffects, ...firstReadEffects].map(node => embed(node, 'effect'));
   let receiver;
   if (lookup) {
     receiver = embed(plan.receiver, 'receiver');
@@ -172,11 +175,71 @@ export function renderMethodCall(plan, {
     lookup = callExpression(helper, [lookupArg]);
   }
   effects.push(...plan.keyEffects.map(node => embed(node, 'effect')));
-  if (lookupGuard) lookup = renderShortCircuitGuard(lookupGuard, lookup);
+  if (lookupGuard) {
+    lookup = renderShortCircuitGuard(lookupGuard, effects.length ? sequenceExpression([...effects, lookup]) : lookup);
+    effects.length = 0;
+  }
   const args = [receiver, ...plan.args.map(node => embed(node, 'argument'))];
   const call = callExpression(renderMethodCallMember(lookup, plan), args);
   const result = plan.optional && chain ? chainExpression(call) : call;
   return effects.length ? sequenceExpression([...effects, result]) : result;
+}
+
+// The first receiver read owns its prefix and optional capture; later reads use only
+// the captured value or the proven stable tail. The host registers a capture before
+// any subsequent scope query; embedding gives repeated base reads distinct identities.
+export function renderReceiverMemo({ firstReceiver, receiver = firstReceiver, capture }, {
+  mintRef, embed = node => node, recordCapture = node => node,
+}) {
+  const name = capture ? mintRef() : null;
+  return {
+    firstRead: name
+      ? recordCapture(assignmentExpression('=', identifier(name), embed(firstReceiver, 'capture')))
+      : embed(firstReceiver, 'lookup'),
+    makeBase: () => embed(name ? identifier(name) : receiver, 'receiver'),
+  };
+}
+
+// Split an optional method invocation into ordered null checks and its live continuation.
+// A served lookup folds an untested receiver capture into its argument; a raw lookup keeps
+// the capture ahead of the member read, including that read's own optional receiver guard.
+// An adjacent optional result can carry a served method's guard without a method memo.
+// `guard` is an already rendered receiver guard (for navigation); `checks` are earlier links.
+// Hooks only clone source slots, allocate/register refs and retain host provenance. Arguments
+// are read here, after child rewrites, and the returned call uses the ordinary call canon.
+export function renderOptionalMethodCall(plan, {
+  callee, args, helper = null, guard = null, checks = [],
+  mintRef, embed = node => node, recordCapture = node => node, recordLookup = node => node,
+}) {
+  const memo = !guard && renderReceiverMemo(plan, {
+    mintRef: () => mintRef('receiver'), embed,
+    recordCapture: node => recordCapture(node, 'receiver'),
+  });
+  const receiver = guard ? () => embed(guard.receiver, 'receiver')
+    : plan.superReceiver ? () => ({ type: 'ThisExpression' }) : memo.makeBase;
+  const firstRead = memo?.firstRead;
+  const testsReceiver = !!helper && plan.receiverGuard === 'value';
+  let lookup = helper
+    ? callExpression(helper, [guard || testsReceiver ? receiver() : firstRead])
+    : memberExpression(guard || plan.capture ? receiver() : firstRead, embed(callee.property, 'key'),
+      { computed: callee.computed, optional: !guard && !!callee.optional });
+  if (!helper && !guard && callee.optional) lookup = chainExpression(lookup);
+  lookup = recordLookup(lookup);
+  const disjuncts = [...checks, ...guard ? guard.checks : testsReceiver ? [firstRead] : []];
+  const compact = !!helper && plan.compactMethod;
+  let methodCheck = null;
+  if (!compact) {
+    const methodName = mintRef('method');
+    methodCheck = recordCapture(assignmentExpression('=', identifier(methodName), lookup), 'method');
+    if (!helper && !guard && plan.capture) methodCheck = sequenceExpression([firstRead, methodCheck]);
+    disjuncts.push(methodCheck);
+    lookup = embed(identifier(methodName), 'method');
+  }
+  const call = renderMethodCall(planMethodCall({
+    receiver: receiver(), prepared: true, methodGuarded: !compact, optional: compact,
+    args: args.map(node => embed(node, 'argument')),
+  }), { lookup });
+  return { disjuncts, receiver: call, methodCheck };
 }
 
 // After claims settle, remove guards whose observable arguments became plain values.

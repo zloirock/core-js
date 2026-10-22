@@ -97,6 +97,8 @@ import {
   nullFirstGuardTest,
   renderClaimProbe,
   renderMethodCall,
+  renderOptionalMethodCall,
+  renderReceiverMemo,
   planMethodCall,
   planOptionalMethodCall,
   renderDeleteShortCircuitGuard,
@@ -630,18 +632,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
-  // to `node`, but callers memoizing a CLONE or a synthesized subtree (optional-method-call
-  // methodNode, combined-chain spliced receivers) must pass the live source node instead: a
-  // range-less useNode fails the param/loop-header escape check and strands the `var` in the
+  // to `node`, but callers memoizing a CLONE or a rendered navigation probe must pass the
+  // live source node instead: a range-less useNode fails the param/loop-header escape
+  // check and strands the `var` in the
   // function body, unreachable from a parameter-default use (ReferenceError at call time for
   // a TS parameter-property default)
-  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false, optionalPlan = null) {
-    node = optionalPlan ? optionalPlan.firstReceiver : prepareMemoReceiver(node, ctx);
+  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
+    node = prepareMemoReceiver(node, ctx);
     const { prefix, tail } = peelNestedSequenceExpressions(node);
-    // Optional callers already asked the provider before allocating in this frame.
-    // Other memo users retain the same adjacent-read canon. The first read owns comments.
-    const value = optionalPlan ? optionalPlan.receiver : prefix.length ? tail : node;
-    if (optionalPlan ? !optionalPlan.capture : isReusableReceiver(value, { interveningEffects, directCallee, ctx })) {
+    // The first read owns comments; repeated reads only need the stable tail.
+    const value = prefix.length ? tail : node;
+    if (isReusableReceiver(value, { interveningEffects, directCallee, ctx })) {
       return [t.cloneNode(node), t.removeComments(t.cloneNode(value))];
     }
     const ref = generateRef(scope, anchorNode);
@@ -1136,6 +1137,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     anchorNode,
     anchorPath = null,
     sourceReceiver = object,
+    lookupGuard = null,
     sideEffects = [],
     receiverEffectCount = 0,
   }) {
@@ -1156,6 +1158,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     });
     const result = estreeToBabel(renderMethodCall(decision, {
       helper: hostSlot(id),
+      lookupGuard,
       mintRef: () => generateRef(scope, anchorNode ?? decision.ctx?.path?.node ?? object).name,
       embed(node, role) {
         if (role === 'capture') return hostSlot(node);
@@ -1236,45 +1239,33 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const ctx = { scope, path: calleePath, adapter: getAdapter?.(), injectorState: getInjector() };
     const receiverNode = prepareMemoReceiver(collapsedSplitReceiver(calleePath.node.object, linkCheck, calleePath), ctx);
     const decision = planOptionalMethodCall({ callee: calleePath.node, receiver: receiverNode, ctx });
-    const testsReceiver = decision.receiverGuard === 'value';
-    const methodNode = t.cloneNode(calleePath.node);
-    // read off the memo, an in-chain member is plain unless it carries its own `?.`
-    if (methodNode.type === 'OptionalMemberExpression' && !methodNode.optional) deoptionalizeAstNode(methodNode);
-    let callReceiver;
-    let receiverMemo = null;
-    let receiverRead;
-    if (decision.superReceiver) {
-      callReceiver = t.thisExpression();
-    } else {
-      const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node, false, ctx, false, decision);
-      // the memo may hold a resolvable surface (a proxy global, or a CTOR read off one):
-      // tag the ref so the re-traversed method read keeps resolving through it
-      // (`_ref = (t = _globalThis, _globalThis).Array` serves `_ref?.from` -> `_Array$from`)
-      tagProxyGlobalMemoRef(receiverRef, receiverNode, scope);
-      receiverRead = assign;
-      receiverMemo = decision.capture ? assign : null;
-      callReceiver = t.cloneNode(receiverRef);
-      // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
-      // A stable tail needs no memo, but its raw lookup still owns the full first read.
-      methodNode.object = t.cloneNode(decision.capture ? receiverRef : decision.firstReceiver);
-    }
-    const lookupArg = testsReceiver ? t.cloneNode(callReceiver) : receiverRead;
-    const [methodMemo, methodRef] = memoize(lookupId ? t.callExpression(lookupId, [lookupArg]) : methodNode,
-      scope, chainStart.node);
-    const invocation = estreeToBabel(renderMethodCall(planMethodCall({
-      receiver: callReceiver, prepared: true, methodGuarded: true, args: chainStart.node.arguments,
-    }), {
-      lookup: hostSlot(seededRefClone(methodRef, memoType)),
-      embed: node => hostSlot(t.cloneNode(node)),
-    }));
+    const product = renderOptionalMethodCall(decision, {
+      callee: calleePath.node,
+      args: chainStart.node.arguments,
+      helper: lookupId && hostSlot(lookupId),
+      checks: guardChecks(linkCheck).map(hostSlot),
+      mintRef(role) {
+        const ref = generateRef(scope, chainStart.node);
+        if (role === 'receiver') tagProxyGlobalMemoRef(ref, receiverNode, scope);
+        return ref.name;
+      },
+      embed(node, role) {
+        return hostSlot(role === 'method' ? seededRefClone(node, memoType)
+          : role === 'capture' ? node : t.cloneNode(node));
+      },
+      recordCapture(node) {
+        const assign = estreeToBabel(node);
+        getInjector?.()?.recordMemoWrite?.(assign.left.name, assign);
+        return hostSlot(assign);
+      },
+      recordLookup(node) {
+        return lookupId ? node : hostSlot(t.inherits(estreeToBabel(node), calleePath.node));
+      },
+    });
+    const invocation = estreeToBabel(product.receiver);
     chainStart.node.callee = invocation.callee;
     chainStart.node.arguments = invocation.arguments;
-    let checks;
-    if (!lookupId) {
-      // when recv is memoized, fold its assignment ahead of the method memo so it runs first
-      checks = [receiverMemo ? t.sequenceExpression([receiverMemo, methodMemo]) : methodMemo];
-    } else checks = testsReceiver ? [receiverRead, methodMemo] : [methodMemo];
-    checks = [...guardChecks(linkCheck), ...checks];
+    const checks = product.disjuncts.map(estreeToBabel);
     return checks.length === 1 ? checks[0] : checks;
   }
 
@@ -2771,44 +2762,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // crashed the pass - the surviving render is what the source gets
     if (!object) return;
     if (isParenLookupOnly) {
-      // build the guarded lookup's ordinary call so:
-      //   - throw-on-nullish follows argument evaluation through the render canon
-      //   - `this`-binding-on-success preserved: `_ref` captures obj, `.call(_ref, ...)` binds it
-      //   - obj evaluated ONCE: deep chains `(arr?.b.includes)(1)` would otherwise re-eval
-      //     `arr.b` in callArgs (single-eval matters for receivers with side effects)
-      // memoize unconditionally - bare Identifier hits `isReusableReceiver` and inlines without _ref
-      const [objAssign, objRef] = memoize(object, path.scope, path.node,
-        (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount), {
-          scope: path.scope,
-          path,
-          adapter: getAdapter?.(),
-          injectorState: getInjector(),
-        });
-      const outsideEffects = effectiveSE?.filter(effect => !subtreeContainsNode(receiverSource, effect)) ?? [];
-      const fusedCapture = t.isAssignmentExpression(objAssign) && !outsideEffects.length;
-      const lookup = t.callExpression(id, [fusedCapture ? objAssign : t.cloneNode(objRef)]);
-      const keyedLookup = withSideEffects(lookup,
-        [
-          ...(!fusedCapture && (t.isAssignmentExpression(objAssign) || !check && !isReusableReceiver(objAssign, {
-            interveningEffects: (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount),
-            ctx: { scope: path.scope, path, adapter: getAdapter?.(), injectorState: getInjector() },
-          }))) ? [objAssign] : [],
-          ...outsideEffects,
-        ]);
-      // check=null path: extractCheck saw a polyfillable optional and skipped the null-guard
-      // memo (replacement consumes `?.`). drop the ternary wrap to avoid synthesising an
-      // invalid `null == null ? ...` BinaryExpression - mirrors the same `wrapConditional(
-      // null, ...)` defense in `replaceAndWrap`.
-      // when a nullish guard IS present, the receiver-derived SE (e.g. a computed key) must fire
-      // only on the non-null branch - native short-circuits `?.` before evaluating the key. fold
-      // the SE INTO the conditional alternate (`check==null ? void 0 : (SE, lookup)`); prepending
-      // it to the whole result would fire it even on the short-circuit. no guard -> SE stays outside
-      const wrappedCallee = check ? wrapConditional(check, keyedLookup) : keyedLookup;
-      const result = estreeToBabel(renderMethodCall(planMethodCall({
-        receiver: objRef, prepared: true, args: parent.arguments,
-        ctx: { scope: path.scope, path, adapter: getAdapter?.(), injectorState: getInjector() },
-      }), { lookup: hostSlot(wrappedCallee), embed: node => hostSlot(t.cloneNode(node)) }));
-      callerPath.parentPath.replaceWith(result);
+      // The sealed lookup guards its receiver/key work; arguments remain outside it.
+      callerPath.parentPath.replaceWith(buildMethodCall({
+        id, object, scope: path.scope, args: parent.arguments, anchorNode: path.node, anchorPath: path,
+        sourceReceiver: receiverSource,
+        sideEffects: effectiveSE?.filter(effect => !subtreeContainsNode(receiverSource, effect)),
+        lookupGuard: composeNullGuardTest(guardChecks(check), { embed: hostSlot }),
+      }));
       return;
     }
     // a receiver already rendered as a plugin-minted guarded claim keeps its short-circuit
@@ -2916,20 +2876,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return clone;
   }
 
-  function assignTo(ref, value) {
-    return t.assignmentExpression('=', t.cloneNode(ref), value);
-  }
-
   // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
   // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
   // like native. An adjacent optional result can carry the method's own optional call.
   // the outer is a call OR a bare GET (`recv.m?.().at`) - `outerIsCall` says which, and a GET
   // ends the emit at the member itself, with no arguments to fold and no `.call` receiver.
-  // the other leg re-implements the same combined chain: both build nodes now, and both spell
-  // their tests through the render canon, but the shapes are built differently - this one
-  // recurses (stacked optional-poly hops nest naturally), the other emits one flat OR-chain in
-  // a single pass; semantically identical, and where the shape diverges the unplugin fixture
-  // carries an output-unplugin.mjs sidecar
+  // The optional call product and result capture come from the provider. This binding
+  // splices source continuations, retains their types and lands the guard on the live path.
   function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerCalleePath, innerArgs, innerId,
     chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType, outerReturnType = null, skipOptional = null }) {
     const callerPath = peelParenAndTSSlotPath(outerPath);
@@ -2958,26 +2911,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       callee: innerCallee, receiver: receiverNode, call: chainStartNode,
       continuation: hasHops ? null : outerPath.node, ctx: receiverCtx,
     });
-    const [anAssign, aRef] = memoize(receiverNode, scope, outerPath.node, false, receiverCtx, false, decision);
-    // an untested receiver folds its assignment into the method-get, so a non-bare one still
-    // evaluates exactly once
-    const testsReceiver = decision.receiverGuard === 'value';
-    const methodGet = t.callExpression(t.cloneNode(innerId),
-      [testsReceiver ? t.cloneNode(aRef) : anAssign]);
-    // An adjacent optional result guard also handles the optional method's absent value.
-    // Non-optional results and intervening hops still need the distinct method guard.
-    const { compactMethod } = decision;
-    const mRef = compactMethod ? null : generateRef(scope, outerPath.node);
-    const mCall = estreeToBabel(renderMethodCall(planMethodCall({
-      receiver: aRef, prepared: true, methodGuarded: !compactMethod, optional: compactMethod, args: innerArgs,
-    }), {
-      lookup: hostSlot(compactMethod ? methodGet : t.cloneNode(mRef)),
-      embed: node => hostSlot(t.cloneNode(node)),
-    }));
+    const product = renderOptionalMethodCall(decision, {
+      callee: innerCallee,
+      args: innerArgs,
+      helper: hostSlot(innerId),
+      checks: linkChecks.map(hostSlot),
+      mintRef: () => generateRef(scope, outerPath.node).name,
+      embed: (node, role) => hostSlot(role === 'capture' ? node : t.cloneNode(node)),
+      recordCapture(node) {
+        const assign = estreeToBabel(node);
+        getInjector().recordMemoWrite?.(assign.left.name, assign);
+        return hostSlot(assign);
+      },
+    });
+    const mCall = estreeToBabel(product.receiver);
     t.inheritInnerComments(mCall, chainStartNode);
     if (chainStartType) resolvedType?.set(mCall, chainStartType);
-    const checks = [...linkChecks, ...compactMethod ? testsReceiver ? [anAssign] : []
-      : testsReceiver ? [anAssign, assignTo(mRef, methodGet)] : [assignTo(mRef, methodGet)]];
+    const checks = product.disjuncts.map(estreeToBabel);
     // thread surviving non-optional hops (`.map(...)` between inner `flat?.()` and outer
     // `filter?.()`): splice the memoized inner result into the outer receiver sub-chain so the
     // hops re-emit (own pass polyfills them on the inner result) rather than being dropped
@@ -2987,9 +2937,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // `mCall` - testing/binding `mCall` would discard the hops (`arr.flat?.().map(f)?.at(0)`
     // would drop `.map(f)` and call `.at` on the flat() result). with no hops outerObject === mCall
     if (outerPath.node.optional) {
-      const vRef = generateRef(scope, outerPath.node);
-      checks.push(assignTo(vRef, outerObject));
-      outerObject = t.cloneNode(vRef);
+      const memo = renderReceiverMemo({ firstReceiver: outerObject, capture: true }, {
+        mintRef: () => generateRef(scope, outerPath.node).name,
+        embed: hostSlot,
+      });
+      checks.push(estreeToBabel(memo.firstRead));
+      outerObject = estreeToBabel(memo.makeBase());
     }
     // the JOIN is the canon's: every member of a joined chain spells the literal first, and the
     // fold was written here a second time with the same rule
