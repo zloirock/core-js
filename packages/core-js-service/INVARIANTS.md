@@ -114,6 +114,11 @@ trap below is named, and the suite names its assertions after them.
   and the second candidate is never attached to a browser that never ran Chromium, and a string
   from an engine with no row - Goanna, Ladybird, Servo, Ekioh Flow - is answered with the baseline,
   never as the browser it claims to be compatible with
+- **user-agents-3** - the parser the corpus was recorded against is the parser that runs: `bowser`
+  is pinned to one exact version. Its name and version decide most answers, so a minor release that
+  reads one string differently changes what a visitor is served, and under a range that release
+  reaches a consumer without passing the corpus. Raising the pin is a change like any other - the
+  corpus runs on it first
 - **resolver-6** - the ENGINE outranks what the browser calls itself, wherever the string carries
   both. `Trident/` is Internet Explorer's engine and nothing else carries it, so `MSIE 7.0` beside
   `Trident/7.0` is IE 11 in compatibility view - a document mode, not an older JavaScript - and a

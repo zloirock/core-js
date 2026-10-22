@@ -3,6 +3,7 @@ import createResolver from '../../packages/core-js-service/internals/domain/reso
 import parseUserAgent from '../../packages/core-js-service/internals/infrastructure/ua-bowser.js';
 import { compare } from '@core-js/compat/helpers';
 import corpus from './user-agents.json' with { type: 'json' };
+import service from '../../packages/core-js-service/package.json' with { type: 'json' };
 
 const resolve = createResolver({ parseUserAgent });
 const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
@@ -91,3 +92,7 @@ for (const row of corpus) {
       `user-agents-2 #6: ${ row.browser }`);
   }
 }
+
+// the answers above are bowser's as much as ours, and a range would let a consumer install a release
+// they were never recorded against
+ok(/^\d+\.\d+\.\d+$/.test(service.dependencies.bowser), `user-agents-3 #1: bowser is ${ service.dependencies.bowser }`);
