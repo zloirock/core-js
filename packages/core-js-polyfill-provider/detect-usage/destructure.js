@@ -35,6 +35,7 @@ import {
   trustedIdentifierAliasWrite,
   destructureReceiverNode,
   destructureReceiverSlot,
+  findNodeSlot,
   findEnclosingFunctionLikePath,
   findIifeCallSite,
   findObjectKeyBeforeSpread,
@@ -4031,7 +4032,7 @@ export function destructurePatternHostPath(leafPath) {
 export function destructureKeyReadPlan(leafPath, ctx = null) {
   const keys = [];
   for (let cur = leafPath; cur && PATTERN_CHAIN_TYPES.has(cur.node?.type); cur = cur.parentPath) {
-    if (computedKeyHasSideEffects(cur.node, ctx)) keys.unshift(cur.node.key);
+    if (computedKeyHasSideEffects(cur.node, ctx)) keys.unshift(cur.node);
   }
   if (!keys.length && !isCapturedKeyedPattern(leafPath.parentPath?.node)) return null;
   const pattern = leafPath.parentPath?.node;
@@ -4065,12 +4066,19 @@ export function destructureKeyReadPlan(leafPath, ctx = null) {
   }
   const sole = pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
     && host?.type === 'VariableDeclarator' && host.id === pattern && !!host.init;
+  // Proofs above describe the source. Only its explicitly retained slots stay live: a
+  // child visitor may replace an initializer operand or key before deferred apply.
+  const receiverSlot = running && host?.init ? running === host.init
+    ? { owner: host, key: 'init' } : findNodeSlot(host.init, running) : null;
   return {
-    receiver: running,
-    keys: keys.flatMap(key => {
-      const { prefix, tail } = peelNestedSequenceExpressions(key);
-      return PRIMITIVE_LITERAL_TYPES.has(tail?.type) ? prefix : [...prefix, tail];
-    }),
+    receiverSlot,
+    get receiver() { return receiverSlot ? receiverSlot.owner[receiverSlot.key] : running; },
+    get keys() {
+      return keys.flatMap(prop => {
+        const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
+        return PRIMITIVE_LITERAL_TYPES.has(tail?.type) ? prefix : [...prefix, tail];
+      });
+    },
     exported: leafPath.parentPath?.parentPath?.parentPath?.parentPath?.node?.type === 'ExportNamedDeclaration',
     consumeKey: pattern?.type === 'ObjectPattern' && host?.type === 'VariableDeclarator' && host.id === pattern
       && !!host.init && leafPath.node.value?.type === 'AssignmentPattern'
