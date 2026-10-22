@@ -34,6 +34,31 @@ export function invokeSelectedStaticFallback(receiver, argument) {
   return Ctor.entries(argument());
 }
 
+// A raw optional lookup can re-read a stable receiver, but still owes its sequence prefix.
+export function invokeRawOptionalChain(receiver, prefix, argument) {
+  return (prefix(), receiver).read?.(argument()).includes(2);
+}
+
+QUnit.test('optional method: raw stable receiver retains its prefix before lookup', assert => {
+  for (const present of [false, true]) {
+    const events = [];
+    const receiver = { get read() {
+      events.push('lookup');
+      return present ? function (value) {
+        assert.same(this, receiver);
+        events.push('body');
+        return [value];
+      } : undefined;
+    } };
+    const result = invokeRawOptionalChain(receiver, () => events.push('prefix'), () => {
+      events.push('argument');
+      return 2;
+    });
+    assert.same(result, present ? true : undefined);
+    assert.deepEqual(events, present ? ['prefix', 'lookup', 'argument', 'body'] : ['prefix', 'lookup']);
+  }
+});
+
 QUnit.test('method call: selected statics evaluate arguments before rejecting the raw method', assert => {
   for (const [invoke, key] of [[invokeSelectedStatic, 'from'], [invokeSelectedStaticFallback, 'entries']]) {
     for (const method of [undefined, null]) {
