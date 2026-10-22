@@ -19966,6 +19966,33 @@ function * generateActivationDestructureCapture() {
   }
 }
 
+// Deferred declarations retain child rewrites and read one initializer for all claims.
+function * generateDeferredPatternSources() {
+  for (const multiple of [false, true]) for (const partial of [false, true]) for (const source of ['claim', 'alias']) {
+    const key = source === 'claim' ? 'effects.push(Array.from(\'k\')[0])'
+      : 'effects.push(\'key\'), values = { at() { return \'changed\'; }, includes() { return false; } }';
+    const pattern = `{ [(${ key }, 'at')]: method${ multiple ? ', [(effects.push(\'second\'), \'includes\')]: contains' : '' }${ partial ? ', length: size' : '' } }`;
+    const init = source === 'claim' ? '(effects.push(\'init\'), Array.from(values))' : 'values';
+    const result = `[method.call(original, -1), ${ multiple ? 'contains.call(original, 4)' : 'true' }, ${ partial ? 'size' : '0' }]`;
+    for (const [host, body] of [
+      ['declaration', `const before = (effects.push('before'), 0), ${ pattern } = ${ init }, after = (effects.push('after'), 1);
+        const r = [before, ${ result }, after];`],
+      ['export', `export const ${ pattern } = ${ init }, after = (effects.push('after'), 1);
+        const r = [${ result }, after];`],
+      ['for-init', `let r; for (const ${ pattern } = ${ init }, after = (effects.push('after'), 1);;) { r = [${ result }, after]; break; }`],
+      ['assignment', `let method, contains, size;
+        (${ pattern } = ${ init }); const r = ${ result };`],
+    ]) yield {
+      name: `deferred-pattern-sources/${ multiple ? 'multiple' : 'sole' }/${ partial ? 'partial' : 'full' }/${ source }/${ host }`,
+      code: `const effects = [];
+        let values = [4, 7]; const original = values;
+        ${ body }
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20341,4 +20368,5 @@ export function * generate() {
   yield * generateDestructureEvaluation();
   yield * generateImmediateDestructureStatements();
   yield * generateActivationDestructureCapture();
+  yield * generateDeferredPatternSources();
 }
