@@ -15,7 +15,7 @@ class Map {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/array-grouping-v2
+core-js/proposals/array-grouping
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

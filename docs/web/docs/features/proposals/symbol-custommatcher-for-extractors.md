@@ -14,7 +14,7 @@ class Symbol {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/pattern-extractors
+core-js/proposals/extractors
 core-js(-pure)/full/symbol/custom-matcher
 ```
 

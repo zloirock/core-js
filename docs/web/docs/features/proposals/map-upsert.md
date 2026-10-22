@@ -20,7 +20,7 @@ class WeakMap {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/map-upsert-v4
+core-js/proposals/map-upsert
 core-js(-pure)/es|stable|actual|full/map/get-or-insert
 core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
