@@ -107,6 +107,8 @@ import {
   synthKeyMustBeComputed,
   memberFromKeyName,
   renderProxyReceiverPlan,
+  exportDeclaration,
+  renderDestructureStatements,
 } from '@core-js/polyfill-provider/render';
 import {
   anchorAssignmentResidual,
@@ -129,7 +131,6 @@ import {
   emitDeclaratorMemo,
   splitDeclaratorMemo,
   emitLiteralReceiverMemos,
-  exportWrap,
   foldSinkPrefixIntoResidual,
   forInitMemoVerdicts,
   guardedNavPassthrough,
@@ -1382,7 +1383,7 @@ export default function createDestructureDrains(ctx) {
     if (guardInfo?.shape === 'guard') {
       const guardRead = memberExpression(cloneNode(guardInfo.tail), cloneNode(soleJob.prop.key),
         { computed: soleJob.prop.computed });
-      statements.push(exportWrap(
+      statements.push(exportDeclaration(
         variableDeclaration(hostNode.kind, [variableDeclarator(soleJob.prop.value, guardRead)]), exported));
       markSubtreeSkipped(skippedNodes, soleJob.prop.key);
       return 'consumed';
@@ -1390,7 +1391,7 @@ export default function createDestructureDrains(ctx) {
     const id = injectPureImport(soleJob.entry, soleJob.hintName);
     const init = rescues.length
       ? sequenceExpression([...rescues, identifier(id)]) : identifier(id);
-    statements.push(exportWrap(variableDeclaration(hostNode.kind,
+    statements.push(exportDeclaration(variableDeclaration(hostNode.kind,
       [variableDeclarator(soleJob.prop.value, init)]), exported));
     markSubtreeSkipped(skippedNodes, soleJob.prop.key);
     return 'consumed';
@@ -1412,7 +1413,7 @@ export default function createDestructureDrains(ctx) {
       ...job.value?.leadRef ? [variableDeclarator(identifier(job.value.leadRef))] : [],
       variableDeclarator(memoJobBindingTarget(job), value),
     ];
-    return [...lead, exportWrap(variableDeclaration(kind, declarators), exported)];
+    return [...lead, ...renderDestructureStatements([declarators], { kind, exported })];
   }
 
   // one extracted binding's VALUE off the whole-init memo. a DEFAULTED prop keeps
@@ -1725,7 +1726,7 @@ export default function createDestructureDrains(ctx) {
       refName = mintRefName();
       // the memo binds nothing the source named and stands as a statement of its own, so it takes
       // `const` - the host's kind belongs to the declarators that carry the source's own bindings
-      statements.push(variableDeclaration('const', [variableDeclarator(identifier(refName), declarator.init)]));
+      statements.push(...renderDestructureStatements([], { capture: { name: refName, value: declarator.init } }));
     } else if (!needsValue) {
       const consumedCtor = emitStaticMemoRescues({
         hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe,
@@ -1767,7 +1768,7 @@ export default function createDestructureDrains(ctx) {
       const extracted = [];
       for (const job of declJobs) {
         const extractedId = identifier(injectPureImport(job.entry, job.hintName));
-        extracted.push(exportWrap(variableDeclaration(hostNode.kind,
+        extracted.push(exportDeclaration(variableDeclaration(hostNode.kind,
           [variableDeclarator(propBindingTarget(job.prop), extractedId)]), exported));
         markSubtreeSkipped(skippedNodes, job.prop);
       }
@@ -1804,7 +1805,7 @@ export default function createDestructureDrains(ctx) {
       // ... and a residual whose init RUNS code leads its extractions: natively that init evaluates
       // before the pattern binds anything (the shared residual canon)
       if (residualRuns(declarator)) {
-        statements.push(exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported), ...extracted);
+        statements.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported), ...extracted);
         return 'consumed';
       }
       statements.push(...extracted);
@@ -1815,7 +1816,7 @@ export default function createDestructureDrains(ctx) {
       const refName = mintRefName();
       // a statement of its own, so it binds nothing the source named and takes `const` whatever
       // the host declares (the other leg's kind for a memo standing apart)
-      statements.push(variableDeclaration('const', [variableDeclarator(identifier(refName), declarator.init)]));
+      statements.push(...renderDestructureStatements([], { capture: { name: refName, value: declarator.init } }));
       // the SAME value the fully-consumed memo builds - dispatch, collapsed symbol leaf and
       // defaulted guard alike, grouped alike; a partial residual changes what SURVIVES, not what binds
       const extracted = [];
@@ -2103,10 +2104,10 @@ export default function createDestructureDrains(ctx) {
           && rendered[0].type === 'VariableDeclaration' && rendered[0].kind === hostNode.kind) {
           declarators.push(...rendered[0].declarations);
         } else {
-          if (declarators.length) ahead.push(exportWrap(variableDeclaration(hostNode.kind, declarators), exported));
+          if (declarators.length) ahead.push(exportDeclaration(variableDeclaration(hostNode.kind, declarators), exported));
           declarators = [];
           ahead.push(...rendered);
-          if (emitted !== 'consumed') ahead.push(exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported));
+          if (emitted !== 'consumed') ahead.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported));
         }
         continue;
       }
@@ -2126,7 +2127,7 @@ export default function createDestructureDrains(ctx) {
         // the ref in that element's slot, the shape the other leg's slot memo prints
         if (exported || declJobs.some(job => job.nestedMemoNode)
           || (declJobs.length === 1 && !residualKeepsSibling(declarator, declJobs) && !declJobs[0].defaulted)) {
-          if (declarators.length) ahead.push(exportWrap(variableDeclaration(hostNode.kind, declarators), exported));
+          if (declarators.length) ahead.push(exportDeclaration(variableDeclaration(hostNode.kind, declarators), exported));
           declarators = [];
           // ... standing apart beside SIBLINGS it binds nothing the source named: `const`, the split's
           // kind for it
@@ -2370,7 +2371,7 @@ export default function createDestructureDrains(ctx) {
     let splitRemaining = false;
     function flushGroup() {
       if (group.length) appendStatements.push(...(splitRemaining ? group.map(item => [item]) : [group])
-        .map(items => exportWrap(variableDeclaration(hostNode.kind, items), appendExported)));
+        .map(items => exportDeclaration(variableDeclaration(hostNode.kind, items), appendExported)));
       group = [];
     }
     for (const declarator of hostNode.declarations) {
@@ -2381,7 +2382,7 @@ export default function createDestructureDrains(ctx) {
           hostNode, declarator, declJobs: memoJobs, statements: appendStatements, exported: appendExported,
         });
         if (emitted !== 'consumed') {
-          appendStatements.push(exportWrap(variableDeclaration(hostNode.kind, [declarator]), appendExported));
+          appendStatements.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), appendExported));
         }
         continue;
       }
@@ -2406,7 +2407,7 @@ export default function createDestructureDrains(ctx) {
         }
         flushGroup();
         splitRemaining = true;
-        appendStatements.push(...extractions.map(item => exportWrap(variableDeclaration(hostNode.kind, [item]), appendExported)));
+        appendStatements.push(...renderDestructureStatements(extractions, { kind: hostNode.kind, exported: appendExported }));
         if (declJobsHere.length) rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements: appendStatements });
         continue;
       }
@@ -2467,7 +2468,7 @@ export default function createDestructureDrains(ctx) {
         touched ||= emitted;
         // the route's readers are every other claim the declarator carries: an SE-key or rest sentinel
         // over the same opaque init takes the retained capture instead, so the residual alone remains
-        if (emitted !== 'consumed') statements.push(exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported));
+        if (emitted !== 'consumed') statements.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported));
         continue;
       }
       const declJobsHere = jobsByDeclarator.get(declarator) ?? [];
@@ -2545,23 +2546,9 @@ export default function createDestructureDrains(ctx) {
         if (job.value.leadDecl) {
           extractedHere.push(variableDeclaration('let', [variableDeclarator(identifier(job.value.leadDecl))]));
         }
-        extractedHere.push(exportWrap(variableDeclaration(hostNode.kind, declarators), exported));
+        extractedHere.push(...renderDestructureStatements([declarators], { kind: hostNode.kind, exported }));
       }
       if (!emptied) {
-        // the residual SURVIVES, so it keeps the receiver and the extraction stands ahead of it -
-        // but the source ran the receiver's sequence prefix before either. lift it to where the
-        // source ran it, or the effect observes the write the extraction has already made.
-        // asked AFTER the re-anchor below: an anchored residual replays the prefix inside its
-        // rebuilt init (`{ customP } = (eff(), _Promise)`, the shape both legs lock), and that
-        // minted sequence carries no span for the lift to take
-        // ... and ahead of the literal receiver memos too: they read a slot of the literal the prefix
-        // evaluates before
-        function survivingPrefixLift() {
-          const lifted = initPrefix.length ? []
-            : liftSurvivingInitPrefix(declarator, declJobsHere, patternFrame(declJobsHere[0]?.metaPath));
-          statements.splice(literalMemoAt, 0, ...lifted);
-          return [];
-        }
         // the re-anchor serves a residual the extraction LEFT BEHIND; an untouched
         // sibling declarator keeps its raw pattern (babel anchors only what it consumed)
         // ... and it keeps its own SOURCE slot: a hop written before every consumed one is
@@ -2571,14 +2558,20 @@ export default function createDestructureDrains(ctx) {
         const anchored = declJobsHere.length > 0
           && reanchorSoleCtorHopResidual(declarator, { metaPath: declJobsHere[0]?.metaPath ?? null });
         if (anchored) touched = true;
-        const survivingPrefix = survivingPrefixLift();
+        // The surviving receiver's sequence prefix ran before either the residual or extraction.
+        // Lift it ahead of the literal receiver memos too: those read a slot after its effects.
+        // Ask AFTER re-anchoring: an anchored init replays the prefix itself
+        // (`{ customP } = (eff(), _Promise)`), and its minted sequence has no span to lift.
+        const lifted = initPrefix.length ? []
+          : liftSurvivingInitPrefix(declarator, declJobsHere, patternFrame(declJobsHere[0]?.metaPath));
+        statements.splice(literalMemoAt, 0, ...lifted);
         // ... and a residual left reading only what the claims read dies with them, its prefix lifted
         // above, where what it still evaluates runs nothing
         if (residualDies(declarator, declJobsHere)) {
-          statements.push(...survivingPrefix, ...extractedHere);
+          statements.push(...extractedHere);
           continue;
         }
-        const residual = exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported);
+        const residual = exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported);
         // A guard detached from the remaining pattern keeps its declarator beside that
         // residual. Earlier queued instance writes retain their separate source slots.
         for (const [index, job] of jobsHere.entries()) {
@@ -2593,10 +2586,11 @@ export default function createDestructureDrains(ctx) {
         // only an ANCHORED residual re-homes: a raw one stays where the extraction left it
         // ... and a residual that WRITES a slot memo stands ahead of the extraction reading it, as does
         // one whose init RUNS code that could read a binding the extraction writes
-        if ((residualFirst && anchored) || declJobsHere.some(job => job.extractAfterResidual)
-          || (declJobsHere.length && residualRuns(declarator))) {
-          statements.push(...survivingPrefix, residual, ...standalone);
-        } else statements.push(...survivingPrefix, ...standalone, residual);
+        const before = (residualFirst && anchored) || declJobsHere.some(job => job.extractAfterResidual)
+          || (declJobsHere.length && residualRuns(declarator));
+        statements.push(...renderDestructureStatements(standalone.map(statement => ({ statement })), {
+          residual, residualAt: before ? 0 : standalone.length,
+        }));
       } else {
         statements.push(
           ...initPrefix.length && !carryIntoFirst
@@ -2806,10 +2800,8 @@ export default function createDestructureDrains(ctx) {
       && job.prop.computed && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)));
     const flatJobs = jobs.filter(job => !demotedBehindResidual(job));
     const nestedJobs = jobs.filter(job => demotedBehindResidual(job));
-    const flatExtracted = flatJobs
-      .map(job => expressionStatement(assignmentExpression('=', propBindingTarget(job.prop), job.value())));
-    const nestedExtracted = nestedJobs
-      .map(job => expressionStatement(assignmentExpression('=', propBindingTarget(job.prop), job.value())));
+    const flatExtracted = renderDestructureStatements(flatJobs.map(job => ({ id: propBindingTarget(job.prop), init: job.value() })));
+    const nestedExtracted = renderDestructureStatements(nestedJobs.map(job => ({ id: propBindingTarget(job.prop), init: job.value() })));
     // the SOURCE slot of the residual, read before the removal empties the pattern: an
     // anchored residual keeps its own place among the extractions (babel's cascade)
     const assignSourceProps = jobs[0].assignment.left?.type === 'ObjectPattern'
@@ -2833,8 +2825,9 @@ export default function createDestructureDrains(ctx) {
     const holder = jobs[0].receiverHolder;
     const [{ receiverExpression }] = jobs;
     const memoRef = receiverExpression ? holder.left.name : assignmentMemoRef(assignment, jobs, mintRefName, { adapter, injectorState });
-    const memoDecl = memoRef ? [variableDeclaration('const',
-      [variableDeclarator(identifier(memoRef), holder?.right ?? assignment.right)])] : [];
+    const memoDecl = renderDestructureStatements([], {
+      capture: memoRef ? { name: memoRef, value: holder?.right ?? assignment.right } : null,
+    });
     if (memoRef) {
       for (const [index, job] of [...flatJobs, ...nestedJobs].entries()) {
         [...flatExtracted, ...nestedExtracted][index].expression.right = job.value(memoRef);
@@ -3013,7 +3006,9 @@ export default function createDestructureDrains(ctx) {
       ];
       spliceAssignmentRewrite([...memoDecl, ...varDecl, ...effects, ...bySource], memoDecl.length || varDecl.length ? [] : effects);
     } else if (seKeyResidualFirst) {
-      spliceAssignmentRewrite([...memoDecl, ...varDecl, body[at], ...flatExtracted, ...nestedExtracted]);
+      spliceAssignmentRewrite([...memoDecl, ...varDecl, ...renderDestructureStatements(
+        [...flatExtracted, ...nestedExtracted].map(statement => ({ statement })), { residual: body[at], residualAt: 0 },
+      )]);
     } else if (anchoredResidual?.split) {
       // SEVERAL anchored hops: each takes an assignment of its own, and every piece - extraction or
       // anchored hop - lands where the source wrote its hop, the babel cascade's order
@@ -3048,7 +3043,9 @@ export default function createDestructureDrains(ctx) {
       spliceAssignmentRewrite([
         ...memoDecl,
         ...varDecl,
-        ...residualFirst ? [body[at], ...flatExtracted] : [...flatExtracted, body[at]],
+        ...renderDestructureStatements(flatExtracted.map(statement => ({ statement })), {
+          residual: body[at], residualAt: residualFirst ? 0 : flatExtracted.length,
+        }),
         ...nestedExtracted,
       ], survivingPrefix);
     }
@@ -3199,10 +3196,12 @@ export default function createDestructureDrains(ctx) {
       // ... and the memo takes the HOST's own kind when it stands in a block the host wrapped:
       // a `var` declaration keeps its function-scoped binding there, which is what the other
       // leg's memo declares too
-      statements.push(variableDeclaration(
-        jobs.some(job => job.sentinel && job.prop?.computed && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)))
+      statements.push(...renderDestructureStatements([], { capture: {
+        name: memoRef,
+        value: elementNode ?? declarator.init,
+        kind: jobs.some(job => job.sentinel && job.prop?.computed && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)))
           || (elementNode && hostNode?.kind === 'var') ? 'var' : 'const',
-        [variableDeclarator(identifier(memoRef), elementNode ?? declarator.init)]));
+      } }));
       if (elementNode) replaceNodeInTree(declarator.init, elementNode, identifier(memoRef));
       else declarator.init = identifier(memoRef);
     }
@@ -3214,7 +3213,7 @@ export default function createDestructureDrains(ctx) {
       { removeConsumedProps, surfaceInitInfo, reanchor: reanchorSoleCtorHopResidual },
     );
     const extractionsAt = statements.length;
-    statements.push(...declarators.map(item => variableDeclaration('var', [item])));
+    statements.push(...renderDestructureStatements(declarators, { kind: 'var' }));
     // a PARTIAL consume keeps the residual as its own `var` declaration inside the block
     // (`if (c) var { from, isArray } = Array;` -> `{ var from = _X; var { isArray } = Array; }`)
     const residualLives = declarator.id.properties.length !== 0 && !residualDies(declarator, jobs);

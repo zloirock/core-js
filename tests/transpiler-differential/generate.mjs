@@ -19873,6 +19873,63 @@ function * generateDestructureEvaluation() {
   }
 }
 
+// Immediate hosts share one receiver evaluation with their residual and preserve sibling
+// initialization order. Array and nested captures keep their native container semantics.
+function * generateImmediateDestructureStatements() {
+  for (const shape of ['flat', 'nested', 'array']) for (const partial of [false, true]) {
+    const leaf = `{ at: method = (effects.push('default'), () => -1)${ partial ? ', length: size' : '' } }`;
+    const pattern = shape === 'flat' ? leaf : shape === 'nested' ? `{ slot: ${ leaf } }` : `[${ leaf }]`;
+    const init = shape === 'flat' ? 'source()' : shape === 'nested' ? '{ slot: source() }' : '[source()]';
+    for (const [host, body] of [
+      ['declaration', `const ${ pattern } = ${ init };`],
+      ['siblings', `const before = (effects.push('before'), 0), ${ pattern } = ${ init },
+        after = (effects.push('after'), method.call(values, -1));`],
+      ['export', `export const ${ pattern } = ${ init };`],
+      ['assignment', `let method, size; (${ pattern } = ${ init });`],
+      ['sequence', `let method, size; ((${ pattern } = ${ init }), effects.push('tail'));`],
+      ['bodyless-declaration', `if (values) var ${ pattern } = ${ init };`],
+      ['bodyless-assignment', `let method, size; if (values) (${ pattern } = ${ init });`],
+    ]) yield {
+      name: `immediate-destructure-statements/${ shape }/${ partial ? 'partial' : 'full' }/${ host }`,
+      code: `const effects = [];
+        const values = [4, 5];
+        function source() { effects.push('source'); return values; }
+        ${ body }
+        const r = [method.call(values, -1), ${ partial ? 'size' : '0' }];
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+  // The residual observes the binding written by the preceding extraction. Merely
+  // comparing the final values would miss an extraction placed on the wrong side.
+  for (const [host, body] of [
+    ['declaration', 'const { at: method, note } = source();'],
+    ['assignment', 'let method, note; ({ at: method, note } = source());'],
+    ['bodyless-declaration', 'if (values) var { at: method, note } = source();'],
+    ['bodyless-assignment', 'let method, note; if (values) ({ at: method, note } = source());'],
+  ]) yield {
+    name: `immediate-destructure-statements/observed-residual/${ host }`,
+    code: `const effects = [];
+      const values = [4, 5];
+      const installed = Object.defineProperty(values, 'note', {
+        get() { effects.push(typeof method); return 7; }
+      });
+      function source() { effects.push('source'); return values; }
+      ${ body }
+      const r = [method.call(values, -1), note];
+      export { r, effects };`,
+    strip: true,
+  };
+  for (const [host, body] of [
+    ['declaration', "if (true) var { from } = (effects.push('prefix'), Array);"],
+    ['assignment', "let from; if (true) ({ from } = (effects.push('prefix'), Array));"],
+  ]) yield {
+    name: `immediate-destructure-statements/discarded-prefix/${ host }`,
+    code: `const effects = []; ${ body } const r = from([4])[0]; export { r, effects };`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20246,4 +20303,5 @@ export function * generate() {
   yield * generateOptionalContinuationFrames();
   yield * generateGuardedCallEffects();
   yield * generateDestructureEvaluation();
+  yield * generateImmediateDestructureStatements();
 }
