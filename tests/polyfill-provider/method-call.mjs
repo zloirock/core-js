@@ -1,6 +1,7 @@
 // Ordinary invocation decisions retain source slots and never allocate or mutate on a query.
 import {
   cloneNode, hostSlot, identifier, planMethodCall, planOptionalMethodCall, renderOptionalMethodCall, renderReceiverMemo,
+  renderGuardedMethodCall,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -8,6 +9,23 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('method-call');
+
+for (const [source, continues] of [
+  ['rows.at?.(arg());', false],
+  ['rows.at?.(arg()).next;', true],
+  ['rows.at?.(arg())();', true],
+  ['(rows.at?.(arg())).next;', true],
+  ['new (rows.at?.(arg()))();', true],
+  ['read(rows.at?.(arg()));', false],
+  ['holder[rows.at?.(arg())];', false],
+  ['(rows.at?.(arg()), other).next;', false],
+]) runBoth(`call result consumer/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression', member => member.node.property?.name === 'at');
+  const callPath = path.parentPath;
+  check(`${ label } effect placement`, planMethodCall({
+    receiver: path.node.object, optional: true, callPath,
+  }).continues, continues);
+});
 
 for (const [name, source, capture, keyed = false] of [
   ['constant receiver', 'const rows = []; rows.at(argument());', null],
@@ -215,5 +233,60 @@ runBoth('optional render live slots', 'getRows().at?.(before());', (parser, prog
   const second = memo.makeBase();
   check(`${ label } receiver read nodes do not alias`, first === second, false);
 });
+
+// A seal guards receiver/key work but cannot swallow the outer invocation.
+// A prepared navigation guard never allocates a second receiver.
+for (const sealed of [false, true]) for (const invoke of [false, true]) for (const prepared of [false, true]) {
+  runBoth(`guarded consume/${ sealed }/${ invoke }/${ prepared }`, 'getRows()[(key(), "at")](before());', (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression');
+    const call = path.parentPath.node;
+    const decision = planMethodCall({
+      receiver: path.node.object, args: call.arguments,
+      sideEffects: [
+        { type: 'CallExpression', callee: identifier('receiverEffect'), arguments: [] },
+        ...peelNestedSequenceExpressions(path.node.property).prefix,
+      ],
+      receiverEffectCount: 1,
+    });
+    call.arguments[0].callee.name = 'after';
+    const source = JSON.stringify(program.node);
+    let captures = 0;
+    const roles = [];
+    const product = renderGuardedMethodCall(decision, {
+      helper: identifier('lookup'), sealed, invoke,
+      guard: prepared ? { checks: [identifier('probe')], receiver: identifier('held') } : null,
+      mintRef() {
+        captures++;
+        return 'held';
+      },
+      embed(node, role) {
+        roles.push(role);
+        return cloneNode(node);
+      },
+    });
+    check(`${ label } receiver captured once`, captures, prepared ? 0 : 1);
+    check(`${ label } seal consumes the receiver guard`, product.checks.length, sealed ? 0 : 1);
+    check(`${ label } source unchanged`, JSON.stringify(program.node), source);
+    check(`${ label } arguments belong only to invocation`, roles.includes('argument'), invoke);
+    if (!sealed && !prepared) {
+      check(`${ label } lifted prefix before receiver guard`, product.checks[0].expressions[0].callee.name, 'receiverEffect');
+    }
+    const body = sealed && invoke ? product.built : product.built.expressions.at(-1);
+    check(`${ label } helper or invocation`, body.type, 'CallExpression');
+    if (invoke) {
+      check(`${ label } argument rewritten before rendering`, body.arguments[1].callee.name, 'after');
+      check(`${ label } this is the captured value`, body.arguments[0].name, 'held');
+      if (sealed) {
+        const { left: lookup } = body.callee.object;
+        check(`${ label } key inside sealed lookup`, lookup.alternate.expressions[0].callee.name, 'key');
+        check(`${ label } undefined lookup cannot reject before argument`, body.callee.object.operator, '||');
+      }
+    } else if (sealed) {
+      const [guarded] = product.built.expressions;
+      check(`${ label } key alone short-circuits`, guarded.alternate.expressions[0].callee.name, 'key');
+      check(`${ label } helper rejects outside seal`, body.callee.name, 'lookup');
+    }
+  });
+}
 
 finish();

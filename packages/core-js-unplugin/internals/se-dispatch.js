@@ -1,6 +1,6 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
-import { peelReceiverSequenceTail, resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   observableSequenceElements,
@@ -16,11 +16,12 @@ import {
   identifier,
   memberExpression,
   sequenceExpression,
-  voidZero,
   nullGuardTest,
+  composeNullGuardTest,
   planMethodCall,
   renderMethodCall,
-  renderShortCircuitGuard,
+  renderReceiverMemo,
+  renderGuardedMethodCall,
 } from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop, sealedLayerAbove } from './claim-guards.js';
@@ -41,15 +42,6 @@ export function emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPat
     resolvePure: m => ctx.resolvePure(m, metaPath),
   });
   if (pure) recvTail = identifier(ctx.injectPureImport(pure.entry, pure.hintName));
-  const interveningEffects = (meta.sideEffects?.length ?? 0) > (meta.receiverEffectCount ?? 0);
-  const reusable = ctx.isReusableReceiver(recvTail, {
-    interveningEffects,
-    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
-  });
-  const ref = reusable ? null : ctx.injector.generateDeclaredRef(metaPath);
-  function held() {
-    return reusable ? cloneNode(recvTail) : identifier(ref);
-  }
   const renderedReceiver = pure
     ? receiverSequence ? sequenceExpression([...recvPrefix.map(expr => cloneNode(expr)), cloneNode(recvTail)]) : cloneNode(recvTail)
     : cloneNode(node.object);
@@ -57,88 +49,41 @@ export function emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPat
     .filter(effect => !subtreeContainsNode(node.object, effect));
   const firstReceiver = liftedReceiverEffects.length
     ? sequenceExpression([...liftedReceiverEffects.map(expr => cloneNode(expr)), renderedReceiver]) : renderedReceiver;
-  const keyEffects = (meta.sideEffects ?? []).slice(meta.receiverEffectCount ?? 0).map(expr => cloneNode(expr));
-  const firstRead = reusable ? firstReceiver : ctx.assignmentExpression('=', identifier(ref), firstReceiver);
-  const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)), [keyEffects.length ? held() : firstRead]);
-  const dispatch = renderMethodCall(planMethodCall({
-    receiver: held(), prepared: true, optional: true, args: parent.arguments,
-  }), { lookup, embed: cloneNode });
+  const decision = planMethodCall({
+    receiver: firstReceiver,
+    sideEffects: (meta.sideEffects ?? []).slice(meta.receiverEffectCount ?? 0),
+    optional: true, args: parent.arguments, callPath: callerPath,
+    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
+  });
+  const dispatch = renderMethodCall(decision, {
+    helper: identifier(ctx.injectPureImport(entry, hintName)),
+    mintRef: () => ctx.injector.generateDeclaredRef(metaPath), embed: cloneNode,
+  });
   ctx.markRewrite();
   const optTarget = callerPath.parentPath?.node?.type === 'ChainExpression' ? callerPath.parentPath : callerPath;
   const consumed = optTarget.node;
-  optTarget.replaceWith(withSideEffects(dispatch, keyEffects.length ? [
-    ...observableSequenceElements([firstRead], {
-      scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState,
-    }, { preserveSourceReads: true }),
-    ...keyEffects,
-  ] : []));
+  optTarget.replaceWith(dispatch);
   markSubtreeSkipped(ctx.skippedNodes, consumed);
 }
 
 export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath, meta, entry, hintName }, ctx) {
   const bare = unwrapRuntimeExpr(node.object);
-  const receiver = bare?.type === 'SequenceExpression' ? peelReceiverSequenceTail(bare) : bare;
-  // a receiver the guard cannot SPELL TWICE - the test reads it and so does the dispatch -
-  // memoizes into the test itself, which is the one evaluation the source performs
-  // ... and one it CAN spell twice owes no memo at all: it is its own null test, and the
-  // key's effects are left to the alternate, where native runs them - a nullish receiver
-  // skips the property read entirely (`arr?.[(probe(), 'includes')](42)`)
-  // A stable sequence tail is re-read after the whole receiver's first evaluation in the guard.
-  // (`(eff(), arr)?.flat()` -> `null == (eff(), arr) ? void 0 : _flat(arr).call(arr)`)
-  const reusable = ctx.isReusableReceiver(receiver, {
-    interveningEffects: (meta.sideEffects?.length ?? 0) > (meta.receiverEffectCount ?? 0),
+  const decision = planMethodCall({
+    receiver: bare,
+    sideEffects: (meta.sideEffects ?? []).filter(effect => !subtreeContainsNode(bare, effect)),
+    optional: parent.optional === true, args: parent.arguments, callPath: callerPath,
     ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
   });
-  const ref = reusable ? null : ctx.injector.generateDeclaredRef(metaPath);
-  // a PAREN-SEALED lookup keeps the plain emitter's twin: the guard wraps ONLY the lookup -
-  // the harvested key effects ride its alternate, where native runs them past the
-  // short-circuit - and `.call` stays outside the ternary
-  // (`(arr?.[(probe++, "includes")])(1)` -> `(arr == null ? void 0 : (probe++, _includes(arr))).call(arr, 1)`)
-  if (calleeParenWrapped(parent)) {
-    const keyEffects = (meta.sideEffects ?? [])
-      .filter(effect => !subtreeContainsNode(bare, effect))
-      .map(effect => cloneNode(effect));
-    const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)),
-      [reusable ? cloneNode(receiver) : identifier(ref)]);
-    const sealedGuard = renderShortCircuitGuard(nullGuardTest(reusable ? cloneNode(bare)
-      : ctx.assignmentExpression('=', identifier(ref), cloneNode(bare))),
-      keyEffects.length ? sequenceExpression([...keyEffects, lookup]) : lookup);
-    ctx.markRewrite();
-    const consumed = callerPath.node;
-    callerPath.replaceWith(renderMethodCall(planMethodCall({
-      receiver: reusable ? receiver : identifier(ref), prepared: true, args: parent.arguments,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
-    }), { lookup: sealedGuard, embed: cloneNode }));
-    markSubtreeSkipped(ctx.skippedNodes, consumed);
-    return;
-  }
-  const held = reusable ? cloneNode(receiver) : identifier(ref);
-  const optionalCall = parent.optional === true;
-  const dispatch = renderMethodCall(planMethodCall({
-    receiver: held, prepared: true, optional: optionalCall, args: parent.arguments,
-    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
-  }), {
-    lookup: callExpression(identifier(ctx.injectPureImport(entry, hintName)), [cloneNode(held)]), embed: cloneNode,
+  const { checks, built } = renderGuardedMethodCall(decision, {
+    helper: identifier(ctx.injectPureImport(entry, hintName)), sealed: calleeParenWrapped(parent),
+    mintRef: () => ctx.injector.generateDeclaredRef(metaPath), embed: cloneNode,
   });
-  // the memo SPELLS the receiver whole, its own sequence prefix included: an effect the test
-  // already runs must not run a second time in the alternate - only the KEY's effects are left
-  // for it (`(eff(), arr)?.[(k(), 'flat')]()` -> `... ? void 0 : (k(), _flat(_ref)...)`)
-  const effects = (meta.sideEffects ?? [])
-    .filter(effect => !subtreeContainsNode(bare, effect))
-    .map(effect => cloneNode(effect));
   ctx.markRewrite();
   replaceGuardedHop({
-    hopPath: callerPath,
-    test: nullGuardTest(reusable ? cloneNode(bare)
-      : ctx.assignmentExpression('=', identifier(ref), cloneNode(bare))),
-    built: effects.length ? sequenceExpression([...effects, dispatch]) : dispatch,
-    skippedNodes: ctx.skippedNodes,
+    hopPath: callerPath, test: composeNullGuardTest(checks), built, skippedNodes: ctx.skippedNodes,
   });
 }
 
-// a PAREN-SEALED callee / tag above a guarded hop: the call sits OUTSIDE the seal, so pulling
-// its receiver into the alternate would hand the call a bare value and lose `this`. returns the
-// FIRST tail member that must stay outside instead, taking the short-circuit the source owed it
 // a READ form whose receiver's own evaluation is OBSERVABLE (a member get off a nullish-able
 // value, a call): the substitution erases the key spelling, and ECMA runs the receiver BEFORE
 // the key, so the memo leads and the harvested effects ride behind it
@@ -172,9 +117,9 @@ export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx
     });
     return;
   }
-  const ref = reusable ? null : injector.generateDeclaredRef(metaPath);
-  // The first receiver evaluation stays before the key, even when only its stable tail is reused.
-  const firstRead = reusable ? firstReceiver : ctx.assignmentExpression('=', identifier(ref), firstReceiver);
+  const { firstRead, makeBase } = renderReceiverMemo({ firstReceiver, receiver, capture: !reusable }, {
+    mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
+  });
   markRewrite();
   replaceGuardedHop({
     hopPath: metaPath,
@@ -182,7 +127,7 @@ export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx
     built: sequenceExpression([
       ...node.optional ? [] : observableSequenceElements([firstRead], receiverCtx, { preserveSourceReads: true }),
       ...effects,
-      callExpression(identifier(id), [reusable ? cloneNode(receiver) : identifier(ref)]),
+      callExpression(identifier(id), [makeBase()]),
     ]),
     skippedNodes,
   });
@@ -200,28 +145,18 @@ export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPa
   const { disjuncts, makeBase } = memoStore
     ? { disjuncts: [memoStore], makeBase: () => cloneNode(object) }
     : ctx.guardObject(object, metaPath, { interveningEffects: effects.length > 0 });
-  const keyEffects = effects.slice(memoStore ? 1 : 0).map(effect => cloneNode(effect));
-  const test = ctx.composeGuardTest(disjuncts, null);
+  const decision = planMethodCall({
+    receiver: makeBase(), prepared: true,
+    sideEffects: effects.slice(memoStore ? 1 : 0), args: callerPath.node.arguments,
+    ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
+  });
+  const { built } = renderGuardedMethodCall(decision, {
+    helper: identifier(id), guard: { checks: disjuncts, receiver: makeBase() },
+    invoke: methodCallConsume, sealed: true,
+    embed: (node, role) => role === 'receiver' ? makeBase() : cloneNode(node),
+  });
   const consumed = hopPath.node;
-  if (methodCallConsume) {
-    const lookup = renderShortCircuitGuard(test,
-      withSideEffects(callExpression(identifier(id), [makeBase()]), keyEffects));
-    hopPath.replaceWith(ctx.buildSymbolConsumeCore({
-      id,
-      object: makeBase(),
-      methodCallConsume,
-      callerPath,
-      metaPath,
-      receiverClone: () => makeBase(),
-      lookup,
-    }));
-    markSubtreeSkipped(ctx.skippedNodes, consumed);
-    return;
-  }
-  const guardedKeySe = renderShortCircuitGuard(test, sequenceExpression([...keyEffects, voidZero()]));
-  hopPath.replaceWith(sequenceExpression([guardedKeySe, ctx.buildSymbolConsumeCore({
-    id, object: makeBase(), methodCallConsume, callerPath, metaPath, receiverClone: () => makeBase(),
-  })]));
+  hopPath.replaceWith(built);
   markSubtreeSkipped(ctx.skippedNodes, consumed);
 }
 
