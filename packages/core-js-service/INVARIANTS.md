@@ -192,7 +192,7 @@ trap below is named, and the suite names its assertions after them.
   here can see that; one that strips it costs bytes only
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers
   answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
-  bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic. The rule
+  bundle far thinner than WebKit needs. The rule
   stands on the browser's token, not on the system the string names: asked for the desktop site,
   Chrome on iOS sends a Mac string with `CriOS/` left in it and a literal `Version/11.1.1`, and
   read by its name that is Chrome again. The iOS builds' own names - `CriOS`, `EdgiOS`, `FxiOS`,
@@ -239,9 +239,8 @@ The scenarios: they coordinate the domain and the infrastructure and carry no ru
   no options, since there is nothing to configure about the bytes themselves. An encoding set to
   `false` is one the store never holds - `identity` included - and a set that ends up empty is
   refused at startup, where it costs one message, instead of at every request, where it costs a 406.
-  What that leaves out is the DEFAULT: brotli is off because it is 12% smaller than gzip and costs
-  about as much again as building the bundle, so turning it on roughly doubles a warm-up that every
-  bundle of the plan sits in
+  What that leaves out is the DEFAULT: brotli is off because it saves little over gzip and costs
+  about as much as building the bundle again, a price every bundle of the warm-up pays
 - **build-plan-1** - the plan is ready before the first request is taken; without it the matcher
   cannot name even the baseline. It is a step of its own for that reason: the warm-up reads it once
   and may run later or from outside, the matcher reads it on every request and from the first one
@@ -448,8 +447,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   domain, so that the bucket logic can be exercised on fixtures: a test that asserts how many
   buckets thirteen engines collapse into is a test that goes red on somebody else's commit
 - Traffic shares come from `caniuse-lite`, not from `browserslist.coverage`. That one answers
-  with the share of exactly the version asked about: zero for 85% of the thresholds, and mobile
-  Chrome carries all of its traffic on the single version browserslist knows - the warm-up queue
-  would come out backwards. Folded onto thresholds by nearest-below, the 13 visitor engines account
-  for about 96% of world traffic; the headset is not among the 19 agents `caniuse-lite` tracks, so
-  its buckets carry no traffic and are warmed last
+  with the share of exactly the version asked about: zero for most thresholds, and mobile Chrome
+  carries all of its traffic on the single version browserslist knows - the warm-up queue would come
+  out backwards. Folded onto thresholds by nearest-below, the visitor engines cover nearly all world
+  traffic; the headset is not among the agents `caniuse-lite` tracks, so its buckets carry no
+  traffic and are warmed last

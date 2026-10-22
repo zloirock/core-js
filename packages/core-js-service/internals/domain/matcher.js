@@ -4,10 +4,8 @@ import { nearestNotAbove } from './target.js';
 // the nearest-below branch stands on the compat data recording the version a module is known to
 // be CORRECT from, not on anything here
 export default function createMatcher(plan) {
-  // the thresholds are parsed once, here, because the comparison is the parse: the compat helper
-  // reads whatever it is handed, so a matcher searching the strings would read the same thresholds
-  // again on every request. The plan keeps them as the data spells them - this index is the
-  // matcher's own, and the only place the parsed form is needed
+  // the thresholds are parsed once, here: the comparison IS the parse, and searching the strings
+  // would parse the same thresholds again on every request
   const byEngine = new Map(plan.byEngine.entries().map(([engine, entries]) => [engine,
     entries.map(entry => ({ version: semver(entry.version), bundleId: entry.bundleId }))]));
 

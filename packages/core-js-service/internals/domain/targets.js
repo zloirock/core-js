@@ -29,7 +29,7 @@ function collectThresholds(data) {
 function resolveDeclaration(declaration, warn) {
   const resolved = targetsParser(declaration);
 
-  if (typeof declaration === 'object' && !Array.isArray(declaration)) {
+  if (typeof declaration == 'object' && !Array.isArray(declaration)) {
     for (const key of Object.keys(declaration)) {
       if (CONFIGURATION.has(key) || canonicalEngine(key) !== null) continue;
       warn(`targets:unknown:${ key }`, `\`${ key }\` is not an engine \`@core-js/compat\` knows, `

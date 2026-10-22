@@ -41,7 +41,7 @@ interface Options {
   /** which representations of every bundle are stored, keyed by the content coding a client asks
    *  for. `{ identity: true, gzip: true }` by default; `true` enables an encoding with the
    *  defaults of `node:zlib`, an object enables it and configures the compressor. brotli is off
-   *  because it costs about as much as building the bundle again for 12% over gzip */
+   *  because it costs about as much as building the bundle again, for little over gzip */
   compression?: {
     identity?: boolean,
     gzip?: boolean | Readonly<Record<string, unknown>>,

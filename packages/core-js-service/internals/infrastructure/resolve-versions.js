@@ -4,10 +4,8 @@ import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 
 const require = createRequire(import.meta.url);
 
-// every version that decides the BYTES goes into the name of every bundle: core-js is what is
-// polyfilled, compat decides which modules, and the builder decides how they are compiled. a version
-// read wrong is a bundle name that stops changing when it should, and the address is `immutable`
-// for a year
+// every version that decides the bytes goes into the name of every bundle - core-js, compat and the
+// builder. one read wrong is a name that stops changing when it should, on an `immutable` address
 export default function resolveVersions(version) {
   return {
     coreJS: String(normalizeCoreJSVersion(version)),

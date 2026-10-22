@@ -42,7 +42,6 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
     response.write = original.write;
   }
 
-  // writes out what has been held: the beginning with the tag in it, then the rest untouched
   // the three ways the insertion is given up on: the beginning goes out exactly as it arrived, and
   // the developer is told once - a page without polyfills is a page, but nobody can see it is one
   function giveUp(condition, message) {
@@ -77,10 +76,8 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
     const beginning = prefix.toString('latin1');
     let patched;
 
-    // whatever goes wrong while the tag is being built goes wrong INSIDE the application's own
-    // `res.write`, halfway through a response we are holding: naming the visitor, matching a
-    // bundle, reading the policy. A page served without polyfills is a page; a `res.write` that
-    // throws is the site. So the beginning leaves as it arrived, and the reason is said once
+    // a failure here happens inside the application's own `res.write`, halfway through a response -
+    // a page without polyfills is a page, a `res.write` that throws is the site
     try {
       patched = scriptTag(beginning, {
         // the address is written from where the MIDDLEWARE is mounted, not from the root: a router
@@ -94,18 +91,12 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
         + 'the page is served exactly as it would be without this middleware');
     }
 
-    // the headers the insertion made wrong, and only when it happened. `Content-Length` cannot be
-    // recomputed - we hold the beginning, not the response - and Express computed the `ETag` BEFORE
-    // the edit, so a client would revalidate into an address that is no longer theirs. And the
-    // address in the tag is chosen by the `User-Agent` and the `Accept-Encoding`, so the page stopped
-    // being the same document for every visitor: a shared cache that is not told hands one visitor's
-    // bundle to all of them. The second is ours to name even where `compression` names it too:
-    // Firefox on iOS sends one string from iOS 15 and from iOS 26, and only the other field tells them apart
+    // the headers the insertion made wrong: the length and the `ETag` were computed before the edit,
+    // and the tag is chosen by `User-Agent` and `Accept-Encoding` - the latter is ours to name too,
+    // since on iOS one string comes from 15 and from 26, and only `zstd` tells them apart
     if (patched !== beginning) {
-      // unless the headers are already on their way, which `res.writeHead` does before the body is
-      // written. Then none of the three can be repaired, and a `Content-Length` that no longer
-      // matches CUTS the page off at the client. A page without polyfills is a page; half a page
-      // is not, so the tag is dropped instead
+      // with the headers already sent by `res.writeHead` none of it can be repaired, and a stale
+      // `Content-Length` cuts the page off at the client - half a page is worse than no tag
       if (response.headersSent) {
         return giveUp('adapter:headers-sent', 'the response headers were already sent when the polyfill '
           + 'tag was ready, so no tag could be inserted - `Content-Length` would no longer match the '
@@ -158,10 +149,8 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
     if (head.length) head[head.length - 1] = Buffer.copyBytesFrom(head.at(-1));
   }
 
-  // a response the application did not declare as HTML leaves untouched - but one that BEGINS like
-  // a document and was not declared is a page that will never get its polyfills, and there is no
-  // other way for the developer to find that out. `res.writeHead` puts the type on the wire before
-  // it can be read here, and a response sent with no type at all reads exactly the same way
+  // a response not declared as HTML leaves untouched, but one that BEGINS like a document had its type
+  // set through `res.writeHead`, or none at all - a page that never gets its polyfills, said once
   function decline(chunk) {
     restore();
 
@@ -219,10 +208,8 @@ export default function createAdapter(service) {
     const path = request.path ?? request.url.split('?', 1)[0];
     const found = bundleRoute.exec(path);
 
-    // this middleware is `async`, and a framework that does not await it - Express before 5 - never
-    // hears the rejection: the process does, and Node ends it. So nothing thrown in here leaves.
-    // The page then goes out as it would without this middleware, while the bundle route, which
-    // somebody has to answer, is handed to the framework's own error handling
+    // Express before 5 does not await a middleware, and an unheard rejection ends the process - so
+    // nothing leaves: a page goes out as without us, the bundle route to the framework's error handling
     try {
       return await answer(request, response, next, found);
     } catch (error) {

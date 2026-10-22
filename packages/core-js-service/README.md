@@ -56,7 +56,7 @@ app.use(polyfillService({
   // directory: './node_modules/.cache/core-js-service',
   // which representations of every bundle are stored, keyed by the coding a client asks for.
   // `true` takes the defaults of `node:zlib`, an object configures the compressor. brotli is off
-  // by default: 12% smaller than gzip, at about the cost of building the bundle again
+  // by default: only a little smaller than gzip, at about the cost of building the bundle again
   // compression: { identity: true, gzip: true },
   // where the bundles are mounted
   // route: '/__core-js',

@@ -1,10 +1,7 @@
 import { availableParallelism } from 'node:os';
 
-// how many bundles are built at once: half of what this process may use, and never less than one,
-// since no workers at all is a queue that never drains. `availableParallelism` rather than
-// `cpus().length` - it follows the CPU set the process is ALLOWED to use, so a container pinned to
-// two cores of a large host starts one builder rather than half the host. Halved because rolldown
-// and swc are multithreaded of their own
+// half of the cores this process may use, at least one: rolldown and swc are multithreaded of
+// their own. `availableParallelism` follows the CPU set a container is pinned to, `cpus()` the host
 export function concurrencyFor(cores) {
   return Math.max(1, cores >> 1);
 }

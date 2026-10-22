@@ -16,10 +16,9 @@ function toBundleId({ modules, versions, minify }) {
   return hash.digest('hex').slice(0, 16);
 }
 
-// the name of the generation: a hash of everything that decides the PLAN, where the bundle name is
-// a hash of everything that decides one bundle. a bundle outlives its plan - the page that named
-// it is already in a browser - so the two cannot share a name: the generation is what a store keeps
-// or drops whole, and one changed module in the scope renames most of the bundles in it
+// the name of the generation: a hash of everything that decides the PLAN. a bundle outlives its plan -
+// the page that named it is already in a browser - so the generation, which the store keeps or drops
+// whole, needs a name of its own
 function toGenerationId({ scope, exclude, declaration, versions, minify, compression }) {
   const hash = createHash('sha256');
 

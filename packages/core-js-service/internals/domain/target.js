@@ -28,10 +28,9 @@ export function canonicalEngine(name) {
   return engineNames.get(lower);
 }
 
-// an engine and a version in the vocabulary of the compat data - `ios 26.4`, `chrome 140`. `null`
-// for anything that cannot become one, which is an answer rather than a failure: the visitor gets
-// the baseline. The pair travels as a pair: joining it into one string would only mean taking it
-// apart again in the matcher, on the request path, to look the engine up by name
+// an engine and a version in the vocabulary of the compat data - `ios 26.4`, `chrome 140` - kept as a
+// pair, since the matcher looks the engine up by name. `null` for anything that cannot become one,
+// which is an answer rather than a failure: the visitor gets the baseline
 export function toTarget(engine, version) {
   const name = canonicalEngine(engine);
 
@@ -70,10 +69,8 @@ export function nearestNotAbove(sorted, version, versionOf = it => it) {
   return found;
 }
 
-// the three-way comparator `sort` needs, over a compat helper that answers one question at a time.
-// versions are compared, never string-matched - browserslist spells the same browser `safari 12`
-// and the compat data `safari 12.0`, and `parseFloat` puts `26.10` before `26.2`. both are parsed
-// here rather than inside each question, which would parse the same two versions four times
+// the three-way comparator `sort` needs. versions are compared, never string-matched: browserslist
+// spells `safari 12` where the compat data has `safari 12.0`, and `parseFloat` puts `26.10` first
 export function compareVersions(a, b) {
   const left = semver(a);
   const right = semver(b);

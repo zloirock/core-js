@@ -15,9 +15,8 @@ export const HTML_PREFIX = 4096;
 // our preference when the client's q values tie
 export const ENCODING_PREFERENCE = ['br', 'gzip', 'identity'];
 
-// which representations of a bundle are stored. brotli is off by default: over the whole es. scope
-// it is 12% smaller than gzip and costs about as much again as building the bundle, so turning it
-// on roughly doubles the warm-up - every bundle of the plan pays it
+// which representations of a bundle are stored. brotli is off by default: it saves little over gzip
+// and costs about as much as building the bundle again, a price every bundle of the warm-up pays
 export const COMPRESSION = { identity: true, gzip: true };
 
 // how many generations of bundles stay on disk beside the one being served. one covers both cases
