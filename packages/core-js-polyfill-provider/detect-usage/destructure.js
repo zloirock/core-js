@@ -1989,8 +1989,8 @@ export function carriedInitReceiverNode({ path, initNode, resolveOptions = {}, f
 // (`memoizeReceiver`), and does the host render the extraction as a sibling declarator
 // (`siblingDeclarator`)? the caller hands over the facts it alone can see (binding counts, init
 // purity, what its receiver node carries or re-spells); null is the one bail - an instance receiver
-// no channel may read twice. the babel binding asks it; the unplugin literal route still derives the
-// same answers itself, so a rule changed here has to change there as well.
+// no channel may read twice. Literal-slot extraction also uses the provider decision
+// `planLiteralResidual`; its native residual and memo allocation are applied by the binding.
 // an effectful key stays IN PLACE, its value renamed to a throwaway, so the effect runs once and in
 // source order, and the polyfill binds apart - every host shape alike: a lift hoisting the effect broke
 // on exports, defaults with a call, nested-sequence keys and array wrappers. `siblingDeclarator` stands
@@ -7022,6 +7022,14 @@ export function buildNestedParamSynthPlan({
     if (defaultBorn.has(soleReceiver)) defaultLeaves.add(soleReceiver);
   }
 
+  // Parameter instance inference reads a capture before the pattern keys/defaults,
+  // even when their text precedes the initializer. Only that inference needs a
+  // source-local frame; static mirrors keep the receiver frame without a descent.
+  function receiverContext(node) {
+    const at = parameterInstance && pathOfNode(receiverPath, node);
+    return at ? { ...receiverCtx, scope: at.scope, path: at } : receiverCtx;
+  }
+
   function rootContext(node) {
     if (rootContextByNode.has(node)) return rootContextByNode.get(node);
     let ctx = resolveRootContext(node);
@@ -7075,7 +7083,7 @@ export function buildNestedParamSynthPlan({
     if (parameterInstance && (!ctx || ctx.kind === 'ctor' && !ctx.builtin || ctx.kind === 'static' && bindingInstance)) {
       const suppliedBinding = bindingInstance || ctx?.kind === 'ctor' && node.type === 'Identifier'
         && adapter.hasBinding({ ...receiverCtx, name: node.name, read: node });
-      const source = followConstIdentifierInit({ node, readNode: node, ctx: receiverCtx });
+      const source = followConstIdentifierInit({ node, readNode: node, ctx: receiverContext(node) });
       const value = unwrapRuntimeExpr(decidedRunningOperand(source.node, source.ctx));
       const globalPrimitive = value?.type === 'Identifier' && !adapter.hasBinding({ ...source.ctx, name: value.name, read: value })
         && PRIMITIVE_WRAPPERS[knownBuiltInReturnTypes.globalProperties[value.name]?.type];
@@ -7122,9 +7130,7 @@ export function buildNestedParamSynthPlan({
   function resolveRootContext(node) {
     return mirrorRootContext({
       node,
-      scope: receiverPath.scope,
-      adapter,
-      path: receiverPath,
+      ...receiverContext(node),
       callSite,
       resolvePure,
       rescuesReceiverRead: host?.node.type === 'VariableDeclarator' || host?.node.type === 'AssignmentExpression',
@@ -7642,7 +7648,9 @@ export function buildNestedParamSynthPlan({
       const leafContext = rootContext(leaf);
       const selectedReceiverNode = leafContext?.decidedReceiver ? decidedRunningOperand(leaf, receiverCtx) : leaf;
       const liveReceiver = leafContext?.decidedReceiver
-        ? followConstIdentifierInit({ node: selectedReceiverNode, readNode: selectedReceiverNode, ctx: receiverCtx })
+        ? followConstIdentifierInit({
+          node: selectedReceiverNode, readNode: selectedReceiverNode, ctx: receiverContext(selectedReceiverNode),
+        })
         : { node: leaf, ctx: receiverCtx };
       // An admitted IIFE receiver can still be nullish. Return that value unchanged so
       // the native parameter rejects it after all arguments and before any computed key.
@@ -7751,7 +7759,7 @@ export function buildNestedParamSynthPlan({
         ...descriptor,
         // the pattern reads each passthrough key once this receiver has evaluated: a realm key read
         // ahead of every write of its slot is the realm still, as the tree that mirrored it took it
-        receiverRead: { node: leaf, path: receiverPath },
+        receiverRead: { node: leaf, path: receiverContext(leaf).path },
         ...probeArm ? { nullTestOn: probeArm.left, keepArm: probeArm.right } : {},
         // the probe stands on both halves, so the arm it keeps is a COPY: one node in two tree
         // positions aliases every later rewrite of the arm across both of them

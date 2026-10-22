@@ -1064,6 +1064,20 @@ QUnit.test('consumed parameters: method aliases preserve custom receivers and ef
   assert.deepEqual(events, ['body', 'get', 'body']);
 });
 
+QUnit.test('params: a nested default captures its receiver before a key writes the source', assert => {
+  const events = [];
+  const first = [4, 5];
+  let current = first;
+  function read({
+    value: { [(events.push('key'), current = 'xy', 'at')]: method = (events.push('default'), () => -1) },
+  } = { value: (events.push([1].at(0)), current) }) {
+    return method;
+  }
+  assert.same(read().call(first, -1), 5);
+  assert.same(read().call('ab', -1), 'b');
+  assert.deepEqual(events, [1, 'key', 1, 'key']);
+});
+
 // --- A closure written in a parameter runs in the parameter's environment ---
 
 // the body's declarations never join that environment - a `var` included, which gets one of its own once

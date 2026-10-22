@@ -11,6 +11,7 @@
 // live - independent of whether ancestor paths got orphaned. clones (`t.cloneNode`)
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
+import { planSynthLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   nestedSequenceValueSpelling,
   isRestProperty,
@@ -76,7 +77,6 @@ import {
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
-  globalProxyMemberName,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
   keptProbeStore,
@@ -763,23 +763,8 @@ export default function createSynthSwapEmitter({
   // hands over - recomputing it here classified every property of the pattern a second time per
   // applied swap (the unplugin twin has always threaded its `planEntries` the same way)
   function buildSynthLiteral({ receiver, entries, memoParam = null, aliasCtx = null, guardedReceiverPlan = null }) {
-    // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
-    // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
-    // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
-    // member-access fallback below without spending a polyfill lookup on `undefined`
-    // a fallback-logical receiver reads through its peeled LEFT branch - the left decides the
-    // value under short-circuit, and referencing the dead right global would leak its import
-    const readReceiver = receiver.type === 'LogicalExpression'
-      ? peelNestedSequenceExpressions(receiver.left).tail : receiver;
-    const receiverPure = readReceiver.type === 'Identifier'
-      ? resolvePure({ kind: 'global', name: readReceiver.name }) : null;
-    const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
-    // the constructor a whole-swapped receiver stands for: the bare global, or the leaf of a proxy
-    // member its pure constructor replaces (`globalThis.Map` -> `_Map`) - the name an uncovered
-    // instance slot dispatches through (`instanceHopDispatch`)
-    const receiverCtorName = isPolyfillableGlobal ? readReceiver.name
-      : aliasCtx && proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure })
-        ? globalProxyMemberName({ node: readReceiver, ...aliasCtx }) : null;
+    const { readReceiver, pure: receiverPure, receiverCtorName, selectsInstance }
+      = planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure });
     let receiverRef = null;
 
     // an INSTANCE entry binds the method to the receiver's VALUE, so a SELECTING receiver is spelled
@@ -787,21 +772,14 @@ export default function createSynthSwapEmitter({
     // global a static resolves through), which is a different one; spelling the left there would
     // hand the helper the dead arm (`nul || arr` -> `_atMaybeArray(nul)`)
     function instanceReceiverRef() {
-      return receiver.type === 'LogicalExpression' || receiver.type === 'ConditionalExpression'
-        ? memoParam ?? receiver : getReceiverRef();
+      return selectsInstance ? memoParam ?? receiver : getReceiverRef();
     }
 
     function getReceiverRef() {
       if (receiverRef) return receiverRef;
       // a memo param (call-branch) replaces every receiver read - cloning the call would re-run it
       if (memoParam) return receiverRef = memoParam;
-      if (isPolyfillableGlobal) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
-      // a proxy-global member with a pure-CTOR leaf (`globalThis.Map`) whole-swaps to the pure ctor, so
-      // an unpolyfilled sibling reads off it (`_Map.foo`) - the nested partial-mirror canon. without this
-      // the re-traverse of the raw receiver collapses inconsistently per chain depth (and diverges from
-      // unplugin); a non-ctor leaf falls through to the proxy-root collapse below
-      const ctorPure = proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure });
-      if (ctorPure) return receiverRef = injectPureImport(ctorPure.entry, ctorPure.hintName);
+      if (receiverPure) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
       return receiverRef = (guardedReceiverPlan ? renderCollapsePlan(guardedReceiverPlan)
         : collapseProxyGlobalReceiver(readReceiver, { aliasCtx })) ?? readReceiver;
     }
