@@ -875,7 +875,7 @@ export function createClosureAnalysis({
   function collectClassInstanceClosure(classPath, programPath, valueRead) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
-    const { newExprByName } = buildProgramIndex(programPath);
+    const { newExprByName } = programCensus(programPath);
     const closure = new Map();
     const constructorNames = getClassConstructorNames(classPath, programPath);
     if (constructorNames === null) return null;

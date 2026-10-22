@@ -579,22 +579,18 @@ export default function createOptionalDispatchChannel(ctx) {
           ? sequenceExpression([...calleeSequence.prefix.map(prefix => cloneNode(prefix)), cloneNode(calleeValue)])
           : calleeValue;
       }
-      if (isReusableReceiver(calleeValue, { directCallee: true, ctx: receiverCtx })) {
-        return {
-          hopKind: 'call',
-          disjuncts: [cloneNode(callee)],
-          receiver: callExpression(cloneNode(calleeValue), node.arguments.map(argument => cloneNode(argument))),
-        };
-      }
+      const capture = !isReusableReceiver(calleeValue, { directCallee: true, ctx: receiverCtx });
       // SOURCE-authored callees only: a plugin-built callee (no source span - a rewritten
       // inner dispatch on re-visit) belongs to the chain-threading route, and memoizing it
       // here would freeze a half-threaded chain
-      if (typeof callee?.start !== 'number') return STAGED_SPLIT;
-      const calleeRef = injector.generateDeclaredRef(metaPath);
+      if (capture && typeof callee?.start !== 'number') return STAGED_SPLIT;
+      const { firstRead, makeBase } = renderReceiverMemo({ firstReceiver: callee, receiver: calleeValue, capture }, {
+        mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
+      });
       return {
         hopKind: 'call',
-        disjuncts: [assignmentExpression('=', identifier(calleeRef), cloneNode(callee))],
-        receiver: callExpression(identifier(calleeRef), node.arguments.map(argument => cloneNode(argument))),
+        disjuncts: [firstRead],
+        receiver: callExpression(makeBase(), node.arguments.map(argument => cloneNode(argument))),
       };
     }
     // an INHERITED STATIC callee substitutes to an always-defined binding, so its `?.()`
@@ -1702,27 +1698,18 @@ export default function createOptionalDispatchChannel(ctx) {
     // its plain twin); the chain wrapper goes with the `?.` it carried
     const target = parent.optional && callerPath.parentPath?.node?.type === 'ChainExpression'
       ? callerPath.parentPath : callerPath;
-    target.replaceWith(withSideEffects(callExpression(
-      memberExpression(identifier(id), identifier('call')),
-      [{ type: 'ThisExpression' }, ...parent.arguments.map(argument => cloneNode(argument))],
-    ), meta.sideEffects));
+    target.replaceWith(renderMethodCall(planMethodCall({
+      receiver: { type: 'ThisExpression' }, prepared: true, methodGuarded: true, args: parent.arguments,
+    }), { lookup: identifier(id), leadingEffects: meta.sideEffects, embed: cloneNode }));
   }
 
   return {
     composeGuardTest,
     emitInheritedStatic,
     emitInstanceWithPeeledSe,
-    eraseVestigialReceiverOptionals,
-    fuseGuardCommaMemo,
     guardObject,
     holdsProxySurface,
-    proxySurfaceNameOf,
     replaceInstanceLike,
-    resolveDispatchSpelling,
-    splitDoublyOptionalCall,
-    splitOptionalCallReceiver,
-    splitOptionalMemberHop,
     splitOptionalReceiver,
-    staticCalleeStandsDown,
   };
 }

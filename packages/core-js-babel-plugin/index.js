@@ -103,6 +103,8 @@ import {
   renderGuardedChainTail,
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
+  planMethodCall,
+  renderMethodCall,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
@@ -871,8 +873,10 @@ export default function plugin(api, options) {
         const callParent = callerPath.parentPath;
         if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node) {
-          const callExpr = t.callExpression(t.memberExpression(id, t.identifier('call')),
-            [t.thisExpression(), ...callParent.node.arguments.map(a => t.cloneNode(a))]);
+          const callExpr = estreeToBabel(renderMethodCall(planMethodCall({
+            receiver: t.thisExpression(), prepared: true, methodGuarded: true, args: callParent.node.arguments,
+          }), { lookup: hostSlot(id), embed: node => hostSlot(t.cloneNode(node)) }));
+          // The host wrapper retains minted-effect identity and marks the generated sequence.
           callParent.replaceWith(withSideEffects(callExpr, sideEffects));
         } else {
           peelParenAndTSSlotPath(path).replaceWith(withSideEffects(id, sideEffects));
