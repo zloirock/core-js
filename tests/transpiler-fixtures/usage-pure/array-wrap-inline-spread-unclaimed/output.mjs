@@ -1,19 +1,17 @@
-// a file whose inline-array spreads are flattened for the routes and then CLAIMED BY NONE prints
-// as written: the splice is undone once the file is known to inject nothing, so the leg that
-// reprints its tree agrees with the leg that hands the source back
-function viaParamDefault([{
-  y: {
-    at: a
-  }
-}] = [...[nb]]) {
+import _at from "@core-js/pure/actual/instance/at";
+// Parameter instance reads capture the supplied or default positional receiver once.
+// An unrelated native-only pattern keeps its original spelling.
+function viaParamDefault(_ref = [...[nb]]) {
+  let [_ref2] = _ref;
+  let a = _at(_ref2.y);
   return a;
 }
 class K {
-  f = (([{
-    y: {
-      at: b
-    }
-  }]) => b)([...[nb]]);
+  f = ((_ref3, _unused = void 0) => {
+    let [_ref4] = _ref3;
+    let b = _at(_ref4.y);
+    return b;
+  })([...[nb]]);
 }
 const [{
   z
