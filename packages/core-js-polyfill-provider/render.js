@@ -7,6 +7,9 @@ import {
   callArgumentMayBeObserved,
   classifyReceiverSE,
   isReusableReceiver,
+  isMemberAccessNode,
+  mayHaveSideEffects,
+  optionalCallReceiverGuard,
   observableSequenceElements,
   peelNestedSequenceExpressions,
   subtreeContainsNode,
@@ -95,6 +98,32 @@ export function planMethodCall({
     optional,
     methodGuarded,
     ctx,
+  };
+}
+
+// The optional method's receiver is tested either at its value, at an earlier live
+// link, or only by the method read itself. Sealed links keep their native throw.
+// Ask after applying any proven receiver substitution, before allocating its capture.
+// A stable tail needs no capture, but its prefix still runs in the first receiver read.
+// Key effects can invalidate an otherwise adjacent reread; super reads its home object
+// but invokes on this and can never be captured as a value. An adjacent optional result
+// can carry a served method's optional invocation; raw lookups keep their own guard.
+// These are source-local facts: no imports, refs, claims or tree changes on a query.
+// The host retains the source slots and applies this answer synchronously in their frame.
+export function planOptionalMethodCall({ callee, receiver = callee.object, call = null, continuation = null, ctx = null }) {
+  const { prefix, tail } = peelNestedSequenceExpressions(receiver);
+  const value = prefix.length ? tail : receiver;
+  const superReceiver = unwrapRuntimeExpr(value)?.type === 'Super';
+  const interveningEffects = !!callee.computed && mayHaveSideEffects(callee.property, ctx);
+  return {
+    firstReceiver: receiver,
+    receiver: value,
+    receiverGuard: optionalCallReceiverGuard(callee),
+    capture: !superReceiver && !isReusableReceiver(value, { interveningEffects, ctx }),
+    superReceiver,
+    interveningEffects,
+    compactMethod: !!call?.optional && isMemberAccessNode(continuation) && !!continuation.optional
+      && unwrapRuntimeExpr(continuation.object) === call,
   };
 }
 

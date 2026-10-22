@@ -734,13 +734,3 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const decision = directClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
   return decision ? { node: renderClaimProbe(decision, { injectImport: injectPureImport }), decision } : null;
 }
-
-// did the source spell the callee through explicit parens (the paren-lookup class)?
-export function calleeParenWrapped(callNode) {
-  for (let wrapper = callNode.callee; wrapper;) {
-    if (wrapper.type === 'ParenthesizedExpression') return true;
-    if (CHAIN_HOP_WRAPPER_TYPES.has(wrapper.type)) wrapper = wrapper.expression;
-    else return false;
-  }
-  return false;
-}

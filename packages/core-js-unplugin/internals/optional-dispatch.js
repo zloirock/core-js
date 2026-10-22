@@ -24,15 +24,14 @@ import { decidedReusableReceiver, instanceSynthReceiverPure } from '@core-js/pol
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
+  calleeParenWrapped,
   TS_EXPR_WRAPPERS,
   isMemberAccessNode,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReusableReceiver,
-  mayHaveSideEffects,
   nestedSequenceValueSpelling,
   observableSequenceElements,
-  optionalCallReceiverGuard,
   peelNestedSequenceExpressions,
   receiverCarriesLiveOptional,
   singleSequenceTail,
@@ -61,6 +60,7 @@ import {
   nullGuardTest,
   renderMethodCall,
   planMethodCall,
+  planOptionalMethodCall,
   renderNavCollapseValue,
   renderShortCircuitGuard,
   sequenceExpression,
@@ -72,7 +72,7 @@ import {
   stampReplacementSpan,
   withSideEffects,
 } from './emit-shared.js';
-import { calleeParenWrapped, guardProbeUndefinable, optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
+import { guardProbeUndefinable, optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
 import {
   chainContainsMutatedStatic,
   climbToCallerPath,
@@ -423,7 +423,7 @@ export default function createOptionalDispatchChannel(ctx) {
   // the DOUBLY-optional arm (`X?.m?.()` / `X.m?.()` with an optional method hop): the
   // probe decides between the guarded-disjunct shape and the kept-`?.` memo
   function splitDoublyOptionalCall({ node, metaPath, callee, split }) {
-    const { reusabilityView, superReceiver, reusableThisArg, cloneReceiverValue, receiverCtx, interveningEffects, resultOptional } = split;
+    const { decision, reusableThisArg, cloneReceiverValue } = split;
     // the stand-down mirrors the single-`?.` arm: a resolvable STATIC claim over a
     // provably DEFINED object erases BOTH `?.` once substituted (`Array?.from?.(x)` ->
     // `_Array$from(x)`; the result's own `?.` still guards above)
@@ -457,7 +457,7 @@ export default function createOptionalDispatchChannel(ctx) {
       let refMethod;
       let disjuncts;
       let thisArg;
-      if (isReusableReceiver(reusabilityView, { interveningEffects, ctx: receiverCtx }) || superReceiver) {
+      if (!decision.capture) {
         refMethod = injector.generateDeclaredRef(metaPath);
         disjuncts = [assignmentExpression('=', identifier(refMethod), chainExpression(cloneNode(callee)))];
         thisArg = reusableThisArg();
@@ -487,7 +487,7 @@ export default function createOptionalDispatchChannel(ctx) {
     }
     // `X?.m?.()`: the root guards first, the method memo joins as a second disjunct
     // and the call keeps `this` through the shared base (`_ref2.call(_ref)`)
-    const rootGuard = guardObject(callee.object, metaPath, { interveningEffects });
+    const rootGuard = guardObject(callee.object, metaPath, { interveningEffects: decision.interveningEffects });
     // A mutable source can resolve through a union of receiver hints without one Type.
     // Keep that source entry: the captured ref has no binding from which to recover it.
     const methodRead = stampReplacementSpan(
@@ -497,7 +497,7 @@ export default function createOptionalDispatchChannel(ctx) {
         : memberExpression(rootGuard.makeBase(), cloneNode(callee.property), { computed: callee.computed }), callee);
     // An adjacent result guard observes the same nullish value for an absent method
     // and an absent result. Keep the lookup once inside that result's memo.
-    if (resultOptional && optionalCalleeProbe.kind === 'instance') return {
+    if (decision.compactMethod && optionalCalleeProbe.kind === 'instance') return {
       hopKind: 'call',
       disjuncts: rootGuard.disjuncts,
       receiver: stampSourceCallType(renderMethodCall(planMethodCall({
@@ -634,7 +634,6 @@ export default function createOptionalDispatchChannel(ctx) {
     // The shared handoff reads the runtime receiver through source wrappers. Its first
     // method lookup still owns the whole value; later reads use its stable rendered tail.
     let calleeObject = unwrapRuntimeExpr(callee.object);
-    const interveningEffects = !!callee.computed && mayHaveSideEffects(callee.property, receiverCtx);
     let reusabilityView = calleeObject;
     const receiverSequence = reusabilityView?.type === 'SequenceExpression'
       ? peelNestedSequenceExpressions(reusabilityView) : null;
@@ -649,9 +648,11 @@ export default function createOptionalDispatchChannel(ctx) {
     }
     // `super` cannot memoize (`_ref = super` does not parse) - the method memoizes whole
     // and the call runs on `this`, babel's dedicated super-call spelling
-    const superReceiver = calleeObject?.type === 'Super';
+    const decision = planOptionalMethodCall({
+      callee, receiver: calleeObject, call: node, continuation: metaPath.node, ctx: receiverCtx,
+    });
     function reusableThisArg() {
-      return superReceiver ? { type: 'ThisExpression' } : cloneNode(reusabilityView);
+      return decision.superReceiver ? { type: 'ThisExpression' } : cloneNode(decision.receiver);
     }
     // a proxy-surface receiver memoizes as a VALUE: the hops stay spelled (babel keeps
     // the original node, whose hop claims detection already marked handled) - suppress
@@ -669,9 +670,7 @@ export default function createOptionalDispatchChannel(ctx) {
       }
       return clone;
     }
-    const resultOptional = metaPath.node?.type === 'MemberExpression' && metaPath.node.optional
-      && unwrapRuntimeExpr(metaPath.node.object) === node;
-    const split = { reusabilityView, superReceiver, reusableThisArg, cloneReceiverValue, receiverCtx, interveningEffects, resultOptional };
+    const split = { decision, reusableThisArg, cloneReceiverValue };
     // Only the callee's own optional call is redundant. A guard below the static
     // receiver still owns the outer instance dispatch, so thread that split through.
     // Undefined means no static claim; null is a static claim needing no receiver split.
@@ -688,10 +687,10 @@ export default function createOptionalDispatchChannel(ctx) {
     if (callee.optional) {
       return splitDoublyOptionalCall({ node, metaPath, callee, split });
     }
-    if (!isReusableReceiver(reusabilityView, { interveningEffects, ctx: receiverCtx }) && !superReceiver) {
+    if (decision.capture) {
       // a live `?.` in the receiver under a plain method member is the shared verdict's link: the
       // split tests that link's object, and the memo below reads the receiver plainly past it
-      const receiverSplit = optionalCallReceiverGuard(callee) === 'link'
+      const receiverSplit = decision.receiverGuard === 'link'
         ? splitOptionalReceiver(callee.object, metaPath) ?? STAGED_SPLIT : null;
       if (receiverSplit === STAGED_SPLIT) return STAGED_SPLIT;
       const refRecv = injector.generateDeclaredRef(metaPath);
@@ -721,7 +720,7 @@ export default function createOptionalDispatchChannel(ctx) {
         calleeProbe?.kind === 'instance'
           ? callExpression(identifier(injectPureImport(calleeProbe.entry, calleeProbe.hintName)), [recvIdForRead])
           : memberExpression(recvIdForRead, cloneNode(callee.property), { computed: callee.computed }), callee);
-      if (resultOptional && calleeProbe?.kind === 'instance') {
+      if (decision.compactMethod && calleeProbe?.kind === 'instance') {
         const firstRead = callExpression(cloneNode(methodRead.callee), [receiverMemo]);
         return {
           hopKind: 'call',
@@ -750,7 +749,8 @@ export default function createOptionalDispatchChannel(ctx) {
     // (`_ref = _globalThis.flat` would stay raw), so the split resolves the method itself -
     // babel's chain-combine canon: a bare prototype extraction, receiver reused as `this`
     let methodRead = cloneNode(callee);
-    if (resultOptional || (!callee.computed && callee.property?.type === 'Identifier' && holdsProxySurface(calleeObject, metaPath))) {
+    if (decision.compactMethod
+      || (!callee.computed && callee.property?.type === 'Identifier' && holdsProxySurface(calleeObject, metaPath))) {
       const { result: probe } = resolvePureOrGlobalFallback({
         kind: 'property',
         object: splitReceiverTypeHint(calleeObject, metaPath),
@@ -767,7 +767,7 @@ export default function createOptionalDispatchChannel(ctx) {
       if (probe?.kind === 'instance') {
         methodRead = callExpression(identifier(injectPureImport(probe.entry, probe.hintName)),
           [cloneNode(calleeObject)]);
-        if (resultOptional) return {
+        if (decision.compactMethod) return {
           hopKind: 'call',
           disjuncts: [],
           receiver: stampSourceCallType(renderMethodCall(planMethodCall({

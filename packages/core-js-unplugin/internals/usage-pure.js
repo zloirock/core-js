@@ -59,7 +59,6 @@ import {
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
-  calleeParenWrapped,
   guardProbeUndefinable,
   optionalMemberStaysGuarded,
   replaceGuardedHop,
@@ -229,7 +228,6 @@ export default function createAstUsagePureCallback({
     injectPureImport,
     markRewrite,
     skippedNodes,
-    calleeParenWrapped,
     injector,
     assignmentExpression,
   };
