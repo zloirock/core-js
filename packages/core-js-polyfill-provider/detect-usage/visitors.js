@@ -114,7 +114,9 @@ export function createUsageHandlerCore({
   }
 
   function emitMemberUsage(path) {
-    const meta = handleMemberExpressionNode({
+    // Metadata asks several questions of the same receiver without rewriting it.
+    // End their shared question before onUsage can replace nodes or register bindings.
+    const meta = withCanonQuestion(() => handleMemberExpressionNode({
       node: path.node,
       scope: path.scope,
       adapter,
@@ -127,7 +129,7 @@ export function createUsageHandlerCore({
       keptProxyHops,
       resolveStaticKey,
       proxySegments,
-    });
+    }));
     if (meta) {
       onUsage(meta, path);
       // usage-global union: extra reachable receiver / key targets each earn a side-effect import

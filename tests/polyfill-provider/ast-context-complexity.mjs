@@ -1,7 +1,7 @@
 // Context queries must stop at the boundary that answers them. Count syntax-slot
 // and parent reads after parsing, outside the parser's own traversal and scope setup.
 import {
-  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, receiverSlotRead, walkAstNodes,
+  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, receiverSlotRead, walkAstChildren, walkAstNodes,
   wrapScopeBindingLookup, writeNeverRuns,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -12,6 +12,42 @@ import { adapters, createChecker, findNode } from './harness.mjs';
 const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // A census visits every leaf without asking it for a scope or annotation context
+  // that no child can inherit. Empty child lists have the same bound as absent ones.
+  for (const size of [32, 128]) {
+    const program = parser.parseAndScope('var rows = []; rows.length;'.repeat(size));
+    const leaves = new Map();
+    walkAstNodes({ root: program.node, visit(node) {
+      let children = false;
+      walkAstChildren(node, () => { children = true; });
+      if (!children) leaves.set(node, Object.getOwnPropertyDescriptor(node, 'type'));
+    } });
+    const visited = new Set();
+    let reads = 0;
+    for (const [node, descriptor] of leaves) Object.defineProperty(node, 'type', {
+      configurable: descriptor.configurable,
+      enumerable: descriptor.enumerable,
+      get() { if (visited.has(node)) reads++; return descriptor.value; },
+    });
+    try {
+      for (const node of leaves.keys()) {
+        visited.add(node);
+        Reflect.get(node, 'type');
+      }
+      check(`${ parser.name }/census leaves/${ size }/counter control`, reads, leaves.size);
+      visited.clear();
+      reads = 0;
+      collectFileCensus(program.node, [{
+        visit(node) { if (leaves.has(node)) visited.add(node); },
+        result() { return {}; },
+      }]);
+      check(`${ parser.name }/census leaves/${ size }/all leaves visited`, visited.size, leaves.size);
+      checkTruthy(`${ parser.name }/census leaves/${ size }/bounded context reads`, reads <= leaves.size, `${ reads } reads for ${ leaves.size } leaves`);
+    } finally {
+      for (const [node, descriptor] of leaves) Object.defineProperty(node, 'type', descriptor);
+    }
+  }
+
   // Re-emitting each write in a wide scope must not rebuild every sibling path per binding.
   // Carry the source write under a fresh statement, preserving its source span and ancestry.
   for (const size of [32, 128]) {

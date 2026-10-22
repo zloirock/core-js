@@ -28,6 +28,7 @@ import {
   collectPrePassSites,
   createEstreeAdapter,
   createUsageVisitors,
+  rejectDetachedPaths,
   withoutPhantomDeclarationViolations,
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
@@ -4936,15 +4937,17 @@ for (const [effect, claim] of [
 ]) for (const retain of [false, true]) {
   const ast = programOf(`(${ effect }, globalThis).self.Array.from([1]); Array.isArray([]);`);
   const seen = [];
+  const completed = { nodes: null };
   const visitors = createUsageVisitors({
     adapter: createEstreeAdapter({ method: 'usage-pure' }),
     method: 'usage-pure',
     walkAnnotations: false,
+    completedClaims: completed,
     isEntryAvailable: () => true,
     onUsage(meta, path) {
       seen.push(`${ meta.kind }/${ meta.key ?? meta.name }`);
       if (meta.key === 'from') {
-        if (retain) claimLive(visitors, [unwrapNode(path.node.object.object.object).expressions[0]], path);
+        if (retain) claimLive(visitors, [unwrapNode(path.node.object.object.object).expressions[0]], path, completed);
         path.replaceWith(builders.identifier('replacement'));
       }
     },
@@ -4952,6 +4955,85 @@ for (const [effect, claim] of [
   traverse(ast, { $: { scope: true }, ...visitors });
   check(`discarded receiver/${ claim }/retained ${ retain }`, seen.filter(item => item === claim).length, retain ? 1 : 0);
   check(`discarded receiver/${ claim }/live sibling ${ retain }`, seen.includes('property/isArray'), true);
+}
+
+// A detached receiver is retired at its first rejected child, not revisited at every depth.
+for (const depth of [1, 32]) {
+  const ast = programOf(`globalThis${ '.self'.repeat(depth) }.Array.from;`);
+  let visits = 0;
+  let claims = 0;
+  const visitors = rejectDetachedPaths({
+    MemberExpression(site) {
+      claims++;
+      site.replaceWith(builders.identifier('replacement'));
+    },
+    Identifier() { claims++; },
+  });
+  const counted = Object.fromEntries(Object.entries(visitors).map(([type, visit]) => [type, site => {
+    visits++;
+    visit(site);
+  }]));
+  traverse(ast, counted);
+  check(`detached receiver/${ depth }/outer claim and replacement`, claims, 2);
+  check(`detached receiver/${ depth }/bounded traversal`, visits <= 4, true);
+}
+
+// Early claims finish their descendants before a render moves them. Reparenting processed
+// nodes must not repeat detection, while a fresh clone and a fresh walk still own their claims.
+for (const replaceRoot of [false, true]) for (const clone of [false, true]) {
+  const ast = programOf('host(retained(inner())); sibling();');
+  const completed = { nodes: null };
+  const seen = [];
+  const visitors = rejectDetachedPaths({
+    CallExpression(site) {
+      const { name } = site.node.callee;
+      seen.push(name);
+      if (name === 'host') {
+        const [child] = site.node.arguments;
+        claimLive(visitors, [child, child.arguments[0]], site, completed);
+        claimLive(visitors, [child.arguments[0]], site, completed);
+        const [live] = site.node.arguments;
+        site.replaceWith(builders.arrayExpression(clone ? [live, structuredClone(live)] : [live]));
+      } else if (name === 'retained' && replaceRoot) {
+        site.replaceWith(builders.callExpression(builders.identifier('settled'), site.node.arguments));
+      }
+    },
+  }, completed);
+  traverse(ast, { $: { scope: true }, ...visitors });
+  const label = `completed claims/replacement ${ replaceRoot }/clone ${ clone }`;
+  check(`${ label }/source root`, seen.filter(name => name === 'retained').length, !replaceRoot && clone ? 2 : 1);
+  check(`${ label }/replacement root`, seen.filter(name => name === 'settled').length, replaceRoot ? 1 + Number(clone) : 0);
+  check(`${ label }/descendant`, seen.filter(name => name === 'inner').length, 1 + Number(clone));
+  check(`${ label }/unrelated sibling`, seen.filter(name => name === 'sibling').length, 1);
+  const fresh = [];
+  traverse(ast, { $: { scope: true }, ...rejectDetachedPaths({
+    CallExpression(site) { fresh.push(site.node.callee.name); },
+  }, { nodes: null }) });
+  check(`${ label }/fresh walk`, fresh.length, clone ? 5 : 3);
+}
+
+// Reusing a removed root inside its replacement must finish the children at their live paths.
+{
+  const ast = programOf('host(retained(inner()));');
+  const completed = { nodes: null };
+  const seen = [];
+  let wrapped = false;
+  const visitors = rejectDetachedPaths({
+    CallExpression(site) {
+      const { name } = site.node.callee;
+      seen.push(name);
+      if (name === 'host') {
+        claimLive(visitors, site.node.arguments, site, completed);
+        site.replaceWith(builders.arrayExpression(site.node.arguments));
+      } else if (name === 'retained' && !wrapped) {
+        wrapped = true;
+        site.replaceWith(builders.arrayExpression([site.node]));
+      }
+    },
+  }, completed);
+  traverse(ast, { $: { scope: true }, ...visitors });
+  check('completed claims/reused removed root', seen.filter(name => name === 'retained').length, 2);
+  check('completed claims/reused removed root/descendant', seen.filter(name => name === 'inner').length, 1);
 }
 
 // whether estree-toolkit still walks the children a replace or remove detached is its own choice: a pure output

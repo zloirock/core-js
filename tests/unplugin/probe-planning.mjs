@@ -40,10 +40,10 @@ const label = 'ignored sealed read';
   check(`${ label }/live effect identity`, claims[0], accepted.keyEffects[0]);
   check(`${ label }/effects source survives capture`, accepted.effectsHost, question.effectsHost);
   check(`${ label }/guard root stays pristine for sibling questions`, question.leafPlan.guardObject.object.name, 'globalThis');
-  checkTruthy(`${ label }/guard is captured`, accepted.guardObject !== accepted.leafPlan.guardObject);
-  const snapshot = JSON.stringify(accepted.guardObject);
+  checkTruthy(`${ label }/guard is captured`, accepted.test.source.source !== accepted.leafPlan.guardObject);
+  const snapshot = JSON.stringify(accepted.test.source.source);
   accepted.leafPlan.guardObject.object.name = 'changed';
-  check(`${ label }/guard survives rewriting`, JSON.stringify(accepted.guardObject), snapshot);
+  check(`${ label }/guard survives rewriting`, JSON.stringify(accepted.test.source.source), snapshot);
   check(`${ label }/terminal read stays observable`, accepted.foldLeafOntoBase, false);
 }
 // A child replacement detaches the original expression. Capture reads its native container

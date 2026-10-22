@@ -2146,19 +2146,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return { node, decision };
   }
 
-  // a RECEIVERLESS static erase loses the read the source performs on a value that can be
-  // absent - through a SEAL (`(globalThis.window?.self.window).Array.of(6)` - an absent `window`
-  // throws at `.Array` where the erased claim just runs). build that read back as a THROW
-  // PROBE the erase re-emits ahead of the claim: the sealed value renders through the shared
-  // guard plan (probe test, ponyfill leaf), the member key re-spells the source read. an
-  // SE-bearing computed key stays with its own migration canon (a re-read would double its
-  // effect), and a defined sealed value (all-plain nav) has no throw to reproduce - both bail
-  function sealedClaimThrowProbeNode(memberPath, probeNode = null, { allowStoreHolder = false } = {}) {
+  // Bind the shared erased-read decision to Babel's scope, imports and node dialect. Source
+  // effects and the throw boundary stay in the decision; the emitted node is only marked as
+  // an effect owned by this binding, never inspected to recover those facts.
+  function sealedClaimThrowProbeNode(memberPath, probeNode = null) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
     const aliasCtx = { scope: memberPath.scope, adapter, path: memberPath };
-    const decision = directClaimProbePlan(probeNode ?? memberPath.node,
-      ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx, { allowStoreHolder });
+    const decision = directClaimProbePlan(
+      probeNode ?? memberPath.node,
+      ({ name }) => resolvePureGlobalEntry(name, memberPath),
+      aliasCtx,
+    );
     if (!decision) return null;
     const node = estreeToBabel(renderClaimProbe(decision, {
       injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
@@ -2166,7 +2165,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       embed: hostSlot,
     }));
     mintedEffectNodes.add(node);
-    return { node, decision, keySeExprs: decision.consumed, navStart: decision.navStart };
+    return { node, decision };
   }
 
   // flush THIS assignment's kept nav-collapse at its own EXIT: every claim resolver over the

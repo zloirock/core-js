@@ -253,26 +253,17 @@ export function decidedReceiverSpelling(node, left) {
   return respelled(node) ?? node;
 }
 
-// the sequence prefixes the hop OBJECTS of a sealed nav carry, in source-eval order. the guard
-// render unwraps them transparently, so the probe re-spells them ahead of itself - but only the
-// ones the render does not already re-emit from source, which is why the caller hands its own
-// rendered spans in. both emitters walk the same hops; the render shape is all that differs.
-// one level per hop object: a NESTED level is the plan renders' own business - their sequence
-// descent replays every level, and no caller reaches this walk with one still buried
-export function navHopSequencePrefixes(inner, { unwrap, renderedSpans = null, ctx = null }) {
+// Collect the effectful sequence prefixes of the navigation's source objects. The shared
+// decision owns retained-source filtering; no rendered spans or emitter-specific peel enter
+// this walk. Nested sequences stay with their source expression and are replayed only once.
+function navHopSequencePrefixes(inner, ctx) {
   const all = [];
-  for (let cur = unwrap(inner); cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
-    cur = unwrap(peelReceiverSequenceTail(cur.object))) {
-    const obj = unwrap(cur.object);
+  for (let cur = unwrapRuntimeExpr(inner); cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+    cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object))) {
+    const obj = unwrapRuntimeExpr(cur.object);
     if (obj?.type === 'SequenceExpression') all.push(...sequencePrefixWithSideEffects(obj, ctx) ?? []);
   }
-  // `all` is what the probe REPORTS (every prefix now runs through one of the two channels, so no
-  // other one may repeat it); `spell` is what it spells itself, the render carrying the rest
-  return {
-    all,
-    spell: renderedSpans?.length
-      ? all.filter(expr => renderedSpans.every(span => !nodeRangeContains(span, expr))) : all,
-  };
+  return all;
 }
 
 // meta `sideEffects` carry the receiver-SE first then the computed-key SE (source order); the split
@@ -3375,7 +3366,7 @@ export function pairedYieldedContainer(hop, options = {}) {
 // canon reaches, or no return spells a literal
 // `nested` - the level hooks a consumer pairing every level asks (`pairedSlotValues`) - reaches the
 // literal's own levels too.
-export function callInitSlotValues({
+function callInitSlotValues({
   pattern, init, name, scope, adapter, path, seen = new Set(), resolveKey: keyResolver = null, nested = null,
 }) {
   const paired = callPairingSources({ init, scope, adapter, path, seen });
@@ -3526,6 +3517,7 @@ export function yieldedSlotValue(paramArgs, node) {
 // admits an async function for a caller reading what an AWAIT of the call settles to; `declinedSink`
 // collects the call where a hop's initializer cannot have run by the read - the call throws there,
 // which a caller holding another answer about it must not override.
+// eslint-disable-next-line max-statements -- the terminal memo belongs to the same paired callee proof
 export function resolveInlineCalleeFunction(hop, {
   allowIdentityParam = false,
   rejectConditional = false,
@@ -3534,6 +3526,14 @@ export function resolveInlineCalleeFunction(hop, {
   declinedSink = null,
 } = {}) {
   const { adapter, path } = hop.ctx;
+  // A direct name whose binding has no local function body cannot be inlined. Keep only
+  // that terminal verdict within a read-only question, after pairing and write checks.
+  // Alias walks, unavailable initializers and function-option refusals remain live.
+  // The explicit read anchors only a spanless callee, as in the binding walk below.
+  const readNode = typeof hop.node.callee?.start === 'number' ? null : hop.readNode ?? null;
+  const opaqueCallees = hop.node.callee?.type === 'Identifier'
+    ? canonAnswerTable(resolveInlineCalleeFunction, [hop.ctx.scope, adapter, path, readNode]) : null;
+  if (opaqueCallees?.has(hop.node)) return null;
   // A named call asks about its module entry before following the same bindings as
   // callees. Share full records only during this proof, at the same scope and read.
   // The returned hop keeps the original adapter, so no lookup cache escapes.
@@ -3696,7 +3696,10 @@ export function resolveInlineCalleeFunction(hop, {
       // a zero-param FunctionDeclaration is the same inline shape (`function g() { return X; }
       // const B = g();`) - the declaration node IS the callee function
       const declNode = binding.path?.node ?? binding.node;
-      if (declNode?.type !== 'FunctionDeclaration') return null;
+      if (declNode?.type !== 'FunctionDeclaration') {
+        if (callee === hop.node.callee) opaqueCallees?.set(hop.node, true);
+        return null;
+      }
       callee = declNode;
     }
     seen.add(name);
@@ -5377,7 +5380,7 @@ export function navGuardTestBase(plan) {
 // `sideEffectsPastOffset` - asked once and complemented, so the halves stay EXHAUSTIVE: consumers
 // splice them as the whole effect list, and an offset that helper declines (a synthetic node has
 // no `start`) must leave every effect ahead of the probe, never drop it
-export function partitionEffectsAtProbe(effects, navStart) {
+function partitionEffectsAtProbe(effects, navStart) {
   const after = sideEffectsPastOffset(navStart, effects);
   const past = new Set(after);
   return { ahead: effects.filter(effect => !past.has(effect)), after };
@@ -5390,7 +5393,7 @@ export function partitionEffectsAtProbe(effects, navStart) {
 // This is a question only: no imports, skips, live claims or AST edits. Source identities and the
 // position belong to this read; deferred consumers capture the guard before rewriting, retain
 // the live effectsHost for child claims, and never cache the answer across source mutations.
-export function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
+function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   preserveRead = false, allowStoreHolder = false,
 } = {}) {
   const value = peelTransparentExpr(source);
@@ -5553,7 +5556,7 @@ export function navGuardSourcePlan(guard, resolvePure, ctx) {
     plan = planFor(root);
   }
   if (!plan || plan.topAssign || !plan.leafPure) return { source: claimProbeSourceSlot(guard, resolvePure, ctx) };
-  const prefix = navHopSequencePrefixes(guard, { unwrap: unwrapRuntimeExpr, ctx }).all;
+  const prefix = navHopSequencePrefixes(guard, ctx);
   if (plan.rootAssign) prefix.push(plan.rootAssign);
   if (plan.rootEffectCall && inlineCallHasObservableEffects({ callNode: plan.rootEffectCall, ...ctx })) {
     prefix.push(plan.rootEffectCall);
@@ -5572,7 +5575,7 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
 // Enrich a decided read or guarded value with source slots shared by both render channels.
 // A value probe preserves its terminal read; only a direct claim can fold the test navigation.
 function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
-  // The legacy navigation renderer retains this whole source read. Its effects still
+  // The navigation passthrough retains this whole source read. Its effects still
   // have the same source owner as the other probes; deferred drains need no offset fallback.
   if (decision.kind === 'passthrough') return { ...decision, retained: [decision.boundary.inner], consumed: [] };
   const { source } = decision;
@@ -5606,7 +5609,7 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
     if (test.source) retained.push(test.source.source);
     else retained.push(...test.prefix.map(item => item.source));
   }
-  const navPrefix = navHopSequencePrefixes(boundary.inner, { unwrap: unwrapRuntimeExpr, ctx }).all;
+  const navPrefix = navHopSequencePrefixes(boundary.inner, ctx);
   const prefix = navPrefix.filter(effect => retained.every(node => !subtreeContainsNode(node, effect)));
   const consumed = [...navPrefix, ...decision.keyEffects ?? [], ...decision.guardEffects ?? [],
     ...navPlan?.rootEffectCall ? [navPlan.rootEffectCall] : [],
@@ -5627,7 +5630,7 @@ export function directClaimProbeEffects(probe, effects = []) {
 // where the READ a rendered probe reproduces begins - asked of the SOURCE spelling, at plan time:
 // by drain time the collapse has rebuilt the init and its minted nodes carry no span, so the split
 // would hand the probe's own read back to the effect channel and run it twice
-export function discardedInitProbeNavStart(initNode) {
+function discardedInitProbeNavStart(initNode) {
   const tail = peelReceiverSequenceTail(initNode);
   // no SEQUENCE around the init means nothing precedes the read the probe reproduces: every effect
   // the harvest found lives INSIDE that read, and the probe carries it. `0` says exactly that -
@@ -5649,11 +5652,20 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
   const leafPlan = sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx, { probeLeaf: true });
   if (leafPlan) {
     const keyEffects = navComputedKeyEffects(nav);
-    return { ...leafPlan, ...claimProbeRenderPlan({
-      kind: 'value', source: initNode, boundary: { inner: nav }, leafPlan,
-      keyEffects, alternateEffects: keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect)),
-      navStart: discardedInitProbeNavStart(initNode), foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
-    }, resolvePure, aliasCtx) };
+    return claimProbeRenderPlan(
+      {
+        kind: 'value',
+        source: initNode,
+        boundary: { inner: nav },
+        leafPlan,
+        keyEffects,
+        alternateEffects: keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect)),
+        navStart: discardedInitProbeNavStart(initNode),
+        foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
+      },
+      resolvePure,
+      aliasCtx,
+    );
   }
   const aliasProbe = aliasHeldClaimProbe(sealedChainBoundary(nav)?.member ?? nav,
     resolvePure, aliasCtx, { allowStoreHolder: !arrayWrapped });
@@ -5718,7 +5730,7 @@ export function probedNavGuardValuePlan(source, resolvePure, ctx) {
 // the source's own global name, which IS that value (the probe reads a property off it exactly as
 // written, and the claim beside it still carries the polyfill). null when no single `?.` expresses
 // the short-circuit, or the leaf is neither ponyfilled nor a plain name
-export function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf = false } = {}) {
+function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf = false } = {}) {
   const verdict = undefinableOptionalGuard(nav, resolvePure, aliasCtx);
   if (verdict.kind !== 'guard') {
     // a value that IS the environment probe carries no `?.` for the verdict to key on - the

@@ -1277,6 +1277,10 @@ export default function createPlugin(options) {
             return name;
           },
         };
+        // Early claims finish before a render moves their source nodes. This walk alone
+        // remembers completion; another phase parses new nodes and starts independently.
+        // Files with no early claims need no node set or per-visit membership lookup.
+        const completedClaims = { nodes: null };
         const destructureEmit = createAstDestructureEmitter({
           adapter: estreeAdapter,
           injector: refFacade,
@@ -1286,7 +1290,7 @@ export default function createPlugin(options) {
           markRewrite() { astRewrote = true; },
           skippedNodes,
           markSubtreeSkipped,
-          claimLive: (nodes, at) => claimLive(walkVisitors, nodes, at),
+          claimLive: (nodes, at) => claimLive(walkVisitors, nodes, at, completedClaims),
           program: ast,
           resolvePure,
           resolveGlobalPolyfill,
@@ -1345,6 +1349,7 @@ export default function createPlugin(options) {
         });
         const usageVisitorOptions = {
           adapter: estreeAdapter,
+          completedClaims,
           // the part of a selection the build never evaluates is no usage: it is skipped, and a fold the
           // core asks for waits for the drain - folding HERE would reshape a receiver a claim still
           // pairs (an IIFE argument, a destructure init)
@@ -1373,7 +1378,7 @@ export default function createPlugin(options) {
           CatchClause(path) { destructureEmit.extractCatchClause(path); },
           ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
-        }), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
+        }, completedClaims), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
         // a pure walk rewrites as it goes, so only what holds through a rewrite is kept for it
         withVarScopeOwners(() => traverse(ast, mergeVisitors({
           $: { scope: true },
