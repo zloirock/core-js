@@ -1,40 +1,51 @@
+/// <reference types="../core-js-types/iterator-zip" />
+
 // https://github.com/tc39/proposal-joint-iteration
 
-interface ZipOptions {
-  mode?: 'shortest' | 'longest' | 'strict';
+// For ensuring compatibility with TypeScript standard types, this code is aligned with:
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.esnext.iterator.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
-  padding?: Iterable<unknown, unknown, undefined>;
-}
-
-interface ZipKeyedOptions {
-  mode?: 'shortest' | 'longest' | 'strict';
-
-  padding?: Record<PropertyKey, unknown>;
-}
-
-interface IteratorConstructor { // @type-options: no-extends
+interface IteratorConstructor {
   /**
-   * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
-   * to position in the passed iterable.
-   * @param iterables - An Iterable of iterables.
-   * @param options - Optional object:
-   *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-   *  - padding: an iterable specifying padding values for each position when mode is 'longest'.
-   * @returns An iterator yielding arrays of values, collected one from each iterable.
+   * Creates an iterator whose values are arrays containing values yielded at the same position by each input iterator or iterable.
+   * @param iterables - An iterable of iterators or iterables to zip.
+   * @param options - Controls how differing input lengths are handled.
    */
-  zip<T extends readonly Iterable<unknown>[]>(iterables: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never }, undefined, unknown>; // @type-options: prefix-return-type
-  zip<T>(iterables: Iterable<Iterable<T, unknown, undefined>>, options?: ZipOptions): IteratorObject<T[], undefined, unknown>; // @type-options: prefix-return-type
+  zip(iterables: readonly [], options?: CoreJS.CoreJSIteratorZipOptions<Iterable<unknown> & object>): IteratorObject<never, undefined, unknown>;
 
   /**
-   * Takes an object whose values are iterables and produces an iterable of objects where keys
-   * correspond to keys in the passed object.
-   * @param record - An object of iterables.
-   * @param options - Optional object:
-   *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-   *  - padding: an object specifying padding values for each key when mode is 'longest'.
-   * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
+   * Creates an iterator whose values are arrays containing values yielded at the same position by each input iterator or iterable.
+   * @param iterables - An iterable of iterators or iterables to zip.
+   * @param options - Controls how differing input lengths are handled.
    */
-  zipKeyed<T extends { [K in PropertyKey]: Iterable<unknown, unknown, undefined> }>(record: T, options?: ZipKeyedOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;  // @type-options: prefix-return-type
+  zip<T extends readonly CoreJS.CoreJSIteratorInput<unknown>[] | []>(iterables: T, options?: CoreJS.CoreJSIteratorZipShortestOptions | CoreJS.CoreJSIteratorZipStrictOptions): IteratorObject<CoreJS.CoreJSIteratorZipResult<T>, undefined, unknown>;
+  zip<T extends readonly CoreJS.CoreJSIteratorInput<unknown>[] | [], TPadding extends readonly unknown[] | []>(iterables: T, options: CoreJS.CoreJSIteratorZipLongestOptions<TPadding> & { padding: TPadding; }): IteratorObject<CoreJS.CoreJSIteratorZipResult<T, undefined, TPadding>, undefined, unknown>;
+  zip<T extends readonly CoreJS.CoreJSIteratorInput<unknown>[] | [], TPadding extends readonly unknown[] | [] = CoreJS.CoreJSIteratorZipDefaultPadding<T>>(iterables: T, options?: CoreJS.CoreJSIteratorZipOptions<TPadding>): IteratorObject<CoreJS.CoreJSIteratorZipResult<T, undefined, Partial<TPadding>>, undefined, unknown>;
+
+  /**
+   * Creates an iterator whose values are arrays containing values yielded at the same position by each input iterator or iterable.
+   * @param iterables - An iterable of iterators or iterables to zip.
+   * @param options - Controls how differing input lengths are handled.
+   */
+  zip<T extends CoreJS.CoreJSIteratorInput<unknown>>(iterables: Iterable<T> & object, options?: CoreJS.CoreJSIteratorZipShortestOptions | CoreJS.CoreJSIteratorZipStrictOptions): IteratorObject<CoreJS.CoreJSIteratorYield<T>[], undefined, unknown>;
+  zip<T extends CoreJS.CoreJSIteratorInput<unknown>, TPadding = CoreJS.CoreJSIteratorYield<T>>(iterables: Iterable<T> & object, options?: CoreJS.CoreJSIteratorZipOptions<Iterable<TPadding> & object>): IteratorObject<(CoreJS.CoreJSIteratorYield<T> | TPadding | undefined)[], undefined, unknown>;
+
+  /**
+   * Creates an iterator whose values are objects containing values yielded at the same position by each iterator or iterable in the input object.
+   * @param iterables - An object whose enumerable own properties contain iterators or iterables to zip. Undefined values are ignored.
+   * @param options - Controls how differing input lengths are handled.
+   */
+  zipKeyed<T extends object>(iterables: T & CoreJS.CoreJSIteratorZipKeyedInput<T>, options?: CoreJS.CoreJSIteratorZipShortestOptions | CoreJS.CoreJSIteratorZipStrictOptions): IteratorObject<CoreJS.CoreJSIteratorZipKeyedResult<T>, undefined, unknown>;
+  zipKeyed<T extends object, TPadding>(iterables: T & CoreJS.CoreJSIteratorZipKeyedInput<T>, options: CoreJS.CoreJSIteratorZipLongestOptions<TPadding> & { padding: TPadding; }): IteratorObject<CoreJS.CoreJSIteratorZipKeyedResult<T, undefined, TPadding>, undefined, unknown>;
+  zipKeyed<T extends object, TPadding = CoreJS.CoreJSIteratorZipDefaultPadding<T>>(iterables: T & CoreJS.CoreJSIteratorZipKeyedInput<T>, options?: CoreJS.CoreJSIteratorZipOptions<TPadding>): IteratorObject<CoreJS.CoreJSIteratorZipKeyedResult<T, undefined, Partial<TPadding>>, undefined, unknown>;
+
+  /**
+   * Accepts objects whose types include inherited or non-enumerable properties.
+   * Property ownership and enumerability are not represented in object types, so the result values are unknown.
+   * Iterator records use the preceding overloads to preserve their inferred result types.
+   */
+  zipKeyed<T extends object>(iterables: T & ([T] extends [CoreJS.CoreJSIteratorZipKeyedInput<T>] ? never : unknown), options?: CoreJS.CoreJSIteratorZipOptions<object>): IteratorObject<Record<PropertyKey, unknown>, undefined, unknown>;
 }
 
 declare var Iterator: IteratorConstructor;

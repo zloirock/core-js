@@ -15,5 +15,5 @@ core-js/proposals/object-getownpropertydescriptors
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/object-get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/object-get-own-property-descriptors.d.ts)
+[`@core-js/types/proposals/object-getownpropertydescriptors`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/object-get-own-property-descriptors.d.ts)
 

@@ -15,4 +15,4 @@ core-js/proposals/promise-all-settled
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/promise-all-settled`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/promise-all-settled.d.ts)
+[`@core-js/types/proposals/promise-all-settled`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/promise-all-settled.d.ts)
