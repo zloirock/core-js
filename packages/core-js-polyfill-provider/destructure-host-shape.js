@@ -2042,6 +2042,22 @@ export function keyedReadDiscardedReceiver({ receiver, proven, readsReceiver, ct
     ? discardRescueNodesWithReads({ node: unwrapRuntimeExpr(receiver), ...ctx }) : null;
 }
 
+// Finish the sole-key plan before either binding rewrites its source. A receiver
+// with no reader owes only its effects; otherwise it is reused, delayed past the key
+// under a non-null proof, or captured once. Deferred apply supplies the live receiver
+// and the saved proof/effect slots, without proving a rewritten initializer again.
+export function keyedReadEvaluation(plan, {
+  init, hostPath, readsReceiver, ctx,
+  receiver = plan.receiver,
+  proven = keyedReadReceiverProven({ init, hostPath, adapter: ctx?.adapter }),
+  discarded = keyedReadDiscardedReceiver({ receiver, proven, readsReceiver, ctx }),
+}) {
+  const inlineReceiver = proven && plan.inlineReceiver;
+  const reuseReceiver = inlineReceiver || plan.reuseReceiver && unwrapRuntimeExpr(receiver)?.type === 'Identifier';
+  return { proven, discarded, inlineReceiver, reuseReceiver,
+    storeReceiver: plan.exported && !reuseReceiver && !discarded };
+}
+
 // the target of a leaf the render serves a value that is never undefined: its default leaves the tree, and
 // the writes in it with it
 function droppedDefaultTarget(prop) {

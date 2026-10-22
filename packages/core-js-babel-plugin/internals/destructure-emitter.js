@@ -210,7 +210,7 @@ import {
   isForInitDeclaration,
   planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
-  keyedReadDiscardedReceiver,
+  keyedReadEvaluation,
   keyedReadReceiverProven,
   renderRetainedObjectCapture,
   bodylessSlotReplacement,
@@ -1879,14 +1879,6 @@ export default function createDestructureEmitter({
     return realmNav ? realmNav.effects : [assignPath.node.right];
   }
 
-  // does this cascade leave NO reader of the receiver tail? every prop consumed, no rest gathering
-  // the remainder and no hop a rest keeps alive - the shape whose render drops the init outright. an
-  // ANCHORED prop is not this: its residual re-reads the tail through the constructor's pure binding
-  function cascadeFullyConsumes(plan) {
-    return plan.outerProps.every(outer => outer.kind === 'consumed')
-      && !plan.pattern.properties.some(isRestProperty) && !plan.restKeepsLevel;
-  }
-
   function cascadeAssignmentExpressionDestructure({ assignPath, prop, peeled, requireAnchored = false }) {
     const rawStmt = peeled.exprStmt;
     // a host an earlier cascade rendered answers its props from that render, and the host-level trigger re-enters it
@@ -1910,7 +1902,7 @@ export default function createDestructureEmitter({
     // (a deferred-drain clone re-plans with an empty harvest), so the null is safe there. a render
     // consuming every prop keeps no reader of the tail at all, so the harvest is the only channel
     // its effects have left
-    if (!cascadeFullyConsumes(plan)) plan.discardSe = null;
+    if (!plan.evaluation.consumesAll) plan.discardSe = null;
     cascadedAssignments.add(assignPath.node);
     const assigns = [];
     plan.outerProps.forEach((outer, i) => {
@@ -1947,11 +1939,8 @@ export default function createDestructureEmitter({
     // host is the emission). both require no SE prefixes / rest sentinels around them
     // ... and a REST that keeps a hop level alive keeps the host with it: the extractions land
     // beside the residual, never in its place
-    const fullyConsumed = cascadeFullyConsumes(plan);
-    // an ANCHORED prop discards the init too (its residual reads the ctor binding), so the
-    // probe question is "does this render discard the init", not "is every prop consumed"
-    const discardsInit = fullyConsumed || (plan.outerProps.every(o => o.kind === 'consumed' || o.kind === 'anchored')
-      && !plan.pattern.properties.some(isRestProperty) && !plan.restKeepsLevel);
+    const fullyConsumed = plan.evaluation.consumesAll;
+    const { discardsInit } = plan.evaluation;
     // an UNDEFINABLE probe nav under a full-consume assignment host: ride the guarded
     // first-key read ahead of the first extraction assign - same canon as the declarator host
     if (discardsInit && assigns.length) {
@@ -3623,15 +3612,9 @@ export default function createDestructureEmitter({
     const keyedPattern = keyReadPlan?.sole && isSymbolIteratorPatternClaim(prop.node, entry) ? prop.node.value : null;
     if (keyReadPlan?.sole && (propBindingIdentifier(prop.node.value) || keyedPattern)) {
       const declarator = prop.parentPath.parentPath;
-      const proven = keyedReadReceiverProven({ init: declarator.node.init, hostPath: declarator, adapter });
-      const discarded = keyedReadDiscardedReceiver({
-        receiver: keyReadPlan.receiver,
-        proven,
-        readsReceiver: kind === 'instance',
-        ctx: aliasCtxFromPath(prop),
+      const { proven, discarded, inlineReceiver, reuseReceiver, storeReceiver } = keyedReadEvaluation(keyReadPlan, {
+        init: declarator.node.init, hostPath: declarator, readsReceiver: kind === 'instance', ctx: aliasCtxFromPath(prop),
       });
-      const inlineReceiver = proven && keyReadPlan.inlineReceiver;
-      const reuseReceiver = keyReadPlan.reuseReceiver || inlineReceiver;
       const receiverRef = inlineReceiver ? keyReadPlan.receiver
         : keyReadPlan.reuseReceiver ? t.identifier(unwrapRuntimeExpr(keyReadPlan.receiver).name)
         : discarded ? null : keyReadPlan.exported ? generateRef(prop.scope, prop.node) : generateLocalRef(prop.scope);
@@ -3664,7 +3647,7 @@ export default function createDestructureEmitter({
         binding: hostSlot(binding),
         keys: keyReadPlan.keys.map(key => hostSlot(t.cloneWithoutRetiring(key))),
         read: hostSlot(read),
-        storeReceiver: keyReadPlan.exported && !reuseReceiver && !discarded,
+        storeReceiver,
         reuseReceiver,
         proven,
         // what discarding an unread receiver runs moves the same way: the requeue renders its claims,
@@ -5423,8 +5406,7 @@ export default function createDestructureEmitter({
     if (!hostDeclarator) return false;
     const fake = { id: hostDeclarator.node.id, init, loc: hostDeclarator.node.loc };
     const plan = buildFlattenPlan({ declaratorNode: fake, scope: prop.scope, path: prop });
-    return !!plan?.outerProps?.length && !plan.pattern.properties.some(isRestProperty)
-      && plan.outerProps.every(outer => outer.kind === 'consumed' || outer.kind === 'anchored');
+    return !!plan?.outerProps?.length && plan.evaluation.consumesPattern;
   }
 
   // what a memo ALIASES once the collapse has run: a proxy-global member (`_globalThis.Array`) makes

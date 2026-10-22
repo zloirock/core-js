@@ -29,8 +29,14 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   bodylessSlotReplacement,
+  keyedReadEvaluation,
 } from '@core-js/polyfill-provider/destructure-host-shape';
-import { hostLevelSurvives, planCatchClauseExtraction } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import {
+  hostLevelSurvives,
+  planCatchClauseExtraction,
+  residualPrecedesExtractions,
+  sentinelMemoInitShape,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   planMemoReadTarget,
   shouldDropRescueReceiver,
@@ -159,10 +165,8 @@ import {
   renderDiscardedInitProbe,
   renderSealedNavProbe,
   residualKeepsSibling,
-  residualPrecedesExtractions,
   sealedNavProbeRead,
   seKeySegmentedDeclarators,
-  sentinelMemoInitShape,
   spellsSameSource,
   splitMultiDeclaratorHost,
   substituteProxyRootsInClone,
@@ -1226,8 +1230,9 @@ export default function createDestructureDrains(ctx) {
       const running = job.receiverSlot ? job.receiverSlot.owner[job.receiverSlot.key] : job.declarator.init;
       const receiver = unwrapRuntimeExpr(running);
       const discarded = job.discardedSlots?.map(({ owner, key }) => owner[key]);
-      const inlineReceiver = job.proven && job.keyReadPlan.inlineReceiver;
-      const reuseReceiver = inlineReceiver || job.keyReadPlan.reuseReceiver && receiver?.type === 'Identifier';
+      const { inlineReceiver, reuseReceiver, storeReceiver } = keyedReadEvaluation(job.keyReadPlan, {
+        receiver: running, proven: !!job.proven, discarded,
+      });
       const receiverRef = reuseReceiver ? receiver.name : discarded ? null : job.receiverName ?? mintRefName();
       const liveKeys = destructureKeyReadPlan({
         node: job.prop,
@@ -1239,7 +1244,7 @@ export default function createDestructureDrains(ctx) {
         binding: job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop),
         keys: liveKeys.map(key => cloneNode(key)),
         read: job.value(inlineReceiver ? null : receiverRef),
-        storeReceiver: job.keyReadPlan.exported && !reuseReceiver && !discarded,
+        storeReceiver,
         reuseReceiver,
         proven: !!job.proven,
         discarded,
@@ -1249,6 +1254,8 @@ export default function createDestructureDrains(ctx) {
     }
   }
 
+  // Apply each host's jobs on its final tree. Remove consumed props and emptied hosts,
+  // then place extractions and surviving residuals in source property order.
   // eslint-disable-next-line max-statements -- one flush pass dispatches every host kind
   function drain() {
     drainSynthLiterals();
@@ -2404,7 +2411,7 @@ export default function createDestructureDrains(ctx) {
         continue;
       }
       // a leaf the join does not append (a consumed static beside it) stands AHEAD of its residual
-      const residualFirst = residualPrecedesExtractions(declarator, declJobsHere, sourceProps.get(declarator));
+      const residualFirst = residualPrecedesExtractions(declarator.id, declJobsHere.map(jobOuterProp), sourceProps.get(declarator));
       const leading = extractions.filter((item, index) => !declJobsHere[index].siblingAppend
         || declJobsHere[index].capturedSibling && !residualFirst);
       // ... and a residual left reading only what the claims read leaves the join
@@ -2560,7 +2567,7 @@ export default function createDestructureDrains(ctx) {
         // ... and it keeps its own SOURCE slot: a hop written before every consumed one is
         // emitted first (`{ [S]: kept } = _Map; const fe = _Object$fromEntries;`). asked
         // BEFORE the re-anchor, which swaps the pattern for the hop's own inner one
-        const residualFirst = residualPrecedesExtractions(declarator, declJobsHere, sourceProps.get(declarator));
+        const residualFirst = residualPrecedesExtractions(declarator.id, declJobsHere.map(jobOuterProp), sourceProps.get(declarator));
         const anchored = declJobsHere.length > 0
           && reanchorSoleCtorHopResidual(declarator, { metaPath: declJobsHere[0]?.metaPath ?? null });
         if (anchored) touched = true;
