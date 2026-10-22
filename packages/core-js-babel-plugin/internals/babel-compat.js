@@ -97,6 +97,7 @@ import {
   nullFirstGuardTest,
   renderClaimProbe,
   renderMethodCall,
+  renderGuardedMethodCall,
   renderOptionalMethodCall,
   renderReceiverMemo,
   planMethodCall,
@@ -642,15 +643,20 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const { prefix, tail } = peelNestedSequenceExpressions(node);
     // The first read owns comments; repeated reads only need the stable tail.
     const value = prefix.length ? tail : node;
-    if (isReusableReceiver(value, { interveningEffects, directCallee, ctx })) {
-      return [t.cloneNode(node), t.removeComments(t.cloneNode(value))];
-    }
-    const ref = generateRef(scope, anchorNode);
-    const assign = t.assignmentExpression('=', t.cloneNode(ref), node);
-    // register the synthetic write so a RE-VISIT of the memo body can follow the ref back to
-    // its value (the assignment never appears in scope constantViolations)
-    getInjector?.()?.recordMemoWrite?.(ref.name, assign);
-    return [assign, ref];
+    const { firstRead, makeBase } = renderReceiverMemo({
+      firstReceiver: node, receiver: value,
+      capture: !isReusableReceiver(value, { interveningEffects, directCallee, ctx }),
+    }, {
+      mintRef: () => generateRef(scope, anchorNode).name,
+      embed: (source, role) => hostSlot(role === 'capture' ? source
+        : role === 'receiver' ? t.removeComments(t.cloneNode(source)) : t.cloneNode(source)),
+      recordCapture(write) {
+        const assign = estreeToBabel(write);
+        getInjector?.()?.recordMemoWrite?.(assign.left.name, assign);
+        return hostSlot(assign);
+      },
+    });
+    return [estreeToBabel(firstRead), estreeToBabel(makeBase())];
   }
 
   // resolve the expression's Type object - no-op when the factory was constructed without
@@ -1140,6 +1146,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     lookupGuard = null,
     sideEffects = [],
     receiverEffectCount = 0,
+    leadingEffects = [],
+    callPath = null,
   }) {
     const receiverCtx = anchorPath && {
       scope,
@@ -1154,11 +1162,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       receiverEffectCount,
       args,
       optional: optionalCall,
+      callPath,
       ctx: receiverCtx,
     });
     const result = estreeToBabel(renderMethodCall(decision, {
       helper: hostSlot(id),
       lookupGuard,
+      leadingEffects,
       mintRef: () => generateRef(scope, anchorNode ?? decision.ctx?.path?.node ?? object).name,
       embed(node, role) {
         if (role === 'capture') return hostSlot(node);
@@ -2793,17 +2803,20 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         scope: path.scope,
         args: parent.arguments,
         optionalCall: parent.optional,
+        callPath: callerPath.parentPath,
+        leadingEffects: guardedRecv ? effectiveSE : hoistedSE,
         anchorNode: parent,
         anchorPath: path,
         ...ordinaryCall ? { sourceReceiver: receiverSource, sideEffects: effectiveSE, receiverEffectCount } : {},
       })
       : t.callExpression(id, [cloneReceiverForEmit({ t, collapse: collapseKeptNavValueNode, node: recvNode, path, types: resolvedType })]);
     const result = guardedRecv
-      ? markGuardedClaim(t.conditionalExpression(guardedRecv.test, guardedRecv.consequent, withSideEffects(built, effectiveSE)))
+      ? markGuardedClaim(t.conditionalExpression(guardedRecv.test, guardedRecv.consequent,
+        withSideEffects(built, isCall ? null : effectiveSE)))
       : built;
     replaceAndWrap({
       replacePath: isCall ? callerPath.parentPath : path,
-      result: withSideEffects(result, hoistedSE),
+      result: withSideEffects(result, isCall ? null : hoistedSE),
       check,
     });
   }
@@ -2841,12 +2854,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         adapter: getAdapter?.(),
         injectorState: getInjector(),
       });
-      const guardedSE = wrapConditional(memoAssign,
-        withSideEffects(t.unaryExpression('void', t.numericLiteral(0)),
-          effectiveSE.filter(effect => !subtreeContainsNode(path.node.object, effect))));
-      callerPath.parentPath.replaceWith(
-        t.sequenceExpression([guardedSE, t.callExpression(id, [t.cloneNode(memoRef)])]),
-      );
+      const decision = planMethodCall({
+        receiver: memoRef, prepared: true,
+        sideEffects: effectiveSE.filter(effect => !subtreeContainsNode(path.node.object, effect)),
+      });
+      const { built } = renderGuardedMethodCall(decision, {
+        helper: hostSlot(id), guard: { checks: [hostSlot(memoAssign)], receiver: memoRef },
+        invoke: false, sealed: true, embed: node => hostSlot(t.cloneNode(node)),
+      });
+      callerPath.parentPath.replaceWith(estreeToBabel(built));
       return;
     }
     const [check, object] = extractCheck(path, skipOptional,

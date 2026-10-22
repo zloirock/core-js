@@ -54,6 +54,7 @@ import {
   nullFirstGuardTest,
   renderInExpressionPlan,
   renderMethodCall,
+  renderGuardedMethodCall,
   planMethodCall,
   renderProxyReceiverPlan,
 } from '@core-js/polyfill-provider/render';
@@ -224,15 +225,12 @@ export default function createAstUsagePureCallback({
   const bareOptionalCtx = {
     adapter,
     injectorState,
-    isReusableReceiver,
     injectPureImport,
     markRewrite,
     skippedNodes,
     injector,
-    assignmentExpression,
   };
-  // what the module-scope SE-key read memo needs (the builder rides along:
-  // the assignment builder is the one slot this closure owns)
+  // Source context for the SE-key binding and the navigation tail's instance memo.
   const seKeyReadCtx = {
     adapter,
     injectorState,
@@ -364,34 +362,22 @@ export default function createAstUsagePureCallback({
   // `x[S]?.(args)` - the method memo dispatches with its `this` kept:
   // `_getIteratorMethod(x)?.call(x, args)`, receiver memoized when not reusable; the own
   // chain wrapper appears only when the source chain does not continue above
-  function emitSymbolIteratorOptionalCall({ metaPath, id, object, parent, memberOptional = false }) {
-    const receiverCore = unwrapRuntimeExpr(object);
-    const receiver = receiverCore?.type === 'SequenceExpression' ? peelReceiverSequenceTail(receiverCore) : object;
-    const reusable = isReusableReceiver(receiver, { ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState } });
-    // The doubly-optional spelling guards the receiver before the lookup can invoke a getter.
-    let lookupArg;
-    let callReceiver;
-    let receiverCheck = null;
-    if (reusable) {
-      lookupArg = cloneNode(memberOptional ? receiver : object);
-      callReceiver = cloneNode(receiver);
-    } else {
-      const ref = injector.generateDeclaredRef(metaPath);
-      const capture = assignmentExpression('=', identifier(ref), cloneNode(object));
-      if (memberOptional) receiverCheck = capture;
-      lookupArg = memberOptional ? identifier(ref) : capture;
-      callReceiver = identifier(ref);
-    }
-    const dispatch = renderMethodCall(planMethodCall({
-      receiver: callReceiver, prepared: true, optional: true, args: parent.arguments,
-    }), { lookup: callExpression(identifier(id), [lookupArg]), chain: false, embed: cloneNode });
+  function emitSymbolIteratorOptionalCall({ metaPath, id, object, parent, memberOptional = false, sideEffects, receiverEffectCount }) {
     const callPath = metaPath.parentPath;
-    const upNode = callPath.parentPath?.node;
-    const chainContinues = upNode
-      && ((upNode.type === 'MemberExpression' && upNode.object === parent)
-        || (upNode.type === 'CallExpression' && upNode.callee === parent));
+    const decision = planMethodCall({
+      receiver: object, optional: true, args: parent.arguments, sideEffects, receiverEffectCount,
+      callPath,
+      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+    });
+    const hooks = {
+      helper: identifier(id), chain: false,
+      mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
+    };
+    const product = memberOptional ? renderGuardedMethodCall(decision, hooks) : null;
+    const dispatch = product ? product.built : renderMethodCall(decision, hooks);
+    const chainContinues = decision.continues;
     if (memberOptional) {
-      const testRead = receiverCheck ?? cloneNode(object);
+      const [testRead] = product.checks;
       probeTestClones.add(testRead);
       replaceGuardedHop({ hopPath: callPath, test: nullGuardTest(testRead), built: dispatch, skippedNodes });
       return;
@@ -452,7 +438,8 @@ export default function createAstUsagePureCallback({
       state.effects = pendingEffects.filter(effect => !subtreeContainsNode(state.object, effect));
       return true;
     }
-    if (state.callOptional) return false; // an optional CALL under SE - staged
+    // The optional call product owns receiver capture and key effects together.
+    if (state.callOptional) return true;
     // the member's own `?.` splits the effects by side: the KEY's run inside the alternate,
     // where native order puts them, and the RECEIVER's stay spelled in the memo the guard
     // test builds (`(r(), recv)?.[(k(), S)]()` -> `null == (_ref = (r(), recv)) ? void 0 :
@@ -625,7 +612,10 @@ export default function createAstUsagePureCallback({
     if (state.pendingReceiverOnly) {
       object = foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHopSpine, injectPureImport }) ?? object;
     }
-    if (callOptional) return emitSymbolIteratorOptionalCall({ metaPath, id, object, parent, memberOptional });
+    if (callOptional) return emitSymbolIteratorOptionalCall({
+      metaPath, id, object, parent, memberOptional, sideEffects: state.pendingEffects,
+      receiverEffectCount: state.pendingEffects.filter(effect => state.receiverSe.has(effect)).length,
+    });
     const consumesCall = entry === 'get-iterator';
     // extracted from its chain, a carrier receiver takes a wrapper of its own for the print
     function receiverClone() {
@@ -654,8 +644,7 @@ export default function createAstUsagePureCallback({
       && (effects?.length || methodCallConsume || meta.sideEffects?.length)) {
       return emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects: effects ?? [], methodCallConsume }, {
         guardObject,
-        composeGuardTest,
-        buildSymbolConsumeCore,
+        adapter,
         injectorState,
         skippedNodes,
       });
@@ -677,14 +666,14 @@ export default function createAstUsagePureCallback({
 
   // the consume CORE: the helper call, and for the method form its `.call` dispatch -
   // a non-reusable receiver memoizes into the helper argument
-  function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone, lookup = null }) {
-    if (!methodCallConsume) return lookup ?? callExpression(identifier(id), [receiverClone()]);
+  function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone }) {
+    if (!methodCallConsume) return callExpression(identifier(id), [receiverClone()]);
     const decision = planMethodCall({
-      receiver: object, prepared: !!lookup, args: callerPath.node.arguments,
+      receiver: object, args: callerPath.node.arguments,
       ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
     });
     return renderMethodCall(decision, {
-      helper: identifier(id), lookup,
+      helper: identifier(id),
       mintRef: () => injector.generateDeclaredRef(metaPath),
       embed: (node, role) => role === 'lookup' || role === 'capture' ? receiverClone() : cloneNode(node),
     });
@@ -694,19 +683,22 @@ export default function createAstUsagePureCallback({
   // receiver memoizes through the shared guard
   function emitGuardedSymbolConsume({ metaPath, id, object, effects, methodCallConsume, callerPath, hopPath }) {
     const guard = guardObject(object, metaPath, { interveningEffects: !!effects?.length });
-    let guardedCore = callExpression(identifier(id), [guard.makeBase()]);
-    if (methodCallConsume) {
-      guardedCore = renderMethodCall(planMethodCall({
-        receiver: guard.makeBase(), prepared: true, args: callerPath.node.arguments,
-        ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-      }), { lookup: guardedCore, embed: cloneNode });
-    }
+    const decision = planMethodCall({
+      receiver: guard.makeBase(), prepared: true, sideEffects: effects,
+      args: callerPath?.node?.arguments,
+      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
+    });
+    const { built } = renderGuardedMethodCall(decision, {
+      helper: identifier(id), guard: { checks: guard.disjuncts, receiver: guard.makeBase() },
+      invoke: methodCallConsume,
+      embed: (node, role) => role === 'receiver' ? guard.makeBase() : cloneNode(node),
+    });
     const [check] = guard.disjuncts;
     // the split hands raw CHECKS - the spelling is the canon's, at the render boundary
     // the shared climb absorbs the plain tail into the alternate
     // (`x?.[S]().next()` -> `x == null ? void 0 : _getIterator(x).next()`)
     probeTestClones.add(check);
-    replaceGuardedHop({ hopPath, test: nullGuardTest(check), built: withSideEffects(guardedCore, effects), skippedNodes });
+    replaceGuardedHop({ hopPath, test: nullGuardTest(check), built, skippedNodes });
   }
 
   // a logical-assignment PATCH bails the write position like any other, but its DETECT is the

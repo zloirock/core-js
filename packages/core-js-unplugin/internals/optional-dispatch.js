@@ -59,6 +59,7 @@ import {
   memberExpression,
   nullGuardTest,
   renderMethodCall,
+  renderGuardedMethodCall,
   renderOptionalMethodCall,
   renderReceiverMemo,
   planMethodCall,
@@ -1549,14 +1550,12 @@ export default function createOptionalDispatchChannel(ctx) {
     if (methodCall && parent.optional && !memberOptional && !receiverCarriesOptional(node.object)) {
       return emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPath, meta, entry, hintName },
         {
-          isReusableReceiver,
           injectPureImport,
           markRewrite,
           skippedNodes,
           injector,
           injectorState,
           adapter,
-          assignmentExpression,
           resolvePure,
           receiverPure,
         });
@@ -1654,16 +1653,18 @@ export default function createOptionalDispatchChannel(ctx) {
       return;
     }
     // The optional member's own guard captures the receiver before its key effects.
-    const ref = injector.generateDeclaredRef(metaPath);
-    const memo = assignmentExpression('=', identifier(ref), cloneNode(effReceiver));
-    const dispatch = renderMethodCall(planMethodCall({
-      receiver: identifier(ref), prepared: true, args: parent.arguments, ctx: receiverCtx,
-    }), { lookup: callExpression(identifier(id), [identifier(ref)]), embed: cloneNode });
-    const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(effReceiver, effect)).map(effect => cloneNode(effect));
+    const decision = planMethodCall({
+      receiver: effReceiver,
+      sideEffects: meta.sideEffects.filter(effect => !subtreeContainsNode(effReceiver, effect)),
+      args: parent.arguments, ctx: receiverCtx,
+    });
+    const { checks, built } = renderGuardedMethodCall({ ...decision, capture: true }, {
+      helper: identifier(id), mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
+    });
     markRewrite();
     replaceGuardedHop({
-      hopPath: callerPath, test: composeGuardTest(guardDisjuncts, memo),
-      built: withSideEffects(dispatch, effects), skippedNodes,
+      hopPath: callerPath, test: composeGuardTest([...guardDisjuncts ?? [], ...checks], null),
+      built, skippedNodes,
     });
   }
 
