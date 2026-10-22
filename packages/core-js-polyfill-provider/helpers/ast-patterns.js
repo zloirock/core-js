@@ -15255,6 +15255,16 @@ export function stepOverChainWrappers(child, up, atRoot = false) {
   return [child, up];
 }
 
+// A call's value feeds the next member or callee through source wrappers. Effect prefixes
+// must stay inside an optional invocation's lookup in that position: a sequence around
+// its result would seal the chain. Existing source seals still belong to the host tree.
+export function callResultIsChainBase(path) {
+  if (!path?.node) return false;
+  const [child, up] = stepOverChainWrappers(path.node, path.parentPath);
+  const reader = up?.node;
+  return isMemberAccessNode(reader) ? reader.object === child : invocationNode(reader)?.callee === child;
+}
+
 // how far the member chain above this node runs, following only the OBJECT side: a node reached as
 // the computed PROPERTY of the member above it is a sibling expression, not a continuation.
 // `throughSequenceTail` opts into climbing out of a SEQUENCE whose last operand the chain reads - the
