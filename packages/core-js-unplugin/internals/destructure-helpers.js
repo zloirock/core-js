@@ -96,6 +96,8 @@ import {
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
   renderStaticDefaultGuard,
+  exportDeclaration,
+  renderDestructureStatements,
 } from '@core-js/polyfill-provider/render';
 
 // The local binding name, including a slot default (`{ flat: method = fallback }`).
@@ -370,8 +372,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   memoCtx = null,
 }) {
   const sentinelKept = jobs.some(job => job.sentinel);
-  const statements = jobs.map(job => expressionStatement(
-    assignmentExpression('=', propBindingTarget(job.prop), job.value())));
+  const statements = renderDestructureStatements(jobs.map(job => ({ id: propBindingTarget(job.prop), init: job.value() })));
   // the lifted SE prefix runs first, once - re-derived from the CURRENT right, the way the statement
   // drain derives its own: the walk rewrites the claims INSIDE the prefix in place, and the nodes the
   // job recorded are the pre-rewrite originals (lifting those printed a native `log.push` where the
@@ -439,8 +440,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       statements[index].expression.right = job.value(memoRef);
     }
     bodylessAssign.right = identifier(memoRef);
-    statements.unshift(variableDeclaration('const',
-      [variableDeclarator(identifier(memoRef), memoInit)]));
+    statements.unshift(...renderDestructureStatements([], { capture: { name: memoRef, value: memoInit } }));
     // ... behind the memo, which the extractions read: the declaration order both legs print
     if (varDecl.length) statements.splice(1, 0, ...varDecl);
     if (bodylessAssign.left.properties.length !== 0) statements.push(expressionStatement(bodylessAssign));
@@ -458,9 +458,9 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter: memoCtx?.adapter }));
     // the sentinel `var` LEADS the block whatever the order below: it declares, it does not run, and
     // that is where the other leg plants it
-    const body = seKeyFirst
-      ? [...varDecl, residual, ...statements]
-      : [...varDecl, ...statements, residual];
+    const body = [...varDecl, ...renderDestructureStatements(statements.map(statement => ({ statement })), {
+      residual, residualAt: seKeyFirst ? 0 : statements.length,
+    })];
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
@@ -495,9 +495,9 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
     const flat = paired.filter(entry => !entry.job.chain?.length).map(entry => entry.statement);
     const nested = paired.filter(entry => entry.job.chain?.length).map(entry => entry.statement);
     const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
-    const body = anchored
-      ? [...prefixStatements, residual, ...flat, ...nested]
-      : [...prefixStatements, ...flat, residual, ...nested];
+    const body = [...prefixStatements, ...renderDestructureStatements(flat.map(statement => ({ statement })), {
+      residual, residualAt: anchored ? 0 : flat.length,
+    }), ...nested];
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
@@ -505,8 +505,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   if (jobs.length > 1 && !seqPrefix?.length && mayHaveSideEffects(bodylessAssign.right)) return;
   // several extractions wrap the bodyless slot in a block (babel's scope.push shape);
   // a single one keeps the bare statement
-  const replacement = statements.length === 1
-    ? statements[0] : { type: 'BlockStatement', body: statements };
+  const replacement = bodylessSlotReplacement(hostNode, statements);
   if (replaceNodeInTree(program, hostNode, replacement)) markRewrite();
 }
 
@@ -723,12 +722,6 @@ export function warnConditionalFallbackUntouched(meta, metaPath, { getDebugOutpu
   const debug = getDebugOutput?.();
   if (!debug || !fallbackDestructureHasPolyfillableBranch({ meta, path: metaPath, adapter, resolvePure })) return;
   debug.warn?.(conditionalDestructureLeftUntouchedWarning(meta.key));
-}
-
-// re-wrap a split statement for an export host; a minted memo stays module-local
-export function exportWrap(statement, exported) {
-  if (!exported) return statement;
-  return { type: 'ExportNamedDeclaration', declaration: statement, specifiers: [], source: null, attributes: [] };
 }
 
 // a pattern-valued symbol extraction lands ahead of PLAIN sibling extractions (the locked
@@ -1843,7 +1836,7 @@ export function drainBodylessWrapKinds({ kind, kindJobs, hostNode }, { program, 
 export function emitDeclaratorMemo({ refName, declarator, statements, declJobs, kind }) {
   if (!refName) return null;
   const memoisedInit = splitDeclaratorMemo({ refName, declarator, declJobs });
-  statements.push(variableDeclaration(kind, [variableDeclarator(identifier(refName), memoisedInit)]));
+  statements.push(...renderDestructureStatements([], { capture: { name: refName, value: memoisedInit, kind } }));
   return memoisedInit;
 }
 
@@ -1886,8 +1879,9 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
   for (const statement of statements) {
     if (statement.declarations.length <= 1) continue;
     const at = target.body.indexOf(statement);
-    target.body.splice(at, 1, ...statement.declarations
-      .map(item => variableDeclaration(memoDeclarators.has(item) ? 'const' : statement.kind, [item])));
+    target.body.splice(at, 1, ...statement.declarations.flatMap(item => renderDestructureStatements([item], {
+      kind: memoDeclarators.has(item) ? 'const' : statement.kind,
+    })));
     markRewrite();
   }
 }
@@ -2226,7 +2220,7 @@ export function joinSeKeySiblingDeclarator({
   if (declJobsHere.some(job => !(job.sentinel && job.seKey && !job.catchBorn && !job.chain?.length))) return false;
   if (declJobsHere.some(job => !job.readsReceiver)) return false;
   const jobs = orderDeclaratorJobs(declJobsHere);
-  statements.push(exportWrap(variableDeclaration(hostNode.kind,
+  statements.push(exportDeclaration(variableDeclaration(hostNode.kind,
     // ... and props AFTER the job's own read segment the same way: the source reads them past
     // the extraction, so they follow it in their own declarator (`{ [k]: _unused } = _ref, m =
     // ..., { other } = _ref`)
