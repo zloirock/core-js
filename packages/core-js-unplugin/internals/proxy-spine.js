@@ -966,6 +966,9 @@ export default function createProxySpineChannel(ctx) {
     let cursor = metaPath;
     for (let up = metaPath.parentPath; up?.node; up = up.parentPath) {
       const upNode = up.node;
+      // A deferred owner may keep the probe's children live while owning the guard
+      // above it. Rewriting that parent would add a second guard around its result.
+      if (skippedNodes.has(upNode)) break;
       // step through the kept write and its wrappers (`(held = globalThis)?.window`):
       // the plan's chain-assign dig owns the store, the climb only finds the leaf. a SEAL - the
       // paren, a cast in it, the chain marker it closes - is one of those wrappers: whether the

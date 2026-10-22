@@ -752,8 +752,22 @@ export function planSynthReceiverGuard({ receiver, scope, adapter, path, resolve
   const effects = collectFoldedReceiverSideEffects(node, { rescue, ctx: aliasCtx });
   const at = effects.indexOf(probe);
   if (at === -1) return null;
-  return { probe, fallback: core.type === 'LogicalExpression' ? core : null, ahead: effects.slice(0, at),
-    after: effects.slice(at + 1).filter(effect => !subtreeContainsNode(probe, effect)) };
+  const ahead = effects.slice(0, at);
+  const after = effects.slice(at + 1).filter(effect => !subtreeContainsNode(probe, effect));
+  // Deferred synths keep this source proof while child claims replace the probe
+  // and effect slots. Neither a rendered guard nor a minted alias is new evidence.
+  const slots = new Map([probe, ...ahead, ...after].map(source => {
+    const sourcePath = path && pathOfNode(path, source);
+    return [source, sourcePath ? { owner: sourcePath.container, key: sourcePath.key } : findNodeSlot(receiver, source)];
+  }));
+  function live(source) {
+    const slot = slots.get(source);
+    return slot?.owner[slot.key] ?? source;
+  }
+  return { fallback: core.type === 'LogicalExpression' ? core : null,
+    get probe() { return live(probe); },
+    get ahead() { return ahead.map(live); },
+    get after() { return after.map(live); } };
 }
 
 // can this fallback OPERAND evaluate to nullish - the value question exactly as `||` / `??`
@@ -8874,7 +8888,7 @@ export function buildPatternRenderPlan(patternNode, { scope, path, adapter }) {
       // the prop itself: a renderer deciding what its SLOT spells (a pattern value that descends,
       // a binding that does not) reads the shape off the source node rather than re-walking for it
       prop,
-      keyNode: sourceKey,
+      get keyNode() { return sourceKey ? prop.key : null; },
       slotKey,
       computedKey: prop.computed && !!sourceKey,
       wks,

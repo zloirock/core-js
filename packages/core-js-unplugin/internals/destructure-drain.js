@@ -13,7 +13,6 @@ import {
   liftedInitElements,
   liftedPrefixSplit,
   liftedRealmNavEffect,
-  planSynthReceiverGuard,
   resolveNestedReceiverBase,
   resolvePassthroughRef,
   staticHopPure,
@@ -85,7 +84,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { replaceNodeInTree } from './emit-shared.js';
 import {
-  literal,
   assignmentExpression,
   callExpression,
   chainExpression,
@@ -100,10 +98,12 @@ import {
   variableDeclarator,
   renderKeyedDestructureRead,
   renderSynthReceiverGuard,
+  renderSynthActivation,
+  renderSynthProperty,
+  renderMemoReadTarget,
   renderStaticDefaultGuard,
   renderSynthSlotRead,
-  synthEntryKey,
-  synthKeyMustBeComputed,
+  renderSynthEntryKey,
   memberFromKeyName,
   renderProxyReceiverPlan,
   exportDeclaration,
@@ -117,7 +117,6 @@ import {
   assignmentMemoRef,
   buildInstanceDefaultGuard,
   bareProxyGlobalPure,
-  buildMemoArg,
   carriedInitPrefix,
   carryForInitPrefixIntoFirst,
   takeForInitPrefix,
@@ -167,7 +166,6 @@ import {
   renderDiscardedInitProbe,
   renderSealedNavProbe,
   residualKeepsSibling,
-  sealedNavProbeRead,
   seKeySegmentedDeclarators,
   spellsSameSource,
   splitMultiDeclaratorHost,
@@ -175,7 +173,7 @@ import {
   withoutCtorHopJobsWithLiveSiblings,
 } from './destructure-helpers.js';
 import { cloneStamped, markSubtreeSkipped, nodeSite } from './nav-spine.js';
-import { SYMBOL_ITERATOR_PURE_RESULT, symbolStaticMeta } from '@core-js/polyfill-provider/detect-usage/globals';
+import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
 // the host patterns the emptied-hop prune has already walked: it runs once per host, whichever
 // job's removal reaches it first
@@ -710,20 +708,8 @@ export default function createDestructureDrains(ctx) {
     return read;
   }
 
-  // render one pattern's synth literal over a receiver: polyfilled slots take their import,
-  // the rest read through the receiver (its pure proxy import when it has one) - the
-  // caller's own value still wins, the literal only serves the defaulted path. a RAW slot (a
-  // member target the mirror keeps as written) reads raw through the receiver - never the ctor's
-  // pure binding, which carries no statics - and the later passes leave that read alone
-  // the one synth prop constructor: the canon's `__proto__` rule rides every entry - the
-  // key re-spells as a STRING literal (a bare `[__proto__]` would read a binding)
-  function synthProp(key, value, { computed = false } = {}) {
-    if (!computed && synthKeyMustBeComputed(key)) {
-      return objectProperty(literal('__proto__'), value, { computed: true });
-    }
-    return objectProperty(key, value, { computed });
-  }
-
+  // Render registered slots and passthrough reads over the retained receiver. Key and
+  // data-property spelling are shared; native skip marks stay on inserted source clones.
   // eslint-disable-next-line max-statements -- one ordered render pass over every slot class
   function renderPatternLiteral({
     plan,
@@ -777,21 +763,12 @@ export default function createDestructureDrains(ctx) {
 
     const entries = [];
     for (const planEntry of plan) {
-      const spelled = synthEntryKey(planEntry, { resolvedSpelling });
-      // a CARRIED key is the pattern's own node - clone it, or the literal and the residual
-      // share one object and every later mutation lands in both
-      let key = spelled.fromSource ? cloneNode(spelled.key) : spelled.key;
-      let { computed } = spelled;
-      // a direct wks key spells the INJECTED pure symbol binding (`[_Symbol$iterator]:`) -
-      // the raw member clone would throw off-engine where the pattern's swapped key reads
-      // the polyfill; an unresolvable symbol static has no spelling, so the literal declines
-      if (planEntry.wksSpelling) {
-        if (!metaPath) return null;
-        const symbolPure = resolvePure(symbolStaticMeta(planEntry.wksSpelling), metaPath);
-        if (!symbolPure) return null;
-        key = identifier(injectPureImport(symbolPure.entry, symbolPure.hintName));
-        computed = true;
-      }
+      const spelled = renderSynthEntryKey(planEntry, {
+        resolvedSpelling, injectImport: injectPureImport,
+        resolvePure: meta => metaPath && resolvePure(meta, metaPath),
+      });
+      if (!spelled) return null;
+      const { key, computed } = spelled;
       // ... and an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper,
       // the one spelling both emitters print for that read anywhere else - a raw
       // `receiver[_Symbol$iterator]` answers undefined off-engine
@@ -800,7 +777,7 @@ export default function createDestructureDrains(ctx) {
         return renderSynthSlotRead({ base, key, computed, lookupKey: planEntry.lookupKey });
       }
       function pushSlot(value) {
-        entries.push(synthProp(key, gimPassthrough && value.type === 'MemberExpression'
+        entries.push(renderSynthProperty(key, gimPassthrough && value.type === 'MemberExpression'
           ? callExpression(identifier(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry,
             SYMBOL_ITERATOR_PURE_RESULT.hintName)), [value.object])
           : value, { computed }));
@@ -813,7 +790,7 @@ export default function createDestructureDrains(ctx) {
       // through their dispatch - the pattern above it then binds off this literal, as it bound off
       // the flat ponyfill before
       if (binding?.descended) {
-        pushSlot(objectExpression(binding.descended.map(leaf => synthProp(identifier(leaf.key), leaf.helper
+        pushSlot(objectExpression(binding.descended.map(leaf => renderSynthProperty(identifier(leaf.key), leaf.helper
           ? callExpression(identifier(leaf.helper), [identifier(binding.base)])
           : memberExpression(identifier(binding.base), identifier(leaf.key))))));
         continue;
@@ -825,7 +802,7 @@ export default function createDestructureDrains(ctx) {
       if (binding?.descendedHop) {
         const hopBase = passthroughSlotRef(planEntry);
         if (!hopBase) return null;
-        pushSlot(objectExpression(binding.descendedHop.map(leaf => synthProp(identifier(leaf.key), leaf.helper
+        pushSlot(objectExpression(binding.descendedHop.map(leaf => renderSynthProperty(identifier(leaf.key), leaf.helper
           ? callExpression(identifier(leaf.helper), [cloneNode(hopBase)])
           : memberFromKeyName(cloneNode(hopBase), leaf.key)))));
         continue;
@@ -956,27 +933,18 @@ export default function createDestructureDrains(ctx) {
     return objectExpression(entries);
   }
 
-  // canonical re-read target for a MEMOIZED receiver, peeled to its SE tail - the babel
-  // `buildMemoArg` twin: a pure-ctor leaf whole-swaps (the erased navigation's harvested
-  // effects re-run ahead of the binding), an alias / proxy chain collapses through the
-  // shared plan. resolved at REGISTRATION (pristine tree); null leaves the receiver live
+  // Bind the source decision and native cloning. Memo ordering and proxy rendering
+  // belong to the provider; source roots kept live by this traversal finish here.
   function planMemoArg(memoReceiver, metaPath) {
-    const aliasCtx = { ...nodeSite(memoReceiver, metaPath), adapter };
-    const plan = planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure: m => resolvePure(m, metaPath) });
-    if (!plan) return null;
-    let target = plan.pure
-      ? identifier(injectPureImport(plan.pure.entry, plan.pure.hintName))
-      : renderProxyReceiverPlan(plan.plan, { injectImport: injectPureImport });
-    if (!target) return null;
-    // the plan's clones detach from the walk before their own claims land: a pristine
-    // proxy-global root inside a harvested effect substitutes its pure binding here
-    // (`(() => (n++, globalThis))()` -> `(() => (n++, _globalThis))()`)
-    target = substituteProxyRootsInClone(target, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
-    // the harvested se nodes stay LIVE - the keepLive span the registration marks lets
-    // their claims land in place during the walk - and the DRAIN clones them, so the memo
-    // argument carries the rewritten spelling instead of a pre-claim snapshot (a
-    // registration-time clone froze `getObj().at(0)` raw and dropped the claim)
-    return { prefix: plan.prefix, liveSe: plan.se, target, tail: plan.tail };
+    return planMemoReadTarget(memoReceiver, {
+      aliasCtx: { ...nodeSite(memoReceiver, metaPath), adapter }, resolvePure: meta => resolvePure(meta, metaPath),
+    });
+  }
+
+  // Native proxy-root substitution finishes only after live source children have settled.
+  function renderMemoArg(plan, metaPath) {
+    const rendered = renderMemoReadTarget(plan, { injectImport: injectPureImport });
+    return rendered && substituteProxyRootsInClone(rendered, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
   }
 
   // markRewrite fires ONLY on a landed mutation: a registration whose drain drops (partial
@@ -991,8 +959,7 @@ export default function createDestructureDrains(ctx) {
       plan, receiver, slots, guardedReceiverPlan: pending.guardedReceiverPlan ?? null,
     });
     if (!flatLiteral) return false;
-    const synthGuard = planSynthReceiverGuard({ receiver, ...nodeSite(receiver, metaPath), adapter,
-      resolvePure: meta => resolvePure(meta, metaPath) });
+    const { synthGuard } = pending;
     if (synthGuard) {
       let guarded = renderSynthReceiverGuard(synthGuard, flatLiteral);
       guarded = substituteProxyRootsInClone(guarded, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
@@ -1050,30 +1017,13 @@ export default function createDestructureDrains(ctx) {
         // of the plain literal instead of the memo (`(_at(...), { from: _Array$from })`);
         // harvested from the LIVE tree - the walk's in-place rewrites already landed
         if (plan.every(entry => slots.has(entry.dedupKey)) && renderFlatRescueLiteral(pending)) continue;
-        // the memo arg RE-PLANS at DRAIN time: an in-place claim REPLACES its node, so a
-        // registration-time render (or captured se refs) re-emits pre-claim snapshots -
-        // `log.push(...)` reached the arg raw and its injected import died unreferenced
-        // with the discarded original. a re-plan that no longer matches (the walk already
-        // substituted the roots past its shape checks) keeps the registration target and
-        // re-harvests only the LIVE se off the surviving container
-        if (pending.memoArgPlan && pending.metaPath) {
-          const replanned = planMemoArg(pending.memoReceiver, pending.metaPath);
-          if (replanned) pending.memoArgPlan = replanned;
-          else if (pending.memoArgPlan.liveSe?.length) {
-            pending.memoArgPlan.liveSe = discardRescueNodes({
-              node: pending.memoArgPlan.tail,
-              ...nodeSite(pending.memoArgPlan.tail, pending.metaPath),
-              adapter,
-            });
-          }
-        }
         // the param name MINTS at registration (see `registerSimpleSynthSlot`): the pattern is
         // visited before its own init, and babel numbers by that order
-        const synthGuard = planSynthReceiverGuard({ receiver, ...nodeSite(receiver, pending.metaPath), adapter,
-          resolvePure: meta => resolvePure(meta, pending.metaPath) });
+        const { synthGuard } = pending;
         // The moved receiver keeps declarations for the frames it contains. Its old nodes
         // may already have been replaced while the probe retained their live child claims.
-        const memoArg = duplicateReceiver(synthGuard ? synthGuard.fallback?.left ?? receiver : buildMemoArg(pending), injector);
+        const memoArg = duplicateReceiver(synthGuard ? synthGuard.fallback?.left ?? receiver
+          : renderMemoArg(pending.memoArgPlan, pending.metaPath) ?? pending.memoReceiver, injector);
         const memoTail = !synthGuard && peelNestedSequenceExpressions(memoArg).tail;
         const reusableMemo = memoTail?.type === 'Identifier' && isReusableReceiver(memoTail, {
           interveningEffects: true, ctx: { ...nodeSite(memoTail, pending.metaPath), adapter, injectorState },
@@ -1084,12 +1034,9 @@ export default function createDestructureDrains(ctx) {
           guardedReceiverPlan: pending.guardedReceiverPlan ?? null,
         });
         if (!synthLiteral) continue;
-        const value = synthGuard ? renderSynthReceiverGuard({ probe: identifier(memoName) }, synthLiteral) : synthLiteral;
-        let iife = reusableMemo ? sequenceExpression([memoArg, synthLiteral]) : callExpression({
-          type: 'FunctionExpression', id: null, params: [identifier(memoName)], generator: false, async: false,
-          body: { type: 'BlockStatement', body: [{ type: 'ReturnStatement', argument: value }] },
-        }, [memoArg]);
-        if (synthGuard) iife = renderSynthReceiverGuard({ fallback: synthGuard.fallback }, iife);
+        const iife = renderSynthActivation(synthLiteral, {
+          guard: synthGuard, memo: identifier(memoName), argument: memoArg, reusable: !!reusableMemo,
+        });
         if (replaceNodeInTree(program, receiver, iife)) markRewrite();
         continue;
       }
@@ -1190,10 +1137,7 @@ export default function createDestructureDrains(ctx) {
         passthroughBase: pending.passthroughBase ?? null,
       });
       if (!rendered) continue;
-      const synthGuard = pending.metaPath && planSynthReceiverGuard({
-        receiver, ...nodeSite(receiver, pending.metaPath), adapter,
-        resolvePure: meta => resolvePure(meta, pending.metaPath),
-      });
+      const { synthGuard } = pending;
       if (synthGuard) {
         rendered = renderSynthReceiverGuard(synthGuard, rendered);
         rendered = substituteProxyRootsInClone(rendered, pending.metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
@@ -1201,9 +1145,7 @@ export default function createDestructureDrains(ctx) {
         // a SEALED receiver read is observable - the source paren ends the chain, so the read past
         // it throws off-engine where the swapped literal just answers. it re-emits as a discarded
         // throw probe ahead of the literal, which is the source's own spelling of what the swap erases
-        const sealedProbe = pending.sealedProbePlan
-          ? renderSealedNavProbe(pending.sealedProbePlan, pending.metaPath, probeRenderCtx)
-          : sealedNavProbeRead(receiver, pending.metaPath, probeRenderCtx);
+        const sealedProbe = renderSealedNavProbe(pending.sealedProbePlan, pending.metaPath, probeRenderCtx);
         if (sealedProbe) rendered = sequenceExpression([...probeEffectNodes(sealedProbe), rendered]);
         // a collapsed logical re-runs its left sequence prefix ahead of the literal - what of it runs something,
         // the shared trim canon's cut (a dead `0,` is a comma the source wrote)
@@ -1982,7 +1924,7 @@ export default function createDestructureDrains(ctx) {
         const slot = discardedSinkSlot(peelTransparentExpr(declarator.init),
           {
             metaPath: declJobs[0]?.metaPath, sinkDrop: declJobs.some(job => job.sinkDrop),
-            sinkPlan: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null, planMemoArg, adapter,
+            sinkPlan: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null, planMemoArg, renderMemoArg, adapter,
           });
         if (slot && !foldSinkPrefixIntoResidual(extracted, slot)) {
           declarations.push(variableDeclarator(identifier(mintRefName()), sequenceExpression([...carried, slot])));

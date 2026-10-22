@@ -6,6 +6,8 @@ import {
   callArgumentMayBeObserved,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
+  findNodeSlot,
+  pathOfNode,
   deleteHostAboveChain,
   getFallbackBranchSlots,
   isMemberAccessNode,
@@ -439,9 +441,29 @@ export function planProxyReceiver(receiver, {
 export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
   const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
   const ctorSwap = proxyGlobalMemberCtorPureSwap({ receiver: tail, aliasCtx, resolvePure });
-  if (ctorSwap) return { prefix, se: ctorSwap.se, pure: ctorSwap.pure, plan: null, tail };
-  const plan = planProxyReceiver(tail, { aliasCtx, throughChainAssign: false, resolvePure });
-  return plan ? { prefix, se: [], pure: null, plan, tail } : null;
+  const plan = ctorSwap ? null : planProxyReceiver(tail, { aliasCtx, throughChainAssign: false, resolvePure });
+  if (!ctorSwap && !plan) return null;
+  // The landing decision belongs to the source. Children can be replaced before a
+  // deferred synth or sink renders it; retain their slots instead of proving the
+  // generated receiver again or freezing the effects in registration-time clones.
+  const se = ctorSwap?.se ?? [];
+  const carried = new Set([...prefix, ...se]);
+  for (let step = plan; step; step = step.inner) {
+    carried.add(step.property);
+    if (step.kind === 'member') continue;
+    const root = step.rootBinding.alias ?? step.rootBinding.keep;
+    if (root) carried.add(root);
+    for (const effect of step.harvestedSE) carried.add(effect);
+  }
+  const slots = new Map([...carried].map(node => {
+    const path = aliasCtx?.path && pathOfNode(aliasCtx.path, node);
+    return [node, path ? { owner: path.container, key: path.key } : findNodeSlot(memoReceiver, node)];
+  }));
+  return { prefix, se, pure: ctorSwap?.pure ?? null, plan, tail,
+    readSource(node) {
+      const slot = slots.get(node);
+      return slot?.owner[slot.key] ?? node;
+    } };
 }
 
 // The destructured guarded-alias narrow (`const { groupBy: g } = M`): admit a named binding
