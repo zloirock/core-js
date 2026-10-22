@@ -4,7 +4,6 @@
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import {
   destructureKeyReadPlan,
-  firstPatternProp,
   instanceSynthReceiverPure,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
@@ -34,6 +33,7 @@ import {
 import {
   hostLevelSurvives,
   planCatchClauseExtraction,
+  planLoopHeadExtraction,
   residualPrecedesExtractions,
   sentinelMemoInitShape,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
@@ -57,7 +57,6 @@ import {
   computedKeyHasSideEffects,
   exportedSentinelSplit,
   forOfHeadDeclarationOf,
-  forOfHeadIterableElements,
   invalidateScopeVarIndex,
   isDestructurePattern,
   isPristineProxyGlobal,
@@ -109,6 +108,8 @@ import {
   renderProxyReceiverPlan,
   exportDeclaration,
   renderDestructureStatements,
+  renderDestructureDeclarators,
+  renderDestructureHeadCapture,
 } from '@core-js/polyfill-provider/render';
 import {
   anchorAssignmentResidual,
@@ -1893,22 +1894,22 @@ export default function createDestructureDrains(ctx) {
       }
       const memoRef = memoRefs.get(declarator);
       if (memoRef) {
-        const memoDeclarator = variableDeclarator(identifier(memoRef), declarator.init);
+        const capture = { id: identifier(memoRef), init: declarator.init };
         declarator.init = identifier(memoRef);
         const seKeyJobs = declJobs.filter(job => job.sentinel && job.seKey);
-        function declare(list) {
-          return list.map(job => variableDeclarator(job.bindingTarget, job.value(memoRef)));
-        }
         // the SE-KEY residual runs its key before the extraction reads the slot; every other
         // one follows the extraction it left behind, and a PLAIN sibling keeps its place
         // ahead of the residual (its slot read owes the key nothing)
         // ... SEVERAL keys interleave, each segment ahead of the extraction reading it
         if (seKeyJobs.length) {
-          declarations.push(memoDeclarator, ...declare(declJobs.filter(job => !seKeyJobs.includes(job))),
-            ...seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(seKeyJobs), memoRef, adapter));
+          declarations.push(...renderDestructureDeclarators(declJobs.filter(job => !seKeyJobs.includes(job))
+            .map(job => ({ id: job.bindingTarget, init: job.value(memoRef) })), { capture }),
+          ...seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(seKeyJobs), memoRef, adapter));
         } else {
-          declarations.push(memoDeclarator, ...declare(declJobs));
-          if (!patternDead(declarator.id) && !residualDies(declarator, declJobs)) declarations.push(declarator);
+          const reads = declJobs.map(job => ({ id: job.bindingTarget, init: job.value(memoRef) }));
+          declarations.push(...renderDestructureDeclarators(reads, {
+            capture, residual: !patternDead(declarator.id) && !residualDies(declarator, declJobs) ? declarator : null,
+          }));
         }
         continue;
       }
@@ -1917,8 +1918,9 @@ export default function createDestructureDrains(ctx) {
       // and off-env that read is what throws (the block-hosted rule, same shape here)
       const probeRead = emptied && declJobs.every(job => !job.readsReceiver && !job.seCarried)
         ? renderDiscardedInitProbe(declJobs, probeRenderCtx) : null;
-      const extracted = declJobs.map((job, at) => variableDeclarator(job.bindingTarget,
-        at === 0 && probeRead ? sequenceExpression([probeRead, job.value()]) : job.value()));
+      const extracted = renderDestructureDeclarators(declJobs.map((job, at) => ({
+        id: job.bindingTarget, init: at === 0 && probeRead ? sequenceExpression([probeRead, job.value()]) : job.value(),
+      })));
       if (!emptied) {
         // residual keeps the init: extracted siblings go ahead of it - except under an
         // SE-KEY sentinel, whose key effect must run before the extraction reads the slot.
@@ -1930,11 +1932,13 @@ export default function createDestructureDrains(ctx) {
         } else if (declJobs.some(job => (job.sentinel && job.seKey) || (job.chain?.length && job.readsReceiver))
           || residualRuns(declarator)) {
           // ... and a residual whose init RUNS code leads too: that code could read a binding written ahead
-          declarations.push(declarator, ...extracted);
+          declarations.push(...renderDestructureDeclarators(extracted, { residual: declarator, residualAt: 0 }));
         } else {
           carryForInitPrefixIntoFirst(extracted, takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)));
-          declarations.push(...extracted.filter((item, index) => declJobs[index].guardDetach !== 'after'), declarator,
-            ...extracted.filter((item, index) => declJobs[index].guardDetach === 'after'));
+          const ahead = extracted.filter((item, index) => declJobs[index].guardDetach !== 'after');
+          declarations.push(...renderDestructureDeclarators([
+            ...ahead, ...extracted.filter((item, index) => declJobs[index].guardDetach === 'after'),
+          ], { residual: declarator, residualAt: ahead.length }));
         }
         continue;
       }
@@ -3250,8 +3254,10 @@ export default function createDestructureDrains(ctx) {
     if (!plan) return;
     for (const prop of plan.unobservable) skippedNodes.add(prop);
     const refName = mintRefName();
-    const relocated = variableDeclaration('let', [variableDeclarator(param, identifier(refName))]);
-    path.get('param').replaceWith(identifier(refName));
+    const { head, statement: relocated } = renderDestructureHeadCapture(param, {
+      binding: identifier(refName), receiver: identifier(refName),
+    });
+    path.get('param').replaceWith(head);
     path.get('body').unshiftContainer('body', [relocated]);
     path.scope.crawl();
     noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated, name: refName });
@@ -3262,30 +3268,19 @@ export default function createDestructureDrains(ctx) {
   // own kind, or assigns the original targets. Brace a bodyless loop. Record the generated head
   // name for subsequent receiver resolution.
   function extractLoopLeft(path) {
-    const { left, body } = path.node;
-    const assignment = left?.type === 'ObjectPattern' || left?.type === 'ArrayPattern';
-    if (!assignment && (left?.type !== 'VariableDeclaration' || left.declarations?.length !== 1)) return;
-    const declarator = assignment ? { id: left } : left.declarations[0];
-    if (declarator.init || !declarator.id || declarator.id.type === 'Identifier') return;
-    const idPath = assignment ? path.get('left') : path.get('left').get('declarations')[0].get('id');
-    const typeProbe = firstPatternProp(idPath);
-    if (typeProbe) primeDestructureReceiverTypes?.(typeProbe);
-    const elementType = path.node.type === 'ForOfStatement' ? resolveForOfResolvedElement?.(path) ?? null
-      : typeProbe ? resolvePropertyObjectType?.(typeProbe) ?? null : null;
-    const plan = planCatchClauseExtraction({
-      paramNode: declarator.id,
-      bodyNode: body,
-      scope: path.scope,
+    const plan = planLoopHeadExtraction(path, {
       adapter,
-      path,
-      resolvePure: m => resolvePure(m, path),
+      resolvePure: meta => resolvePure(meta, path),
       walkNode: (root, visit) => walkAstNodes({ root, visit }),
-      objectHint: toHint?.(elementType) ?? null,
-      iterableNode: path.node.right,
-      mirrorHosts: !!forOfHeadIterableElements(assignment ? path.get('left') : path.get('left').get('declarations')[0]),
-      assignment,
+      primeDestructureReceiverTypes,
+      resolveForOfResolvedElement,
+      resolvePropertyObjectType,
+      toHint,
     });
     if (!plan) return;
+    const { left: leftPath, declarator, assignment, elementType } = plan;
+    const { node: left } = leftPath;
+    const { body } = path.node;
     for (const prop of plan.unobservable) skippedNodes.add(prop);
     const refName = mintRefName();
     const slot = identifier(refName);
@@ -3294,15 +3289,15 @@ export default function createDestructureDrains(ctx) {
     // the pre-mutation channel the resolver keeps for exactly this
     if (elementType) resolvedType?.set(slot, elementType);
     // the head's kind: a `const` binding written in the body throws as the source's does
-    const relocated = assignment
-      ? expressionStatement(assignmentExpression('=', declarator.id, slot))
-      : variableDeclaration(left.kind, [variableDeclarator(declarator.id, slot)]);
+    const { head, statement: relocated } = renderDestructureHeadCapture(declarator.id, {
+      binding: identifier(refName), receiver: slot, kind: left.kind, assignment,
+    });
     const bodyless = body.type === 'BlockStatement' ? null : body;
     if (bodyless) path.node.body = { type: 'BlockStatement', body: [bodyless] };
     path.node.body.body.unshift(relocated);
     const pattern = declarator.id;
-    if (assignment) path.get('left').replaceWith(variableDeclaration('const', [variableDeclarator(identifier(refName))]));
-    else declarator.id = identifier(refName);
+    if (assignment) leftPath.replaceWith(head);
+    else declarator.id = head;
     // the receiver canon reads the element back through this name; registering it is what tells
     // the canon the declaration below is OURS and not a source one wearing the same shape
     noteRelocatedHeadName(path.node, refName);
