@@ -78,8 +78,12 @@ import {
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
-import { forInitNeedsReceiverMemo, sentinelMemoInitShape } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import { groupDestructureDeclarators, bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
+import {
+  forInitNeedsReceiverMemo,
+  planDestructureKeySegments,
+  sentinelMemoInitShape,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
@@ -99,6 +103,7 @@ import {
   renderStaticDefaultGuard,
   exportDeclaration,
   renderDestructureStatements,
+  renderDestructureKeySegments,
 } from '@core-js/polyfill-provider/render';
 
 // The local binding name, including a slot default (`{ flat: method = fallback }`).
@@ -1883,9 +1888,9 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
   for (const statement of statements) {
     if (statement.declarations.length <= 1) continue;
     const at = target.body.indexOf(statement);
-    target.body.splice(at, 1, ...groupDestructureDeclarators(statement.declarations).flatMap(group => renderDestructureStatements([group], {
-      kind: memoDeclarators.has(group[0]) ? 'const' : statement.kind,
-    })));
+    target.body.splice(at, 1, ...statement.declarations.flatMap(
+      item => renderDestructureStatements([item], { kind: memoDeclarators.has(item) ? 'const' : statement.kind }),
+    ));
     markRewrite();
   }
 }
@@ -2144,27 +2149,18 @@ export function seKeySegmentedDeclarators(declarator, jobs, refName, adapter = n
   return [declarator, ...jobs.map(job => variableDeclarator(job.bindingTarget, job.value(refName)))];
 }
 
-// SEVERAL SE keys on one pattern INTERLEAVE with their extractions: native evaluates key,
-// read, default, next key - so each key's residual segment sits immediately before the
-// extraction that reads its slot, instead of every key running ahead of every read
+// Finish queued reads against the shared segmentation plan. The live job supplies its
+// target/value only at drain time, after nested claims have rewritten those source slots.
 export function interleavedSeKeySegments(declarator, jobs, refName) {
-  const jobByProp = new Map(jobs.map(job => [job.prop, job]));
-  const declarators = [];
-  let buffered = [];
-  for (const prop of declarator.id.properties) {
-    const job = jobByProp.get(prop);
-    buffered.push(prop);
-    if (!job) continue;
-    declarators.push(
-      variableDeclarator({ type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init)),
-      variableDeclarator(job.bindingTarget, job.value(refName)),
-    );
-    buffered = [];
-  }
-  if (buffered.length) {
-    declarators.push(variableDeclarator({ type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init)));
-  }
-  return declarators;
+  const byProp = new Map(jobs.map(job => [job.prop, job]));
+  const segments = planDestructureKeySegments(declarator.id, byProp.keys().toArray());
+  if (!segments) return [declarator, ...jobs.map(job => variableDeclarator(job.bindingTarget, job.value(refName)))];
+  return renderDestructureKeySegments(segments, declarator.init, {
+    read(prop) {
+      const job = byProp.get(prop);
+      return { id: job.bindingTarget, init: job.value(refName) };
+    },
+  });
 }
 
 // the slot value under a DEFAULT: the polyfill result decides through its own `=== void 0`,
