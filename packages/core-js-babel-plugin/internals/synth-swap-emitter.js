@@ -11,7 +11,7 @@
 // live - independent of whether ancestor paths got orphaned. clones (`t.cloneNode`)
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
-import { planSynthLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { renderSynthLiteral } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   nestedSequenceValueSpelling,
   isRestProperty,
@@ -49,7 +49,6 @@ import {
   fallbackBranchWalk,
   planSynthReceiverGuard,
   isViableBranchForKey,
-  instanceHopDispatch,
   resolvableArgSupersedesDeadDefault,
   decidedRunningOperandPath,
   instanceSynthSpellsReceiver,
@@ -59,12 +58,9 @@ import {
   chainExpression,
   hostSlot,
   renderSynthActivation,
-  renderSynthProperty,
   renderMemoReadTarget,
   renderProxyReceiverPlan,
-  renderSynthSlotRead,
   renderClaimProbe,
-  renderSynthEntryKey,
 } from '@core-js/polyfill-provider/render';
 import {
   planMemoReadTarget,
@@ -94,7 +90,6 @@ import {
   directClaimProbePlan,
   directClaimProbeEffects,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 import { disableDirectiveKind } from '@core-js/polyfill-provider/helpers/source-scan';
 
 // does the run swallow a hop pure cannot back that reads a KEPT WRITE whose value the collapse
@@ -737,57 +732,21 @@ export default function createSynthSwapEmitter({
     });
   }
 
-  // Build the synth `{key: _polyfill, otherKey: R.otherKey}` receiver from the classified
-  // entries. Unpolyfilled keys read through the receiver, using a pure import or a proxy
-  // collapse where known. Fully polyfilled cases never need `getReceiverRef`.
-  // Accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
-  // `globalThis?.Array`) receivers. for member-chain shapes, unpolyfilled keys still re-read
-  // through the chain (`window.Array.other`) - each clone re-evaluates the receiver expression.
-  // trade-off: lifting the chain to a temp would change AST shape (require IIFE wrap or
-  // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
-  // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
-  // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
-  // `entries` is the shared flat classification the caller resolved for its own memo verdict and
-  // hands over - recomputing it here classified every property of the pattern a second time per
-  // applied swap (the unplugin twin has always threaded its `planEntries` the same way)
+  // Native source clones retain directive anchors; the provider selects all literal values.
   function buildSynthLiteral({ receiver, entries, memoParam = null, aliasCtx = null, guardedReceiverPlan = null }) {
-    const { readReceiver, pure: receiverPure, receiverCtorName, selectsInstance }
-      = planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure });
-    let receiverRef = null;
-
-    // an INSTANCE entry binds the method to the receiver's VALUE, so a SELECTING receiver is spelled
-    // WHOLE - the arm is chosen at runtime. the left-peel above answers the ctor question (which
-    // global a static resolves through), which is a different one; spelling the left there would
-    // hand the helper the dead arm (`nul || arr` -> `_atMaybeArray(nul)`)
-    function instanceReceiverRef() {
-      return selectsInstance ? memoParam ?? receiver : getReceiverRef();
-    }
-
-    function getReceiverRef() {
-      if (receiverRef) return receiverRef;
-      // a memo param (call-branch) replaces every receiver read - cloning the call would re-run it
-      if (memoParam) return receiverRef = memoParam;
-      if (receiverPure) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
-      return receiverRef = (guardedReceiverPlan ? renderCollapsePlan(guardedReceiverPlan)
-        : collapseProxyGlobalReceiver(readReceiver, { aliasCtx })) ?? readReceiver;
-    }
-
-    // The saved plan owns property classification; the shared key and property renders
-    // own their spelling. Receiver and slot resolution below still feed those renders.
-    // injectPureImport returns a fresh clone. An INSTANCE entry (a typed param-default
-    // receiver) binds the method to the receiver's value: `at: _atMaybeArray(<receiver>)` -
-    // the read happens inside the literal, so it only evaluates when the default fires
-    const properties = [];
-    for (const entry of entries) {
-      // a key on an opted-out line reads as the source does, and no later pass may polyfill that read
-      const polyfill = entry.optedOut ? null : entry.polyfill;
-      const { wks } = entry;
-      const spelled = renderSynthEntryKey(entry, {
-        resolvePure, injectImport: (importEntry, hintName) => injectPureImport(importEntry, hintName).name,
+    const literal = renderSynthLiteral(
+      entries,
+      {
+        receiver,
+        memo: memoParam,
+        aliasCtx,
+        guardedReceiverPlan,
+        resolvePure,
+        injectImport: (entry, hint) => injectPureImport(entry, hint).name,
         embed: hostSlot,
-        cloneHost(source) {
+        cloneHost: t.cloneNode,
+        cloneKey(source, entry) {
           const key = t.cloneNode(source);
-          // The pattern owns ordinary comments; copied reads retain only opt-out anchors.
           for (const field of t.COMMENT_KEYS) {
             const directives = entry.optedOut ? key[field]?.filter(comment => disableDirectiveKind(comment.value)) : null;
             if (directives?.length) key[field] = directives;
@@ -795,38 +754,16 @@ export default function createSynthSwapEmitter({
           }
           return key;
         },
-      });
-      if (!spelled) return null;
-      const key = estreeToBabel(spelled.key);
-      const { computed } = spelled;
-      // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
-      // spelling both emitters print for that read anywhere else; a raw
-      // `receiver[_Symbol$iterator]` answers undefined off-engine
-      // ... and an uncovered slot the constructor's pure binding answers through an INSTANCE dispatch
-      // reads through it (`instanceHopDispatch`): this literal is emitted where no visitor reaches it again
-      const dispatch = !polyfill && !entry.optedOut && wks !== 'iterator' && !computed && receiverCtorName
-        ? instanceHopDispatch({ ctorName: receiverCtorName, key: entry.lookupKey, resolvePure }) : null;
-      const value = dispatch
-        ? t.callExpression(injectPureImport(dispatch.entry, dispatch.hintName), [t.cloneNode(getReceiverRef())])
-        : polyfill
-        ? polyfill.instance
-          ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(instanceReceiverRef())])
-          : injectPureImport(polyfill.entry, polyfill.hintName)
-        : wks === 'iterator' && !entry.optedOut
-          ? t.callExpression(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName),
-            [t.cloneNode(getReceiverRef())])
-          : estreeToBabel(renderSynthSlotRead({
-            base: hostSlot(t.cloneNode(getReceiverRef())),
-            key: spelled.key,
-            computed,
-            lookupKey: entry.lookupKey,
-          }));
-      if (entry.optedOut) t.traverseFast(value, node => { skippedNodes.add(node); });
-      properties.push(estreeToBabel(renderSynthProperty(
-        hostSlot(key), hostSlot(value), { computed },
-      )));
-    }
-    return t.objectExpression(properties);
+      },
+    );
+    if (!literal) return null;
+    const result = estreeToBabel(literal);
+    entries.forEach(
+      (entry, index) => {
+        if (entry.optedOut) t.traverseFast(result.properties[index].value, node => { skippedNodes.add(node); });
+      },
+    );
+    return result;
   }
 
   // walk the program and swap each registered receiver with its synth literal. lookup

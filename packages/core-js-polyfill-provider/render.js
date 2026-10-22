@@ -364,16 +364,20 @@ export function assignmentPattern(left, right) {
   return { type: 'AssignmentPattern', left, right };
 }
 
-// Capture an object parameter once and let the ordinary declaration renderer serve its properties.
+// Capture a pattern parameter once and let the ordinary declaration renderer serve its reads.
+// An array keeps one native iterator; splitting it into per-position reads would repeat iteration.
 // A trailing inert default preserves a bare pattern's length and unmapped arguments semantics.
 export function renderParameterInstanceCapture(plan, { receiverName, unusedName, embed = node => node }) {
   return {
     head: plan.root.type === 'AssignmentPattern'
       ? assignmentPattern(identifier(receiverName), embed(plan.root.right)) : identifier(receiverName),
     padding: plan.paddingRequired ? assignmentPattern(identifier(unusedName), voidZero()) : null,
-    declaration: variableDeclaration('let', renderDestructureDeclarators(plan.pattern.properties.map(prop => ({
-      id: { ...plan.pattern, properties: [prop] }, init: identifier(receiverName),
-    })), { embed })),
+    declaration: variableDeclaration('let', renderDestructureDeclarators(
+      plan.pattern.type === 'ArrayPattern'
+        ? [{ id: plan.pattern, init: identifier(receiverName) }]
+        : plan.pattern.properties.map(prop => ({ id: { ...plan.pattern, properties: [prop] }, init: identifier(receiverName) })),
+      { embed },
+    )),
   };
 }
 
@@ -1059,6 +1063,16 @@ export function renderDestructureDeclarators(reads, {
       : variableDeclarator(embed(read.id), read.init ? embed(read.init) : null));
   }
   return declarations;
+}
+
+// Native pattern segments alternate with their already-decided extracted reads. Properties
+// retain source identity; each residual gets its own receiver clone. This works for a whole
+// deferred group and for the tail of an incremental split after a single live default.
+export function renderDestructureKeySegments(segments, receiver, { read = null, embed = node => node, cloneSource = cloneNode } = {}) {
+  return segments.flatMap(segment => [
+    variableDeclarator(objectPattern(segment.properties.map(embed)), embed(cloneSource(receiver))),
+    ...segment.claim && read ? renderDestructureDeclarators([read(segment.claim)], { embed }) : [],
+  ]);
 }
 
 // Compose destructure statements from their ordered reads and residual slot. Declaration
