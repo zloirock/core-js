@@ -10,13 +10,8 @@ import {
   isConstantLiteralReceiver,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
-  namedDefaultReceiver,
-  nestedSlotMemoPlan,
   paramDefaultInstanceSynthAllowed,
   patternHopKeysToHost,
-  receiverPerformsEveryInitEffect,
-  resolveDestructureReceiverPlan,
-  resolveNestedReceiverNode,
   synthPropDedupKey,
   decidedRunningOperand,
   decidingFallbackLeft,
@@ -82,7 +77,7 @@ import {
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
-import { hostLevelSurvives } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { forInitNeedsReceiverMemo, sentinelMemoInitShape } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
@@ -802,98 +797,6 @@ export function climbPatternChain(patternPath, keyCtx = null) {
   return { chain, hostPatternPath, hostParent };
 }
 
-// one surgery per host, on the final tree. consumed props leave their pattern; an emptied
-// pattern takes its declarator (or assignment) with it; the extracted declarations land
-// ahead of the residual in source prop order
-
-// does the climbed chain step through a NAMED inner default? the climb goes through one only where the
-// outer chain names the receiver, so the default is dead and the pair the descent reaches is what the
-// leaf reads (`{ k: { from } = Array } = { k: Array }`)
-export function chainThroughNamedDefaults(chain) {
-  return chain.some(level => level.hopProp.value?.type === 'AssignmentPattern' && namedDefaultReceiver(level.hopProp.value.right));
-}
-
-// Instance receiver resolution through a literal: the strict walk first, the SE-free
-// single-read relaxation second - direct when the residual dies with the extraction, else
-// through the `_ref` memo (the memo is the single source read - getter fires once)
-// the residual is DEAD when this extraction takes every binding of a single-declarator
-// declaration - the shared plan's `soleBindingInDeclaration`
-export function planLiteralRoute({
-  metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null,
-}) {
-  const patternCtx = { ...nodeSite(prop, metaPath), adapter };
-  const declaratorConsumedWhole = patternBindingCount(declarator.id) === patternBindingCount(prop.value);
-  const soleBinding = declaration.declarations.length === 1 && declaratorConsumedWhole;
-  let literalReceiver = null;
-  let relaxedReceiver = false;
-  let carriedLive = null;
-  const throughNamedDefaults = chainThroughNamedDefaults(chain);
-  if (kind === 'instance' && !pureNav && chain.length > 0) {
-    const receiverPlan = declaratorConsumedWhole && !sentinel && !throughNamedDefaults
-      && resolveDestructureReceiverPlan(metaPath, {
-        allowSeFreeSingleRead: true, adapter,
-      });
-    literalReceiver = receiverPlan?.channel === 'resolved' ? receiverPlan.node
-      : resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
-    if (!literalReceiver) {
-      const relaxed = resolveNestedReceiverNode(metaPath, {
-        allowSeFreeSingleRead: true, adapter, throughNamedDefaults,
-      }) ?? null;
-      // a SENTINEL leaves a residual that reads the fragment a second time, so only a
-      // value-SELECTING one qualifies for the relaxation: its memo is what makes the branch
-      // select once for both readers. where the residual dies with the extraction, the slot must
-      // also perform every effect the init would - a spread or getter beside it runs nowhere else
-      if (relaxed && (!sentinel
-        || relaxed.type === 'ConditionalExpression' || relaxed.type === 'LogicalExpression')
-        && (!declaratorConsumedWhole || receiverPerformsEveryInitEffect(declarator.init, relaxed,
-          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null))) {
-        literalReceiver = relaxed;
-        relaxedReceiver = true;
-      }
-      // ... and an EFFECT-bearing slot answers for itself through the shared canon: the effects only
-      // matter while a residual survives to re-evaluate them, and a receiver that performs every
-      // effect its init would leaves that residual nothing to do - the dispatch is the one read
-      // ... asked of THIS DECLARATOR's own pattern, not of the declaration: a sibling declarator
-      // keeps its own binding, and the consumed one splits off beside it - the split the other leg
-      // already performs (`const { y: { at } } = { y: nb.y }, zn = 1`)
-      // ... and only where the residual DIES: a level an effectful hop key keeps would run the
-      // carried effect a second time beside the dispatch
-      if (!literalReceiver && declaratorConsumedWhole && !sentinel) {
-        const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
-        if (carried && receiverPerformsEveryInitEffect(declarator.init, carried,
-          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null)) {
-          literalReceiver = carried;
-          relaxedReceiver = true;
-          // the slot is re-resolved at DRAIN: a claim INSIDE it renders by replacing its node, and
-          // this plan-time copy predates that rewrite
-          carriedLive = () => resolveNestedReceiverNode(metaPath, {
-            allowInitCarriedEffects: true, adapter, throughNamedDefaults,
-          }) ?? carried;
-        }
-      }
-    }
-  }
-  // ... and a slot the plain walk cannot spell twice while the level stays WHOLE takes the slot
-  // memo (`slotMemo`) shared with the other binding
-  // ... a RELAXED single read (a member, a selection) beside a residual takes it too where an
-  // observable property stands BEFORE the slot: hoisting the read would fire its getter ahead of
-  // that property, so the memo is written in the slot instead
-  // ... a level an effectful hop key keeps is a residual beside the claim exactly like a rest's
-  const memoCandidate = kind === 'instance' && (!literalReceiver || relaxedReceiver)
-    && (!declaratorConsumedWhole || hostLevelSurvives(declarator, { ctx: patternCtx }))
-    && chain.length > 0 ? nestedSlotMemoPlan(metaPath, { adapter }) : null;
-  const slotMemo = memoCandidate && (!literalReceiver || !memoCandidate.hoist) ? memoCandidate : null;
-  if (slotMemo) {
-    literalReceiver = slotMemo.node;
-    relaxedReceiver = true;
-  }
-  const receiverConsumesInit = forInit && declaratorConsumedWhole && !sentinel && !!literalReceiver
-    && receiverPerformsEveryInitEffect(declarator.init, literalReceiver,
-      adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null);
-  return { soleBinding, declaratorConsumedWhole, literalReceiver, relaxedReceiver, carriedLive,
-    receiverConsumesInit, slotMemo };
-}
-
 // A rendered default guard keeps the dispatch whose receiver accepts an initializer prefix.
 const instanceDefaultReads = new WeakMap();
 
@@ -1513,30 +1416,6 @@ export function residualKeepsSibling(declarator, declJobs) {
     && declarator.id.properties.some(item => item.type === 'RestElement' || !claimed.has(item));
 }
 
-// which sentinel-kept inits take a shared memo (`sentinelMemoEligible`), and whether that memo joins
-// the declaration as its leading declarator (`memoSibling`) - the drain's sentinel join reads both
-export function planSentinelMemo({ sentinel, declarator, kind, allProxyInit }) {
-  // the init is asked through its parens - and through the chain wrapper an optional call
-  // wears: an SE-bearing SEQUENCE reads once into the memo and the residual reads the ref, so
-  // the prefix does not re-run (`var _ref = (se(), arr), { [(k(), 'at')]: _unused } = _ref,
-  // at = _at(_ref);`)
-  const init = unwrapRuntimeExpr(declarator.init);
-  // a value-SELECTING init memoizes too, but only under an INSTANCE claim: the Maybe-dispatch
-  // stays value-correct on a branch the polyfill does not own, and the memo is what makes the
-  // branch select exactly once for the two readers (extraction and residual)
-  // ... but an ALL-PROXY selection needs none: every branch is the same realm surface, free to
-  // re-read (`c ? globalThis : self` extracts off the ponyfill and keeps the branching residual)
-  const branching = kind === 'instance' && !allProxyInit
-    && (init?.type === 'ConditionalExpression' || init?.type === 'LogicalExpression');
-  const sentinelMemoEligible = sentinel && (init?.type === 'MemberExpression'
-    || init?.type === 'CallExpression' || init?.type === 'SequenceExpression'
-    || branching || isConstantLiteralReceiver(init));
-  // whatever the init's shape, the memo joins the declaration as its leading declarator (`const
-  // _ref = eff(), { [k]: _unused, z } = _ref, s = _at(_ref)` - the other leg's shape for a call,
-  // a selection, a member and a built-in surface alike)
-  return { sentinelMemoEligible, memoSibling: sentinelMemoEligible };
-}
-
 // Returns the matching logical left, the operand an `&&` the build decides yields, or an agreeing
 // ternary arm with no test effects. Instance claims and unproven selections return null.
 export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding, chain, adapter, kind }) {
@@ -1658,24 +1537,6 @@ export function anchorAssignmentResidual(assignment, jobs, reanchor, surfaceInit
   assignment.left = view.id;
   assignment.right = view.init;
   return true;
-}
-
-// does the surviving residual sit ahead of every extraction in SOURCE order? `sharedHop`
-// admits the extraction's own hop as "ahead": a DECLARATION splits the hop into its own
-// statement and the extraction leads it, while an ASSIGNMENT cascade keeps the nested
-// extraction behind the residual it came out of - babel's own asymmetry between the two
-export function residualPrecedesExtractions(declarator, declJobs, sourceProps, { sharedHop = false } = {}) {
-  const props = declarator.id?.type === 'ObjectPattern' ? declarator.id.properties : null;
-  if (!props?.length || !sourceProps || !declJobs.length) return false;
-  const consumedAt = Math.min(...declJobs.map(job => {
-    const outer = jobOuterProp(job);
-    const index = sourceProps.indexOf(outer);
-    return index === -1 ? sourceProps.length : index;
-  }));
-  return props.every(item => {
-    const index = sourceProps.indexOf(item);
-    return index !== -1 && (sharedHop ? index <= consumedAt : index < consumedAt);
-  });
 }
 
 // the SINK slot for a discarded for-init receiver: the pattern consumed the value whole, so only
@@ -1942,30 +1803,15 @@ export function divergingSelection(node, ctx) {
     && !allProxySelectingInit(inner, ctx);
 }
 
-// the for-init memo verdict, per declarator. a SENTINEL residual re-reads the receiver:
-// anything but a bare identifier / `this` memoizes first (`_ref = getArr(), findIndex =
-// _f(_ref), { ..._unused } = _ref`) - but only where the extraction READS it too: a
-// receiverless static leaves the residual as the only reader, and that read happens in
-// place (the block-hosted rule). SEVERAL plain dispatches - or one beside a SURVIVING
-// residual - must read ONE evaluation of the init the same way: the memo is a sibling
-// declarator and every reader spells the ref (babel's head shape)
+// Allocate the loop-header refs selected by the shared evaluation decision.
 export function forInitMemoVerdicts(byDeclarator, mintRefName, ctx = null) {
   const memoRefs = new Map();
-  for (const [declarator, declJobs] of byDeclarator) {
-    const init = declarator?.init;
-    const [{ metaPath }] = declJobs;
-    const reusableInit = init?.type === 'ThisExpression' || init?.type === 'Identifier'
-      && isReReferenceableAcrossReads(init, { scope: metaPath?.scope, path: metaPath?.parentPath?.parentPath, adapter: ctx?.adapter,
-        injectorState: ctx?.injectorState });
-    if (!init || reusableInit || declJobs.some(job => job.chain?.length)) continue;
-    const readers = declJobs.filter(job => job.readsReceiver).length;
-    const consumed = declJobs.reduce((total, job) => total + patternBindingCount(job.prop.value), 0);
-    const residualLives = patternBindingCount(declarator.id) !== consumed;
-    if (declJobs.some(job => job.sentinel && job.readsReceiver) || readers > 1
-      || (readers === 1 && residualLives && declJobs.every(job => !job.sentinel))
-      || (readers === 1 && declJobs.length > 1 && mayHaveSideEffects(init))) {
-      memoRefs.set(declarator, mintRefName());
-    }
+  for (const [declarator, claims] of byDeclarator) {
+    const [{ metaPath }] = claims;
+    if (forInitNeedsReceiverMemo(declarator, claims, {
+      scope: metaPath?.scope, path: metaPath?.parentPath?.parentPath,
+      adapter: ctx?.adapter, injectorState: ctx?.injectorState,
+    })) memoRefs.set(declarator, mintRefName());
   }
   return memoRefs;
 }
@@ -2167,23 +2013,6 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
   if (replaceNodeInTree(program, hostNode, bodylessSlotReplacement(hostNode, statements))) markRewrite();
 }
 
-// will every key of this synth plan resolve to a polyfill SLOT? a fully covered pattern takes the
-// flat rescue at drain, so its IIFE param is never read - and a name minted for it strands the slot
-// the LIVE param would have taken. only a STATIC resolution fills a slot: a key answering with an
-// INSTANCE dispatch leaves the pattern uncovered and the drain builds the IIFE after all
-export function synthPlanFullyCovered(plan, receiver, metaPath, { adapter, resolvePure }) {
-  // a FALLBACK operand changes nothing about which keys the LEFT can answer - the literal is
-  // built over that left, exactly as every other route peels it
-  const named = peelTransparentExpr(receiver)?.type === 'LogicalExpression'
-    ? peelTransparentExpr(receiver).left : receiver;
-  const objectName = named
-    ? resolveObjectName({ objectNode: named, ...nodeSite(named, metaPath), adapter }) : null;
-  if (!objectName) return false;
-  return plan.every(entry => typeof entry.lookupKey === 'string' && resolvePure({
-    kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
-  }, metaPath)?.kind === 'static');
-}
-
 // does `root` hold `target` anywhere in its subtree? node identity, so a foreign binding's
 // declaration never answers yes for a host's own init
 export function nodeHoldsSubtree(root, target) {
@@ -2310,16 +2139,6 @@ export function eagerSentinelMemoName({
     || prop.value.type !== 'AssignmentPattern'
     || !sentinelMemoInitShape(unwrapRuntimeExpr(declarator.init), allProxyInit)) return;
   sentinelMemoNames.set(declarator, mintRefName());
-}
-
-// which INIT shapes need the sentinel memo: the residual re-reads the receiver, so a read the
-// second reader cannot repeat verbatim (a member / call / sequence, a value-SELECTING branch, a
-// constant literal) memoizes once. an ALL-PROXY selection re-reads for free
-export function sentinelMemoInitShape(init, allProxyInit) {
-  return init?.type === 'MemberExpression' || init?.type === 'CallExpression'
-    || init?.type === 'SequenceExpression'
-    || ((init?.type === 'ConditionalExpression' || init?.type === 'LogicalExpression') && !allProxyInit)
-    || isConstantLiteralReceiver(init);
 }
 
 // the residual + extractions of ONE declarator: segmented where several jobs or several SE keys

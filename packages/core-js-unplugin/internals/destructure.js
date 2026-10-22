@@ -18,7 +18,6 @@ import {
   fallbackBranchWalk,
   liftedPrefixSplit,
   flattenArrayWrapperInits,
-  isConstantLiteralReceiver,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   isReReadableSurfaceNav,
@@ -69,14 +68,18 @@ import {
   planNestedLeafHost,
   planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
-  keyedReadDiscardedReceiver,
-  keyedReadReceiverProven,
+  keyedReadEvaluation,
   renderRetainedObjectCapture,
   renderNestedKeyedPatternCapture,
   renderArrayWrapperCapture,
   renderArrayDestructurePlan,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
+  chainThroughNamedDefaults,
+  planLiteralResidual,
+  planLiteralRoute,
+  planSentinelMemo,
+  synthPlanFullyCovered,
   buildNestedDestructurePlan,
   destructureHostLiteralSurvives,
   hopPatternLeafClaims,
@@ -180,7 +183,6 @@ import {
   bareProxyGlobalPure,
   buriedKeyClaimInit,
   classifyDeclarationHost,
-  chainThroughNamedDefaults,
   climbPatternChain,
   defaultedSoleConsumes,
   divergingSelection,
@@ -209,10 +211,8 @@ import {
   planDiscardedInitProbe,
   captureProbePlan,
   planLiftedRhsPrefix,
-  planLiteralRoute,
   planSealedNavProbe,
   captureSealedNavProbe,
-  planSentinelMemo,
   propLocalName,
   proxyNavSynthBase,
   proxyPassthroughBase,
@@ -228,7 +228,6 @@ import {
   nestedInstanceWithoutSelectingInit,
   sinkDropsReceiver,
   staticallySelectedLeft,
-  synthPlanFullyCovered,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
 import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -631,7 +630,10 @@ export default function createAstDestructureEmitter({
         // ... and only where the pattern will NOT be fully covered: a covered one renders the flat
         // rescue and never reads the param, and the idle mint costs the LIVE one its slot
         memoName: callBranch
-          && !synthPlanFullyCovered(plan, receiver, metaPath, { adapter, resolvePure }) ? mintRefName() : null,
+          && !synthPlanFullyCovered(plan, receiver, {
+            contextFor: node => ({ ...nodeSite(node, metaPath), adapter }),
+            resolvePure: meta => resolvePure(meta, metaPath),
+          }) ? mintRefName() : null,
         // a fallback-logical memoizes its resolved LEFT (the dead right short-circuits);
         // the node stays LIVE, so the walker's in-place claims reach the memo argument
         memoReceiver: callBranch ? (receiver.type === 'LogicalExpression' ? receiver.left : receiver) : null,
@@ -2005,17 +2007,10 @@ export default function createAstDestructureEmitter({
     if (keyReadPlan?.sole && (propBindingIdentifier(prop.value) || keyedPattern)) {
       const declaratorPath = patternPath.parentPath;
       const { init } = declaratorPath.node;
-      const proven = keyedReadReceiverProven({ init, hostPath: metaPath, adapter });
-      const discarded = keyedReadDiscardedReceiver({
-        receiver: keyReadPlan.receiver,
-        proven,
-        readsReceiver: kind === 'instance',
-        ctx: keyCtx,
-      });
-      const inlineReceiver = proven && keyReadPlan.inlineReceiver;
+      const evaluation = keyedReadEvaluation(keyReadPlan, { init, hostPath: metaPath, readsReceiver: kind === 'instance', ctx: keyCtx });
+      const { proven, discarded, inlineReceiver } = evaluation;
       const receiverSlot = keyReadPlan.receiver === init ? null : findNodeSlot(init, keyReadPlan.receiver);
-      const receiverName = keyReadPlan.exported && !keyReadPlan.reuseReceiver && !inlineReceiver && !discarded
-        ? injector.generateDeclaredRef(metaPath) : null;
+      const receiverName = evaluation.storeReceiver ? injector.generateDeclaredRef(metaPath) : null;
       let value = buildValue({
         kind, entry, hintName, receiverNode: declaratorPath.node.init, prop, metaPath,
         literalRoute: true,
@@ -2345,16 +2340,8 @@ export default function createAstDestructureEmitter({
     return true;
   }
 
-  // a pattern-valued symbol prop off a NON-proxy receiver with a sibling prop keeps its
-  // key in the residual as an `_unused` sentinel - the babel SE-key channel's shape; the
-  // proxy receivers ride the plan tree, which drops the dead residual instead. a nested
-  // NON-symbol instance leaf keeps its key the same way, except when its residual is dead.
-  // a kept-key literal-route receiver that cannot survive a second read memoizes into a
-  // shared `_ref`: a constant literal (re-emitting bloats) or a relaxed member / branching
-  // node (getter / selection fires once at the memo); a relaxed class-bearing literal is
-  // neither - babel leaves that destructure native (null = decline whole).
-  // a kept-key extraction beside a MULTI-declarator host appends as a sibling declarator
-  // (babel keeps the one declaration: `const z = 1, { ..._unused } = R, m = _f(recv);`)
+  // Allocate and share the receiver memo selected by the provider, then prepare
+  // the host's export/sibling placement. Live slots are captured before any edit.
   function planLiteralKeepKey({
     kind,
     entry,
@@ -2376,113 +2363,39 @@ export default function createAstDestructureEmitter({
     allProxyInit = false,
     forInit = false,
   }) {
-    // the key is kept when the residual still needs it. a SOLE binding leaves none, and
-    // there the extraction may carry the init whole - including its effects, when the
-    // receiver IS that init (`{ flat } = (c++, gt.self).Array.prototype || {}`)
-    const carriesInitWhole = !!literalReceiver && literalReceiver === declarator.init;
-    // ... spelled twice only where no getter of the pattern can rebind it (a name a function writes
-    // is a single read, which the memo below serves like a relaxed member's)
-    const reReadable = !!literalReceiver && (metaPath
-      ? isReReferenceableAcrossReads(literalReceiver, { scope: metaPath.scope, adapter, path: metaPath })
-      : isReReferenceableReceiver(literalReceiver));
-    // a symbol-PATTERN sibling leaves a residual that still spells the key, so the memo
-    // decision below must see the kept key - not learn about it after the fact
-    // ... and a FOR-INIT host keeps the residual whatever the binding count: babel never
-    // drops the loop-header declarator, the extraction appends as a sibling after it
-    const keepKey = sentinel || symbolPatternResidual
-      // the kept residual preserves ORDER in a MULTI-declarator - a preceding extraction could
-      // TDZ-fault a receiver bound earlier in the same declaration - so a shared declaration keeps
-      // it, and a for-INIT header keeps its own. unless keeping it would READ the receiver a SECOND
-      // time: that is a defect, not a reorder risk, and the consumed declarator empties instead
-      // (`const { y: { at } } = { y: nb.y }, zn = 1` fired the `y` getter twice). a receiver proven
-      // to perform the complete init is not that case in a header: the dispatch is the init's one read
-      // ... a SYMBOL leaf under a hop beside a SIBLING prop keeps its sentinel: the residual binds
-      // the sibling, and the helper reads the slot the extraction spells (`{ w: { [S]: _unused }, z }`)
-      || (entry === 'get-iterator-method' && !!literalReceiver && declarator.id?.properties?.length > 1)
-      || (!receiverConsumesInit && kind === 'instance' && entry !== 'get-iterator-method' && !!literalReceiver
-        && ((forInit && (carried || reReadable))
-          || !((soleBinding || (declaratorConsumedWhole && !reReadable))
-            && (relaxedReceiver || carriesInitWhole
-              || !mayHaveSideEffects(declarator.init, metaPath && { scope: metaPath.scope, adapter, path: metaPath })))));
-    // a MULTI-declarator host keeps the one declaration and appends the extraction as a
-    // sibling declarator - the receiver is spelled twice there, so the memo never applies
-    // (`const z = 1, { ..._unused } = R, m = _f(R);`)
-    // ... and a SLOT memo keeps that join: the memo stands ahead (behind the leading siblings, whose
-    // own inits run first) or is written in its slot, and the extraction is appended after the
-    // residual either way - the shape the flat channel takes beside a sibling
-    // ... and an SE-KEY sentinel takes the same join: its key runs in the residual, and the extraction
-    // follows as a declarator like any other - the source reads the claim after the key
-    const siblingAppend = keepKey && !!literalReceiver && declaration.declarations.length > 1;
+    const decision = planLiteralResidual({
+      kind, entry, prop, pattern, sentinel, declarator, declaration, soleBinding, literalReceiver, relaxedReceiver,
+      declaratorConsumedWhole, carried, receiverConsumesInit, slotMemo, symbolPatternResidual,
+      allProxyInit, forInit, injectorState, ctx: { scope: metaPath?.scope, path: metaPath, adapter },
+    });
+    if (!decision) return null;
+    const { keepKey, siblingAppend, memoizeReceiver, consumeResidualRead, deferMemo } = decision;
     let memoRecv = null;
-    // a SENTINEL's residual re-reads its receiver, so a value-SELECTING one may not stay
-    // spelled - the branch would be taken twice. the fragment memoizes and both readers take
-    // the ref (`{ y: { [(k(), 'values')]: v } } = { y: c ? [1] : [] }`); an ALL-PROXY selection
-    // re-reads for free and keeps its own shape
-    const branchingReceiver = !allProxyInit && !!literalReceiver
-      && (literalReceiver.type === 'ConditionalExpression' || literalReceiver.type === 'LogicalExpression');
-    // ... and a CONSTANT LITERAL in a SLOT behind a sentinel memoizes too: spelling `[1, 2]` twice builds
-    // two arrays where the source built one, and the other leg hands both readers one `_ref`. the whole
-    // init stays the drain's sentinel-memo channel, which numbers its ref where babel does
-    const slotLiteral = !!literalReceiver && literalReceiver !== unwrapRuntimeExpr(declarator.init)
-      && isConstantLiteralReceiver(literalReceiver);
-    if (keepKey && (!sentinel || branchingReceiver || slotLiteral || slotMemo)
-      && literalReceiver && (literalReceiver.type !== 'Identifier' || !reReadable)) {
-      // ... and a RE-READABLE built-in surface (`Array.prototype`) spells twice instead of memoizing:
-      // the second read is free, and the other leg's residual keeps the source spelling. it overrides
-      // every memo arm: a surface enters this block only under a pure key and no rest (no sentinel arm
-      // admits one), which is where the shared key strategy exempts it as well
-      const surfaceReRead = isReReadableSurfaceNav(literalReceiver, name => !!injectorState?.getBindingInfo?.(name),
-        { ctx: metaPath ? { scope: metaPath.scope, adapter, path: metaPath } : null });
-      const relaxedMemoizable = relaxedReceiver
-        && literalReceiver.type !== 'ArrayExpression' && literalReceiver.type !== 'ObjectExpression';
-      const memoizable = !surfaceReRead && (relaxedMemoizable || branchingReceiver
-        || isConstantLiteralReceiver(literalReceiver) || !!slotMemo || !isReReferenceableReceiver(literalReceiver))
-        // ... and a sibling join over a receiver it cannot spell twice memoizes it like a slot memo
-        && (!siblingAppend || !!slotMemo || !isReReferenceableReceiver(literalReceiver)) && !forInit;
-      // a receiver safe to SPELL TWICE duplicates instead (the identifier route's shape,
-      // one level up): the extraction clones it and the residual keeps the original. the
-      // clone is taken at drain time off the already-rewritten tree, so the copy carries
-      // the walk's own scope-aware claims (`[Set]` -> `[_Set]` in both, a shadowed `Map`
-      // raw in both)
-      if (!memoizable) {
-        if (!reReadable && !surfaceReRead) return null;
-      } else {
-        // shared per receiver NODE: two leaves off one receiver read the same `_ref`
-        // a BRANCHING fragment defers its number to the drain, where every other whole-init
-        // memo takes one: minting during the walk would run ahead of them and babel numbers
-        // by its own emission order
-        let memo = literalMemoNames.get(literalReceiver);
-        // an object slot memo WRITTEN in its slot (an observable property before it) takes the
-        // element memo's in-slot shape; a hoistable one defers its number like every other
-        if (!memo && slotMemo && !slotMemo.hoist) memo = elementMemoFor(literalReceiver, declarator, { inSlot: true, metaPath });
-        if (!memo) {
-          // the SLOT is captured while the identity still holds: the swap below writes through it,
-          // so a claim rendering INSIDE this receiver cannot strand the memo
-          const slot = findNodeSlot(declaration.node, literalReceiver);
-          // ... and so does a constant literal behind a SENTINEL: babel plants that memo where the
-          // residual's other refs are numbered, not where the walk first met the literal
-          memo = branchingReceiver || sentinel
-            ? { ident: identifier(''), node: literalReceiver, slot, deferred: true }
-            : { refName: mintRefName(), node: literalReceiver, slot };
-          literalMemoNames.set(literalReceiver, memo);
-        }
-        memoRecv = memo;
+    if (memoizeReceiver) {
+      // shared per receiver NODE: two leaves off one receiver read the same `_ref`
+      // a BRANCHING fragment defers its number to the drain, where every other whole-init
+      // memo takes one: minting during the walk would run ahead of them and babel numbers
+      // by its own emission order
+      let memo = literalMemoNames.get(literalReceiver);
+      // an object slot memo WRITTEN in its slot (an observable property before it) takes the
+      // element memo's in-slot shape; a hoistable one defers its number like every other
+      if (!memo && slotMemo && !slotMemo.hoist) memo = elementMemoFor(literalReceiver, declarator, { inSlot: true, metaPath });
+      if (!memo) {
+        // the SLOT is captured while the identity still holds: the swap below writes through it,
+        // so a claim rendering INSIDE this receiver cannot strand the memo
+        const slot = findNodeSlot(declaration.node, literalReceiver);
+        // ... and so does a constant literal behind a SENTINEL: babel plants that memo where the
+        // residual's other refs are numbered, not where the walk first met the literal
+        memo = deferMemo
+          ? { ident: identifier(''), node: literalReceiver, slot, deferred: true }
+          : { refName: mintRefName(), node: literalReceiver, slot };
+        literalMemoNames.set(literalReceiver, memo);
       }
+      memoRecv = memo;
     }
     // ... an EXPORTED join would hand the residual's sentinels out beside the appended extractions,
     // so the host first leaves its export - the capture canon's unwrap - and joins as a plain one
     if (siblingAppend && exported && !slotMemo) return { unwrapExport: true };
-    const consumeResidualRead = !!memoRecv && !!planSideEffectKeyStrategy({
-      polyfillKind: kind,
-      entry,
-      prop,
-      pattern,
-      hostPattern: declarator.id,
-      sourceBindingCount: patternBindingCount(declarator.id),
-      receiverNode: literalReceiver,
-      capturedReceiverNode: memoRecv.node,
-      propKeyIsPure: !computedKeyHasSideEffects(prop, { scope: metaPath?.scope, adapter, path: metaPath }),
-    })?.consumeResidualRead;
     return { keepKey, memoRecv, siblingAppend, consumeResidualRead };
   }
 
@@ -3329,6 +3242,7 @@ export default function createAstDestructureEmitter({
     const typedNavChain = typedNavChainFor({ kind, entry, chain, metaPath, allowSurfaceBase: true });
     const literalRoute = planLiteralRoute({
       metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav: pureNav || !!typedHopPure, forInit, adapter,
+      patternCtx: { ...nodeSite(prop, metaPath), adapter },
     });
     const { soleBinding, declaratorConsumedWhole, relaxedReceiver, carriedLive, receiverConsumesInit } = literalRoute;
     let { literalReceiver } = literalRoute;
