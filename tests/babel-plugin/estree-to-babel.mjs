@@ -37,6 +37,8 @@ import {
   renderMemoActivation,
   planMethodCall,
   renderMethodCall,
+  planOptionalMethodCall,
+  renderOptionalMethodCall,
   sequenceExpression,
   unaryExpression,
   variableDeclaration,
@@ -131,6 +133,18 @@ runBoth('direct probe source frame', 'const value = (globalThis.window?.self).Ar
 
 // --- per-element shape locks: every builder output converts, one lock per element ---
 check('identifier', print(identifier('x')), 'x');
+check('this', print({ type: 'ThisExpression' }), 'this');
+{
+  const callee = memberExpression(hostSlot({ type: 'Super' }), identifier('read'));
+  const plan = planOptionalMethodCall({ callee: { ...callee, object: { type: 'Super' } } });
+  const product = renderOptionalMethodCall(plan, {
+    callee, args: [callExpression(identifier('argument'), [])],
+    embed: node => node.type === 'Super' ? hostSlot(node) : node,
+    mintRef: role => `_${ role }`,
+  });
+  check('optional super lookup keeps its home object', print(product.disjuncts[0]), '_method = super.read');
+  check('optional super continuation invokes on this', print(product.receiver), '_method.call(this, argument())');
+}
 check('arrow/expression', print(arrowFunctionExpression([identifier('x')], identifier('x'))), 'x => x');
 check('arrow/block', print(arrowFunctionExpression([], blockStatement([]))), '() => {}');
 check('assignment pattern/captured receiver default', print(assignmentPattern(identifier('_ref'), identifier('source'))), '_ref = source');

@@ -152,6 +152,8 @@ function build(node) {
       return node.node;
     case 'Identifier':
       return { type: 'Identifier', name: node.name };
+    case 'ThisExpression':
+      return { type: 'ThisExpression' };
     case 'AssignmentPattern':
       return { type: 'AssignmentPattern', left: convert(node.left), right: convert(node.right) };
     case 'Literal':
