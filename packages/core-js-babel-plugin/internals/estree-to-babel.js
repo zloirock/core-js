@@ -255,6 +255,8 @@ function build(node) {
       };
     case 'ImportDefaultSpecifier':
       return { type: 'ImportDefaultSpecifier', local: convert(node.local) };
+    case 'ExportNamedDeclaration':
+      return { type: 'ExportNamedDeclaration', declaration: convert(node.declaration), specifiers: [], source: null };
     default:
       throw new TypeError(`[estree-to-babel] node type outside the canonical vocabulary: ${ node?.type }`);
   }

@@ -22,6 +22,8 @@ import {
   renderKeyedDestructureRead,
   nullGuardTest,
   renderStaticDefaultGuard,
+  exportDeclaration,
+  renderDestructureStatements,
 } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { firstSpelledOffset, ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -1713,9 +1715,11 @@ export default function createDestructureEmitter({
   // sibling re-emits don't share AST identity. used by every "extract polyfill as separate
   // statement" path (simple flatten / cascade / body-extract via varDecl variant)
   function buildPolyfillAssignmentStatement(valueNode, id, spanFrom) {
-    return inheritSpan(t.expressionStatement(
-      inheritSpan(t.assignmentExpression('=', t.cloneNode(valueNode), t.cloneNode(id)), spanFrom),
-    ), spanFrom);
+    const [statement] = renderDestructureStatements([{ id: valueNode, init: id }], {
+      embed: node => hostSlot(t.cloneNode(node)),
+    }).map(node => estreeToBabel(node));
+    inheritSpan(statement.expression, spanFrom);
+    return inheritSpan(statement, spanFrom);
   }
 
   // hoist `_unused` sentinel names into a shared `var _unused, _unused2;` declaration ahead
@@ -1925,8 +1929,10 @@ export default function createDestructureEmitter({
         // an EMPTIED residual binds nothing - the extractions above took every leaf - and a husk
         // target is exactly what the downgrade pass lowers wrong
         if (!pattern.properties.length) return;
-        const assign = inheritSpan(t.expressionStatement(
-          inheritSpan(t.assignmentExpression('=', pattern, binding), assignPath.node)), assignPath.node);
+        const [assign] = renderDestructureStatements([{ id: pattern, init: binding }], { embed: hostSlot })
+          .map(node => estreeToBabel(node));
+        inheritSpan(assign.expression, assignPath.node);
+        inheritSpan(assign, assignPath.node);
         seedAnchoredResidualSkip(assign, pattern);
         assigns.push(assign);
       }
@@ -3124,7 +3130,9 @@ export default function createDestructureEmitter({
     if (patternEmpties && declCount === 1 && !isForInit) {
       // single-declarator full consume: replace the declaration with the extraction
       // statements (replaceWith preserves leading comments on the single-statement shape)
-      const stmts = extracted.map(d => wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [d]), declIsExport));
+      const stmts = renderDestructureStatements(extracted, {
+        kind: declaration.node.kind, exported: declIsExport, embed: hostSlot,
+      }).map(node => estreeToBabel(node));
       const target = declIsExport ? declaration.parentPath : declaration;
       if (stmts.length === 1) target.replaceWith(stmts[0]);
       else target.replaceWithMultiple(stmts);
@@ -3150,7 +3158,9 @@ export default function createDestructureEmitter({
         for (const item of extracted) noteExtractionSource(item, extractionPropOf.get(item) ?? prop?.node, declaration);
         insertHostDeclarator(declarator, extracted, { after });
       } else {
-        const newDecls = extracted.map(d => wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [d]), declIsExport));
+        const newDecls = renderDestructureStatements(extracted, {
+          kind: declaration.node.kind, exported: declIsExport, embed: hostSlot,
+        }).map(node => estreeToBabel(node));
         const host = declIsExport ? declaration.parentPath : declaration;
         const { scope } = host;
         if (after) {
@@ -3802,9 +3812,10 @@ export default function createDestructureEmitter({
         flatTouchedMultiDecls.add(declaration);
         return true;
       }
-      const extracted = t.variableDeclaration(declaration.node.kind, declarators);
-      (isExport ? declaration.parentPath : declaration)
-        .replaceWith(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
+      const [extracted] = renderDestructureStatements([declarators], {
+        kind: declaration.node.kind, exported: isExport, embed: hostSlot,
+      }).map(node => estreeToBabel(node));
+      (isExport ? declaration.parentPath : declaration).replaceWith(extracted);
       return true;
     }
     if (consumeKey) polyfillValue = estreeToBabel(renderKeyedDestructureRead({
@@ -5257,7 +5268,9 @@ export default function createDestructureEmitter({
     const statementHost = declarationPath ?? (assignmentInStatementPosition(host) ? findStatementParent(host) : null);
     const nodes = !atHop && moveTrailingInsertsAhead(statementHost);
     if (nodes) {
-      statementHost.insertBefore(t.variableDeclaration(declarationPath?.node.kind ?? 'const', [t.variableDeclarator(ref, value)]));
+      statementHost.insertBefore(estreeToBabel(renderDestructureStatements([], {
+        capture: { name: ref.name, value, kind: declarationPath?.node.kind ?? 'const' }, embed: hostSlot,
+      })[0]));
       const { scope } = statementHost;
       const inserted = statementHost.insertBefore(nodes);
       rebindLiveDeclarators(inserted, scope);
@@ -5271,8 +5284,9 @@ export default function createDestructureEmitter({
       // DECLARATOR, and a declaration cannot go in a declarator list
       if (memoAnchor.isVariableDeclarator()) insertMemoDeclarator(memoAnchor, ref, value);
       else {
-        memoAnchor.insertBefore(t.variableDeclaration(declarationPath?.node.kind ?? 'const',
-          [t.variableDeclarator(ref, value)]));
+        memoAnchor.insertBefore(estreeToBabel(renderDestructureStatements([], {
+          capture: { name: ref.name, value, kind: declarationPath?.node.kind ?? 'const' }, embed: hostSlot,
+        })[0]));
       }
     } else if (exportHost && host.node === declarationPath.node.declarations[0]) {
       const memoDeclarator = t.variableDeclarator(ref, value);
@@ -5304,7 +5318,9 @@ export default function createDestructureEmitter({
       // ahead of the statement the sequence sits in instead
       const anchor = assignmentInStatementPosition(host) || !discardedSequenceElement(host)
         ? blockWrappedHostStatement(host) : findStatementParent(host);
-      const [memoPath] = anchor.insertBefore(t.variableDeclaration('const', [t.variableDeclarator(ref, value)]));
+      const [memoPath] = anchor.insertBefore(estreeToBabel(renderDestructureStatements([], {
+        capture: { name: ref.name, value }, embed: hostSlot,
+      })[0]));
       // a later sibling follows this memo back to the receiver, as it follows a declarator host's
       memoPath.scope.registerDeclaration(memoPath);
     }
@@ -5495,8 +5511,9 @@ export default function createDestructureEmitter({
     const stmts = [];
     if (idx > 0) stmts.push(t.variableDeclaration(kind, decls.slice(0, idx)));
     const rescued = rescuedInitExpression(declaration, initNode, probe);
-    if (rescued) stmts.push(t.expressionStatement(rescued));
-    stmts.push(extractedDeclaration);
+    stmts.push(...renderDestructureStatements([{ statement: extractedDeclaration }], {
+      prefix: rescued ? [rescued] : [], embed: hostSlot,
+    }).map(node => estreeToBabel(node)));
     if (idx < decls.length - 1) stmts.push(t.variableDeclaration(kind, decls.slice(idx + 1)));
     const { scope } = declaration;
     declaration.replaceWith(stmts.length === 1 ? stmts[0] : t.blockStatement(stmts));
@@ -5965,10 +5982,10 @@ export default function createDestructureEmitter({
     // per-declarator channels put it ahead of the binding through their own channel - a channel
     // that spelled the binding alone left the guard reading a ref no statement declared
     const foldDeclarators = catchFoldedRef ? [t.variableDeclarator(catchFoldedRef)] : [];
-    const extractedDeclaration = t.variableDeclaration(kind, [
+    const [extractedDeclaration] = renderDestructureStatements([[
       ...foldDeclarators,
       t.variableDeclarator(localBinding, value),
-    ]);
+    ]], { kind, embed: hostSlot }).map(node => estreeToBabel(node));
     if (isEmpty && isStaticValue) reclaimLiftedResidualPrefix(parent.node, 'init');
     const ctx = classifyVariableDeclaratorSite({ declaration, parent, isStaticValue, isEmpty });
     if (ctx.isMultiDecl && !ctx.isForInit) flatTouchedMultiDecls.add(declaration);
@@ -6047,28 +6064,25 @@ export default function createDestructureEmitter({
     }
   }
 
-  // wrap declarators into VariableDeclaration statements. when any declarator still
-  // carries an unconsumed ObjectPattern, keep them grouped so later visitor passes see
-  // an intact multi-decl; otherwise emit one statement per declarator. shared by
-  // `spliceAndLiftSideEffect` (pre/post
-  // halves around a lifted SE in LIFT_SE_AND_SPLICE) and
-  // `splitDeclarationAtSlot` (nested-proxy SE-prefix lift through a multi-decl)
   // re-wrap a VariableDeclaration in ExportNamedDeclaration when the original host was
   // exported. used by `tryFlattenNestedProxyDestructure` to keep each cascaded extraction
   // re-exporting its binding (`export const from = _Array$from;` instead of dropping the
   // `export` keyword on individual emitted declarations)
   function wrapAsExportIf(decl, isExport) {
-    return isExport ? t.exportNamedDeclaration(decl) : decl;
+    return estreeToBabel(exportDeclaration(hostSlot(decl), isExport));
   }
 
+  // Keep an unconsumed object pattern grouped for its pending visits; otherwise split
+  // one statement per declarator. A private receiver memo stays local and uses const.
   function splitDeclarators(decls, kind, isExport) {
     if (!decls.length) return [];
     const groups = decls.some(d => t.isObjectPattern(d.id)) ? [decls] : decls.map(d => [d]);
-    return groups.map(g => {
+    return groups.flatMap(g => {
       // a receiver memo is an internal temp: standalone `const`, never export-wrapped
-      if (g.length === 1 && memoDeclarators.has(g[0])) return t.variableDeclaration('const', g);
-      const decl = t.variableDeclaration(kind, g);
-      return isExport ? t.exportNamedDeclaration(decl) : decl;
+      const memo = g.length === 1 && memoDeclarators.has(g[0]);
+      return renderDestructureStatements([g], {
+        kind: memo ? 'const' : kind, exported: !memo && isExport, embed: hostSlot,
+      }).map(node => estreeToBabel(node));
     });
   }
 
@@ -6180,10 +6194,15 @@ export default function createDestructureEmitter({
   // assignment, and one owing nothing is the bare assignment. replacing the STATEMENT instead
   // dropped whatever the sequence held after this element
   function emitDiscardedSeqElementDestructure({ parent, element, localBinding, value, isStaticValue, isEmpty, probe = null }) {
-    const assign = inheritSpan(t.assignmentExpression('=', localBinding, value), parent.node);
-    if (!isEmpty) return element.replaceWith(t.sequenceExpression([assign, element.node]));
-    const rescued = isStaticValue && rescuedInitExpression(parent, parent.node.right, probe);
-    return element.replaceWith(rescued ? t.sequenceExpression([rescued, assign]) : assign);
+    const rescued = isEmpty && isStaticValue && rescuedInitExpression(parent, parent.node.right, probe);
+    const statements = renderDestructureStatements([{ id: localBinding, init: value }], {
+      prefix: rescued ? [rescued] : [],
+      residual: isEmpty ? null : t.expressionStatement(element.node),
+      embed: hostSlot,
+    }).map(node => estreeToBabel(node));
+    inheritSpan(statements[rescued ? 1 : 0].expression, parent.node);
+    const expressions = statements.map(statement => statement.expression);
+    return element.replaceWith(expressions.length === 1 ? expressions[0] : t.sequenceExpression(expressions));
   }
 
   // AssignmentExpression branch executor. dispatches the planner strategy to the matching
@@ -6197,8 +6216,10 @@ export default function createDestructureEmitter({
     // statement - replacing only the inner assignment leaves dead wrapper decoration
     // (`((from = _Array$from) satisfies unknown)!;`) the unplugin render never emits
     const assignmentTarget = hostStatementPath(parent);
-    const assignment = inheritSpan(t.expressionStatement(
-      inheritSpan(t.assignmentExpression('=', localBinding, value), parent.node)), assignmentTarget.node);
+    const [assignment] = renderDestructureStatements([{ id: localBinding, init: value }], { embed: hostSlot })
+      .map(node => estreeToBabel(node));
+    inheritSpan(assignment.expression, parent.node);
+    inheritSpan(assignment, assignmentTarget.node);
     // save the original body index before the first insertBefore shifts it, so a deferred SE on
     // the empty tail (`({ from, of } = (se(), Array))`) lifts AHEAD of the earlier insertBefore'd
     // assignments instead of interleaving between them - mirrors the VariableDeclarator capture,
@@ -6235,7 +6256,10 @@ export default function createDestructureEmitter({
   // SE is what the shared rescue says the init owes, which may be nothing at all
   function wrapBodylessAssignWithSideEffect({ assignmentTarget, initNode, assignment, probe = null }) {
     const rescued = rescuedInitExpression(assignmentTarget, initNode, probe);
-    assignmentTarget.replaceWith(rescued ? t.blockStatement([t.expressionStatement(rescued), assignment]) : assignment);
+    const statements = renderDestructureStatements([{ statement: assignment }], {
+      prefix: rescued ? [rescued] : [], embed: hostSlot,
+    }).map(node => estreeToBabel(node));
+    assignmentTarget.replaceWith(estreeToBabel(bodylessSlotReplacement(assignmentTarget.node, statements, hostSlot)));
   }
 
   // a whole-init pre-memo INSERTS a sibling declarator, and an earlier prop's emission on the SAME

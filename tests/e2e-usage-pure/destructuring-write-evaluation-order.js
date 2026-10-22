@@ -73,3 +73,30 @@ QUnit.test('write order: a var initializer runs past an earlier write of its nam
   var text = [3, 4];
   assert.deepEqual([head, text.at(-1)], ['b', 4]);
 });
+
+QUnit.test('immediate extraction: siblings retain their initialization slots', assert => {
+  const events = [];
+  const values = [4, 5];
+  function source() {
+    events.push('source');
+    return values;
+  }
+  const before = (events.push('before'), 0),
+        { at: method = (events.push('default'), () => -1), length: size } = source(),
+        after = (events.push('after'), method.call(values, -1));
+  assert.deepEqual([before, after, size], [0, 5, 2]);
+  assert.deepEqual(events, ['before', 'source', 'after']);
+});
+
+QUnit.test('immediate extraction: a bodyless array capture shares its residual receiver', assert => {
+  const events = [];
+  const values = [4, 5];
+  function source() {
+    events.push('source');
+    return values;
+  }
+  // eslint-disable-next-line no-var -- an unbraced var declaration is the host under test
+  if (values) var [{ at: method, length: size }] = [source()];
+  assert.deepEqual([method.call(values, -1), size], [5, 2]);
+  assert.deepEqual(events, ['source']);
+});
