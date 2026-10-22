@@ -174,6 +174,7 @@ import {
   variableDeclaration,
   variableDeclarator,
   renderParameterInstanceCapture,
+  renderDestructureStatements,
   exportDeclaration,
 } from '@core-js/polyfill-provider/render';
 import {
@@ -2327,7 +2328,7 @@ export default function createAstDestructureEmitter({
     // later extracts chain AFTER earlier ones (babel's insertAfter chain, source order)
     let at = bodyExtractInsertAt.get(fnPath.node);
     if (at === undefined) at = prologueEndIndex(body);
-    body.splice(at, 0, variableDeclaration('let', [variableDeclarator(identifier(localId.name), identifier(id))]));
+    body.splice(at, 0, ...renderDestructureStatements([{ id: identifier(localId.name), init: identifier(id) }], { kind: 'let' }));
     bodyExtractInsertAt.set(fnPath.node, at + 1);
     if (hasRestSiblingExcept(pattern.properties, prop)) {
       markSubtreeSkipped(skippedNodes, prop.value);
