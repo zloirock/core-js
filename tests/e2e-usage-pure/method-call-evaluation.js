@@ -286,3 +286,43 @@ QUnit.test('method call: symbol lookup keeps its receiver through re-entry and a
     assert.deepEqual(events, ['lookup', 'argument']);
   }
 });
+
+export function invokeDefaultOptionalChain(get, argument, value = get()?.at?.(argument())?.includes('2')) {
+  return value;
+}
+
+export function invokeFieldOptionalChain(get, argument) {
+  return new class {
+    value = get()?.at?.(argument())?.includes('2');
+  }().value;
+}
+
+QUnit.test('optional method continuation: captures survive re-entry in defaults and fields', assert => {
+  for (const invoke of [invokeDefaultOptionalChain, invokeFieldOptionalChain]) {
+    const events = [];
+    const inner = { at(value) {
+      assert.same(this, inner);
+      events.push('inner body');
+      return value;
+    } };
+    const outer = { get at() {
+      events.push('lookup');
+      assert.same(invoke(() => inner, () => '2'), true);
+      return function (value) {
+        assert.same(this, outer);
+        events.push('outer body');
+        return value;
+      };
+    } };
+    assert.same(invoke(() => {
+      events.push('receiver'); return outer;
+    }, () => {
+      events.push('argument'); return ['42'].at(0);
+    }), true);
+    assert.deepEqual(events, ['receiver', 'lookup', 'inner body', 'argument', 'outer body']);
+    for (const receiver of [null, {}, { at: null }]) {
+      assert.same(invoke(() => receiver, () => assert.unreachable()), undefined);
+    }
+    assert.same(invoke(() => ({ at() { return undefined; } }), () => 0), undefined);
+  }
+});
