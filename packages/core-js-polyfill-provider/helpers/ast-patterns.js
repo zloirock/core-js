@@ -10458,30 +10458,30 @@ export function collectFileCensus(programNode, reducers) {
     const { type } = node;
     for (const reducer of reducers) reducer.visit(node, frame);
     if (asksConstructorKey) constructorKeyRead ||= readsConstructorKeyAt(node, type);
-    const atTopLevel = frame.atTopLevel && !isScopeRebinding(node);
-    // sticky, same shape as `atTopLevel`: once inside an annotation the whole subtree is inside it.
-    // the boundary is the WRAPPER node a `:` slot introduces - deliberately NARROWER than
-    // `isTypeAnnotationNodeType` ("is this type-space at all"), which also covers union arms and
-    // type ARGUMENTS. a type-alias RHS, an interface body and type arguments carry no wrapper
-    const underTypeAnnotation = frame.underTypeAnnotation || isTypeAnnotationWrapper(node);
-    const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(type) ? frame.parentType : type;
-    const rebindsThis = THIS_REBINDING_TYPES.has(type);
+    // Leaves and empty lists need no child context. Compute it at the first real child.
+    let rebindsThis = false;
     let childFrame = null;
     let receiverFrame = null;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const value = node[key];
-      if (Array.isArray(value) || isASTNode(value)) {
-        childFrame ??= {
-          parentType,
-          atTopLevel,
-          atThisTopLevel: frame.atThisTopLevel,
-          thisOwner: frame.thisOwner,
-          parentNode: node,
-          underTypeAnnotation,
-          scopes: isScopeRebinding(node) || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
-          throwHandler: frame.throwHandler,
-        };
+      if (Array.isArray(value) ? value.length > 0 : isASTNode(value)) {
+        if (!childFrame) {
+          const rebindsScope = isScopeRebinding(node);
+          rebindsThis = THIS_REBINDING_TYPES.has(type);
+          childFrame = {
+            parentType: TRANSPARENT_EXPR_WRAPPER_TYPES.has(type) ? frame.parentType : type,
+            atTopLevel: frame.atTopLevel && !rebindsScope,
+            atThisTopLevel: frame.atThisTopLevel,
+            thisOwner: frame.thisOwner,
+            parentNode: node,
+            // Sticky inside a `:` annotation wrapper; a type alias or type argument alone
+            // opens none, unlike the broader isTypeAnnotationNodeType classification.
+            underTypeAnnotation: frame.underTypeAnnotation || isTypeAnnotationWrapper(node),
+            scopes: rebindsScope || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
+            throwHandler: frame.throwHandler,
+          };
+        }
         // Keep the owner, not just a top-level flag: escape and write censuses ask whose this it is.
         const thisOwner = key === 'decorators' && frame.parameterThisOwner !== undefined
           ? frame.parameterThisOwner

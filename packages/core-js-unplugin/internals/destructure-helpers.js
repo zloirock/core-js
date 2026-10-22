@@ -1115,9 +1115,12 @@ export function captureProbePlan(plan, metaPath, ctx) {
       { ...nodeSite(source.source, metaPath), adapter: ctx.adapter });
   }
   const test = capture(plan.test?.source);
-  return { ...plan, residual, guardObject: test?.source,
+  return {
+    ...plan,
+    residual,
     alternateEffects: live.slice(0, effects.length),
-    test: test ? { ...plan.test, source: test } : plan.test };
+    test: test ? { ...plan.test, source: test } : plan.test,
+  };
 }
 
 // the KEY a discarded read spells over a kept store the realm may leave void, or null: by drain time
@@ -2044,7 +2047,7 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
 }
 
 // do the jobs of one declarator all keep an SE-KEY sentinel - the claims the sibling join serves?
-export function seKeySentinelJobs(declJobs, adapter = null) {
+function seKeySentinelJobs(declJobs, adapter = null) {
   return declJobs.every(job => job.sentinel
     && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter }));
 }
@@ -2448,7 +2451,7 @@ export function orderResidualDeclarators({ declarator, jobs, values }, { removeC
 // a residual left holding SEVERAL ctor hops over a plain surface identifier, each a sole-hop
 // residual of its own once split: the pieces, or null where any hop declines (the whole residual
 // then keeps its raw shape, as it does beside a sole hop that declines)
-export function splitCtorHopResidual(declarator, { surfaceInitInfo, reanchor }) {
+function splitCtorHopResidual(declarator, { surfaceInitInfo, reanchor }) {
   const pattern = declarator.id;
   if (pattern?.type !== 'ObjectPattern' || pattern.properties.length < 2) return null;
   if (surfaceInitInfo(declarator)?.shape !== 'ident') return null;

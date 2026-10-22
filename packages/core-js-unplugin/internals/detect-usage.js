@@ -850,18 +850,33 @@ function isLiteralString(node) {
 // estree-toolkit descends into the children a replace or remove detached - its choice, not a contract. a pure
 // walk acts through no path under a removed ancestor; what still needs a claim there fires first (`claimLive`).
 // the mark decides, not the shape (`ancestorChainDetached`): a node a render moved by hand under a new parent is
-// live, and the walk reaches it through its old chain only
-export function rejectDetachedPaths(visitors) {
+// live, and the walk reaches it through its old chain only. An early claim's completed nodes
+// stay completed when a render moves them under another parent; fresh clones remain visitable.
+export function rejectDetachedPaths(visitors, completed = null) {
   return Object.fromEntries(Object.entries(visitors).map(([type, visit]) => [type, path => {
-    for (let up = path; up?.node; up = up.parentPath) if (up.removed) return;
+    for (let up = path; up?.node; up = up.parentPath) if (up.removed) {
+      path.skip();
+      return;
+    }
+    if (completed?.nodes?.has(path.node)) {
+      path.skip();
+      return;
+    }
     visit(path);
   }]));
 }
 
-// fire the claims inside nodes a render re-reads off the pristine tree while their paths are still live. a node a
-// second route hands again meets its own rendered output, which the visitors leave inert as they do on a requeue
-export function claimLive(visitors, nodes, at) {
-  for (const node of nodes) pathOfNode(at, node)?.traverse(visitors);
+// Fire claims before their source paths detach. Mark completion only after children have run:
+// a later route can move the processed nodes, but need not analyze their rendered output again.
+// The caller owns completion for this one usage walk; it never carries into another transform.
+export function claimLive(visitors, nodes, at, completed) {
+  if (!nodes.length) return;
+  completed.nodes ??= new WeakSet();
+  const { leave } = rejectDetachedPaths({
+    leave(path) { completed.nodes.add(path.node); },
+  });
+  const once = Object.fromEntries(Object.entries(visitors).map(([type, enter]) => [type, { enter, leave }]));
+  for (const node of nodes) pathOfNode(at, node)?.traverse(once);
 }
 
 export function createUsageVisitors({
@@ -870,6 +885,7 @@ export function createUsageVisitors({
   method,
   suppressProxyGlobals = false,
   walkAnnotations = true,
+  completedClaims = null,
   isEntryAvailable,
   resolveMeta,
   resolvePure = null,
@@ -897,7 +913,7 @@ export function createUsageVisitors({
 
   // detached paths are rejected before detection builds their metadata
   function liveVisitors(visitors) {
-    return method === 'usage-pure' ? rejectDetachedPaths(visitors) : visitors;
+    return method === 'usage-pure' ? rejectDetachedPaths(visitors, completedClaims) : visitors;
   }
 
   // build meta for destructuring property: const { from } = Array, ({ from } = Array) - the funnel
