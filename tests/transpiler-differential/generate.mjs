@@ -19766,6 +19766,39 @@ function * generateNavigationMemoReads() {
   }
 }
 
+// Optional method and result guards must stay inside each evaluation frame, including
+// getter re-entry. The continued builtin and nested argument also need their own imports.
+function * generateOptionalContinuationFrames() {
+  for (const frame of ['body', 'parameter', 'field']) for (const optionalResult of [false, true]) {
+    for (const outcome of ['callable', 'null receiver', 'null method', 'undefined result']) {
+      const call = `get()?.at?.(argument())${ optionalResult ? '?.' : '.' }includes('2')`;
+      const read = frame === 'parameter' ? `function read(get, argument, value = ${ call }) { return value; }`
+        : `function read(get, argument) { return ${ frame === 'field' ? `new class { value = ${ call }; }().value` : call }; }`;
+      yield {
+        name: `optional-continuation-frames/${ frame }/${ optionalResult }/${ outcome }`,
+        code: `export const effects = [];
+          ${ read }
+          const inner = { at(value) { effects.push(this === inner ? 'inner this' : 'wrong this'); return value; } };
+          const outer = ${ outcome === 'null receiver' ? 'null' : `{ get at() {
+            effects.push('lookup');
+            ${ outcome === 'null method' ? 'return null;' : `
+              read(() => inner, () => { effects.push('inner argument'); return '2'; });
+              return function (value) {
+                effects.push(this === outer ? 'outer this' : 'wrong this');
+                return ${ outcome === 'undefined result' ? 'undefined' : 'value' };
+              };` }
+          } }` };
+          let r;
+          try { r = read(() => { effects.push('receiver'); return outer; },
+            () => { effects.push('argument'); return ['2'].at(0); }); }
+          catch (error) { r = error.name; }
+          export { r };`,
+        strip: true,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20136,4 +20169,5 @@ export function * generate() {
   yield * generateDeferredProbeSiblings();
   yield * generateNavigationMemoReads();
   yield * generateGuardedResidualValues();
+  yield * generateOptionalContinuationFrames();
 }

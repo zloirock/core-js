@@ -30,6 +30,13 @@ const rows = [
   ['raw optional continuation', 'receiver.raw?.(argument())?.toString().at(0)'],
   ['raw optional prefix and result guard', '(effect(), receiver).raw?.(argument())?.toString().at(0)'],
   ['raw optional prefix and continuation', '(effect(), receiver).raw?.(argument()).toString().at(0)'],
+  ['raw optional receiver and continuation', 'receiver?.raw?.(argument()).toString().at(0)'],
+  ['raw optional keyed receiver and continuation', 'getReceiver()?.[(effect(), "raw")]?.(argument()).toString().at(0)'],
+  ['optional default continuation', '((value = getReceiver()?.at?.(argument())?.toString().at(0)) => value)()'],
+  ['optional field continuation', 'new class { value = getReceiver()?.at?.(argument())?.toString().at(0); }().value'],
+  ['sealed optional prefix and key', '((effect(), receiver)?.[(effect(), "at")])(argument())'],
+  ['optional delete continuation', 'delete receiver?.at?.(argument()).missing'],
+  ['optional nested argument claim', 'receiver.at?.(argument() + [1].at(0))?.toString().at(0)'],
   ['raw super optional continuation', 'new Child().read()', `
     class Parent {}
     Object.setPrototypeOf(Parent.prototype, receiver);
