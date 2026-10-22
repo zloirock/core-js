@@ -35,6 +35,8 @@ import {
   objectPattern,
   objectProperty,
   renderMemoActivation,
+  exportDeclaration,
+  renderDestructureStatements,
   planMethodCall,
   renderMethodCall,
   planOptionalMethodCall,
@@ -208,6 +210,65 @@ check('voidZero', print(voidZero()), 'void 0');
 check('bareRequire', print(bareRequire('core-js/modules/es.array.flat')), 'require("core-js/modules/es.array.flat");');
 check('varRequire', print(varRequire('_at', '@core-js/pure/actual/array/at')),
   'var _at = require("@core-js/pure/actual/array/at");');
+
+// Immediate statement composition preserves a residual's slot, keeps captures private,
+// and carries native declarations unchanged across the insertion boundary.
+{
+  const read = variableDeclarator(identifier('value'), callExpression(identifier('read'), [identifier('_receiver')]));
+  const residual = variableDeclaration('const', [variableDeclarator(
+    objectPattern([objectProperty(identifier('other'), identifier('other'))]), identifier('_receiver'),
+  )]);
+  for (const residualAt of [0, 1]) {
+    const source = JSON.stringify({ read, residual });
+    const rendered = renderDestructureStatements([read], {
+      kind: 'const', exported: true,
+      prefix: [callExpression(identifier('before'), [])],
+      capture: { name: '_receiver', value: callExpression(identifier('load'), []) },
+      residual: exportDeclaration(residual, true), residualAt,
+    });
+    const printed = rendered.map(print);
+    check(`statements/${ residualAt }/effects first`, printed[0], 'before();');
+    check(`statements/${ residualAt }/private capture`, printed[1], 'const _receiver = load();');
+    check(`statements/${ residualAt }/residual slot`, printed[2 + residualAt], 'export const {\n  other: other\n} = _receiver;');
+    check(`statements/${ residualAt }/extraction slot`, printed[3 - residualAt], 'export const value = read(_receiver);');
+    check(`statements/${ residualAt }/source unchanged`, JSON.stringify({ read, residual }), source);
+  }
+  check('statements/empty output', renderDestructureStatements([]).length, 0);
+  check('statements/residual alone', renderDestructureStatements([], { residual })[0], residual);
+  check('statements/group stays together', print(renderDestructureStatements([[read,
+    variableDeclarator(identifier('tail'), literal(2)),
+  ]], { kind: 'var' })[0]), 'var value = read(_receiver),\n  tail = 2;');
+  check('statements/member target', print(renderDestructureStatements([{
+    id: memberExpression(identifier('target'), identifier('slot')), init: literal(3),
+  }])[0]), 'target.slot = 3;');
+  const target = objectPattern([objectProperty(identifier('name'), identifier('name'))]);
+  check('statements/pattern target', print(renderDestructureStatements([{
+    id: target, init: identifier('method'),
+  }])[0]), '({\n  name: name\n} = method);');
+  const native = estreeToBabel(read);
+  const kept = variableDeclarator(identifier('kept'));
+  const decorated = estreeToBabel(variableDeclaration('let', [kept]));
+  const rendered = renderDestructureStatements([native, { statement: decorated }], { kind: 'const', embed: hostSlot })
+    .map(node => estreeToBabel(node));
+  check('statements/native declarator identity', rendered[0].declarations[0], native);
+  check('statements/decorated statement identity', rendered[1], decorated);
+  const exported = exportDeclaration(hostSlot(rendered[0]), true);
+  check('export/native declaration identity', estreeToBabel(exported).declaration, rendered[0]);
+  check('export/plain statement identity', exportDeclaration(rendered[0], false), rendered[0]);
+  const core = requireBabel('@babel/core');
+  const bindings = [];
+  // eslint-disable-next-line node/no-sync -- insertion and scope registration are one synchronous assertion
+  const inserted = core.transformSync('export {};', {
+    configFile: false, babelrc: false,
+    plugins: [() => ({ visitor: { Program(program) {
+      program.pushContainer('body', estreeToBabel(exported));
+      program.scope.crawl();
+      bindings.push(...Object.keys(program.scope.bindings));
+    } } })],
+  });
+  check('export/live scope registers binding', bindings.join(','), 'value');
+  checkTruthy('export/live insertion prints export', inserted.code.includes('export const value = read(_receiver);'));
+}
 
 // --- the chain dialect: ChainExpression dissolves into Optional*Expression links ---
 

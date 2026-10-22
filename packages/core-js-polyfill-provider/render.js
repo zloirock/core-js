@@ -970,6 +970,40 @@ export function renderDestructureAssignments(reads, { residual = null, detach = 
   return sequenceExpression(writes);
 }
 
+// A split source declaration keeps its exports; private captures call this without the wrap.
+// The statement may be a host slot, so no source subtree is rebuilt or inspected here.
+export function exportDeclaration(statement, exported) {
+  return exported
+    ? { type: 'ExportNamedDeclaration', declaration: statement, specifiers: [], source: null, attributes: [] }
+    : statement;
+}
+
+// Compose an immediate destructure's statements from its ordered reads and residual slot.
+// Declaration reads are declarators (or a group that must stay joined); assignment reads
+// carry the same id/init pair. An already-decorated read uses an explicit statement slot.
+// Prefix effects precede the capture, which stays private even
+// in an export. The residual keeps its planned position, including before the first read.
+// `embed` carries native nodes without cloning them implicitly: the binding owns source
+// identity, spans and live paths. No host insertion, pattern pruning or source query runs here.
+export function renderDestructureStatements(reads, {
+  kind = null, exported = false, prefix = [], capture = null,
+  residual = null, residualAt = reads.length, embed = node => node,
+} = {}) {
+  const statements = prefix.map(node => expressionStatement(embed(node)));
+  if (capture) statements.push(variableDeclaration(capture.kind ?? 'const', [
+    variableDeclarator(identifier(capture.name), embed(capture.value)),
+  ]));
+  for (let index = 0; index <= reads.length; index++) {
+    if (residual && index === residualAt) statements.push(embed(residual));
+    if (index === reads.length) break;
+    const read = reads[index];
+    statements.push(read.statement ? embed(read.statement) : kind
+      ? exportDeclaration(variableDeclaration(kind, (Array.isArray(read) ? read : [read]).map(embed)), exported)
+      : expressionStatement(assignmentExpression('=', embed(read.id), embed(read.init))));
+  }
+  return statements;
+}
+
 // the static twin: the read needs no memo (an import binding or a plain ref re-reads for
 // free), so the guard tests it directly - `<read> === void 0 ? <default> : <reread>`.
 // `alwaysDefined`: the read is the polyfill's own import binding, which the guard can never see
