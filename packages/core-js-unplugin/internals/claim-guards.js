@@ -726,20 +726,13 @@ export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure
   return true;
 }
 
-// a SEAL makes the read above it observable: the source performs it on a value that can be
-// absent (`(globalThis.window?.self).Map` throws off-window), and the claim's swap erases it.
-// rebuild that read as a THROW PROBE riding ahead of the ponyfill - the sealed value through
-// the shared guard plan, the boundary key re-spelling the source read
+// Bind the shared erased-read decision to this source site and injector. Consumers retain
+// the decision alongside its rendered probe so effects are never recovered from emitted AST.
 export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const { adapter, resolveGlobalPolyfill, injectPureImport } = ctx;
   const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
   const decision = directClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
-  return decision ? {
-    node: renderClaimProbe(decision, { injectImport: injectPureImport }),
-    decision,
-    consumed: decision.consumed,
-    navStart: decision.navStart,
-  } : null;
+  return decision ? { node: renderClaimProbe(decision, { injectImport: injectPureImport }), decision } : null;
 }
 
 // did the source spell the callee through explicit parens (the paren-lookup class)?
