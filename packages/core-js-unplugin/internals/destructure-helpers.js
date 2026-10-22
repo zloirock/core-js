@@ -11,6 +11,7 @@ import {
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
   paramDefaultInstanceSynthAllowed,
+  planSynthReceiverGuard,
   patternHopKeysToHost,
   synthPropDedupKey,
   decidedRunningOperand,
@@ -1537,7 +1538,7 @@ export function anchorAssignmentResidual(assignment, jobs, reanchor, surfaceInit
 // intermediate hop reads undefined off-browser - so its harvested effects sink alone
 // (`sf()[(c++, 'self')].Map` -> `_ref = (sf(), c++)`); every other shape sinks through the shared
 // collapse (`(() => globalThis)().self.Promise` -> `_ref = _Promise`)
-export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemoArg, adapter }) {
+export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemoArg, renderMemoArg, adapter }) {
   // a `||` / `??` its LEFT decides never runs its right - behind a prefix the carry left too: the slot
   // keeps what the rescue canon owes of the init, and none stands where that is nothing
   // (`{ of } = Array ?? (log(), Set)` sinks no slot)
@@ -1556,7 +1557,7 @@ export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemo
   // substituted the hop's own pure in place (`_self.Array`), where the navigation canon spells
   // the root binding (`_globalThis.Array`)
   const memoArgPlan = sinkPlan ?? (metaPath ? planMemoArg(init, metaPath) : null);
-  return memoArgPlan ? buildMemoArg({ memoReceiver: init, memoArgPlan }) : init;
+  return renderMemoArg(memoArgPlan, metaPath) ?? init;
 }
 
 // an INSTANCE leaf under hops whose host pattern is a DEFAULT's left - a parameter's, a property's or
@@ -1609,7 +1610,10 @@ export function registerInstanceSynthSlot({
   if (!pending) {
     const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter });
     if (!plan) return false;
-    pending = { plan, receiver, slots: new Map(), metaPath, instanceReceiver: receiver };
+    pending = { plan, receiver, slots: new Map(), metaPath, instanceReceiver: receiver,
+      synthGuard: planSynthReceiverGuard({ receiver, ...nodeSite(receiver, metaPath), adapter: ctx.adapter,
+        resolvePure: meta => ctx.resolvePure(meta, metaPath) }),
+      sealedProbePlan: captureSealedNavProbe(receiver, metaPath, ctx) };
     synthLedger.set(pattern, pending);
   }
   const lookupKey = pending.plan.find(item => item.dedupKey === dedupKey)?.lookupKey ?? null;
@@ -2104,16 +2108,6 @@ export function emitLiteralReceiverMemos({ declarator, jobs, statements, kind, m
     else if (declarator.init === memo.node) declarator.init = identifier(memo.refName);
     else replaceNodeInTree(declarator.init, memo.node, identifier(memo.refName));
   }
-}
-
-// The memo argument keeps the planned target behind its live prefix effects, whose claims
-// landed during the walk. Without a plan, keep the live receiver for its caller to duplicate.
-export function buildMemoArg(pending) {
-  const { memoReceiver, memoArgPlan } = pending;
-  if (!memoArgPlan) return memoReceiver;
-  // drain-time clones of the LIVE harvested se: the walk's in-place claims already landed
-  const ahead = [...memoArgPlan.prefix, ...(memoArgPlan.liveSe ?? []).map(node => cloneNode(node))];
-  return ahead.length ? sequenceExpression([...ahead, memoArgPlan.target]) : memoArgPlan.target;
 }
 
 // the sentinel memo's name, taken during the WALK so it lands ahead of the DEFAULT guard ref the

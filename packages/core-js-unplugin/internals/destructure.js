@@ -640,6 +640,7 @@ export default function createAstDestructureEmitter({
         // the node stays LIVE, so the walker's in-place claims reach the memo argument
         memoReceiver: callBranch ? (receiver.type === 'LogicalExpression' ? receiver.left : receiver) : null,
         memoArgPlan,
+        synthGuard,
         // ... and the SHAPE of the sealed read the swap erases, planned on the PRISTINE tree:
         // by drain time the walk has rendered that nav into its guard and the seal is gone
         sealedProbePlan: captureSealedNavProbe(receiver, metaPath, probeRenderCtx),
@@ -666,8 +667,11 @@ export default function createAstDestructureEmitter({
       if (synthGuard) skippedNodes.keepLive?.add(synthGuard.probe);
       markSubtreeSkipped(skippedNodes, node, skippedNodes.keepLive?.size ? skippedNodes.keepLive : null);
     }
-    if (callBranch) {
-      if (receiver.type === 'LogicalExpression' && !synthGuard) markSubtreeSkipped(skippedNodes, receiver.right);
+    // The queued synth owns its guard. Let only the probe and child effects run;
+    // a second navigation claim must not wrap this same receiver before the drain.
+    if (synthGuard) markSkippedKeepingRescues(receiver);
+    else if (callBranch) {
+      if (receiver.type === 'LogicalExpression') markSubtreeSkipped(skippedNodes, receiver.right);
       // the top node must survive to the drain (a whole-member claim would detach it). a
       // canonically-planned tail is consumed whole; without a plan the inner nodes stay
       // live so the memo argument carries their in-place claims
@@ -1215,11 +1219,22 @@ export default function createAstDestructureEmitter({
         const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter });
         if (!plan) return false;
         pending = {
-          plan, receiver: inner, slots: new Map(), callBranch: true, branchMirror: true, metaPath,
+          plan,
+          receiver: inner,
+          slots: new Map(),
+          callBranch: true,
+          branchMirror: true,
+          metaPath,
           rescueSe: sePolicy.rescueSe ?? null,
           // partial key coverage renders the IIFE, and the branch VALUE is its argument -
           // the node itself, which the drain moves out of the tree into the call
           memoReceiver: inner,
+          synthGuard: planSynthReceiverGuard({
+            receiver: inner,
+            ...nodeSite(inner, metaPath),
+            adapter,
+            resolvePure: meta => resolvePure(meta, metaPath),
+          }),
           // ... and the sealed read this ARM erases, planned on the PRISTINE tree like the
           // flat swap's (`cond ? ((<guard>).Object, { assign: _Object$assign }) : ...`)
           sealedProbePlan: captureSealedNavProbe(inner, metaPath, probeRenderCtx),
@@ -1267,7 +1282,17 @@ export default function createAstDestructureEmitter({
       // the sealed read this ARM erases, planned on the PRISTINE tree: at drain time the walk
       // has rendered that nav into its guard and the seal is no longer visible
       pending = {
-        plan, receiver: inner, slots: new Map(), metaPath, ...branchBase,
+        plan,
+        receiver: inner,
+        slots: new Map(),
+        metaPath,
+        ...branchBase,
+        synthGuard: planSynthReceiverGuard({
+          receiver: inner,
+          ...nodeSite(inner, metaPath),
+          adapter,
+          resolvePure: meta => resolvePure(meta, metaPath),
+        }),
         sealedProbePlan: captureSealedNavProbe(inner, metaPath, probeRenderCtx),
       };
       pendingBranchSynths.set(inner, pending);

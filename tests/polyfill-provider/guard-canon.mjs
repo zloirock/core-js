@@ -812,6 +812,16 @@ for (const spanless of [false, true]) {
       check(`${ label }/ahead`, plan?.ahead.map(node => node.argument?.name).join(','), 'before');
       check(`${ label }/after`, plan?.after.map(node => node.argument?.name).join(','), 'after');
       check(`${ label }/fallback`, plan?.fallback, receiverPath.node);
+      // Child claims replace native slots after the source has supplied the guard proof.
+      for (const name of ['before', 'after']) {
+        const update = adapter.pickPath(program, 'UpdateExpression', item => item.node.argument.name === name);
+        update.container[update.key] = { type: 'Identifier', name: `rewritten_${ name }` };
+      }
+      const store = adapter.pickPath(program, 'AssignmentExpression');
+      store.container[store.key] = { type: 'Identifier', name: 'rewritten_probe' };
+      check(`${ label }/live probe`, plan.probe.name, 'rewritten_probe');
+      check(`${ label }/live ahead`, plan.ahead[0].name, 'rewritten_before');
+      check(`${ label }/live after`, plan.after[0].name, 'rewritten_after');
     });
 }
 for (const source of ['globalThis.self.Array ?? {};', '(globalThis.window?.self).Array ?? {};']) {

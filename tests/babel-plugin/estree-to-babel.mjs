@@ -35,6 +35,8 @@ import {
   objectPattern,
   objectProperty,
   renderMemoActivation,
+  renderSynthActivation,
+  renderSynthProperty,
   exportDeclaration,
   renderDestructureStatements,
   renderDestructureDeclarators,
@@ -400,8 +402,15 @@ check('memo activation/unsupplied memo keeps its local declaration', suppliedAct
 check('memo activation/all supplied memos need no var declaration', print(
   renderMemoActivation(identifier('_ref'), ['_ref'], [callExpression(identifier('source'), [])]),
 ), '(_ref => {\n  return _ref;\n})(source())');
-checkTruthy('totality/function expressions stay outside the vocabulary',
-  caught({ type: 'FunctionExpression', id: null, params: [], body: blockStatement([]) })?.includes('outside the canonical vocabulary'));
+const synthActivation = renderSynthActivation(identifier('value'), {
+  memo: identifier('_ref'), argument: callExpression(identifier('source'), []),
+});
+check('synth activation/ordinary function binds its receiver', print(expressionStatement(synthActivation)),
+  '(function (_ref) {\n  return value;\n})(source());');
+check('synth property/prototype name is an own data slot', print(renderSynthProperty(identifier('__proto__'), identifier('value'))),
+  '["__proto__"]: value');
+checkTruthy('totality/function declarations stay outside the vocabulary',
+  caught({ type: 'FunctionDeclaration', id: identifier('f'), params: [], body: blockStatement([]) })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/optional member outside chain throws',
   caught(memberExpression(identifier('a'), identifier('b'), { optional: true }))?.includes('outside a ChainExpression'));
 checkTruthy('totality/optional call outside chain throws',

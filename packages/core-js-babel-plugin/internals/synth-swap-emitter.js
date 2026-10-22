@@ -58,12 +58,13 @@ import estreeToBabel from './estree-to-babel.js';
 import {
   chainExpression,
   hostSlot,
-  renderSynthReceiverGuard,
+  renderSynthActivation,
+  renderSynthProperty,
+  renderMemoReadTarget,
   renderProxyReceiverPlan,
   renderSynthSlotRead,
   renderClaimProbe,
-  synthEntryKey,
-  synthKeyMustBeComputed,
+  renderSynthEntryKey,
 } from '@core-js/polyfill-provider/render';
 import {
   planMemoReadTarget,
@@ -247,7 +248,9 @@ export default function createSynthSwapEmitter({
     // succeeds, otherwise destructure-emitter falls through to inline-default
     const rawArgPath = detectIifeArgPath(wrapper, objectPattern);
     const argPath = rawArgPath && unwrapSequenceTail(decidedRunningOperandPath(rawArgPath, adapter));
-    return argPath && isExpandedClassifiableReceiver({ node: argPath.node }) ? argPath : null;
+    return argPath && isExpandedClassifiableReceiver({
+      node: argPath.node, scope: argPath.scope, path: argPath, adapter,
+    }) ? argPath : null;
   }
 
   // register a polyfill for a single key on a synth target. ensures the pending entry
@@ -311,16 +314,20 @@ export default function createSynthSwapEmitter({
       const probeSlots = probePlan && new Map([
         ...probePlan.retained, ...probePlan.prefix ?? [], ...probePlan.alternateEffects ?? [], ...probeEffects.filter(Boolean),
       ].map(node => [node, pathOfNode(targetPath, node)]));
-      // Keep the registered keys when a sibling extraction removes its pattern property.
-      // The mirror still supplies that receiver read to the extracted instance dispatcher.
+      // Keep the source slot decisions when a sibling extraction removes its property.
+      // Their live key slots carry nested claims without reclassifying generated keys.
       pending = {
-        objectPatternNode: { ...objectPatternPath.node, properties: [...objectPatternPath.node.properties] },
+        entries: buildPatternRenderPlan(objectPatternPath.node, { scope: targetPath.scope, path: targetPath, adapter }) ?? [],
         polyfills: new Map(),
         callBranch,
         rescueSe,
         probePlan,
         probeEffects,
         probeSlots,
+        synthGuard,
+        memoRead: callBranch ? planMemoReadTarget(probeSource, {
+          aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure,
+        }) : null,
         // the live probe's root rewrites before apply; preserve the source's landing plan
         // now, while its direct realm root has not become an injector-owned alias.
         guardedReceiverPlan: synthGuard ? planProxyReceiver(synthGuard.fallback?.left ?? receiver, {
@@ -730,25 +737,6 @@ export default function createSynthSwapEmitter({
     });
   }
 
-  // canonical re-read target for a MEMOIZED receiver, peeled to its SE tail: a pure-ctor leaf
-  // whole-swaps (the erased navigation's harvested effects re-run ahead of the binding).
-  // Alias / proxy chains use their shared collapse plan, then a captured guarded probe.
-  // Only an undecided source falls back to a verbatim clone: re-traversing a decided read
-  // would pick a fresh collapse and desync the emitters on the memo target.
-  function buildMemoArg(memoReceiver, aliasCtx, probePlan, cloneHost) {
-    const plan = planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure });
-    const target = !plan ? null
-      : plan.pure ? injectPureImport(plan.pure.entry, plan.pure.hintName)
-      : renderCollapsePlan(plan.plan);
-    if (!target) return probePlan ? estreeToBabel(renderClaimProbe(probePlan, {
-      injectImport: (entry, hintName) => injectPureImport(entry, hintName).name, cloneHost, embed: hostSlot,
-    })) : t.cloneNode(memoReceiver, true);
-    const ahead = [...plan.prefix, ...plan.se];
-    return ahead.length
-      ? t.sequenceExpression([...ahead.map(node => t.cloneNode(node, true)), target])
-      : target;
-  }
-
   // Build the synth `{key: _polyfill, otherKey: R.otherKey}` receiver from the classified
   // entries. Unpolyfilled keys read through the receiver, using a pure import or a proxy
   // collapse where known. Fully polyfilled cases never need `getReceiverRef`.
@@ -784,9 +772,9 @@ export default function createSynthSwapEmitter({
         : collapseProxyGlobalReceiver(readReceiver, { aliasCtx })) ?? readReceiver;
     }
 
-    // the per-property classification AND its key spelling live in the shared plan / render
-    // canon; this loop only converts what they decide into babel nodes. injectPureImport
-    // already returns a fresh clone. an INSTANCE polyfill entry (a typed param-default
+    // The saved plan owns property classification; the shared key and property renders
+    // own their spelling. Receiver and slot resolution below still feed those renders.
+    // injectPureImport returns a fresh clone. An INSTANCE entry (a typed param-default
     // receiver) binds the method to the receiver's value: `at: _atMaybeArray(<receiver>)` -
     // the read happens inside the literal, so it only evaluates when the default fires
     const properties = [];
@@ -794,16 +782,22 @@ export default function createSynthSwapEmitter({
       // a key on an opted-out line reads as the source does, and no later pass may polyfill that read
       const polyfill = entry.optedOut ? null : entry.polyfill;
       const { wks } = entry;
-      const spelled = synthEntryKey(entry);
-      // a CARRIED source key is already a node of this dialect - clone it; a respelled one is
-      // canonical and converts at the boundary like every other render the canon hands over
-      const key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
-      // The retained pattern owns ordinary key comments; native reads retain opt-out anchors.
-      if (spelled.fromSource) for (const field of t.COMMENT_KEYS) {
-        const directives = entry.optedOut ? key[field]?.filter(comment => disableDirectiveKind(comment.value)) : null;
-        if (directives?.length) key[field] = directives;
-        else delete key[field];
-      }
+      const spelled = renderSynthEntryKey(entry, {
+        resolvePure, injectImport: (importEntry, hintName) => injectPureImport(importEntry, hintName).name,
+        embed: hostSlot,
+        cloneHost(source) {
+          const key = t.cloneNode(source);
+          // The pattern owns ordinary comments; copied reads retain only opt-out anchors.
+          for (const field of t.COMMENT_KEYS) {
+            const directives = entry.optedOut ? key[field]?.filter(comment => disableDirectiveKind(comment.value)) : null;
+            if (directives?.length) key[field] = directives;
+            else delete key[field];
+          }
+          return key;
+        },
+      });
+      if (!spelled) return null;
+      const key = estreeToBabel(spelled.key);
       const { computed } = spelled;
       // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
       // spelling both emitters print for that read anywhere else; a raw
@@ -823,20 +817,14 @@ export default function createSynthSwapEmitter({
             [t.cloneNode(getReceiverRef())])
           : estreeToBabel(renderSynthSlotRead({
             base: hostSlot(t.cloneNode(getReceiverRef())),
-            key: spelled.fromSource ? hostSlot(key) : spelled.key,
+            key: spelled.key,
             computed,
             lookupKey: entry.lookupKey,
           }));
       if (entry.optedOut) t.traverseFast(value, node => { skippedNodes.add(node); });
-      let synthKey = key;
-      let synthComputed = computed;
-      // the canon's `__proto__` rule: re-spell as a computed STRING key (a bare
-      // `[__proto__]` would read a binding; a plain `__proto__:` sets the prototype)
-      if (!synthComputed && synthKeyMustBeComputed(synthKey)) {
-        synthKey = t.stringLiteral('__proto__');
-        synthComputed = true;
-      }
-      properties.push(t.objectProperty(synthKey, value, synthComputed));
+      properties.push(estreeToBabel(renderSynthProperty(
+        hostSlot(key), hostSlot(value), { computed },
+      )));
     }
     return t.objectExpression(properties);
   }
@@ -857,9 +845,8 @@ export default function createSynthSwapEmitter({
         // an INSTANCE param-default registration additionally admits `this` / constant-literal
         // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
         const hasInstanceEntry = pending.polyfills.values().some(p => p.instance);
-        if ((!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
-          && path.node.type !== 'ThisExpression' && !hasInstanceEntry)
-          || pending.objectPatternNode?.type !== 'ObjectPattern') return;
+        if (!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
+          && path.node.type !== 'ThisExpression' && !hasInstanceEntry) return;
         // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
         // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation
         // failure inside buildSynthLiteral) leaves the swap permanently locked but with
@@ -875,15 +862,20 @@ export default function createSynthSwapEmitter({
         // the shared render PLAN of the pattern, joined with what each slot resolved to: one entry
         // per distinct slot, keyed the way both emitters register, so the two renders read one
         // classification instead of each deriving its own
-        const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter }) ?? [])
-          .map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
+        const entries = pending.entries.map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
         const aliasCtx = { scope: path.scope, adapter, path };
-        const synthGuard = planSynthReceiverGuard({ receiver: path.node, ...aliasCtx, resolvePure });
+        const { synthGuard } = pending;
         // An unguarded fallback uses its resolved left as the memo argument. Cloning a dead
         // right operand could inject its polyfill again on re-traversal.
         const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
         const memoCandidate = pending.callBranch && entries.some(entry => !entry.polyfill);
-        const memoArg = memoCandidate && !synthGuard ? buildMemoArg(memoReceiver, aliasCtx, pending.probePlan, cloneProbeSource) : null;
+        const memoArg = memoCandidate && !synthGuard ? estreeToBabel(renderMemoReadTarget(pending.memoRead, {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name, embed: hostSlot,
+          cloneHost: node => t.cloneNode(node, true),
+        }) ?? (pending.probePlan ? renderClaimProbe(pending.probePlan, {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          cloneHost: cloneProbeSource, embed: hostSlot,
+        }) : hostSlot(t.cloneNode(memoReceiver, true)))) : null;
         const memoTail = memoArg && peelNestedSequenceExpressions(memoArg).tail;
         const reusableMemo = memoTail && isReusableReceiver(memoTail, {
           interveningEffects: true, ctx: { ...aliasCtx, injectorState: injector },
@@ -903,16 +895,12 @@ export default function createSynthSwapEmitter({
           aliasCtx,
           guardedReceiverPlan: synthGuard && pending.guardedReceiverPlan,
         });
+        if (!literal) return;
         if (synthGuard) {
-          let guardedValue = literal;
-          if (needMemo) {
-            const guardedBody = estreeToBabel(renderSynthReceiverGuard({ probe: memoParam }, hostSlot(literal), { embed: hostSlot }));
-            const memoFunction = t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(guardedBody)]));
-            guardedValue = t.callExpression(memoFunction, [t.cloneNode(synthGuard.fallback?.left ?? path.node, true)]);
-          }
-          const guarded = estreeToBabel(renderSynthReceiverGuard(
-            needMemo ? { fallback: synthGuard.fallback } : synthGuard, hostSlot(guardedValue), { embed: hostSlot },
-          ));
+          const guarded = estreeToBabel(renderSynthActivation(hostSlot(literal), {
+            guard: synthGuard, memo: memoParam,
+            argument: needMemo ? t.cloneNode(synthGuard.fallback?.left ?? path.node, true) : null,
+          }, { embed: hostSlot }));
           path.replaceWith(guarded);
           pending.applied = true;
           pendingSwapCount--;
@@ -942,13 +930,10 @@ export default function createSynthSwapEmitter({
         const discardedReceiverSe = needMemo || throwProbe || dropRescueReceiver
           || path.node.type === 'LogicalExpression' || entries.some(entry => entry.polyfill?.instance)
           ? [] : discardRescueNodes({ node: path.node, scope: path.scope, adapter, path });
-        let replacement = needMemo
-          ? t.callExpression(
-            t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
-            // the memo argument takes the same canonical re-read target as the direct path
-            [memoArg])
-          // The first rendered receiver retains its effects; later reads use its stable value.
-          : reusableMemo ? t.sequenceExpression([memoArg, literal])
+        let replacement = needMemo || reusableMemo
+          ? estreeToBabel(renderSynthActivation(hostSlot(literal), {
+            memo: memoParam ?? memoTail, argument: memoArg, reusable: !!reusableMemo,
+          }, { embed: hostSlot }))
           // The source decision orders residual effects around the read. Their live slots
           // carry rewrites made since registration, including nested calls and defaults.
           : throwProbe

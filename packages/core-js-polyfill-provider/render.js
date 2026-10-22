@@ -17,14 +17,15 @@ import {
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
+import { symbolStaticMeta } from './detect-usage/globals.js';
+import { polyfillOrderComparator, sortByPolyfillOrder } from './plugin-options/inject.js';
+
 // the render canon's node factory - the one place emitted nodes take shape, in the
 // canonical ESTree dialect. unplugin inserts these nodes as is; the babel binding converts
 // them at the insertion boundary (its `internals/estree-to-babel.js`, total over exactly
 // this vocabulary). names mirror @babel/types so the mapping reads at a glance;
 // estree-toolkit's builders are not used here because they carry validation weight and no
 // `raw` control (quote spelling parity)
-import { polyfillOrderComparator, sortByPolyfillOrder } from './plugin-options/inject.js';
-
 export function identifier(name) {
   return { type: 'Identifier', name };
 }
@@ -536,6 +537,20 @@ export function synthEntryKey({ keyNode, dedupKey, slotKey, lookupKey, computedK
   return { key: literal(lookupKey), computed: false };
 }
 
+// Bind the saved slot spelling to its live source key or injected well-known symbol.
+// A missing symbol entry has no safe synth spelling. Native key cloning may retain
+// directive comments; the key's meaning and computed form belong to this renderer.
+export function renderSynthEntryKey(entry, {
+  resolvedSpelling = false, resolvePure, injectImport, cloneHost = cloneNode, embed = node => node,
+}) {
+  if (entry.wksSpelling) {
+    const pure = resolvePure(symbolStaticMeta(entry.wksSpelling));
+    return pure ? { key: identifier(injectImport(pure.entry, pure.hintName)), computed: true } : null;
+  }
+  const spelled = synthEntryKey(entry, { resolvedSpelling });
+  return { ...spelled, key: spelled.fromSource ? embed(cloneHost(spelled.key)) : spelled.key };
+}
+
 // the collapsed spelling of a proxy-receiver plan (`planProxyReceiver` holds the decision -
 // which hops drop, whether the root is swapped, kept or aliased, where harvested effects
 // ride, whether an erased hop's guard re-hangs). `embed` wraps the plan's carried nodes,
@@ -548,10 +563,10 @@ export function synthEntryKey({ keyNode, dedupKey, slotKey, lookupKey, computedK
 // about the alias failed and two identical sources in one file rendered differently. a caller
 // whose source STAYS in the tree (a memo re-read target, a synth argument) keeps the clone -
 // one node in two tree positions aliases every later mutation across both
-export function renderProxyReceiverPlan(plan, { injectImport, embed = node => node, carrySource = false }) {
-  const carry = carrySource ? node => node : cloneNode;
+export function renderProxyReceiverPlan(plan, { injectImport, embed = node => node, carrySource = false, cloneHost = cloneNode }) {
+  const carry = carrySource ? node => node : cloneHost;
   if (plan.kind === 'member') {
-    const inner = renderProxyReceiverPlan(plan.inner, { injectImport, embed, carrySource });
+    const inner = renderProxyReceiverPlan(plan.inner, { injectImport, embed, carrySource, cloneHost });
     return inner ? memberExpression(inner, embed(carry(plan.property)), { computed: plan.computed }) : null;
   }
   // a `keep` root is carried like an alias - the substrate re-visits it, so its own
@@ -563,6 +578,29 @@ export function renderProxyReceiverPlan(plan, { injectImport, embed = node => no
     ? sequenceExpression([...plan.harvestedSE.map(expr => embed(carry(expr))), rootBinding])
     : rootBinding;
   return memberExpression(rootNode, embed(carry(plan.property)), { computed: plan.computed, optional: !!plan.optional });
+}
+
+// Render the saved memo landing through its live source slots. Prefixes and erased
+// navigation effects run once before the target; no query reads the generated tree.
+export function renderMemoReadTarget(plan, { injectImport, embed = node => node, cloneHost = cloneNode }) {
+  if (!plan) return null;
+  function clone(node) {
+    return cloneHost(plan.readSource(node));
+  }
+  let target = plan.pure ? identifier(injectImport(plan.pure.entry, plan.pure.hintName))
+    : renderProxyReceiverPlan(plan.plan, { injectImport, embed, cloneHost: clone });
+  if (!target) return null;
+  if (plan.plan?.kind === 'member' || plan.plan?.optional) target = chainExpression(target);
+  const ahead = [...plan.prefix, ...plan.se].map(node => embed(clone(node)));
+  return ahead.length ? sequenceExpression([...ahead, target]) : target;
+}
+
+// Synthesized properties always define own data slots. A plain __proto__ key
+// would set the object's prototype; a computed identifier would read a binding.
+export function renderSynthProperty(key, value, { computed = false } = {}) {
+  return !computed && synthKeyMustBeComputed(hostSlotNode(key))
+    ? objectProperty(literal('__proto__'), value, { computed: true })
+    : objectProperty(key, value, { computed });
 }
 
 // a member hop spelled by KEY NAME: a valid identifier reads after a dot, anything else
@@ -646,6 +684,22 @@ export function renderSynthReceiverGuard({ probe = null, ahead = [], after = [],
   if (probe) rendered = renderShortCircuitGuard(nullFirstGuardTest(probe, { embed: node => embed(cloneNode(node)) }), rendered);
   if (ahead.length) rendered = sequenceExpression([...ahead.map(node => embed(cloneNode(node))), rendered]);
   return fallback ? logicalExpression(fallback.operator, rendered, embed(cloneNode(fallback.right))) : rendered;
+}
+
+// A partial synth evaluates its receiver once, then reads unresolved slots through
+// a stable tail or an activation parameter. The parameter's null rejection stays
+// inside that activation; the source fallback stays outside it. A fully served
+// synth has no memo and uses the original guard directly.
+export function renderSynthActivation(value, { guard = null, memo = null, argument = null, reusable = false } = {},
+  { embed = node => node } = {}) {
+  if (!memo) return guard ? renderSynthReceiverGuard(guard, value, { embed }) : value;
+  if (reusable) return sequenceExpression([embed(argument), value]);
+  const body = guard ? renderSynthReceiverGuard({ probe: memo }, value, { embed }) : value;
+  const call = callExpression({
+    type: 'FunctionExpression', id: null, params: [embed(cloneNode(memo))], generator: false, async: false,
+    body: blockStatement([{ type: 'ReturnStatement', argument: body }]),
+  }, [embed(argument)]);
+  return guard ? renderSynthReceiverGuard({ fallback: guard.fallback }, call, { embed }) : call;
 }
 
 // the RENDER of an `in`-expression plan (`planInExpression` decides the kind): what each kind
