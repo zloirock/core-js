@@ -19839,6 +19839,40 @@ function * generateGuardedCallEffects() {
   }
 }
 
+// The key writes the source binding after its value was captured. One or two instance claims,
+// a dead default and an optional residual must still read that first value. Nested
+// initializer claims run before the key, including deferred parameter and caller slots.
+function * generateDestructureEvaluation() {
+  for (const nested of [false, true]) for (const partial of [false, true]) for (const pair of [false, true]) {
+    const setup = 'const first = [4, 5]; let current = first;';
+    const sibling = pair ? ', includes: contains' : '';
+    const fields = `[(log.push("key"), current = "xy", "at")]: method = (log.push("default"), () => -1)${ sibling }${
+      partial ? ', length: size' : '' }`;
+    const pattern = nested ? `{ value: { ${ fields } } }` : `{ ${ fields } }`;
+    const plainFields = `at: method${ sibling }${ partial ? ', length: size' : '' }`;
+    const plainPattern = nested ? `{ value: { ${ plainFields } } }` : `{ ${ plainFields } }`;
+    const value = '(log.push([1].at(0)), current)';
+    const init = nested ? `{ value: ${ value } }` : value;
+    const result = `[method.call(first, -1), ${ pair ? 'contains.call(first, 4)' : 'true' }, ${ partial ? 'size' : '0' }, current]`;
+    for (const [host, body] of [
+      ['declaration', `const ${ pattern } = ${ init }; return ${ result };`],
+      ['assignment', `let method, contains, size; (${ pattern } = ${ init }); return ${ result };`],
+      ['for-init', `for (const ${ pattern } = ${ init };;) return ${ result };`],
+      ['bodyless', `if (first) var ${ pattern } = ${ init }; return ${ result };`],
+      ['parameter', `function read(${ pattern } = ${ init }) { return ${ result }; } return read();`],
+      ['caller', `return ((${ pattern }) => ${ result })(${ init });`],
+      ['caller-plain', `return ((${ plainPattern }) => ${ result })(${ init });`],
+    ]) yield {
+      ...snippet(`destructure-evaluation/${ nested ? 'nested' : 'flat' }/${ partial ? 'partial' : 'full' }/${ pair ? 'pair' : 'single' }/${ host }`,
+        `(() => { ${ setup } ${ body } })()`),
+      // Parameter-body extraction declines computed keys and leaf defaults. Unlike a
+      // default receiver, this caller argument has no synth route for those slots.
+      // Keep its native-read control; the plain caller and default hosts are stripped.
+      strip: host !== 'caller',
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20211,4 +20245,5 @@ export function * generate() {
   yield * generateGuardedResidualValues();
   yield * generateOptionalContinuationFrames();
   yield * generateGuardedCallEffects();
+  yield * generateDestructureEvaluation();
 }
