@@ -4,6 +4,7 @@ import { peelReceiverSequenceTail, resolveKey } from '@core-js/polyfill-provider
 import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   observableSequenceElements,
+  calleeParenWrapped,
   subtreeContainsNode,
   unwrapRuntimeExpr,
   peelNestedSequenceExpressions,
@@ -93,7 +94,7 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
   // the harvested key effects ride its alternate, where native runs them past the
   // short-circuit - and `.call` stays outside the ternary
   // (`(arr?.[(probe++, "includes")])(1)` -> `(arr == null ? void 0 : (probe++, _includes(arr))).call(arr, 1)`)
-  if (ctx.calleeParenWrapped(parent)) {
+  if (calleeParenWrapped(parent)) {
     const keyEffects = (meta.sideEffects ?? [])
       .filter(effect => !subtreeContainsNode(bare, effect))
       .map(effect => cloneNode(effect));
