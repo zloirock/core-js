@@ -1,14 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // ... and an ARRAY wrapper on the way is one more hop of the same descent
-function paramWrappedInstance([{
-  w: {
-    at: viaWrappedInstance
-  }
-}] = [{
-  w: {
-    at: _atMaybeArray([1, 2])
-  }
+function paramWrappedInstance(_ref = [{
+  w: [1, 2]
 }]) {
+  let [_ref2] = _ref;
+  let viaWrappedInstance = _atMaybeArray(_ref2.w);
   return viaWrappedInstance;
 }
 export default [paramWrappedInstance()];

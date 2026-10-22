@@ -2,6 +2,7 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
@@ -43,9 +44,7 @@ export { viaAssign, viaTwoSlotsA, viaTwoSlotsB, viaTwoDeclsA, viaTwoDeclsB, viaD
 
 // an object level a LATER spread may override pairs no key, so the pairing stops above it and the
 // element renames positionally, reading whatever the spread left in that slot.
-// NEGATIVE: an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
-// member read the mirror cannot spell, and the flattened argument prints the same on both legs
-// (the file injects elsewhere)
+// The IIFE parameter captures its supplied array once, including a member-valued nested receiver.
 const {
   k: [_ref5]
 } = {
@@ -54,10 +53,10 @@ const {
 };
 const viaLaterSpread = _values(_ref5.y);
 class K {
-  f = (([{
-    y: {
-      toReversed: viaClassField
-    }
-  }]) => viaClassField)([...[nb]]);
+  f = ((_ref6, _unused = void 0) => {
+    let [_ref7] = _ref6;
+    let viaClassField = _toReversedMaybeArray(_ref7.y);
+    return viaClassField;
+  })([...[nb]]);
 }
 export { viaLaterSpread, K };

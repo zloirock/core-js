@@ -2159,7 +2159,7 @@ export function qualifiesForParamBodyExtract({ propPath, localId, receiverCaptur
 const parameterExtractionBarriers = createInstanceNodeCache();
 
 // A parameter needs its actual receiver, rather than a caller-side mirror or a default-only
-// substitution. Object-pattern levels can move together to the body entry; their inner defaults
+// substitution. Pattern levels can move together to the body entry; their inner defaults
 // must be literals, since a moved expression would resolve body declarations in a different scope.
 // Leaf defaults and other parameter work keep their original timing. A whole receiver default stays.
 // eslint-disable-next-line max-statements -- nested pattern admission shares the parameter timing and binding proof
@@ -2167,7 +2167,7 @@ export function planParameterInstanceExtraction({
   propPath, adapter, resolvePure, isDisabledProp, parameterCallSites = null, isClaimedProp = null,
 }) {
   const patternPath = destructureHostThroughWrappers(propPath.parentPath, adapter, true)?.hostPatternPath;
-  if (patternPath?.node.type !== 'ObjectPattern') return null;
+  if (!isDestructurePattern(patternPath?.node)) return null;
   const rootPath = patternPath.parentPath?.node.type === 'AssignmentPattern'
     && patternPath.parentPath.node.left === patternPath.node ? patternPath.parentPath : patternPath;
   const fnPath = rootPath.parentPath;
@@ -2198,6 +2198,12 @@ export function planParameterInstanceExtraction({
   const properties = [];
   const patterns = [patternPath];
   for (const pattern of patterns) {
+    if (pattern.node.type === 'ArrayPattern') {
+      const elements = pattern.get('elements').filter(element => element.node);
+      if (!elements.length || elements.some(element => !isDestructurePattern(element.node))) return null;
+      patterns.push(...elements);
+      continue;
+    }
     if (!pattern.node.properties.length) return null;
     for (const prop of pattern.get('properties')) {
       if (!isPropertyNode(prop.node) || prop.node.computed || isDisabledProp?.(prop.node)) return null;
@@ -2208,7 +2214,7 @@ export function planParameterInstanceExtraction({
           if (!isConstantLiteralNode(unwrapRuntimeExpr(target.node.right))) return null;
           target = target.get('left');
         }
-        if (target.node.type !== 'ObjectPattern') return null;
+        if (!isDestructurePattern(target.node)) return null;
         patterns.push(target);
       }
     }
@@ -3352,11 +3358,13 @@ function restHostCarrier(host) {
   return coords ? { declarator, value: resolveCallArgument(init.elements, index) } : null;
 }
 
-// can the host of this claim take the residual its surviving slots need - a plain statement beside
-// the declaration? a loop HEAD hosts declarators, a for-x LEFT binds per iteration, and an
-// assignment host binds no declaration at all: in those three the residual has nowhere to stand
+// Can the host take native residual reads beside the captured claim? A statement assignment
+// has that slot too; a loop head must first relocate into its per-iteration body.
 function residualHostTakesStatement(leafPath) {
   const host = destructurePatternHostPath(leafPath);
+  if (host?.node?.type === 'AssignmentExpression') {
+    return !!statementListOf(nestedAssignmentStatementOf(leafPath)?.parentPath?.node);
+  }
   if (host?.node?.type !== 'VariableDeclarator') return false;
   const declaration = host.parentPath;
   const slot = declaration?.parentPath?.node;
@@ -3436,11 +3444,8 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
     const at = props.indexOf(fromNode);
     if (at === -1) return null;
     const isClaimLevel = pattern.node === leafPath.parentPath.node;
-    // that residual costs the host a STATEMENT beside the declaration. two hosts have none - a loop
-    // head binds declarators and a for-x LEFT binds per iteration - and neither has an assignment,
-    // whose names are already bound: those keep the SOLE-slot rule and stay native. and only for a
-    // plain KEY: a computed one is spelled by the claim's own channel (a polyfilled symbol, say),
-    // and the residual would re-emit the key the source wrote instead
+    // A residual needs a statement slot beside the capture and a plain key. A computed key
+    // belongs to its own channel (a polyfilled symbol, say), while the residual retains source keys.
     if (props.length > 1 && (fromNode.computed || !residualHostTakesStatement(leafPath))) return null;
     // ... and a computed key carrying an EFFECT never rides this route, sole or not: the rename
     // drops the pattern that spells the key, and with it the effect the source runs (the memo
@@ -7159,29 +7164,6 @@ export function buildNestedParamSynthPlan({
     });
   }
 
-  // the keys a pattern-valued static's slot spells when a leaf under it carries a CLAIM of its own
-  // (`{ keys: { name } }` - `name` off the function the static hands out): one literal key per key
-  // the pattern reads, each resolved on its own through the ponyfill the static names. null where NO
-  // leaf claims - the flat binding is the shorter spelling of the same value - and null where a key
-  // has no plain spelling: a computed one, a duplicate, or `__proto__`, whose literal key would set
-  // the prototype where the pattern reads an own property
-  function staticPatternClaimSlotKeys(pattern) {
-    const keys = [];
-    let claims = false;
-    for (const item of pattern.properties) {
-      if (!isPropertyNode(item) || item.computed) return null;
-      if (host?.node.type === 'AssignmentExpression' && !propBindingIdentifier(item.value)
-        && !memberTargetTakesExtraction(item.value)) return null;
-      const key = plainSynthKeyName(item.key);
-      if (key === null || key === '__proto__' || keys.includes(key)) return null;
-      keys.push(key);
-      // asked of the key alone: a leg's resolver bound to the claim's own leaf would type the receiver
-      // off that leaf, which is not the slot this pattern reads
-      claims ||= !!resolvePure({ kind: 'property', object: undefined, key, placement: 'prototype' }, null);
-    }
-    return claims ? keys : null;
-  }
-
   // an ARRAY level over a static container (`[{ from }]` off `const w = [Array]`, off a call
   // yielding `[Array]`): the literal that stands in spells one slot per pattern element - a nested
   // object pattern mirrors off the element the container holds at that index (the walk descends
@@ -7392,20 +7374,18 @@ export function buildNestedParamSynthPlan({
         // A static ponyfill is defined, so its pattern's default does not hide the
         // live member claims under that pattern.
         const slotPattern = pure?.kind === 'static' ? inner : prop.value;
-        const slotKeys = slotPattern?.type === 'ObjectPattern' && (!pure || pure.kind !== 'instance')
-          ? staticPatternClaimSlotKeys(slotPattern) : null;
-        entries.push(slotKeys
-          ? {
-            key,
-            child: {
-              kind: 'descended-pattern',
-              prop,
-              hop: !pure,
-              entries: slotKeys.map(name => ({ key: name, child: { kind: 'passthrough' } })),
-            },
-          }
-          : !consumable ? { key, child: { kind: 'passthrough', bailed: true } }
-          : !pure || pure.kind === 'instance'
+        const slotLeaves = (!pure || pure.kind !== 'instance') && planStaticPatternInstances(
+          slotPattern,
+          { resolvePure, assignment: host?.node.type === 'AssignmentExpression', defaults: true },
+        );
+        entries.push(slotLeaves
+          ? { key, child: {
+            kind: 'descended-pattern',
+            prop,
+            hop: !pure,
+            entries: slotLeaves.map(({ key: name }) => ({ key: name, child: { kind: 'passthrough' } })),
+          } }
+          : !consumable ? { key, child: { kind: 'passthrough', bailed: true } } : !pure || pure.kind === 'instance'
             ? { key, child: {
               kind: 'passthrough',
               prop: isKnownGlobalName(ctx.name) && !isMutatedGlobalSlot(adapter, ctx.name) ? prop : null,
@@ -7416,8 +7396,14 @@ export function buildNestedParamSynthPlan({
             // it raw off the receiver instead was a lost polyfill, silent because the sibling slot in
             // the same literal carried its own (`Array: { from: _Array$from }` beside
             // `Object: { keys: _globalThis.Object.keys }`)
-            : { key, child: { kind: 'polyfill', entry: pure.entry, hintName: pure.hintName,
-              static: pure.kind === 'static', prop: consumable ? prop : null } });
+            : { key, child: {
+              kind: 'polyfill',
+              entry: pure.entry,
+              hintName: pure.hintName,
+              static: pure.kind === 'static',
+              prop: consumable ? prop : null,
+            } },
+        );
       }
     }
     if (!retainNativeReads) {
@@ -7968,6 +7954,26 @@ export function fallbackInitWhollyDiscardable(initNode, rescueReachable, ctx) {
     }
     return true;
   }
+}
+
+// A pattern reading a static value descends only when its plain, distinct keys include an
+// instance claim. The kept pattern may own leaf defaults; a literal-only slot cannot replay
+// those defaults. Assignment targets must be writable without an extra receiver evaluation.
+// Each leaf carries its resolved dispatch so a late render never asks about the enclosing claim.
+export function planStaticPatternInstances(pattern, { resolvePure, receiverObject = undefined, assignment = false, defaults = false }) {
+  if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length) return null;
+  const leaves = [];
+  let claims = false;
+  for (const item of pattern.properties) {
+    if (!isPropertyNode(item) || item.computed || !defaults && item.value?.type === 'AssignmentPattern') return null;
+    if (assignment && !propBindingIdentifier(item.value) && !memberTargetTakesExtraction(item.value)) return null;
+    const key = plainSynthKeyName(item.key);
+    if (key === null || key === '__proto__' || leaves.some(leaf => leaf.key === key)) return null;
+    const pure = resolvePure({ kind: 'property', object: receiverObject, key, placement: 'prototype' }, null);
+    claims ||= pure?.kind === 'instance';
+    leaves.push({ key, pure: pure?.kind === 'instance' ? pure : null });
+  }
+  return claims ? leaves : null;
 }
 
 // Render the shared synth tree with the emitter's import and passthrough hooks.

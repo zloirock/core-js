@@ -14,9 +14,7 @@ export { viaAssign, viaTwoSlotsA, viaTwoSlotsB, viaTwoDeclsA, viaTwoDeclsB, viaD
 
 // an object level a LATER spread may override pairs no key, so the pairing stops above it and the
 // element renames positionally, reading whatever the spread left in that slot.
-// NEGATIVE: an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
-// member read the mirror cannot spell, and the flattened argument prints the same on both legs
-// (the file injects elsewhere)
+// The IIFE parameter captures its supplied array once, including a member-valued nested receiver.
 const { k: [{ y: { values: viaLaterSpread } }] } = { k: [...[nb]], ...more };
 class K { f = (([{ y: { toReversed: viaClassField } }]) => viaClassField)([...[nb]]); }
 export { viaLaterSpread, K };

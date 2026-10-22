@@ -18,11 +18,12 @@ let includes, startsWith;
 for (const _ref4 of [{
   w: ['abc']
 }]) {
-  var _ref3, _ref5;
+  var _ref3;
   ({
-    w: _ref3
+    w: [_ref3]
   } = _ref4);
-  [_ref5] = _ref3, includes = _includesMaybeString(_ref5), startsWith = _startsWithMaybeString(_ref5);
+  includes = _includesMaybeString(_ref3);
+  startsWith = _startsWithMaybeString(_ref3);
   break;
 }
 use(includes, startsWith);

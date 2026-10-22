@@ -40,7 +40,6 @@ import {
   objectLevelPairedProperty,
   ownRelocatedHeadElement,
   patternBoundAliasSlotInit,
-  patternBindingCount,
   patternKeepsEffectfulKey,
   patternSlotTarget,
   patternSlotCertainDefault,
@@ -2034,29 +2033,6 @@ export function keyedReadReceiverProven({ init, hostPath, adapter, nested = fals
     return !!isStaticPlacement(name ?? '');
   }
   return proven(running);
-}
-
-// Partition an ordered declaration after all claims have applied. Private captures stay
-// separate; a surviving slot capture joins its residual and following reads. Whole-init
-// captures join only the reads ahead of their residual. An attached read cannot join a
-// private capture after its residual was pruned. Before traversal finishes, keepPatterns
-// preserves a native object pattern's siblings so their child visits remain attached.
-// Identity sets belong to the binding and expire with its file; this query never mutates them.
-export function groupDestructureDeclarators(declarations, {
-  keepPatterns = false, memos = null, attached = null, wholeInit = null, slotHost = null, pruned = null,
-} = {}) {
-  if (keepPatterns && declarations.some(item => item.id.type === 'ObjectPattern')) return [declarations];
-  const memoHost = declarations.some(item => wholeInit?.has(item));
-  const slotJoin = slotHost && (declarations.includes(slotHost) || slotHost === pruned) && patternBindingCount(slotHost.id) > 0;
-  const groups = [];
-  for (const item of declarations) {
-    const previous = groups.at(-1);
-    const joins = previous && (attached?.has(item) && !(pruned && memos?.has(previous[0]))
-      || !memos?.has(item) && !memos?.has(previous[0]) && (slotJoin || memoHost && !wholeInit.has(item)));
-    if (joins) previous.push(item);
-    else groups.push([item]);
-  }
-  return groups;
 }
 
 // what a sole keyed read owes a receiver nothing reads: proven, it takes no null rejection, and served
