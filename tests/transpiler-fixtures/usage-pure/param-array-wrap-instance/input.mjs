@@ -1,6 +1,5 @@
-// an INSTANCE leaf under an ARRAY wrapper of a parameter pattern takes the hop-instance mirror the
-// object-hop twin takes: the element the wrapper pairs with is the receiver, and the synth literal
-// lands IN that element - the parameter's own default, or the IIFE argument. one method per row
+// Instance leaves under array parameter levels capture their actual supplied receiver.
+// Literal caller mirrors remain available where a sibling prevents moving the whole pattern.
 const viaIife = (([{ at: viaIifeAt }]) => viaIifeAt)([[1, 2]]);
 function viaDefault([{ flat: viaDefaultFlat }] = [[[1], [2]]]) { return viaDefaultFlat; }
 const viaHopThenWrap = (({ w: [{ findLast: fl }] }) => fl)({ w: [[1, 2]] });
@@ -10,6 +9,6 @@ const viaBinding = (([{ includes: inc }]) => inc)([arr]);
 const viaSelecting = (([{ with: w }]) => w)([c ? [1] : [2]]);
 export { viaIife, viaDefault, viaHopThenWrap, viaDouble, viaSibling, viaBinding, viaSelecting };
 
-// an element that RUNS is spelled once, inside the mirror that replaces it, where the source ran it
+// An effectful element is evaluated once before its receiver is captured.
 const viaEffect = (([{ flatMap: fm }]) => fm)([eff()]);
 export { viaEffect };

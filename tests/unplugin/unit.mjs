@@ -5680,7 +5680,7 @@ for (const [label, source, sentinel, survives] of [
   const [bound, length] = slot.value.properties;
   check('queued static descent: outer data slot', slot.kind, 'init');
   check('queued static descent: ordered keys', slot.value.properties.map(item => item.key.name).join(','), 'bind,length');
-  check('queued static descent: instance dispatcher', bound.value.callee.name, '_bind');
+  check('queued static descent: instance dispatcher', bound.value.callee?.name, '_bind');
   check('queued static descent: dispatcher receiver', bound.value.arguments[0].name, '_keys');
   check('queued static descent: native sibling', length.value.object.name, '_keys');
   check('queued static descent: independent references', bound.value.arguments[0] === length.value.object, false);

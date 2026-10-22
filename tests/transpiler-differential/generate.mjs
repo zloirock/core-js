@@ -19958,12 +19958,25 @@ function * generateActivationDestructureCapture() {
         function source() { effects.push('source'); return values; }
         ${ body }
         export { r, effects };`,
-      // Positional parameter capture only serves a complete default mirror; a supplied
-      // array parameter and a partial positional assignment keep native reads today.
-      // Retain their full-realm and global controls without claiming pure strip coverage.
-      strip: !(shape === 'array' && (host === 'supplied' || partial && (host === 'default' || host === 'assignment'))),
+      strip: true,
     };
   }
+}
+
+// TDZ is a native-syntax oracle: the ES5 e2e lowering deliberately erases it.
+function * generatePositionalParameterBarriers() {
+  for (const target of ['at', 'later']) yield {
+    name: `positional-parameter-barriers/${ target }`,
+    code: `const effects = [];
+      function read(probe = () => ${ target }, [{ at }] = [{ get at() { effects.push('getter'); return probe(); } }], later) {
+        effects.push('body'); return [at, later];
+      }
+      let r;
+      try { r = read(undefined, undefined, 9); } catch (error) { r = error.name; }
+      export { r, effects };`,
+    // This refusal is observed by native TDZ, not by an imported method.
+    strip: false,
+  };
 }
 
 // Deferred declarations retain child rewrites and read one initializer for all claims.
@@ -20014,6 +20027,62 @@ function * generateLateSynthReceivers() {
     ]) yield { ...snippet(`late-synth-receivers/${ shape }/${ partial ? 'partial' : 'full' }/${ host }`,
       `(() => { ${ body } })()`), strip: true };
   }
+}
+
+// Static value members keep the selected branch and supplied parameter values. The
+// following parameter observes the destructured binding before the function body runs.
+function * generateLateStaticPatternValues() {
+  for (const [shape, receiver] of [
+    ['conditional', 'flag ? globalThis : user'],
+    ['fallback', '(flag && globalThis) || user'],
+  ]) for (const observed of [false, true]) for (const flag of [false, true]) yield {
+    name: `late-static-pattern-values/${ shape }/${ observed ? 'observed' : 'plain' }/${ flag }`,
+    code: `const effects = [];
+      const flag = ${ flag };
+      const user = { Object: { keys: { name: 'own' }, entries: value => [['own', value.x]] } };
+      function read({ Object: { keys: { name }, entries } } = ${ receiver }${ observed ? ', after = (effects.push(name), name)' : '' }) {
+        return [name, entries({ x: 3 }), ${ observed ? 'after' : '0' }];
+      }
+      const r = [read(), read(user)];
+      export { r, effects };`,
+    strip: true,
+  };
+}
+
+// A live default observes the preceding extraction before the next computed key.
+// Native own methods distinguish dispatch fallback from an unconditional polyfill read.
+function * generateSegmentedPatternDefaults() {
+  for (const partial of [false, true]) for (const own of [false, true]) {
+    const pattern = `{ [(effects.push('first'), 'at')]: method = fallback(), [(effects.push(typeof method), 'includes')]: contains${ partial ? ', length: size' : '' } }`;
+    for (const [host, body] of [
+      ['declaration', `const before = (effects.push('before'), 0), ${ pattern } = source(), after = (effects.push('after'), 1);`],
+      ['bodyless', `if (true) var before = (effects.push('before'), 0), ${ pattern } = source(), after = (effects.push('after'), 1);`],
+      ['for-init', `for (var before = (effects.push('before'), 0), ${ pattern } = source(), after = (effects.push('after'), 1);;) break;`],
+    ]) yield {
+      name: `segmented-pattern-defaults/${ partial ? 'partial' : 'full' }/${ own ? 'own' : 'native' }/${ host }`,
+      code: `const effects = [];
+        const values = [4, 5];
+        ${ own ? "Object.defineProperty(values, 'at', { value: function () { return 9; } });" : '' }
+        function source() { effects.push('source'); return values; }
+        function fallback() { effects.push('default'); return function () { return 7; }; }
+        ${ body }
+        const r = [method.call(values, -1), contains.call(values, 4), ${ partial ? 'size' : '0' }, before, after];
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+  const pattern = "{ [(effects.push('first'), Symbol.iterator)]: iterator, [(effects.push(typeof iterator), 'x')]: other }";
+  for (const [host, declaration] of [
+    ['for-init', `for (const ${ pattern } = flag ? globalThis : self;;) { return [typeof iterator, other]; }`],
+    ['bodyless', `if (flag) var ${ pattern } = flag ? globalThis : self; return [typeof iterator, other];`],
+  ]) yield {
+    name: `segmented-pattern-defaults/realm-iterator/${ host }`,
+    code: `const effects = [];
+      function read(flag) { ${ declaration } }
+      const r = read(true);
+      export { r, effects };`,
+    strip: true,
+  };
 }
 
 export function * generate() {
@@ -20393,4 +20462,7 @@ export function * generate() {
   yield * generateActivationDestructureCapture();
   yield * generateDeferredPatternSources();
   yield * generateLateSynthReceivers();
+  yield * generateLateStaticPatternValues();
+  yield * generateSegmentedPatternDefaults();
+  yield * generatePositionalParameterBarriers();
 }

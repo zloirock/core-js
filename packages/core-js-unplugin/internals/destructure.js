@@ -31,6 +31,7 @@ import {
   planSynthReceiverGuard,
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
+  planStaticPatternInstances,
   renderSynthTree,
   resolveNestedDestructureReceiver,
   resolveNestedNavDispatch,
@@ -913,7 +914,7 @@ export default function createAstDestructureEmitter({
         || !resolvePure({
           kind: 'property', object: hopCtorName, key: plainSynthKeyName(item.key), placement: 'static',
         }, metaPath)
-        || !!descendedStaticPatternLeaves(item));
+        || !!planStaticPatternInstances(item.value, { resolvePure }));
     // a ctor SLOT carries no leaf pattern of its own - what it binds is the constructor itself
     if (!ctorSlot
       && ((!partialTargets && !isSynthSimpleObjectPattern(leafPattern, { allowNestedValue: nestedValuesRideTheHop }))
@@ -1036,32 +1037,6 @@ export default function createAstDestructureEmitter({
         targetKinds.set(key, binding);
       }
     }
-    // the keys a STATIC slot's pattern spells when a leaf under it carries a CLAIM of its own: one
-    // literal key per key the pattern reads, the claiming ones dispatched through their own ponyfill
-    // where the source read them off the static's value. null where NO leaf claims - the flat binding
-    // is the shorter spelling of the same value - and null where a key has no plain spelling: a
-    // computed one, a duplicate, a defaulted slot, or `__proto__`, whose literal key would set the
-    // prototype where the pattern reads an own property
-    // `receiverObject`: the constructor whose instances the slot's value holds, where the slot names
-    // one (`Array: { prototype: ... }`) - the receiver type the other leg reads off its own re-emitted
-    // member (`_globalThis.Array.prototype.at` -> `array/instance/at`). unnamed elsewhere, and the
-    // leaf then takes the common entry, which is that same read's answer one dialect over
-    function descendedStaticPatternLeaves(prop, receiverObject = undefined) {
-      const pattern = prop?.value;
-      if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length) return null;
-      const leaves = [];
-      let claims = false;
-      for (const item of pattern.properties) {
-        if (item.type !== 'Property' || item.computed || item.value?.type === 'AssignmentPattern') return null;
-        const leafKey = plainSynthKeyName(item.key);
-        if (leafKey === null || leafKey === '__proto__' || leaves.some(leaf => leaf.key === leafKey)) return null;
-        const leafPure = resolvePure({ kind: 'property', object: receiverObject, key: leafKey, placement: 'prototype' }, null);
-        if (leafPure?.kind === 'instance') claims = true;
-        leaves.push({ key: leafKey, pure: leafPure?.kind === 'instance' ? leafPure : null });
-      }
-      return claims ? leaves : null;
-    }
-
     const slotMap = new Map();
     // a leaf the literal has no slot for - a wks key dispatching on the VALUE, an instance member -
     // keeps the hop's own value: alone the hop declines the mirror (both legs keep the key-swap /
@@ -1093,8 +1068,10 @@ export default function createAstDestructureEmitter({
       // rather than off a ponyfill, the claiming ones through their dispatch on that read. rendered
       // flat, the hop handed the pattern its value and the claim under it stayed native on both legs
       const hopLeaves = !pure && mirrorableSlot
-        ? descendedStaticPatternLeaves(planEntry.prop,
-          planEntry.lookupKey === 'prototype' ? rootCtorName : undefined) : null;
+        ? planStaticPatternInstances(
+          planEntry.prop?.value,
+          { resolvePure, receiverObject: planEntry.lookupKey === 'prototype' ? rootCtorName : undefined },
+        ) : null;
       if (hopLeaves) {
         slotMap.set(planEntry.dedupKey, { descendedHop: hopLeaves });
         continue;
@@ -1107,7 +1084,7 @@ export default function createAstDestructureEmitter({
       // that pattern's keys off the ponyfill, the claiming one through its own ponyfill's dispatch
       // (`keys: { name: _nameMaybeFunction(_Object$keys) }`) - the shared mirror's answer for the
       // same slot. the flat binding handed the pattern the ponyfill and left that claim native
-      const descended = descendedStaticPatternLeaves(planEntry.prop);
+      const descended = planStaticPatternInstances(planEntry.prop?.value, { resolvePure });
       slotMap.set(planEntry.dedupKey, descended ? { staticPure: pure, descended } : pure);
     }
     // a hop with nothing to polyfill still joins a MULTI-hop literal, as passthrough / raw slots
