@@ -96,6 +96,8 @@ import {
   computedKeyIsWellKnownSymbol,
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
+  globalProxyMemberName,
+  proxyGlobalMemberCtorPure,
   decidedSelectionValue,
   guaranteedRealmObjectName,
   isStaticPlacement,
@@ -112,6 +114,13 @@ import {
   yieldedSlotValue,
 } from './resolve.js';
 import {
+  isConstantLiteralReceiver,
+  isReReferenceableReceiver,
+  namedDefaultReceiver,
+  planSideEffectKeyStrategy,
+  nestedSlotMemoPlan,
+  receiverPerformsEveryInitEffect,
+  resolveDestructureReceiverPlan,
   STATIC_WALK_DEPTH,
   claimUnderSharedHopSlot,
   mirrorAcceptedKey,
@@ -2422,6 +2431,17 @@ export function buildNestedDestructurePlan({
   if (plan && patternKeepsEffectfulHop(pattern, { scope, adapter, path })) {
     plan.restKeepsLevel = true;
   }
+  if (plan) {
+    // These source decisions precede pattern pruning and are shared by every apply
+    // of this plan. An anchored residual still reads a constructor, but not the init.
+    const keepsRest = plan.pattern.properties.some(isRestProperty);
+    const consumesPattern = !keepsRest && plan.outerProps.every(outer => outer.kind === 'consumed' || outer.kind === 'anchored');
+    plan.evaluation = {
+      consumesPattern,
+      consumesAll: !keepsRest && !plan.restKeepsLevel && plan.outerProps.every(outer => outer.kind === 'consumed'),
+      discardsInit: consumesPattern && !plan.restKeepsLevel,
+    };
+  }
   planCache.set(adapter, declarator, plan);
   return plan;
 }
@@ -2769,4 +2789,264 @@ function patternKeysMirrorable({ paramNode, scope, adapter, path }) {
     if (mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) === null) return false;
   }
   return true;
+}
+
+// does the climbed chain step through a NAMED inner default? the climb goes through one only where the
+// outer chain names the receiver, so the default is dead and the pair the descent reaches is what the
+// leaf reads (`{ k: { from } = Array } = { k: Array }`)
+export function chainThroughNamedDefaults(chain) {
+  return chain.some(level => level.hopProp.value?.type === 'AssignmentPattern' && namedDefaultReceiver(level.hopProp.value.right));
+}
+
+// Instance receiver resolution through a literal: the strict walk first, the SE-free
+// single-read relaxation second - direct when the residual dies with the extraction, else
+// through the `_ref` memo (the memo is the single source read - getter fires once)
+// the residual is DEAD when this extraction takes every binding of a single-declarator
+// declaration - the shared plan's `soleBindingInDeclaration`
+export function planLiteralRoute({
+  metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null,
+  patternCtx = { scope: metaPath.scope, adapter, path: metaPath },
+}) {
+  const declaratorConsumedWhole = patternBindingCount(declarator.id) === patternBindingCount(prop.value);
+  const soleBinding = declaration.declarations.length === 1 && declaratorConsumedWhole;
+  let literalReceiver = null;
+  let relaxedReceiver = false;
+  let carriedLive = null;
+  const throughNamedDefaults = chainThroughNamedDefaults(chain);
+  if (kind === 'instance' && !pureNav && chain.length > 0) {
+    const receiverPlan = declaratorConsumedWhole && !sentinel && !throughNamedDefaults
+      && resolveDestructureReceiverPlan(metaPath, {
+        allowSeFreeSingleRead: true, adapter,
+      });
+    literalReceiver = receiverPlan?.channel === 'resolved' ? receiverPlan.node
+      : resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
+    if (!literalReceiver) {
+      const relaxed = resolveNestedReceiverNode(metaPath, {
+        allowSeFreeSingleRead: true, adapter, throughNamedDefaults,
+      }) ?? null;
+      // a SENTINEL leaves a residual that reads the fragment a second time, so only a
+      // value-SELECTING one qualifies for the relaxation: its memo is what makes the branch
+      // select once for both readers. where the residual dies with the extraction, the slot must
+      // also perform every effect the init would - a spread or getter beside it runs nowhere else
+      if (relaxed && (!sentinel
+        || relaxed.type === 'ConditionalExpression' || relaxed.type === 'LogicalExpression')
+        && (!declaratorConsumedWhole || receiverPerformsEveryInitEffect(declarator.init, relaxed,
+          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null))) {
+        literalReceiver = relaxed;
+        relaxedReceiver = true;
+      }
+      // ... and an EFFECT-bearing slot answers for itself through the shared canon: the effects only
+      // matter while a residual survives to re-evaluate them, and a receiver that performs every
+      // effect its init would leaves that residual nothing to do - the dispatch is the one read
+      // ... asked of THIS DECLARATOR's own pattern, not of the declaration: a sibling declarator
+      // keeps its own binding, and the consumed one splits off beside it - the split the other leg
+      // already performs (`const { y: { at } } = { y: nb.y }, zn = 1`)
+      // ... and only where the residual DIES: a level an effectful hop key keeps would run the
+      // carried effect a second time beside the dispatch
+      if (!literalReceiver && declaratorConsumedWhole && !sentinel) {
+        const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
+        if (carried && receiverPerformsEveryInitEffect(declarator.init, carried,
+          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null)) {
+          literalReceiver = carried;
+          relaxedReceiver = true;
+          // the slot is re-resolved at DRAIN: a claim INSIDE it renders by replacing its node, and
+          // this plan-time copy predates that rewrite
+          carriedLive = () => resolveNestedReceiverNode(metaPath, {
+            allowInitCarriedEffects: true, adapter, throughNamedDefaults,
+          }) ?? carried;
+        }
+      }
+    }
+  }
+  // ... and a slot the plain walk cannot spell twice while the level stays WHOLE takes the slot
+  // memo (`slotMemo`) shared with the other binding
+  // ... a RELAXED single read (a member, a selection) beside a residual takes it too where an
+  // observable property stands BEFORE the slot: hoisting the read would fire its getter ahead of
+  // that property, so the memo is written in the slot instead
+  // ... a level an effectful hop key keeps is a residual beside the claim exactly like a rest's
+  const memoCandidate = kind === 'instance' && (!literalReceiver || relaxedReceiver)
+    && (!declaratorConsumedWhole || hostLevelSurvives(declarator, { ctx: patternCtx }))
+    && chain.length > 0 ? nestedSlotMemoPlan(metaPath, { adapter }) : null;
+  const slotMemo = memoCandidate && (!literalReceiver || !memoCandidate.hoist) ? memoCandidate : null;
+  if (slotMemo) {
+    literalReceiver = slotMemo.node;
+    relaxedReceiver = true;
+  }
+  const receiverConsumesInit = forInit && declaratorConsumedWhole && !sentinel && !!literalReceiver
+    && receiverPerformsEveryInitEffect(declarator.init, literalReceiver,
+      adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null);
+  return { soleBinding, declaratorConsumedWhole, literalReceiver, relaxedReceiver, carriedLive,
+    receiverConsumesInit, slotMemo };
+}
+
+// which sentinel-kept inits take a shared memo (`sentinelMemoEligible`), and whether that memo joins
+// the declaration as its leading declarator (`memoSibling`) - the drain's sentinel join reads both
+export function planSentinelMemo({ sentinel, declarator, kind, allProxyInit }) {
+  const sentinelMemoEligible = sentinel && sentinelMemoInitShape(unwrapRuntimeExpr(declarator.init),
+    allProxyInit || kind !== 'instance');
+  // whatever the init's shape, the memo joins the declaration as its leading declarator (`const
+  // _ref = eff(), { [k]: _unused, z } = _ref, s = _at(_ref)` - the other leg's shape for a call,
+  // a selection, a member and a built-in surface alike)
+  return { sentinelMemoEligible, memoSibling: sentinelMemoEligible };
+}
+
+// A sentinel's residual and its extraction share one evaluation of a member, call,
+// sequence or literal. A selection needs that capture unless both arms name the same
+// realm surface. The caller unwraps the live source at its own evaluation boundary.
+export function sentinelMemoInitShape(init, allProxyInit) {
+  return init?.type === 'MemberExpression' || init?.type === 'CallExpression'
+    || init?.type === 'SequenceExpression'
+    || ((init?.type === 'ConditionalExpression' || init?.type === 'LogicalExpression') && !allProxyInit)
+    || isConstantLiteralReceiver(init);
+}
+
+// does the surviving residual sit ahead of every extraction in SOURCE order? `sharedHop`
+// admits the extraction's own hop as "ahead": a DECLARATION splits the hop into its own
+// statement and the extraction leads it, while an ASSIGNMENT cascade keeps the nested
+// extraction behind the residual it came out of - babel's own asymmetry between the two
+export function residualPrecedesExtractions(pattern, claimedProps, sourceProps, { sharedHop = false } = {}) {
+  const props = pattern?.type === 'ObjectPattern' ? pattern.properties : null;
+  if (!props?.length || !sourceProps || !claimedProps.length) return false;
+  const consumedAt = Math.min(...claimedProps.map(outer => {
+    const index = sourceProps.indexOf(outer);
+    return index === -1 ? sourceProps.length : index;
+  }));
+  return props.every(item => {
+    const index = sourceProps.indexOf(item);
+    return index !== -1 && (sharedHop ? index <= consumedAt : index < consumedAt);
+  });
+}
+
+// the for-init memo verdict, per declarator. a SENTINEL residual re-reads the receiver:
+// anything but a bare identifier / `this` memoizes first (`_ref = getArr(), findIndex =
+// _f(_ref), { ..._unused } = _ref`) - but only where the extraction READS it too: a
+// receiverless static leaves the residual as the only reader, and that read happens in
+// place (the block-hosted rule). SEVERAL plain dispatches - or one beside a SURVIVING
+// residual - must read ONE evaluation of the init the same way: the memo is a sibling
+// declarator and every reader spells the ref (babel's head shape)
+export function forInitNeedsReceiverMemo(declarator, claims, ctx) {
+  const init = declarator?.init;
+  const reusableInit = init?.type === 'ThisExpression' || init?.type === 'Identifier'
+    && isReReferenceableAcrossReads(init, ctx);
+  if (!init || reusableInit || claims.some(claim => claim.chain?.length)) return false;
+  const readers = claims.filter(claim => claim.readsReceiver).length;
+  const consumed = claims.reduce((total, claim) => total + patternBindingCount(claim.prop.value), 0);
+  const residualLives = patternBindingCount(declarator.id) !== consumed;
+  return claims.some(claim => claim.sentinel && claim.readsReceiver) || readers > 1
+    || (readers === 1 && residualLives && claims.every(claim => !claim.sentinel))
+    || (readers === 1 && claims.length > 1 && mayHaveSideEffects(init));
+}
+
+// Decide whether a literal receiver keeps a native residual read and whether the
+// extraction shares a captured value with it. Claims provide source facts, not host
+// operations. The binding allocates the selected ref and applies export/statement edits.
+// A slot memo keeps its source evaluation point; a deferred memo keeps sibling numbering.
+export function planLiteralResidual({
+  kind, entry, prop, pattern, sentinel, declarator, declaration, soleBinding, literalReceiver, relaxedReceiver,
+  declaratorConsumedWhole = false, carried = false, receiverConsumesInit = false,
+  slotMemo = null, symbolPatternResidual = false, allProxyInit = false, forInit = false,
+  ctx = {}, injectorState = null,
+}) {
+  // the key is kept when the residual still needs it. a SOLE binding leaves none, and
+  // there the extraction may carry the init whole - including its effects, when the
+  // receiver IS that init (`{ flat } = (c++, gt.self).Array.prototype || {}`)
+  const carriesInitWhole = !!literalReceiver && literalReceiver === declarator.init;
+  // ... spelled twice only where no getter of the pattern can rebind it (a name a function writes
+  // is a single read, which the memo below serves like a relaxed member's)
+  const reReadable = !!literalReceiver && (ctx.path
+    ? isReReferenceableAcrossReads(literalReceiver, ctx)
+    : isReReferenceableReceiver(literalReceiver));
+  // a symbol-PATTERN sibling leaves a residual that still spells the key, so the memo
+  // decision below must see the kept key - not learn about it after the fact
+  // ... and a FOR-INIT host keeps the residual whatever the binding count: babel never
+  // drops the loop-header declarator, the extraction appends as a sibling after it
+  const keepKey = sentinel || symbolPatternResidual
+    // the kept residual preserves ORDER in a MULTI-declarator - a preceding extraction could
+    // TDZ-fault a receiver bound earlier in the same declaration - so a shared declaration keeps
+    // it, and a for-INIT header keeps its own. unless keeping it would READ the receiver a SECOND
+    // time: that is a defect, not a reorder risk, and the consumed declarator empties instead
+    // (`const { y: { at } } = { y: nb.y }, zn = 1` fired the `y` getter twice). a receiver proven
+    // to perform the complete init is not that case in a header: the dispatch is the init's one read
+    // ... a SYMBOL leaf under a hop beside a SIBLING prop keeps its sentinel: the residual binds
+    // the sibling, and the helper reads the slot the extraction spells (`{ w: { [S]: _unused }, z }`)
+    || (entry === 'get-iterator-method' && !!literalReceiver && declarator.id?.properties?.length > 1)
+    || (!receiverConsumesInit && kind === 'instance' && entry !== 'get-iterator-method' && !!literalReceiver
+      && ((forInit && (carried || reReadable))
+        || !((soleBinding || (declaratorConsumedWhole && !reReadable))
+          && (relaxedReceiver || carriesInitWhole
+            || !mayHaveSideEffects(declarator.init, ctx.path && ctx)))));
+  // a MULTI-declarator host keeps the one declaration and appends the extraction as a
+  // sibling declarator - the receiver is spelled twice there, so the memo never applies
+  // (`const z = 1, { ..._unused } = R, m = _f(R);`)
+  // ... and a SLOT memo keeps that join: the memo stands ahead (behind the leading siblings, whose
+  // own inits run first) or is written in its slot, and the extraction is appended after the
+  // residual either way - the shape the flat channel takes beside a sibling
+  // ... and an SE-KEY sentinel takes the same join: its key runs in the residual, and the extraction
+  // follows as a declarator like any other - the source reads the claim after the key
+  const siblingAppend = keepKey && !!literalReceiver && declaration.declarations.length > 1;
+  let memoizeReceiver = false;
+  // a SENTINEL's residual re-reads its receiver, so a value-SELECTING one may not stay
+  // spelled - the branch would be taken twice. the fragment memoizes and both readers take
+  // the ref (`{ y: { [(k(), 'values')]: v } } = { y: c ? [1] : [] }`); an ALL-PROXY selection
+  // re-reads for free and keeps its own shape
+  const branchingReceiver = !allProxyInit && !!literalReceiver
+    && (literalReceiver.type === 'ConditionalExpression' || literalReceiver.type === 'LogicalExpression');
+  // ... and a CONSTANT LITERAL in a SLOT behind a sentinel memoizes too: spelling `[1, 2]` twice builds
+  // two arrays where the source built one, and the other leg hands both readers one `_ref`. the whole
+  // init stays the drain's sentinel-memo channel, which numbers its ref where babel does
+  const slotLiteral = !!literalReceiver && literalReceiver !== unwrapRuntimeExpr(declarator.init)
+    && isConstantLiteralReceiver(literalReceiver);
+  if (keepKey && (!sentinel || branchingReceiver || slotLiteral || slotMemo)
+    && literalReceiver && (literalReceiver.type !== 'Identifier' || !reReadable)) {
+    // ... and a RE-READABLE built-in surface (`Array.prototype`) spells twice instead of memoizing:
+    // the second read is free, and the other leg's residual keeps the source spelling. it overrides
+    // every memo arm: a surface enters this block only under a pure key and no rest (no sentinel arm
+    // admits one), which is where the shared key strategy exempts it as well
+    const surfaceReRead = isReReadableSurfaceNav(literalReceiver, name => !!injectorState?.getBindingInfo?.(name),
+      { ctx: ctx.path ? ctx : null });
+    const relaxedMemoizable = relaxedReceiver
+      && literalReceiver.type !== 'ArrayExpression' && literalReceiver.type !== 'ObjectExpression';
+    memoizeReceiver = !surfaceReRead && (relaxedMemoizable || branchingReceiver
+      || isConstantLiteralReceiver(literalReceiver) || !!slotMemo || !isReReferenceableReceiver(literalReceiver))
+      // ... and a sibling join over a receiver it cannot spell twice memoizes it like a slot memo
+      && (!siblingAppend || !!slotMemo || !isReReferenceableReceiver(literalReceiver)) && !forInit;
+    if (!memoizeReceiver && !reReadable && !surfaceReRead) return null;
+  }
+  const consumeResidualRead = memoizeReceiver && !!planSideEffectKeyStrategy({
+    polyfillKind: kind, entry, prop, pattern, hostPattern: declarator.id,
+    sourceBindingCount: patternBindingCount(declarator.id), receiverNode: literalReceiver,
+    capturedReceiverNode: literalReceiver, propKeyIsPure: !computedKeyHasSideEffects(prop, ctx),
+  })?.consumeResidualRead;
+  return { keepKey, siblingAppend, memoizeReceiver, consumeResidualRead, deferMemo: branchingReceiver || sentinel };
+}
+
+// A covered synth needs no receiver reader: each key resolves to a static value.
+// Instance dispatch still needs that reader. A fallback resolves only its live left;
+// the binding asks this before allocating any memo name.
+export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure }) {
+  const value = unwrapRuntimeExpr(receiver);
+  const named = value?.type === 'LogicalExpression' ? value.left : receiver;
+  const objectName = named ? resolveObjectName({ objectNode: named, ...contextFor(named) }) : null;
+  return !!objectName && plan.every(entry => typeof entry.lookupKey === 'string' && resolvePure({
+    kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
+  })?.kind === 'static');
+}
+
+// A flat synthesized receiver reads statics through its selected constructor, while
+// an instance entry reads the complete runtime selection. A memo parameter, if any,
+// replaces both reads at apply time. This query resolves entries without injecting them.
+export function planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure }) {
+  const readReceiver = receiver.type === 'LogicalExpression'
+    ? peelNestedSequenceExpressions(receiver.left).tail : receiver;
+  const globalPure = readReceiver.type === 'Identifier'
+    ? resolvePure({ kind: 'global', name: readReceiver.name }) : null;
+  const pure = globalPure && globalPure.kind !== 'instance' ? globalPure
+    : proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure });
+  return {
+    readReceiver,
+    pure,
+    receiverCtorName: globalPure && globalPure.kind !== 'instance' ? readReceiver.name
+      : aliasCtx && pure ? globalProxyMemberName({ node: readReceiver, ...aliasCtx }) : null,
+    selectsInstance: receiver.type === 'LogicalExpression' || receiver.type === 'ConditionalExpression',
+  };
 }
