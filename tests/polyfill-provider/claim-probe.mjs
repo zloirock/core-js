@@ -1,8 +1,11 @@
 // The erased claim and the discarded initializer ask one owner for source facts. Queries must
 // leave the source untouched, and a retained holder must not acquire a second inline store.
 import {
-  claimProbeSourceSlot, directClaimProbePlan, directClaimProbeEffects, destructureProbePlan,
-  discardedInitProbeNavStart, discardedInitProbePlan, sealedClaimProbePlan,
+  claimProbeSourceSlot,
+  directClaimProbePlan,
+  directClaimProbeEffects,
+  destructureProbePlan,
+  discardedInitProbePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -33,10 +36,10 @@ for (const [source, kind, readKind] of [
   const ctx = { scope: path.scope, adapter, path };
   const before = JSON.stringify(sourceNode);
   // Deliberately ignore both questions before asking the one the consumer will use.
-  sealedClaimProbePlan(sourceNode, resolvePure, ctx);
-  sealedClaimProbePlan(sourceNode, resolvePure, ctx, { preserveRead: true });
-  const plan = sealedClaimProbePlan(sourceNode, resolvePure, ctx);
-  const read = sealedClaimProbePlan(sourceNode, resolvePure, ctx, { preserveRead: true });
+  directClaimProbePlan(sourceNode, resolvePure, ctx);
+  directClaimProbePlan(sourceNode, resolvePure, ctx, { preserveRead: true });
+  const plan = directClaimProbePlan(sourceNode, resolvePure, ctx);
+  const read = directClaimProbePlan(sourceNode, resolvePure, ctx, { preserveRead: true });
   check(`${ label }/claim`, plan?.kind ?? null, kind);
   check(`${ label }/read`, read?.kind ?? null, readKind);
   check(`${ label }/query does not edit source`, JSON.stringify(sourceNode), before);
@@ -65,8 +68,8 @@ for (const [source, storeAllowed, arrayWrapped] of [
   const ctx = { scope: path.scope, adapter, path };
   const input = unwrapRuntimeExpr(path.node.init);
   const member = arrayWrapped ? input.elements[0] : input;
-  check(`${ label }/retained holder`, sealedClaimProbePlan(member, resolvePure, ctx), null);
-  check(`${ label }/discarded holder`, sealedClaimProbePlan(member, resolvePure, ctx,
+  check(`${ label }/retained holder`, directClaimProbePlan(member, resolvePure, ctx), null);
+  check(`${ label }/discarded holder`, directClaimProbePlan(member, resolvePure, ctx,
     { allowStoreHolder: true })?.kind, 'alias');
   check(`${ label }/mirror owns store`, !!discardedInitProbePlan(path.node.init, resolvePure, ctx)?.aliasProbe, storeAllowed);
 });
@@ -82,9 +85,10 @@ for (const [source, leafIsProbe, alias] of [
   const ctx = { scope: path.scope, adapter, path };
   const plan = discardedInitProbePlan(path.node.init, resolvePure, ctx);
   checkTruthy(`${ label }/discarded value`, plan);
-  check(`${ label }/prefix split`, discardedInitProbeNavStart(path.node.init),
-    source.includes('effect()') ? unwrapRuntimeExpr(path.node.init).expressions.at(-1).start : 0);
-  check(`${ label }/probe leaf`, !!plan?.leafIsProbe, leafIsProbe);
+  const navStart = alias ? path.node.init.start
+    : source.includes('effect()') ? unwrapRuntimeExpr(path.node.init).expressions.at(-1).start : 0;
+  check(`${ label }/prefix split`, plan.navStart, navStart);
+  check(`${ label }/probe leaf`, !!plan?.leafPlan?.leafIsProbe, leafIsProbe);
   check(`${ label }/alias boundary`, !!plan?.aliasProbe, alias);
 });
 
@@ -133,9 +137,9 @@ runBoth('probe source provenance', 'const held = globalThis.window; const value 
   const ctx = { scope: path.scope, adapter, path };
   const source = path.node.init;
   const { start, end, loc, ...minted } = source;
-  check(`${ label }/minted`, sealedClaimProbePlan(minted, resolvePure, ctx), null);
-  check(`${ label }/source copy`, sealedClaimProbePlan({ ...minted, replacedSpan: { start, end } }, resolvePure, ctx)?.kind, 'alias');
-  check(`${ label }/location copy`, sealedClaimProbePlan({ ...minted, loc: { start: { index: start } } }, resolvePure, ctx)?.kind, 'alias');
+  check(`${ label }/minted`, directClaimProbePlan(minted, resolvePure, ctx), null);
+  check(`${ label }/source copy`, directClaimProbePlan({ ...minted, replacedSpan: { start, end } }, resolvePure, ctx)?.kind, 'alias');
+  check(`${ label }/location copy`, directClaimProbePlan({ ...minted, loc: { start: { index: start } } }, resolvePure, ctx)?.kind, 'alias');
 });
 // Immediate consumers share a complete guarded-value decision, including the key effect
 // inside the reached arm and the fact that the pattern still owes its first property read.
