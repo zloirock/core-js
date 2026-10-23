@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies of `/es/` and `/stable/` namespaces, the `JSON.parse` source text access proposal entry and the stage 4 entry, a regression since 3.47.0
 - Compat data improvements:
   - Added [Opera for Android 103](https://forums.opera.com/topic/89817/opera-for-android-103) compat data mapping
 
