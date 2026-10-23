@@ -30,7 +30,7 @@ SafeArrayIterator.prototype.next = function () {
 };
 
 // `Array.fromAsync` method implementation
-// https://github.com/tc39/proposal-array-from-async
+// https://tc39.es/ecma262/#sec-array.fromasync
 module.exports = function fromAsync(items /* , mapfn = undefined, thisArg = undefined */) {
   var C = this;
   var argumentsLength = arguments.length;

@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-iterator-sequencing/)\
 [Proposal repo](https://github.com/tc39/proposal-iterator-sequencing)
 
-## Modules 
+## Modules
 [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js)
 
 ## Built-ins signatures

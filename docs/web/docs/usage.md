@@ -1,16 +1,16 @@
 # Usage
 ## Installation
 ```sh
-// global version
+# global version
 npm install --save core-js@3.51.0
-// version without global namespace pollution
+# version without global namespace pollution
 npm install --save core-js-pure@3.51.0
-// bundled global version
+# bundled global version
 npm install --save core-js-bundle@3.51.0
 ```
 
 ## Entry points
-You can import only-required-for-you polyfills, like in the examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
+You can import only the polyfills you need. CommonJS entry points are available for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```ts
 // polyfill all `core-js` features, including early-stage proposals:
@@ -46,8 +46,8 @@ import "core-js/actual/array/find-last";
 import "core-js/stable/queue-microtask";
 import "core-js/es/array/from";
 
-// polyfill iterator helpers proposal:
-import "core-js/proposals/iterator-helpers";
+// polyfill async iterator helpers proposal:
+import "core-js/proposals/async-iterator-helpers";
 // polyfill all stage 2+ proposals:
 import "core-js/stage/2";
 ```
@@ -56,14 +56,14 @@ import "core-js/stage/2";
 > The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.
 
 > [!WARNING]
-> - The `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
+> - The `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what you are doing.
 > - If you use `core-js` with the extension of native objects, recommended to load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
->   - For example, Google Maps use their own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and / or something else from `core-js`, see [related issues](https://github.com/zloirock/core-js/search?q=Google+Maps&type=Issues).
+>   - For example, Google Maps uses its own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and / or something else from `core-js`, see [related issues](https://github.com/search?q=repo%3Azloirock%2Fcore-js+Google+Maps&type=issues).
 >   - Such conflicts are also resolvable by discovering and manually adding each conflicting entry from `core-js`.
-> - `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of a usage loader for each file, otherwise, you will have hundreds of requests.
+> - `core-js` is extremely modular and uses a lot of very tiny modules, because of that, for usage in browsers, bundle up `core-js` instead of using a loader for each file; otherwise, you will have hundreds of requests.
 
 ## CommonJS and prototype methods without global namespace pollution
-In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
+In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods are transformed into static methods. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). For this case, there are `/virtual/` entry points. Example:
 ```ts
 import fill from 'core-js-pure/actual/array/virtual/fill';
 import findIndex from 'core-js-pure/actual/array/virtual/find-index';
@@ -78,28 +78,31 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 `core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
 
-## `@babel/polyfill`
+> [!NOTE]
+> `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#h-babel-plugin-polyfill-corejs3).
 
-[`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so loading `@babel/polyfill` means loading the global version of `core-js` without ES proposals.
+### `@babel/polyfill`
+
+[`@babel/polyfill`](https://babeljs.io/docs/babel-polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so loading `@babel/polyfill` means loading the global version of `core-js` without ES proposals.
 
 Now it's deprecated in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for backward compatibility, `@babel/polyfill` is still based on `core-js@2`.
 
-As a full equal of `@babel/polyfill`, you can use the following:
+As a full equivalent of `@babel/polyfill`, you can use the following:
 ```ts
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
 ```
 
-## `@babel/preset-env`
+### `@babel/preset-env`
 
 [`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes the use of the global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to the used version of `core-js`, like `corejs: '3.51'`.
 
 > [!IMPORTANT]
-> It is recommended to specify the used minor `core-js` version, like `corejs: '3.51'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> It is recommended to specify the used minor `core-js` version, like `corejs: '3.51'`, instead of `corejs: 3`, since with `corejs: 3`, modules added in minor `core-js` releases will not be injected.
 
 ---
 
-- `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
+- `useBuiltIns: 'entry'` replaces imports of `core-js` with imports of only the modules required for a target environment. So, for example,
 ```ts
 import 'core-js/stable';
 ```
@@ -131,7 +134,7 @@ import 'core-js/modules/esnext.set.symmetric-difference';
 import 'core-js/modules/esnext.set.union';
 ```
 
-- `useBuiltIns: 'usage'` adds to the top of each file import of polyfills for features used in this file and not supported by target environments, so for:
+- `useBuiltIns: 'usage'` adds to the top of each file imports of polyfills for features used in this file and not supported by target environments, so for:
 ```ts
 // first file:
 let set = new Set([1, 2, 3]);
@@ -161,9 +164,9 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 > [!IMPORTANT]
 > In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
 
-## `@babel/runtime`
+### `@babel/runtime`
 
-[`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+[`@babel/runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```ts
 import from from 'core-js-pure/stable/array/from';
 import flat from 'core-js-pure/stable/array/flat';
@@ -186,9 +189,18 @@ By default, `@babel/runtime` only polyfills stable features, but like in `@babel
 > [!WARNING]
 > If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
 
+### `babel-plugin-polyfill-corejs3`
+
+[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
+```json
+{
+  "plugins": [["polyfill-corejs3", { "method": "usage-global", "version": "3.51" }]]
+}
+```
+
 ## swc
 
-Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so well as in `babel`. Example of configuration in `.swcrc`:
+Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#h-babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so well as in `babel`. Example of configuration in `.swcrc`:
 ```json
 {
   "env": {
@@ -225,14 +237,14 @@ It does not work with some features. Also, if you change the default behavior, e
 
 ## Custom build
 
-For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](https://github.com/zloirock/core-js/tree/master/packages/core-js-builder) package for that.
+In some cases, it could be useful to exclude some `core-js` features or to generate a polyfill for target engines. You can use the [`core-js-builder`](https://github.com/zloirock/core-js/tree/master/packages/core-js-builder) package for that.
 
 ## `postinstall` message
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
 ```sh
 ADBLOCK=true npm install
-// or
+# or
 DISABLE_OPENCOLLECTIVE=true npm install
-// or
+# or
 npm install --loglevel silent
 ```

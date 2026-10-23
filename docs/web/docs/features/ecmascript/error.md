@@ -1,5 +1,5 @@
 # ECMAScript: Error
-## Modules 
+## Modules
 [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
 
 ## Built-ins signatures
@@ -58,7 +58,7 @@ aggregate.errors[0] === error1; // => true
 aggregate.errors[1] === error2; // => true
 
 const cause = new TypeError('Something wrong');
-const error = new TypeError('Here explained what`s wrong', { cause });
+const error = new TypeError('Here is what went wrong', { cause });
 error.cause === cause; // => true
 
 Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
@@ -76,4 +76,4 @@ Error.isError(Object.create(Error.prototype)); // => false
 ```
 
 > [!WARNING]
-> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's an enough naive implementation.
+> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's a rather naive implementation.

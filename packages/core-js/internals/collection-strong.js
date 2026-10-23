@@ -167,11 +167,11 @@ module.exports = {
     // https://tc39.es/ecma262/#sec-map.prototype.entries
     // https://tc39.es/ecma262/#sec-map.prototype.keys
     // https://tc39.es/ecma262/#sec-map.prototype.values
-    // https://tc39.es/ecma262/#sec-map.prototype-@@iterator
+    // https://tc39.es/ecma262/#sec-map.prototype-%symbol.iterator%
     // https://tc39.es/ecma262/#sec-set.prototype.entries
     // https://tc39.es/ecma262/#sec-set.prototype.keys
     // https://tc39.es/ecma262/#sec-set.prototype.values
-    // https://tc39.es/ecma262/#sec-set.prototype-@@iterator
+    // https://tc39.es/ecma262/#sec-set.prototype-%symbol.iterator%
     defineIterator(Constructor, CONSTRUCTOR_NAME, function (iterated, kind) {
       setInternalState(this, {
         type: ITERATOR_NAME,
@@ -199,8 +199,8 @@ module.exports = {
     }, IS_MAP ? 'entries' : 'values', !IS_MAP, true);
 
     // `{ Map, Set }.prototype[@@species]` accessors
-    // https://tc39.es/ecma262/#sec-get-map-@@species
-    // https://tc39.es/ecma262/#sec-get-set-@@species
+    // https://tc39.es/ecma262/#sec-get-map-%symbol.species%
+    // https://tc39.es/ecma262/#sec-get-set-%symbol.species%
     setSpecies(CONSTRUCTOR_NAME);
   }
 };

@@ -8,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class DataView {
-  getUint8Clamped(offset: any): uint8
+  getUint8Clamped(offset: any): uint8;
   setUint8Clamped(offset: any, value: any): void;
 }
 ```

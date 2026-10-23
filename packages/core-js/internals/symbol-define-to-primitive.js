@@ -12,7 +12,7 @@ module.exports = function () {
 
   if (SymbolPrototype && !SymbolPrototype[TO_PRIMITIVE]) {
     // `Symbol.prototype[@@toPrimitive]` method
-    // https://tc39.es/ecma262/#sec-symbol.prototype-@@toprimitive
+    // https://tc39.es/ecma262/#sec-symbol.prototype-%symbol.toprimitive%
     // eslint-disable-next-line no-unused-vars -- required for .length
     defineBuiltIn(SymbolPrototype, TO_PRIMITIVE, function (hint) {
       return call(valueOf, this);

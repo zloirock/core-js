@@ -23,7 +23,7 @@ try {
 
   await copyBabelStandalone(BUILD_SRC_DIR);
   await copyBlogPosts(BUILD_SRC_DIR);
-  await copyCommonFiles(BUILD_SRC_DIR);
+  await copyCommonFiles(BUILD_SRC_DIR, targetBranch);
   await buildWeb(targetBranch, BUILD_SRC_DIR, true);
   console.timeEnd('Finished in');
 } catch (error) {

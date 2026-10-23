@@ -1,5 +1,5 @@
 'use strict';
-// https://tc39.github.io/proposal-setmap-offrom/
+// https://tc39.es/proposal-setmap-offrom/
 var bind = require('../internals/function-bind-context');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');

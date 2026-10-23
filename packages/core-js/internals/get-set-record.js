@@ -27,7 +27,7 @@ SetRecord.prototype = {
 };
 
 // `GetSetRecord` abstract operation
-// https://tc39.es/proposal-set-methods/#sec-getsetrecord
+// https://tc39.es/ecma262/#sec-getsetrecord
 module.exports = function (obj) {
   anObject(obj);
   var numSize = +obj.size;

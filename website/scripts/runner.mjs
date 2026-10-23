@@ -225,7 +225,7 @@ try {
   await prepareBuilder(targetBranch);
   await copyBabelStandalone(BUILD_SRC_DIR);
   await copyBlogPosts(BUILD_SRC_DIR);
-  await copyCommonFiles(BUILD_SRC_DIR);
+  await copyCommonFiles(BUILD_SRC_DIR, targetBranch);
   if (!BRANCH) {
     await copyBuilderDocs();
   }

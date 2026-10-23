@@ -9,4 +9,5 @@ export default {
   bundlesPath: './bundles',
   bundleName: 'core-js-bundle.js',
   bundleNameESModules: 'core-js-bundle-esmodules.js',
+  repositoryURL: 'https://github.com/zloirock/core-js',
 };

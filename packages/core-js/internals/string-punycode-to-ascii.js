@@ -1,5 +1,5 @@
 'use strict';
-// based on https://github.com/bestiejs/punycode.js/blob/master/punycode.js
+// based on https://github.com/mathiasbynens/punycode.js/blob/main/punycode.js
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var maxInt = 2147483647; // aka. 0x7FFFFFFF or 2^31-1
@@ -69,7 +69,7 @@ var digitToBasic = function (digit) {
 
 /**
  * Bias adaptation function as per section 3.4 of RFC 3492.
- * https://tools.ietf.org/html/rfc3492#section-3.4
+ * https://datatracker.ietf.org/doc/html/rfc3492#section-3.4
  */
 var adapt = function (delta, numPoints, firstTime) {
   var k = 0;

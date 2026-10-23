@@ -1152,10 +1152,10 @@ if (NativeURL) {
   var nativeCreateObjectURL = NativeURL.createObjectURL;
   var nativeRevokeObjectURL = NativeURL.revokeObjectURL;
   // `URL.createObjectURL` method
-  // https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL
+  // https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL_static
   if (nativeCreateObjectURL) defineBuiltIn(URLConstructor, 'createObjectURL', bind(nativeCreateObjectURL, NativeURL));
   // `URL.revokeObjectURL` method
-  // https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL
+  // https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL_static
   if (nativeRevokeObjectURL) defineBuiltIn(URLConstructor, 'revokeObjectURL', bind(nativeRevokeObjectURL, NativeURL));
 }
 

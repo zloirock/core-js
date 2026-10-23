@@ -4,7 +4,7 @@
 
 ## Built-ins signatures
 ```ts
-// patched for support `RegExp` dotAll (`s`) flag:
+// patched to support the `RegExp` dotAll (`s`) flag:
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp;
   exec(): Array<string | undefined> | null;

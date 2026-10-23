@@ -21,6 +21,6 @@ core-js(-pure)/full/number/clamp
 ## Example
 ```js
 5.0.clamp(0, 10); // => 5
--5.0.clamp(0, 10); // => 0
+(-5).clamp(0, 10); // => 0
 15.0.clamp(0, 10); // => 10
-````
+```

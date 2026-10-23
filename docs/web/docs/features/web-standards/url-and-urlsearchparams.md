@@ -1,7 +1,7 @@
 # `URL` and `URLSearchParams`
 [`URL` standard](https://url.spec.whatwg.org/) implementation. 
 
-## Modules 
+## Modules
 [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.can-parse.js), [`web.url.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.parse.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
 
 ## Built-ins signatures
@@ -36,7 +36,7 @@ class URLSearchParams {
   set(name: string, value: string): void;
   sort(): void;
   toString(): string;
-  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
+  forEach(callbackfn: (value: any, key: string, target: any) => void, thisArg: any): void;
   entries(): Iterator<[key, value]>;
   keys(): Iterator<key>;
   values(): Iterator<value>;
@@ -50,6 +50,7 @@ class URLSearchParams {
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url
 core-js(-pure)/stable|actual|full/url/can-parse
+core-js(-pure)/stable|actual|full/url/parse
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
@@ -111,6 +112,6 @@ console.log(params.toString()); // => 'a=3&a=2&b=2&c=4'
 ```
 
 > [!WARNING]
-> - IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
-> - Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
-> - `URL` implementations from all of the popular browsers have significantly more problems than `core-js`, however, replacing all of them does not look like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
+> - IE8 does not support setters, so they do not work on `URL` instances. However, the `URL` constructor can be used for basic `URL` parsing.
+> - Legacy encodings in a search query are not supported. Also, the `core-js` implementation has some other encoding-related issues.
+> - `URL` implementations from all of the popular browsers have significantly more problems than `core-js`, however, replacing all of them does not look like a good idea. You can customize the aggressiveness of the polyfill [to your requirements]({docs-version}/docs/usage#h-configurable-level-of-aggressiveness).

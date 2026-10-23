@@ -386,7 +386,7 @@ export const data = {
     safari: '16.0',
   },
   'es.array.reduce': {
-    chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
+    chrome: '83', // https://issues.chromium.org/issues/40672866
     firefox: '4',
     hermes: '0.1',
     ie: '9',
@@ -395,7 +395,7 @@ export const data = {
     safari: '7.1',
   },
   'es.array.reduce-right': {
-    chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
+    chrome: '83', // https://issues.chromium.org/issues/40672866
     firefox: '4',
     hermes: '0.1',
     ie: '9',
@@ -1004,7 +1004,7 @@ export const data = {
     safari: '18.2',
   },
   'es.math.hypot': {
-    // https://bugs.chromium.org/p/v8/issues/detail?id=9546
+    // https://issues.chromium.org/issues/42212727
     chrome: '78', // '38',
     edge: '12',
     firefox: '27',
@@ -1760,7 +1760,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=288595
     bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
@@ -1776,7 +1776,7 @@ export const data = {
   'es.set.intersection.v2': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
@@ -1790,7 +1790,7 @@ export const data = {
   'es.set.is-disjoint-from.v2': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
@@ -1804,7 +1804,7 @@ export const data = {
   'es.set.is-subset-of.v2': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
@@ -1818,7 +1818,7 @@ export const data = {
   'es.set.is-superset-of.v2': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
@@ -1834,7 +1834,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     chrome: '123',
     firefox: '127',
     // safari 17 does not properly work with set-like objects
@@ -1848,7 +1848,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // https://issues.chromium.org/issues/42204504
     chrome: '123',
     firefox: '127',
     // safari 17 does not properly work with set-like objects

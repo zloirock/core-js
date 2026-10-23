@@ -25,7 +25,7 @@
 
 ---
 
-[*Example of usage*](https://tinyurl.com/28zqjbun):
+[*Example of usage*](https://core-js.io/playground#code=import+%27core-js%2Factual%27%3B%0A%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28it%29%29%3B+%2F%2F+%3D%3E+42%0A%0AArray.from%28new+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%5D.flatMap%28it+%3D%3E+%5Bit%2C+it%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+2%2C+2%5D%0A%0AIterator.concat%28%5B1%2C+2%5D%2C+function+%2A+%28i%29+%7B+while+%28true%29+yield+i%2B%2B%3B+%7D%283%29%29%0A++.drop%281%29.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D):
 ```js
 import 'core-js/actual';
 
@@ -41,7 +41,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .map(it => it ** 2)
   .toArray(); // => [9, 25]
 
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
 ```
 
 *You can load only required features*:
@@ -65,7 +65,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .map(it => it ** 2)
   .toArray(); // => [9, 25]
 
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
 ```
 
 *Or use it without global namespace pollution*:
@@ -89,7 +89,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .map(it => it ** 2)
   .toArray(); // => [9, 25]
 
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
 ```
 
 **It's a global version (first 2 examples), for more info see [`core-js` documentation](https://core-js.io).**

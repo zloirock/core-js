@@ -1,5 +1,5 @@
 # Iteration helpers
-Helpers for checking iterability / get iterator in the `pure` version or, for example, for `arguments` object
+Helpers for checking iterability / getting an iterator in the `pure` version or, for example, for the `arguments` object
 
 ## Built-ins signatures
 ```ts
@@ -10,9 +10,9 @@ function getIteratorMethod(value: any): Function | void;
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js-pure/es|stable|actual|full/is-iterable
-core-js-pure/es|stable|actual|full/get-iterator
-core-js-pure/es|stable|actual|full/get-iterator-method
+core-js(-pure)/es|stable|actual|full/is-iterable
+core-js(-pure)/es|stable|actual|full/get-iterator
+core-js(-pure)/es|stable|actual|full/get-iterator-method
 ```
 
 ## Examples
@@ -26,23 +26,23 @@ let list = (function () {
   return arguments;
 })(1, 2, 3);
 
-console.log(isIterable(list)); // true;
+console.log(isIterable(list)); // => true
 
 let iterator = getIterator(list);
-console.log(iterator.next().value); // 1
-console.log(iterator.next().value); // 2
-console.log(iterator.next().value); // 3
-console.log(iterator.next().value); // undefined
+console.log(iterator.next().value); // => 1
+console.log(iterator.next().value); // => 2
+console.log(iterator.next().value); // => 3
+console.log(iterator.next().value); // => undefined
 
-getIterator({}); // TypeError: [object Object] is not iterable!
+getIterator({}); // => TypeError: [object Object] is not iterable
 
 let method = getIteratorMethod(list);
-console.log(typeof method);         // 'function'
+console.log(typeof method);         // => 'function'
 iterator = method.call(list);
-console.log(iterator.next().value); // 1
-console.log(iterator.next().value); // 2
-console.log(iterator.next().value); // 3
-console.log(iterator.next().value); // undefined
+console.log(iterator.next().value); // => 1
+console.log(iterator.next().value); // => 2
+console.log(iterator.next().value); // => 3
+console.log(iterator.next().value); // => undefined
 
-console.log(getIteratorMethod({})); // undefined
+console.log(getIteratorMethod({})); // => undefined
 ```

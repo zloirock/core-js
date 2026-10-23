@@ -2,7 +2,7 @@
 import childProcess from 'node:child_process';
 import { constants } from 'node:fs';
 // eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
-import { cp, access, readdir, readFile } from 'node:fs/promises';
+import { cp, access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -61,15 +61,20 @@ export async function copyBlogPosts(srcDir) {
   console.timeEnd('Copied blog posts');
 }
 
-export async function copyCommonFiles(srcDir) {
+export async function copyCommonFiles(srcDir, branch) {
   console.log('Copying common files...');
   console.time('Copied common files');
   const toDir = join(srcDir, 'docs/web/');
   await Promise.all([
-    cp(`${ srcDir }CHANGELOG.md`, `${ toDir }changelog.md`),
-    cp(`${ srcDir }CONTRIBUTING.md`, `${ toDir }contributing.md`),
-    cp(`${ srcDir }SECURITY.md`, `${ toDir }security.md`),
-  ]);
+    ['CHANGELOG.md', 'changelog.md'],
+    ['CONTRIBUTING.md', 'contributing.md'],
+    ['SECURITY.md', 'security.md'],
+  ].map(async ([from, to]) => {
+    const content = await readFile(join(srcDir, from), 'utf8');
+    // these files link other repository files by relative paths, the site build resolves them on GitHub
+    const meta = `---\nrepoPath: ${ JSON.stringify(from) }\nrepoBranch: ${ JSON.stringify(branch) }\n---\n`;
+    await writeFile(join(toDir, to), meta + content);
+  }));
   console.timeEnd('Copied common files');
 }
 

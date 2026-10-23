@@ -84,7 +84,7 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // FF104+ fixed it on usual errors, but not on DOMExceptions
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1777321
 // Chrome <102 returns `null` if cloned object contains multiple references to one error
-// https://bugs.chromium.org/p/v8/issues/detail?id=12542
+// https://issues.chromium.org/issues/42202488
 // NodeJS implementation can't clone DOMExceptions
 // https://github.com/nodejs/node/issues/41038
 // only FF103+ supports new (html/5749) error cloning semantic

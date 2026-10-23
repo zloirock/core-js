@@ -1,7 +1,7 @@
 # Iterable DOM collections
-Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. 
+Some DOM collections should have [iterable interface](https://webidl.spec.whatwg.org/#idl-iterable). `core-js` adds `@@iterator` to all of them and `forEach`, `keys`, `values` and `entries` methods to `DOMTokenList` and `NodeList`.
 
-## Modules 
+## Modules
 [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js), [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
 
 ## Built-ins signatures

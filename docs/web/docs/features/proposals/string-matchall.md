@@ -1,4 +1,4 @@
-# `String#matchAll`
+# `String.prototype.matchAll`
 [Proposal repo](https://github.com/tc39/proposal-string-matchall)
 
 ## Built-ins signatures

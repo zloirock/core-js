@@ -3,5 +3,5 @@
 // in popular engines, so it's moved to a separate module
 var addToUnscopables = require('../internals/add-to-unscopables');
 
-// https://tc39.es/ecma262/#sec-array.prototype-@@unscopables
+// https://tc39.es/ecma262/#sec-array.prototype-%symbol.unscopables%
 addToUnscopables('flat');

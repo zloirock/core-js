@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/tc39/proposal-async-explicit-resource-management
+// https://tc39.es/ecma262/#sec-asyncdisposablestack-objects
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var getBuiltIn = require('../internals/get-built-in');

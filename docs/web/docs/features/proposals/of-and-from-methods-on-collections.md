@@ -43,7 +43,7 @@ core-js(-pure)/full/weak-map/from
 
 ## Examples
 ```js
-Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
+Set.of(1, 2, 3, 2, 1); // => Set { 1, 2, 3 }
 
-Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map { 1: 4, 9: 16 }
+Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map { 1 => 4, 9 => 16 }
 ```

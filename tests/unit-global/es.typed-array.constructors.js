@@ -130,7 +130,7 @@ if (DESCRIPTORS) {
       array = new TypedArray(fake);
       assert.same(array.byteOffset, 0, '#byteOffset, passed typed array with custom iterator');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed typed array with custom iterator');
-      // https://code.google.com/p/v8/issues/detail?id=4552
+      // https://issues.chromium.org/issues/42207904
       assert.arrayEqual(array, [1, 2, 3, 4], 'correct values, passed typed array with custom iterator');
       array = new TypedArray(new ArrayBuffer(8));
       assert.same(array.byteOffset, 0, '#byteOffset, passed buffer');

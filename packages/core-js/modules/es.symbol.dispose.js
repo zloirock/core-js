@@ -7,7 +7,7 @@ var getOwnPropertyDescriptor = require('../internals/object-get-own-property-des
 var Symbol = globalThis.Symbol;
 
 // `Symbol.dispose` well-known symbol
-// https://github.com/tc39/proposal-explicit-resource-management
+// https://tc39.es/ecma262/#sec-symbol.dispose
 defineWellKnownSymbol('dispose');
 
 if (Symbol) {

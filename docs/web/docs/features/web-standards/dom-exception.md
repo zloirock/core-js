@@ -1,7 +1,7 @@
 # DOMException
 [Specification](https://webidl.spec.whatwg.org/#idl-DOMException)
 
-## Modules 
+## Modules
 [`web.dom-exception.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.to-string-tag.js).
 
 ## Built-ins signatures
@@ -10,7 +10,7 @@ class DOMException {
   constructor(message: string, name?: string);
   readonly attribute name: string;
   readonly attribute message: string;
-  readonly attribute code: string;
+  readonly attribute code: number;
   attribute stack: string; // in engines that should have it
   @@toStringTag: 'DOMException';
 }

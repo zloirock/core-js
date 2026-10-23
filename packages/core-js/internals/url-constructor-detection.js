@@ -19,7 +19,7 @@ module.exports = !fails(function () {
   });
   params2['delete']('a', 2);
   // `undefined` case is a Chromium 117 bug
-  // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+  // https://issues.chromium.org/issues/40278437
   params2['delete']('b', undefined);
   return (IS_PURE && (!url.toJSON || !params2.has('a', 1) || params2.has('a', 2) || !params2.has('a', undefined) || params2.has('b')))
     || (!params.size && (IS_PURE || !DESCRIPTORS))

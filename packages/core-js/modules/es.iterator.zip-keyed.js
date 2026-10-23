@@ -17,7 +17,7 @@ var push = uncurryThis([].push);
 var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
-// https://github.com/tc39/proposal-joint-iteration
+// https://tc39.es/ecma262/#sec-iterator.zipkeyed
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);

@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/tc39/proposal-async-explicit-resource-management
+// https://tc39.es/ecma262/#sec-%asynciteratorprototype%-%symbol.asyncdispose%
 var call = require('../internals/function-call');
 var defineBuiltIn = require('../internals/define-built-in');
 var getBuiltIn = require('../internals/get-built-in');

@@ -1,7 +1,8 @@
-# `Symbol.metadata` for decorators metadata proposal
+# `Symbol.metadata` for the decorator metadata proposal
+[Specification](https://tc39.es/proposal-decorator-metadata/)\
 [Proposal repo](https://github.com/tc39/proposal-decorator-metadata)
 
-## Modules 
+## Modules
 [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 
 ## Built-ins signatures

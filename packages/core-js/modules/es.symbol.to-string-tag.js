@@ -8,5 +8,5 @@ var setToStringTag = require('../internals/set-to-string-tag');
 defineWellKnownSymbol('toStringTag');
 
 // `Symbol.prototype[@@toStringTag]` property
-// https://tc39.es/ecma262/#sec-symbol.prototype-@@tostringtag
+// https://tc39.es/ecma262/#sec-symbol.prototype-%symbol.tostringtag%
 setToStringTag(getBuiltIn('Symbol'), 'Symbol');

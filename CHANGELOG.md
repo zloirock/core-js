@@ -525,7 +525,7 @@
     - `DataView.prototype.setFloat16`
   - Moved to stable ES, [February 2025 TC39 meeting](https://github.com/tc39/proposals/commit/b81fa9bccf4b51f33de0cbe797976a84d05d4b76)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
-- [`Math.clamp` stage 1 proposal](https://github.com/CanadaHonk/proposal-math-clamp):
+- [`Math.clamp` stage 1 proposal](https://github.com/tc39/proposal-math-clamp):
   - Built-ins:
     - `Math.clamp`
   - Extracted from [old `Math` extensions proposal](https://github.com/rwaldron/proposal-math-extensions), [February 2025 TC39 meeting](https://github.com/tc39/proposals/commit/0c24594aab19a50b86d0db7248cac5eb0ae35621)
@@ -551,7 +551,7 @@
 - Added [`Error.isError` stage 3 proposal](https://github.com/tc39/proposal-is-error):
   - Added built-ins:
     - `Error.isError`
-  - We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation that is marked as `.sham`
+  - We have no bulletproof way to polyfill this method / check if the object is an error, so it's a rather naive implementation that is marked as `.sham`
 - [Explicit Resource Management stage 3 proposal](https://github.com/tc39/proposal-explicit-resource-management):
   - Updated the way async disposing of only sync disposable resources, [tc39/proposal-explicit-resource-management/218](https://github.com/tc39/proposal-explicit-resource-management/pull/218)
 - [`Iterator` sequencing stage 2.7 proposal](https://github.com/tc39/proposal-iterator-sequencing):
@@ -768,8 +768,8 @@
 
 ### [3.36.1 - 2024.03.19](https://github.com/zloirock/core-js/releases/tag/v3.36.1)
 - Changes [v3.36.0...v3.36.1](https://github.com/zloirock/core-js/compare/v3.36.0...v3.36.1)
-- Fixed some validation cases in `Object.setPrototypeOf`, [#1329](https://github.com/zloirock/core-js/issues/1329), thanks [**@minseok-choe**](https://github.com/minseok-choe)
-- Fixed the order of validations in `Array.from`, [#1331](https://github.com/zloirock/core-js/pull/1331), thanks [**@minseok-choe**](https://github.com/minseok-choe)
+- Fixed some validation cases in `Object.setPrototypeOf`, [#1329](https://github.com/zloirock/core-js/issues/1329), thanks [**@stonechoe**](https://github.com/stonechoe)
+- Fixed the order of validations in `Array.from`, [#1331](https://github.com/zloirock/core-js/pull/1331), thanks [**@stonechoe**](https://github.com/stonechoe)
 - Added a fix of [Bun `queueMicrotask` arity](https://github.com/oven-sh/bun/issues/9249)
 - Added a fix of [Bun `URL.canParse` arity](https://github.com/oven-sh/bun/issues/9250)
 - Added a fix of Bun `SuppressedError` [extra arguments support](https://github.com/oven-sh/bun/issues/9283) and [arity](https://github.com/oven-sh/bun/issues/9282)
@@ -788,7 +788,7 @@
     - `ArrayBuffer.prototype.detached`
     - `ArrayBuffer.prototype.transfer`
     - `ArrayBuffer.prototype.transferToFixedLength`
-  - Moved to stable ES, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposals/commit/c84d3dde9a7d8ee4410ffa28624fc4c39247faca)
+  - Moved to stable ES, [February 2024 TC39 meeting](https://github.com/tc39/proposals/commit/c84d3dde9a7d8ee4410ffa28624fc4c39247faca)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64):
   - Methods:
@@ -796,15 +796,15 @@
     - `Uint8Array.fromHex`
     - `Uint8Array.prototype.toBase64`
     - `Uint8Array.prototype.toHex`
-  - Moved to stage 3, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposals/commit/278ab28b8f849f2110d770e7b034b7ef59f14daf)
+  - Moved to stage 3, [February 2024 TC39 meeting](https://github.com/tc39/proposals/commit/278ab28b8f849f2110d770e7b034b7ef59f14daf)
   - Added `/actual/` namespace entries
   - Skipped adding new methods of writing to existing arrays to clarification some moments
-- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
+- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [February 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
 - Added an entry point for [the new TC39 proposals stage](https://tc39.es/process-document/) - `core-js/stage/2.7` - still empty
 - Fixed regression in `Set.prototype.intersection` feature detection
-- Fixed a missed check in `Array.prototype.{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
-- Fixed a missed check in `Array.prototype.{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
-- Fixed `Array.from` and some other methods with proxy targets, [#1322](https://github.com/zloirock/core-js/issues/1322), thanks [**@minseok-choe**](https://github.com/minseok-choe)
+- Fixed a missed check in `Array.prototype.{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@stonechoe**](https://github.com/stonechoe)
+- Fixed a missed check in `Array.prototype.{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@stonechoe**](https://github.com/stonechoe)
+- Fixed `Array.from` and some other methods with proxy targets, [#1322](https://github.com/zloirock/core-js/issues/1322), thanks [**@stonechoe**](https://github.com/stonechoe)
 - Fixed dependencies loading for modules from `ArrayBuffer.prototype.transfer` and friends proposal in some specific cases in IE10-
 - Dropped context workaround from collection static methods entries since with current methods semantic it's no longer required
 - Added instance methods polyfills to entries of collections static methods that produce collection instances
@@ -901,7 +901,7 @@
 - Compat data improvements:
   - [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-is-usv-string) marked as [supported from FF119](https://bugzilla.mozilla.org/show_bug.cgi?id=1850755)
   - Added React Native 0.73 Hermes compat data, mainly fixes of [some issues](https://github.com/facebook/hermes/issues/770)
-  - Added [NodeJS 21.0 compat data mapping](https://nodejs.org/ru/blog/release/v21.0.0)
+  - Added [NodeJS 21.0 compat data mapping](https://nodejs.org/en/blog/release/v21.0.0)
 
 ### [3.33.0 - 2023.10.02](https://github.com/zloirock/core-js/releases/tag/v3.33.0)
 - Re-introduced [`RegExp` escaping stage 2 proposal](https://github.com/tc39/proposal-regex-escaping), September 2023 TC39 meeting:
@@ -994,7 +994,7 @@
   - Updated Opera Android 76 compat data mapping
 
 ### [3.31.0 - 2023.06.12](https://github.com/zloirock/core-js/releases/tag/v3.31.0)
-- [Well-formed unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):
+- [Well-formed Unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):
   - Methods:
     - `String.prototype.isWellFormed` method
     - `String.prototype.toWellFormed` method
@@ -1062,7 +1062,7 @@
 - Explicit Resource Management proposals ([sync](https://github.com/tc39/proposal-explicit-resource-management), [async](https://github.com/tc39/proposal-async-explicit-resource-management)):
   - `(Async)DisposableStack.prototype.move` marks the original stack as disposed, [#1226](https://github.com/zloirock/core-js/issues/1226)
   - Some simplifications like [proposal-explicit-resource-management/150](https://github.com/tc39/proposal-explicit-resource-management/pull/150)
-- [`Iterator.range` proposal](https://github.com/tc39/proposal-Number.range):
+- [`Iterator.range` proposal](https://github.com/tc39/proposal-iterator.range):
   - Moved to Stage 2, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1480266760)
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
   - Returned to usage `Symbol.metadata`, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1478790137), [proposal-decorator-metadata/12](https://github.com/tc39/proposal-decorator-metadata/pull/12)
@@ -1104,10 +1104,10 @@
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Added [`JSON.parse` source text access Stage 3 proposal](https://github.com/tc39/proposal-json-parse-with-source)
   - Methods:
-    - `JSON.parse` patched for support `source` in `reviver` function arguments
+    - `JSON.parse` patched to support `source` in `reviver` function arguments
     - `JSON.rawJSON`
     - `JSON.isRawJSON`
-    - `JSON.stringify` patched for support `JSON.rawJSON`
+    - `JSON.stringify` patched to support `JSON.rawJSON`
 - Added [`ArrayBuffer.prototype.transfer` and friends Stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-transfer):
   - Built-ins:
     - `ArrayBuffer.prototype.detached`
@@ -1119,12 +1119,12 @@
   - Allowed interleaved mapping in `AsyncIterator` helpers, [proposal-iterator-helpers/262](https://github.com/tc39/proposal-iterator-helpers/pull/262)
 - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 and [Async Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management/) Stage 2 proposals:
   - `InstallErrorCause` removed from `SuppressedError`, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410889704), [proposal-explicit-resource-management/145](https://github.com/tc39/proposal-explicit-resource-management/pull/146)
-  - Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
+  - Simplified internal behavior of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
 - Added [`Symbol` predicates Stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates)
   - Methods:
     - `Symbol.isRegistered`
     - `Symbol.isWellKnown`
-- `Number.range` Stage 1 proposal and method [renamed to `Iterator.range`](https://github.com/tc39/proposal-Number.range)
+- `Number.range` Stage 1 proposal and method [renamed to `Iterator.range`](https://github.com/tc39/proposal-iterator.range)
 - `Function.prototype.unThis` Stage 0 proposal and method [renamed to `Function.prototype.demethodize`](https://github.com/js-choi/proposal-function-demethodize)
 - Fixed [Safari `String.prototype.toWellFormed` `ToString` conversion bug](https://bugs.webkit.org/show_bug.cgi?id=251757)
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
@@ -1249,7 +1249,7 @@
 - Added [`String.dedent` stage 2 proposal](https://github.com/tc39/proposal-string-dedent)
   - Method `String.dedent`
   - Throws an error on non-frozen raw templates for avoiding possible breaking changes in the future, [proposal-string-dedent/75](https://github.com/tc39/proposal-string-dedent/issues/75)
-- [Compat data targets](/packages/core-js-compat#targets-option) improvements:
+- [Compat data targets](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
   - `opera_mobile` target name is confusing since it contains data for the Chromium-based Android version, but iOS Opera is Safari-based. So `opera_mobile` target was renamed to **`opera-android`**.
@@ -1291,7 +1291,7 @@
   - Don't await non-objects returned from functions passed to `AsyncIterator` helpers, [proposal-iterator-helpers/239](https://github.com/tc39/proposal-iterator-helpers/pull/239)
   - `{ Iterator, AsyncIterator }.prototype.flatMap` supports returning both - iterables and iterators, [proposal-iterator-helpers/233](https://github.com/tc39/proposal-iterator-helpers/pull/233)
   - Early exit on broken `.next` in missed cases of `{ Iterator, AsyncIterator }.from`, [proposal-iterator-helpers/232](https://github.com/tc39/proposal-iterator-helpers/pull/232)
-- Added `self` polyfill as a part of [The Minimum Common Web Platform API](https://common-min-api.proposal.wintercg.org/), [specification](https://html.spec.whatwg.org/multipage/window-object.html#dom-self), [#1118](https://github.com/zloirock/core-js/issues/1118)
+- Added `self` polyfill as a part of [The Minimum Common Web Platform API](https://min-common-api.proposal.wintertc.org/), [specification](https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-self), [#1118](https://github.com/zloirock/core-js/issues/1118)
 - Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 - Added `format` option to `core-js-builder`, [#1120](https://github.com/zloirock/core-js/issues/1120)
 - Added NodeJS 19.0 compat data
@@ -1338,7 +1338,7 @@
   - Only for the global version
 - Considering `document.all` as an object in some missed cases, see [ECMAScript Annex B 3.6](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot)
 - Avoiding unnecessary promise creation and validation result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
-- Fixed omitting the result of proxing `.return` in `%IteratorHelperPrototype%.return`, [#1116](https://github.com/zloirock/core-js/issues/1116)
+- Fixed omitting the result of proxying `.return` in `%IteratorHelperPrototype%.return`, [#1116](https://github.com/zloirock/core-js/issues/1116)
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
 - Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting
 - Fixed `ArrayBuffer.length` in V8 ~ Chrome 27-
@@ -1383,7 +1383,7 @@
 - Added Opera Android 70 compat data mapping
 
 ### [3.23.4 - 2022.07.10](https://github.com/zloirock/core-js/releases/tag/v3.23.4)
-- Added a workaround of the Bun ~ 0.1.1 [bug](https://github.com/Jarred-Sumner/bun/issues/399) that define some globals with incorrect property descriptors and that causes a crash of `core-js`
+- Added a workaround of the Bun ~ 0.1.1 [bug](https://github.com/oven-sh/bun/issues/399) that define some globals with incorrect property descriptors and that causes a crash of `core-js`
 - Added a fix of the FF103+ `structuredClone` bugs ([1774866](https://bugzilla.mozilla.org/show_bug.cgi?id=1774866) (fixed in FF104) and [1777321](https://bugzilla.mozilla.org/show_bug.cgi?id=1777321) (still not fixed)) that now can clone errors, but `.stack` of the clone is an empty string
 - Fixed `{ Map, WeakMap }.prototype.emplace` logic, [#1102](https://github.com/zloirock/core-js/issues/1102)
 - Fixed order of errors throwing on iterator helpers
@@ -1525,8 +1525,8 @@
 - Added Deno 1.18 compat data mapping
 
 ### [3.20.0 - 2021.12.16](https://github.com/zloirock/core-js/releases/tag/v3.20.0)
-- Added `structuredClone` method [from the HTML spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)
-  - Includes all cases of cloning and transferring of required ECMAScript and platform types that can be polyfilled, for the details see [the caveats](https://github.com/zloirock/core-js#caveats-when-using-structuredclone-polyfill)
+- Added `structuredClone` method [from the HTML spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/structuredClone)
+  - Includes all cases of cloning and transferring of required ECMAScript and platform types that can be polyfilled, for the details see [the caveats](https://github.com/zloirock/core-js/blob/v3.20.0/README.md#caveats-when-using-structuredclone-polyfill)
   - Uses native structured cloning algorithm implementations where it's possible
   - Includes the new semantic of errors cloning from [`html/5749`](https://github.com/whatwg/html/pull/5749)
 - Added `DOMException` polyfill, [the Web IDL spec](https://webidl.spec.whatwg.org/#idl-DOMException), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/DOMException)
@@ -1552,7 +1552,7 @@
 - Added `Iterator.prototype.toAsync` method from [the iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers)
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async) moved to stage 2
 - Added [`String.cooked` stage 1 proposal](https://github.com/tc39/proposal-string-cooked)
-- Added [`Function.prototype.unThis` stage 0 proposal](https://github.com/js-choi/proposal-function-un-this)
+- Added [`Function.prototype.unThis` stage 0 proposal](https://github.com/js-choi/proposal-function-demethodize)
 - Added [`Function.{ isCallable, isConstructor }` stage 0 proposal](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md):
   - `Function.isCallable`
   - `Function.isConstructor`
@@ -1794,7 +1794,7 @@
 
 ### [3.9.1 - 2021.03.01](https://github.com/zloirock/core-js/releases/tag/v3.9.1)
 - Added a workaround for Chrome 38-40 bug which does not allow to inherit symbols (incl. well-known) from DOM collections prototypes to instances, [#37](https://github.com/zloirock/core-js/issues/37)
-- Used `NumericRangeIterator` as toStringTag instead of `RangeIterator` in `{ Number, BigInt }.range` iterator, per [this PR](https://github.com/tc39/proposal-Number.range/pull/46)
+- Used `NumericRangeIterator` as toStringTag instead of `RangeIterator` in `{ Number, BigInt }.range` iterator, per [this PR](https://github.com/tc39/proposal-iterator.range/pull/46)
 - TypedArray constructors marked as supported from Safari 14.0
 - Updated compat data mapping for iOS Safari and Opera for Android
 
@@ -1825,7 +1825,7 @@
 - Added [relative indexing method stage 3 proposal](https://github.com/tc39/proposal-relative-indexing-method)
   - `Array#at`
   - `%TypedArray%#at`
-- Added [`Number.range` stage 1 proposal](https://github.com/tc39/proposal-Number.range)
+- Added [`Number.range` stage 1 proposal](https://github.com/tc39/proposal-iterator.range)
   - `Number.range`
   - `BigInt.range`
 - Added [array filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering)
@@ -1845,8 +1845,8 @@
 - Added Drone CI detection in `postinstall`
 
 ### [3.7.0 - 2020.11.06](https://github.com/zloirock/core-js/releases/tag/v3.7.0)
-- `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
-- `Promise.any` and `AggregateError` moved to the stable ES, [per July TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-07/july-21.md#promiseany--aggregateerror-for-stage-4)
+- `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
+- `Promise.any` and `AggregateError` moved to the stable ES, [per July TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2020-07/july-21.md#promiseany--aggregateerror-for-stage-4)
 - Added `Reflect[@@toStringTag]`, [per July TC39 meeting](https://github.com/tc39/ecma262/pull/2057)
 - Forced replacement of `Array#{ reduce, reduceRight }` in Chrome 80-82 because of [a bug](https://bugs.chromium.org/p/chromium/issues/detail?id=1049982), [#766](https://github.com/zloirock/core-js/issues/766)
 - Following the changes in [the `upsert` proposal](https://github.com/tc39/proposal-upsert), `{ Map, WeakMap }#emplace` replace `{ Map, WeakMap }#upsert`, these obsolete methods will be removed in the next major release
@@ -1906,7 +1906,7 @@
 - Added Samsung Internet 11 compat data mapping
 
 ### [3.5.0 - 2019.12.12](https://github.com/zloirock/core-js/releases/tag/v3.5.0)
-- Added [object iteratoration stage 1 proposal](https://github.com/tc39/proposal-object-iteration):
+- Added [object iteration stage 1 proposal](https://github.com/tc39/proposal-object-iteration):
   - `Object.iterateKeys`
   - `Object.iterateValues`
   - `Object.iterateEntries`
@@ -2033,7 +2033,7 @@
     - `AsyncIterator#take`
     - `AsyncIterator#toArray`
     - `AsyncIterator#@@toStringTag`
-- Updated `Map#upsert` (`Map#updateOrInsert` before) [proposal](https://github.com/thumbsupep/proposal-upsert)
+- Updated `Map#upsert` (`Map#updateOrInsert` before) [proposal](https://github.com/tc39/proposal-upsert)
   - Moved to stage 2, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537606117)
   - `Map#updateOrInsert` renamed to `Map#upsert`
   - Added `WeakMap#upsert`
@@ -2135,12 +2135,12 @@
       - `Set#symmetricDifference`
       - `Set#union`
     - `Promise.allSettled` ([stage 2 proposal](https://github.com/tc39/proposal-promise-allSettled))
-    - Getting last item from `Array` ([stage 1 proposal](https://github.com/keithamus/proposal-array-last))
+    - Getting last item from `Array` ([stage 1 proposal](https://github.com/tc39/proposal-array-last))
       - `Array#lastItem`
       - `Array#lastIndex`
-    - `String#replaceAll` ([stage 1 proposal](https://github.com/tc39/proposal-string-replace-all))
+    - `String#replaceAll` ([stage 1 proposal](https://github.com/tc39/proposal-string-replaceall))
     - `String#codePoints` ([stage 1 proposal](https://github.com/tc39/proposal-string-prototype-codepoints))
-    - New collections methods ([stage 1 proposal](https://github.com/tc39/collection-methods))
+    - New collections methods ([stage 1 proposal](https://github.com/tc39/proposal-collection-methods))
       - `Map.groupBy`
       - `Map.keyBy`
       - `Map#deleteAll`
@@ -2172,7 +2172,7 @@
     - `Number.fromString` ([stage 1 proposal](https://github.com/tc39/proposal-number-fromstring))
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
-    - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-using-statement))
+    - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-explicit-resource-management))
     - `Promise.any` (with `AggregateError`) ([stage 0 proposal](https://github.com/tc39/proposal-promise-any))
     - `URL` and `URLSearchParam` [from `URL` standard](https://url.spec.whatwg.org/), also [stage 0 proposal to ECMAScript](https://github.com/jasnell/proposal-url)
       - `URL`
@@ -2223,7 +2223,7 @@
     - Update `global` [stage 3 proposal](https://github.com/tc39/proposal-global) - rename `global` to `globalThis`
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), [proposal-string-matchall#41](https://github.com/tc39/proposal-string-matchall/pull/41), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
-    - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
+    - Remove Mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
   - Mark ES2016, ES2017, ES2018, ES2019 features as stable:
     - `Array#{ flat, flatMap }`
     - `{ Array, %TypedArray% }#includes`
@@ -2357,7 +2357,7 @@
 ### [2.5.2 - 2017.12.09](https://github.com/zloirock/core-js/releases/tag/v2.5.2)
 - `MutationObserver` no longer used for microtask implementation in iOS Safari because of bug with scrolling, [#339](https://github.com/zloirock/core-js/issues/339)
 - Fixed `JSON.stringify(undefined, replacer)` case in the wrapper from the `Symbol` polyfill, [#345](https://github.com/zloirock/core-js/issues/345)
-- `Array()` calls changed to `new Array()` for V8 optimisation
+- `Array()` calls changed to `new Array()` for V8 optimization
 
 ### [2.5.1 - 2017.09.01](https://github.com/zloirock/core-js/releases/tag/v2.5.1)
 - Updated `Promise#finally` per [tc39/proposal-promise-finally#37](https://github.com/tc39/proposal-promise-finally/issues/37)
@@ -2367,7 +2367,7 @@
 ### [2.5.0 - 2017.08.05](https://github.com/zloirock/core-js/releases/tag/v2.5.0)
 - Added `Promise#finally` [stage 3 proposal](https://github.com/tc39/proposal-promise-finally), [#225](https://github.com/zloirock/core-js/issues/225)
 - Added `Promise.try` [stage 1 proposal](https://github.com/tc39/proposal-promise-try)
-- Added `Array#flatten` and `Array#flatMap` [stage 1 proposal](https://tc39.github.io/proposal-flatMap)
+- Added `Array#flatten` and `Array#flatMap` [stage 1 proposal](https://tc39.es/proposal-flatMap/)
 - Added `.of` and `.from` methods on collection constructors [stage 1 proposal](https://github.com/tc39/proposal-setmap-offrom):
   - `Map.of`
   - `Set.of`
@@ -2424,7 +2424,7 @@
 [#293](https://github.com/zloirock/core-js/pull/293)
 - Fixed `%TypedArray%.from` Safari bug, [#285](https://github.com/zloirock/core-js/issues/285)
 - Fixed compatibility with old version of Prototype.js, [#278](https://github.com/zloirock/core-js/issues/278), [#289](https://github.com/zloirock/core-js/issues/289)
-- `Function#name` no longer cache the result for correct behaviour with inherited constructors, [#296](https://github.com/zloirock/core-js/issues/296)
+- `Function#name` no longer cache the result for correct behavior with inherited constructors, [#296](https://github.com/zloirock/core-js/issues/296)
 - Added errors on incorrect context of collection methods, [#272](https://github.com/zloirock/core-js/issues/272)
 - Fixed conversion typed array constructors to string, fix [#300](https://github.com/zloirock/core-js/issues/300)
 - Fixed `Set#size` with debugger ReactNative for Android, [#297](https://github.com/zloirock/core-js/issues/297)
@@ -2432,7 +2432,7 @@
 - Fixed compatibility with incomplete third-party `WeakMap` polyfills, [#252](https://github.com/zloirock/core-js/pull/252)
 - Added a fallback for `Date#toJSON` in engines without native `Date#toISOString`, [#220](https://github.com/zloirock/core-js/issues/220)
 - Added support for Sphere Dispatch API, [#286](https://github.com/zloirock/core-js/pull/286)
-- Seriously changed the coding style and the [ESLint config](https://github.com/zloirock/core-js/blob/master/.eslintrc.js)
+- Seriously changed the coding style and the [ESLint config](https://github.com/zloirock/core-js/blob/v2.5.0/.eslintrc.js)
 - Updated many dev dependencies (`webpack`, `uglify`, etc)
 - Some other minor fixes and optimizations
 
@@ -2445,14 +2445,14 @@
 - Some fixes for issues like [#159](https://github.com/zloirock/core-js/issues/159), [#186](https://github.com/zloirock/core-js/issues/186), [#194](https://github.com/zloirock/core-js/issues/194), [#207](https://github.com/zloirock/core-js/issues/207)
 
 ### [2.4.0 - 2016.05.08](https://github.com/zloirock/core-js/releases/tag/v2.4.0)
-- Added `Observable`, [stage 1 proposal](https://github.com/zenparsing/es-observable)
+- Added `Observable`, [stage 1 proposal](https://github.com/tc39/proposal-observable)
 - Fixed behavior `Object.{getOwnPropertySymbols, getOwnPropertyDescriptor}` and `Object#propertyIsEnumerable` on `Object.prototype`
 - `Reflect.construct` and `Reflect.apply` should throw an error if `argumentsList` argument is not an object, [#194](https://github.com/zloirock/core-js/issues/194)
 
 ### [2.3.0 - 2016.04.24](https://github.com/zloirock/core-js/releases/tag/v2.3.0)
 - Added `asap` for enqueuing microtasks, [stage 0 proposal](https://github.com/tc39/notes/blob/main/meetings/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask)
 - Added well-known symbol `Symbol.asyncIterator` for [stage 2 async iteration proposal](https://github.com/tc39/proposal-async-iteration)
-- Added well-known symbol `Symbol.observable` for [stage 1 observables proposal](https://github.com/zenparsing/es-observable)
+- Added well-known symbol `Symbol.observable` for [stage 1 observables proposal](https://github.com/tc39/proposal-observable)
 - `String#{padStart, padEnd}` returns original string if filler is empty string, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#stringprototypepadstartpadend)
 - `Object.values` and `Object.entries` moved to stage 4 from 3, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#objectvalues--objectentries)
 - `System.global` moved to stage 2 from 1, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#systemglobal)
@@ -2470,7 +2470,7 @@
 - Fixed `Object.getOwnPropertyNames(window)` `2.1+` versions bug, [#181](https://github.com/zloirock/core-js/issues/181)
 
 ### [2.2.0 - 2016.03.15](https://github.com/zloirock/core-js/releases/tag/v2.2.0)
-- Added `String#matchAll`, [proposal](https://github.com/tc39/String.prototype.matchAll)
+- Added `String#matchAll`, [proposal](https://github.com/tc39/proposal-string-matchall)
 - Added `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381)
 - Added `@@toPrimitive` methods to `Date` and `Symbol`
 - Fixed `%TypedArray%#slice` in Edge ~ 13 (throws with `@@species` and wrapped / inherited constructor)
@@ -2513,13 +2513,13 @@
         - Should not be changed only several features like `Array.isArray` and `Date.now`
       - Some ES5 polyfills required for modern engines
     - All old entry points should work fine, but in the next major release API can be changed
-  - `Object.getOwnPropertyDescriptors` moved to the stage 3, [January TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2016-01/2016-01-28.md#objectgetownpropertydescriptors-to-stage-3-jordan-harband-low-priority-but-super-quick)
-  - Added `umd` option for [custom build process](https://github.com/zloirock/core-js#custom-build-from-external-scripts), [#169](https://github.com/zloirock/core-js/issues/169)
+  - `Object.getOwnPropertyDescriptors` moved to the stage 3, [January TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2016-01/jan-28.md#objectgetownpropertydescriptors-to-stage-3-jordan-harband-low-priority-but-super-quick)
+  - Added `umd` option for [custom build process](https://github.com/zloirock/core-js/blob/v2.1.0/README.md#custom-build-from-external-scripts), [#169](https://github.com/zloirock/core-js/issues/169)
   - Returned entry points for `Array` statics, removed in `2.0`, for compatibility with `babel` `6` and for future fixes
 - **Deprecated**:
-  - `Reflect.enumerate` deprecated and will be removed from the next major release, [January TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2016-01/2016-01-28.md#5xix-revisit-proxy-enumerate---revisit-decision-to-exhaust-iterator)
+  - `Reflect.enumerate` deprecated and will be removed from the next major release, [January TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2016-01/jan-28.md#5xix-revisit-proxy-enumerate---revisit-decision-to-exhaust-iterator)
 - **New Features**:
-  - Added [`Reflect` metadata API](https://rbuckton.github.io/reflect-metadata/) as a pre-strawman feature, [#152](https://github.com/zloirock/core-js/issues/152):
+  - Added [`Reflect` metadata API](https://microsoft.github.io/reflect-metadata/) as a pre-strawman feature, [#152](https://github.com/zloirock/core-js/issues/152):
     - `Reflect.defineMetadata`
     - `Reflect.deleteMetadata`
     - `Reflect.getMetadata`
@@ -2549,41 +2549,41 @@
 - Added fix for very specific environments with global `window === null`
 
 ### [2.0.2 - 2016.01.04](https://github.com/zloirock/core-js/releases/tag/v2.0.2)
-- Temporarily removed `length` validation from `Uint8Array` constructor wrapper. Reason - [bug in `ws` module](https://github.com/websockets/ws/pull/645) (-> `socket.io`) which passes to `Buffer` constructor -> `Uint8Array` float and uses [the `V8` bug](https://code.google.com/p/v8/issues/detail?id=4552) for conversion to int (by the spec should be thrown an error). [It creates problems for many people.](https://github.com/karma-runner/karma/issues/1768) I hope, it will be returned after fixing this bug in `V8`.
+- Temporarily removed `length` validation from `Uint8Array` constructor wrapper. Reason - [bug in `ws` module](https://github.com/websockets/ws/pull/645) (-> `socket.io`) which passes to `Buffer` constructor -> `Uint8Array` float and uses [the `V8` bug](https://bugs.chromium.org/p/v8/issues/detail?id=4552) for conversion to int (by the spec should be thrown an error). [It creates problems for many people.](https://github.com/karma-runner/karma/issues/1768) I hope, it will be returned after fixing this bug in `V8`.
 
 ### [2.0.1 - 2015.12.31](https://github.com/zloirock/core-js/releases/tag/v2.0.1)
 - Forced usage `Promise.resolve` polyfill in the `library` version for correct work with wrapper
 - `Object.assign` should be defined in the strict mode -> throw an error on extension non-extensible objects, [#154](https://github.com/zloirock/core-js/issues/154)
 
 ### [2.0.0 - 2015.12.24](https://github.com/zloirock/core-js/releases/tag/v2.0.0)
-- Added implementations and fixes [Typed Arrays](https://github.com/zloirock/core-js#ecmascript-6-typed-arrays)-related features
+- Added implementations and fixes [Typed Arrays](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-typed-arrays)-related features
   - `ArrayBuffer`, `ArrayBuffer.isView`, `ArrayBuffer#slice`
   - `DataView` with all getter / setter methods
   - `Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array` and `Float64Array` constructors
   - `%TypedArray%.{for, of}`, `%TypedArray%#{copyWithin, every, fill, filter, find, findIndex, forEach, indexOf, includes, join, lastIndexOf, map, reduce, reduceRight, reverse, set, slice, some, sort, subarray, values, keys, entries, @@iterator, ...}`
-- Added [`System.global`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-global), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#systemglobal-jhd)
-- Added [`Error.isError`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/ljharb/proposal-is-error), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#jhd-erroriserror)
-- Added [`Math.{iaddh, isubh, imulh, umulh}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
+- Added [`System.global`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-global), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#systemglobal-jhd)
+- Added [`Error.isError`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-is-error), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#jhd-erroriserror)
+- Added [`Math.{iaddh, isubh, imulh, umulh}`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
 - `RegExp.escape` moved from the `es7` to the non-standard `core` namespace, [July TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-07/july-28.md#62-regexpescape) - too slow, but it's condition of stability, [#116](https://github.com/zloirock/core-js/issues/116)
-- [`Promise`](https://github.com/zloirock/core-js#ecmascript-6-promise)
-  - Some performance optimisations
+- [`Promise`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-promise)
+  - Some performance optimizations
   - Added basic support [`rejectionHandled` event / `onrejectionhandled` handler](https://github.com/zloirock/core-js#unhandled-rejection-tracking) to the polyfill
   - Removed usage `@@species` from `Promise.{all, race}`, [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-18.md#conclusionresolution-2)
-- Some improvements [collections polyfills](https://github.com/zloirock/core-js#ecmascript-6-collections)
+- Some improvements [collections polyfills](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-collections)
   - `O(1)` and preventing possible leaks with frozen keys, [#134](https://github.com/zloirock/core-js/issues/134)
   - Correct observable state object keys
-- Renamed `String#{padLeft, padRight}` -> [`String#{padStart, padEnd}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-string-pad-start-end), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-17.md#conclusionresolution-2) (they want to rename it on each meeting?O_o), [#132](https://github.com/zloirock/core-js/issues/132)
-- Added [`String#{trimStart, trimEnd}` as aliases for `String#{trimLeft, trimRight}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-17.md#conclusionresolution-2)
-- Added [annex B HTML methods](https://github.com/zloirock/core-js#ecmascript-6-string) - ugly, but also [the part of the spec](https://262.ecma-international.org/6.0/#sec-string.prototype.anchor)
-- Added little fix for [`Date#toString`](https://github.com/zloirock/core-js#ecmascript-6-date) - `new Date(NaN).toString()` [should be `'Invalid Date'`](https://262.ecma-international.org/6.0/#sec-todatestring)
-- Added [`{keys, values, entries, @@iterator}` methods to DOM collections](https://github.com/zloirock/core-js#iterable-dom-collections) which should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass) - `NodeList`, `DOMTokenList`, `MediaList`, `StyleSheetList`, `CSSRuleList`.
+- Renamed `String#{padLeft, padRight}` -> [`String#{padStart, padEnd}`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-string-pad-start-end), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-17.md#conclusionresolution-2) (they want to rename it on each meeting?O_o), [#132](https://github.com/zloirock/core-js/issues/132)
+- Added [`String#{trimStart, trimEnd}` as aliases for `String#{trimLeft, trimRight}`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-string-left-right-trim), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-17.md#conclusionresolution-2)
+- Added [annex B HTML methods](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-string) - ugly, but also [the part of the spec](https://262.ecma-international.org/6.0/#sec-string.prototype.anchor)
+- Added little fix for [`Date#toString`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-date) - `new Date(NaN).toString()` [should be `'Invalid Date'`](https://262.ecma-international.org/6.0/#sec-todatestring)
+- Added [`{keys, values, entries, @@iterator}` methods to DOM collections](https://github.com/zloirock/core-js#iterable-dom-collections) which should have [iterable interface](https://webidl.spec.whatwg.org/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass) - `NodeList`, `DOMTokenList`, `MediaList`, `StyleSheetList`, `CSSRuleList`.
 - Removed Mozilla `Array` generics - [deprecated and will be removed from FF](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods), [looks like strawman is dead](https://web.archive.org/web/20160805230354/http://wiki.ecmascript.org/doku.php?id=strawman:array_statics), available [alternative shim](https://github.com/plusdude/array-generics)
 - Removed `core.log` module
 - CommonJS API
   - Added entry points for [virtual methods](https://github.com/zloirock/core-js#commonjs-and-prototype-methods-without-global-namespace-pollution)
-  - Added entry points for [stages proposals](https://github.com/zloirock/core-js#ecmascript-7-proposals)
+  - Added entry points for [stages proposals](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
   - Some other minor changes
-- [Custom build from external scripts](https://github.com/zloirock/core-js#custom-build-from-external-scripts) moved to the separate package for preventing problems with dependencies
+- [Custom build from external scripts](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#custom-build-from-external-scripts) moved to the separate package for preventing problems with dependencies
 - Changed `$` prefix for internal modules file names because Team Foundation Server does not support it, [#129](https://github.com/zloirock/core-js/issues/129)
 - Additional fix for `SameValueZero` in V8 ~ Chromium 39-42 collections
 - Additional fix for FF27 `Array` iterator
@@ -2616,58 +2616,58 @@
 - Fixed `Math.imul` arity in Safari 8-
 
 ### [1.2.2 - 2015.10.18](https://github.com/zloirock/core-js/releases/tag/v1.2.2)
-- Improved optimisations for V8
+- Improved optimizations for V8
 - Fixed build process from external packages, [#120](https://github.com/zloirock/core-js/pull/120)
-- One more `Object.{assign, values, entries}` fix for [**very** specific case](https://github.com/ljharb/proposal-object-values-entries/issues/5)
+- One more `Object.{assign, values, entries}` fix for [**very** specific case](https://github.com/tc39/proposal-object-values-entries/issues/5)
 
 ### [1.2.1 - 2015.10.02](https://github.com/zloirock/core-js/releases/tag/v1.2.1)
-- Replaced fix `JSON.stringify` + `Symbol` behavior from `.toJSON` method to wrapping `JSON.stringify` - little more correct, [compat-table/642](https://github.com/kangax/compat-table/pull/642)
+- Replaced fix `JSON.stringify` + `Symbol` behavior from `.toJSON` method to wrapping `JSON.stringify` - little more correct, [compat-table/642](https://github.com/compat-table/compat-table/pull/642)
 - Fixed typo which broke tasks scheduler in WebWorkers in old FF, [#114](https://github.com/zloirock/core-js/pull/114)
 
 ### [1.2.0 - 2015.09.27](https://github.com/zloirock/core-js/releases/tag/v1.2.0)
-- Added browser [`Promise` rejection hook](#unhandled-rejection-tracking), [#106](https://github.com/zloirock/core-js/issues/106)
-- Added correct [`IsRegExp`](https://262.ecma-international.org/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#Disabling_the_isRegExp_check)
-- Updated [`String#leftPad`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) [with proposal](https://github.com/ljharb/proposal-string-pad-left-right/issues/6): string filler truncated from the right side
-- Replaced V8 [`Object.assign`](https://github.com/zloirock/core-js/#ecmascript-6-object) - its properties order not only incorrect, it is non-deterministic and it causes some problems
-- Fixed behavior with deleted in getters properties for `Object.{`[`assign`](https://github.com/zloirock/core-js/#ecmascript-6-object)`, `[`entries, values`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)`}`, [example](http://goo.gl/iQE01c)
-- Fixed [`Math.sinh`](https://github.com/zloirock/core-js/#ecmascript-6-math) with very small numbers in V8 near Chromium 38
+- Added browser [`Promise` rejection hook](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#unhandled-rejection-tracking), [#106](https://github.com/zloirock/core-js/issues/106)
+- Added correct [`IsRegExp`](https://262.ecma-international.org/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#Disabling_the_isRegExp_check)
+- Updated [`String#leftPad`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) [with proposal](https://github.com/tc39/proposal-string-pad-start-end/issues/6): string filler truncated from the right side
+- Replaced V8 [`Object.assign`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-object) - its properties order not only incorrect, it is non-deterministic and it causes some problems
+- Fixed behavior with deleted in getters properties for `Object.{`[`assign`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-object)`, `[`entries, values`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)`}`, [example](http://goo.gl/iQE01c)
+- Fixed [`Math.sinh`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-math) with very small numbers in V8 near Chromium 38
 - Some other fixes and optimizations
 
 ### [1.1.4 - 2015.09.05](https://github.com/zloirock/core-js/releases/tag/v1.1.4)
-- Fixed support symbols in FF34-35 [`Object.assign`](https://github.com/zloirock/core-js/#ecmascript-6-object)
-- Fixed [collections iterators](https://github.com/zloirock/core-js/#ecmascript-6-iterators) in FF25-26
-- Fixed non-generic WebKit [`Array.of`](https://github.com/zloirock/core-js/#ecmascript-6-array)
+- Fixed support symbols in FF34-35 [`Object.assign`](https://github.com/zloirock/core-js/blob/v1.1.4/README.md#ecmascript-6-object)
+- Fixed [collections iterators](https://github.com/zloirock/core-js/blob/v1.1.4/README.md#ecmascript-6-iterators) in FF25-26
+- Fixed non-generic WebKit [`Array.of`](https://github.com/zloirock/core-js/blob/v1.1.4/README.md#ecmascript-6-array)
 - Some other fixes and optimizations
 
 ### [1.1.3 - 2015.08.29](https://github.com/zloirock/core-js/releases/tag/v1.1.3)
-- Fixed support Node.js domains in [`Promise`](https://github.com/zloirock/core-js/#ecmascript-6-promise), [#103](https://github.com/zloirock/core-js/issues/103)
+- Fixed support Node.js domains in [`Promise`](https://github.com/zloirock/core-js/blob/v1.1.3/README.md#ecmascript-6-promise), [#103](https://github.com/zloirock/core-js/issues/103)
 
 ### [1.1.2 - 2015.08.28](https://github.com/zloirock/core-js/releases/tag/v1.1.2)
-- Added `toJSON` method to [`Symbol`](https://github.com/zloirock/core-js/#ecmascript-6-symbol) polyfill and to MS Edge implementation for expected `JSON.stringify` result w/o patching this method
-- Replaced [`Reflect.construct`](https://github.com/zloirock/core-js/#ecmascript-6-reflect) implementations w/o correct support third argument
+- Added `toJSON` method to [`Symbol`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol) polyfill and to MS Edge implementation for expected `JSON.stringify` result w/o patching this method
+- Replaced [`Reflect.construct`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-reflect) implementations w/o correct support third argument
 - Fixed `global` detection with changed `document.domain` in \~IE8, [#100](https://github.com/zloirock/core-js/issues/100)
 
 ### [1.1.1 - 2015.08.20](https://github.com/zloirock/core-js/releases/tag/v1.1.1)
-- Added more correct microtask implementation for [`Promise`](#ecmascript-6-promise)
+- Added more correct microtask implementation for [`Promise`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-promise)
 
 ### [1.1.0 - 2015.08.17](https://github.com/zloirock/core-js/releases/tag/v1.1.0)
-- Updated [string padding](https://github.com/zloirock/core-js/#ecmascript-7-proposals) to [actual proposal](https://github.com/ljharb/proposal-string-pad-left-right) - renamed, minor internal changes:
+- Updated [string padding](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) to [actual proposal](https://github.com/tc39/proposal-string-pad-start-end) - renamed, minor internal changes:
   - `String#lpad` -> `String#padLeft`
   - `String#rpad` -> `String#padRight`
-- Added [string trim functions](#ecmascript-7-proposals) - [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), defacto standard - required only for IE11- and fixed for some old engines:
+- Added [string trim functions](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) - [proposal](https://github.com/tc39/proposal-string-left-right-trim), de facto standard - required only for IE11- and fixed for some old engines:
   - `String#trimLeft`
   - `String#trimRight`
-- [`String#trim`](https://github.com/zloirock/core-js/#ecmascript-6-string) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
-- Split [`es6.object.statics-accept-primitives`](https://github.com/zloirock/core-js/#ecmascript-6-object)
-- Caps for `freeze`-family `Object` methods moved from `es5` to `es6` namespace and joined with [es6 wrappers](https://github.com/zloirock/core-js/#ecmascript-6-object)
-- `es5` [namespace](https://github.com/zloirock/core-js/#commonjs) also includes modules, moved to `es6` namespace - you can use it as before
+- [`String#trim`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-string) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
+- Split [`es6.object.statics-accept-primitives`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-object)
+- Caps for `freeze`-family `Object` methods moved from `es5` to `es6` namespace and joined with [es6 wrappers](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-object)
+- `es5` [namespace](https://github.com/zloirock/core-js/blob/v1.1.0/README.md#commonjs) also includes modules, moved to `es6` namespace - you can use it as before
 - Increased `MessageChannel` priority in `$.task`, [#95](https://github.com/zloirock/core-js/issues/95)
-- Does not get `global.Symbol` on each getting iterator, if you wanna use alternative `Symbol` shim - add it before `core-js`
-- [`Reflect.construct`](https://github.com/zloirock/core-js/#ecmascript-6-reflect) optimized and fixed for some cases
-- Simplified [`Reflect.enumerate`](https://github.com/zloirock/core-js/#ecmascript-6-reflect), see [this question](https://esdiscuss.org/topic/question-about-enumerate-and-property-decision-timing)
-- Some corrections in [`Math.acosh`](https://github.com/zloirock/core-js/#ecmascript-6-math)
-- Fixed [`Math.imul`](https://github.com/zloirock/core-js/#ecmascript-6-math) for old WebKit
-- Some fixes in string / RegExp [well-known symbols](https://github.com/zloirock/core-js/#ecmascript-6-regexp) logic
+- Does not get `global.Symbol` on each getting iterator, if you want to use alternative `Symbol` shim - add it before `core-js`
+- [`Reflect.construct`](https://github.com/zloirock/core-js/blob/v1.1.0/README.md#ecmascript-6-reflect) optimized and fixed for some cases
+- Simplified [`Reflect.enumerate`](https://github.com/zloirock/core-js/blob/v1.1.0/README.md#ecmascript-6-reflect), see [this question](https://esdiscuss.org/topic/question-about-enumerate-and-property-decision-timing)
+- Some corrections in [`Math.acosh`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math)
+- Fixed [`Math.imul`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math) for old WebKit
+- Some fixes in string / RegExp [well-known symbols](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-regexp) logic
 - Some other fixes and optimizations
 
 ### [1.0.1 - 2015.07.31](https://github.com/zloirock/core-js/releases/tag/v1.0.1)
@@ -2676,28 +2676,28 @@
 - Changed compression `client/*.min.js` options for safe `Function#name` and `Function#length`, should be fixed [#92](https://github.com/zloirock/core-js/issues/92)
 
 ### [1.0.0 - 2015.07.22](https://github.com/zloirock/core-js/releases/tag/v1.0.0)
-- Added logic for [well-known symbols](https://github.com/zloirock/core-js/#ecmascript-6-regexp):
+- Added logic for [well-known symbols](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-regexp):
   - `Symbol.match`
   - `Symbol.replace`
   - `Symbol.split`
   - `Symbol.search`
 - Actualized and optimized work with iterables:
-  - Optimized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](https://github.com/zloirock/core-js/#ecmascript-6-collections), [`Promise.all`, `Promise.race`](https://github.com/zloirock/core-js/#ecmascript-6-promise) for default `Array Iterator`
-  - Optimized  [`Array.from`](https://github.com/zloirock/core-js/#ecmascript-6-array) for default `Array Iterator`
-  - Added [`core.getIteratorMethod`](https://github.com/zloirock/core-js/#ecmascript-6-iterators) helper
+  - Optimized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-collections), [`Promise.all`, `Promise.race`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-promise) for default `Array Iterator`
+  - Optimized  [`Array.from`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-array) for default `Array Iterator`
+  - Added [`core.getIteratorMethod`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-iterators) helper
 - Uses enumerable properties in shimmed instances - collections, iterators, etc for optimize performance
-- Added support native constructors to [`Reflect.construct`](https://github.com/zloirock/core-js/#ecmascript-6-reflect) with 2 arguments
-- Added support native constructors to [`Function#bind`](https://github.com/zloirock/core-js/#ecmascript-5) shim with `new`
-- Removed obsolete `.clear` methods native [`Weak`-collections](https://github.com/zloirock/core-js/#ecmascript-6-collections)
+- Added support native constructors to [`Reflect.construct`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-reflect) with 2 arguments
+- Added support native constructors to [`Function#bind`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-5) shim with `new`
+- Removed obsolete `.clear` methods native [`Weak`-collections](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-collections)
 - Maximum modularity, reduced minimal custom build size, separated into submodules:
-  - [`es6.reflect`](https://github.com/zloirock/core-js/#ecmascript-6-reflect)
-  - [`es6.regexp`](https://github.com/zloirock/core-js/#ecmascript-6-regexp)
-  - [`es6.math`](https://github.com/zloirock/core-js/#ecmascript-6-math)
-  - [`es6.number`](https://github.com/zloirock/core-js/#ecmascript-6-number)
-  - [`es7.object.to-array`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
-  - [`core.object`](https://github.com/zloirock/core-js/#object)
-  - [`core.string`](https://github.com/zloirock/core-js/#escaping-strings)
-  - [`core.iter-helpers`](https://github.com/zloirock/core-js/#ecmascript-6-iterators)
+  - [`es6.reflect`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-reflect)
+  - [`es6.regexp`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-regexp)
+  - [`es6.math`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math)
+  - [`es6.number`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-number)
+  - [`es7.object.to-array`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
+  - [`core.object`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#object)
+  - [`core.string`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#escaping-strings)
+  - [`core.iter-helpers`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#ecmascript-6-iterators)
   - Internal modules (`$`, `$.iter`, etc)
 - Many other optimizations
 - Final cleaning non-standard features
@@ -2706,26 +2706,26 @@
   - Removed `Math` methods from `Number.prototype`. Slight sugar for simple `Math` methods calling
   - Removed `{Array#, Array, Dict}.turn`
   - Removed `core.global`
-- Uses `ToNumber` instead of `ToLength` in [`Number Iterator`](https://github.com/zloirock/core-js/#number-iterator), `Array.from(2.5)` will be `[0, 1, 2]` instead of `[0, 1]`
+- Uses `ToNumber` instead of `ToLength` in [`Number Iterator`](https://github.com/zloirock/core-js/blob/v1.0.0/README.md#number-iterator), `Array.from(2.5)` will be `[0, 1, 2]` instead of `[0, 1]`
 - Fixed [#85](https://github.com/zloirock/core-js/issues/85) - invalid `Promise` unhandled rejection message in nested `setTimeout`
 - Fixed [#86](https://github.com/zloirock/core-js/issues/86) - support FF extensions
 - Fixed [#89](https://github.com/zloirock/core-js/issues/89) - behavior `Number` constructor in strange case
 
 ### [0.9.18 - 2015.06.17](https://github.com/zloirock/core-js/releases/tag/v0.9.18)
-- Removed `/` from [`RegExp.escape`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) escaped characters
+- Removed `/` from [`RegExp.escape`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) escaped characters
 
 ### [0.9.17 - 2015.06.14](https://github.com/zloirock/core-js/releases/tag/v0.9.17)
-- Updated [`RegExp.escape`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) to the [latest proposal](https://github.com/benjamingr/RexExp.escape)
+- Updated [`RegExp.escape`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) to the [latest proposal](https://github.com/tc39/proposal-regex-escaping)
 - Fixed conflict with webpack dev server + IE buggy behavior
 
 ### [0.9.16 - 2015.06.11](https://github.com/zloirock/core-js/releases/tag/v0.9.16)
-- More correct order resolving thenable in [`Promise`](https://github.com/zloirock/core-js/#ecmascript-6-promise) polyfill
+- More correct order resolving thenable in [`Promise`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-promise) polyfill
 - Uses polyfill instead of [buggy V8 `Promise`](https://github.com/zloirock/core-js/issues/78)
 
 ### [0.9.15 - 2015.06.09](https://github.com/zloirock/core-js/releases/tag/v0.9.15)
-- [Collections](https://github.com/zloirock/core-js/#ecmascript-6-collections) from `library` version return wrapped native instances
+- [Collections](https://github.com/zloirock/core-js/blob/v0.9.15/README.md#ecmascript-6-collections) from `library` version return wrapped native instances
 - Fixed collections prototype methods in `library` version
-- Optimized [`Math.hypot`](https://github.com/zloirock/core-js/#ecmascript-6-math)
+- Optimized [`Math.hypot`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math)
 
 ### [0.9.14 - 2015.06.04](https://github.com/zloirock/core-js/releases/tag/v0.9.14)
 - Updated [`Promise.resolve` behavior](https://esdiscuss.org/topic/fixing-promise-resolve)
@@ -2733,7 +2733,7 @@
 - Some other fixes
 
 ### [0.9.13 - 2015.05.25](https://github.com/zloirock/core-js/releases/tag/v0.9.13)
-- Added fallback for [`Symbol` polyfill](https://github.com/zloirock/core-js/#ecmascript-6-symbol) for old Android
+- Added fallback for [`Symbol` polyfill](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol) for old Android
 - Some other fixes
 
 ### [0.9.12 - 2015.05.24](https://github.com/zloirock/core-js/releases/tag/v0.9.12)
@@ -2751,19 +2751,19 @@
 - Added proto versions of methods to export object in `default` version for consistency with `library` version
 
 ### [0.9.9 - 2015.05.14](https://github.com/zloirock/core-js/releases/tag/v0.9.9)
-- Wrapped `Object#propertyIsEnumerable` for [`Symbol` polyfill](https://github.com/zloirock/core-js/#ecmascript-6-symbol)
+- Wrapped `Object#propertyIsEnumerable` for [`Symbol` polyfill](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol)
 - [Added proto versions of methods to `library` for ES7 bind syntax](https://github.com/zloirock/core-js/issues/65)
 - Some other fixes
 
 ### [0.9.8 - 2015.05.12](https://github.com/zloirock/core-js/releases/tag/v0.9.8)
-- Fixed [`Math.hypot`](https://github.com/zloirock/core-js/#ecmascript-6-math) with negative arguments
+- Fixed [`Math.hypot`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math) with negative arguments
 - Added `Object#toString.toString` as fallback for [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)
 
 ### [0.9.7 - 2015.05.07](https://github.com/zloirock/core-js/releases/tag/v0.9.7)
 - Added [support DOM collections](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice#Streamlining_cross-browser_behavior) to IE8- `Array#slice`
 
 ### [0.9.6 - 2015.05.01](https://github.com/zloirock/core-js/releases/tag/v0.9.6)
-- Added [`String#lpad`, `String#rpad`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
+- Added [`String#lpad`, `String#rpad`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
 
 ### [0.9.5 - 2015.04.30](https://github.com/zloirock/core-js/releases/tag/v0.9.5)
 - Added cap for `Function#@@hasInstance`
@@ -2776,98 +2776,98 @@
 - Some fixes and optimizations
 
 ### [0.9.2 - 2015.04.25](https://github.com/zloirock/core-js/releases/tag/v0.9.2)
-- More correct [`Promise`](https://github.com/zloirock/core-js/#ecmascript-6-promise) unhandled rejection tracking and resolving / rejection priority
+- More correct [`Promise`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-promise) unhandled rejection tracking and resolving / rejection priority
 
 ### [0.9.1 - 2015.04.25](https://github.com/zloirock/core-js/releases/tag/v0.9.1)
-- Fixed `__proto__`-based [`Promise`](https://github.com/zloirock/core-js/#ecmascript-6-promise) subclassing in some environments
+- Fixed `__proto__`-based [`Promise`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-promise) subclassing in some environments
 
 ### [0.9.0 - 2015.04.24](https://github.com/zloirock/core-js/releases/tag/v0.9.0)
-- Added correct [symbols](https://github.com/zloirock/core-js/#ecmascript-6-symbol) descriptors
+- Added correct [symbols](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol) descriptors
   - Fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
-  - Added [single entry points](https://github.com/zloirock/core-js/#commonjs) for `Object.{create, defineProperty, defineProperties}`
-- Added [`Map#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
-- Removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](https://babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
+  - Added [single entry points](https://github.com/zloirock/core-js/blob/v0.9.0/README.md#commonjs) for `Object.{create, defineProperty, defineProperties}`
+- Added [`Map#toJSON`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
+- Removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](https://babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/tc39/proposal-bind-operator)
 - Removed non-standard undocumented methods `Symbol.{pure, set}`
 - Some fixes and internal changes
 
-### [0.8.4 - 2015.04.18](https://github.com/zloirock/core-js/releases/tag/v0.8.4)
+### [0.8.4 - 2015.04.18](https://github.com/zloirock/core-js/releases/tag/0.8.4)
 - Uses `webpack` instead of `browserify` for browser builds - more compression-friendly result
 
-### [0.8.3 - 2015.04.14](https://github.com/zloirock/core-js/releases/tag/v0.8.3)
+### [0.8.3 - 2015.04.14](https://github.com/zloirock/core-js/releases/tag/0.8.3)
 - Fixed `Array` statics with single entry points
 
-### [0.8.2 - 2015.04.13](https://github.com/zloirock/core-js/releases/tag/v0.8.2)
-- [`Math.fround`](https://github.com/zloirock/core-js/#ecmascript-6-math) now also works in IE9-
-- Added [`Set#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
+### [0.8.2 - 2015.04.13](https://github.com/zloirock/core-js/releases/tag/0.8.2)
+- [`Math.fround`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math) now also works in IE9-
+- Added [`Set#toJSON`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
 - Some optimizations and fixes
 
-### [0.8.1 - 2015.04.03](https://github.com/zloirock/core-js/releases/tag/v0.8.1)
+### [0.8.1 - 2015.04.03](https://github.com/zloirock/core-js/releases/tag/0.8.1)
 - Fixed `Symbol.keyFor`
 
-### [0.8.0 - 2015.04.02](https://github.com/zloirock/core-js/releases/tag/v0.8.0)
-- Changed [CommonJS API](https://github.com/zloirock/core-js/#commonjs)
+### [0.8.0 - 2015.04.02](https://github.com/zloirock/core-js/releases/tag/0.8.0)
+- Changed [CommonJS API](https://github.com/zloirock/core-js/blob/0.8.0/README.md#commonjs)
 - Split and renamed some modules
-- Added support ES3 environment (ES5 polyfill) to **all** default versions - size increases slightly (+ ~4kb w/o gzip), many issues disappear, if you don't need it - [simply include only required namespaces / features / modules](https://github.com/zloirock/core-js/#commonjs)
+- Added support ES3 environment (ES5 polyfill) to **all** default versions - size increases slightly (+ ~4kb w/o gzip), many issues disappear, if you don't need it - [simply include only required namespaces / features / modules](https://github.com/zloirock/core-js/blob/0.8.0/README.md#commonjs)
 - Removed [abstract references](https://github.com/zenparsing/es-abstract-refs) support - proposal has been superseded =\
-- [`$for.isIterable` -> `core.isIterable`, `$for.getIterator` -> `core.getIterator`](https://github.com/zloirock/core-js/#ecmascript-6-iterators), temporary available in old namespace
+- [`$for.isIterable` -> `core.isIterable`, `$for.getIterator` -> `core.getIterator`](https://github.com/zloirock/core-js/blob/0.8.0/README.md#ecmascript-6-iterators), temporary available in old namespace
 - Fixed iterators support in v8 `Promise.all` and `Promise.race`
 - Many other fixes
 
-### [0.7.2 - 2015.03.09](https://github.com/zloirock/core-js/releases/tag/v0.7.2)
+### [0.7.2 - 2015.03.09](https://github.com/zloirock/core-js/releases/tag/0.7.2)
 - Some fixes
 
-### [0.7.1 - 2015.03.07](https://github.com/zloirock/core-js/releases/tag/v0.7.1)
+### [0.7.1 - 2015.03.07](https://github.com/zloirock/core-js/releases/tag/0.7.1)
 - Some fixes
 
-### [0.7.0 - 2015.03.06](https://github.com/zloirock/core-js/releases/tag/v0.7.0)
-- Rewritten and split into [CommonJS modules](https://github.com/zloirock/core-js/#commonjs)
+### [0.7.0 - 2015.03.06](https://github.com/zloirock/core-js/releases/tag/0.7.0)
+- Rewritten and split into [CommonJS modules](https://github.com/zloirock/core-js/blob/0.7.0/README.md#commonjs)
 
-### [0.6.1 - 2015.02.24](https://github.com/zloirock/core-js/releases/tag/v0.6.1)
-- Fixed support [`Object.defineProperty`](https://github.com/zloirock/core-js/#ecmascript-5) with accessors on DOM elements on IE8
+### [0.6.1 - 2015.02.24](https://github.com/zloirock/core-js/releases/tag/0.6.1)
+- Fixed support [`Object.defineProperty`](https://github.com/zloirock/core-js/blob/0.6.1/README.md#ecmascript-5) with accessors on DOM elements on IE8
 
-### [0.6.0 - 2015.02.23](https://github.com/zloirock/core-js/releases/tag/v0.6.0)
+### [0.6.0 - 2015.02.23](https://github.com/zloirock/core-js/releases/tag/0.6.0)
 - Added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
-- Added basic support [`Promise`](https://github.com/zloirock/core-js/#ecmascript-6-promise) unhandled rejection tracking in shim
-- Added [`Object.getOwnPropertyDescriptors`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
+- Added basic support [`Promise`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-promise) unhandled rejection tracking in shim
+- Added [`Object.getOwnPropertyDescriptors`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
 - Removed `console` cap - creates too many problems
 - Restructuring [namespaces](https://github.com/zloirock/core-js/#custom-build)
 - Some fixes
 
-### [0.5.4 - 2015.02.15](https://github.com/zloirock/core-js/releases/tag/v0.5.4)
+### [0.5.4 - 2015.02.15](https://github.com/zloirock/core-js/releases/tag/0.5.4)
 - Some fixes
 
-### [0.5.3 - 2015.02.14](https://github.com/zloirock/core-js/releases/tag/v0.5.3)
-- Added [support binary and octal literals](https://github.com/zloirock/core-js/#ecmascript-6-number) to `Number` constructor
-- Added [`Date#toISOString`](https://github.com/zloirock/core-js/#ecmascript-5)
+### [0.5.3 - 2015.02.14](https://github.com/zloirock/core-js/releases/tag/0.5.3)
+- Added [support binary and octal literals](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-number) to `Number` constructor
+- Added [`Date#toISOString`](https://github.com/zloirock/core-js/blob/0.5.3/README.md#ecmascript-5)
 
-### [0.5.2 - 2015.02.10](https://github.com/zloirock/core-js/releases/tag/v0.5.2)
+### [0.5.2 - 2015.02.10](https://github.com/zloirock/core-js/releases/tag/0.5.2)
 - Some fixes
 
-### [0.5.1 - 2015.02.09](https://github.com/zloirock/core-js/releases/tag/v0.5.1)
+### [0.5.1 - 2015.02.09](https://github.com/zloirock/core-js/releases/tag/0.5.1)
 - Some fixes
 
-### [0.5.0 - 2015.02.08](https://github.com/zloirock/core-js/releases/tag/v0.5.0)
+### [0.5.0 - 2015.02.08](https://github.com/zloirock/core-js/releases/tag/0.5.0)
 - Systematization of modules
-- Split [`es6` module](https://github.com/zloirock/core-js/#ecmascript-6)
+- Split [`es6` module](https://github.com/zloirock/core-js/blob/0.5.0/README.md#ecmascript-6)
 - Split `console` module: `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
-- Added [`delay` method](https://github.com/zloirock/core-js/#delay)
+- Added [`delay` method](https://github.com/zloirock/core-js/blob/0.5.0/README.md#delay)
 - Some fixes
 
 ### [0.4.10 - 2015.01.28](https://github.com/zloirock/core-js/releases/tag/v0.4.10)
-- [`Object.getOwnPropertySymbols`](https://github.com/zloirock/core-js/#ecmascript-6-symbol) polyfill returns array of wrapped keys
+- [`Object.getOwnPropertySymbols`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol) polyfill returns array of wrapped keys
 
 ### [0.4.9 - 2015.01.27](https://github.com/zloirock/core-js/releases/tag/v0.4.9)
 - FF20-24 fix
 
 ### [0.4.8 - 2015.01.25](https://github.com/zloirock/core-js/releases/tag/v0.4.8)
-- Some [collections](https://github.com/zloirock/core-js/#ecmascript-6-collections) fixes
+- Some [collections](https://github.com/zloirock/core-js/blob/v0.4.8/README.md#ecmascript-6-collections) fixes
 
 ### [0.4.7 - 2015.01.25](https://github.com/zloirock/core-js/releases/tag/v0.4.7)
-- Added support frozen objects as [collections](https://github.com/zloirock/core-js/#ecmascript-6-collections) keys
+- Added support frozen objects as [collections](https://github.com/zloirock/core-js/blob/v0.4.7/README.md#ecmascript-6-collections) keys
 
 ### [0.4.6 - 2015.01.21](https://github.com/zloirock/core-js/releases/tag/v0.4.6)
-- Added [`Object.getOwnPropertySymbols`](https://github.com/zloirock/core-js/#ecmascript-6-symbol)
-- Added [`NodeList.prototype[@@iterator]`](https://github.com/zloirock/core-js/#ecmascript-6-iterators)
+- Added [`Object.getOwnPropertySymbols`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol)
+- Added [`NodeList.prototype[@@iterator]`](https://github.com/zloirock/core-js/blob/v0.4.6/README.md#ecmascript-6-iterators)
 - Added basic `@@species` logic - getter in native constructors
 - Removed `Function#by`
 - Some fixes
@@ -2890,7 +2890,7 @@
 - Some fixes
 
 ### [0.4.0 - 2015.01.03](https://github.com/zloirock/core-js/releases/tag/v0.4.0)
-- Added [`es6.reflect`](https://github.com/zloirock/core-js/#ecmascript-6-reflect) module:
+- Added [`es6.reflect`](https://github.com/zloirock/core-js/blob/v0.4.0/README.md#ecmascript-6-reflect) module:
   - Added `Reflect.apply`
   - Added `Reflect.construct`
   - Added `Reflect.defineProperty`
@@ -2908,20 +2908,20 @@
 - Some fixes
 
 ### [0.3.3 - 2014.12.28](https://github.com/zloirock/core-js/releases/tag/v0.3.3)
-- [Console cap](https://github.com/zloirock/core-js/#console) excluded from node.js default builds
+- [Console cap](https://github.com/zloirock/core-js/blob/v0.3.3/README.md#console) excluded from node.js default builds
 
 ### [0.3.2 - 2014.12.25](https://github.com/zloirock/core-js/releases/tag/v0.3.2)
-- Added cap for [ES5](https://github.com/zloirock/core-js/#ecmascript-5) freeze-family methods
+- Added cap for [ES5](https://github.com/zloirock/core-js/blob/v0.3.2/README.md#ecmascript-5) freeze-family methods
 - Fixed `console` bug
 
 ### [0.3.1 - 2014.12.23](https://github.com/zloirock/core-js/releases/tag/v0.3.1)
 - Some fixes
 
 ### [0.3.0 - 2014.12.23](https://github.com/zloirock/core-js/releases/tag/v0.3.0)
-- Optimize [`Map` & `Set`](https://github.com/zloirock/core-js/#ecmascript-6-collections):
+- Optimize [`Map` & `Set`](https://github.com/zloirock/core-js/blob/v0.3.0/README.md#ecmascript-6-collections):
   - Use entries chain on hash table
   - Fast & correct iteration
-  - Iterators moved to [`es6`](https://github.com/zloirock/core-js/#ecmascript-6) and [`es6.collections`](https://github.com/zloirock/core-js/#ecmascript-6-collections) modules
+  - Iterators moved to [`es6`](https://github.com/zloirock/core-js/blob/v0.3.0/README.md#ecmascript-6) and [`es6.collections`](https://github.com/zloirock/core-js/blob/v0.3.0/README.md#ecmascript-6-collections) modules
 
 ### [0.2.5 - 2014.12.20](https://github.com/zloirock/core-js/releases/tag/v0.2.5)
 - `console` no longer shortcut for `console.log` (compatibility problems)
@@ -2929,11 +2929,11 @@
 
 ### [0.2.4 - 2014.12.17](https://github.com/zloirock/core-js/releases/tag/v0.2.4)
 - Better compliance of ES6
-- Added [`Math.fround`](https://github.com/zloirock/core-js/#ecmascript-6-math) (IE10+)
+- Added [`Math.fround`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-math) (IE10+)
 - Some fixes
 
 ### [0.2.3 - 2014.12.15](https://github.com/zloirock/core-js/releases/tag/v0.2.3)
-- [Symbols](https://github.com/zloirock/core-js/#ecmascript-6-symbol):
+- [Symbols](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-symbol):
   - Added option to disable addition setter to `Object.prototype` for Symbol polyfill:
     - Added `Symbol.useSimple`
     - Added `Symbol.useSetter`
@@ -2949,16 +2949,16 @@
     - Added `Symbol.unscopables`
 
 ### [0.2.2 - 2014.12.13](https://github.com/zloirock/core-js/releases/tag/v0.2.2)
-- Added [`RegExp#flags`](https://github.com/zloirock/core-js/#ecmascript-6-regexp) ([December 2014 Draft Rev 29](https://web.archive.org/web/20170119181824/http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts))
-- Added [`String.raw`](https://github.com/zloirock/core-js/#ecmascript-6-string)
+- Added [`RegExp#flags`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-regexp) ([December 2014 Draft Rev 29](https://web.archive.org/web/20170119181824/http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts))
+- Added [`String.raw`](https://github.com/zloirock/core-js/blob/v1.1.2/README.md#ecmascript-6-string)
 
 ### [0.2.1 - 2014.12.12](https://github.com/zloirock/core-js/releases/tag/v0.2.1)
-- Repair converting -0 to +0 in [native collections](https://github.com/zloirock/core-js/#ecmascript-6-collections)
+- Repair converting -0 to +0 in [native collections](https://github.com/zloirock/core-js/blob/v0.2.1/README.md#ecmascript-6-collections)
 
 ### [0.2.0 - 2014.12.06](https://github.com/zloirock/core-js/releases/tag/v0.2.0)
-- Added [`es7.proposals`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) and [`es7.abstract-refs`](https://github.com/zenparsing/es-abstract-refs) modules
-- Added [`String#at`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
-- Added real [`String Iterator`](https://github.com/zloirock/core-js/#ecmascript-6-iterators), older versions used Array Iterator
+- Added [`es7.proposals`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) and [`es7.abstract-refs`](https://github.com/zenparsing/es-abstract-refs) modules
+- Added [`String#at`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
+- Added real [`String Iterator`](https://github.com/zloirock/core-js/blob/v0.2.0/README.md#ecmascript-6-iterators), older versions used Array Iterator
 - Added abstract references support:
   - Added `Symbol.referenceGet`
   - Added `Symbol.referenceSet`
@@ -2975,19 +2975,19 @@
 - Some fixes
 
 ### [0.1.5 - 2014.12.01](https://github.com/zloirock/core-js/releases/tag/v0.1.5)
-- Added [`Array#copyWithin`](https://github.com/zloirock/core-js/#ecmascript-6-array)
-- Added [`String#codePointAt`](https://github.com/zloirock/core-js/#ecmascript-6-string)
-- Added [`String.fromCodePoint`](https://github.com/zloirock/core-js/#ecmascript-6-string)
+- Added [`Array#copyWithin`](https://github.com/zloirock/core-js/blob/v0.1.5/README.md#ecmascript-6-array)
+- Added [`String#codePointAt`](https://github.com/zloirock/core-js/blob/v0.1.5/README.md#ecmascript-6-string)
+- Added [`String.fromCodePoint`](https://github.com/zloirock/core-js/blob/v0.1.5/README.md#ecmascript-6-string)
 
 ### [0.1.4 - 2014.11.27](https://github.com/zloirock/core-js/releases/tag/v0.1.4)
-- Added [`Dict.mapPairs`](https://github.com/zloirock/core-js/#dict)
+- Added [`Dict.mapPairs`](https://github.com/zloirock/core-js/blob/v0.1.5/README.md#dict)
 
 ### [0.1.3 - 2014.11.20](https://github.com/zloirock/core-js/releases/tag/v0.1.3)
 - [TC39 November meeting](https://github.com/tc39/notes/blob/main/meetings/2014-11):
   - [`.contains` -> `.includes`](https://github.com/tc39/notes/blob/main/meetings/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
-    - `String#contains` -> [`String#includes`](https://github.com/zloirock/core-js/#ecmascript-6-string)
-    - `Array#contains` -> [`Array#includes`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
-    - `Dict.contains` -> [`Dict.includes`](https://github.com/zloirock/core-js/#dict)
+    - `String#contains` -> [`String#includes`](https://github.com/zloirock/core-js/blob/v0.1.5/README.md#ecmascript-6-string)
+    - `Array#contains` -> [`Array#includes`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)
+    - `Dict.contains` -> [`Dict.includes`](https://github.com/zloirock/core-js/blob/v0.1.5/README.md#dict)
   - [Removed `WeakMap#clear`](https://github.com/tc39/notes/blob/main/meetings/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
   - [Removed `WeakSet#clear`](https://github.com/tc39/notes/blob/main/meetings/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
 

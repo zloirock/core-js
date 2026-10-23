@@ -9,7 +9,7 @@ var sqrt = Math.sqrt;
 var LN2 = Math.LN2;
 
 var FORCED = !$acosh
-  // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
+  // V8 bug: https://issues.chromium.org/issues/42206824
   || Math.floor($acosh(Number.MAX_VALUE)) !== 710
   // Tor Browser bug: Math.acosh(Infinity) -> NaN
   || $acosh(Infinity) !== Infinity;

@@ -1,6 +1,6 @@
 # ECMAScript: Symbol
-## Modules 
-[`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js).
+## Modules
+[`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match-all.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js).
 
 ## Built-ins signatures
 ```ts
@@ -14,6 +14,7 @@ class Symbol {
   static isConcatSpreadable: @@isConcatSpreadable;
   static iterator: @@iterator;
   static match: @@match;
+  static matchAll: @@matchAll;
   static replace: @@replace;
   static search: @@search;
   static species: @@species;
@@ -31,11 +32,11 @@ class Object {
   static getOwnPropertySymbols(object: any): Array<symbol>;
 }
 ```
-Also wrapped some methods for correct work with `Symbol` polyfill.
+Some methods are also wrapped to work correctly with the `Symbol` polyfill.
 ```ts
 class Object {
   static create(prototype: Object | null, properties?: { [property: PropertyKey]: PropertyDescriptor }): Object;
-  static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor })): Object;
+  static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor }): Object;
   static defineProperty(object: Object, property: PropertyKey, attributes: PropertyDescriptor): Object;
   static getOwnPropertyDescriptor(object: any, property: PropertyKey): PropertyDescriptor | void;
   static getOwnPropertyNames(object: any): Array<string>;
@@ -54,6 +55,7 @@ core-js(-pure)/es|stable|actual|full/symbol/has-instance
 core-js(-pure)/es|stable|actual|full/symbol/is-concat-spreadable
 core-js(-pure)/es|stable|actual|full/symbol/iterator
 core-js(-pure)/es|stable|actual|full/symbol/match
+core-js(-pure)/es|stable|actual|full/symbol/match-all
 core-js(-pure)/es|stable|actual|full/symbol/replace
 core-js(-pure)/es|stable|actual|full/symbol/search
 core-js(-pure)/es|stable|actual|full/symbol/species
@@ -84,8 +86,8 @@ let Person = (() => {
 let person = new Person('Vasya');
 console.log(person.getName());            // => 'Vasya'
 console.log(person.name);                 // => undefined
-console.log(person[Symbol('name')]);      // => undefined, symbols are uniq
-for (let key in person) console.log(key); // => nothing, symbols are not enumerable
+console.log(person[Symbol('name')]);      // => undefined, symbols are unique
+for (let key in person) console.log(key); // => nothing, for-in skips symbol keys
 ```
 
 ## `Symbol.for` & `Symbol.keyFor` example
@@ -116,17 +118,17 @@ Symbol().description;      // => undefined
 
 - We can't add a new primitive type, `Symbol` returns an object.
 - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-- By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+- By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
 
 You can disable defining setters in `Object.prototype`. *Example*:
 ```ts
 Symbol.useSimple();
 let object1 = { [Symbol('symbol1')]: true };
-for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', w/o native Symbol
+for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
 
 Symbol.useSetter();
 let object2 = { [Symbol('symbol2')]: true };
 for (let key in object2) console.log(key); // nothing
 ```
-- Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
+- Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
 - Some problems are possible with environment exotic objects (for example, IE `localStorage`).

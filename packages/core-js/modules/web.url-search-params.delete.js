@@ -14,7 +14,7 @@ var params = new $URLSearchParams('a=1&a=2&b=3');
 
 params['delete']('a', 1);
 // `undefined` case is a Chromium 117 bug
-// https://bugs.chromium.org/p/v8/issues/detail?id=14222
+// https://issues.chromium.org/issues/40278437
 params['delete']('b', undefined);
 
 if (params + '' !== 'a=2') {

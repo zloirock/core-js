@@ -133,7 +133,7 @@ export default {
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
-  // https://github.com/Kilian/electron-to-chromium/blob/master/chromium-versions.js
+  // https://github.com/Kilian/electron-to-chromium/blob/main/chromium-versions.js
   // Maybe also required to handle used Node versions?
   // https://github.com/electron/releases/blob/master/lite.json
   ChromeToElectron: [
@@ -213,15 +213,15 @@ export default {
     [33, '4.4.3'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/chrome_android.json
-  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-chrome-for-android
+  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/README.md#version-numbers-for-chrome-for-android
   ChromeToChromeAndroid(chrome) {
     return chrome <= 18 ? 18 : Math.max(chrome, 25);
   },
-  // https://developer.samsung.com/internet/release-note/windows-release-note.html
+  // https://developer.samsung.com/browser/release-note/windows-release-note.html
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
-  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#samsung-internet
+  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/README.md#samsung-browser
   ChromeAndroidToSamsung: [
     [18, '1.0'],
     [28, '1.5'],
@@ -325,7 +325,7 @@ export default {
   // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
-  // https://whatmyuseragent.com/browser/oc/oculus-browser
+  // https://whatmyuseragent.com/browser/browser-oculus-browser
   // Quest Browser after 42 uses a similar version to Chromium
   ChromeAndroidToQuest: [
     [57, '3.0'],

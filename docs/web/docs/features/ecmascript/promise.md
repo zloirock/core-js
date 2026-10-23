@@ -16,8 +16,8 @@ class Promise {
   static race(iterable: Iterable): Promise;
   static reject(r: any): Promise;
   static resolve(x: any): Promise;
-  static try(callbackfn: Function, ...args?: Array<mixed>): Promise;
-  static withResolvers(): { promise: Promise, resolve: function, reject: function };
+  static try(callbackfn: Function, ...args: Array<mixed>): Promise;
+  static withResolvers(): { promise: Promise, resolve: Function, reject: Function };
 }
 ```
 
@@ -39,18 +39,18 @@ function sleepRandom(time) {
   });
 }
 
-console.log('Run');                    // -> Run
+console.log('Run');                    // => Run
 sleepRandom(5).then(result => {
-  console.log(result);                 // -> 869, after 5 sec.
+  console.log(result);                 // => 869, after 5 sec.
   return sleepRandom(10);
 }).then(result => {
-  console.log(result);                 // -> 202, after 10 sec.
+  console.log(result);                 // => 202, after 10 sec.
 }).then(() => {
-  console.log('immediately after');    // -> immediately after
+  console.log('immediately after');    // => immediately after
   throw new Error('Irror!');
 }).then(() => {
   console.log('will not be displayed');
-}).catch(error => console.log(error)); // -> Error: Irror!
+}).catch(error => console.log(error)); // => Error: Irror!
 ```
 
 ## `Promise.resolve` and `Promise.reject` example
@@ -59,8 +59,8 @@ const getJson = () => new Promise(resolve => {
   resolve({ message: "Hello, world!", success: true });
 });
 
-Promise.resolve(42).then(x => console.log(x));         // -> 42
-Promise.reject(42).catch(error => console.log(error)); // -> 42
+Promise.resolve(42).then(x => console.log(x));         // => 42
+Promise.reject(42).catch(error => console.log(error)); // => 42
 
 Promise.resolve(getJson()); // => ES promise
 ```
@@ -83,7 +83,7 @@ Promise.all([
   sleepRandom(5),
   sleepRandom(15),
   sleepRandom(10),            // after 15 sec:
-]).then(x => console.log(x)); // -> ['foo', 956, 85, 382]
+]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
 ```
 
 ## `Promise.race` example
@@ -98,7 +98,7 @@ function timeLimit(promise, time) {
   })]);
 }
 
-timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // -> 853, after 5 sec.
+timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // Error: Await > 10 sec
 ```
 
@@ -108,7 +108,7 @@ Promise.allSettled([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // -> [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
 
 ## `Promise.any` example
@@ -117,13 +117,13 @@ Promise.any([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // -> 1
+]).then(console.log); // => 1
 
 Promise.any([
   Promise.reject(1),
   Promise.reject(2),
   Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // -> [1, 2, 3]
+]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
 
 ## `Promise.try` examples
@@ -143,7 +143,7 @@ Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`)
 ```js
 const d = Promise.withResolvers();
 d.resolve(42);
-d.promise.then(console.log); // -> 42
+d.promise.then(console.log); // => 42
 ```
 
 ## Example with async functions
@@ -180,7 +180,7 @@ async function sleepError(time, msg) {
 
 ## Unhandled rejection tracking
 
-In Node.js, like in native implementation, available events [`unhandledRejection`](https://nodejs.org/api/process.html#process_event_unhandledrejection) and [`rejectionHandled`](https://nodejs.org/api/process.html#process_event_rejectionhandled):
+In Node.js, as with the native implementation, the [`unhandledRejection`](https://nodejs.org/api/process.html#process_event_unhandledrejection) and [`rejectionHandled`](https://nodejs.org/api/process.html#process_event_rejectionhandled) events are available:
 ```ts
 process.on('unhandledRejection', (reason, promise) => console.log('unhandled', reason, promise));
 process.on('rejectionHandled', promise => console.log('handled', promise));
@@ -191,7 +191,7 @@ let promise = Promise.reject(42);
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 // handled [object Promise]
 ```
-In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, example:
+In a browser, an unhandled rejection is reported to the console by default; you can also add handlers for unhandled and later handled rejections, for example:
 ```js
 globalThis.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
 globalThis.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));

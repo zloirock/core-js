@@ -27,7 +27,7 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
       return new RegExp(regexp)[MATCH](S);
     },
     // `RegExp.prototype[@@match]` method
-    // https://tc39.es/ecma262/#sec-regexp.prototype-@@match
+    // https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.match%
     function (string) {
       var rx = anObject(this);
       var S = toString(string);

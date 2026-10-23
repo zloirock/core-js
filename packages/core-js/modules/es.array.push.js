@@ -11,7 +11,7 @@ var INCORRECT_TO_LENGTH = fails(function () {
 });
 
 // V8 <= 121 and Safari <= 15.4; FF < 23 throws InternalError
-// https://bugs.chromium.org/p/v8/issues/detail?id=12681
+// https://issues.chromium.org/issues/42202623
 var properErrorOnNonWritableLength = function () {
   try {
     // eslint-disable-next-line es/no-object-defineproperty -- safe

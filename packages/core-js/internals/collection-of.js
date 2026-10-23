@@ -1,7 +1,7 @@
 'use strict';
 var anObject = require('../internals/an-object');
 
-// https://tc39.github.io/proposal-setmap-offrom/
+// https://tc39.es/proposal-setmap-offrom/
 module.exports = function (C, adder, ENTRY) {
   return function of() {
     var result = new C();

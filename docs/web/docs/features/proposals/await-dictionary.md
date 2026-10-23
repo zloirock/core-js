@@ -8,11 +8,11 @@
 ## Built-ins signatures
 ```ts
 class Promise {
-  allKeyed<T extends Record<string, unknown>>(
+  static allKeyed<T extends Record<string, unknown>>(
     obj: T
   ): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
 
-  allSettledKeyed<T extends Record<string, unknown>>(
+  static allSettledKeyed<T extends Record<string, unknown>>(
     obj: T
   ): Promise<{ [K in keyof T]: PromiseSettledResult<Awaited<T[K]>> }>;
 }

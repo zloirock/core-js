@@ -5,7 +5,7 @@
 ## Built-ins signatures
 ```ts
 namespace Math {
-  sumPrecise(items: Iterable<number>): Number;
+  sumPrecise(items: Iterable<number>): number;
 }
 ```
 

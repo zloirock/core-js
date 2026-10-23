@@ -1,6 +1,6 @@
 # Observable
 [Specification](https://tc39.es/proposal-observable/)\
-[Proposal repo](https://github.com/zenparsing/es-observable)
+[Proposal repo](https://github.com/tc39/proposal-observable)
 
 ## Modules
 [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js), [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)

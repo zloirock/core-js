@@ -58,7 +58,7 @@ var SuppressedErrorPrototype = $SuppressedError.prototype = PATCH ? NativeSuppre
 if (PATCH && !IS_PURE) SuppressedErrorPrototype.constructor = $SuppressedError;
 
 // `SuppressedError` constructor
-// https://github.com/tc39/proposal-explicit-resource-management
+// https://tc39.es/ecma262/#sec-suppressederror-constructor
 $({ global: true, constructor: true, arity: 3, forced: PATCH }, {
   SuppressedError: $SuppressedError
 });

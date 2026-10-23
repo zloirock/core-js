@@ -14,6 +14,7 @@ const BRANCH = branchArg ? branchArg.slice('branch='.length) : undefined;
 const LOCAL = argv._.includes('local');
 const BASE = LOCAL && BRANCH ? '/core-js/website/dist/' : BRANCH ? `/branches/${ BRANCH }/` : '/';
 const DEFAULT_VERSION = await getDefaultVersion(config.versionsFile, BRANCH);
+const HEADING_ID_PREFIX = 'h-';
 
 let htmlFileName = '';
 let docsMenu = '';
@@ -115,12 +116,45 @@ function metadata(markdown) {
 
 const markedInline = new Marked();
 
+// heading ids get a prefix, so an anchor written as on GitHub has to get it too
+function headingId(anchor) {
+  const id = anchor.toLowerCase();
+  return id.startsWith(HEADING_ID_PREFIX) ? id : HEADING_ID_PREFIX + id;
+}
+
+// an in-page anchor points to the current page
+function resolveAnchor(href) {
+  return `${ htmlFileName.replace('.html', '') }#${ headingId(href.slice(1)) }`;
+}
+
+// a link to another page of the site keeps its path, its anchor is a heading id of that page
+function resolvePageAnchor(href) {
+  const index = href.indexOf('#');
+  return index === -1 ? href : `${ href.slice(0, index) }#${ headingId(href.slice(index + 1)) }`;
+}
+
+// no scheme, no protocol-relative host, not an anchor, a query or a placeholder
+function isRelativePath(href) {
+  return !/^(?:[a-z][\d+\-.a-z]*:|\/\/|[#?{])/i.test(href);
+}
+
+// a copy of a repository file (see `copyCommonFiles`) links other repository files by paths relative to its place there
+function resolveRepositoryPath(href) {
+  const { posix } = path;
+  const [link, hash] = href.split('#');
+  const target = link.startsWith('/') ? posix.normalize(link.slice(1)) : posix.join(posix.dirname(fileMetadata.repoPath), link);
+  // GitHub redirects between `tree` and `blob` anyway, the extension only saves the redirect
+  const kind = posix.extname(target) ? 'blob' : 'tree';
+  return `${ config.repositoryURL }/${ kind }/${ fileMetadata.repoBranch }/${ target }${ hash === undefined ? '' : `#${ hash }` }`;
+}
+
 const linkRenderer = {
   link({ href, text }) {
     const htmlContent = markedInline.parseInline(text);
+    if (href.startsWith('#')) href = resolveAnchor(href);
+    else if (href.startsWith('{docs-version}')) href = resolvePageAnchor(href);
+    else if (fileMetadata.repoPath && isRelativePath(href)) href = resolveRepositoryPath(href);
     const isExternal = /^https?:\/\//.test(href);
-    const isAnchor = href.startsWith('#');
-    if (isAnchor) href = htmlFileName.replace('.html', '') + href.toLowerCase();
     let html = `<a href="${ href }"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${ htmlContent }</a>`;
@@ -129,12 +163,12 @@ const linkRenderer = {
 };
 
 const marked = new Marked();
-marked.use(markedAlert(), gfmHeadingId({ prefix: 'h-' }));
+marked.use(markedAlert(), gfmHeadingId({ prefix: HEADING_ID_PREFIX }));
 marked.use({ hooks: { preprocess: metadata } });
 marked.use({ renderer: linkRenderer });
 
 const markedWithContents = new Marked();
-markedWithContents.use(markedAlert(), gfmHeadingId({ prefix: 'h-' }));
+markedWithContents.use(markedAlert(), gfmHeadingId({ prefix: HEADING_ID_PREFIX }));
 markedWithContents.use({
   hooks: {
     preprocess: metadata,
@@ -181,6 +215,8 @@ async function buildBlogMenu() {
       echo(chalk.yellow(`H1 not found in ${ mdPath }`));
       continue;
     }
+    // the preview goes to the blog index, its in-page anchors have to point to the post page
+    htmlFileName = mdPath.replace(config.docsDir, '').replace(/\.md$/i, '.html');
     let htmlContent = await marked.parse(content);
     // eslint-disable-next-line redos/no-vulnerable -- safe
     htmlContent = htmlContent.replace(/<h1[^>]*>.*?<\/h1>/i, '');
@@ -278,7 +314,8 @@ async function getVersions() {
 
 function getTitle(content) {
   const match = /^# (?<title>.+)$/m.exec(content);
-  return match?.groups?.title ? `${ match.groups.title } - ` : '';
+  // `<title>` is plain text, so the inline markdown of the heading is rendered and its tags are dropped
+  return match?.groups?.title ? `${ markedInline.parseInline(match.groups.title).replaceAll(/<[^<>]*>/g, '') } - ` : '';
 }
 
 async function build() {

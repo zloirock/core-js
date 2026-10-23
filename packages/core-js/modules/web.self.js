@@ -10,7 +10,7 @@ var defineProperty = Object.defineProperty;
 var INCORRECT_VALUE = globalThis.self !== globalThis;
 
 // `self` getter
-// https://html.spec.whatwg.org/multipage/window-object.html#dom-self
+// https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-self
 try {
   if (DESCRIPTORS) {
     // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe

@@ -24,7 +24,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
 
   var OriginalErrorPrototype = OriginalError.prototype;
 
-  // V8 9.3- bug https://bugs.chromium.org/p/v8/issues/detail?id=12006
+  // V8 9.3- bug https://issues.chromium.org/issues/42201981
   if (!IS_PURE && hasOwn(OriginalErrorPrototype, 'cause')) delete OriginalErrorPrototype.cause;
 
   if (!FORCED) return OriginalError;

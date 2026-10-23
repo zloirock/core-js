@@ -15,7 +15,7 @@ var DISPOSE = wellKnownSymbol('dispose');
 var push = uncurryThis([].push);
 
 // `GetDisposeMethod` abstract operation
-// https://tc39.es/proposal-explicit-resource-management/#sec-getdisposemethod
+// https://tc39.es/ecma262/#sec-getdisposemethod
 var getDisposeMethod = function (V, hint) {
   if (hint === 'async-dispose') {
     var method = getMethod(V, ASYNC_DISPOSE);
@@ -34,7 +34,7 @@ var getDisposeMethod = function (V, hint) {
 };
 
 // `CreateDisposableResource` abstract operation
-// https://tc39.es/proposal-explicit-resource-management/#sec-createdisposableresource
+// https://tc39.es/ecma262/#sec-createdisposableresource
 var createDisposableResource = function (V, hint, method) {
   if (arguments.length < 3 && !isNullOrUndefined(V)) {
     method = aCallable(getDisposeMethod(anObject(V), hint));
@@ -46,7 +46,7 @@ var createDisposableResource = function (V, hint, method) {
 };
 
 // `AddDisposableResource` abstract operation
-// https://tc39.es/proposal-explicit-resource-management/#sec-adddisposableresource
+// https://tc39.es/ecma262/#sec-adddisposableresource
 module.exports = function (disposable, V, hint, method) {
   var resource;
   if (arguments.length < 4) {

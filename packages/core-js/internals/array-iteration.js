@@ -64,7 +64,7 @@ module.exports = {
   // https://tc39.es/ecma262/#sec-array.prototype.find
   find: createMethod(5),
   // `Array.prototype.findIndex` method
-  // https://tc39.es/ecma262/#sec-array.prototype.findIndex
+  // https://tc39.es/ecma262/#sec-array.prototype.findindex
   findIndex: createMethod(6),
   // `Array.prototype.filterReject` method
   // https://github.com/tc39/proposal-array-filtering

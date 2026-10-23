@@ -5,7 +5,7 @@
 ## Built-ins signatures
 ```ts
 class Promise {
-  static withResolvers(): { promise: Promise, resolve: function, reject: function };
+  static withResolvers(): { promise: Promise, resolve: Function, reject: Function };
 }
 ```
 

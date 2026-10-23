@@ -2,5 +2,5 @@
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 
 // `Symbol.asyncDispose` well-known symbol
-// https://github.com/tc39/proposal-async-explicit-resource-management
+// https://tc39.es/ecma262/#sec-symbol.asyncdispose
 defineWellKnownSymbol('asyncDispose');

@@ -5,7 +5,7 @@
 ## Built-ins signatures
 ```ts
 class RegExp {
-  static escape(value: string): string
+  static escape(value: string): string;
 }
 ```
 

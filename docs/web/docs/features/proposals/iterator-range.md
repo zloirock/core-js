@@ -1,6 +1,6 @@
 # Iterator.range
 [Specification](https://tc39.es/proposal-iterator.range/)\
-[Proposal repo](https://github.com/tc39/proposal-Number.range)
+[Proposal repo](https://github.com/tc39/proposal-iterator.range)
 
 ## Module
 [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
@@ -8,8 +8,8 @@
 ## Built-ins signatures
 ```ts
 class Iterator {
-  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
-  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
+  static range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
+  static range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
 }
 ```
 

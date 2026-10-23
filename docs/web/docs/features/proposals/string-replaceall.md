@@ -1,6 +1,6 @@
-# `String#replaceAll`
+# `String.prototype.replaceAll`
 [Specification](https://tc39.es/proposal-string-replaceall/)\
-[Proposal repo](https://github.com/tc39/proposal-string-replace-all)
+[Proposal repo](https://github.com/tc39/proposal-string-replaceall)
 
 ## Built-ins signatures
 ```ts

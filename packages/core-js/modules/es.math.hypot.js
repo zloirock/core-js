@@ -7,7 +7,7 @@ var abs = Math.abs;
 var sqrt = Math.sqrt;
 
 // Chrome 77 bug
-// https://bugs.chromium.org/p/v8/issues/detail?id=9546
+// https://issues.chromium.org/issues/42212727
 var FORCED = !!$hypot && $hypot(Infinity, NaN) !== Infinity;
 
 // `Math.hypot` method

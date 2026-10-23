@@ -15,4 +15,4 @@ core-js/proposals/is-error
 ```
 
 > [!WARNING]
-> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's an enough naive implementation.
+> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's a rather naive implementation.

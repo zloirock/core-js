@@ -22,7 +22,7 @@ fixRegExpWellKnownSymbolLogic('search', function (SEARCH, nativeSearch, maybeCal
       return new RegExp(regexp)[SEARCH](S);
     },
     // `RegExp.prototype[@@search]` method
-    // https://tc39.es/ecma262/#sec-regexp.prototype-@@search
+    // https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.search%
     function (string) {
       var rx = anObject(this);
       var S = toString(string);

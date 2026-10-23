@@ -6,5 +6,5 @@ var setToStringTag = require('../internals/set-to-string-tag');
 $({ global: true }, { Reflect: {} });
 
 // Reflect[@@toStringTag] property
-// https://tc39.es/ecma262/#sec-reflect-@@tostringtag
+// https://tc39.es/ecma262/#sec-reflect-%symbol.tostringtag%
 setToStringTag(globalThis.Reflect, 'Reflect', true);

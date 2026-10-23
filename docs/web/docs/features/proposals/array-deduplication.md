@@ -11,7 +11,7 @@ class Array {
 }
 
 class %TypedArray% {
-  uniqueBy(resolver?: (item: any) => any): %TypedArray%;;
+  uniqueBy(resolver?: (item: any) => any): %TypedArray%;
 }
 ```
 
@@ -24,7 +24,7 @@ core-js/full/typed-array/unique-by
 
 ## Examples
 ```js
-[1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
+[1, 2, 3, 2, 1].uniqueBy(); // => [1, 2, 3]
 
 [
   { id: 1, uid: 10000 },

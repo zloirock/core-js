@@ -5,7 +5,7 @@
 ## Built-ins signatures
 ```ts
 class Promise {
-  static try(callbackfn: Function, ...args?: Array<mixed>): Promise;
+  static try(callbackfn: Function, ...args: Array<mixed>): Promise;
 }
 ```
 

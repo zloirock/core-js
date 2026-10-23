@@ -14,7 +14,7 @@ var max = Math.max;
 var min = Math.min;
 
 // `%TypedArray%.prototype.toSpliced` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toSpliced
+// https://github.com/tc39/proposal-change-array-by-copy/issues/88
 exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , ...items */) {
   var O = aTypedArray(this);
   var C = getTypedArrayConstructor(O);

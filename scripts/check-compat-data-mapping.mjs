@@ -53,7 +53,7 @@ const [
   samsung,
 ] = await Promise.all([
   getJSON('https://nodejs.org/dist/index.json'),
-  getJSON('https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/chromium-versions.js', 17, -1),
+  getJSON('https://raw.githubusercontent.com/Kilian/electron-to-chromium/main/chromium-versions.js', 17, -1),
   getLatestFromMDN('deno'),
   getLatestFromMDN('oculus'),
   getLatestFromMDN('opera'),

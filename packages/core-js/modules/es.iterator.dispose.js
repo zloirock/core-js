@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/tc39/proposal-explicit-resource-management
+// https://tc39.es/ecma262/#sec-iterator.prototype-%symbol.dispose%
 var call = require('../internals/function-call');
 var defineBuiltIn = require('../internals/define-built-in');
 var getMethod = require('../internals/get-method');

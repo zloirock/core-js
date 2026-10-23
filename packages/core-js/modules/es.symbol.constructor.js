@@ -63,7 +63,7 @@ var WellKnownSymbolsStore = shared('wks');
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
-// fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
+// fallback for old Android, https://issues.chromium.org/issues/42210117
 var fallbackDefineProperty = function (O, P, Attributes) {
   var ObjectPrototypeDescriptor = nativeGetOwnPropertyDescriptor(ObjectPrototype, P);
   if (ObjectPrototypeDescriptor) delete ObjectPrototype[P];
@@ -254,11 +254,11 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
 });
 
 // `Symbol.prototype[@@toPrimitive]` method
-// https://tc39.es/ecma262/#sec-symbol.prototype-@@toprimitive
+// https://tc39.es/ecma262/#sec-symbol.prototype-%symbol.toprimitive%
 defineSymbolToPrimitive();
 
 // `Symbol.prototype[@@toStringTag]` property
-// https://tc39.es/ecma262/#sec-symbol.prototype-@@tostringtag
+// https://tc39.es/ecma262/#sec-symbol.prototype-%symbol.tostringtag%
 setToStringTag($Symbol, SYMBOL);
 
 hiddenKeys[HIDDEN] = true;

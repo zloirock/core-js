@@ -937,7 +937,7 @@ GLOBAL.tests = {
     return Map.prototype.getOrInsertComputed;
   },
   'es.math.acosh': function () {
-    // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
+    // V8 bug: https://issues.chromium.org/issues/42206824
     return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
       // Tor Browser bug: Math.acosh(Infinity) -> NaN
       // eslint-disable-next-line math/no-static-infinity-calculations -- testing
@@ -2318,14 +2318,14 @@ GLOBAL.tests = {
     var params = new URLSearchParams('a=1&a=2&b=3');
     params['delete']('a', 1);
     // `undefined` case is a Chromium 117 bug
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+    // https://issues.chromium.org/issues/40278437
     params['delete']('b', undefined);
     return params + '' === 'a=2';
   }],
   'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     var params = new URLSearchParams('a=1');
     // `undefined` case is a Chromium 117 bug
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+    // https://issues.chromium.org/issues/40278437
     return params.has('a', 1) && !params.has('a', 2) && params.has('a', undefined);
   }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {

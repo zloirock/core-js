@@ -59,7 +59,7 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
         : call(internalSplit, toString(O), separator, limit);
     },
     // `RegExp.prototype[@@split]` method
-    // https://tc39.es/ecma262/#sec-regexp.prototype-@@split
+    // https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.split%
     //
     // NOTE: This cannot be properly polyfilled in engines that don't support
     // the 'y' flag.

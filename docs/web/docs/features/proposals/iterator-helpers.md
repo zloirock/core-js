@@ -9,7 +9,7 @@ class Iterator {
   drop(limit: uint): Iterator<any>;
   every(callbackfn: (value: any, counter: uint) => boolean): boolean;
   filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
-  find(callbackfn: (value: any, counter: uint) => boolean)): any;
+  find(callbackfn: (value: any, counter: uint) => boolean): any;
   flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
   forEach(callbackfn: (value: any, counter: uint) => void): void;
   map(callbackfn: (value: any, counter: uint) => any): Iterator<any>;
@@ -17,7 +17,7 @@ class Iterator {
   some(callbackfn: (value: any, counter: uint) => boolean): boolean;
   take(limit: uint): Iterator<any>;
   toArray(): Array<any>;
-  @@toStringTag: 'Iterator'
+  @@toStringTag: 'Iterator';
 }
 ```
 

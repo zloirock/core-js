@@ -25,71 +25,29 @@
 
 ---
 
-[*Example of usage*](https://tinyurl.com/28zqjbun):
-```js
-import 'core-js/actual';
+[*Example of usage*](https://core-js.io/playground#code=Promise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28it%29%29%3B+%2F%2F+%3D%3E+42%0A%0AArray.from%28new+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%5D.flatMap%28it+%3D%3E+%5Bit%2C+it%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+2%2C+2%5D%0A%0AIterator.concat%28%5B1%2C+2%5D%2C+function+%2A+%28i%29+%7B+while+%28true%29+yield+i%2B%2B%3B+%7D%283%29%29%0A++.drop%281%29.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D):
+```html
+<script src="node_modules/core-js-bundle/minified.js"></script>
+<script>
+  Promise.try(() => 42).then(it => console.log(it)); // => 42
 
-Promise.try(() => 42).then(it => console.log(it)); // => 42
+  Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
-Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
+  [1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
 
-[1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
+  Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
+    .drop(1).take(5)
+    .filter(it => it % 2)
+    .map(it => it ** 2)
+    .toArray(); // => [9, 25]
 
-Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
-  .drop(1).take(5)
-  .filter(it => it % 2)
-  .map(it => it ** 2)
-  .toArray(); // => [9, 25]
-
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+  structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
+</script>
 ```
 
-*You can load only required features*:
+*With a bundler or in Node.js, it's enough to import the package*:
 ```js
-import 'core-js/actual/promise';
-import 'core-js/actual/set';
-import 'core-js/actual/iterator';
-import 'core-js/actual/array/from';
-import 'core-js/actual/array/flat-map';
-import 'core-js/actual/structured-clone';
-
-Promise.try(() => 42).then(it => console.log(it)); // => 42
-
-Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
-
-[1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
-
-Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
-  .drop(1).take(5)
-  .filter(it => it % 2)
-  .map(it => it ** 2)
-  .toArray(); // => [9, 25]
-
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
-```
-
-*Or use it without global namespace pollution*:
-```js
-import Promise from 'core-js-pure/actual/promise';
-import Set from 'core-js-pure/actual/set';
-import Iterator from 'core-js-pure/actual/iterator';
-import from from 'core-js-pure/actual/array/from';
-import flatMap from 'core-js-pure/actual/array/flat-map';
-import structuredClone from 'core-js-pure/actual/structured-clone';
-
-Promise.try(() => 42).then(it => console.log(it)); // => 42
-
-from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
-
-flatMap([1, 2], it => [it, it]); // => [1, 1, 2, 2]
-
-Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
-  .drop(1).take(5)
-  .filter(it => it % 2)
-  .map(it => it ** 2)
-  .toArray(); // => [9, 25]
-
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+import 'core-js-bundle';
 ```
 
 **It's a bundled global version, for more info see [`core-js` documentation](https://core-js.io).**

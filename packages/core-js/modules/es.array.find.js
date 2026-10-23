@@ -18,5 +18,5 @@ $({ target: 'Array', proto: true, forced: SKIPS_HOLES }, {
   }
 });
 
-// https://tc39.es/ecma262/#sec-array.prototype-@@unscopables
+// https://tc39.es/ecma262/#sec-array.prototype-%symbol.unscopables%
 addToUnscopables(FIND);

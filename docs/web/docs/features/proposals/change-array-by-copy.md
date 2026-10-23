@@ -8,13 +8,13 @@ class Array {
   toReversed(): Array<mixed>;
   toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
   toSorted(comparefn?: (a: any, b: any) => number): Array<mixed>;
-  with(index: includes, value: any): Array<mixed>;
+  with(index: int, value: any): Array<mixed>;
 }
 
 class %TypedArray% {
   toReversed(): %TypedArray%;
   toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
-  with(index: includes, value: any): %TypedArray%;
+  with(index: int, value: any): %TypedArray%;
 }
 ```
 

@@ -33,7 +33,7 @@ var IteratorProxy = createIteratorProxy(function () {
 }, false, true);
 
 // `Iterator.prototype.windows` and obsolete `Iterator.prototype.sliding` methods
-// https://github.com/tc39/proposal-iterator-chunking
+// https://tc39.es/ecma262/#sec-iterator.prototype.windows
 module.exports = function (O, windowSize, undersized) {
   anObject(O);
   chunkSizeValidation(windowSize, O);

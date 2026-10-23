@@ -4,7 +4,7 @@
 
 </div>
 
-> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2025, ECMAScript proposals and some cross-platform WHATWG / W3C features.
+> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2026, ECMAScript proposals and some cross-platform WHATWG / W3C features.
 
 <div class="features">
     <div class="feature">
@@ -83,7 +83,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .map(it => it ** 2)
   .toArray(); // => [9, 25]
 
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
 ```
 
 You can load only required features:
@@ -108,7 +108,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .map(it => it ** 2)
   .toArray(); // => [9, 25]
 
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
 ```
 
 or use it without global namespace pollution:
@@ -133,7 +133,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .map(it => it ** 2)
   .toArray(); // => [9, 25]
 
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
 ```
 
 ## Raising funds

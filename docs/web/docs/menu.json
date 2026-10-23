@@ -246,7 +246,7 @@
                 "url": "{docs-version}/docs/features/proposals/well-formed-jsonstringify"
               },
               {
-                "title": "Well-formed unicode strings",
+                "title": "Well-formed Unicode strings",
                 "url": "{docs-version}/docs/features/proposals/well-formed-unicode-strings"
               },
               {
@@ -276,7 +276,7 @@
             "title": "Stage 2.7 proposals",
             "children": [
               {
-                "title": "Symbol.metadata for decorators metadata proposal",
+                "title": "Symbol.metadata for the decorator metadata proposal",
                 "url": "{docs-version}/docs/features/proposals/symbol-metadata"
               }
             ]
@@ -291,10 +291,6 @@
               {
                 "title": "Iterator.range",
                 "url": "{docs-version}/docs/features/proposals/iterator-range"
-              },
-              {
-                "title": "Array.isTemplateObject",
-                "url": "{docs-version}/docs/features/proposals/array-istemplateobject"
               },
               {
                 "title": "Number.prototype.clamp",

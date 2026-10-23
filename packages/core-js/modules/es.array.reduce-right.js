@@ -6,7 +6,7 @@ var CHROME_VERSION = require('../internals/environment-v8-version');
 var IS_NODE = require('../internals/environment-is-node');
 
 // Chrome 80-82 has a critical bug
-// https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
+// https://issues.chromium.org/issues/40672866
 var CHROME_BUG = !IS_NODE && CHROME_VERSION > 79 && CHROME_VERSION < 83;
 var FORCED = CHROME_BUG || !arrayMethodIsStrict('reduceRight');
 

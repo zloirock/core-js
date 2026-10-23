@@ -7,5 +7,5 @@ var defineSymbolToPrimitive = require('../internals/symbol-define-to-primitive')
 defineWellKnownSymbol('toPrimitive');
 
 // `Symbol.prototype[@@toPrimitive]` method
-// https://tc39.es/ecma262/#sec-symbol.prototype-@@toprimitive
+// https://tc39.es/ecma262/#sec-symbol.prototype-%symbol.toprimitive%
 defineSymbolToPrimitive();

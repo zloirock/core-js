@@ -39,7 +39,7 @@ var DOM_EXCEPTION_HAS_STACK = 'stack' in new NativeDOMException(1, 2);
 var descriptor = NativeDOMException && DESCRIPTORS && Object.getOwnPropertyDescriptor(globalThis, DOM_EXCEPTION);
 
 // Bun ~ 0.1.1 DOMException have incorrect descriptor and we can't redefine it
-// https://github.com/Jarred-Sumner/bun/issues/399
+// https://github.com/oven-sh/bun/issues/399
 var BUGGY_DESCRIPTOR = !!descriptor && !(descriptor.writable && descriptor.configurable);
 
 var FORCED_CONSTRUCTOR = ERROR_HAS_STACK && !BUGGY_DESCRIPTOR && !DOM_EXCEPTION_HAS_STACK;

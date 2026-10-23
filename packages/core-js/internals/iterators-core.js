@@ -12,7 +12,7 @@ var ITERATOR = wellKnownSymbol('iterator');
 var BUGGY_SAFARI_ITERATORS = false;
 
 // `%IteratorPrototype%` object
-// https://tc39.es/ecma262/#sec-%iteratorprototype%-object
+// https://tc39.es/ecma262/#sec-%iterator.prototype%-object
 var IteratorPrototype, PrototypeOfArrayIteratorPrototype, arrayIterator;
 
 /* eslint-disable es/no-array-prototype-keys -- safe */
@@ -36,7 +36,7 @@ if (NEW_ITERATOR_PROTOTYPE) IteratorPrototype = {};
 else if (IS_PURE) IteratorPrototype = create(IteratorPrototype);
 
 // `%IteratorPrototype%[@@iterator]()` method
-// https://tc39.es/ecma262/#sec-%iteratorprototype%-@@iterator
+// https://tc39.es/ecma262/#sec-iterator.prototype-%symbol.iterator%
 if (!isCallable(IteratorPrototype[ITERATOR])) {
   defineBuiltIn(IteratorPrototype, ITERATOR, function () {
     return this;

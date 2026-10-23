@@ -1,4 +1,5 @@
 # Number.fromString
+[Specification](https://tc39.es/proposal-number-fromstring/)\
 [Proposal repo](https://github.com/tc39/proposal-number-fromstring)
 
 ## Module
@@ -7,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class Number {
-  fromString(string: string, radix: number): number;
+  static fromString(string: string, radix: number): number;
 }
 ```
 

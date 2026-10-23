@@ -8,14 +8,14 @@
 ## Built-ins signatures
 ```ts
 class Iterator {
-  zip<T extends readonly Iterable<unknown>[]>(
+  static zip<T extends readonly Iterable<unknown>[]>(
     iterables: T,
     options?: {
       mode?: 'shortest' | 'longest' | 'strict';
       padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
     }
   ): IterableIterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
-  zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
+  static zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
     iterables: V,
     options?: {
       mode?: 'shortest' | 'longest' | 'strict';

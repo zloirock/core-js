@@ -21,7 +21,7 @@ var isWhitespace = function (it) {
 };
 
 // `JSON.rawJSON` method
-// https://tc39.es/proposal-json-parse-with-source/#sec-json.rawjson
+// https://tc39.es/ecma262/#sec-json.rawjson
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
   rawJSON: function rawJSON(text) {

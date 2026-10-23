@@ -18,7 +18,7 @@ type Targets = Environments & {
 type CompatOptions = {
   /** entry / module / namespace / an array of them, by default - all `core-js` modules */
   modules?: Modules,
-  /** a blacklist, entry / module / namespace / an array of them, by default - empty list */
+  /** entry / module / namespace / an array of them to exclude, by default - empty list */
   exclude?: Modules,
   /** optional browserslist or core-js-compat format query */
   targets?: Targets | BrowserslistQuery,

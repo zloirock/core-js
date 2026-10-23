@@ -5,12 +5,12 @@
 ## Built-ins signatures
 ```ts
 class DataView {
-  getFloat16(offset: any, littleEndian?: boolean = false): float16
+  getFloat16(offset: any, littleEndian?: boolean = false): float16;
   setFloat16(offset: any, value: any, littleEndian?: boolean = false): void;
 }
 
 namespace Math {
-  fround(number: any): number;
+  f16round(number: any): number;
 }
 ```
 

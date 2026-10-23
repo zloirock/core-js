@@ -34,36 +34,18 @@ const {
 console.log(targets);
 /* =>
 {
-  'es.error.cause': { ios: '14.5-14.8' },
-  'es.aggregate-error.cause': { ios: '14.5-14.8' },
-  'es.array.at': { ios: '14.5-14.8' },
-  'es.array.find-last': { firefox: '100', ios: '14.5-14.8' },
-  'es.array.find-last-index': { firefox: '100', ios: '14.5-14.8' },
-  'es.array.includes': { firefox: '100' },
-  'es.array.push': { chrome: '100', edge: '101', ios: '14.5-14.8', safari: '15.4' },
-  'es.array.unshift': { ios: '14.5-14.8', safari: '15.4' },
-  'es.object.has-own': { ios: '14.5-14.8' },
-  'es.regexp.flags': { chrome: '100', edge: '101' },
-  'es.string.at-alternative': { ios: '14.5-14.8' },
-  'es.typed-array.at': { ios: '14.5-14.8' },
-  'es.typed-array.find-last': { firefox: '100', ios: '14.5-14.8' },
-  'es.typed-array.find-last-index': { firefox: '100', ios: '14.5-14.8' },
-  'esnext.array.group': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.group-by': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.group-by-to-map': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.group-to-map': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.to-reversed': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.to-sorted': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.to-spliced': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.unique-by': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.with': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.typed-array.to-reversed': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.typed-array.to-sorted': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.typed-array.to-spliced': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.typed-array.with': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'web.dom-exception.stack': { chrome: '100', edge: '101', ios: '14.5-14.8', safari: '15.4' },
-  'web.immediate': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'web.structured-clone': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' }
+  'es.symbol.async-dispose': { ios: '18.5-18.7', safari: '26.6' },
+  'es.symbol.dispose': { ios: '18.5-18.7', safari: '26.6' },
+  'es.error.is-error': { ios: '18.5-18.7', safari: '26.6' },
+  'es.suppressed-error.constructor': { ios: '18.5-18.7', safari: '26.6' },
+  'es.array.includes': { ios: '18.5-18.7', safari: '26.6' },
+  'es.disposable-stack.constructor': { ios: '18.5-18.7', safari: '26.6' },
+  'es.iterator.chunks': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
+  'es.iterator.concat': { ios: '18.5-18.7', samsung: '30' },
+  ...
+  'web.dom-exception.stack': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
+  'web.immediate': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
+  'web.structured-clone': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' }
 }
 */
 ```
@@ -73,7 +55,7 @@ console.log(targets);
 ```js
 // browserslist query:
 'defaults, not IE 11, maintained node versions';
-// object (sure, all those fields optional):
+// object (all these fields are optional):
 ({
   android: '4.0',         // Android WebView version
   bun: '0.1.2',           // Bun version
@@ -87,7 +69,7 @@ console.log(targets);
   hermes: '0.11',         // Hermes version
   ie: '8',                // Internet Explorer version
   ios: '13.0',            // iOS Safari version
-  node: 'current',        // NodeJS version, you can use 'current' for set it to currently used
+  node: 'current',        // NodeJS version, you can use 'current' to set it to the currently used one
   opera: '12',            // Opera version
   'opera-android': '7',   // Opera for Android version
   phantom: '1.9',         // PhantomJS headless browser version
@@ -97,7 +79,7 @@ console.log(targets);
   safari: '14.0',         // Safari version
   samsung: '14.0',        // Samsung Internet version
   /**
-   * true option set target to minimum supporting ES Modules versions of all browsers, ignoring `browsers` target.
+   * `true` sets the targets to the minimal versions of all browsers that support ES modules, ignoring the `browsers` target.
    * 'intersect' option intersects the `browsers` target and `browserslist`'s targets. The maximum version will be used.
    */
   esmodules: true | 'intersect',
@@ -108,7 +90,7 @@ console.log(targets);
 ### Additional API:
 
 ```js
-// equals of of the method from the example above
+// equals of the method from the example above
 require('core-js-compat/compat')({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 // or
 require('core-js-compat').compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
@@ -128,12 +110,12 @@ require('core-js-compat/modules'); // => Array<ModuleName>
 // or
 require('core-js-compat').modules; // => Array<ModuleName>
 
-// the subset of modules which available in the passed `core-js` version:
+// the subset of modules which are available in the passed `core-js` version:
 require('core-js-compat/get-modules-list-for-target-version')('3.51'); // => Array<ModuleName>
 // or
 require('core-js-compat').getModulesListForTargetVersion('3.51'); // => Array<ModuleName>
 ```
 
-If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
+If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)

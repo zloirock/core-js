@@ -1,4 +1,5 @@
 # `Array.prototype.includes`
+[Specification](https://tc39.es/proposal-Array.prototype.includes/)\
 [Proposal repo](https://github.com/tc39/proposal-Array.prototype.includes)
 
 ## Built-ins signatures

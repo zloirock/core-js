@@ -20,7 +20,7 @@ var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
 // `Array.prototype.values` method
 // https://tc39.es/ecma262/#sec-array.prototype.values
 // `Array.prototype[@@iterator]` method
-// https://tc39.es/ecma262/#sec-array.prototype-@@iterator
+// https://tc39.es/ecma262/#sec-array.prototype-%symbol.iterator%
 // `CreateArrayIterator` internal method
 // https://tc39.es/ecma262/#sec-createarrayiterator
 module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
@@ -51,7 +51,7 @@ module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
 // https://tc39.es/ecma262/#sec-createmappedargumentsobject
 var values = Iterators.Arguments = Iterators.Array;
 
-// https://tc39.es/ecma262/#sec-array.prototype-@@unscopables
+// https://tc39.es/ecma262/#sec-array.prototype-%symbol.unscopables%
 addToUnscopables('keys');
 addToUnscopables('values');
 addToUnscopables('entries');

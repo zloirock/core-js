@@ -9,7 +9,7 @@ var RegExpPrototype = RegExp.prototype;
 var $TypeError = TypeError;
 
 // `RegExp.prototype.dotAll` getter
-// https://tc39.es/ecma262/#sec-get-regexp.prototype.dotall
+// https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll
 if (DESCRIPTORS && UNSUPPORTED_DOT_ALL) {
   defineBuiltInAccessor(RegExpPrototype, 'dotAll', {
     configurable: true,

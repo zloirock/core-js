@@ -4,7 +4,7 @@ var SetHelpers = require('../internals/set-helpers');
 var createCollectionFrom = require('../internals/collection-from');
 
 // `Set.from` method
-// https://tc39.github.io/proposal-setmap-offrom/#sec-set.from
+// https://tc39.es/proposal-setmap-offrom/#sec-set.from
 $({ target: 'Set', stat: true, forced: true }, {
   from: createCollectionFrom(SetHelpers.Set, SetHelpers.add, false)
 });

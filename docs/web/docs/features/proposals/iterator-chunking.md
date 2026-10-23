@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-iterator-chunking/)\
 [Proposal repo](https://github.com/tc39/proposal-iterator-chunking)
 
-## Modules 
+## Modules
 [`es.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.chunks.js), [`es.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.windows.js)
 
 ## Built-ins signatures

@@ -1,4 +1,5 @@
 # `setTimeout` and `setInterval`
+[Specification](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#timers)
 
 Additional arguments fix for IE9-.
 
@@ -20,7 +21,7 @@ core-js(-pure)/stable|actual|full/set-interval
 ## Examples
 ```js
 // Before:
-setTimeout(console.log.bind(null, 41), 1000);
+setTimeout(console.log.bind(null, 42), 1000);
 // After:
 setTimeout(console.log, 1000, 42);
 ```

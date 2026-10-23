@@ -1,8 +1,9 @@
 # Explicit Resource Management
+[Specification](https://tc39.es/proposal-explicit-resource-management/)\
 [Proposal repo](https://github.com/tc39/proposal-explicit-resource-management)
 
 > [!NOTE]
-> This is only built-ins for this Explicit Resource Management, `using` syntax support requires [transpiler support](https://babeljs.io/docs/babel-plugin-syntax-explicit-resource-management).
+> These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
 ## Built-ins signatures
 ```ts
@@ -13,6 +14,7 @@ class Symbol {
 
 class DisposableStack {
   constructor(): DisposableStack;
+  readonly attribute disposed: boolean;
   dispose(): undefined;
   use(value: Disposable): value;
   adopt(value: object, onDispose: Function): value;
@@ -24,6 +26,7 @@ class DisposableStack {
 
 class AsyncDisposableStack {
   constructor(): AsyncDisposableStack;
+  readonly attribute disposed: boolean;
   disposeAsync(): Promise<undefined>;
   use(value: AsyncDisposable | Disposable): value;
   adopt(value: object, onDispose: Function): value;
@@ -38,7 +41,6 @@ class SuppressedError extends Error {
   error: any;
   suppressed: any;
   message: string;
-  cause: any;
 }
 
 class Iterator {

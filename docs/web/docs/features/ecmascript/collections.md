@@ -1,5 +1,5 @@
 # ECMAScript: Collections
-`core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in the old environment uses fast polyfill (O(1) lookup).
+`core-js` uses native collections in most cases and only fixes methods / constructors where required; in old environments, it uses a fast polyfill (O(1) lookup).
 
 ## Map
 ### Modules 
@@ -14,7 +14,7 @@ class Map {
   forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
   get(key: any): any;
   getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
+  getOrInsertComputed(key: any, callbackfn: (key: any) => any): any;
   has(key: any): boolean;
   set(key: any, val: any): this;
   values(): Iterator<value>;
@@ -82,7 +82,7 @@ map.getOrInsertComputed('a', key => key); // => 1
 
 map.getOrInsertComputed('c', key => key); // => 'c'
 
-console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
+console.log(map); // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
 ```
 
 ## Set
@@ -96,7 +96,7 @@ class Set {
   add(key: any): this;
   clear(): void;
   delete(key: any): boolean;
-  forEach((value: any, key: any, target: any) => void, thisArg: any): void;
+  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
   has(key: any): boolean;
   values(): Iterator<value>;
   keys(): Iterator<value>;
@@ -149,10 +149,10 @@ for (let [key, value] of set.entries()) {
   console.log(value);                               // => 1, 2, 3
 }
 
-new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
-new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set {1, 2}
-new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 5}
+new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set { 1, 2, 3, 4, 5 }
+new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set { 3 }
+new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set { 1, 2 }
+new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set { 1, 2, 4, 5 }
 new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
 new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
@@ -170,7 +170,7 @@ class WeakMap {
   delete(key: object | symbol): boolean;
   get(key: object | symbol): any;
   getOrInsert(key: object | symbol, value: any): any;
-  getOrInsertComputed(key: object | symbol, (key: any) => value: any): any;
+  getOrInsertComputed(key: object | symbol, callbackfn: (key: any) => any): any;
   has(key: object | symbol): boolean;
   set(key: object | symbol, val: any): this;
 }
@@ -211,7 +211,6 @@ let Person = (() => {
 
 let person = new Person('Vasya');
 console.log(person.getName());            // => 'Vasya'
-for (let key in person) console.log(key); // => only 'getName'
 ```
 
 ## WeakSet

@@ -27,9 +27,9 @@ var createMethod = function (TYPE) {
 
 module.exports = {
   // `Array.prototype.findLast` method
-  // https://github.com/tc39/proposal-array-find-from-last
+  // https://tc39.es/ecma262/#sec-array.prototype.findlast
   findLast: createMethod(0),
   // `Array.prototype.findLastIndex` method
-  // https://github.com/tc39/proposal-array-find-from-last
+  // https://tc39.es/ecma262/#sec-array.prototype.findlastindex
   findLastIndex: createMethod(1)
 };

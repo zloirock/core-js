@@ -45,7 +45,7 @@ for (const scope of [data, external]) {
     map('ChromeToChromeAndroid');
     map('ChromeToAndroid');
     if (!has(module, 'android') && module['chrome-android']) {
-      // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
+      // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/README.md#version-numbers-for-features-in-android-webview
       module.android = String(Math.max(module['chrome-android'], 37));
     }
     if (!has(module, 'opera-android') && module.opera <= 42) {
