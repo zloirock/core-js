@@ -1644,6 +1644,10 @@ function checkPhaseSnapshotFlow() {
     const once = oncePlugin.transform(seKeySrc, '/sm-sekey.mjs')?.code;
     const twice = createPlugin(pureOpts).transform(once, '/sm-sekey.mjs')?.code ?? once;
     check(`re-transform of the SE-key sentinel output is a fixpoint (${ engine })`, twice, once);
+    const sharedSentinelSource = 'let from, of, rest; const held = ({ from, of, ...rest } = Array); use(held, from, of, rest);';
+    const sharedSentinelOnce = createPlugin(pureOpts).transform(sharedSentinelSource, '/shared-sentinel.mjs')?.code;
+    const sharedSentinelTwice = createPlugin(pureOpts).transform(sharedSentinelOnce, '/shared-sentinel.mjs')?.code ?? sharedSentinelOnce;
+    check(`several extracted keys share an unread sentinel across passes (${ engine })`, sharedSentinelTwice, sharedSentinelOnce);
     // ... and the OVERWRITE-REBIND / sentinel-census forms: a kept-raw destructure with its
     // appended rebind, the assignment-form sentinel PAIR (`var _unusedN;` + pattern value),
     // the nested-instance plain sentinel, and the defaulted guard spellings all re-transform
