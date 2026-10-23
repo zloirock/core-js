@@ -35,6 +35,8 @@ module.exports = config => config.set({
   files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
   frameworks: ['qunit'],
   basePath: '.',
+  // PhantomJS can hang on the IPv6 address of localhost, while the server listens on IPv4
+  hostname: '127.0.0.1',
   customLaunchers,
   browsers,
   logLevel: config.LOG_ERROR,
