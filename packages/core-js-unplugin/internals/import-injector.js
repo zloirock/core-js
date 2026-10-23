@@ -6,6 +6,7 @@ import ImportInjectorState, {
   createPureImportLiveness,
   generatedNameFamilyOf,
   localizeVarlessMemos,
+  refDeclarationOrder,
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
 import {
@@ -406,10 +407,7 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     // two register through channels of their own - the injector opens the `var` for the refs
     // and the drain's sentinels append to it (`var _ref, _unused;`)
     const names = host === program
-      ? [
-        ...entries.filter(entry => generatedNameFamilyOf(entry.name) === '_ref'),
-        ...entries.filter(entry => generatedNameFamilyOf(entry.name) !== '_ref'),
-      ]
+      ? entries.toSorted((a, b) => refDeclarationOrder(a.name, b.name))
       : entries.toSorted((a, b) => a.registrationIndex - b.registrationIndex);
     const declaration = variableDeclaration('var', names.map(({ name, owned }) => {
       const declarator = variableDeclarator(identifier(name));
