@@ -1,6 +1,7 @@
 import ImportInjectorState, {
   ORPHAN_REF_PATTERN,
   buildCanonicalRenameMap,
+  canDropUnusedMemo,
   collectInjectorCensus,
   createPureImportLiveness,
   generatedNameFamilyOf,
@@ -15,7 +16,6 @@ import {
   prologueEndIndex,
   isDirectiveStatement,
   markGeneratedMemoDeclarator,
-  reEvaluationObservable,
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -210,8 +210,12 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
   const deadWrites = new Set();
   // A consumed outer assignment can leave its inner receiver memo as a bare
   // write. The census proves there is no read; retain any observable RHS.
-  for (const { statement, name, value } of memoStatementWrites) {
-    if (refCounts.get(name) !== (refDeclIdCounts.get(name) ?? 0) + 1 || reEvaluationObservable(value)) continue;
+  for (const { statement, target, name, value } of memoStatementWrites) {
+    if (!canDropUnusedMemo(target, value, {
+      owned: refCounts.has(name),
+      hasUses: refCounts.get(name) !== (refDeclIdCounts.get(name) ?? 0) + 1,
+      removable: true,
+    })) continue;
     deadWrites.add(statement);
     refCounts.set(name, refCounts.get(name) - 1);
   }
@@ -233,8 +237,11 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
   });
   // Remove eligible declarators; the caller owns the enclosing statement or for-head slot.
   function pruneDeclaration(declaration) {
-    const kept = declaration.declarations.filter(item => !(item.id?.type === 'Identifier' && dead.has(item.id.name)
-      && (item.init ? !reEvaluationObservable(item.init) : initlessRefs?.has(item.id.name))));
+    const kept = declaration.declarations.filter(item => !canDropUnusedMemo(item.id, item.init, {
+      owned: refCounts.has(item.id?.name) && (item.init || initlessRefs?.has(item.id?.name)),
+      hasUses: !dead.has(item.id?.name),
+      removable: true,
+    }));
     if (kept.length === declaration.declarations.length) return false;
     for (const gone of declaration.declarations) if (!kept.includes(gone)) refCounts.set(gone.id.name, 0);
     declaration.declarations = kept;
