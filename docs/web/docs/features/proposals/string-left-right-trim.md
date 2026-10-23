@@ -25,7 +25,7 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-start
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/string-left-right-trim`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-left-right-trim.d.ts)
+[`@core-js/types/proposals/string-left-right-trim`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/string-left-right-trim.d.ts)
 
 ## Examples
 ```js

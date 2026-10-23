@@ -1,21 +1,21 @@
 // https://github.com/tc39/proposal-arraybuffer-base64
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
-// https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.typedarrays.d.ts
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2026.typedarrays.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
 type CoreJSAlphabet = 'base64' | 'base64url';
 
 type CoreJSLastChunkHandling = 'loose' | 'strict' | 'stop-before-partial';
 
 interface CoreJSFromBase64Options {
-  alphabet?: CoreJSAlphabet;
-  lastChunkHandling?: CoreJSLastChunkHandling;
+  alphabet?: CoreJSAlphabet | undefined;
+  lastChunkHandling?: CoreJSLastChunkHandling | undefined;
 }
 
 interface CoreJSToBase64Options {
-  alphabet?: CoreJSAlphabet;
-  omitPadding?: boolean;
+  alphabet?: CoreJSAlphabet | undefined;
+  omitPadding?: boolean | undefined;
 }
 
 interface CoreJSProcessMetadata {

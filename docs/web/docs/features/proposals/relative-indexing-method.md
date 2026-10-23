@@ -41,4 +41,4 @@ new Int32Array([1, 2, 3]).at(-1); // => 3
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/relative-indexing-method`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/relative-indexing-method.d.ts)
+[`@core-js/types/proposals/relative-indexing-method`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/relative-indexing-method.d.ts)

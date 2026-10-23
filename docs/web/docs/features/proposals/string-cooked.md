@@ -19,7 +19,7 @@ core-js(-pure)/full/string/cooked
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/string-cooked`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-cooked.d.ts)
+[`@core-js/types/proposals/string-cooked`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/string-cooked.d.ts)
 
 ## Examples
 ```js

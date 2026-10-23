@@ -1,8 +1,8 @@
 // https://github.com/tc39/proposal-upsert
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
-// https://github.com/microsoft/TypeScript/blob/cdc205d5e6338d96b0fb54657af33d473d480a9c/src/lib/esnext.collection.d.ts#L15
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2026.collection.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
 interface Map<K, V> { // @type-options: no-redefine
   /**

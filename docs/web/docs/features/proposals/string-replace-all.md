@@ -24,4 +24,4 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/replace-all
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/string-replace-all`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-replace-all.d.ts)
+[`@core-js/types/proposals/string-replace-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/string-replace-all.d.ts)

@@ -11,11 +11,14 @@ join(it, '+', '_');
 
 assertString(it.join());
 assertString(it.join(' '));
-assertString(it.join(5));
-assertString(it.join(Symbol('x')));
 assertString(it.join(undefined));
-assertString(it.join(null));
 
+// @ts-expect-error
+it.join(5);
+// @ts-expect-error
+it.join(Symbol('x'));
+// @ts-expect-error
+it.join(null);
 // @ts-expect-error
 it.join('+', '_');
 // @ts-expect-error

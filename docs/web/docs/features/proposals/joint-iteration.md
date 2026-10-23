@@ -33,7 +33,7 @@ core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/joint-iteration`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/joint-iteration.d.ts)
+[`@core-js/types/proposals/joint-iteration`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/joint-iteration.d.ts)
 
 ## Examples
 ```js

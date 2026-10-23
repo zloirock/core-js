@@ -1,40 +1,39 @@
 // https://github.com/tc39/proposal-json-parse-with-source
 
-interface CoreJSReviverContext { // @type-options: no-extends, no-prefix
-  readonly __brand: unique symbol;
+// For ensuring compatibility with TypeScript standard types, this code is aligned with:
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2026.json.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
-  readonly source: string | undefined;
-}
-
-interface CoreJSRawJSON { // @type-options: no-extends, no-prefix
+/**
+ * A frozen object containing JSON text for a primitive value, created by `JSON.rawJSON()`.
+ */
+interface RawJSON {
   readonly __brand: unique symbol;
 
   readonly rawJSON: string;
 }
 
-interface JSON {  // @type-options: no-constructor
+interface JSON {
   /**
-   * Determines whether a value is a RawJSON object.
-   * @param value - The value to check.
-   * @returns True if the value is a RawJSON object; otherwise, false.
+   * Indicates whether the provided value is an object returned by `JSON.rawJSON()`.
+   * @param value - The value to test.
    */
-  isRawJSON(value: any): value is CoreJSRawJSON;
+  isRawJSON(value: unknown): value is RawJSON;
 
   /**
-   * Parses a JSON string, allowing the reviver function to access
-   * the exact source text and position of each parsed value.
-   * @param text - The JSON string to parse.
-   * @param reviver - A function that transforms the results. It is called for each member of the object.
-   * The function receives three arguments: the key, the value, and a context object
-   * containing the source text and position.
-   * @returns Parsed JavaScript value.
+   * Converts a JavaScript Object Notation (JSON) string into an object.
+   * @param text - A valid JSON string.
+   * @param reviver - A function that transforms the results. This function is called for each member of the object.
+   * If a member contains nested objects, the nested objects are transformed before the parent object is.
+   * The context object has a `source` property when the property is unmodified and its value is primitive.
+   * @throws SyntaxError If `text` is not valid JSON.
    */
-  parse(text: string, reviver?: (key: string, value: any, context: CoreJSReviverContext) => any): any;
+  parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
 
   /**
-   * Creates a RawJSON object from a JSON string.
-   * @param value - The JSON string.
-   * @returns A RawJSON object encapsulating the provided JSON string.
+   * Creates a frozen object containing JSON text for a primitive value.
+   * @param text - Valid JSON text representing a string, number, boolean, or null value.
+   * @throws SyntaxError If `text` is not valid JSON text for a primitive value.
    */
-  rawJSON(value: string): CoreJSRawJSON;
+  rawJSON(text: string): RawJSON;
 }

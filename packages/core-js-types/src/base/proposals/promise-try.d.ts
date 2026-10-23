@@ -1,8 +1,8 @@
 // https://github.com/tc39/proposal-promise-try
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
-// https://github.com/microsoft/TypeScript/blob/af3a3779de6bc27619c85077e1b4d1de8feddd35/src/lib/esnext.promise.d.ts
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2025.promise.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
 interface PromiseConstructor {
   /**

@@ -1,6 +1,7 @@
 /// <reference types="./explicit-resource-management" />
 /// <reference types="../core-js-types/async-iterator" />
 /// <reference types="../core-js-types/iterator-object" />
+/// <reference types="../core-js-types/iterator-zip" />
 /// <reference types="../core-js-types/promise" />
 
 // Motivation: Has dependencies on internal types
@@ -11,7 +12,7 @@
 
 // https://github.com/tc39/proposal-iterator-includes
 
-// https://github.com/bakkot/proposal-iterator-join
+// https://github.com/tc39/proposal-iterator-join
 
 // https://github.com/tc39/proposal-joint-iteration
 
@@ -20,22 +21,12 @@
 // https://github.com/tc39/proposal-iterator-sequencing
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
-// https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.iterator.d.ts
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2025.iterator.d.ts
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2026.iterator.d.ts
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.esnext.iterator.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
 declare namespace CoreJS {
-  interface ZipOptions {
-    mode?: 'shortest' | 'longest' | 'strict';
-
-    padding?: Iterable<unknown, unknown, undefined>;
-  }
-
-  interface ZipKeyedOptions {
-    mode?: 'shortest' | 'longest' | 'strict';
-
-    padding?: Record<PropertyKey, unknown>;
-  }
-
   interface IteratorRangeOptions<T> {
     step?: T;
 
@@ -52,10 +43,8 @@ declare namespace CoreJS {
 
   export interface CoreJSIterator<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
     /**
-     * Yields arrays containing up to the specified number of elements
-     * chunked from the source iterator.
-     * @param chunkSize - The maximum number of elements per chunk. Must be a positive integer.
-     * @returns An iterator yielding arrays of at most `chunkSize` elements from the source iterator.
+     * Creates an iterator whose values are arrays containing successive values from this iterator.
+     * @param chunkSize - The maximum number of values in each array.
      */
     chunks(chunkSize: number): CoreJSIteratorObject<T[], undefined, unknown>;
 
@@ -158,17 +147,18 @@ declare namespace CoreJS {
     find(predicate: (value: T, index: number) => unknown): T | undefined;
 
     /**
-     * Determines whether the iterator contains a specific element, using SameValueZero comparison.
-     * @param searchElement - The element to search for.
-     * @param skippedElements - Number of elements to skip before beginning the search. Defaults to 0.
+     * Determines whether this iterator yields the specified value using SameValueZero comparison.
+     * @param searchElement - The value to locate.
+     * @param skippedElements - The number of values to skip before searching.
      */
     includes(searchElement: T, skippedElements?: number): boolean;
 
     /**
-     * Creates a string by concatenating all elements provided by the iterator, separated by the specified separator.
-     * @param separator - A string to separate each element. If omitted, the elements are separated by commas.
+     * Creates a string by concatenating the values of this iterator, separated by the specified separator.
+     * `null` and `undefined` values contribute an empty string.
+     * @param separator - A string used to separate values. If omitted, a comma is used.
      */
-    join(separator?: unknown): string;
+    join(separator?: string): string;
   }
 
   export interface CoreJSIteratorConstructor {
@@ -180,27 +170,44 @@ declare namespace CoreJS {
     from<T>(value: Iterator<T, unknown, undefined> | Iterable<T, unknown, undefined>): CoreJSIteratorObject<T, undefined, unknown>;
 
     /**
-     * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
-     * to position in the passed iterable.
-     * @param iterables - An Iterable of iterables.
-     * @param options - Optional object:
-     *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-     *  - padding: an iterable specifying padding values for each position when mode is 'longest'.
-     * @returns An iterator yielding arrays of values, collected one from each iterable.
+     * Creates an iterator whose values are arrays containing values yielded at the same position by each input iterator or iterable.
+     * @param iterables - An iterable of iterators or iterables to zip.
+     * @param options - Controls how differing input lengths are handled.
      */
-    zip<T extends readonly Iterable<unknown>[]>(iterables: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never }, undefined, unknown>;
-    zip<T>(iterables: Iterable<Iterable<T, unknown, undefined>>, options?: ZipOptions): CoreJSIteratorObject<T[], undefined, unknown>;
+    zip(iterables: readonly [], options?: CoreJSIteratorZipOptions<Iterable<unknown> & object>): CoreJSIteratorObject<never, undefined, unknown>;
 
     /**
-     * Takes an object whose values are iterables and produces an iterable of objects where keys
-     * correspond to keys in the passed object.
-     * @param record - An object of iterables.
-     * @param options - Optional object:
-     *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-     *  - padding: an object specifying padding values for each key when mode is 'longest'.
-     * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
+     * Creates an iterator whose values are arrays containing values yielded at the same position by each input iterator or iterable.
+     * @param iterables - An iterable of iterators or iterables to zip.
+     * @param options - Controls how differing input lengths are handled.
      */
-    zipKeyed<T extends { [K in PropertyKey]: Iterable<unknown, unknown, undefined> }>(record: T, options?: ZipKeyedOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
+    zip<T extends readonly CoreJSIteratorInput<unknown>[] | []>(iterables: T, options?: CoreJSIteratorZipShortestOptions | CoreJSIteratorZipStrictOptions): CoreJSIteratorObject<CoreJSIteratorZipResult<T>, undefined, unknown>;
+    zip<T extends readonly CoreJSIteratorInput<unknown>[] | [], TPadding extends readonly unknown[] | []>(iterables: T, options: CoreJSIteratorZipLongestOptions<TPadding> & { padding: TPadding; }): CoreJSIteratorObject<CoreJSIteratorZipResult<T, undefined, TPadding>, undefined, unknown>;
+    zip<T extends readonly CoreJSIteratorInput<unknown>[] | [], TPadding extends readonly unknown[] | [] = CoreJSIteratorZipDefaultPadding<T>>(iterables: T, options?: CoreJSIteratorZipOptions<TPadding>): CoreJSIteratorObject<CoreJSIteratorZipResult<T, undefined, Partial<TPadding>>, undefined, unknown>;
+
+    /**
+     * Creates an iterator whose values are arrays containing values yielded at the same position by each input iterator or iterable.
+     * @param iterables - An iterable of iterators or iterables to zip.
+     * @param options - Controls how differing input lengths are handled.
+     */
+    zip<T extends CoreJSIteratorInput<unknown>>(iterables: Iterable<T> & object, options?: CoreJSIteratorZipShortestOptions | CoreJSIteratorZipStrictOptions): CoreJSIteratorObject<CoreJSIteratorYield<T>[], undefined, unknown>;
+    zip<T extends CoreJSIteratorInput<unknown>, TPadding = CoreJSIteratorYield<T>>(iterables: Iterable<T> & object, options?: CoreJSIteratorZipOptions<Iterable<TPadding> & object>): CoreJSIteratorObject<(CoreJSIteratorYield<T> | TPadding | undefined)[], undefined, unknown>;
+
+    /**
+     * Creates an iterator whose values are objects containing values yielded at the same position by each iterator or iterable in the input object.
+     * @param iterables - An object whose enumerable own properties contain iterators or iterables to zip. Undefined values are ignored.
+     * @param options - Controls how differing input lengths are handled.
+     */
+    zipKeyed<T extends object>(iterables: T & CoreJSIteratorZipKeyedInput<T>, options?: CoreJSIteratorZipShortestOptions | CoreJSIteratorZipStrictOptions): CoreJSIteratorObject<CoreJSIteratorZipKeyedResult<T>, undefined, unknown>;
+    zipKeyed<T extends object, TPadding>(iterables: T & CoreJSIteratorZipKeyedInput<T>, options: CoreJSIteratorZipLongestOptions<TPadding> & { padding: TPadding; }): CoreJSIteratorObject<CoreJSIteratorZipKeyedResult<T, undefined, TPadding>, undefined, unknown>;
+    zipKeyed<T extends object, TPadding = CoreJSIteratorZipDefaultPadding<T>>(iterables: T & CoreJSIteratorZipKeyedInput<T>, options?: CoreJSIteratorZipOptions<TPadding>): CoreJSIteratorObject<CoreJSIteratorZipKeyedResult<T, undefined, Partial<TPadding>>, undefined, unknown>;
+
+    /**
+     * Accepts objects whose types include inherited or non-enumerable properties.
+     * Property ownership and enumerability are not represented in object types, so the result values are unknown.
+     * Iterator records use the preceding overloads to preserve their inferred result types.
+     */
+    zipKeyed<T extends object>(iterables: T & ([T] extends [CoreJSIteratorZipKeyedInput<T>] ? never : unknown), options?: CoreJSIteratorZipOptions<object>): CoreJSIteratorObject<Record<PropertyKey, unknown>, undefined, unknown>;
 
     /**
      * Returns an iterator that generates a sequence of numbers within a range.
@@ -225,11 +232,10 @@ declare namespace CoreJS {
     range(start: bigint, end: bigint | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: bigint | IteratorRangeOptions<bigint>): CoreJSIteratorObject<bigint, undefined, unknown>;
 
     /**
-     * Creates an iterator that sequentially yields values from the provided iterables.
-     * @param iterators - The iterables to concatenate.
-     * @returns An iterator yielding values from each input iterable in sequence.
+     * Creates an iterator that yields the values of each iterable in sequence.
+     * @param iterables - Iterable objects to concatenate.
      */
-    concat<T extends readonly Iterable<unknown>[]>(...iterators: T): CoreJSIteratorObject<T[number] extends Iterable<infer V> ? V : never, undefined, unknown>;
+    concat<T extends readonly unknown[] | []>(...iterables: { -readonly [K in keyof T]: Iterable<T[K]> & object }): CoreJSIteratorObject<T[number], undefined, unknown>;
   }
 
   var CoreJSIterator: CoreJSIteratorConstructor;

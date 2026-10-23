@@ -2,23 +2,25 @@
 
 // https://github.com/tc39/proposal-await-dictionary
 
+// For ensuring compatibility with TypeScript standard types, this code is aligned with:
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.esnext.promise.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
+
 interface PromiseConstructor {
   /**
-   * Takes an object of promises and returns a single Promise that resolves to an object
-   * with the same keys and fulfilled values, or rejects as soon as any of the input promises rejects.
-   * @param promises - An object of promises
-   * @returns A new `Promise` that resolves to an object of fulfilled values or rejects if any promise rejects.
+   * Creates a Promise that is resolved with an object of results when all of the provided Promises resolve,
+   * or rejected when any Promise is rejected.
+   * @param promises - An object of Promises.
+   * @returns A new Promise.
    */
-  allKeyed<D extends Record<PropertyKey, unknown>>(promises: D): Promise<{ [k in keyof D]: Awaited<D[k]> }>;
+  allKeyed<T extends object>(promises: T): Promise<{ -readonly [P in keyof T]: Awaited<T[P]>; }>;
 
   /**
-   * Takes an object whose values are promises and returns a single `Promise` that resolves
-   * to an object with the same keys, after all of the input promises have settled.
-   * @param promises - An object of promises
-   * @returns A new `Promise` that resolves to an object with the same keys as the input object,
-   * where each key maps to the settlement result (`{ status, value }` or `{ status, reason }`) of the corresponding promise.
+   * Creates a Promise that is resolved with an object of results when all of the provided Promises resolve or reject.
+   * @param promises - An object of Promises.
+   * @returns A new Promise.
    */
-  allSettledKeyed<D extends Record<PropertyKey, unknown>>(promises: D): Promise<{ [k in keyof D]: CoreJS.CoreJSPromiseSettledResult<Awaited<D[k]>> }>;
+  allSettledKeyed<T extends object>(promises: T): Promise<{ -readonly [P in keyof T]: CoreJS.CoreJSPromiseSettledResult<Awaited<T[P]>>; }>;
 }
 
 declare var Promise: PromiseConstructor;

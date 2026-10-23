@@ -31,4 +31,4 @@ RegExp('.', 's').dotAll;     // => true
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/regexp-dotall-flag`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/regexp-dotall-flag.d.ts)
+[`@core-js/types/proposals/regexp-dotall-flag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/regexp-dotall-flag.d.ts)

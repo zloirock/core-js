@@ -2,15 +2,15 @@ import $rawJSON from '@core-js/pure/full/json/raw-json';
 import $isRawJSON from '@core-js/pure/full/json/is-raw-json';
 import $parse from '@core-js/pure/full/json/parse';
 
-interface CoreJSRawJSON {
-  rawJSON: string;
-}
-
 interface CoreJSReviverContext {
-  source: string | undefined;
+  source?: string;
 }
 
-const r: CoreJSRawJSON = $rawJSON('{"a":123}');
+type RawJSON = ReturnType<typeof $rawJSON>;
+
+const r: RawJSON = $rawJSON('{"a":123}');
+// @ts-expect-error
+const fake: RawJSON = { rawJSON: '123' };
 
 const isr1: boolean = $isRawJSON(r);
 const isr2: boolean = $isRawJSON({});
@@ -30,7 +30,13 @@ if ($isRawJSON(smth)) {
 $rawJSON(123);
 // @ts-expect-error
 $rawJSON();
+// @ts-expect-error
+$isRawJSON();
 
 $parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: CoreJSReviverContext) => {});
+$parse('{"tooBigForNumber":9007199254740993}', (key, value, context) => {
+  const source: string | undefined = context.source;
+  return value;
+});
 // @ts-expect-error
 $parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: []) => {});

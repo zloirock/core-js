@@ -27,4 +27,4 @@ await Array.fromAsync(
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/array-from-async`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-from-async.d.ts)
+[`@core-js/types/proposals/array-from-async`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-from-async.d.ts)

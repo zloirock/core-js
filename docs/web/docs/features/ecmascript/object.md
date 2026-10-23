@@ -70,6 +70,9 @@ core-js(-pure)/es|stable|actual|full/object/lookup-getter
 core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/annex-b/object-proto`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/annex-b/object-proto.d.ts) for `__proto__`, [`@core-js/types/annex-b/object-prototype-accessor-methods`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/annex-b/object-prototype-accessor-methods.d.ts) for `__defineGetter__`, `__defineSetter__`, `__lookupGetter__` and `__lookupSetter__`
+
 ## Examples
 ```js
 let foo = { q: 1, w: 2 };
