@@ -1428,11 +1428,12 @@ export function createBindingAnalysis({
   // cluster-private helpers (used only by other cluster functions, not by the factory
   // or other clusters): `getExportedNames` / `isMemberRefReceiver` /
   // `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
-  // `defaultAliasRefClassifier` / `isTypePositionParent`
+  // `isTypePositionParent`
   return {
     buildProgramIndex,
     programCensus,
     collectBindingReferences,
+    defaultAliasRefClassifier,
     isBindingExportedByName,
     resolveStaticCalleePair,
     protoSetterCalleeArms,
