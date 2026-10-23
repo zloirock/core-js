@@ -1,4 +1,5 @@
 const { outputFile, pathExists, readdir, readFile } = fs;
+const { cyan, red } = chalk;
 
 const NAMESPACE = 'CoreJS';
 
@@ -150,20 +151,27 @@ function wrapInNamespace(content) {
   return `${ headerLines.length ? `${ headerLines.join('\n') }\n` : '' }declare namespace ${ NAMESPACE } {\n${ namespaceBody }\n}\n`;
 }
 
-export async function preparePureTypes(typesPath, initialPath) {
+export async function preparePureTypes(typesPath, initialPath, basePurePath) {
   const entries = await readdir(typesPath, { withFileTypes: true });
   for (const entry of entries) {
     if (['pure', 'core-js-types.d.ts'].includes(entry.name)) continue;
 
     if (entry.isDirectory()) {
-      await preparePureTypes(path.join(typesPath, entry.name), initialPath);
+      await preparePureTypes(path.join(typesPath, entry.name), initialPath, basePurePath);
     } else {
       const typePath = path.join(typesPath, entry.name);
       const resultFilePath = typePath.replace(initialPath, `${ initialPath }/pure/`);
-
-      if (await pathExists(resultFilePath)) continue;
-
       const content = await readFile(typePath, 'utf8');
+
+      if (await pathExists(resultFilePath)) {
+        // a hand-written base pure file turns the derivation of its path off in every breakpoint, so nothing reads
+        // these markers - while one an overlay adds for its own breakpoint leaves them live for the others
+        const typePathFromRoot = path.relative(initialPath, typePath);
+        if (content.includes('@type-options') && await pathExists(path.join(basePurePath, typePathFromRoot))) {
+          throw new Error(red(`Dead @type-options, the pure side is written by hand: ${ cyan(typePathFromRoot) }`));
+        }
+        continue;
+      }
 
       const adjustedContent = content.replace(
         /(?<open>\/\/\/\s*<reference\s+types=")(?<path>[^"]+)(?<close>"\s*\/>)/g,

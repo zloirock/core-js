@@ -77,7 +77,7 @@ or import them directly in your files:
 import '@core-js/types/proposals/joint-iteration';
 import '@core-js/types/web/structured-clone';
 ```
-You can find types for specific features on the corresponding pages in the [documentation](https://core-js.io/v4/docs/).
+Such entry points exist for proposals (`@core-js/types/proposals/*`), web standards (`@core-js/types/web/*`) and Annex B features (`@core-js/types/annex-b/*`). You can find types for specific features on the corresponding pages in the [documentation](https://core-js.io/v4/docs/).
 
 # Types for the pure version
 ## Base usage

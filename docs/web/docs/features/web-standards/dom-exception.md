@@ -48,6 +48,9 @@ core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/dom-exception`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/dom-exception.d.ts)
+
 ## Examples
 ```js
 const exception = new DOMException('error', 'DataCloneError');

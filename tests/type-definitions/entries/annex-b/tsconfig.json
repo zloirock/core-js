@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "./test.ts"
+  ],
+  "compilerOptions": {
+    "lib": ["es6"]
+  }
+}

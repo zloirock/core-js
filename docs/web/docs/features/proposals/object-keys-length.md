@@ -18,6 +18,9 @@ core-js/proposals/object-keys-length
 core-js(-pure)/full/object/keys-length
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/object-keys-length`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/object-keys-length.d.ts)
+
 ## Examples
 ```js
 Object.keysLength({ a: 1, b: 2 }); // => 2

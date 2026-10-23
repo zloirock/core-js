@@ -8,6 +8,7 @@ import { preparePureTypes } from './build-types-pure.mjs';
 const { copy, outputFile, pathExists, readdir, readFile, readJson, remove, writeJson } = fs;
 const { green } = chalk;
 
+const ADDITIONAL_ENTRIES_DIRS = ['web', 'annex-b'];
 const BUILD_DIR = 'packages/core-js-types/';
 const PACKAGE_JSON_DIR = 'packages/core-js-types/';
 const PACKAGE_NAME = 'core-js/';
@@ -221,11 +222,8 @@ async function buildTypesForTSVersion(tsVersion) {
     await copy(srcPath, distTypesPath);
   }
 
-  const web = await buildAdditionalEntries('web', tsVersion);
-  const annexB = await buildAdditionalEntries('annex-b', tsVersion);
-
   await fillCustomImportsForPure(path.join(bundlePath, 'types', 'pure'), distTypesPath);
-  await preparePureTypes(bundlePath, distTypesPath);
+  await preparePureTypes(bundlePath, distTypesPath, path.join(SRC_DIR, SRC_BASE, 'pure'));
 
   for (const [entry, definition] of Object.entries(features)) {
     await buildType(`es/${ entry }`, { ...definition, entryFromNamespace: 'es', tsVersion });
@@ -237,11 +235,10 @@ async function buildTypesForTSVersion(tsVersion) {
   for (const [name, definition] of Object.entries(proposals)) {
     await buildType(`proposals/${ name }`, { ...definition, template: $proposal, tsVersion, proposal: true });
   }
-  for (const [name, definition] of Object.entries(web)) {
-    await buildType(`web/${ name }`, definition);
-  }
-  for (const [name, definition] of Object.entries(annexB)) {
-    await buildType(`annex-b/${ name }`, definition);
+  for (const dir of ADDITIONAL_ENTRIES_DIRS) {
+    for (const [name, definition] of Object.entries(await buildAdditionalEntries(dir, tsVersion))) {
+      await buildType(`${ dir }/${ name }`, definition);
+    }
   }
 
   await buildType('es/index', { template: $path, modules: ESModules, subset: 'es', tsVersion });
@@ -322,6 +319,7 @@ const namespaces = {
   full: { isDir: false },
   pure: { isDir: false },
   proposals: { isDir: true },
+  ...Object.fromEntries(ADDITIONAL_ENTRIES_DIRS.map(dir => [dir, { isDir: true }])),
   index: { isDir: false },
   configurator: { isDir: false },
 };
