@@ -20085,6 +20085,41 @@ function * generateSegmentedPatternDefaults() {
   };
 }
 
+// Local read/write joins must not narrow through a missing arm, an escape or another frame.
+function * generateLocalFlowJoins() {
+  const shapes = [
+    ['strings', 'if (flag) value = "ab"; else value = "cd";'],
+    ['arrays', 'if (flag) value = ["ab"]; else value = ["cd"];'],
+    ['mixed', 'if (flag) value = "ab"; else value = ["cd"];'],
+    ['partial', 'if (flag) value = ["cd"];'],
+    ['overwritten', 'if (flag) value = "ab"; else value = ["cd"]; value = ["ef"];'],
+    ['second-join', 'if (flag) value = "ab"; else value = ["cd"]; if (flag) value = ["ef"]; else value = ["gh"];'],
+    ['inner-shadow', 'if (flag) { let value; value = ["inner"]; } else value = "cd";'],
+    ['closure', 'if (flag) value = "ab"; else value = "cd"; function change() { value = ["ef"]; } change();'],
+    ['caught-exit', 'try { if (flag) throw new Error("stop"); value = ["cd"]; } catch {}'],
+    ['prototype', 'if (flag) value = ["ab"]; else value = ["cd"]; Object.setPrototypeOf(value, String.prototype);'],
+    ['alias-prototype', 'if (flag) value = ["ab"]; else value = ["cd"]; const alias = value; Object.setPrototypeOf(alias, String.prototype);'],
+    ['prototype-readable', 'if (flag) value = ["ab"]; else value = ["cd"]; value.toString = () => "wrapped"; Object.setPrototypeOf(value, String.prototype);'],
+    ['alias-prototype-readable',
+      'if (flag) value = ["ab"]; else value = ["cd"]; value.toString = () => "wrapped";'
+      + ' const alias = value; Object.setPrototypeOf(alias, String.prototype);'],
+    ['nullish', 'if (flag) value = "ab"; else value = undefined;'],
+  ];
+  for (const [shape, body] of shapes) for (const ts of [false, true]) yield {
+    name: `local-flow-joins/${ shape }/${ ts ? 'ts' : 'js' }`,
+    code: `const effects = [];
+      function read(flag${ ts ? ': boolean' : '' }) {
+        let value${ ts ? ': string | string[] | undefined' : '' } = "old";
+        ${ body }
+        return value?.[(effects.push('key'), 'at')]((effects.push('argument'), 0));
+      }
+      const r = [read(true), read(false)];
+      export { r, effects };`,
+    ts,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20465,4 +20500,5 @@ export function * generate() {
   yield * generateLateStaticPatternValues();
   yield * generateSegmentedPatternDefaults();
   yield * generatePositionalParameterBarriers();
+  yield * generateLocalFlowJoins();
 }

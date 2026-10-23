@@ -1,4 +1,5 @@
-// Destructuring + for-of binding resolution. given an Identifier inside an ArrayPattern /
+// Binding values: shared local read/write joins and destructuring / for-of resolution.
+// Given an Identifier inside an ArrayPattern /
 // ObjectPattern (potentially nested), walks up to find what type-shape the binding receives.
 // sources, tried in order:
 //   1. a rest element at any depth (`[...rest]` is Array whatever the source is)
@@ -29,6 +30,7 @@ import {
 import {
   collectQualifiedSegments,
   isFunctionTypeNode,
+  isUnionType,
   withMemberModifiers,
 } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
@@ -74,6 +76,15 @@ import {
   writesPastCeiling,
   pathOfNode,
   reassignmentValueEnumeration,
+  reassignmentDominatesUsage,
+  completeBranchWritesBefore,
+  findNearestVarScopeOwner,
+  canonAnswerTable,
+  cycleGuardCuts,
+  cycleGuardHas,
+  flattenBranchingValueNodes,
+  installedPrototypeValueAt,
+  prototypeWriteHostPath,
 } from '../helpers/ast-patterns.js';
 
 // the class whose CONSTRUCTOR this function is, or null. one climb for both parsers: babel keeps
@@ -171,6 +182,7 @@ function findBindingPattern(node, type) {
   return null;
 }
 
+// eslint-disable-next-line max-statements -- factory of binding values, patterns and their shared projections
 export function createPatternBindings({
   t,
   isMutatedStatic = () => false,
@@ -218,7 +230,151 @@ export function createPatternBindings({
   collectBindingReferences,
   violationRunsDeferred,
   usageRunsDeferred,
+  projectLocalFlowValue,
+  defaultAliasRefClassifier,
+  protoSetterCalleeArms,
 }) {
+  let localFlowInputs = new WeakMap();
+  let localFlowValues = new WeakMap();
+  let localFlowRetries = new WeakSet();
+  const activeLocalReads = new WeakSet();
+
+  // These answers describe the source between resolver resets. The binding's effective write
+  // list can change within that interval, so identity, order and the recorded nodes are inputs too.
+  function sameFlowWrites(entry, binding) {
+    const writes = binding.constantViolations;
+    return entry?.declaration === binding.path.node && entry.scope === binding.scope
+      && entry.init === binding.path.node.init && entry.references === (binding.referencePaths ?? binding.references)
+      && entry.writes.length === writes.length
+      && entry.writes.every((write, index) => write === writes[index].node);
+  }
+
+  // This is a boundary check on existing paths, not a control-flow walk. Only a synchronous
+  // function's ordinary statements and if arms belong to this first local-value proof.
+  function localFlowFrame(path, owner) {
+    for (let current = path, depth = 0; current?.node && depth < MAX_DEPTH; current = current.parentPath, depth++) {
+      if (current.node === owner) return true;
+      const { type } = current.node;
+      if (t.isFunction(current.node) || CLASS_NODE_TYPES.has(type) || type === 'StaticBlock'
+        || type === 'TryStatement' || type === 'CatchClause' || type === 'SwitchStatement'
+        || type === 'WithStatement' || type === 'LabeledStatement' || type === 'AwaitExpression'
+        || type === 'YieldExpression' || type === 'WhileStatement' || type === 'DoWhileStatement'
+        || type === 'ForStatement' || type === 'ForInStatement' || type === 'ForOfStatement') return false;
+    }
+    return false;
+  }
+
+  function localBindingFlowInputs(binding, path) {
+    const known = localFlowInputs.get(binding);
+    if (sameFlowWrites(known, binding)) return known;
+    const declaration = binding.path.node;
+    const entry = {
+      declaration,
+      scope: binding.scope,
+      init: declaration.init,
+      writes: binding.constantViolations.map(write => write.node),
+      references: binding.referencePaths ?? binding.references,
+      owner: null,
+      assignments: null,
+    };
+    const cuts = cycleGuardCuts();
+    let cacheable = true;
+    try {
+      const owner = findNearestVarScopeOwner(binding.path)?.node;
+      // Program values and suspended activations retain their existing conservative fallback.
+      if (!owner || !t.isFunction(owner) || owner.async || owner.generator || !localFlowFrame(binding.path, owner)) return entry;
+      const assignments = [];
+      for (const write of binding.constantViolations) {
+        if (write.canonicalRecovered) return entry;
+        const assignment = violationToAssignment(write);
+        const node = assignment?.node;
+        if (node?.type !== 'AssignmentExpression' || node.operator !== '='
+          || node.left.type !== 'Identifier' || node.left.name !== path.node.name
+          || typeof node.start !== 'number' || typeof node.end !== 'number'
+          || peelTransparentExprAncestorPath(assignment).parentPath?.node.type !== 'ExpressionStatement'
+          || !localFlowFrame(assignment, owner)) return entry;
+        assignments.push(assignment);
+      }
+      // Self-dependent writes need normalization/loop reasoning, outside this bounded transfer.
+      // Reuse the binding-reference index; do not walk each RHS or the file again for each read.
+      const references = collectBindingReferences(binding, path);
+      if (!references) return entry;
+      const sources = new Set([declaration.init, ...assignments.map(assignment => assignment.node.right)]);
+      for (const reference of references) {
+        const host = prototypeWriteHostPath(reference);
+        if (defaultAliasRefClassifier(host.parent, host.node, host) !== 'trivial'
+          || installedPrototypeValueAt(reference, protoSetterCalleeArms, true)) return entry;
+        for (let current = reference; current?.node && current.node !== owner; current = current.parentPath) {
+          if (sources.has(current.node)) return entry;
+        }
+      }
+      entry.owner = owner;
+      entry.assignments = assignments;
+      entry.completions = new WeakMap();
+      return entry;
+    } catch (error) {
+      // A failed build is not a completed conservative proof; the next query must retry it.
+      cacheable = false;
+      throw error;
+    } finally {
+      if (cacheable && cycleGuardCuts() === cuts) localFlowInputs.set(binding, entry);
+    }
+  }
+
+  // One reaching-value answer for scalar and family consumers. Types remain on the arms: hints
+  // never stand in for nullish, unknown, literal/inner detail, or declaration identity.
+  function resolveLocalFlowValue(path) {
+    if (!t.isIdentifier(path?.node)) return null;
+    const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
+    const declaration = binding?.path?.node;
+    if (!binding || (binding.kind !== 'let' && binding.kind !== 'const')
+      || declaration?.type !== 'VariableDeclarator' || declaration.id.type !== 'Identifier'
+      || !binding.constantViolations?.length || writesPastCeiling(binding.constantViolations)
+      || typeof path.node.start !== 'number' || !(declaration.end <= path.node.start)) return null;
+    // Re-entry or an incomplete census must not make the general resolveCache's fallback final.
+    // Retain a retry marker until a full answer is cached; an existing answer remains intact.
+    localFlowRetries.add(path.node);
+    if (!canonAnswerTable(resolveLocalFlowValue, [])) return null;
+    if (cycleGuardHas(activeLocalReads, path.node)) return null;
+    const cuts = cycleGuardCuts();
+    const inputs = localBindingFlowInputs(binding, path);
+    if (!inputs.owner || !localFlowFrame(path, inputs.owner)) return null;
+    const known = localFlowValues.get(path.node);
+    if (known?.inputs === inputs && known.binding === binding && known.scope === path.scope
+      && known.parent === path.parentPath?.node) {
+      localFlowRetries.delete(path.node);
+      return known.value;
+    }
+    activeLocalReads.add(path.node);
+    try {
+      const arms = reachableValueArms(binding, binding.path, path.node.name, path, false, 0, inputs);
+      if (!arms) return null;
+      const hints = new Set();
+      let open = false;
+      for (const arm of arms) {
+        if (arm && isNullableOrNever(arm)) continue;
+        const hint = arm && toHint(arm);
+        if (!hint) open = true;
+        else if (TYPE_HINTS.has(hint)) hints.add(hint);
+      }
+      const annotation = findBindingAnnotation(binding.path);
+      const value = {
+        arms,
+        type: foldUnionTypes(arms, arm => arm),
+        hints: !open && hints.size ? hints : null,
+        annotated: annotation ? withLookupPath(binding.path, () => resolveTypeAnnotation(annotation, binding.path.scope)) : null,
+      };
+      projectLocalFlowValue(path, value);
+      if (cycleGuardCuts() === cuts) {
+        localFlowValues.set(path.node, { binding, inputs, scope: path.scope, parent: path.parentPath?.node, value });
+        localFlowRetries.delete(path.node);
+      }
+      return value;
+    } finally {
+      activeLocalReads.delete(path.node);
+    }
+  }
+
   // dispatch by pattern kind so callers (and the recursive child walks below) don't repeat
   // the type-test pair. unknown kinds return null - caller signals "binding not found here"
   function findPatternKeyPath(pattern, name, scope) {
@@ -1491,7 +1647,45 @@ export function createPatternBindings({
 
   // Every value that can reach a binding read, projected to Types or dispatch families by one
   // enumeration. A pattern assignment contributes its paired field, never its whole RHS.
-  function reachableValueArms(binding, bindingPath, name, usagePath, unionHints = false, depth = 0) {
+  function reachableValueArms(binding, bindingPath, name, usagePath, unionHints = false, depth = 0, local = null) {
+    if (local) {
+      const writes = local.assignments.map(assignment => assignment.node);
+      // The latest complete if/else replaces values written before it. Exact write identities
+      // prevent a same-name inner binding from supplying a missing arm of this binding's join.
+      const settled = completeBranchWritesBefore({
+        ownerNode: local.owner,
+        name,
+        writeNodes: writes.toSorted((a, b) => b.start - a.start),
+        readNode: usagePath.node,
+        exactWrites: true,
+        completions: local.completions,
+      });
+      const adapter = getDecisionAdapter();
+      const replaced = settled || reassignmentDominatesUsage({ reassignmentNodes: writes, usagePath, adapter, climb: true });
+      const enumeration = reassignmentValueEnumeration({ binding, usagePath, name,
+        ctx: { adapter, path: usagePath, scope: usagePath.scope } });
+      if (!enumeration.complete || enumeration.callSites.length) return null;
+      const nodes = enumeration.nodes.filter(node => !settled || node.start >= settled.start);
+      if (!replaced && local.init) nodes.unshift(...flattenBranchingValueNodes([local.init]));
+      const types = [];
+      if (!replaced && !local.init) types.push(new $Primitive('undefined'));
+      for (const node of nodes) {
+        const value = pathOfNode(usagePath, node);
+        if (!value) return null;
+        const resolved = resolveNodeType(value);
+        if (resolved) types.push(resolved);
+        else {
+          // A call/alias may carry a cross-family annotation which the scalar fold cannot
+          // represent. Keep its existing Type arms instead of re-deriving hints separately.
+          const info = findExpressionAnnotation(value);
+          const annotation = info && unwrapTypeAnnotation(info.annotation);
+          if (isUnionType(annotation)) {
+            types.push(...annotation.types.map(arm => resolveTypeAnnotation(arm, info.scope)));
+          } else types.push(null);
+        }
+      }
+      return types;
+    }
     // a `var name = X` REDECLARATION is deliberately kept OUT of the violation list (the type layer
     // resolves redecl flow through its own positional machinery), so an enumeration built off that
     // list alone silently misses a whole value. the canonical scan reads the AST rather than either
@@ -1591,6 +1785,13 @@ export function createPatternBindings({
   // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
   // `unwrapPromiseAnnotation`
   return {
+    resolveLocalFlowValue,
+    needsLocalFlowQuery: node => localFlowValues.has(node) || localFlowRetries.has(node),
+    reset() {
+      localFlowInputs = new WeakMap();
+      localFlowValues = new WeakMap();
+      localFlowRetries = new WeakSet();
+    },
     defaultParamNeverOverridden,
     parameterCallSites,
     reachableValueUnionHints,
