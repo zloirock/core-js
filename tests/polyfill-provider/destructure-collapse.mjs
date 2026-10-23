@@ -1634,6 +1634,20 @@ runBoth('catch/an unread sibling comes back to be skipped',
 
 // --- sentinelAlreadyProcessed: our own output, recognised ---
 
+for (const [label, source, adopted] of [
+  ['two writes', 'var _unused; ({ from: _unused, of: _unused } = Array);', true],
+  ['separate patterns', 'var _unused; ({ from: _unused } = Array); ({ of: _unused } = Array);', true],
+  ['a later read', 'var _unused; ({ from: _unused, of: _unused } = Array); use(_unused);', false],
+  ['an earlier read', 'var _unused; use(_unused); ({ from: _unused, of: _unused } = Array);', false],
+  ['export before writes', 'export var _unused; ({ from: _unused, of: _unused } = Array);', false],
+  ['export after writes', 'var _unused; ({ from: _unused, of: _unused } = Array); export { _unused };', false],
+  ['an initialized declaration', 'var _unused = value; ({ from: _unused, of: _unused } = Array);', false],
+  ['a shorthand target', 'var _unused; ({ from: _unused, of: _unused } = Array); ({ _unused } = value);', false],
+]) runBoth(`sentinel/repeated pattern targets/${ label }`, source, (parser, program, lbl) => {
+  const { restSentinelNames } = collectFileCensus(program.node, [restSentinelNamesReducer()]);
+  check(lbl, restSentinelNames.has('_unused'), adopted);
+});
+
 function injectorFor({ generated = [], adopted = [], pureImports = {} } = {}) {
   return {
     hasGeneratedUnusedName: name => generated.includes(name),

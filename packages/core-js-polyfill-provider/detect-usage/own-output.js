@@ -954,30 +954,30 @@ export function ownEmittedPatternClaim(metaPath, tests, adapter = null) {
 // rest-rebuild's value slot, the SE-key form's computed one, the nested-instance plain
 // spelling. a name bound there and read nowhere else is what a re-parse adopts as its own
 // sentinel (`adoptUnusedNames`); a user binding in that position that IS read somewhere
-// keeps its rewrite. the assignment-form pair's bare initless `var _unusedN;` id is part
-// of our own spelling, not a disqualifying read
+// keeps its rewrite. Several pattern slots may write the same sentinel; those occurrences
+// and the assignment-form pair's bare initless `var _unusedN;` id are not reads.
 // Local exports are external reads; neither emitter exports its generated sentinels.
 export function restSentinelNamesReducer() {
-  const sentinelCandidates = new Set();
+  const sentinelCandidates = new Map();
   const sentinelShapedReads = new Map();
   function visit(node, { parentNode, underTypeAnnotation }) {
     if (node.type === 'ExportNamedDeclaration' && node.exportKind !== 'type') {
-      // A count above one marks a binding live, independent of declaration order.
+      // An external read stays live regardless of the number or order of pattern writes.
       if (node.declaration?.type === 'VariableDeclaration') {
         for (const declarator of node.declaration.declarations) walkPatternIdentifiers(declarator.id, id => {
-          if (UNUSED_NAME_PATTERN.test(id.name)) sentinelShapedReads.set(id.name, 2);
+          if (UNUSED_NAME_PATTERN.test(id.name)) sentinelShapedReads.set(id.name, Infinity);
         });
       } else if (!node.source) for (const specifier of node.specifiers) {
         const id = specifier.local;
         if (specifier.exportKind !== 'type' && id?.type === 'Identifier' && UNUSED_NAME_PATTERN.test(id.name)) {
-          sentinelShapedReads.set(id.name, 2);
+          sentinelShapedReads.set(id.name, Infinity);
         }
       }
     } else if (node.type === 'ObjectPattern') {
       for (const p of node.properties) {
         if ((p.type === 'Property' || p.type === 'ObjectProperty') && !p.shorthand
           && p.value?.type === 'Identifier' && UNUSED_NAME_PATTERN.test(p.value.name)) {
-          sentinelCandidates.add(p.value.name);
+          sentinelCandidates.set(p.value.name, (sentinelCandidates.get(p.value.name) ?? 0) + 1);
         }
       }
     } else if (node.type === 'Identifier' && !underTypeAnnotation && blocksUidSlot(parentNode, node)) {
@@ -988,8 +988,9 @@ export function restSentinelNamesReducer() {
     }
   }
   function result() {
-    // a candidate's own pattern binding is one occurrence; any second one is a read
-    return { restSentinelNames: new Set([...sentinelCandidates].filter(name => sentinelShapedReads.get(name) === 1)) };
+    // Only the candidate's pattern writes may occur; any other use keeps it live.
+    const unread = [...sentinelCandidates].filter(([name, count]) => sentinelShapedReads.get(name) === count);
+    return { restSentinelNames: new Set(unread.map(([name]) => name)) };
   }
   return { visit, result };
 }
