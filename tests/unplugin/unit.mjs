@@ -2278,6 +2278,41 @@ async function checkAstFlushContracts() {
   requireInjector.pureImports.set('actual/self', '_self');
   const requireShape = flushOver('use(_self);\n', requireInjector);
   check('flush spells require() in the require style', requireShape.split('|', 1)[0], 'ExpressionStatement');
+
+  // Program declarations group families by numeric slot after the print-order renumber.
+  // Function declarations retain registration order, including after snapshot/orphan adoption.
+  for (const host of ['program', 'function']) for (const stateKind of ['fresh', 'snapshot', 'orphan']) {
+    const options = { importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false };
+    const reserved = ['_ref2', '_ref4', '_ref5', '_ref6', '_ref7', '_ref8', '_ref9', '_unused'];
+    const original = new ImportInjector(options);
+    original.seedReservedNames(reserved);
+    const refs = Array.from({ length: 3 }, () => original.generateDeclaredRef());
+    const unused = [original.generateUnusedName(), original.generateUnusedName()];
+    const dead = original.generateDeclaredRef();
+    const state = stateKind === 'fresh' ? original : new ImportInjector({ ...options, inherit: stateKind === 'snapshot' ? original.snapshot() : null });
+    state.seedReservedNames(reserved);
+    if (stateKind === 'orphan') {
+      state.adoptOrphanRefs([...refs, dead]);
+      state.adoptUnusedNames(unused);
+    }
+    const use = `use(${ [unused[1], ...refs.toReversed(), unused[0]].join(', ') });`;
+    const program = programOf(host === 'program' ? use : `function read() { 'use strict'; ${ use } }`);
+    const hostFunction = host === 'function' ? program.body[0] : null;
+    const refNames = [...refs, ...unused, dead].map(name => ({ name, hostFunction }));
+    flushIntoProgram({ injector: state, program, refNames });
+    const body = hostFunction ? hostFunction.body.body : program.body;
+    const declaration = body.find(node => node.type === 'VariableDeclaration');
+    const label = `ref order/${ host }/${ stateKind }`;
+    checkDeep(
+      `${ label }/declaration`,
+      declaration.declarations.map(item => item.id.name),
+      hostFunction ? ['_ref10', '_ref3', '_ref', '_unused3', '_unused2'] : ['_ref', '_ref3', '_ref10', '_unused2', '_unused3'],
+    );
+    checkDeep(`${ label }/reads`, body.at(-1).expression.arguments.map(node => node.name), ['_unused2', '_ref', '_ref3', '_ref10', '_unused3']);
+    check(`${ label }/declaration placement`, body.indexOf(declaration), hostFunction ? 1 : 0);
+    if (hostFunction) check(`${ label }/source prologue`, body[0].expression.value, 'use strict');
+  }
+
   const memoInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
   for (const [source, expected] of [
     ['_ref = Array;', ''],
