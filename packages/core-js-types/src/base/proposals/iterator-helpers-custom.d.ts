@@ -3,8 +3,8 @@
 // https://github.com/tc39/proposal-iterator-helpers
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
-// https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.iterator.d.ts
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.es2025.iterator.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
 
 declare namespace CoreJS {
   interface IteratorObject<T, TReturn, TNext> extends Iterator<T, TReturn, TNext> {}

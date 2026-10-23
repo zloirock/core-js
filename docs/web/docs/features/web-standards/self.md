@@ -14,6 +14,9 @@ getter self: GlobalThisValue;
 core-js(-pure)/stable|actual|full/self
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/self`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/self.d.ts)
+
 ## Examples
 ```js
 self.Array === Array; // => true

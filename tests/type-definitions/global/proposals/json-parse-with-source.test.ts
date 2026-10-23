@@ -3,7 +3,7 @@ import rawJSON from 'core-js/es/json/raw-json';
 import isRawJSON from 'core-js/es/json/is-raw-json';
 import { assertBool } from '../../helpers/helpers.js';
 
-const resNS: CoreJSRawJSON = rawJSON('{"a":123}');
+const resNS: RawJSON = rawJSON('{"a":123}');
 assertBool(isRawJSON(resNS));
 
 // @ts-expect-error
@@ -11,7 +11,9 @@ rawJSON();
 // @ts-expect-error
 isRawJSON();
 
-const r: CoreJSRawJSON = JSON.rawJSON('{"a":123}');
+const r: RawJSON = JSON.rawJSON('{"a":123}');
+// @ts-expect-error
+const fake: RawJSON = { rawJSON: '123' };
 
 assertBool(JSON.isRawJSON(r));
 assertBool(JSON.isRawJSON({}));
@@ -32,6 +34,10 @@ JSON.rawJSON(123);
 // @ts-expect-error
 JSON.rawJSON();
 
-JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: CoreJSReviverContext) => {});
+JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: { source?: string }) => {});
+JSON.parse('{"tooBigForNumber":9007199254740993}', (key, value, context) => {
+  const source: string | undefined = context.source;
+  return value;
+});
 // @ts-expect-error
 JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: []) => {});

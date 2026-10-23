@@ -15,7 +15,7 @@ core-js(-pure)/stable|actual|full/queue-microtask
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/web/queue-microtask`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/queue-microtask.d.ts)
+[`@core-js/types/web/queue-microtask`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/queue-microtask.d.ts)
 
 ## Examples
 ```js

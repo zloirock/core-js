@@ -44,10 +44,28 @@ const res2: Promise<{ [sym]: number }> = Promise.allKeyed({
   [sym]: Promise.resolve(1),
 });
 
+const readonlyInput = { a: Promise.resolve(1), b: 'string' } as const;
+Promise.allKeyed(readonlyInput).then(result => {
+  result.a = 2;
+});
+
+interface Input {
+  a: Promise<number>;
+  b: string;
+}
+declare const input: Input;
+const res3: Promise<{ a: number, b: string }> = Promise.allKeyed(input);
+
+Promise.allKeyed([Promise.resolve(1), Promise.resolve(2)]);
+
 // @ts-expect-error
 Promise.allKeyed();
 // @ts-expect-error
-Promise.allKeyed([Promise.resolve(1), Promise.resolve(2)]);
+Promise.allKeyed(0);
+// @ts-expect-error
+Promise.allKeyed('string');
+// @ts-expect-error
+Promise.allKeyed(null);
 
 const resASK: Promise<{ a: CoreJSPromiseResult<number>, b: CoreJSPromiseResult<string>, c: CoreJSPromiseResult<boolean> }> = Promise.allSettledKeyed({
   a: Promise.resolve(1),
@@ -65,7 +83,15 @@ Promise.allSettledKeyed({
   c: 3,
 });
 
+const resASK3: Promise<{ a: CoreJSPromiseResult<number>, b: CoreJSPromiseResult<string> }> = Promise.allSettledKeyed(input);
+
+Promise.allSettledKeyed([Promise.resolve(1), Promise.resolve(2)]);
+
 // @ts-expect-error
 Promise.allSettledKeyed();
 // @ts-expect-error
-Promise.allSettledKeyed([Promise.resolve(1), Promise.resolve(2)]);
+Promise.allSettledKeyed(0);
+// @ts-expect-error
+Promise.allSettledKeyed('string');
+// @ts-expect-error
+Promise.allSettledKeyed(undefined);

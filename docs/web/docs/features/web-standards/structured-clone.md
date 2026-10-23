@@ -15,7 +15,7 @@ core-js(-pure)/stable|actual|full/structured-clone
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/web/structured-clone`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/structured-clone.d.ts)
+[`@core-js/types/web/structured-clone`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/structured-clone.d.ts)
 
 ## Examples
 ```js

@@ -12,7 +12,7 @@ The matrix is a cross-product of five axes: the flavor, the ES target of the com
 
 ## Layout
 
-- `entries/` - that each entry point resolves and exports what it promises: one directory per layer, plus the import styles of both flavors, the `configurator`, and `pure-pollutions`, which checks that the pure entries add nothing to the global scope
+- `entries/` - that each entry point resolves and exports what it promises: one directory per layer, plus the import styles of both flavors, the `configurator`, and `pure-pollutions`, which checks that the pure entries add nothing to the global scope. They compile against the `lib` the documentation recommends, `es2025` with `dom`, not the compiler default: once TypeScript's own `esnext` ships a built-in, a check that a subset adds it passes and a check that it doesn't fails, whatever the subset does. `proposals` goes down to bare `es6` instead: a single proposal entry has to compile on the floor by itself, and a larger lib or a co-imported entry would supply what it misses. So do `web` and `annex-b`, the other directories of single-feature entries, and `web` drops `@types/node` as well, which declares most of the same globals
 - `global/`, `pure/` - the tests of the definitions themselves, one flavor each, next to the `tsconfig.*.json` variants the matrix compiles them under
 - `templates/` - one case per template of the entry registry, in both the import and the require style: that `$justImport` really exposes no default export, that a generic prototype method degrades to `any`, and so on
 - `tools/` - the same treatment for the public `.d.ts` of the tooling packages
