@@ -33,6 +33,7 @@
     "kysely": "^0.29.6",
     "liquidjs": "^10.30.0",
     "markdown-it": "^15.0.2",
+    "minimatch": "^10.2.6",
     "ml-matrix": "^6.15.0",
     "nth-check": "^3.0.1",
     "planck": "^1.5.0",
