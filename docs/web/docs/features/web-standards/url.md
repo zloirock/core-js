@@ -55,7 +55,7 @@ core-js(-pure)/stable|actual|full/url-search-params
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/web/url-to-json`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/url-to-json.d.ts)
+[`@core-js/types/web/url`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/url.d.ts)
 
 ## Examples
 ```js

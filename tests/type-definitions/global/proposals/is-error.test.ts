@@ -14,5 +14,10 @@ Error.isError(ne);
 Error.isError(undefined);
 Error.isError('str');
 
+declare const smth: unknown;
+if (Error.isError(smth)) {
+  const message: string = smth.message;
+}
+
 // @ts-expect-error
 Error.isError();

@@ -21,7 +21,7 @@ core-js(-pure)/es|stable|actual|full/iterator/windows
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/iterator-chunking`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-chunking.d.ts)
+[`@core-js/types/proposals/iterator-chunking`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/iterator-chunking.d.ts)
 
 ## Examples
 ```js

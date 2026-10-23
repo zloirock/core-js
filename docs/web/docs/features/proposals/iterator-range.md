@@ -20,7 +20,7 @@ core-js(-pure)/full/iterator/range
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/iterator-range`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-range.d.ts)
+[`@core-js/types/proposals/iterator-range`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/iterator-range.d.ts)
 
 ## Examples
 ```js

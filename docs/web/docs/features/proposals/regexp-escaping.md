@@ -32,4 +32,4 @@ RegExp.escape('\uD83D'); // => '\\ud83d'
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/regexp-escaping`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/regexp-escaping.d.ts)
+[`@core-js/types/proposals/regexp-escaping`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/regexp-escaping.d.ts)

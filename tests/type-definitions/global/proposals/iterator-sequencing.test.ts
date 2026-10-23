@@ -6,6 +6,7 @@ declare const arrs: string[];
 declare const arrn: number[];
 declare const arrb: boolean[];
 declare const itb1: Iterable<boolean>;
+declare const itr: Iterator<number>;
 
 const resNS: Iterator<number> = concat(arrn);
 
@@ -18,6 +19,8 @@ const ri3: Iterator<number> = Iterator.concat(arrn);
 const ri4: Iterator<number | boolean> = Iterator.concat(arrb, itb1);
 const ri5: Iterator<unknown> = Iterator.concat();
 const ri6: Iterator<string | number> = Iterator.concat(arrs, arrn);
+// @ts-expect-error
+const ri7: Iterator<string> = Iterator.concat(arrs, arrn);
 
 // @ts-expect-error
 Iterator.concat(1);
@@ -25,3 +28,9 @@ Iterator.concat(1);
 Iterator.concat(true);
 // @ts-expect-error
 Iterator.concat({});
+// @ts-expect-error
+Iterator.concat('abc');
+// @ts-expect-error
+Iterator.concat(arrs, 'abc');
+// @ts-expect-error
+Iterator.concat(itr);

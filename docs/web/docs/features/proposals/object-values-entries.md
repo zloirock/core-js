@@ -32,4 +32,4 @@ for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/object-values-entries`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/object-values-entries.d.ts)
+[`@core-js/types/proposals/object-values-entries`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/object-values-entries.d.ts)

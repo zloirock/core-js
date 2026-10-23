@@ -8,5 +8,10 @@ $isError(ne);
 $isError(undefined);
 $isError('str');
 
+declare const smth: unknown;
+if ($isError(smth)) {
+  const message: string = smth.message;
+}
+
 // @ts-expect-error
 $isError();

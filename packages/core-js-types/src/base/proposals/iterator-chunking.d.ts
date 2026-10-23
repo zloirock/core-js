@@ -2,12 +2,14 @@
 
 // https://github.com/tc39/proposal-iterator-chunking
 
+// For ensuring compatibility with TypeScript standard types, this code is aligned with:
+// https://github.com/microsoft/TypeScript/blob/3e9236361fa97a9e6c685f4833ac457ae2d8c50a/tsc/internal/bundled/libs/lib.esnext.iterator.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v7.1-beta/LICENSE.txt
+
 interface Iterator<T> {
   /**
-   * Yields arrays containing up to the specified number of elements
-   * chunked from the source iterator.
-   * @param chunkSize - The maximum number of elements per chunk. Must be a positive integer.
-   * @returns An iterator yielding arrays of at most `chunkSize` elements from the source iterator.
+   * Creates an iterator whose values are arrays containing successive values from this iterator.
+   * @param chunkSize - The maximum number of values in each array.
    */
   chunks(chunkSize: number): IteratorObject<T[], undefined, unknown>;
 

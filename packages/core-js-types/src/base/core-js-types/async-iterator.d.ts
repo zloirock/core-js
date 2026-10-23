@@ -1,3 +1,5 @@
+/// <reference types="../proposals/async-iteration" />
+
 interface AsyncIteratorObject<T, TReturn, TNext> extends AsyncIterator<T, TReturn, TNext> {
   [Symbol.asyncIterator](): AsyncIteratorObject<T, TReturn, TNext>;
 }
