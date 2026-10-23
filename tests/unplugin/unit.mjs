@@ -2281,6 +2281,7 @@ async function checkAstFlushContracts() {
   const memoInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
   for (const [source, expected] of [
     ['_ref = Array;', ''],
+    ['((_ref = Array));', ''],
     ['_ref = read();', 'VariableDeclaration|ExpressionStatement'],
     ['_ref = object.value;', 'VariableDeclaration|ExpressionStatement'],
     ['_ref = Array; use(_ref);', 'VariableDeclaration|ExpressionStatement|ExpressionStatement'],
@@ -2288,6 +2289,40 @@ async function checkAstFlushContracts() {
     ['foreign = Array;', 'ExpressionStatement'],
   ]) check(`flush prunes only an unread inert memo: ${ source }`,
     flushOver(source, memoInjector, { refNames: [{ name: '_ref', registrationIndex: 0 }] }), expected);
+
+  for (const [label, source, retained, expected] of [
+    ['inert', 'var MEMO = 1;', false, []],
+    ['effect', 'var MEMO = effect();', true, ['effect']],
+    ['getter', 'var MEMO = holder.value;', true, ['get']],
+    ['reader', 'var MEMO = 1; consume(MEMO);', true, ['read:1']],
+    ['pattern', 'var { value: MEMO } = holder;', true, ['get']],
+    ['for-of head', 'for (var MEMO of [1]) effect();', true, ['effect']],
+    ['for-in head', 'for (var MEMO in { x: 1 }) effect();', true, ['effect']],
+    ['sole for-init', 'for (var MEMO = 1; false;) effect();', true, []],
+    ['shared for-init', 'for (var MEMO = 1, user = effect(); false;) effect();', false, ['effect']],
+  ]) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+    const ref = state.generateLocalRef();
+    const input = `var untouched = 7; ${ source.replaceAll('MEMO', ref) }`;
+    const program = programOf(input);
+    flushIntoProgram({ injector: state, program, refOrder: [ref] });
+    let hasRef = false;
+    let hasSource = false;
+    walkAstNodes({ root: program, visit(node) {
+      if (node.type !== 'Identifier') return;
+      if (node.name === ref) hasRef = true;
+      if (node.name === 'untouched') hasSource = true;
+    } });
+    check(`terminal memo/${ label }/binding`, hasRef, retained);
+    check(`terminal memo/${ label }/source binding`, hasSource, true);
+    const effects = [];
+    runInNewContext(printProgram({ program, comments: [], source: input }).code, {
+      effect() { effects.push('effect'); return 1; },
+      consume(value) { effects.push(`read:${ value }`); },
+      holder: { get value() { effects.push('get'); return 1; } },
+    });
+    checkDeep(`terminal memo/${ label }/evaluation`, effects, expected);
+  }
 
   for (const [label, expression, withRef, expectedActivation, expectedRefs, expected] of [
     ['dead owned activation', 'null == (_ref = false) ? "skip" : (() => "held")()', true, false, 0, 'held'],
