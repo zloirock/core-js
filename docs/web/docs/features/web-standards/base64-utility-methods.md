@@ -18,7 +18,7 @@ core-js(-pure)/stable|actual|full/btoa
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/web/atob-btoa`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/atob-btoa.d.ts)
+[`@core-js/types/web/atob-btoa`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/atob-btoa.d.ts)
 
 ## Examples
 ```js

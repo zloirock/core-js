@@ -19,4 +19,4 @@ core-js/proposals/array-grouping
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/array-grouping`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-grouping.d.ts)
+[`@core-js/types/proposals/array-grouping`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-grouping.d.ts)

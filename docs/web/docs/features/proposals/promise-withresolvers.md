@@ -15,4 +15,4 @@ core-js/proposals/promise-with-resolvers
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/promise-with-resolvers`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/promise-with-resolvers.d.ts)
+[`@core-js/types/proposals/promise-with-resolvers`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/promise-with-resolvers.d.ts)

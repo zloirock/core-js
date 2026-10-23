@@ -16,7 +16,7 @@ core-js(-pure)/stable|actual|full/clear-immediate
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/web/efficient-script-yielding`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/efficient-script-yielding.d.ts)
+[`@core-js/types/web/efficient-script-yielding`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/efficient-script-yielding.d.ts)
 
 ## Examples
 ```js

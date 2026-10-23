@@ -21,6 +21,7 @@ const ES_TARGETS = [
 const DEFAULT_TYPE_SCRIPT_VERSION = '7.0';
 
 const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
+  '7.1.0-beta',
   '6.0',
   '5.9',
   '5.8',
@@ -197,6 +198,8 @@ const tasks = [
   { config: 'entries/stable/tsconfig.json' },
   { config: 'entries/es/tsconfig.json' },
   { config: 'entries/proposals/tsconfig.json' },
+  { config: 'entries/web/tsconfig.json' },
+  { config: 'entries/annex-b/tsconfig.json' },
   { config: 'entries/global-imports/tsconfig.json' },
   { config: 'entries/pure-imports/tsconfig.json' },
   { config: 'entries/configurator/tsconfig.json' },
