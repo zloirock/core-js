@@ -16,4 +16,4 @@ core-js/proposals/array-flat-map
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/array-flat-map`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-flat-map.d.ts)
+[`@core-js/types/proposals/array-flat-map`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-flat-map.d.ts)

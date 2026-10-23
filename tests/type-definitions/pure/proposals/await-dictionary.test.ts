@@ -22,10 +22,29 @@ promiseAllKeyed({
   c: 3,
 });
 
+const readonlyInput = { a: promiseResolve(1), b: 'string' } as const;
+promiseAllKeyed(readonlyInput).then(result => {
+  result.a = 2;
+});
+
+interface Input {
+  a: Promise<number>;
+  b: string;
+}
+declare const input: Input;
+const res3 = promiseAllKeyed(input);
+assertCoreJSPromiseLike<{ a: number, b: string }>(res3);
+
+promiseAllKeyed([promiseResolve(1), promiseResolve(2)]);
+
 // @ts-expect-error
 promiseAllKeyed();
 // @ts-expect-error
-promiseAllKeyed([promiseResolve(1), promiseResolve(2)]);
+promiseAllKeyed(0);
+// @ts-expect-error
+promiseAllKeyed('string');
+// @ts-expect-error
+promiseAllKeyed(null);
 
 promiseAllSettledKeyed({
   a: Promise.resolve(1),
@@ -43,7 +62,15 @@ promiseAllSettledKeyed({
   c: 3,
 });
 
+promiseAllSettledKeyed(input);
+
+promiseAllSettledKeyed([promiseResolve(1), promiseResolve(2)]);
+
 // @ts-expect-error
 promiseAllSettledKeyed();
 // @ts-expect-error
-promiseAllSettledKeyed([promiseResolve(1), promiseResolve(2)]);
+promiseAllSettledKeyed(0);
+// @ts-expect-error
+promiseAllSettledKeyed('string');
+// @ts-expect-error
+promiseAllSettledKeyed(undefined);
