@@ -29,6 +29,7 @@
     "fast-xml-parser": "^4.5.7",
     "graphql": "^16.14.2",
     "htmlparser2": "^12.0.0",
+    "ical.js": "^2.2.1",
     "kysely": "^0.29.6",
     "liquidjs": "^10.30.0",
     "markdown-it": "^15.0.2",
