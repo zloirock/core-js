@@ -459,6 +459,7 @@ function copyNode(node) {
 // as side-effect imports, pure entries as default-import bindings, the require dialect
 // swapping both statement forms. returns { node, key } pairs - `key` is the canonical-order
 // key the babel binding's late import-region reorder tracks per node
+// minted imports carry no source span, so the printer maps them nowhere
 export function renderInjectedImportNodes({
   globalModules,
   pureEntries,

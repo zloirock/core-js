@@ -35,6 +35,7 @@ import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helper
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
+import applyEntryProgram, { injectImportStatements } from '../../packages/core-js-unplugin/internals/entry.js';
 import createOptionalDispatchChannel from '../../packages/core-js-unplugin/internals/optional-dispatch.js';
 import { climbToCallerPath } from '../../packages/core-js-unplugin/internals/nav-spine.js';
 import createPlugin, {
@@ -2255,6 +2256,43 @@ async function checkAstPrintContracts() {
   check('print of a block comment deeper in its line is a fixed point', reprint(reprint(cast)), reprint(cast));
 }
 await checkAstPrintContracts();
+
+// Both global insertion routes keep source statements intact around an ordered, unmapped
+// import block. Entry removal uses the original prologue; usage uses the current one.
+for (const apply of [applyEntryProgram, injectImportStatements]) {
+  for (const importStyle of ['import', 'require']) for (const [pkg, absoluteImports] of [
+    ['core-js', false],
+    ['@custom/core-js', false],
+    ['core-js', true],
+  ]) {
+    const program = programOf('""; "use strict"; require("core-js/es/array"); use();');
+    const original = [...program.body];
+    const modules = new Set(['es.array.flat', 'es.array.at']);
+    const plan = { toRemove: [original[2]], toReplaceWithNoop: [] };
+    apply({ program, plan, modules, importStyle, pkg, absoluteImports });
+    const label = `global import block/${ apply.name }/${ importStyle }/${ pkg }/${ absoluteImports }`;
+    const paths = ['es.array.at', 'es.array.flat'].map(name => absoluteImports
+      ? slashifyPath(createRequire(import.meta.url).resolve(`${ pkg }/modules/${ name }`)) : `${ pkg }/modules/${ name }`);
+    const expected = paths.map(path => importStyle === 'require' ? `require(${ JSON.stringify(path) });` : `import ${ JSON.stringify(path) };`);
+    const printed = printProgram({ program: { ...program, body: program.body.slice(2, 4) }, comments: [], source: '', id: '/imports.mjs' });
+    check(`${ label }/ordered statements`, collapseWhitespace(printed.code), collapseWhitespace(expected.join('\n')));
+    checkDeep(`${ label }/retained source identity`, program.body.filter(node => original.includes(node)),
+      apply === applyEntryProgram ? [original[0], original[1], original[3]] : original);
+    let mapped = false;
+    for (const node of program.body.slice(2, 4)) walkAstNodes({
+      root: node,
+      visit(item) {
+        if (item.start !== undefined || item.end !== undefined || item.loc || item.range) mapped = true;
+      },
+    });
+    check(`${ label }/no fabricated source positions`, mapped, false);
+  }
+  const program = programOf('"use strict"; require("core-js"); use();');
+  const original = [...program.body];
+  apply({ program, plan: { toRemove: [original[1]], toReplaceWithNoop: [] }, modules: new Set(), importStyle: 'import', pkg: 'core-js' });
+  checkDeep(`global import block/${ apply.name }/empty set preserves host surgery`,
+    program.body, apply === applyEntryProgram ? [original[0], original[2]] : original);
+}
 
 // --- AST-engine internals: flushIntoProgram placement contracts ---
 async function checkAstFlushContracts() {
