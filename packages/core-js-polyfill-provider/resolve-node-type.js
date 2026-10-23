@@ -2283,6 +2283,9 @@ function createResolveNodeType(babelNodeType, t, {
     collectBindingReferences,
     violationRunsDeferred: straightLineFlowCluster.violationRunsDeferred,
     usageRunsDeferred: straightLineFlowCluster.usageRunsDeferred,
+    projectLocalFlowValue,
+    defaultAliasRefClassifier: bindingAnalysisCluster.defaultAliasRefClassifier,
+    protoSetterCalleeArms: bindingAnalysisCluster.protoSetterCalleeArms,
   });
   const {
     annotationAtKeyPath,
@@ -2303,6 +2306,7 @@ function createResolveNodeType(babelNodeType, t, {
     collectPatternKeyPath,
     resolveBindingType,
     reachableValueUnionHints,
+    resolveLocalFlowValue,
   } = patternBindingsCluster;
 
   // type-query <-> call-return form a small dep cycle (typeQuery's `resolveReturnTypeFromTypeQuery`
@@ -2852,6 +2856,7 @@ function createResolveNodeType(babelNodeType, t, {
     classFieldsCluster.reset();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
+    patternBindingsCluster.reset();
     predicateGuardsCluster.reset();
     typeMembersCluster.reset();
     typeAnnotationResolveCluster.reset();
@@ -2864,7 +2869,7 @@ function createResolveNodeType(babelNodeType, t, {
   function resolveNodeType(path) {
     const { node } = path;
     if (!node) return null;
-    if (resolveCache.has(node)) return resolveCache.get(node);
+    if (resolveCache.has(node) && !patternBindingsCluster.needsLocalFlowQuery(node)) return resolveCache.get(node);
     // sentinel before recursion: circular references (e.g. `const a = b.x(); const b = a.x();`)
     // resolve to null (unknown type) instead of causing infinite recursion
     resolveCache.set(node, null);
@@ -2895,9 +2900,23 @@ function createResolveNodeType(babelNodeType, t, {
     return refinesInner || overridesNullish ? annotated : result;
   }
 
+  // The common reaching value replaces the single-write expression search for a covered read.
+  // Original Type stamps still win; guards and annotations retain their fallback priorities.
+  function projectLocalFlowValue(path, value) {
+    const expression = resolvedTypeCache.get(path.node) || value.type;
+    value.type = expression ? preferAnnotationOverExpression(expression, value.annotated)
+      : resolveTypeGuardNarrowing(path) || value.annotated;
+    if (value.type?.type === 'unknown') value.type = resolveTypeGuardNarrowing(path) || value.type;
+  }
+
   function resolveNodeTypeInternal(path, node) {
     let result;
     try {
+      const flow = resolveLocalFlowValue(path);
+      if (flow) {
+        resolveCache.set(node, flow.type);
+        return flow.type;
+      }
       result = resolveNodeTypeExpression(path);
       if (!result) {
         // guards win over the raw binding type: for open annotations and unannotated
@@ -3519,6 +3538,8 @@ function createResolveNodeType(babelNodeType, t, {
   function unionReceiverHints(path, depth) {
     if (depth > UNION_HINTS_MAX_DEPTH || !path?.node) return null;
     path = peelSkippableWrapperPath(path);
+    const flow = withCanonQuestion(() => resolveLocalFlowValue(path));
+    if (flow) return flow.hints;
     const read = path;
     // A mutable binding owns the pairing of pattern writes. Following it before that pairing
     // can mistake the whole RHS container for the field assigned to the receiver.

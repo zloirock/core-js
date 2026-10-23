@@ -4948,11 +4948,15 @@ function statementWritesVarName(statement, name) {
 // `alternate`, a `switch` its `default` and a `try` its handler; a lone `if`, a loop and a labelled
 // block are not complete and keep refusing. the construct is located by climbing from the writes the
 // caller hands in - the DECLARATORS for the positional question, the violation set for the value
-// one. the answer is POSITIONAL only: whether the writes AGREE on a value is the caller's own
-function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNode }) {
+// one. Exact-write mode matches supplied assignment identities, so a shadowing lexical binding
+// cannot complete another binding's branch. The answer is POSITIONAL only: whether the writes
+// AGREE on a value is the caller's own
+export function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNode, exactWrites = false, completions = null }) {
   if (!name || !writeNodes?.length) return null;
+  const allowed = exactWrites ? new Set(writeNodes) : null;
   function hit(statement) {
-    return statementWritesVarName(statement, name);
+    return allowed ? statement?.type === 'ExpressionStatement' && allowed.has(unwrapRuntimeExpr(statement.expression))
+      : statementWritesVarName(statement, name);
   }
   // the owner's parent index is asked ONCE, and WITHOUT the miss-rebuild: a write this index does
   // not hold sits in a nested var scope, which is no path through the OWNER's own branching, so it
@@ -4966,8 +4970,15 @@ function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNode }) {
     for (let cur = parents.get(write); cur && cur !== ownerNode; cur = parents.get(cur)) {
       if (!BRANCHING_HOST_TYPES.has(cur.type) || seen.has(cur)) continue;
       seen.add(cur);
-      if (collectVarGuardsToDeclarator(ownerNode, cur)?.length === 0
-        && provablyPrecedes(cur, readNode) && nodeAlwaysReaches(cur, hit)) return cur;
+      if (collectVarGuardsToDeclarator(ownerNode, cur)?.length !== 0 || !provablyPrecedes(cur, readNode)) continue;
+      // A caller retaining an immutable owner/write set can reuse branch completeness across
+      // reads. Position and guard tests above remain read-specific; the memo proves no timing.
+      let complete = completions?.get(cur);
+      if (complete === undefined) {
+        complete = nodeAlwaysReaches(cur, hit);
+        completions?.set(cur, complete);
+      }
+      if (complete) return cur;
     }
   }
   return null;
