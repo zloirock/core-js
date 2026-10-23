@@ -6,23 +6,7 @@ import {
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { bareImport, bareRequire, expressionStatement } from '@core-js/polyfill-provider/render';
-
-// the application of the entry plan `planEntries` produced: dispositions become body
-// surgery - a removed entry vanishes (its observable indirect-require prefix survives as
-// standalone statements), a promotion-hazard slot becomes the `0;` terminator. seam ASI
-// needs no machinery here: the printer derives separators from structure
-
-// the injected side-effect module block, canonically ordered; nodes carry no source span,
-// so the printer maps them nowhere
-function buildImportNodes({ modules, importStyle, pkg, absoluteImports }) {
-  const isRequire = importStyle === 'require';
-  return sortByPolyfillOrder(modules).map(moduleName => {
-    const path = resolveImportPath(pkg, `modules/${ moduleName }`, absoluteImports);
-    return isRequire ? bareRequire(path) : bareImport(path);
-  });
-}
+import { expressionStatement, renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
 
 // Bind only removed entry statements carrying a comma prefix before body surgery. Plain entry
 // imports and direct requires need no scoped walk; decisions about observable reads stay shared.
@@ -48,9 +32,19 @@ export function extractEntrySideEffectPrefixes(program, removed, adapter) {
 // anchored after the CURRENT prologue's end as a body INDEX
 export function injectImportStatements({ program, modules, importStyle, pkg, absoluteImports }) {
   const prologueEnd = programPrologueEndIndex(program.body);
-  program.body.splice(prologueEnd, 0, ...buildImportNodes({ modules, importStyle, pkg, absoluteImports }));
+  const nodes = renderInjectedImportNodes({
+    globalModules: modules,
+    pureEntries: [],
+    importStyle,
+    resolve: subpath => resolveImportPath(pkg, subpath, absoluteImports),
+  }).map(entry => entry.node);
+  program.body.splice(prologueEnd, 0, ...nodes);
 }
 
+// the application of the entry plan `planEntries` produced: dispositions become body
+// surgery - a removed entry vanishes (its observable indirect-require prefix survives as
+// standalone statements), a promotion-hazard slot becomes the `0;` terminator. seam ASI
+// needs no machinery here: the printer derives separators from structure
 export default function applyEntryProgram({ program, plan, modules, importStyle, pkg, absoluteImports, adapter }) {
   const removed = new Set(plan.toRemove);
   const nooped = new Set(plan.toReplaceWithNoop);
@@ -77,6 +71,12 @@ export default function applyEntryProgram({ program, plan, modules, importStyle,
   }
   if (prologueEnd === program.body.length) body.push(anchor);
   const anchorIndex = body.indexOf(anchor);
-  body.splice(anchorIndex, 1, ...buildImportNodes({ modules, importStyle, pkg, absoluteImports }));
+  const nodes = renderInjectedImportNodes({
+    globalModules: modules,
+    pureEntries: [],
+    importStyle,
+    resolve: subpath => resolveImportPath(pkg, subpath, absoluteImports),
+  }).map(entry => entry.node);
+  body.splice(anchorIndex, 1, ...nodes);
   program.body = body;
 }
