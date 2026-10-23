@@ -36,6 +36,7 @@ import {
   peelSequenceTail,
   performsNothing,
   pureImportSourceEntry,
+  reEvaluationObservable,
   sequenceElementsKept,
   staticMemberFromEntrySegment,
   statementListOf,
@@ -999,6 +1000,14 @@ export function refDeclarationOrder(a, b) {
   return refSlotNumber(prefixA, a) - refSlotNumber(prefixB, b);
 }
 
+// Final-tree removal of an owned memo declaration or standalone write. Bindings supply
+// ownership, remaining reads OR writes (`hasUses`), and permission to remove this host slot;
+// their binding references and syntactic occurrence counts are not interchangeable.
+// A pattern target or an observable initializer/RHS must survive even without a reader.
+export function canDropUnusedMemo(target, value, { owned, hasUses, removable }) {
+  return !!owned && !hasUses && !!removable && target?.type === 'Identifier' && !reEvaluationObservable(value);
+}
+
 // canonical slot assignment for ONE prefix family: names ordered by FIRST PRINT OCCURRENCE
 // take the lowest free slots, so the two emitters agree on numbering wherever they agree on
 // output shape - the raw allocation orders differ by construction (the babel emitter's guard
@@ -1212,7 +1221,7 @@ export function collectInjectorCensus(program, {
       ? unwrapRuntimeExpr(node.expression) : null;
     if (write?.type === 'AssignmentExpression' && write.operator === '='
       && write.left?.type === 'Identifier' && mintedRefNames.has(write.left.name)) {
-      memoStatementWrites.push({ statement: node, name: write.left.name, value: write.right });
+      memoStatementWrites.push({ statement: node, target: write.left, name: write.left.name, value: write.right });
     }
   }, leave() {
     if (memoReuse) {
