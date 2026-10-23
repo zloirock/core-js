@@ -270,6 +270,44 @@ use(f, b, ev);`, { siblingNames: [] });
   checkTruthy('pruneUnusedRefs/orphaned effectful receiver evaluated once', code.match(/\bgetG\(\)/gu)?.length === 1);
 }
 
+// Final binding facts retain effects, residual patterns and loop heads after the last reader
+// disappears. Unrelated source bindings are never candidates for memo cleanup.
+for (const [label, source, retained, expected] of [
+  ['inert', 'var MEMO = 1;', false, []],
+  ['effect', 'var MEMO = effect();', true, ['effect']],
+  ['getter', 'var MEMO = holder.value;', true, ['get']],
+  ['reader', 'var MEMO = 1; consume(MEMO);', true, ['read:1']],
+  ['writer', 'var MEMO; MEMO = 1;', true, []],
+  ['pattern', 'var { value: MEMO } = holder;', true, ['get']],
+  ['for-of head', 'for (var MEMO of [1]) effect();', true, ['effect']],
+  ['for-in head', 'for (var MEMO in { x: 1 }) effect();', true, ['effect']],
+  ['sole for-init', 'for (var MEMO = 1; false;) effect();', false, []],
+  ['shared for-init', 'for (var MEMO = 1, user = effect(); false;) effect();', false, ['effect']],
+]) {
+  let name;
+  const { ast, code } = await transformAsync(`var untouched = 7; ${ source }`, {
+    ast: true,
+    configFile: false,
+    babelrc: false,
+    plugins: [() => ({ visitor: { Program(programPath) {
+      const injector = new ImportInjector({ t, programPath, pkg: '@core-js/pure', mode: 'actual', importStyle: 'import' });
+      name = injector.generateLocalRef(programPath.scope).name;
+      programPath.scope.rename('MEMO', name);
+      injector.pruneUnusedRefs();
+      check(`terminal memo/${ label }/registry`, injector.isGeneratedFamilyName(name), retained);
+    } } })],
+  });
+  check(`terminal memo/${ label }/binding`, !!findNode(ast, node => node.type === 'Identifier' && node.name === name), retained);
+  checkTruthy(`terminal memo/${ label }/source binding`, findNode(ast, node => node.type === 'Identifier' && node.name === 'untouched'));
+  const effects = [];
+  runInNewContext(code, {
+    effect() { effects.push('effect'); return 1; },
+    consume(value) { effects.push(`read:${ value }`); },
+    holder: { get value() { effects.push('get'); return 1; } },
+  });
+  checkDeep(`terminal memo/${ label }/evaluation`, effects, expected);
+}
+
 // Later guard composition can remove the reads after signature refs were localized. Only
 // the allocator's now-empty lexical activation may disappear; source arrows stay source.
 for (const siblingChange of [null, 'statement', 'directive', 'clone', 'parameter']) {

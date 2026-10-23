@@ -4,6 +4,7 @@
 // answer for both legs - so they lock here, on raw ESTree shapes, element-wise.
 import ImportInjectorState, {
   buildCanonicalRenameMap,
+  canDropUnusedMemo,
   collectInjectorCensus,
   createPureImportLiveness,
   generatedNameFamilyOf,
@@ -62,6 +63,46 @@ runBoth('census/type-annotation wall', 'declare const v: { _ref2(): void };', (a
   const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref2']) });
   check(`${ label } :: a name past the \`:\` slot claims nothing`, census.usedNames.has('_ref2'), false);
 });
+
+// Terminal cleanup consumes final native facts; it must not turn an unread binding into
+// permission to discard effects, a residual pattern, or a required declaration slot.
+for (const [name, source, facts, expected] of [
+  ['inert declaration', 'var _ref = 1;', {}, true],
+  ['empty declaration', 'var _ref;', {}, true],
+  ['parenthesized value', 'var _ref = ((1));', {}, true],
+  ['deferred body', 'var _ref = () => effect();', {}, true],
+  ['call', 'var _ref = effect();', {}, false],
+  ['getter', 'var _ref = holder.value;', {}, false],
+  ['sequence effect', 'var _ref = (effect(), 1);', {}, false],
+  ['spread iteration', 'var _ref = [...holder];', {}, false],
+  ['class initialization', 'var _ref = class { static value = effect(); };', {}, false],
+  ['residual pattern', 'var { value: _ref } = holder;', {}, false],
+  ['live reader', 'var _ref = 1;', { hasUses: true }, false],
+  ['surviving write', 'var _ref;', { hasUses: 1 }, false],
+  ['source ownership', 'var _ref = 1;', { owned: false }, false],
+  ['required host slot', 'var _ref = 1;', { removable: false }, false],
+]) runBoth(`memo removal/${ name }`, source, (adapter, programPath, label) => {
+  const [{ id, init }] = programPath.node.body[0].declarations;
+  const before = JSON.stringify(programPath.node);
+  const options = { owned: true, hasUses: false, removable: true, ...facts };
+  canDropUnusedMemo(id, init, options);
+  check(`${ label } :: terminal verdict`, canDropUnusedMemo(id, init, options), expected);
+  check(`${ label } :: asking and ignoring preserves the tree`, JSON.stringify(programPath.node), before);
+});
+
+for (const expression of ['_ref = Array', '((_ref = Array))']) {
+  runBoth(`memo removal/write target/${ expression }`, `var _ref; ${ expression };`, (adapter, programPath, label) => {
+    const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref']) });
+    const [write] = census.memoStatementWrites;
+    check(`${ label } :: one owned statement`, census.memoStatementWrites.length, 1);
+    check(`${ label } :: target survives parser wrappers`, write.target.name, '_ref');
+    check(`${ label } :: inert unread write can retire`, canDropUnusedMemo(write.target, write.value, {
+      owned: true,
+      hasUses: census.refCounts.get('_ref') > census.refDeclIdCounts.get('_ref') + 1,
+      removable: true,
+    }), true);
+  });
+}
 
 // --- pure counts and the import-binder position ---
 
