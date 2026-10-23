@@ -5,7 +5,6 @@ import {
   emptyMemoActivationValue,
   isNonReferencePosition,
   markGeneratedMemoDeclarator,
-  reEvaluationObservable,
   isPrologueDirectiveStatement,
   isTopLevelImportLike,
   invalidateScopeVarIndex,
@@ -17,6 +16,7 @@ import { hostSlot, renderInjectedImportNodes, renderMemoActivation } from '@core
 import estreeToBabel from './estree-to-babel.js';
 import ImportInjectorState, {
   buildCanonicalRenameMap,
+  canDropUnusedMemo,
   collectInjectorCensus,
   createPureImportLiveness,
   isCanonicalSlotOrder,
@@ -380,26 +380,15 @@ export default class ImportInjector extends ImportInjectorState {
   #removeDeadBindings(bindings) {
     let survivor = false;
     for (const binding of bindings) {
-      // referenced / mutated declarators MUST stay, and so must an init whose EVALUATION is
-      // observable: a memo the emission orphaned is still the one place a call or a member read
-      // runs (`const _ref = getG();` whose readers all re-spelled the receiver). only a provably
-      // inert init - a bare binding read - may leave with its declarator
-      if (binding.references || binding.constantViolations.length
-        || (binding.path.node?.init && reEvaluationObservable(binding.path.node.init))) {
-        survivor = true;
-        continue;
-      }
-      // a PATTERN-bound slot (a rest sentinel) belongs to a destructure the residual still
-      // performs - the declarator is not the sentinel's to remove
-      if (binding.path.node?.id?.type !== 'Identifier') {
-        survivor = true;
-        continue;
-      }
       const declPath = binding.path.parentPath;
       // a LOOP HEAD binding (the relocated for-x head's minted name, its pattern extracted whole
       // below) is the loop's `left`: the loop still iterates, so the head stays, unread or not
-      const loop = declPath.parentPath?.node;
-      if ((loop?.type === 'ForOfStatement' || loop?.type === 'ForInStatement') && loop.left === declPath.node) {
+      const loop = declPath?.parentPath?.node;
+      if (!canDropUnusedMemo(binding.path.node?.id, binding.path.node?.init, {
+        owned: this.isGeneratedFamilyName(binding.identifier.name),
+        hasUses: binding.references || binding.constantViolations.length,
+        removable: !((loop?.type === 'ForOfStatement' || loop?.type === 'ForInStatement') && loop.left === declPath.node),
+      })) {
         survivor = true;
         continue;
       }
@@ -440,8 +429,8 @@ export default class ImportInjector extends ImportInjectorState {
       // index plugin-shape (initless `var _refN;`) bindings for the prune, PLUS every
       // binding of a GENERATED name regardless of shape: local `const _refN = init` memos
       // and IIFE memo params share the canonical slot space, so the renumber must reach
-      // their bindings too (`#removeDeadBindings` treats init-bearing / referenced ones as
-      // survivors, so the prune semantics for declared refs are unchanged)
+      // their bindings too (the terminal decision keeps observable initializers and live
+      // uses, so the prune semantics for declared refs are unchanged)
       if (!ImportInjector.#isPluginShapeBinding(binding) && !this.isGeneratedFamilyName(name)) return;
       let list = byName.get(name);
       if (!list) byName.set(name, list = []);
