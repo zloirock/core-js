@@ -18,6 +18,7 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  ['several extracted keys share an unread sentinel', 'let from, of, rest; const held = ({ from, of, ...rest } = Array); use(held, from, of, rest);'],
   // Guarded scalar defaults retain the foreign read and its live fallback across passes.
   ['guarded static scalar default', 'export function read(source) { let M = source; if (!M) M = Array; const { of: value = [9].at(0) } = M; return value; }'],
   ['guarded static computed default', 'let M = pickConstructor(); if (!M) M = Array; const key = "of"; const { [key]: value = [9].at(0) } = M; use(value);'],
