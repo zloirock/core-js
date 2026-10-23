@@ -15,7 +15,7 @@ var thisNumberValue = require('../internals/this-number-value');
 var includes = require('../internals/array-includes').includes;
 var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/to-string');
-var parseJSONString = require('../internals/parse-json-string');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var uid = require('../internals/uid');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
@@ -32,10 +32,14 @@ var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var replace = uncurryThis(''.replace);
 var slice = uncurryThis(''.slice);
+var split = uncurryThis(''.split);
+var stringIndexOf = uncurryThis(''.indexOf);
+var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var pop = uncurryThis([].pop);
 var numberToString = uncurryThis(1.1.toString);
 
+var surrogate = /[\uD800-\uDFFF]/;
 var surrogates = /[\uD800-\uDFFF]/g;
 var leadingSurrogates = /^[\uD800-\uDBFF]$/;
 var trailingSurrogates = /^[\uDC00-\uDFFF]$/;
@@ -47,8 +51,6 @@ var RAW_MARK = uid();
 var KEY_MARK = uid();
 // the last key of a reordered object, marks the end of its serialization
 var END_MARK = uid();
-var RAW_MARK_LENGTH = RAW_MARK.length;
-var KEY_MARK_LENGTH = KEY_MARK.length;
 
 var WRONG_SYMBOLS_CONVERSION = !NATIVE_SYMBOL || fails(function () {
   var symbol = getBuiltIn('Symbol')('stringify detection');
@@ -90,7 +92,7 @@ var fixIllFormedJSON = function (match, offset, string) {
 // https://tc39.es/ecma262/#sec-json.stringify
 var getPropertyList = function (replacer) {
   if (!isArray(replacer)) return;
-  var rawLength = replacer.length;
+  var rawLength = lengthOfArrayLike(replacer);
   var propertyList = [];
   // a null prototype object is used as a set of already added keys to keep the deduplication linear
   var addedKeys = create(null);
@@ -132,8 +134,10 @@ var isBoxedPrimitive = function (it) {
 var isSerializedAsObject = function (it) {
   if (!isObject(it) || isCallable(it) || isArray(it)) return false;
   try {
-    return !isBoxedPrimitive(it);
-  // `classof` reads `Symbol.toStringTag`, so a proxy could throw - it has no internal slots anyway
+    // polyfilled symbols are objects, but they should be serialized as symbols
+    return !isBoxedPrimitive(it) && !isSymbol(it);
+  // `classof` reads `Symbol.toStringTag` and `isSymbol` could read the prototype, so a proxy could throw -
+  // it has no internal slots and it's not a symbol anyway
   } catch (error) {
     return true;
   }
@@ -153,18 +157,20 @@ var createElementHolder = function (holder, key) {
   };
 };
 
-// own keys of objects are sorted - integer-like keys are moved to the beginning,
-// so such keys should be marked and restored in the serialized string
+// own keys of objects are sorted - integer-like keys are moved to the beginning, and some old engines
+// skip the own `__proto__` key of a null prototype object in the enumeration (like Firefox < 39)
+// or treat it as the prototype setter, so such keys should be marked and restored in the serialized string
 var getKeyPrefix = function (propertyList) {
   for (var i = 0, length = propertyList.length; i < length; i++) {
-    if (exec(digits, propertyList[i])) return KEY_MARK;
+    var key = propertyList[i];
+    if (key === '__proto__' || exec(digits, key)) return KEY_MARK;
   } return '';
 };
 
 // `SerializeJSONObject` iterates the property list, so the value is replaced with an object with keys in this order
 var createOrderedObject = function (value, propertyList, keyPrefix) {
-  // keys are not marked if the property list has no integer-like keys, so `Object.prototype`
-  // with a setter, a non-writable property or `__proto__` should not intercept the assignment
+  // keys are not marked if the property list has neither integer-like keys nor `__proto__`,
+  // so `Object.prototype` with a setter or a non-writable property should not intercept the assignment
   var ordered = create(null);
   for (var i = 0, length = propertyList.length; i < length; i++) {
     var key = propertyList[i];
@@ -188,10 +194,24 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
     var currentOrdered;
     var marked = false;
     var root = true;
+    var rootValue;
+    var gap;
+
+    // lone surrogates are fixed below in the whole result, so a gap with them is replaced by a control char,
+    // which is escaped everywhere else, and put back after the fix; a boxed string is converted only here
+    if (ILL_FORMED_UNICODE) {
+      if (isObject(space) && hasInternalSlot(stringValueOf, space)) space = $String(space);
+      if (typeof space == 'string' && exec(surrogate, space)) {
+        gap = slice(space, 0, 10);
+        space = '\u0001';
+      }
+    }
 
     var json = stringifyWithProperSymbolsConversion(text, function (key, value) {
       // some old implementations (like WebKit) could pass numbers as keys
       key = $String(key);
+      var isRoot = root;
+      root = false;
 
       if (propertyList) {
         if (key === END_MARK) {
@@ -199,11 +219,12 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
           currentOrdered = pop(parentOrdered);
           return;
         }
-        if (root) root = false;
         // the innermost reordered object already contains only keys of the property list and arrays are not
-        // affected by it, the rest of objects (like objects with a fake `Symbol.toStringTag`) are filtered here
-        else if (this !== currentOrdered && !isArray(this) && !includes(propertyList, key)) return;
+        // affected by it, the rest of objects (like ones mistaken for boxed primitives) are filtered here
+        if (!isRoot && this !== currentOrdered && !isArray(this) && !includes(propertyList, key)) return;
       } else if (replacerFunction) value = call(replacerFunction, this, key, value);
+
+      if (isRoot) rootValue = value;
 
       if (isRawJSONValue(value)) {
         if (NATIVE_RAW_JSON) return value;
@@ -225,25 +246,26 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
       return value;
     }, space);
 
+    // IE8 returns a string instead of `undefined` when the root, after `toJSON` and the replacer, is not serializable
+    if (rootValue === undefined || isSymbol(rootValue) || isCallable(rootValue)) return;
+
     if (typeof json != 'string') return json;
 
-    if (ILL_FORMED_UNICODE) json = replace(json, surrogates, fixIllFormedJSON);
+    if (ILL_FORMED_UNICODE) {
+      json = replace(json, surrogates, fixIllFormedJSON);
+      if (gap) json = join(split(json, '\u0001'), gap);
+    }
 
     if (!marked) return json;
 
-    var result = '';
-    var length = json.length;
+    // marks are unique and the serialization doesn't escape them, so they are found as substrings -
+    // the result is not parsed since the gap could contain anything, quotes included
+    var parts = split(join(split(json, KEY_MARK), ''), '"' + RAW_MARK);
+    var result = parts[0];
 
-    for (var i = 0; i < length; i++) {
-      var chr = charAt(json, i);
-      if (chr === '"') {
-        var end = parseJSONString(json, ++i).end - 1;
-        var string = slice(json, i, end);
-        if (slice(string, 0, RAW_MARK_LENGTH) === RAW_MARK) result += rawStrings[slice(string, RAW_MARK_LENGTH)];
-        else if (slice(string, 0, KEY_MARK_LENGTH) === KEY_MARK) result += '"' + slice(string, KEY_MARK_LENGTH) + '"';
-        else result += '"' + string + '"';
-        i = end;
-      } else result += chr;
+    for (var i = 1, length = parts.length; i < length; i++) {
+      var end = stringIndexOf(parts[i], '"');
+      result += rawStrings[slice(parts[i], 0, end)] + slice(parts[i], end + 1);
     }
 
     return result;

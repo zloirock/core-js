@@ -93,12 +93,23 @@ if (GLOBAL.JSON?.stringify) {
         getPrototypeOf() { throw new EvalError('should not affect the result'); },
       });
       assert.same(stringify({ x: traps }, ['x', 'a', 'b']), '{"x":{"a":2,"b":1}}', 'replacer-array-proxy-traps');
+      // the length of a replacer array is taken as an integer, even from a proxy
+      // eslint-disable-next-line es/no-proxy -- testing
+      const lyingLength = new Proxy(['a', 'b', 'c'], { get: (target, key) => key === 'length' ? 2.5 : target[key] });
+      assert.same(stringify({ a: 1, b: 2, c: 3 }, lyingLength), '{"a":1,"b":2}', 'replacer-array-length');
     }
 
     // `JSON.parse` is used since a computed key could be compiled to an assignment triggering the setter
     const ownProto = GLOBAL.JSON.parse('{"__proto__":1,"a":2}');
     assert.same(stringify(ownProto, ['__proto__', 'a']), '{"__proto__":1,"a":2}', 'replacer-array-proto-key-1');
     assert.same(stringify(ownProto, ['__proto__', 'a', '0']), '{"__proto__":1,"a":2}', 'replacer-array-proto-key-2');
+
+    // the indentation is copied as is, even if the gap looks like a part of the serialized text
+    assert.same(stringify({ 0: 'a', c: 'c' }, ['c', '0'], '"'), '{\n""c": "c",\n""0": "a"\n}', 'replacer-array-space-quote-1');
+    assert.same(stringify(ownProto, ['__proto__', 'a'], '"'), '{\n""__proto__": 1,\n""a": 2\n}', 'replacer-array-space-quote-2');
+    const nested = { 1: [{ a: 1 }, [], {}], b: 'b' };
+    const gapped = stringify(nested, ['b', '1', 'a'], '#####').replaceAll('#####', '"{,\n[');
+    assert.same(stringify(nested, ['b', '1', 'a'], '"{,\n['), gapped, 'replacer-array-space-quote-3');
 
     function Parent() { /* empty */ }
     Parent.prototype.inherited = 1;
@@ -175,6 +186,8 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify([1], (key, value) => value === 1 ? undefined : value), '[null]', 'replacer-function-result-undefined-4');
     assert.same(stringify({ prop: 1 }, (key, value) => value === 1 ? undefined : value), '{}', 'replacer-function-result-undefined-5');
     assert.same(stringify({ a: { b: [1] } }, (key, value) => value === 1 ? undefined : value), '{"a":{"b":[null]}}', 'replacer-function-result-undefined-6');
+    assert.same(stringify(undefined, () => { /* empty */ }), undefined, 'replacer-function-result-undefined-7');
+    assert.same(stringify(undefined, (key, value) => key === '' ? () => { /* empty */ } : value), undefined, 'replacer-function-result-undefined-8');
 
     assert.same(stringify(null, (key, value) => {
       assert.same(value, null);
@@ -609,6 +622,10 @@ if (GLOBAL.JSON?.stringify) {
       assert.same(stringify(object), '{"bar":2}', 'object key');
     }
     assert.same(stringify(symbol1), undefined, 'symbol value');
+    // symbols are skipped with a property list too, even polyfilled ones, which are objects
+    assert.same(stringify({ symbol: symbol1, key: 1 }, ['symbol', 'key']), '{"key":1}', 'object value, replacer array');
+    assert.same(stringify([symbol1], ['key']), '[null]', 'array value, replacer array');
+    assert.same(stringify(symbol1, ['description']), undefined, 'symbol value, replacer array');
     if (typeof symbol1 == 'symbol') {
       assert.same(stringify(Object(symbol1)), '{}', 'boxed symbol');
     }
@@ -627,5 +644,11 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify('\uD834\uD834\uDF06'), '"\\ud834𝌆"', 'r6');
     assert.same(stringify('\uD834\uDF06\uDF06'), '"𝌆\\udf06"', 'r7');
     assert.same(stringify({ '𠮷': ['\uDF06\uD834'] }), '{"𠮷":["\\udf06\\ud834"]}', 'r8');
+    // lone surrogates are escaped only in strings, the gap is copied as is
+    assert.same(stringify([1], null, '\uD800'), '[\n\uD8001\n]', 'r9');
+    // a gap of emojis could be cut to a lone surrogate
+    assert.same(stringify({ a: 1 }, null, 'x😀😀😀😀😀'), '{\nx😀😀😀😀\uD83D"a": 1\n}', 'r10');
+    assert.same(stringify({ 0: ['\uDEAD'] }, ['0'], '\uDEAD'), '{\n\uDEAD"0": [\n\uDEAD\uDEAD"\\udead"\n\uDEAD]\n}', 'r11');
+    assert.same(stringify([1], null, new String('\uD800')), '[\n\uD8001\n]', 'r12');
   });
 }
