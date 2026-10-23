@@ -109,8 +109,9 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
   }
   await installDependencies(srcDir);
 
-  await bundlePackage(false);
+  // the package keeps the last build, and local tests of `core-js-bundle` need the standard one
   await bundlePackage(true);
+  await bundlePackage(false);
 
   console.timeEnd('Core JS bundles built');
 }
