@@ -24,6 +24,8 @@ QUnit.test('JSON.rawJSON', assert => {
     key: rawJSON('9007199254740993'),
     0: 'skipped',
   }, ['key']), '{"key":9007199254740993}');
+  assert.same(stringify({ key: rawJSON('1') }, null, '"'), '{\n""key": 1\n}', 'gap with a quote');
+  assert.same(stringify({ 0: rawJSON('1'), a: [rawJSON('2')] }, ['a', '0'], '"'), '{\n""a": [\n""2\n"],\n""0": 1\n}', 'gap with a quote and marked keys');
 
   assert.throws(() => rawJSON('"qwe'), SyntaxError, 'invalid 1');
   assert.throws(() => rawJSON({}), SyntaxError, 'invalid 2');
