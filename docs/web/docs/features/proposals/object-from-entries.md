@@ -15,7 +15,7 @@ class Object {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/object-from-entries
-core-js(-pure)/es|stable|actual|full/object/from-entries
+{ core-js, @core-js/pure }/es|stable|actual|full/object/from-entries
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

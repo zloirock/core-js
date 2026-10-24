@@ -16,7 +16,7 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-range
-core-js(-pure)/full/iterator/range
+{ core-js, @core-js/pure }/full/iterator/range
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

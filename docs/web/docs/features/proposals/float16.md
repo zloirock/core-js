@@ -22,7 +22,7 @@ namespace Math {
 core-js/proposals/float16
 core-js/es|stable|actual|full/data-view/get-float16
 core-js/es|stable|actual|full/data-view/set-float16
-core-js(-pure)/es|stable|actual|full/math/f16round
+{ core-js, @core-js/pure }/es|stable|actual|full/math/f16round
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

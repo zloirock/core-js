@@ -14,7 +14,7 @@ class Function {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/es|stable|actual|full/function
-core-js(-pure)/es|stable|actual|full/function/virtual
+{ core-js, @core-js/pure }/es|stable|actual|full/function/virtual
 core-js/es|stable|actual|full/function/name
 core-js/es|stable|actual|full/function/instance/name
 core-js/es|stable|actual|full/instance/name

@@ -14,12 +14,12 @@ class Number {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/math-clamp
-core-js(-pure)/full/number(/virtual)/clamp
+core-js/proposals/number-clamp
+{ core-js, @core-js/pure }/full/number(/virtual)/clamp
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/math-clamp`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/number-clamp.d.ts)
+[`@core-js/types/proposals/number-clamp`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/number-clamp.d.ts)
 
 ## Examples
 ```js

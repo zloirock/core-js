@@ -15,7 +15,7 @@ class Object {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/object-keys-length
-core-js(-pure)/full/object/keys-length
+{ core-js, @core-js/pure }/full/object/keys-length
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

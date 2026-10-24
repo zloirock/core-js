@@ -51,7 +51,7 @@ import 'core-js/proposals/async-iterator-helpers';
 import 'core-js/stage/2';
 ```
 
-Proposals are also available by stages, in `core-js(-pure)/stage/3`, `core-js(-pure)/stage/2.7`, `core-js(-pure)/stage/2`, `core-js(-pure)/stage/1`, `core-js(-pure)/stage/0` and `core-js(-pure)/stage/pre` entry points. `core-js/stage/3` entry point contains stage 3 and all higher-stage proposals (including finished ones and obsolete versions kept for compatibility), `core-js/stage/2.7` - stage 2.7 and higher, etc.
+Proposals are also available by stages, in `{ core-js, @core-js/pure }/stage/3`, `{ core-js, @core-js/pure }/stage/2.7`, `{ core-js, @core-js/pure }/stage/2`, `{ core-js, @core-js/pure }/stage/1`, `{ core-js, @core-js/pure }/stage/0` and `{ core-js, @core-js/pure }/stage/pre` entry points. `core-js/stage/3` entry point contains stage 3 and all higher-stage proposals (including finished ones and obsolete versions kept for compatibility), `core-js/stage/2.7` - stage 2.7 and higher, etc.
 
 > [!TIP]
 > The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.
@@ -372,7 +372,8 @@ with `chrome 71` target will be replaced just to:
 import 'core-js/modules/es.array.unscopables.flat';
 import 'core-js/modules/es.array.unscopables.flat-map';
 import 'core-js/modules/es.object.from-entries';
-import 'core-js/modules/web.immediate';
+import 'core-js/modules/web.clear-immediate';
+import 'core-js/modules/web.set-immediate';
 // ...and the rest of the modules not yet supported by Chrome 71
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
