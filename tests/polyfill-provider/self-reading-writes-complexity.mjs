@@ -9,14 +9,9 @@ import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, resolvePure } from './harness.mjs';
 
 const { checkTruthy, finish } = createChecker('self-reading-writes-complexity');
-
-// every global the rows read is served by the build, as pure serves it
-function resolvePure(meta) {
-  return { kind: meta.kind === 'global' ? 'global' : 'static' };
-}
 
 // a member of the cursor pushed to, or a slot of it written: the census reads the written slot's receiver through
 // the cursor's values (`overlay.ranges[last] = range` in `@lezer/common`)
