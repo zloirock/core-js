@@ -288,7 +288,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 `core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
 
 > [!NOTE]
-> `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#babel-plugin-polyfill-corejs3).
+> `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#babel-plugin-polyfill-corejs3). These options and `babel-plugin-polyfill-corejs3` are deprecated in favor of [`@core-js/babel-plugin`](/packages/core-js-babel-plugin).
 
 #### `@babel/polyfill`[⬆](#index)
 
@@ -403,6 +403,9 @@ By default, `@babel/plugin-transform-runtime` only polyfills stable features, bu
 
 #### `babel-plugin-polyfill-corejs3`[⬆](#index)
 
+> [!WARNING]
+> `babel-plugin-polyfill-corejs3` is deprecated in favor of [`@core-js/babel-plugin`](/packages/core-js-babel-plugin).
+
 [`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/plugin-transform-runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
 ```json
 {
@@ -433,7 +436,7 @@ In some cases, it could be useful to exclude some `core-js` features or to gener
 
 However, I have no possibility to test `core-js` absolutely everywhere - for example, testing in IE7- and some other ancient engines was stopped. You can see the list of definitely supported engines in the compatibility table at the link below. [Write](https://github.com/zloirock/core-js/issues) if you have issues or questions with the support of any engine.
 
-The `core-js` project provides (as the [`@core-js/compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools to work with it - it's useful for integration with tools like `babel` or `swc`. If you want to help, you could take a look at the related section of [`CONTRIBUTING.md`](/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
+The `core-js` project provides (as the [`@core-js/compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools to work with it - it's useful for integration with tools like `babel` or `swc`. If you want to help, you could take a look at the related section of [`CONTRIBUTING.md`](/CONTRIBUTING.md#how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)
 
@@ -2202,7 +2205,6 @@ core-js(-pure)/es|stable|actual|full/reflect/own-keys
 core-js(-pure)/es|stable|actual|full/reflect/prevent-extensions
 core-js(-pure)/es|stable|actual|full/reflect/set
 core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
-core-js(-pure)/es|stable|actual|full/reflect/to-string-tag
 ```
 [*Examples*](https://core-js.io/playground#code=let+object+%3D+%7B+a%3A+1+%7D%3B%0AObject.defineProperty%28object%2C+%27b%27%2C+%7B+value%3A+2+%7D%29%3B%0Aobject%5BSymbol%28%27c%27%29%5D+%3D+3%3B%0AReflect.ownKeys%28object%29%3B+%2F%2F+%3D%3E+%5B%27a%27%2C+%27b%27%2C+Symbol%28c%29%5D%0A%0Afunction+C%28a%2C+b%29+%7B%0A++this.c+%3D+a+%2B+b%3B%0A%7D%0A%0Alet+instance+%3D+Reflect.construct%28C%2C+%5B20%2C+22%5D%29%3B%0Ainstance.c%3B+%2F%2F+%3D%3E+42):
 ```js
