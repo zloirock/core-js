@@ -117,10 +117,14 @@ QUnit.test('globals: Iterator', assert => {
   assert.isFunction(Iterator.from);
 });
 
+// pure cannot add `description` to a native `Symbol.prototype` lacking it (like Chrome < 70, Firefox < 63).
+// the probe is compiled at runtime - the plugin answers a `key in obj` probe in the polyfilled world
+const SYMBOL_DESCRIPTION = Function('return typeof Symbol != "function" || "description" in Symbol.prototype')();
+
 QUnit.test('globals: Symbol', assert => {
   const s = Symbol('test');
   assert.notSame(s, undefined);
-  assert.same(s.description, 'test');
+  if (SYMBOL_DESCRIPTION) assert.same(s.description, 'test');
 });
 
 QUnit.test('globals: setImmediate / clearImmediate', assert => {

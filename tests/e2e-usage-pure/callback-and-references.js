@@ -51,11 +51,14 @@ QUnit.test('callback: Promise.resolve in map + Promise.all', assert => {
   });
 });
 
+// pure cannot add `description` to a native `Symbol.prototype` lacking it; the probe evades the `in` fold
+const SYMBOL_DESCRIPTION = Function('return typeof Symbol != "function" || "description" in Symbol.prototype')();
+
 // a constructor handed to a library method off a builtin call's result reaches the library alone:
 // the narrow entry it resolves to still constructs every element
 QUnit.test('callback: a constructor mapped over a builtin call result', assert => {
   const symbols = Array.from(['a', 'b']).map(Symbol);
-  assert.deepEqual(symbols.map(symbol => symbol.description), ['a', 'b']);
+  if (SYMBOL_DESCRIPTION) assert.deepEqual(symbols.map(symbol => symbol.description), ['a', 'b']);
   assert.notSame(symbols[0], symbols[1]);
 });
 

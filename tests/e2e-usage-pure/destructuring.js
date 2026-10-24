@@ -7622,9 +7622,10 @@ export function readNestedRetainedDefault(factory, key, fallback) {
   return [method, after];
 }
 
-// an engine without `Function.prototype.name` (the karma floor) infers no names, so the
-// preservation claim has nothing to observe there
-const FUNCTION_NAMES = !!Object.getOwnPropertyDescriptor(() => { /* empty */ }, 'name');
+// the names are kept through an object literal key, which an engine before ES2015 name inference (the
+// karma floor, like Firefox < 53) does not name a function by, so the preservation claim has nothing to
+// observe there. the probe is compiled at runtime - Babel would name the function itself
+const FUNCTION_NAMES = Function('return ({ inferred: function () { /* empty */ } }).inferred.name === "inferred"')();
 (FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('destructuring retained defaults preserve inferred function names', assert => {
   const log = [];
   const source = {};

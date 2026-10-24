@@ -370,8 +370,11 @@ QUnit.test('Symbol.iterator: possibly-unwritten key alias keeps the native read'
   assert.same([50, 51][undecidedKey], undefined);
   assert.same([52, 53][falseKey], undefined);
   assert.same([54, 55][notFunctionKey], undefined);
+  // Firefox 17-35 serves the iterator protocol under this very string, so the oracle is the native read,
+  // compiled at runtime out of the plugin's reach
+  const nativeFallback = Function('return []["@@iterator"]')();
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the fallback key IS the case under test
-  assert.same([56, 57][undecidedTernaryKey], undefined);
+  assert.same([56, 57][undecidedTernaryKey], nativeFallback);
 });
 
 // the value an assignment gives a key alias resolves where the assignment stands: a block around the

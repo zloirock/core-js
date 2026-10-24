@@ -137,8 +137,10 @@ QUnit.test('guarded destructuring: a default preserves the receiver for later sl
 
 // Post-only detection receives Babel's already-lowered anonymous defaults without inferred names.
 // The source-level differential and the other phases check our preservation of those names.
+// The names are kept through an object literal key, which an engine before ES2015 name inference
+// does not name a function by; the probe is compiled at runtime - Babel would name the function itself
 const testNamedDefault = typeof E2E_DETECT_LOWERED === 'undefined'
-  && Object.getOwnPropertyDescriptor(() => { /* empty */ }, 'name') ? QUnit.test : QUnit.skip;
+  && Function('return ({ inferred: function () { /* empty */ } }).inferred.name === "inferred"')() ? QUnit.test : QUnit.skip;
 testNamedDefault('guarded destructuring: anonymous defaults retain their binding names', assert => {
   function read(source) {
     let M = source;
