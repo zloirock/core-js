@@ -6,6 +6,7 @@
 - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies of `/es/` and `/stable/` namespaces, the `JSON.parse` source text access proposal entry and the stage 4 entry, a regression since 3.47.0
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator (Firefox < 46)
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill in V8 ~ Chrome < 70, Safari < 12.1, FF < 63, Rhino < 1.8.0
+- Fixed detection of detached `ArrayBuffer` in V8 ~ Chrome < 96 and Safari < 14.1, so `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills handle detached buffers there
 - Compat data improvements:
   - Added [Opera for Android 103](https://forums.opera.com/topic/89817/opera-for-android-103) compat data mapping
 
