@@ -1,7 +1,7 @@
 # ECMAScript: Error
 
 ## Modules
-[`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.constructor.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.to-string.js).
+[`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.constructor.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.suppressed-error.constructor.js).
 
 ## Built-ins signatures
 ```ts

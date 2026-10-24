@@ -79,7 +79,7 @@ core-js/es|stable|actual|full/string/match
 core-js/es|stable|actual|full/string/replace
 core-js/es|stable|actual|full/string/search
 core-js/es|stable|actual|full/string/split
-core-js(-pure)/es|stable|actual/string(/prototype)/at
+core-js(-pure)/es|stable|actual|full/string(/prototype)/at
 core-js(-pure)/es|stable|actual|full/string(/prototype)/code-point-at
 core-js(-pure)/es|stable|actual|full/string(/prototype)/ends-with
 core-js(-pure)/es|stable|actual|full/string(/prototype)/includes

@@ -593,13 +593,13 @@ core-js/es|stable|actual|full/function
 core-js(-pure)/es|stable|actual|full/function/virtual
 core-js/es|stable|actual|full/function/name
 ```
-[*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27%0A%0Aconsole.log.bind%28console%2C+42%29%2843%29%3B+%2F%2F+-%3E+42+43):
+[*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27):
 ```js
 (function foo() { /* empty */ }).name; // => 'foo'
 ```
 
 #### ECMAScript: Error[⬆](#index)
-Modules [`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.constructor.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
+Modules [`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.constructor.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js).
 ```ts
 class Error {
   static isError(value: any): boolean;
@@ -642,7 +642,7 @@ core-js(-pure)/es|stable|actual|full/error/is-error
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js(-pure)/es|stable|actual|full/suppressed-error
 ```
-[*Examples*](https://core-js.io/playground#code=const+error1+%3D+new+TypeError%28%27Error+1%27%29%3B%0Aconst+error2+%3D+new+TypeError%28%27Error+2%27%29%3B%0Aconst+aggregate+%3D+new+AggregateError%28%5Berror1%2C+error2%5D%2C+%27Collected+errors%27%29%3B%0Aaggregate.errors%5B0%5D+%3D%3D%3D+error1%3B+%2F%2F+%3D%3E+true%0Aaggregate.errors%5B1%5D+%3D%3D%3D+error2%3B+%2F%2F+%3D%3E+true%0A%0Aconst+cause+%3D+new+TypeError%28%27Something+wrong%27%29%3B%0Aconst+error+%3D+new+TypeError%28%27Here+is+what+went+wrong%27%2C+%7B+cause+%7D%29%3B%0Aerror.cause+%3D%3D%3D+cause%3B+%2F%2F+%3D%3E+true%0A%0AError.prototype.toString.call%28%7B+message%3A+1%2C+name%3A+2+%7D%29+%3D%3D%3D+%272%3A+1%27%3B+%2F%2F+%3D%3E+true):
+[*Examples*](https://core-js.io/playground#code=const+error1+%3D+new+TypeError%28%27Error+1%27%29%3B%0Aconst+error2+%3D+new+TypeError%28%27Error+2%27%29%3B%0Aconst+aggregate+%3D+new+AggregateError%28%5Berror1%2C+error2%5D%2C+%27Collected+errors%27%29%3B%0Aaggregate.errors%5B0%5D+%3D%3D%3D+error1%3B+%2F%2F+%3D%3E+true%0Aaggregate.errors%5B1%5D+%3D%3D%3D+error2%3B+%2F%2F+%3D%3E+true%0A%0Aconst+cause+%3D+new+TypeError%28%27Something+wrong%27%29%3B%0Aconst+error+%3D+new+TypeError%28%27Here+is+what+went+wrong%27%2C+%7B+cause+%7D%29%3B%0Aerror.cause+%3D%3D%3D+cause%3B+%2F%2F+%3D%3E+true):
 ```js
 const error1 = new TypeError('Error 1');
 const error2 = new TypeError('Error 2');
@@ -1034,7 +1034,7 @@ core-js/es|stable|actual|full/string/match
 core-js/es|stable|actual|full/string/replace
 core-js/es|stable|actual|full/string/search
 core-js/es|stable|actual|full/string/split
-core-js(-pure)/es|stable|actual/string(/prototype)/at
+core-js(-pure)/es|stable|actual|full/string(/prototype)/at
 core-js(-pure)/es|stable|actual|full/string(/prototype)/code-point-at
 core-js(-pure)/es|stable|actual|full/string(/prototype)/ends-with
 core-js(-pure)/es|stable|actual|full/string(/prototype)/includes
@@ -1289,7 +1289,7 @@ core-js(-pure)/es|stable|actual|full/date/to-json
 ```
 
 #### ECMAScript: Promise[⬆](#index)
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.catch`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.catch.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js), [`es.promise.resolve`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.resolve.js), [`es.promise.reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.reject.js), [`es.promise.all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all.js), [`es.promise.race`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.race.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
+Modules [`es.promise.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.constructor.js), [`es.promise.catch`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.catch.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js), [`es.promise.resolve`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.resolve.js), [`es.promise.reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.reject.js), [`es.promise.all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all.js), [`es.promise.race`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.race.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
 ```ts
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
@@ -1413,7 +1413,7 @@ const d = Promise.withResolvers();
 d.resolve(42);
 d.promise.then(console.log); // -> 42
 ```
-[*Examples*](https://core-js.io/playground#code=let+delay+%3D+time+%3D%3E+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+-%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+-%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+-%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+-%3E+Error%3A+Error%21%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
+[*Examples*](https://core-js.io/playground#code=function+delay%28time%29+%7B%0A++return+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%7D%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+-%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+-%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+-%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+-%3E+Error%3A+Error%21%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
 ```js
 function delay(time) {
   return new Promise(resolve => setTimeout(resolve, time));
@@ -2604,7 +2604,7 @@ core-js/proposals/iterator-chunking-v2
 core-js(-pure)/es|stable|actual|full/iterator/chunks
 core-js(-pure)/es|stable|actual|full/iterator/windows
 ```
-[*Examples*](https://core-js.io/playground#code=const+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0Alet+chunks+%3D+Array.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windows+%3D+Array.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windowsPartial+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0Alet+windowsFull+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D):
+[*Examples*](https://core-js.io/playground#code=function+digits%28%29+%7B%0A++return+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%7D%0A%0Alet+chunks+%3D+Array.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windows+%3D+Array.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windowsPartial+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0Alet+windowsFull+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D):
 ```js
 function digits() {
   return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();

@@ -19,4 +19,4 @@ core-js(-pure)/full/symbol/custom-matcher
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/pattern-matching`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/pattern-matching.d.ts)
+[`@core-js/types/proposals/extractors`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/pattern-matching.d.ts)

@@ -2,14 +2,14 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
 
 </div>
 
-**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
+**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/v4/docs/2023-02-14-so-whats-next.md)**
 ---
 
-> [`core-js`](https://core-js.io) is a modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2026: [promises](https://core-js.io/docs/features/ecmascript/promise), [symbols](https://core-js.io/docs/features/ecmascript/symbol), [collections](https://core-js.io/docs/features/ecmascript/collections), [iterators](https://core-js.io/docs/features/ecmascript/iterator), [typed arrays](https://core-js.io/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](https://core-js.io/docs/features/web-standards/url). You can load only required features or use it without global namespace pollution.
+> [`core-js`](https://core-js.io) is a modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2026: [promises](https://core-js.io/v4/docs/features/ecmascript/promise), [symbols](https://core-js.io/v4/docs/features/ecmascript/symbol), [collections](https://core-js.io/v4/docs/features/ecmascript/collections), [iterators](https://core-js.io/v4/docs/features/ecmascript/iterator), [typed arrays](https://core-js.io/v4/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](https://core-js.io/v4/docs/features/web-standards/url). You can load only required features or use it without global namespace pollution.
 
 ## Raising funds
 
@@ -25,7 +25,7 @@
 
 ---
 
-[*Example of usage*](https://core-js.io/playground#code=import+%27core-js%2Factual%27%3B%0A%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28it%29%29%3B+%2F%2F+-%3E+42%0A%0AArray.from%28new+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%5D.flatMap%28it+%3D%3E+%5Bit%2C+it%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+2%2C+2%5D%0A%0AIterator.concat%28%5B1%2C+2%5D%2C+function+%2A+%28i%29+%7B+while+%28true%29+yield+i%2B%2B%3B+%7D%283%29%29%0A++.drop%281%29.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D):
+[*Example of usage*](https://core-js.io/v4/playground#code=import+%27core-js%2Factual%27%3B%0A%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28it%29%29%3B+%2F%2F+-%3E+42%0A%0AArray.from%28new+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%5D.flatMap%28it+%3D%3E+%5Bit%2C+it%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+2%2C+2%5D%0A%0AIterator.concat%28%5B1%2C+2%5D%2C+function+%2A+%28i%29+%7B+while+%28true%29+yield+i%2B%2B%3B+%7D%283%29%29%0A++.drop%281%29.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D):
 ```js
 import 'core-js/actual';
 
