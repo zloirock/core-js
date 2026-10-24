@@ -3891,18 +3891,18 @@ export const proposals = {
       'es.weak-map.get-or-insert-computed',
     ],
   },
-  'math-clamp': {
-    link: 'https://github.com/tc39/proposal-math-clamp',
-    stage: 2,
-    modules: [
-      'esnext.number.clamp',
-    ],
-  },
   'math-sum': {
     link: 'https://github.com/tc39/proposal-math-sum',
     stage: 4,
     modules: [
       'es.math.sum-precise',
+    ],
+  },
+  'number-clamp': {
+    link: 'https://github.com/tc39/proposal-math-clamp',
+    stage: 2,
+    modules: [
+      'esnext.number.clamp',
     ],
   },
   'object-from-entries': {
@@ -3912,7 +3912,7 @@ export const proposals = {
       'es.object.from-entries',
     ],
   },
-  'object-getownpropertydescriptors': {
+  'object-get-own-property-descriptors': {
     link: 'https://github.com/tc39/proposal-object-getownpropertydescriptors',
     stage: 4,
     modules: [

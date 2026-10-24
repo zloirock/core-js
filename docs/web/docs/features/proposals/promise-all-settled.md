@@ -15,7 +15,7 @@ class Promise {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/promise-all-settled
-core-js(-pure)/es|stable|actual|full/promise/all-settled
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/all-settled
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

@@ -20,10 +20,10 @@ namespace JSON {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/json-parse-with-source
-core-js(-pure)/es|stable|actual|full/json/is-raw-json
-core-js(-pure)/es|stable|actual|full/json/parse
-core-js(-pure)/es|stable|actual|full/json/raw-json
-core-js(-pure)/es|stable|actual|full/json/stringify
+{ core-js, @core-js/pure }/es|stable|actual|full/json/is-raw-json
+{ core-js, @core-js/pure }/es|stable|actual|full/json/parse
+{ core-js, @core-js/pure }/es|stable|actual|full/json/raw-json
+{ core-js, @core-js/pure }/es|stable|actual|full/json/stringify
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

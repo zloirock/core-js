@@ -23,8 +23,8 @@ class %TypedArray% {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/relative-indexing-method
-core-js(-pure)/es|stable|actual|full/array(/virtual)/at
-core-js(-pure)/es|stable|actual/string(/virtual)/at
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/virtual)/at
+{ core-js, @core-js/pure }/es|stable|actual/string(/virtual)/at
 core-js/es|stable|actual|full/typed-array/at
 ```
 

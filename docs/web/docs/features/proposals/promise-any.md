@@ -21,8 +21,8 @@ class Promise {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/promise-any
-core-js(-pure)/es|stable|actual|full/aggregate-error
-core-js(-pure)/es|stable|actual|full/promise/any
+{ core-js, @core-js/pure }/es|stable|actual|full/aggregate-error
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/any
 ```
 
 ## Examples
