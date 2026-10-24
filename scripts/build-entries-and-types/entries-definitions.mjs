@@ -3773,7 +3773,7 @@ export const proposals = {
   },
   extractors: {
     link: 'https://github.com/tc39/proposal-extractors',
-    stage: 1,
+    stage: 2,
     modules: [
       'esnext.symbol.custom-matcher',
     ],

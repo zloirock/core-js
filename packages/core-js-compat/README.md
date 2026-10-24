@@ -2,14 +2,14 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/compat.svg)](https://www.npmjs.com/package/@core-js/compat) [![@core-js/compat downloads](https://img.shields.io/npm/dm/@core-js/compat.svg?label=npm%20i%20@core-js/compat)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/compat.svg)](https://www.npmjs.com/package/@core-js/compat) [![@core-js/compat downloads](https://img.shields.io/npm/dm/@core-js/compat.svg?label=npm%20i%20@core-js/compat)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
 
 </div>
 
-**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
+**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/v4/docs/2023-02-14-so-whats-next.md)**
 ---
 
-[`@core-js/compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://core-js.io) modules and API for getting a list of required core-js modules by browserslist query.
+[`@core-js/compat` package](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) contains data about the necessity of [`core-js`](https://core-js.io) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
 import compat from '@core-js/compat/compat';
@@ -128,6 +128,6 @@ import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types
 // => { staticMethods, staticProperties, instanceMethods, instanceProperties, ... }
 ```
 
-If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
+If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md#how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/v4/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)
