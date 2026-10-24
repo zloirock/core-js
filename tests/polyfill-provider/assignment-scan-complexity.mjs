@@ -6,11 +6,12 @@
 // through the whole babel transform and through the detection the other leg runs, both methods. Twice the reads
 // must cost at most twice the count
 import { parse } from '@babel/parser';
-import { transformFromAstSync } from '@babel/core';
+import { transformFromAstSync, transformSync } from '@babel/core';
 import plugin from '../../packages/core-js-babel-plugin/index.js';
+import unplugin from '../../packages/core-js-unplugin/index.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { adapters, createChecker, resolvePure } from './harness.mjs';
+import { adapters, createChecker, resolvePure, scenarioSource } from './harness.mjs';
 
 const { checkTruthy, finish } = createChecker('assignment-scan-complexity');
 
@@ -85,6 +86,40 @@ for (const [shape, lines] of Object.entries(SHAPES)) for (const method of ['usag
         + `${ ratio.toFixed(4) }x, at most 2x`, ratio <= 2, counts.join(' -> '));
     }
   }
+}
+
+// Exercise the PUBLIC pipelines too. A handler-only test could otherwise pass with a
+// callback real usage-global consumers do not supply, leaving the numeric gate unreachable.
+for (const host of ['babel', 'unplugin']) for (const size of [32, 128]) {
+  const code = scenarioSource(`function f(receiverMarker, i) { ${ 'receiverMarker[i >> 2];'.repeat(size) } return Map; }`);
+  const options = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  const stages = host === 'unplugin' ? unplugin.raw({ ...options, phase: 'pre' }, { framework: 'vite' }) : null;
+  const original = Map.prototype.get;
+  let lookups = 0;
+  let output;
+  try {
+    // eslint-disable-next-line no-extend-native -- Count only the synchronous transform; restore in finally.
+    Map.prototype.get = function (key) {
+      if (key === 'receiverMarker' || typeof key === 'string' && key.startsWith('receiverMarker\u0000')) lookups++;
+      return original.call(this, key);
+    };
+    new Map([['receiverMarker', 1]]).get('receiverMarker');
+    checkTruthy(`${ host }/key admission/${ size }/counter control`, lookups === 1);
+    lookups = 0;
+    if (host === 'babel') {
+      // eslint-disable-next-line node/no-sync -- The counted window must not yield.
+      output = transformSync(code, { plugins: [[plugin, options]], configFile: false, babelrc: false, filename: '/input.js' }).code;
+    } else {
+      output = code;
+      for (const stage of stages) output = stage.transform?.(output, '/input.js')?.code ?? output;
+    }
+  } finally {
+    // eslint-disable-next-line no-extend-native -- Restore the exact original lookup.
+    Map.prototype.get = original;
+  }
+  stages?.at(-1).buildEnd();
+  checkTruthy(`${ host }/key admission/${ size }/injection control`, output.includes('core-js/modules/es.map.'));
+  checkTruthy(`${ host }/key admission/${ size }/receiver lookup budget`, lookups > size && lookups <= 15 * size, `${ lookups } lookups`);
 }
 
 finish();
