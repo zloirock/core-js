@@ -47,6 +47,11 @@ QUnit.test('Iterator#map', assert => {
     assert.same(returnCount, 0, '.return() on exhausted iterator does not call underlying return');
   }
 
+  {
+    const mapped = map.call({ next: () => mapped.next() }, x => x);
+    assert.throws(() => mapped.next(), TypeError, 'throws on re-entering a running helper');
+  }
+
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => map.call({ next: null }, () => { /* empty */ }).next(), TypeError);
 });
