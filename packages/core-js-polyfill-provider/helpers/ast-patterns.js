@@ -5282,16 +5282,20 @@ const STRAIGHT_LINE_VAR_HOSTS = new Set(['BlockStatement', 'LabeledStatement', '
 // does a `break` inside this LabeledStatement target its OWN label? such a break jumps past the rest
 // of the labelled body, so a declaration below it may never run while a read after the label still
 // does - the one way a label stops being a straight-line wrapper. answered conservatively (any
-// matching break in the body, not only one above the declaration): the shape is rare, and refusing
-// is the sound direction for a value channel usage-pure substitutes on
+// matching break in the body, not only one above the declaration): refusing is the sound direction
+// for a value channel usage-pure substitutes on. Keep the structural answer for one read-only walk
+// or question: unlike value answers, it stays valid in re-entrant presence and binding questions.
 function labeledBodyBreaksOut(node) {
   const name = node.label?.name;
   if (!name) return true;
+  const answers = canonAnswers && (canonAnswers.labelBreaks ??= new WeakMap());
+  if (answers?.has(node)) return answers.get(node);
   let found = false;
   walkAstNodes({ root: node.body, visit(child) {
     if (child.type === 'BreakStatement' && child.label?.name === name) found = true;
     return !found;
   } });
+  answers?.set(node, found);
   return found;
 }
 

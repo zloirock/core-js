@@ -1,8 +1,21 @@
 // Context queries must stop at the boundary that answers them. Count syntax-slot
 // and parent reads after parsing, outside the parser's own traversal and scope setup.
 import {
-  bindingWrittenBeyondItsFrame, collectFileCensus, isForXWriteTarget, isTopLevelThisContext, receiverSlotRead, walkAstChildren, walkAstNodes,
-  wrapScopeBindingLookup, writeNeverRuns,
+  bindingWrittenBeyondItsFrame,
+  collectFileCensus,
+  isForXWriteTarget,
+  isTopLevelThisContext,
+  reassignmentValueEnumeration,
+  receiverSlotRead,
+  walkAstChildren,
+  walkAstNodes,
+  varInitDominatesUsage,
+  withCanonQuestion,
+  withPresenceReadQuestion,
+  withReentrantQuestion,
+  withTraversalCaches,
+  wrapScopeBindingLookup,
+  writeNeverRuns,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -12,6 +25,136 @@ import { adapters, createChecker, findNode } from './harness.mjs';
 const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // Different writes under one label share its structural break answer, even when
+  // a presence question cannot retain value answers. Count walks, not elapsed time.
+  for (const size of [16, 64]) {
+    for (const breaks of [false, true]) {
+      for (const scope of ['traversal', 'question', 'presence', 'lookup']) {
+        const names = Array.from({ length: size }, (unused, i) => `value${ i }`);
+        const program = parser.parseAndScope(`function f(flag) {
+          outer: { ${ breaks ? 'if (flag) break outer;' : '' }
+            ${ names.map(name => `var ${ name } = Map;`).join(' ') }
+          } return [${ names.join(', ') }];
+        }`);
+        const label = parser.pickPath(program, 'LabeledStatement').node;
+        const declarations = parser.collectPaths(program, 'VariableDeclarator');
+        const usagePath = parser.pickPath(program, 'ReturnStatement');
+        let walks = 0;
+        Object.defineProperty(label.body, 'labelWalkProbe', {
+          configurable: true,
+          enumerable: true,
+          get() { walks++; return null; },
+        });
+        const name = `${ parser.name }/label breaks/${ size }/${ breaks }/${ scope }`;
+        try {
+          walkAstNodes({ root: label.body, visit() { return true; } });
+          check(`${ name }/counter control`, walks, 1);
+          walks = 0;
+          function query() {
+            for (const declaration of declarations) check(`${ name }/${ declaration.node.id.name }`,
+              varInitDominatesUsage({ declaratorNode: declaration.node, usagePath }), !breaks);
+          }
+          // eslint-disable-next-line max-depth -- Preserve the parser, size, break and scope axes.
+          if (scope === 'traversal') withTraversalCaches(true, query);
+          else withCanonQuestion(() => scope === 'presence' ? withPresenceReadQuestion(query)
+            : scope === 'lookup' ? withReentrantQuestion(query, 'lookup') : query());
+          checkTruthy(`${ name }/bounded body walks`, walks > 0 && walks <= 4, `${ walks } body walks`);
+        } finally {
+          delete label.body.labelWalkProbe;
+        }
+      }
+    }
+  }
+
+  // A rewriting traversal may change the body between two queries in the same visit.
+  {
+    const program = parser.parseAndScope(`function f(flag) {
+      outer: { if (flag) break outer; var a = Map, b = Map; } return [a, b];
+    }`);
+    const branch = parser.pickPath(program, 'IfStatement').node;
+    const declarations = parser.collectPaths(program, 'VariableDeclarator');
+    const usagePath = parser.pickPath(program, 'ReturnStatement');
+    withTraversalCaches(false, () => {
+      check(`${ parser.name }/mutable label/has break`,
+        varInitDominatesUsage({ declaratorNode: declarations[0].node, usagePath }), false);
+      branch.consequent = { type: 'EmptyStatement' };
+      check(`${ parser.name }/mutable label/removed break`,
+        varInitDominatesUsage({ declaratorNode: declarations[1].node, usagePath }), true);
+    });
+  }
+
+  // The same AST can be queried after a sibling pass changes a break. Read-only
+  // answers must leave with their scope, including exceptional and mutable exits.
+  for (const scope of ['traversal', 'question', 'mutable', 'unscoped']) {
+    const program = parser.parseAndScope(`function f(flag) {
+      outer: { if (flag) break outer; var a = Map, b = Map, c = Map, d = Map; }
+      return [a, b, c, d];
+    }`);
+    const branch = parser.pickPath(program, 'IfStatement').node;
+    const jump = branch.consequent;
+    const declarations = parser.collectPaths(program, 'VariableDeclarator');
+    const usagePath = parser.pickPath(program, 'ReturnStatement');
+    function run(visit) {
+      return scope === 'question' ? withCanonQuestion(visit)
+        : scope === 'unscoped' ? visit() : withTraversalCaches(scope === 'traversal', visit);
+    }
+    function query(index) {
+      return varInitDominatesUsage({ declaratorNode: declarations[index].node, usagePath });
+    }
+    const name = `${ parser.name }/label scope/${ scope }`;
+    const failure = new Error('label query failed');
+    let caught;
+    try {
+      run(() => {
+        check(`${ name }/before edit`, query(0), false);
+        throw failure;
+      });
+    } catch (error) { caught = error; }
+    check(`${ name }/error propagated`, caught, failure);
+    branch.consequent = { type: 'EmptyStatement' };
+    run(() => {
+      check(`${ name }/after edit`, query(1), true);
+      check(`${ name }/second read`, query(2), true);
+    });
+    branch.consequent = jump;
+    run(() => check(`${ name }/restored break`, query(3), false));
+  }
+
+  // Equal label spellings in separate blocks do not share a structural answer.
+  {
+    const program = parser.parseAndScope(`function f(flag) {
+      same: { if (flag) break same; var a = Map; }
+      same: { var b = Map; }
+      return [a, b];
+    }`);
+    const declarations = parser.collectPaths(program, 'VariableDeclarator');
+    const usagePath = parser.pickPath(program, 'ReturnStatement');
+    withCanonQuestion(() => {
+      declarations.forEach((declaration, index) => check(`${ parser.name }/equal label names/${ index }`,
+        varInitDominatesUsage({ declaratorNode: declaration.node, usagePath }), index === 1));
+    });
+  }
+
+  // Redeclared initializers ask both the guard collector and the owner-level write
+  // channel about the same label. An unlabeled loop break does not end that label.
+  for (const [shape, before, complete] of [
+    ['plain', '', true],
+    ['own break', 'if (flag) break outer;', false],
+    ['loop break', 'for (;;) { break; }', true],
+  ]) {
+    const program = parser.parseAndScope(`function f(flag) {
+      var C = Map; outer: { ${ before } var C = Set; } return C.prototype;
+    }`);
+    const usagePath = parser.pickPath(program, 'MemberExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const binding = adapter.getBinding({ scope: usagePath.scope, path: usagePath, name: 'C' });
+    withCanonQuestion(() => {
+      const result = reassignmentValueEnumeration({ binding, usagePath, everyWrite: true });
+      check(`${ parser.name }/labeled redeclaration/${ shape }/complete`, result.complete, complete);
+      checkDeep(`${ parser.name }/labeled redeclaration/${ shape }/values`, result.nodes.map(node => node.name), complete ? ['Set'] : []);
+    });
+  }
+
   // Raw child scheduling must retain receiver and exception boundaries independently.
   // An arrow keeps its receiver but opens a deferred exception region.
   {
