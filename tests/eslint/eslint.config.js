@@ -2697,6 +2697,7 @@ export default [
     files: [
       'packages/core-js?(-pure)/**',
       'tests/compat/*.js',
+      'tests/unit-browser/*.js',
     ],
     languageOptions: {
       ecmaVersion: 5,
@@ -2708,6 +2709,7 @@ export default [
       'packages/core-js?(-pure)/**',
       'tests/@(helpers|unit-pure)/**',
       'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
+      'tests/unit-browser/*.js',
     ],
     rules: forbidModernBuiltIns,
   },
@@ -2775,7 +2777,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|karma|promises|unit-node)/**',
+      'tests/@(compat-@(data|tools)|eslint|entries|karma|promises|saucelabs|unit-node)/**',
       'website/scripts/runner.mjs',
       'website/scripts/helpers.mjs',
     ],
