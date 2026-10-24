@@ -6,9 +6,11 @@ var InternalStateModule = require('../internals/internal-state');
 var defineProperty = require('../internals/object-define-property').f;
 var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 var DESCRIPTORS = require('../internals/descriptors');
 
+var ITERATOR = wellKnownSymbol('iterator');
 var ARRAY_ITERATOR = 'Array Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
@@ -46,10 +48,18 @@ module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
   } return createIterResultObject([index, target[index]], false);
 }, 'values');
 
+var values = Iterators.Array;
+
+// engines with native array iterator, but without arguments iterator (Firefox < 46)
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1067049
+if (!values && !function () { return arguments[ITERATOR]; }()) {
+  Iterators.Array = values = Array.prototype[ITERATOR];
+}
+
 // argumentsList[@@iterator] is %ArrayProto_values%
 // https://tc39.es/ecma262/#sec-createunmappedargumentsobject
 // https://tc39.es/ecma262/#sec-createmappedargumentsobject
-var values = Iterators.Arguments = Iterators.Array;
+Iterators.Arguments = values;
 
 // https://tc39.es/ecma262/#sec-array.prototype-%symbol.unscopables%
 addToUnscopables('keys');
