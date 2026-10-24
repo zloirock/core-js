@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-join)
 
 ## Modules
-[`es.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.join.js).
+[`es.iterator.join`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.join.js).
 
 ## Built-ins signatures
 ```ts
