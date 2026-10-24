@@ -10,9 +10,9 @@ function getIteratorMethod(value: any): Function | void;
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/is-iterable
-core-js(-pure)/es|stable|actual|full/get-iterator
-core-js(-pure)/es|stable|actual|full/get-iterator-method
+{ core-js, @core-js/pure }/es|stable|actual|full/is-iterable
+{ core-js, @core-js/pure }/es|stable|actual|full/get-iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/get-iterator-method
 ```
 
 ## Examples

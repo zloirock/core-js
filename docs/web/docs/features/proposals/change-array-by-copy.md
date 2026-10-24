@@ -24,10 +24,10 @@ class %TypedArray% {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/change-array-by-copy
-core-js(-pure)/es|stable|actual|full/array(/prototype)/to-reversed
-core-js(-pure)/es|stable|actual|full/array(/prototype)/to-sorted
-core-js(-pure)/es|stable|actual|full/array(/prototype)/to-spliced
-core-js(-pure)/es|stable|actual|full/array(/prototype)/with
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-reversed
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-sorted
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-spliced
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/with
 core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/with

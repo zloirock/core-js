@@ -14,12 +14,12 @@ class Object {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/object-getownpropertydescriptors
-core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptors
+core-js/proposals/object-get-own-property-descriptors
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-own-property-descriptors
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
-[`@core-js/types/proposals/object-getownpropertydescriptors`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/object-get-own-property-descriptors.d.ts)
+[`@core-js/types/proposals/object-get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/object-get-own-property-descriptors.d.ts)
 
 ## Examples
 ```js

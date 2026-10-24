@@ -11,7 +11,7 @@ getter self: GlobalThisValue;
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/stable|actual|full/self
+{ core-js, @core-js/pure }/stable|actual|full/self
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

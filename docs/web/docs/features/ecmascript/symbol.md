@@ -46,26 +46,26 @@ class Object {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/symbol
-core-js(-pure)/es|stable|actual|full/symbol/async-dispose
-core-js(-pure)/es|stable|actual|full/symbol/async-iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-dispose
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-iterator
 core-js/es|stable|actual|full/symbol/description
-core-js(-pure)/es|stable|actual|full/symbol/dispose
-core-js(-pure)/es|stable|actual|full/symbol/has-instance
-core-js(-pure)/es|stable|actual|full/symbol/is-concat-spreadable
-core-js(-pure)/es|stable|actual|full/symbol/iterator
-core-js(-pure)/es|stable|actual|full/symbol/match
-core-js(-pure)/es|stable|actual|full/symbol/match-all
-core-js(-pure)/es|stable|actual|full/symbol/replace
-core-js(-pure)/es|stable|actual|full/symbol/search
-core-js(-pure)/es|stable|actual|full/symbol/species
-core-js(-pure)/es|stable|actual|full/symbol/split
-core-js(-pure)/es|stable|actual|full/symbol/to-primitive
-core-js(-pure)/es|stable|actual|full/symbol/to-string-tag
-core-js(-pure)/es|stable|actual|full/symbol/unscopables
-core-js(-pure)/es|stable|actual|full/symbol/for
-core-js(-pure)/es|stable|actual|full/symbol/key-for
-core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/dispose
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/has-instance
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/is-concat-spreadable
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/match
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/match-all
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/replace
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/search
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/species
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/split
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/to-primitive
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/to-string-tag
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/unscopables
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/for
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/key-for
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-own-property-symbols
 ```
 
 ## Basic examples

@@ -16,8 +16,8 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-chunking
-core-js(-pure)/es|stable|actual|full/iterator/chunks
-core-js(-pure)/es|stable|actual|full/iterator/windows
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/chunks
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/windows
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

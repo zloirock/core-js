@@ -15,7 +15,7 @@ class Array {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-from-async
-core-js(-pure)/es|stable|actual|full/array/from-async
+{ core-js, @core-js/pure }/es|stable|actual|full/array/from-async
 ```
 
 ## Examples

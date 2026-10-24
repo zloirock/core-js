@@ -31,20 +31,20 @@ class AsyncIterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/async-iterator-helpers
-core-js(-pure)/actual|full/async-iterator
-core-js(-pure)/actual|full/async-iterator/drop
-core-js(-pure)/actual|full/async-iterator/every
-core-js(-pure)/actual|full/async-iterator/filter
-core-js(-pure)/actual|full/async-iterator/find
-core-js(-pure)/actual|full/async-iterator/flat-map
-core-js(-pure)/actual|full/async-iterator/for-each
-core-js(-pure)/actual|full/async-iterator/from
-core-js(-pure)/actual|full/async-iterator/map
-core-js(-pure)/actual|full/async-iterator/reduce
-core-js(-pure)/actual|full/async-iterator/some
-core-js(-pure)/actual|full/async-iterator/take
-core-js(-pure)/actual|full/async-iterator/to-array
-core-js(-pure)/actual|full/iterator/to-async
+{ core-js, @core-js/pure }/full/async-iterator
+{ core-js, @core-js/pure }/full/async-iterator/drop
+{ core-js, @core-js/pure }/full/async-iterator/every
+{ core-js, @core-js/pure }/full/async-iterator/filter
+{ core-js, @core-js/pure }/full/async-iterator/find
+{ core-js, @core-js/pure }/full/async-iterator/flat-map
+{ core-js, @core-js/pure }/full/async-iterator/for-each
+{ core-js, @core-js/pure }/full/async-iterator/from
+{ core-js, @core-js/pure }/full/async-iterator/map
+{ core-js, @core-js/pure }/full/async-iterator/reduce
+{ core-js, @core-js/pure }/full/async-iterator/some
+{ core-js, @core-js/pure }/full/async-iterator/take
+{ core-js, @core-js/pure }/full/async-iterator/to-array
+{ core-js, @core-js/pure }/full/iterator/to-async
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
@@ -70,7 +70,7 @@ const configurator = require('core-js/configurator');
 
 configurator({ USE_FUNCTION_CONSTRUCTOR: true });
 
-require('core-js/actual/async-iterator');
+require('core-js/full/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
@@ -82,7 +82,7 @@ const { getPrototypeOf } = Object;
 
 configurator({ AsyncIteratorPrototype: getPrototypeOf(getPrototypeOf(getPrototypeOf(async function * () { /* empty */ }()))) });
 
-require('core-js/actual/async-iterator');
+require('core-js/full/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```

@@ -1,4 +1,4 @@
-// @types: web/efficient-script-yielding
+// @types: web/set-immediate
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');

@@ -8,7 +8,7 @@ var DATA_VIEW_INT8_CONVERSION_BUG = require('../internals/data-view-int8-convers
 var $setInt8 = uncurryThis(DataView.prototype.setInt8);
 
 // `DataView.prototype.setInt8` method
-// https://github.com/tc39/proposal-dataview-get-set-int8clamped
+// https://tc39.es/ecma262/#sec-dataview.prototype.setint8
 $({ target: 'DataView', proto: true, unsafe: true, forced: DATA_VIEW_INT8_CONVERSION_BUG }, {
   setInt8: function setInt8(byteOffset, value) {
     return $setInt8(aDataView(this), toIndex(byteOffset), value << 24 >> 24);

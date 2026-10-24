@@ -15,7 +15,7 @@ class Error {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/is-error
-core-js(-pure)/es|stable|actual|full/error/is-error
+{ core-js, @core-js/pure }/es|stable|actual|full/error/is-error
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

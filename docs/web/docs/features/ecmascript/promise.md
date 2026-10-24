@@ -23,12 +23,12 @@ class Promise {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/promise
-core-js(-pure)/es|stable|actual|full/promise/all-settled
-core-js(-pure)/es|stable|actual|full/promise/any
-core-js(-pure)/es|stable|actual|full/promise/finally
-core-js(-pure)/es|stable|actual|full/promise/try
-core-js(-pure)/es|stable|actual|full/promise/with-resolvers
+{ core-js, @core-js/pure }/es|stable|actual|full/promise
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/all-settled
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/any
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/finally
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/try
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/with-resolvers
 ```
 
 ## Basic examples
