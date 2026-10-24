@@ -203,7 +203,7 @@ arr.includes(x);
 
 [`@core-js/unplugin`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-unplugin) is a universal plugin for automatic injection of `core-js` polyfills that works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, **Rspack**, **Rsbuild**, **Farm**, and **Bun** via [unplugin](https://github.com/unjs/unplugin). An alternative to `@core-js/babel-plugin` for projects that don't use Babel.
 
-It supports the same three methods (`entry-global`, `usage-global`, `usage-pure`), the same options, and the same disable comments as `@core-js/babel-plugin`. Uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for fast parsing with native TypeScript support.
+It supports the same three methods (`entry-global`, `usage-global`, `usage-pure`), the same options, and the same disable comments as `@core-js/babel-plugin`. Uses [oxc-parser](https://oxc.rs/docs/guide/usage/parser) for fast parsing with native TypeScript support.
 
 ```sh
 npm install @core-js/unplugin
