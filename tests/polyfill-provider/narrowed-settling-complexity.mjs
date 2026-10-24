@@ -10,14 +10,9 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, resolvePure } from './harness.mjs';
 
 const { check, checkTruthy, finish } = createChecker('narrowed-settling-complexity');
-
-// every global the rows read is served by the build, as pure serves it
-function resolvePure(meta) {
-  return { kind: meta.kind === 'global' ? 'global' : 'static' };
-}
 
 function lines(count, line) {
   return Array.from({ length: count }, (unused, index) => line(index)).join('\n');

@@ -4471,17 +4471,22 @@ export const SELECTION_TEST_FIELDS = { IfStatement: 'test', ConditionalExpressio
 // reads do not move under this file's own rewrites. a settling that reaches back into one in flight (a test
 // reading the binding its own arm writes, `if (!cache) cache = make()`, or an install guarded by a test of a
 // global another install it guards patches) takes the inner ask's guards open - the cut. an answer is kept
-// unless a cut reached a settling in flight below it, whose answer it then depends on: one cut only by its
-// own re-entry is what any ask of it computes. the re-entrant questions in flight that narrow decisions - the
+// for good unless a cut reached a settling in flight below it, whose answer it then depends on: one cut only by
+// its own re-entry is what any ask of it computes. an answer that took a settling below it as open is kept while
+// that settling is in flight and leaves with it (`settlingFrames`): under it every ask stands under the same
+// hypothesis, and whoever asks first answers for it. without the keep a loop writing its accumulators under tests
+// of one another - a text wrapper's lines, words and widths - settled every write of the others anew under every
+// settling that reached it, a power of the writes. the re-entrant questions in flight that narrow decisions - the
 // census pre-pass, a binding lookup, a decision-root lookup (`narrowingQuestions`) - make the context an answer
 // is computed in, and an answer is kept for asks in that same context alone: whoever asks first within it answers
 // for it, as in no such question. a lookup in flight refusing a re-entry narrows by which name it is in flight
 // for, which the context leaves out, so an answer that met one there is not kept
 const decidedGuardsByAdapter = new WeakMap();
-// the targets being settled, each with its depth in the chain of settlings in flight, and the lowest depth a cut
-// met by the settling now in progress reached
+// the targets being settled, each with its depth in the chain of settlings in flight, the lowest depth a cut
+// met by the settling now in progress reached, and per settling in flight the kept answers that took it as open
 const settlingTargets = new Map();
 let lowestSettlingCut = Infinity;
+const settlingFrames = [];
 function decidedGuards(owner, target, adapter) {
   const inFlight = settlingTargets.get(target);
   if (inFlight !== undefined) {
@@ -4500,15 +4505,22 @@ function decidedGuards(owner, target, adapter) {
   const refusals = refusedReentries;
   lowestSettlingCut = Infinity;
   settlingTargets.set(target, depth);
-  let settled, independent;
+  settlingFrames.push([]);
+  let settled, head, unnarrowed;
   try {
     settled = settledVarGuards(owner, target, adapter);
   } finally {
     settlingTargets.delete(target);
-    independent = lowestSettlingCut >= depth && (!lookup || refusedReentries === refusals);
+    // the answers that took this settling as open leave with it
+    for (const [answers, kept] of settlingFrames.pop()) answers.delete(kept);
+    head = lowestSettlingCut;
+    unnarrowed = !lookup || refusedReentries === refusals;
     lowestSettlingCut = Math.min(outerCut, lowestSettlingCut);
   }
-  if (independent) byTarget.set(target, settled);
+  if (!unnarrowed) return settled;
+  byTarget.set(target, settled);
+  // ... for good, or while the lowest settling in flight it took as open is - one above its own, which has popped
+  if (head < depth) settlingFrames[head].push([byTarget, target]);
   return settled;
 }
 
@@ -4664,10 +4676,22 @@ function capturingNames(ownerNode, readNode) {
   return names;
 }
 
+// does the write `node` (a record's node: an assignment, the identifier estree-toolkit records a write by, a `var`
+// re-declaration) hold `readNode` in the value it stores? the value evaluates before the write installs it, so
+// `X = X || shim`, `X = c ? X : shim` and `var X = X || shim` read X first: such a write runs AFTER that read,
+// whatever the positions say - the read sits inside the write's span. `ownerNode` locates the assignment an
+// identifier record stands in
+function writeHoldsRead(node, readNode, ownerNode) {
+  const value = node.type === 'AssignmentExpression' ? node.right
+    : node.type === 'VariableDeclarator' ? node.init
+      : node.type === 'Identifier' ? enclosingValueFlowAssignment(node, ownerNode)?.right : null;
+  return !!value && nodeRangeContains(value, readNode);
+}
+
 // does a read run before every one of `writes` (nodes) on its frame's first run: each stands in the frame of
 // the read's own var-scope owner - the one at or above `anchorPath` holding `readNode` - and runs after the
 // read (by text from where the read runs - `patternReadSite` - unless a class key outruns a static field:
-// `writeOutrunsUse`), or holds the read in the value it stores (`X = X || shim` reads first). a write in a
+// `writeOutrunsUse`), or holds the read in the value it stores (`writeHoldsRead`). a write in a
 // closure or another function may run at any time, so it answers false, and so does a read in an instance
 // field's value, which runs at construction (`sitsInDeferredField`). a frame that runs again - a function
 // called twice, a loop - takes the same answer on every run, the patch its first run installed
@@ -4679,7 +4703,7 @@ export function readRunsBeforeWrites({ readNode, anchorPath, writes }) {
   const site = patternReadSite(owner.node, readNode);
   return writes.every(write => collectVarGuardsToDeclarator(owner.node, write) !== null
     && ((provablyPrecedes(site, write) && !writeOutrunsUse(write, anchorPath))
-      || (write.type === 'AssignmentExpression' && nodeRangeContains(write.right, readNode))));
+      || writeHoldsRead(write, readNode, owner.node)));
 }
 
 // where a read runs that sits in a destructuring TARGET - a key, a default, a nested level: after the
@@ -5189,9 +5213,11 @@ export function noReassignmentReachesUsage({
   // when their syntactic var-scope owner stops the positional walk above.
   if (usageCrossesLoopBackEdgeReassign(usagePath, reassignmentNodes, bindingAnchor, readNode)) return false;
   // an early container slot observes the init before that container's late writes even when the
-  // source places them above it. the relation excludes writes outside the container.
+  // source places them above it. the relation excludes writes outside the container. a write holding
+  // the read in the value it stores runs after it (`writeHoldsRead`), in the read's own frame alone
   return reassignmentNodes.every(node => useOutrunsWrite(node, usagePath)
     || nodeFollowsUsageInScope({ node, readNode, owner })
+    || (writeHoldsRead(node, readNode, owner.node) && collectVarGuardsToDeclarator(owner.node, node) !== null)
     || (writeIsInOppositeBranch(node, usagePath, readNode)
       && collectVarGuardsToDeclarator(owner.node, node) !== null));
 }
@@ -5857,7 +5883,8 @@ export function reachingReassignmentValueNode({
   const bindingName = bindingDeclaratorName(binding);
   // a write in an arm the build never takes does not run
   const writes = liveReassignmentNodes(binding, usagePath, adapter);
-  const before = writes.filter(node => precedesOrUnordered(node, readNode));
+  // ... and a write holding the read in its value runs after it (`writeHoldsRead`), so it is not before it
+  const before = writes.filter(node => precedesOrUnordered(node, readNode) && !writeHoldsRead(node, readNode, owner.node));
   // no write ahead of the read leaves no value to hand on, and neither does a write standing in no frame of
   // the read's chain - another function, a method, a getter, a callback - which may run at any time
   // (`readRunsBeforeWrites` holds the same rule for a patched global); usage-global unions every write instead
@@ -6089,13 +6116,17 @@ function lastRunningWrite({ writes, later, usagePath, after = writesRunningAfter
 // C.groupBy()` never reads `Object`), and the read runs after it - as does the later write after each
 // earlier one: a class key runs ahead of a static field value above it, so that value, the write running
 // last (`lastRunningWrite`), overwrites the key's write too. only in the scope declaring the binding: one
-// merely writing it may run again while a closure an earlier run defined reads the value between the two writes
-function supersededWrites({ writes, usagePath, owner, usageNode, adapter, bindingScopeNode }) {
+// merely writing it may run again while a closure an earlier run defined reads the value between the two writes.
+// a write whose value reads the binding `name` itself (`P = P || shim`, `P = c ? P : shim`) overwrites nothing:
+// the value it stores may be the one an earlier write installed
+function supersededWrites({ writes, usagePath, owner, usageNode, adapter, bindingScopeNode, name = null }) {
   if (writes.length < 2) return null;
   const holders = new Map();
-  // a plain write of the declaring scope landing on every path to the read, which runs after it
+  // a plain write of the declaring scope landing on every path to the read, which runs after it, and
+  // storing a value that does not read the binding
   function overwritesEarlier(node, holder) {
-    return plainWriteOf(node, holder) && !useOutrunsWrite(node, usagePath)
+    const plain = plainWriteOf(node, holder);
+    return !!plain && !(name && identifierReferencedInSubtree(plain.value, name)) && !useOutrunsWrite(node, usagePath)
       && collectVarGuardsToDeclarator(holder, bindingScopeNode) !== null
       && nodeDominatesUsage({ node, usagePath, owner, climb: true, usageNode, adapter, replaces: true }) === true;
   }
@@ -6166,7 +6197,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // a write a later one overwrites before the read installs nothing the read sees: the union drops it,
   // while the census keeps every write
   const superseded = countDeadWrites ? null : supersededWrites({
-    writes, usagePath, owner, usageNode, adapter: ctx?.adapter, bindingScopeNode: violationSearchRoot,
+    writes, usagePath, owner, usageNode, adapter: ctx?.adapter, bindingScopeNode: violationSearchRoot, name: bindingName,
   });
   for (const node of writes) {
     if (superseded?.has(node)) continue;
