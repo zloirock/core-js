@@ -1,5 +1,7 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 import { createUsageGlobalCallback } from '../../packages/core-js-polyfill-provider/plugin-options/usage-callback.js';
 import {
@@ -40,6 +42,48 @@ const rows = [
 ];
 
 for (const parser of adapters) {
+  // Numeric operators need no receiver analysis. Named and literal keys retain their
+  // receiver fallback, including unsupported slots and metadata-only consumers.
+  for (const [source, supported] of [
+    ['source.unrelatedField', true],
+    ['source?.unrelatedField', true],
+    ['source["unrelatedField"]', true],
+    ['source[index >> 2]', false],
+    ['source[1n << shift]', false],
+    ['source[-index]', false],
+    ['Map.unrelatedField', true],
+    ['source[0]', true],
+    ['source.at', true],
+    ['Array.from', true],
+    ['globalThis.Map', true],
+    ['source["fr" + "om"]', true],
+  ]) for (const method of ['usage-global', 'usage-pure']) {
+    const program = parser.parseAndScope(`${ source };`);
+    const path = parser.pickPath(program, 'MemberExpression') ?? parser.pickPath(program, 'OptionalMemberExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const receiver = path.node.object;
+    const handledObjects = new Set();
+    let reads = 0;
+    let meta;
+    try {
+      Object.defineProperty(path.node, 'object', {
+        configurable: true,
+        get() { reads++; return receiver; },
+      });
+      meta = handleMemberExpressionNode({ node: path.node, path, scope: path.scope, adapter,
+        handledObjects, suppressProxyGlobals: new Set(), resolveMeta: resolve, isEntryAvailable: () => true });
+    } finally {
+      Object.defineProperty(path.node, 'object', { configurable: true, enumerable: true, writable: true, value: receiver });
+    }
+    const label = `${ parser.name }/${ method }/key admission/${ source }`;
+    if (supported) checkTruthy(`${ label }/positive receiver control`, reads > 0, `${ reads } reads`);
+    else {
+      check(`${ label }/no receiver work`, reads, 0);
+      check(`${ label }/no claim`, meta, null);
+      check(`${ label }/children stay visitable`, handledObjects.size, 0);
+    }
+  }
+
   for (const [name, source, erased, bound, owner] of rows) {
     const program = parser.parseAndScope(source, 'module', ['decorators']);
     const paths = parser.collectPaths(program, 'MemberExpression', path => path.node.property.name === 'Map');

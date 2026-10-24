@@ -3294,9 +3294,13 @@ export function buildScopeReassignmentIndex(ownerNode, sloppy = false) {
 // `var` head (`for (var name in ...)`). The identifier projection keeps those same source targets.
 export function writtenNames(node, { identifierNodes = false } = {}) {
   const names = [];
-  function add(id) {
-    names.push(identifierNodes ? id : id.name);
-  }
+  walkWrittenIdentifiers(node, id => names.push(identifierNodes ? id : id.name));
+  return names;
+}
+
+// Visit the target identifiers without materializing their names. A whole-owner scan asks
+// this of every node, including non-writes; the array projection above is only for its readers.
+function walkWrittenIdentifiers(node, add) {
   const target = node.type === 'AssignmentExpression' ? unwrapRuntimeExpr(node.left)
     : node.type === 'UpdateExpression' ? unwrapRuntimeExpr(node.argument) : null;
   if (target?.type === 'Identifier') add(target);
@@ -3304,7 +3308,6 @@ export function writtenNames(node, { identifierNodes = false } = {}) {
   else if (isForXStatement(node) && node.left?.type === 'VariableDeclaration') {
     for (const d of node.left.declarations) walkPatternIdentifiers(d.id, add);
   } else if (isForXStatement(node) && node.left) walkPatternIdentifiers(node.left, add);
-  return names;
 }
 
 // the function below its owner a write scan found a write in (`reassignmentScanner`), for a question
@@ -3318,6 +3321,9 @@ function reassignmentScanner() {
   const shadowDepth = new Map();
   // the innermost function below the scanned owner the walk stands in
   let nested = null;
+  let writeNode;
+  function visitStrictChild(child) { visit(child, false, false); }
+  function visitSloppyChild(child) { visit(child, false, true); }
   function record(name, node) {
     if (shadowDepth.get(name)) return;
     if (nested) nestedWriteOwners.set(node, nested);
@@ -3325,6 +3331,21 @@ function reassignmentScanner() {
     if (!list) index.set(name, list = []);
     // a pattern binding the same name twice yields consecutive duplicates - keep one
     if (list.at(-1) !== node) list.push(node);
+  }
+  // The target walker calls synchronously; var initializers record their declarator rather
+  // than the enclosing declaration. No per-node array or callback escapes this scan.
+  function recordWritten(id) {
+    record(id.name, writeNode);
+  }
+  function recordWrites(node) {
+    writeNode = node;
+    walkWrittenIdentifiers(node, recordWritten);
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+      for (const declarator of node.declarations ?? []) if (declarator.init) {
+        writeNode = declarator;
+        walkPatternIdentifiers(declarator.id, recordWritten);
+      }
+    }
   }
   function push(names) { for (const name of names) shadowDepth.set(name, (shadowDepth.get(name) ?? 0) + 1); }
   function pop(names) { for (const name of names) shadowDepth.set(name, shadowDepth.get(name) - 1); }
@@ -3428,6 +3449,13 @@ function reassignmentScanner() {
   }
   function visit(node, atOwnerRoot, sloppyHere) {
     if (!isASTNode(node)) return;
+    // Ordinary descendants inherit every scan fact. Only scope boundaries (classes
+    // included for strictness) and owner roots need a shadow frame or child plan.
+    if (!atOwnerRoot && !isScopeRebinding(node) && !isLexicalScopeOpener(node)) {
+      recordWrites(node);
+      walkAstChildren(node, sloppyHere ? visitSloppyChild : visitStrictChild);
+      return;
+    }
     const frame = frameOf(node, atOwnerRoot, sloppyHere);
     const { shadowNames } = frame;
     if (frame.switchSplit) {
@@ -3442,12 +3470,7 @@ function reassignmentScanner() {
     const outer = nested;
     if (frame.nests) nested = node;
     push(shadowNames);
-    for (const name of writtenNames(node)) record(name, node);
-    if (node.type === 'VariableDeclaration' && node.kind === 'var') {
-      for (const d of node.declarations ?? []) {
-        if (d.init) for (const name of patternNames(d.id, [])) record(name, d);
-      }
-    }
+    recordWrites(node);
     // a function OWNER's own body block is the owner's scope, not a nested block: a declaration at
     // its top level - a hoisted `function name`, a `let` - IS the owner-level binding (a shadow of
     // an owner-level `var` or param there is a SyntaxError), so the block casts no shadow and every
