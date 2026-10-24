@@ -10445,6 +10445,20 @@ export function methodReadsUsageCensus(method) {
 // wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
 // classifier distinguishes emit positions by
 export function collectFileCensus(programNode, reducers) {
+  // The file's constructor-key answer rides the raw walk, then publishes before finalization.
+  const asksConstructorKey = !CONSTRUCTOR_KEY_READS.has(programNode);
+  const constructorKeyRead = walkFileCensus(programNode, reducers, asksConstructorKey);
+  if (asksConstructorKey) CONSTRUCTOR_KEY_READS.set(programNode, constructorKeyRead);
+  // Finalize shared facts before a result consumes another reducer's observations.
+  for (const reducer of reducers) reducer.prepare?.();
+  const census = {};
+  for (const reducer of reducers) Object.assign(census, reducer.result());
+  return census;
+}
+
+// Keep the per-node loop separate from one-time cache publication and reducer finalization.
+// Reducers are an ordered array; frames keep the same fields across ordinary and receiver slots.
+function walkFileCensus(programNode, reducers, asksConstructorKey) {
   // `parentNode` is the IMMEDIATE structural parent (unlike `parentType`, which skips transparent
   // wrappers): a reducer that must tell a source-name position from a reference (an identifier that
   // is a property key / member key / label, per `isNonReferencePosition`) needs the exact parent node
@@ -10459,13 +10473,12 @@ export function collectFileCensus(programNode, reducers) {
     atTopLevel: true,
     atThisTopLevel: true,
     thisOwner: null,
+    parameterThisOwner: undefined,
     parentNode: null,
     underTypeAnnotation: false,
     scopes: [],
     throwHandler: null,
   }];
-  // the file's `constructor` key question (`readsConstructorKey`) rides this walk, once per program
-  const asksConstructorKey = !CONSTRUCTOR_KEY_READS.has(programNode);
   let constructorKeyRead = false;
   while (nodeStack.length) {
     const node = nodeStack.pop();
@@ -10480,7 +10493,7 @@ export function collectFileCensus(programNode, reducers) {
     }
     if (!isASTNode(node)) continue;
     const { type } = node;
-    for (const reducer of reducers) reducer.visit(node, frame);
+    for (let index = 0; index < reducers.length; index++) reducers[index].visit(node, frame);
     if (asksConstructorKey) constructorKeyRead ||= readsConstructorKeyAt(node, type);
     // Leaves and empty lists need no child context. Compute it at the first real child.
     let rebindsThis = false;
@@ -10498,6 +10511,7 @@ export function collectFileCensus(programNode, reducers) {
             atTopLevel: frame.atTopLevel && !rebindsScope,
             atThisTopLevel: frame.atThisTopLevel,
             thisOwner: frame.thisOwner,
+            parameterThisOwner: undefined,
             parentNode: node,
             // Sticky inside a `:` annotation wrapper; a type alias or type argument alone
             // opens none, unlike the broader isTypeAnnotationNodeType classification.
@@ -10531,12 +10545,7 @@ export function collectFileCensus(programNode, reducers) {
       }
     }
   }
-  if (asksConstructorKey) CONSTRUCTOR_KEY_READS.set(programNode, constructorKeyRead);
-  // Finalize shared facts before a result consumes another reducer's observations.
-  for (const reducer of reducers) reducer.prepare?.();
-  const census = {};
-  for (const reducer of reducers) Object.assign(census, reducer.result());
-  return census;
+  return constructorKeyRead;
 }
 
 // every user-spelled member-key name on an Identifier-rooted chain: an alias / TS-wrapped
