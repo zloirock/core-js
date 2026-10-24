@@ -51,11 +51,9 @@ export function buildOffsetToLineColumn(code) {
 // suffix from every line start on a miss. `m` still finds directives on continuation lines.
 const DIRECTIVE = /^(?:[^\S\n\r\u2028\u2029]|\*)*core-js-disable-(?<kind>file|line|next-line)(?:\s|$)/m;
 
-// merge two visitor objects - combine handlers for same node type
-// supports function (shorthand for enter), { enter, exit }, and mixed formats.
-// `$` is the estree-toolkit metadata key (e.g. `{ scope: true }`); it carries no enter/exit
-// handlers and is merged shallowly so neither side's metadata is dropped
-export function mergeVisitors(base, extra) {
+// Only overlapping node types need normalization and phase chaining. Keep that work out
+// of the common loop that copies disjoint visitor entries.
+function combineVisitorHandlers(current, handler) {
   function toObject(v) {
     return typeof v === 'function' ? { enter: v } : v;
   }
@@ -67,6 +65,21 @@ export function mergeVisitors(base, extra) {
     };
   }
 
+  const a = toObject(current);
+  const b = toObject(handler);
+  const combined = {};
+  for (const phase of ['enter', 'exit']) {
+    if (a[phase] && b[phase]) combined[phase] = chain(a[phase], b[phase]);
+    else if (a[phase] || b[phase]) combined[phase] = a[phase] || b[phase];
+  }
+  return combined;
+}
+
+// merge two visitor objects - combine handlers for same node type
+// supports function (shorthand for enter), { enter, exit }, and mixed formats.
+// `$` is the estree-toolkit metadata key (e.g. `{ scope: true }`); it carries no enter/exit
+// handlers and is merged shallowly so neither side's metadata is dropped
+export function mergeVisitors(base, extra) {
   const merged = { ...base };
   for (const [key, handler] of Object.entries(extra)) {
     if (key === '$') {
@@ -79,13 +92,7 @@ export function mergeVisitors(base, extra) {
     if (current === null || current === undefined) {
       merged[key] = handler;
     } else if (handler !== null && handler !== undefined) {
-      const a = toObject(current);
-      const b = toObject(handler);
-      const combined = {};
-      for (const phase of ['enter', 'exit']) {
-        if (a[phase] && b[phase]) combined[phase] = chain(a[phase], b[phase]);
-        else if (a[phase] || b[phase]) combined[phase] = a[phase] || b[phase];
-      }
+      const combined = combineVisitorHandlers(current, handler);
       // an all-empty combined handler (`{}` from two no-enter/exit sides) is inert on dispatch
       // (absent enter/exit = no-op); drop it for tidiness rather than keep a dead entry
       if (combined.enter || combined.exit) merged[key] = combined;

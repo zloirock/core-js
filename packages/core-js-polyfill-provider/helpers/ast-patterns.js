@@ -10526,57 +10526,68 @@ function walkFileCensus(programNode, reducers, asksConstructorKey) {
     const { type } = node;
     for (let index = 0; index < reducers.length; index++) reducers[index].visit(node, frame);
     if (asksConstructorKey) constructorKeyRead ||= readsConstructorKeyAt(node, type);
-    // Leaves and empty lists need no child context. Compute it at the first real child.
-    let rebindsThis = false;
-    let childFrame = null;
-    let receiverFrame = null;
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      const value = node[key];
-      if (Array.isArray(value) ? value.length > 0 : isASTNode(value)) {
-        if (!childFrame) {
-          const rebindsScope = isScopeRebinding(node);
-          rebindsThis = THIS_REBINDING_TYPES.has(type);
-          childFrame = {
-            parentType: TRANSPARENT_EXPR_WRAPPER_TYPES.has(type) ? frame.parentType : type,
-            atTopLevel: frame.atTopLevel && !rebindsScope,
-            atThisTopLevel: frame.atThisTopLevel,
-            thisOwner: frame.thisOwner,
-            parameterThisOwner: undefined,
-            parentNode: node,
-            // Sticky inside a `:` annotation wrapper; a type alias or type argument alone
-            // opens none, unlike the broader isTypeAnnotationNodeType classification.
-            underTypeAnnotation: frame.underTypeAnnotation || isTypeAnnotationWrapper(node),
-            scopes: rebindsScope || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
-            throwHandler: frame.throwHandler,
-          };
-        }
-        // Keep the owner, not just a top-level flag: escape and write censuses ask whose this it is.
-        const thisOwner = key === 'decorators' && frame.parameterThisOwner !== undefined
-          ? frame.parameterThisOwner
-          : rebindsThis && isThisRebinding(node, Array.isArray(value) ? value[0] : value)
-            ? type === 'FunctionExpression' && frame.parentNode?.type === 'MethodDefinition' ? frame.parentNode : node
-            : frame.thisOwner;
-        // A parameter's decorator runs outside its function, unlike its default value.
-        const parameterThisOwner = key === 'params' && FUNCTION_LIKE_NODE_TYPES.has(type)
-          ? frame.thisOwner : undefined;
-        nodeStack.push(value);
-        const handlerStep = type === 'TryStatement' || frame.throwHandler
-          ? throwHandlerAtStep(node, { node: value, key }) : undefined;
-        const throwHandler = handlerStep === undefined ? frame.throwHandler : handlerStep;
-        if (throwHandler !== childFrame.throwHandler) {
-          frameStack.push({ ...childFrame, thisOwner, atThisTopLevel: thisOwner === null, parameterThisOwner, throwHandler });
-        } else if (thisOwner === childFrame.thisOwner && parameterThisOwner === undefined) frameStack.push(childFrame);
-        else if (parameterThisOwner === undefined) {
-          if (!receiverFrame || receiverFrame.thisOwner !== thisOwner) {
-            receiverFrame = { ...childFrame, thisOwner, atThisTopLevel: thisOwner === null };
-          }
-          frameStack.push(receiverFrame);
-        } else frameStack.push({ ...childFrame, thisOwner, atThisTopLevel: thisOwner === null, parameterThisOwner });
-      }
-    }
+    pushFileCensusChildren(node, type, frame, nodeStack, frameStack);
   }
   return constructorKeyRead;
+}
+
+// Build the shared child context only for a node with children. Keep scope construction
+// outside the traversal loops so warming a small file need not compile it into each loop.
+function fileCensusChildFrame(node, type, frame) {
+  const rebindsScope = isScopeRebinding(node);
+  return {
+    parentType: TRANSPARENT_EXPR_WRAPPER_TYPES.has(type) ? frame.parentType : type,
+    atTopLevel: frame.atTopLevel && !rebindsScope,
+    atThisTopLevel: frame.atThisTopLevel,
+    thisOwner: frame.thisOwner,
+    parameterThisOwner: undefined,
+    parentNode: node,
+    // Sticky inside a `:` annotation wrapper; a type alias or type argument alone
+    // opens none, unlike the broader isTypeAnnotationNodeType classification.
+    underTypeAnnotation: frame.underTypeAnnotation || isTypeAnnotationWrapper(node),
+    scopes: rebindsScope || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
+    throwHandler: frame.throwHandler,
+  };
+}
+
+// Schedule children with their receiver and exception contexts; the reducer loop stays small.
+function pushFileCensusChildren(node, type, frame, nodeStack, frameStack) {
+  // Leaves and empty lists need no child context. Compute it at the first real child.
+  let rebindsThis = false;
+  let childFrame = null;
+  let receiverFrame = null;
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
+    if (Array.isArray(value) ? value.length > 0 : isASTNode(value)) {
+      if (!childFrame) {
+        rebindsThis = THIS_REBINDING_TYPES.has(type);
+        childFrame = fileCensusChildFrame(node, type, frame);
+      }
+      // Keep the owner, not just a top-level flag: escape and write censuses ask whose this it is.
+      const thisOwner = key === 'decorators' && frame.parameterThisOwner !== undefined
+        ? frame.parameterThisOwner
+        : rebindsThis && isThisRebinding(node, Array.isArray(value) ? value[0] : value)
+          ? type === 'FunctionExpression' && frame.parentNode?.type === 'MethodDefinition' ? frame.parentNode : node
+          : frame.thisOwner;
+      // A parameter's decorator runs outside its function, unlike its default value.
+      const parameterThisOwner = key === 'params' && FUNCTION_LIKE_NODE_TYPES.has(type)
+        ? frame.thisOwner : undefined;
+      nodeStack.push(value);
+      const handlerStep = type === 'TryStatement' || frame.throwHandler
+        ? throwHandlerAtStep(node, { node: value, key }) : undefined;
+      const throwHandler = handlerStep === undefined ? frame.throwHandler : handlerStep;
+      if (throwHandler !== childFrame.throwHandler) {
+        frameStack.push({ ...childFrame, thisOwner, atThisTopLevel: thisOwner === null, parameterThisOwner, throwHandler });
+      } else if (thisOwner === childFrame.thisOwner && parameterThisOwner === undefined) frameStack.push(childFrame);
+      else if (parameterThisOwner === undefined) {
+        if (!receiverFrame || receiverFrame.thisOwner !== thisOwner) {
+          receiverFrame = { ...childFrame, thisOwner, atThisTopLevel: thisOwner === null };
+        }
+        frameStack.push(receiverFrame);
+      } else frameStack.push({ ...childFrame, thisOwner, atThisTopLevel: thisOwner === null, parameterThisOwner });
+    }
+  }
 }
 
 // every user-spelled member-key name on an Identifier-rooted chain: an alias / TS-wrapped

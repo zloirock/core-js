@@ -675,6 +675,28 @@ check('isCoreJSFile/core-js configurator', isCoreJSFile('node_modules/core-js/co
     merged.$.scope === true && merged.$.other === 'flag');
 }
 
+// Splitting the overlap path must preserve mixed formats, call state and source handlers.
+{
+  const calls = [];
+  const state = {};
+  const path = {};
+  const argument = {};
+  function first(...args) { calls.push(['first', this, ...args]); }
+  function second(...args) { calls.push(['second', this, ...args]); }
+  function leave() { calls.push(['leave', this]); }
+  const base = { Foo: first };
+  const extra = { Foo: { enter: second, exit: leave } };
+  const merged = mergeVisitors(base, extra);
+  merged.Foo.enter.call(state, path, argument);
+  merged.Foo.exit.call(state);
+  checkDeep('mergeVisitors/mixed handlers retain order and arguments', calls, [
+    ['first', state, path, argument], ['second', state, path, argument], ['leave', state],
+  ]);
+  check('mergeVisitors/source shorthand unchanged', base.Foo, first);
+  check('mergeVisitors/source enter unchanged', extra.Foo.enter, second);
+  check('mergeVisitors/unpaired exit keeps identity', merged.Foo.exit, leave);
+}
+
 // null handler on either side: treated as no-op (no crash)
 {
   function fn() { return 'kept'; }
