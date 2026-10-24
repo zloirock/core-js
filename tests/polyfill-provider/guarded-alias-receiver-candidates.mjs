@@ -19,6 +19,8 @@ const rows = [
   ['conditional constructor', 'if (flag) { var source = Map; } const held = source; observe(held);', ['Map']],
   ['selected pattern receiver', 'let held; const own = { Map: {} }; const result = ({ Map: held } = flag ? own : globalThis); observe(held);', ['Map']],
   ['alias cycle', 'var realm = held; var held = realm; observe(held);', []],
+  // a copy back into the ring through a pattern: the alias's earlier value reaches the read through the other alias
+  ['pattern copy back', 'let held = Set; let o = held; [held] = [o]; o = held || Object; held = flag ? Object : held; [held] = [o]; observe(held);', ['Set', 'Object']],
   ['destructure is not its container', 'const { realm: held } = globalThis; observe(held);', []],
   ['overwritten initializer', 'let held = globalThis; held = source; observe(held);', []],
   ['opaque pattern overwrite', 'let held = globalThis; [held] = source; observe(held);', []],
@@ -95,7 +97,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     checked++;
   }
 }
-check('all rows were checked', checked, 228);
+check('all rows were checked', checked, 232);
 for (const parser of adapters) for (const [name, source, key, expected] of [
   ['conditional native constructor', 'if (flag) { var held = globalThis; } held.Array.of(7);', 'of', 'Array'],
   ['conditional native namespace', 'if (flag) { var held = globalThis; } held.Object.keys(value);', 'keys', 'Object'],
@@ -129,6 +131,23 @@ for (const [shape, head, source] of [
     aliasNode: usage.node, scope: usage.scope, adapter, path: usage,
     resolve: hop => resolveObjectName({ objectNode: hop.node, ...hop.ctx, usageNode: hop.readNode }),
   }), shape === 'opaque' ? [] : shape === 'several elements' ? ['Map', 'Object'] : ['Map']);
+}
+// A reassigned factory called as the receiver reaches the constructors its values return - plainly, and through an
+// alias of another factory.
+for (const [shape, source, expected] of [
+  ['reassigned factory', 'let f = () => Map; if (flag) f = () => Set; observe(f());', ['Set']],
+  ['factory through an alias', 'let g = () => Object; let f = () => Map; if (flag) f = g; observe(f());', ['Object']],
+]) for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
+  const program = parser.parseAndScope(source);
+  const [usage] = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'observe').get('arguments');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method }) : createEstreeAdapter({ method });
+  checkDeep(`${ parser.name }: ${ method }: factory candidates ${ shape }`, reachableAliasValues({
+    aliasNode: usage.node,
+    scope: usage.scope,
+    adapter,
+    path: usage,
+    resolve: hop => resolveObjectName({ objectNode: hop.node, ...hop.ctx, usageNode: hop.readNode }),
+  }), expected);
 }
 // A guarded alias can have constructor candidates whose surface does not own this key.
 // Their prototype methods must not trigger the full type/target query for a static guard.

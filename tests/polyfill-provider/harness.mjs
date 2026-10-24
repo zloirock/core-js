@@ -282,3 +282,9 @@ export function createChecker(name, { tsc } = {}) {
 
   return { check, checkDeep, checkTruthy, doesNotThrow, fail, finish, pass, runBoth, runBothAndAgree, throwsWith };
 }
+
+// the `resolvePure` of a suite that asks the detection what it claims, not what it emits: every global and static
+// the rows read is served by the build, as pure serves it
+export function resolvePure(meta) {
+  return { kind: meta.kind === 'global' ? 'global' : 'static' };
+}

@@ -77,6 +77,68 @@ function syntheticWrittenPastTheCeiling(writes) {
   return parts.join('\n');
 }
 
+// accumulators written under tests of one another in every block of a loop, each block's tests reading other
+// accumulators than its arms write and a claim inside every arm - a text wrapper's lines, words and widths. a
+// guard's settling resolves the names its test reads, and a reassigned one through the settlings of its own
+// writes: an answer that took a settling in flight as open is kept while it is, and settled anew under every
+// settling that reached it the work is a power of the writes. every accumulator stays under the write ceiling
+// (`writesPastCeiling`), past which none is followed at all and the shape measures nothing
+function syntheticGuardedAccumulators(accumulators, blocks) {
+  function a(index) {
+    return `a${ index % accumulators }`;
+  }
+  return `export function wrap(text) {
+  var lines = [];
+${ syntheticLines(accumulators, i => `  var ${ a(i) } = '';`) }
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+${ syntheticLines(blocks, k => `    if (!${ a(k) }) {
+      if (${ a(k + 1) }) { ${ a(k + 2) } = ${ a(k + 3) }; lines.push(${ a(k + 2) }); ${ a(k + 3) } = ''; }
+      else { ${ a(k + 2) } += ch; lines.push(${ a(k + 1) }); }
+    } else if (${ a(k + 1) } || ${ a(k + 2) }) {
+      ${ a(k + 1) } = ch; ${ a(k + 3) } = ${ a(k + 1) };
+    }`) }
+  }
+  return lines;
+}`;
+}
+
+// accumulators copied into one another around a ring in every block of a loop, an instance claim on each copy -
+// a text layout's line, word and measure. the claim's receiver candidates are the union of every value the
+// accumulator may hold, walked through the copies as a graph: a walk cut at a name on its own path enumerated
+// every simple path around the ring instead, a power of the copies
+function syntheticCopiedAccumulators(accumulators, blocks) {
+  function a(index) {
+    return `a${ index % accumulators }`;
+  }
+  return `export function layout(text) {
+  var out = [];
+${ syntheticLines(accumulators, i => `  var ${ a(i) } = '';`) }
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+${ syntheticLines(blocks, k => `    ${ a(k + 2) } = ${ a(k + 3) }; out.push(${ a(k + 2) }.at(0)); ${ a(k + 1) } = ch + ${ a(k) }; ${ a(k + 3) } = ${ a(k + 1) }; out.push(${ a(k + 3) }.at(-1));`) }
+  }
+  return out;
+}`;
+}
+
+// constructor aliases copied into one another around a ring in every block of a loop, a static claim on each
+// copy: every claim walks the union of the ring's sources, and each source's writes - claims x sources x writes
+// until the union ceiling (`MAX_UNION_SOURCES`) stops a union at its sources, which this ring reaches at about
+// half its blocks
+function syntheticConstructorRing(aliases, blocks) {
+  const ctors = ['Map', 'Object', 'Array', 'Set'];
+  function a(index) {
+    return `a${ index % aliases }`;
+  }
+  return `export function f(c, list, key) {
+${ syntheticLines(aliases, i => `  var ${ a(i) } = ${ ctors[i % ctors.length] };`) }
+  for (var i = 0; i < c.length; i++) {
+${ syntheticLines(blocks, k => `    ${ a(k + 2) } = ${ a(k + 3) }; ${ a(k + 2) }.groupBy(list, key); ${ a(k + 1) } = c[i] ? ${ a(k) } : ${ a(k + 2) }; ${ a(k + 3) } = ${ a(k + 1) }; ${ a(k + 3) }.from(list);`) }
+  }
+}`;
+}
+
 // discriminated-union receivers walk the discriminant sibling scan per member use - a
 // quadratic there needs union-annotated bindings, which no other synthetic carries
 function syntheticDiscriminantDense(names) {
@@ -555,6 +617,15 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic binding written past the write ceiling, 900 writes and reads', source: () => syntheticWrittenPastTheCeiling(900), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic guarded accumulators, 16 over 192 blocks', source: () => syntheticGuardedAccumulators(16, 192), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic copied accumulators, 8 over 32 blocks', source: () => syntheticCopiedAccumulators(8, 32), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic constructor ring, 8 over 40 blocks', source: () => syntheticConstructorRing(8, 40), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {

@@ -19979,6 +19979,29 @@ function * generatePositionalParameterBarriers() {
   };
 }
 
+// Aliases copied into one another: the union of what an alias may hold is the set reachable through the copies -
+// a copy back into the ring through a pattern, a write reading the alias itself (`P = P || shim`) keeping the
+// value it read - and a static read off the alias is served for every constructor in it. The stripped realm is
+// the leg that sees a missing candidate: the native holds the static, the narrow ponyfill does not.
+function * generateAliasRings() {
+  const group = 'const g = held.groupBy([1, 2, 3], value => value % 2); const r = [g.get(1).length, g.get(0)[0]];';
+  for (const [shape, body] of [
+    ['pattern-copy-back', `let held = Map; let other = held; const third = Object;
+      [held] = [other]; other = held || third; held = effects.length ? third : held; [held] = [other]; ${ group }`],
+    ['self-or-then-copy', `let held = Map; let other = held; other = other || Object; held = other; ${ group }`],
+    ['self-or-write', 'let P = Promise; P = P || effects; const r = typeof P.resolve;'],
+    ['self-nullish-write', 'let P = Promise; P = P ?? effects; const r = typeof P.resolve;'],
+    ['self-ternary-write', 'let P = Promise; P = effects.length ? effects : P; const r = typeof P.resolve;'],
+    ['ring-of-copies', "let a = 'xy'; let b = a; let c = b; a = c; b = a + 'z'; c = b; const r = [a.at(-1), b.at(0), c.at(1)];"],
+  ]) yield {
+    name: `alias-rings/${ shape }`,
+    code: `const effects = [];
+      ${ body }
+      export { r, effects };`,
+    strip: true,
+  };
+}
+
 // Deferred declarations retain child rewrites and read one initializer for all claims.
 function * generateDeferredPatternSources() {
   for (const multiple of [false, true]) for (const partial of [false, true]) for (const source of ['claim', 'alias']) {
@@ -20501,4 +20524,5 @@ export function * generate() {
   yield * generateSegmentedPatternDefaults();
   yield * generatePositionalParameterBarriers();
   yield * generateLocalFlowJoins();
+  yield * generateAliasRings();
 }

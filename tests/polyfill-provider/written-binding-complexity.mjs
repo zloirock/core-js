@@ -14,7 +14,7 @@ import { createEstreeAdapter, collectPrePassSites } from '../../packages/core-js
 import { collectFileCensus, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, resolvePure } from './harness.mjs';
 
 const { checkTruthy, finish } = createChecker('written-binding-complexity');
 
@@ -157,11 +157,6 @@ function babelReads(code, method) {
     filename: 'input.mjs',
   }));
   return { reads: counter.reads, injected: /import /.test(out) };
-}
-
-// every global the rows read is served by the build, as the detection's own tests serve it
-function resolvePure(meta) {
-  return { kind: meta.kind === 'global' ? 'global' : 'static' };
 }
 
 function estreeReads(code, method) {
