@@ -78,6 +78,7 @@ import {
 import {
   hasStaticDefinitionKey, resolve as resolveBuiltIn,
 } from '../index.js';
+import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-node-type/value-ops.js';
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   asSymbolRef,
@@ -1736,6 +1737,15 @@ export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
   resolvePure = null, keptProxyHops = null, resolveStaticKey = null, proxySegments = null,
 }) {
+  // Coercing numeric operators name no polyfillable key; neither key resolver folds them.
+  // Their original member and children stay visitable, including effects and nested claims.
+  // Keep literal/named keys on the full path: even an unsupported slot can carry a ctor fallback.
+  const computedKey = node.computed && unwrapRuntimeExpr(node.property);
+  const keyKind = computedKey?.type === 'BinaryExpression'
+    ? binaryOperatorResultKind(computedKey.operator, () => null, () => null)
+    : computedKey?.type === 'UnaryExpression'
+      ? unaryOperatorResultKind(computedKey.operator, () => null) : null;
+  if (keyKind === 'number' || keyKind === 'bigint') return null;
   // our own render read back on a SECOND pass stands down whole - not just its probe half
   if (claimAlreadyRendered(node, { scope, adapter, path })) return null;
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });

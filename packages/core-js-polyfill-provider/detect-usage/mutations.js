@@ -2378,8 +2378,11 @@ function aliasedNameValues({ aliases, target, seen }) {
 // value passes through such calls, as deeply as generated code chains them
 function readValues(aliases, node, seen) {
   const passthrough = ALIAS_SCOPE_FACTS.get(aliases)?.passthrough;
+  const initial = aliasedValues(aliases, node, seen);
+  if (!initial.length || initial.length === 1 && peelPassthroughCalls(initial[0], passthrough) === initial[0]
+    && !forwardedValuePositions(initial[0])) return initial;
   const out = [];
-  const work = [{ position: node }];
+  const work = initial.toReversed().map(value => ({ value }));
   while (work.length) {
     const { position, value } = work.pop();
     if (position !== undefined) {
