@@ -2,6 +2,7 @@
 // and parent reads after parsing, outside the parser's own traversal and scope setup.
 import {
   bindingWrittenBeyondItsFrame,
+  buildScopeReassignmentIndex,
   collectFileCensus,
   isForXWriteTarget,
   isTopLevelThisContext,
@@ -25,6 +26,37 @@ import { adapters, createChecker, findNode } from './harness.mjs';
 const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // Width in ordinary expressions must not build empty write/shadow lists per node.
+  // Count empty array iteration only in the synchronous scan, after parsing and setup.
+  for (const size of [64, 256]) {
+    const program = parser.parseAndScope(`function f() { var value = 0; value = ${ '1 + '.repeat(size) }0; return value; }`);
+    const owner = parser.pickPath(program, 'FunctionDeclaration').node;
+    const declaration = parser.pickPath(program, 'VariableDeclarator').node;
+    const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+    const original = Array.prototype[Symbol.iterator];
+    let empty = 0;
+    let index;
+    try {
+      // eslint-disable-next-line no-extend-native -- Count only this synchronous scan; restore in finally.
+      Array.prototype[Symbol.iterator] = function () {
+        if (!this.length) empty++;
+        return original.call(this);
+      };
+      Array.from([]);
+      check(`${ parser.name }/write scan/${ size }/counter control`, empty, 1);
+      empty = 0;
+      index = buildScopeReassignmentIndex(owner);
+    } finally {
+      // eslint-disable-next-line no-extend-native -- Restore the exact original iterator.
+      Array.prototype[Symbol.iterator] = original;
+    }
+    check(`${ parser.name }/write scan/${ size }/names`, index.size, 1);
+    check(`${ parser.name }/write scan/${ size }/writes`, index.get('value')?.length, 2);
+    check(`${ parser.name }/write scan/${ size }/initializer`, index.get('value')?.[0], declaration);
+    check(`${ parser.name }/write scan/${ size }/assignment`, index.get('value')?.[1], assignment);
+    checkTruthy(`${ parser.name }/write scan/${ size }/bounded empty lists`, empty < 64, `${ empty } empty lists`);
+  }
+
   // Different writes under one label share its structural break answer, even when
   // a presence question cannot retain value answers. Count walks, not elapsed time.
   for (const size of [16, 64]) {
