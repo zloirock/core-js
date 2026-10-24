@@ -1,20 +1,20 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
+import create from '@core-js/pure/es/object/create';
 
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import create from 'core-js-pure/es/object/create';
+const { getPrototypeOf } = Object;
 
 QUnit.test('Object.create', assert => {
   function getPropertyNames(object) {
-    let result = [];
+    const result = [];
     do {
-      result = result.concat(getOwnPropertyNames(object));
+      result.push(...getOwnPropertyNames(object));
     } while (object = getPrototypeOf(object));
     return result;
   }
   assert.isFunction(create);
   assert.arity(create, 2);
   assert.name(create, 'create');
+
   let object = { q: 1 };
   assert.true({}.isPrototypeOf.call(object, create(object)));
   assert.same(create(object).q, 1);
@@ -30,8 +30,4 @@ QUnit.test('Object.create', assert => {
   assert.false('toString' in object);
   assert.same(object.w, 2);
   assert.deepEqual(getPropertyNames(create(null)), []);
-});
-
-QUnit.test('Object.create.sham flag', assert => {
-  assert.same(create.sham, DESCRIPTORS ? undefined : true);
 });

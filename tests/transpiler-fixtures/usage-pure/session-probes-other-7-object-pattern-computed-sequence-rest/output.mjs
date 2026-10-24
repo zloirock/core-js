@@ -1,0 +1,34 @@
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+// Computed keys run in source order beside native object rest.
+// The instance leaf keeps its dispatch; the static leaf under a literal
+// object wrapper retains its native read and key effect.
+function eff() {
+  return Object;
+}
+{
+  const _ref = {
+      q: (eff.push('se'), 1),
+      p: holder.p
+    },
+    {
+      q: qq
+    } = _ref,
+    {
+      p: _ref2
+    } = _ref,
+    m2 = null == _ref2 ? _ref2[""] : (eff.push('key'), _flatMaybeArray(_ref2)),
+    {
+      other2
+    } = _ref2;
+  use(qq, m2, other2);
+}
+{
+  const {
+    w: {
+      [(eff('k2'), 'from')]: f
+    },
+    ...r
+  } = {
+    w: Array
+  };
+}

@@ -1,0 +1,3 @@
+({
+  weak: WeakMap
+} = box);

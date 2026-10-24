@@ -1,0 +1,1 @@
+[BABEL] unknown file: [core-js] `shouldInjectPolyfill` must be a function, null, or undefined (received true) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

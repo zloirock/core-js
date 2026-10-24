@@ -1,0 +1,505 @@
+// Element-wise locks for `internals/estree-to-babel.js` - the binding-side converter of
+// the canonical ESTree render. One lock per vocabulary element (totality is the contract:
+// the converter throws outside the vocabulary, and that throw is locked too). The
+// esrap-side spelling of the same canonical nodes needs no print here - the whole fixture
+// corpus byte-locks it; what this suite proves is that @babel/generator prints the
+// CONVERTED tree in the babel leg's own current spelling, chain dialect first.
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+
+const { BABEL_REQUIRE_FROM } = process.env;
+const requireBabel = BABEL_REQUIRE_FROM
+  ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  : createRequire(import.meta.url);
+const generateModule = requireBabel('@babel/generator');
+import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
+import {
+  arrowFunctionExpression,
+  assignmentExpression,
+  assignmentPattern,
+  blockStatement,
+  bareImport,
+  bareRequire,
+  binaryExpression,
+  callExpression,
+  chainExpression,
+  conditionalExpression,
+  defaultImport,
+  expressionStatement,
+  identifier,
+  literal,
+  logicalExpression,
+  memberExpression,
+  objectExpression,
+  objectGetter,
+  objectPattern,
+  objectProperty,
+  renderMemoActivation,
+  renderSynthActivation,
+  renderSynthProperty,
+  exportDeclaration,
+  renderDestructureStatements,
+  renderDestructureDeclarators,
+  renderDestructureHeadCapture,
+  planMethodCall,
+  renderMethodCall,
+  planOptionalMethodCall,
+  renderOptionalMethodCall,
+  sequenceExpression,
+  unaryExpression,
+  variableDeclaration,
+  variableDeclarator,
+  varRequire,
+  voidZero,
+  hostSlot,
+  renderInstanceDefaultGuard,
+  renderClaimProbe,
+} from '../../packages/core-js-polyfill-provider/render.js';
+import { claimIsInert, isRenderedProbeRead, markRenderedProbeRead } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { directClaimProbePlan } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { createChecker } from '../polyfill-provider/harness.mjs';
+
+const generate = generateModule.default ?? generateModule;
+const { check, checkTruthy, finish, runBoth } = createChecker('estree-to-babel');
+
+function print(node) {
+  return generate(estreeToBabel(node), { comments: true }).code;
+}
+
+function caught(node) {
+  try {
+    estreeToBabel(node);
+    return null;
+  } catch (error) {
+    return error.message;
+  }
+}
+
+// Conversion transfers served-read ownership, without claiming any source child slot.
+{
+  const key = callExpression(identifier('key'), []);
+  const read = markRenderedProbeRead(memberExpression(identifier('held'), hostSlot(key), { computed: true }));
+  const converted = estreeToBabel(read);
+  check('probe read survives conversion', isRenderedProbeRead(converted), true);
+  check('probe read cannot be reclaimed', claimIsInert({ node: converted }), true);
+  check('probe key remains live', isRenderedProbeRead(converted.property), false);
+  check('probe embedded key keeps identity', converted.property, key);
+  check('source lookalike is not served', isRenderedProbeRead(memberExpression(identifier('held'), identifier('key'))), false);
+}
+
+// Applying a source-based probe may neither rename its input nor lose the clone's provenance.
+runBoth('direct probe source frame', 'const value = (globalThis.window?.self).Array;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  function resolve({ name }) {
+    return ['globalThis', 'self'].includes(name) ? { entry: name, hintName: name } : null;
+  }
+  const plan = directClaimProbePlan(path.node.init, resolve, { scope: path.scope, adapter, path });
+  const source = JSON.stringify(path.node.init);
+  const converted = estreeToBabel(renderClaimProbe(plan, { injectImport: entry => `_${ entry }`, embed: hostSlot }));
+  const test = converted.object.test.right;
+  check(`${ label }/source unchanged`, JSON.stringify(path.node.init), source);
+  checkTruthy(`${ label }/distinct clone`, test !== plan.test.source.source);
+  check(`${ label }/source start`, test.start, plan.test.source.source.start);
+  check(`${ label }/source end`, test.end, plan.test.source.source.end);
+  check(`${ label }/detached root substitution`, test.object.name, '_globalThis');
+  check(`${ label }/served cloned read`, isRenderedProbeRead(test), true);
+});
+
+// A complete method render uses only the closed vocabulary; embedded argument slots stay
+// live until apply, and a generated memo is registered before the argument is embedded.
+{
+  const args = [literal(1)];
+  const decision = planMethodCall({ receiver: callExpression(identifier('get'), []), args });
+  args[0] = callExpression(identifier('argument'), []);
+  let registered = false;
+  const built = renderMethodCall(decision, {
+    helper: identifier('lookup'),
+    mintRef: () => '_receiver',
+    recordCapture(node) {
+      const assignment = estreeToBabel(node);
+      registered = assignment.left.name === '_receiver';
+      return hostSlot(assignment);
+    },
+    embed(node, role) {
+      if (role === 'argument') check('method render memo registered before arguments', registered, true);
+      return node;
+    },
+  });
+  check('method render live argument and receiver', print(built), '(lookup(_receiver = get()) || 0).call(_receiver, argument())');
+  const guarded = planMethodCall({ receiver: identifier('receiver'), prepared: true, methodGuarded: true, args });
+  check('method render enclosing guard owns nullish check',
+    print(renderMethodCall(guarded, { lookup: identifier('method') })), 'method.call(receiver, argument())');
+  const optional = planMethodCall({ receiver: identifier('receiver'), prepared: true, optional: true, args });
+  check('method render optional chain converts through the call',
+    print(renderMethodCall(optional, { lookup: identifier('method') })), 'method?.call(receiver, argument())');
+}
+
+// --- per-element shape locks: every builder output converts, one lock per element ---
+check('identifier', print(identifier('x')), 'x');
+check('this', print({ type: 'ThisExpression' }), 'this');
+{
+  const callee = memberExpression(hostSlot({ type: 'Super' }), identifier('read'));
+  const plan = planOptionalMethodCall({ callee: { ...callee, object: { type: 'Super' } } });
+  const product = renderOptionalMethodCall(plan, {
+    callee, args: [callExpression(identifier('argument'), [])],
+    embed: node => node.type === 'Super' ? hostSlot(node) : node,
+    mintRef: role => `_${ role }`,
+  });
+  check('optional super lookup keeps its home object', print(product.disjuncts[0]), '_method = super.read');
+  check('optional super continuation invokes on this', print(product.receiver), '_method.call(this, argument())');
+}
+check('arrow/expression', print(arrowFunctionExpression([identifier('x')], identifier('x'))), 'x => x');
+check('arrow/block', print(arrowFunctionExpression([], blockStatement([]))), '() => {}');
+check('assignment pattern/captured receiver default', print(assignmentPattern(identifier('_ref'), identifier('source'))), '_ref = source');
+check('assignment pattern/trailing inert default', print(assignmentPattern(identifier('_unused'), voidZero())), '_unused = void 0');
+check('literal/string type', estreeToBabel(literal('a')).type, 'StringLiteral');
+check('literal/string raw rides extra', estreeToBabel(literal('a')).extra.raw, '"a"');
+check('literal/number', estreeToBabel(literal(7)).type, 'NumericLiteral');
+check('literal/boolean', estreeToBabel(literal(true)).type, 'BooleanLiteral');
+check('literal/null', estreeToBabel(literal(null)).type, 'NullLiteral');
+// `NaN` / `Infinity` are in the mint domain but babel has no literal node for them: they
+// convert to the Identifier babel itself parses; a bigint converts to babel's BigIntLiteral.
+// negatives and `-0` the canon's mint gate refuses (see the builders) - a misminted one
+// throws here instead of printing a wrong spelling (`-0` would print `0`, a wrong VALUE)
+check('literal/NaN converts to the identifier', print(literal(NaN)), 'NaN');
+check('literal/Infinity converts to the identifier', print(literal(Infinity)), 'Infinity');
+check('literal/bigint converts to BigIntLiteral', estreeToBabel(literal(10n)).type, 'BigIntLiteral');
+check('literal/bigint prints its own suffix', print(literal(10n)), '10n');
+checkTruthy('literal/misminted negative number throws', caught({ type: 'Literal', value: -5 })?.includes('outside the canonical vocabulary'));
+checkTruthy('literal/misminted minus zero throws', caught({ type: 'Literal', value: -0 })?.includes('outside the canonical vocabulary'));
+checkTruthy('literal/misminted negative Infinity throws', caught({ type: 'Literal', value: -Infinity })?.includes('outside the canonical vocabulary'));
+checkTruthy('literal/misminted negative bigint throws', caught({ type: 'Literal', value: -1n })?.includes('outside the canonical vocabulary'));
+check('literal/plain zero stays a NumericLiteral', estreeToBabel(literal(0)).type, 'NumericLiteral');
+check('literal/fraction stays a NumericLiteral', print(literal(1.5)), '1.5');
+check('expressionStatement', print(expressionStatement(identifier('x'))), 'x;');
+check('blockStatement', print(blockStatement([expressionStatement(identifier('x'))])), '{\n  x;\n}');
+check('callExpression', print(callExpression(identifier('f'), [literal(1)])), 'f(1)');
+check('memberExpression/plain', print(memberExpression(identifier('a'), identifier('b'))), 'a.b');
+check('memberExpression/computed', print(memberExpression(identifier('a'), literal('k'), { computed: true })), 'a["k"]');
+check('sequenceExpression', print(sequenceExpression([identifier('a'), identifier('b')])), 'a, b');
+check('variableDeclaration', print(variableDeclaration('var', [variableDeclarator(identifier('a'))])), 'var a;');
+check('variableDeclarator/init',
+  print(variableDeclaration('const', [variableDeclarator(identifier('a'), literal(1))])), 'const a = 1;');
+check('binaryExpression', print(binaryExpression('==', literal(null), identifier('x'))), 'null == x');
+check('logicalExpression', print(logicalExpression('||', identifier('a'), identifier('b'))), 'a || b');
+check('conditionalExpression', print(conditionalExpression(identifier('t'), voidZero(), identifier('x'))), 't ? void 0 : x');
+check('unaryExpression keeps prefix', print(unaryExpression('!', identifier('x'))), '!x');
+check('assignmentExpression', print(assignmentExpression('=', identifier('a'), identifier('b'))), 'a = b');
+const angleHost = { type: 'TSTypeAssertion', typeAnnotation: { type: 'TSAnyKeyword' }, expression: { type: 'Identifier', name: 'x' } };
+check('assignmentExpression/a host angle assertion as the left is written as a parenthesized `as`',
+  print(assignmentExpression('=', hostSlot(angleHost), identifier('v'))), '(x as any) = v');
+check('objectExpression + objectProperty',
+  print(objectExpression([objectProperty(identifier('k'), identifier('v'))])), '{\n  k: v\n}');
+const restPattern = objectPattern([objectProperty(literal('from'), identifier('unused')),
+  hostSlot({ type: 'RestElement', argument: { type: 'Identifier', name: 'rest' } })]);
+const restDeclarator = variableDeclarator(restPattern, identifier('source'));
+check('objectPattern + native rest', print(variableDeclaration('const', [restDeclarator])),
+  'const {\n  "from": unused,\n  ...rest\n} = source;');
+check('objectProperty/computed becomes ObjectProperty',
+  estreeToBabel(objectProperty(identifier('k'), identifier('v'), { computed: true })).type, 'ObjectProperty');
+const quotedProperty = objectProperty(literal('with-dash'), memberExpression(identifier('source'), literal('with-dash'), { computed: true }));
+check('objectProperty/quoted key keeps a data slot', print(objectExpression([quotedProperty])), '{\n  "with-dash": source["with-dash"]\n}');
+check('objectProperty/quoted key becomes ObjectProperty', estreeToBabel(quotedProperty).type, 'ObjectProperty');
+const getter = objectGetter(literal('with-dash'), memberExpression(identifier('source'), identifier('length')));
+check('objectGetter becomes ObjectMethod', estreeToBabel(getter).type, 'ObjectMethod');
+check('objectGetter delays its read', print(objectExpression([getter])), '{\n  get "with-dash"() {\n    return source.length;\n  }\n}');
+check('objectGetter keeps its computed key', estreeToBabel(objectGetter(identifier('key'), identifier('value'), { computed: true })).computed, true);
+check('bareImport', print(bareImport('core-js/modules/es.array.flat')), 'import "core-js/modules/es.array.flat";');
+check('defaultImport', print(defaultImport('_at', '@core-js/pure/actual/array/at')),
+  'import _at from "@core-js/pure/actual/array/at";');
+check('voidZero', print(voidZero()), 'void 0');
+check('bareRequire', print(bareRequire('core-js/modules/es.array.flat')), 'require("core-js/modules/es.array.flat");');
+check('varRequire', print(varRequire('_at', '@core-js/pure/actual/array/at')),
+  'var _at = require("@core-js/pure/actual/array/at");');
+
+// Immediate statement composition preserves a residual's slot, keeps captures private,
+// and carries native declarations unchanged across the insertion boundary.
+{
+  const read = variableDeclarator(identifier('value'), callExpression(identifier('read'), [identifier('_receiver')]));
+  const residual = variableDeclaration('const', [variableDeclarator(
+    objectPattern([objectProperty(identifier('other'), identifier('other'))]), identifier('_receiver'),
+  )]);
+  for (const residualAt of [0, 1]) {
+    const source = JSON.stringify({ read, residual });
+    const rendered = renderDestructureStatements([read], {
+      kind: 'const', exported: true,
+      prefix: [callExpression(identifier('before'), [])],
+      capture: { name: '_receiver', value: callExpression(identifier('load'), []) },
+      residual: exportDeclaration(residual, true), residualAt,
+    });
+    const printed = rendered.map(print);
+    check(`statements/${ residualAt }/effects first`, printed[0], 'before();');
+    check(`statements/${ residualAt }/private capture`, printed[1], 'const _receiver = load();');
+    check(`statements/${ residualAt }/residual slot`, printed[2 + residualAt], 'export const {\n  other: other\n} = _receiver;');
+    check(`statements/${ residualAt }/extraction slot`, printed[3 - residualAt], 'export const value = read(_receiver);');
+    check(`statements/${ residualAt }/source unchanged`, JSON.stringify({ read, residual }), source);
+  }
+  check('statements/empty output', renderDestructureStatements([]).length, 0);
+  check('statements/residual alone', renderDestructureStatements([], { residual })[0], residual);
+  check('statements/group stays together', print(renderDestructureStatements([[read,
+    variableDeclarator(identifier('tail'), literal(2)),
+  ]], { kind: 'var' })[0]), 'var value = read(_receiver),\n  tail = 2;');
+  check('statements/member target', print(renderDestructureStatements([{
+    id: memberExpression(identifier('target'), identifier('slot')), init: literal(3),
+  }])[0]), 'target.slot = 3;');
+  const target = objectPattern([objectProperty(identifier('name'), identifier('name'))]);
+  check('statements/pattern target', print(renderDestructureStatements([{
+    id: target, init: identifier('method'),
+  }])[0]), '({\n  name: name\n} = method);');
+  const native = estreeToBabel(read);
+  const kept = variableDeclarator(identifier('kept'));
+  const decorated = estreeToBabel(variableDeclaration('let', [kept]));
+  const rendered = renderDestructureStatements([native, { statement: decorated }], { kind: 'const', embed: hostSlot })
+    .map(node => estreeToBabel(node));
+  check('statements/native declarator identity', rendered[0].declarations[0], native);
+  check('statements/decorated statement identity', rendered[1], decorated);
+  const exported = exportDeclaration(hostSlot(rendered[0]), true);
+  check('export/native declaration identity', estreeToBabel(exported).declaration, rendered[0]);
+  check('export/plain statement identity', exportDeclaration(rendered[0], false), rendered[0]);
+  const core = requireBabel('@babel/core');
+  const bindings = [];
+  // eslint-disable-next-line node/no-sync -- insertion and scope registration are one synchronous assertion
+  const inserted = core.transformSync('export {};', {
+    configFile: false, babelrc: false,
+    plugins: [() => ({ visitor: { Program(program) {
+      program.pushContainer('body', estreeToBabel(exported));
+      program.scope.crawl();
+      bindings.push(...Object.keys(program.scope.bindings));
+    } } })],
+  });
+  check('export/live scope registers binding', bindings.join(','), 'value');
+  checkTruthy('export/live insertion prints export', inserted.code.includes('export const value = read(_receiver);'));
+}
+
+// A moved head keeps the source pattern and the separately tracked receiver read. In an
+// assignment loop the fresh head is const, but the body's original targets remain writes.
+runBoth('activation capture identity', 'let { [key()]: value = fallback(), ...rest } = source;', (parser, program, label) => {
+  const source = parser.pickPath(program, 'VariableDeclarator').node;
+  const binding = identifier('_head');
+  const receiver = identifier('_head');
+  const original = JSON.stringify(source);
+  for (const kind of ['let', 'const', 'var']) for (const assignment of [false, true]) {
+    const rendered = renderDestructureHeadCapture(source.id, { binding, receiver, kind, assignment, embed: hostSlot });
+    const head = estreeToBabel(rendered.head);
+    const statement = estreeToBabel(rendered.statement);
+    const read = assignment ? statement.expression : statement.declarations[0];
+    check(`${ label }/${ kind }/${ assignment }/pattern identity`, assignment ? read.left : read.id, source.id);
+    check(`${ label }/${ kind }/${ assignment }/read identity`, assignment ? read.right : read.init, receiver);
+    check(`${ label }/${ kind }/${ assignment }/binding identity`, assignment ? head.declarations[0].id : head, binding);
+    check(`${ label }/${ kind }/${ assignment }/body kind`, assignment ? read.operator : statement.kind, assignment ? '=' : kind);
+    if (assignment) check(`${ label }/private head kind`, head.kind, 'const');
+  }
+  check(`${ label }/source unchanged`, JSON.stringify(source), original);
+  const capture = renderDestructureHeadCapture(source.id, { binding, embed: hostSlot });
+  check(`${ label }/catch binding is mutable`, capture.statement.kind, 'let');
+  check(`${ label }/catch may reuse its binding identity`, estreeToBabel(capture.statement).declarations[0].init, binding);
+});
+
+// For-init slots stay in source order without cloning native residuals or declarators.
+{
+  const native = estreeToBabel(variableDeclarator(identifier('read'), callExpression(identifier('load'), [])));
+  const residual = estreeToBabel(variableDeclarator(identifier('rest'), identifier('_head')));
+  const binding = identifier('_head');
+  const init = { type: 'AwaitExpression', argument: identifier('source') };
+  for (const residualAt of [0, 1, 2]) {
+    const built = renderDestructureDeclarators([native, { id: identifier('tail'), init: null }], {
+      capture: { id: binding, init }, residual, residualAt, embed: hostSlot,
+    }).map(node => estreeToBabel(node));
+    check(`for-init/${ residualAt }/capture binding`, built[0].id, binding);
+    check(`for-init/${ residualAt }/opaque capture source`, built[0].init, init);
+    check(`for-init/${ residualAt }/residual identity`, built[residualAt + 1], residual);
+    check(`for-init/${ residualAt }/read identity`, built[residualAt === 0 ? 2 : 1], native);
+    check(`for-init/${ residualAt }/uninitialized binding`, built[residualAt === 2 ? 2 : 3].init, null);
+  }
+  check('for-init/empty reads', renderDestructureDeclarators([]).length, 0);
+  check('for-init/residual alone', renderDestructureDeclarators([], { residual })[0], residual);
+}
+
+// --- the chain dialect: ChainExpression dissolves into Optional*Expression links ---
+
+// the exact memo-dispatch spelling both legs emit today: `_flatMapMaybeArray(_ref2 = res.data)?.call(_ref2, f)` -
+// the `?.` is the MEMBER link's flag (`X?.call`), the call link itself is non-optional
+const memoInit = assignmentExpression('=', identifier('_ref2'), memberExpression(identifier('res'), identifier('data')));
+const memoRead = callExpression(identifier('_flatMapMaybeArray'), [memoInit]);
+const memoCallee = memberExpression(memoRead, identifier('call'), { optional: true });
+const memoDispatch = chainExpression(callExpression(memoCallee, [identifier('_ref2'), identifier('f')]));
+check('chain/memo dispatch spelling', print(memoDispatch), '_flatMapMaybeArray(_ref2 = res.data)?.call(_ref2, f)');
+check('chain/link types', estreeToBabel(memoDispatch).type, 'OptionalCallExpression');
+check('chain/call link above the ?. is optional-typed with optional=false',
+  estreeToBabel(memoDispatch).optional, false);
+check('chain/member link carries the ?.', estreeToBabel(memoDispatch).callee.type, 'OptionalMemberExpression');
+check('chain/member link optional=true', estreeToBabel(memoDispatch).callee.optional, true);
+check('chain/link BELOW the first ?. stays plain',
+  estreeToBabel(memoDispatch).callee.object.type, 'CallExpression');
+// a sealed chain as the object of an outer OPTIONAL link: `(a?.b)?.c` and `a?.b?.c`
+// short-circuit identically (the outer `?.` absorbs the seal), so the babel dialect may
+// fuse them - grouping only, formatting-class. the seal that CARRIES semantics is a PLAIN
+// read above the chain, locked below (`(a?.b).c` keeps its parens)
+const resealed = chainExpression(memberExpression(
+  chainExpression(memberExpression(identifier('a'), identifier('b'), { optional: true })),
+  identifier('c'),
+  { optional: true }));
+check('chain/nested seal under an outer ?. fuses (runtime-equal)', print(resealed), 'a?.b?.c');
+
+// plain continuation above an optional link (`a?.b.c`) - both links optional-typed, flags differ
+const plainTail = chainExpression(memberExpression(
+  memberExpression(identifier('a'), identifier('b'), { optional: true }),
+  identifier('c')));
+check('chain/plain continuation spelling', print(plainTail), 'a?.b.c');
+check('chain/continuation link optional=false', estreeToBabel(plainTail).optional, false);
+
+// an optional CALL on a bare callee (`f?.()`) and a computed optional member (`a?.[k]`)
+const bareOptionalCall = chainExpression(callExpression(identifier('f'), [], { optional: true }));
+check('chain/bare optional call', print(bareOptionalCall), 'f?.()');
+check('chain/bare optional call base stays plain', estreeToBabel(bareOptionalCall).callee.type, 'Identifier');
+const computedOptional = chainExpression(memberExpression(identifier('a'), identifier('k'), { computed: true, optional: true }));
+check('chain/computed optional member', print(computedOptional), 'a?.[k]');
+const doubleOptionalCall = chainExpression(callExpression(
+  memberExpression(identifier('a'), identifier('b'), { optional: true }), [], { optional: true }));
+check('chain/optional member then optional call', print(doubleOptionalCall), 'a?.b?.()');
+
+// a seal ends the segment: `(a?.b).c` is a PLAIN member over an optional one
+const sealed = memberExpression(
+  chainExpression(memberExpression(identifier('a'), identifier('b'), { optional: true })),
+  identifier('c'));
+check('chain/seal boundary spelling', print(sealed), '(a?.b).c');
+check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression');
+
+// --- host slots: an embedded babel subtree passes through UNCONVERTED ---
+{
+  // identity: the slot unwraps to the very node, undescended - a babel-only inner type
+  // (ClassExpression is outside the vocabulary) proves the converter never walked in
+  const hostNode = { type: 'ClassExpression', id: null, superClass: null, body: { type: 'ClassBody', body: [] } };
+  checkTruthy('host-slot/unwraps to the very node', estreeToBabel(hostSlot(hostNode)) === hostNode);
+  const shell = callExpression(identifier('f'), [hostSlot(hostNode)]);
+  checkTruthy('host-slot/inside a canonical shell passes through by identity',
+    estreeToBabel(shell).arguments[0] === hostNode);
+  // the one guard shape both legs print, host operands embedded
+  const ref = { type: 'Identifier', name: '_ref' };
+  const guard = renderInstanceDefaultGuard({
+    assignedRef: hostSlot(ref),
+    call: hostSlot({ type: 'CallExpression', callee: { type: 'Identifier', name: '_at' }, arguments: [] }),
+    defaultValue: hostSlot({ type: 'ObjectExpression', properties: [] }),
+    reread: hostSlot(ref),
+  });
+  check('host-slot/instance default guard prints the canonical spelling',
+    generate(estreeToBabel(guard)).code, '(_ref = _at()) === void 0 ? {} : _ref');
+}
+
+// --- totality: outside the vocabulary or misminted = loud throw, never a wrong print ---
+checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
+check('memo activation/lexical local var and return', generate(estreeToBabel(
+  renderMemoActivation(identifier('value'), ['_ref']),
+)).code, '(() => {\n  var _ref;\n  return value;\n})()');
+const suspendedReceiver = { type: 'AwaitExpression', argument: identifier('value') };
+const suppliedActivation = estreeToBabel(renderMemoActivation(identifier('_ref'), ['_ref', '_next'], [hostSlot(suspendedReceiver)]));
+check('memo activation/supplied receiver binds a parameter', suppliedActivation.callee.params[0]?.name, '_ref');
+checkTruthy('memo activation/suspended receiver stays in the outer argument', suppliedActivation.arguments[0] === suspendedReceiver);
+check('memo activation/unsupplied memo keeps its local declaration', suppliedActivation.callee.body.body[0].declarations[0].id.name, '_next');
+check('memo activation/all supplied memos need no var declaration', print(
+  renderMemoActivation(identifier('_ref'), ['_ref'], [callExpression(identifier('source'), [])]),
+), '(_ref => {\n  return _ref;\n})(source())');
+const synthActivation = renderSynthActivation(identifier('value'), {
+  memo: identifier('_ref'), argument: callExpression(identifier('source'), []),
+});
+check('synth activation/ordinary function binds its receiver', print(expressionStatement(synthActivation)),
+  '(function (_ref) {\n  return value;\n})(source());');
+check('synth property/prototype name is an own data slot', print(renderSynthProperty(identifier('__proto__'), identifier('value'))),
+  '["__proto__"]: value');
+checkTruthy('totality/function declarations stay outside the vocabulary',
+  caught({ type: 'FunctionDeclaration', id: identifier('f'), params: [], body: blockStatement([]) })?.includes('outside the canonical vocabulary'));
+checkTruthy('totality/optional member outside chain throws',
+  caught(memberExpression(identifier('a'), identifier('b'), { optional: true }))?.includes('outside a ChainExpression'));
+checkTruthy('totality/optional call outside chain throws',
+  caught(callExpression(identifier('f'), [], { optional: true }))?.includes('outside a ChainExpression'));
+checkTruthy('totality/nullish input throws controlled', caught(null)?.includes('outside the canonical vocabulary'));
+
+// --- purity: the canon reuses nodes, so conversion may not mutate or alias its input ---
+const frozenChain = chainExpression(memberExpression(identifier('a'), identifier('b'), { optional: true }));
+(function deepFreeze(node) {
+  if (node && typeof node === 'object') {
+    Object.freeze(node);
+    for (const child of Object.values(node)) deepFreeze(child);
+  }
+})(frozenChain);
+check('purity/converts a deeply frozen input', print(frozenChain), 'a?.b');
+// the meta-cloning path under freeze too: spreading and WeakMap-keying must not write
+const frozenMeta = identifier('m');
+frozenMeta.loc = { start: { line: 2, column: 0 }, end: { line: 2, column: 1 } };
+frozenMeta.range = [5, 6];
+frozenMeta.leadingComments = [{ type: 'Line', value: ' held', loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 6 } } }];
+(function deepFreeze(node) {
+  if (node && typeof node === 'object') {
+    Object.freeze(node);
+    for (const child of Object.values(node)) deepFreeze(child);
+  }
+})(frozenMeta);
+check('purity/frozen input with meta converts', estreeToBabel(frozenMeta).leadingComments[0].type, 'CommentLine');
+checkTruthy('purity/output aliases nothing from the input',
+  estreeToBabel(frozenChain).object !== frozenChain.expression.object);
+
+// --- meta contract: loc/start/end copied per node; comment types convert ---
+const withMeta = identifier('x');
+withMeta.start = 3;
+withMeta.end = 4;
+withMeta.loc = { start: { line: 1, column: 3 }, end: { line: 1, column: 4 } };
+withMeta.range = [3, 4];
+withMeta.leadingComments = [{ type: 'Line', value: ' note', loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 7 } } }];
+const convertedMeta = estreeToBabel(withMeta);
+check('meta/start survives', convertedMeta.start, 3);
+check('meta/loc survives', convertedMeta.loc.end.column, 4);
+check('meta/comment type converts', convertedMeta.leadingComments[0].type, 'CommentLine');
+// the canon reuses its nodes: positions are CLONED, never shared - element-wise over
+// every meta object (loc, its endpoints, range, the comment's own loc)
+checkTruthy('meta/loc is a clone, not the input object', convertedMeta.loc !== withMeta.loc);
+checkTruthy('meta/loc.start is a clone', convertedMeta.loc.start !== withMeta.loc.start);
+checkTruthy('meta/loc.end is a clone', convertedMeta.loc.end !== withMeta.loc.end);
+checkTruthy('meta/range is a clone', convertedMeta.range !== withMeta.range);
+check('meta/range values survive', convertedMeta.range.join(','), '3,4');
+checkTruthy('meta/comment loc is a clone', convertedMeta.leadingComments[0].loc !== withMeta.leadingComments[0].loc);
+check('meta/comment loc values survive', convertedMeta.leadingComments[0].loc.end.column, 7);
+// innerComments ride the same conversion as leading/trailing - locked element-wise
+const withInner = objectExpression([]);
+withInner.innerComments = [{ type: 'Block', value: ' inner ' }];
+check('meta/innerComments convert too', estreeToBabel(withInner).innerComments[0].type, 'CommentBlock');
+const nestedMeta = memberExpression(withMeta, identifier('p'));
+check('meta/copied per NODE, not only at the root', estreeToBabel(nestedMeta).object.start, 3);
+// babel prints a comment once per OBJECT: a comment shared by a trailing and the next
+// node's leading array must stay ONE object after conversion - across separate calls too,
+// the way an injector converts statement by statement
+const sharedComment = { type: 'Line', value: ' shared note' };
+const firstOwner = expressionStatement(identifier('one'));
+firstOwner.trailingComments = [sharedComment];
+const secondOwner = expressionStatement(identifier('two'));
+secondOwner.leadingComments = [sharedComment];
+const convertedFirst = estreeToBabel(firstOwner);
+const convertedSecond = estreeToBabel(secondOwner);
+checkTruthy('meta/shared comment object survives as ONE object across calls',
+  convertedFirst.trailingComments[0] === convertedSecond.leadingComments[0]);
+check('meta/shared comment prints once, not twice',
+  generate({ type: 'Program', sourceType: 'module', body: [convertedFirst, convertedSecond], directives: [] },
+    { comments: true }).code, 'one; // shared note\ntwo;');
+
+// --- host acceptance: converted nodes survive babel's OWN pipeline (traverse, scope,
+// insertion), not only its printer - the insertion boundary the converter exists for ---
+const { transformAsync } = requireBabel('@babel/core');
+let hostBinding = null;
+const hostImport = await transformAsync('user(_at);', { configFile: false, plugins: [{ visitor: { Program(programPath) {
+  programPath.unshiftContainer('body', [estreeToBabel(defaultImport('_at', '@core-js/pure/actual/array/at'))]);
+  programPath.scope.crawl();
+  hostBinding = !!programPath.scope.getBinding('_at');
+} } }] });
+check('host/inserted import prints in place',
+  hostImport.code.startsWith('import _at from "@core-js/pure/actual/array/at";'), true);
+checkTruthy('host/scope registers the inserted binding', hostBinding);
+const hostCallee = memberExpression(identifier('_flat'), identifier('call'), { optional: true });
+const hostDispatch = expressionStatement(chainExpression(callExpression(hostCallee, [identifier('x')])));
+const hostRequire = await transformAsync('user();', { configFile: false, sourceType: 'script', plugins: [{ visitor: { Program(programPath) {
+  programPath.unshiftContainer('body', [estreeToBabel(varRequire('_flat', 'core-js-pure/actual/array/flat')), estreeToBabel(hostDispatch)]);
+} } }] });
+check('host/require and chain insert traversably', hostRequire.code.includes('_flat?.call(x);'), true);
+
+finish();

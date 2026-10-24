@@ -1,0 +1,19 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "4.0",
+        "targets": {
+          "safari": 9
+        }
+      }
+    ]
+  ],
+  "parserOpts": {
+    "plugins": [
+      "typescript"
+    ]
+  }
+}

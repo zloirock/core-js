@@ -12,7 +12,6 @@ import {
   isExists,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
-// eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
 import { cp, readdir, readlink, rename, rm, symlink, unlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { dirname, relative, resolve, join } from 'node:path';
@@ -145,7 +144,7 @@ async function getExcludedBuilds() {
   if (await isExists('./latest')) links.push('./latest');
   // a target set by hand may be relative or end with a slash; the build is its first step under `builds/`
   return Promise.all(links.map(async link => {
-    return relative(BUILDS_ROOT_DIR, resolve(dirname(link), await readlink(link))).split('/')[0];
+    return relative(BUILDS_ROOT_DIR, resolve(dirname(link), await readlink(link))).split('/', 1)[0];
   }));
 }
 

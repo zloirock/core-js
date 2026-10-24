@@ -1,9 +1,9 @@
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var $every = require('../internals/array-iteration').every;
+var uncurryThis = require('../internals/function-uncurry-this');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/a-typed-array');
 
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
+var $every = uncurryThis([].every);
 
 // `%TypedArray%.prototype.every` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.every

@@ -1,0 +1,12 @@
+// regular class with overload signatures - the type-only signatures are also
+// overload signatures on a class method value slot, separate from the implementation. The
+// rest-param sigs are neutralised so the scope crawler walks type-only function shapes
+// safely. The implementation body is left untouched. Unrelated polyfill below confirms
+// the transform completes
+class C {
+  m(...args: string[]): string;
+  m(...args: number[]): number;
+  m(...args: any[]): any { return args[0]; }
+}
+declare const set: Set<number>;
+set.union(new Set());

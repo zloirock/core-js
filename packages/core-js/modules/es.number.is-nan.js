@@ -7,5 +7,5 @@ $({ target: 'Number', stat: true }, {
   isNaN: function isNaN(number) {
     // eslint-disable-next-line no-self-compare -- NaN check
     return number !== number;
-  }
+  },
 });

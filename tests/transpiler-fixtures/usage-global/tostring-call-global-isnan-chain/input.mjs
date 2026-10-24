@@ -1,0 +1,1 @@
+global.isNaN(x).toString();

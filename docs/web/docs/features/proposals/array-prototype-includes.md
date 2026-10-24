@@ -17,3 +17,6 @@ class %TypedArray% {
 ```plaintext
 core-js/proposals/array-includes
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-includes`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-includes.d.ts)

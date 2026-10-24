@@ -1,0 +1,356 @@
+// Written values belong to their declaring container. A navigation into an opaque value must
+// leave that container before resolving its keys, including when the root has no visible binding.
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { staticContainerReceiverName } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import {
+  bindingLoopAnchor, collectFileCensus, ownerSourceWritePath, reachingContainerValueNode, usageCrossesLoopBackEdgeReassign,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { adapters, createChecker } from './harness.mjs';
+
+const { check, checkDeep, finish } = createChecker('container-slot-owner-boundaries');
+
+const rows = [
+  ['unindexed namesake', `export function make(Format) { const r = new Format(); return r.x.y; }
+    export function collect(a) { const r = []; r.push(a.b, a.b); return r; }`, []],
+  ['block-local argument', `export function f(g) { const C = [];
+    { const a = g(); C.push(a.b, a.b); } return C.x.y; }`, []],
+  ['unbound argument', 'const C = []; C.push(a.b, a.b); C.x.y;', []],
+  ['computed navigation', 'const C = []; C.push(a["b"], a["b"]); C.x.y;', []],
+  ['optional navigation', 'const C = []; C.push(a?.b, a?.b); C.x.y;', []],
+  [
+    'wrapped navigation',
+    '// @ts-expect-error a read of a member the array lacks is the shape under test\n'
+    + 'const C = []; C.push((a.b as any), (a.b as any)); C.x.y;',
+    [],
+  ],
+  ['nested navigation', 'const C = []; C.push(a.b.c, a.b.c); C.x.y;', []],
+  ['bound argument', 'function f(a) { const C = []; C.push(a.b, a.b); return C.x.y; }', []],
+  ['known member value', 'const a = { b: Map }; const C = []; C.push(a.b, a.b); C[0].y;', ['Map']],
+  ['separate known member values', 'const a = { b: Map, c: Set }; const C = []; C.push(a.b, a.c); C[0].y;', ['Map', 'Set']],
+];
+let checked = 0;
+for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
+  for (const [name, source, expected] of rows) {
+    const program = parser.parseAndScope(source);
+    const read = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'y');
+    const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+    const options = {
+      method,
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    };
+    const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+    const writtenValues = adapter.writtenContainerSlotValues;
+    let queries = 0;
+    // Fail deterministically before an accidental wildcard cycle expands exponentially.
+    adapter.writtenContainerSlotValues = (...args) => {
+      if (++queries > 20) throw new Error(`${ name }: repeated container slot queries`);
+      return writtenValues(...args);
+    };
+    const candidates = [];
+    const primary = staticContainerReceiverName({
+      node: read.node.object, scope: read.scope, adapter, path: read, unionSink: candidates,
+    });
+    const label = `${ parser.name }: ${ method }: ${ name }`;
+    check(`${ label }: primary`, primary, null);
+    checkDeep(`${ label }: candidates`, candidates, method === 'usage-global' ? expected : []);
+    checked++;
+  }
+
+  const program = parser.parseAndScope(`function first(Format) { const r = new Format(); return r; }
+    function second() { const r = []; r.push(Map); return r; }`);
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const options = {
+    method,
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  };
+  const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+  const [opaque, array] = parser.collectPaths(program, 'VariableDeclarator', path => path.node.id.name === 'r');
+  const label = `${ parser.name }: ${ method }: declaration identity`;
+  check(`${ label }: unindexed owner has no writes`, adapter.isWrittenContainerSlot('r', ['0'], opaque.node), false);
+  checkDeep(`${ label }: unindexed owner has no values`, adapter.writtenContainerSlotValues('r', ['0'], opaque.node), []);
+  check(`${ label }: indexed owner keeps writes`, adapter.isWrittenContainerSlot('r', ['0'], array.node), true);
+  checkDeep(`${ label }: indexed owner keeps values`,
+    adapter.writtenContainerSlotValues('r', ['0'], array.node).map(node => node.name), ['Map']);
+  checkDeep(`${ label }: name-only lookup keeps its union`,
+    adapter.writtenContainerSlotValues('r', ['0']).map(node => node.name), ['Map']);
+  const legacy = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method,
+    getWrittenContainerSlots: () => new Map([['r.0', [array.node.init]]]),
+  });
+  check(`${ label }: a name-keyed adapter without an index keeps its writes`, legacy.isWrittenContainerSlot('r', ['0']), true);
+  checkDeep(`${ label }: a name-keyed adapter without an index keeps its values`,
+    legacy.writtenContainerSlotValues('r', ['0']), [array.node.init]);
+  // Source-preserving clones keep their own declaration, including Babel's loc-only form.
+  for (const [kind, original, expected] of [['indexed', array.node, ['Map']], ['unindexed', opaque.node, []]]) {
+    for (const clone of [{ ...original }, { ...original, start: undefined, end: undefined }]) {
+      if (clone.start === undefined && !clone.loc?.start?.index) continue;
+      checkDeep(`${ label }: ${ kind } clone keeps its values`,
+        adapter.writtenContainerSlotValues('r', ['0'], clone).map(node => node.name), expected);
+    }
+  }
+  const unknown = { ...array.node, start: -2, end: -1 };
+  check(`${ label }: a different source position owns no writes`, adapter.isWrittenContainerSlot('r', ['0'], unknown), false);
+  const writesProgram = parser.parseAndScope('const box = { value: Array }; box.value = {}; box.value.from;');
+  const writesCensus = collectFileCensus(writesProgram.node, [mutationShapesReducer()]);
+  const writesAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method,
+    getWrittenContainerSlots: () => writesCensus.writtenContainerSlots,
+    getContainerSlotIndex: () => writesCensus.containerSlotIndex,
+  });
+  const owner = parser.pickPath(writesProgram, 'VariableDeclarator').node;
+  const usage = parser.pickPath(writesProgram, 'MemberExpression', path => path.node.property.name === 'from');
+  for (const node of [owner, { ...owner }]) {
+    check(`${ label }: a dominating write survives cloning`,
+      writesAdapter.containerSlotWriteDominatesUsage(['value'], node, usage, usage.node), true);
+  }
+  // A write an enclosing owner completes before the reading closure is created dominates a read whose
+  // caller names the replacement. A closure created first - above the write, or a function declaration,
+  // created when its scope is entered - may read the initial value, and so may one whose write is conditional.
+  for (const [name, source, named, expected] of [
+    ['closure created after the write', 'const box = { C: Array }; box.C = Map; const read = () => box.C.from;', true, true],
+    ['nested closure created after the write', 'const box = { C: Array }; box.C = Map; const read = () => () => box.C.from;', true, true],
+    ['closure created before the write', 'const box = { C: Array }; const read = () => box.C.from; box.C = Map;', true, false],
+    ['function declaration after the write', 'const box = { C: Array }; box.C = Map; function read() { return box.C.from; }', true, false],
+    ['closure in a function declaration', 'const box = { C: Array }; box.C = Map; function read() { return () => box.C.from; }', true, false],
+    ['conditional write', 'const box = { C: Array }; if (flag) box.C = Map; const read = () => box.C.from;', true, false],
+    ['unnamed replacement', 'const box = { C: Array }; box.C = {}; const read = () => box.C.from;', false, false],
+    ['same-scope unnamed replacement', 'const box = { C: Array }; box.C = {}; box.C.from;', false, true],
+  ]) {
+    const tree = parser.parseAndScope(source);
+    const data = collectFileCensus(tree.node, [mutationShapesReducer()]);
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method,
+      getWrittenContainerSlots: () => data.writtenContainerSlots,
+      getContainerSlotIndex: () => data.containerSlotIndex,
+    });
+    const declaration = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'box').node;
+    const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
+    // the replacement is read where its write stands, which the read's own owner does not hold
+    const nameValue = named ? (value, writePath) => value?.type === 'Identifier' && writePath?.node?.right === value ? value.name : null : null;
+    check(`${ label }: ${ name }`,
+      reader.containerSlotWriteDominatesUsage(['C'], declaration, read, read.node, nameValue), expected && (named ? 'Map' : true));
+  }
+  // Synthesized declarations have no source span: only that exact node owns their records.
+  const synthetic = parser.parseAndScope('const box = []; box.push(Map);');
+  const syntheticOwner = parser.pickPath(synthetic, 'VariableDeclarator').node;
+  delete syntheticOwner.start;
+  delete syntheticOwner.end;
+  delete syntheticOwner.loc;
+  const syntheticCensus = collectFileCensus(synthetic.node, [mutationShapesReducer()]);
+  const syntheticAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method,
+    getWrittenContainerSlots: () => syntheticCensus.writtenContainerSlots,
+    getContainerSlotIndex: () => syntheticCensus.containerSlotIndex,
+  });
+  check(`${ label }: synthesized owner keeps its writes`, syntheticAdapter.isWrittenContainerSlot('box', ['0'], syntheticOwner), true);
+  check(`${ label }: unrelated synthesized node has no writes`, syntheticAdapter.isWrittenContainerSlot('box', ['0'], { ...syntheticOwner }), false);
+  for (const [name, source, expected] of [
+    ['pattern alias', 'const box = { item: Array }; const alias = box; box.item = {}; const { item } = alias; item.from;', null],
+    ['alias chain', 'const box = { item: Array }; const a = box; const b = a; box.item = {}; const { item } = b; item.from;', null],
+    ['array pattern alias', 'const box = [Array]; const alias = box; box[0] = {}; const [item] = alias; item.from;', null],
+    ['clean alias slot', 'const box = { item: Array, other: 0 }; const alias = box; box.other = {}; const { item } = alias; item.from;', 'Array'],
+    ['class slot', 'class Box { static item = Array; } Box.item = {}; Box.item.from;', null],
+    ['clean class slot', 'class Box { static item = Array; } Box.other = {}; Box.item.from;', 'Array'],
+  ]) {
+    const tree = parser.parseAndScope(source);
+    const data = collectFileCensus(tree.node, [mutationShapesReducer()]);
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method,
+      getWrittenContainerSlots: () => data.writtenContainerSlots,
+      getContainerSlotIndex: () => data.containerSlotIndex,
+    });
+    const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
+    const context = { scope: read.scope, adapter: reader, path: read };
+    const actual = read.node.object.type === 'Identifier'
+      ? resolveObjectName({ objectNode: read.node.object, ...context })
+      : staticContainerReceiverName({ node: read.node.object, ...context });
+    check(`${ label }: ${ name }`, actual, method === 'usage-pure' ? expected : 'Array');
+  }
+  const classTree = parser.parseAndScope('class Box { static item = Array; } Box.item = Map; Box.item.groupBy;');
+  const classData = collectFileCensus(classTree.node, [mutationShapesReducer()]);
+  const classAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method,
+    getWrittenContainerSlots: () => classData.writtenContainerSlots,
+    getContainerSlotIndex: () => classData.containerSlotIndex,
+  });
+  const classRead = parser.pickPath(classTree, 'MemberExpression', path => path.node.property.name === 'groupBy');
+  const classBinding = classAdapter.getBinding({ scope: classRead.scope, name: 'Box', path: classRead });
+  check(`${ label }: class declarations retain their loop anchor`, bindingLoopAnchor(classBinding).decl?.name, 'Box');
+  const classCandidates = [];
+  staticContainerReceiverName({ node: classRead.node.object, scope: classRead.scope, adapter: classAdapter, path: classRead,
+    unionSink: classCandidates });
+  check(`${ label }: global follows values written to class fields`, classCandidates.includes('Map'), method === 'usage-global');
+  for (const [name, source, expected] of [
+    ['assignment capture', 'let item; const box = { item: Array }; item = box.item; box.item = {}; item.from;', 'Array'],
+    ['var sibling capture', 'let item; { var box = { item: Array }; item = box.item; } { var box = { item: {} }; box.item = {}; } item.from;', 'Array'],
+    ['conditional capture', 'let item; const box = { item: Array }; if (unknown) item = box.item; item.from;', null],
+    ['pattern write is the reaching value', 'let item; ({ Array: item } = globalThis); item.from;', 'Array'],
+    ['last of repeated pattern writes is the reaching value', 'let item; ({ Map: item } = globalThis); ({ Array: item } = globalThis); item.from;', 'Array'],
+    ['nested class capture', 'function test() { (() => { class Box { static item = Array; } const item = Box.item; Box.item = {}; item.from; })(); }', 'Array'],
+    ['deferred class capture', 'class Box { static item = Array; } function test() { const item = Box.item; item.from; } Box.item = {};', null],
+  ]) {
+    const tree = parser.parseAndScope(source);
+    const data = collectFileCensus(tree.node, [mutationShapesReducer()]);
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method,
+      getWrittenContainerSlots: () => data.writtenContainerSlots,
+      getContainerSlotIndex: () => data.containerSlotIndex,
+    });
+    const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
+    if (method === 'usage-pure' || expected) check(`${ label }: ${ name }`, staticContainerReceiverName({
+      node: read.node.object, scope: read.scope, adapter: reader, path: read,
+    }), expected);
+  }
+  for (const [name, source, expected] of [
+    ['later loop-head write', 'let item; item = Array; for (item of [Map]) {} item.from;', null],
+    ['earlier loop-head write', 'let item; for (item of [Map]) {} item = Array; item.from;', 'Array'],
+  ]) {
+    const tree = parser.parseAndScope(source);
+    const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
+    const binding = reader.getBinding({ scope: read.scope, name: 'item', path: read });
+    const reached = reachingContainerValueNode(binding, {
+      node: read.node.object, readNode: read.node.object, ctx: { scope: read.scope, adapter: reader, path: read },
+    });
+    check(`${ label }: ${ name }`, reached?.name ?? null, method === 'usage-pure' ? expected : 'Array');
+  }
+  for (const [name, source, expected] of [
+    ['fresh invocation var', 'for (;;) (() => { var box = Array; box.from; box = {}; })();', false],
+    ['outer invocation var', 'var box = Array; for (;;) (() => { box.from; box = {}; })();', true],
+    ['inner loop var', '(() => { var box = Array; for (;;) { box.from; box = {}; } })();', true],
+    ['fresh static block var', 'for (;;) { class Box { static { var box = Array; box.from; box = {}; } } }', false],
+  ]) {
+    const tree = parser.parseAndScope(source);
+    const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
+    const declaration = parser.pickPath(tree, 'VariableDeclarator', path => path.node.id.name === 'box');
+    const write = parser.pickPath(tree, 'AssignmentExpression');
+    check(`${ label }: ${ name }`, usageCrossesLoopBackEdgeReassign(read, [write.node], {
+      decl: declaration.node.id, kind: 'var',
+    }), expected);
+  }
+  const writesTree = parser.parseAndScope('let box; box = 1; box = 2;');
+  let indexWalks = 0;
+  const unreadOwner = { traverse() { indexWalks++; } };
+  for (const node of [
+    { type: 'Identifier', name: 'box' },
+    { type: 'MemberExpression', object: { type: 'Identifier', name: 'box' }, property: { type: 'Identifier', name: 'x' }, computed: false },
+    { type: 'ArrayExpression', elements: [] },
+  ]) check(`${ label }: ${ node.type } cannot be a source write`, ownerSourceWritePath(unreadOwner, node), null);
+  check(`${ label }: read queries do not build an owner write index`, indexWalks, 0);
+  const [firstWrite, secondWrite] = parser.collectPaths(writesTree, 'AssignmentExpression');
+  check(`${ label }: live source write`, ownerSourceWritePath(writesTree, firstWrite.node)?.node, firstWrite.node);
+  check(`${ label }: cloned source write`, ownerSourceWritePath(writesTree, { ...firstWrite.node })?.node, firstWrite.node);
+  check(`${ label }: a different node type has no matching write`,
+    ownerSourceWritePath(writesTree, { ...firstWrite.node, type: 'UpdateExpression' }), null);
+  check(`${ label }: a positionless clone has no matching write`,
+    ownerSourceWritePath(writesTree, { ...firstWrite.node, start: undefined, end: undefined, loc: undefined }), null);
+  const ambiguous = parser.parseAndScope('let box; box = 1; box = 2;');
+  const [one, two] = parser.collectPaths(ambiguous, 'AssignmentExpression');
+  Object.assign(two.node, { start: one.node.start, end: one.node.end, loc: one.node.loc });
+  check(`${ label }: duplicated positions cannot prove a unique write`, ownerSourceWritePath(ambiguous, { ...one.node }), null);
+  check(`${ label }: distinct writes keep their own identity`, ownerSourceWritePath(writesTree, secondWrite.node)?.node, secondWrite.node);
+  checked++;
+}
+check('all rows were checked', checked, adapters.length * 2 * (rows.length + 1));
+
+// a mutator invoked through a MEMBER chain repositions the slot that chain names, the way a bare
+// name repositions its own container, and a `length` write truncates or empties the level it is
+// read off: both are the wildcard under that level. a plain method that repositions nothing and a
+// write to another slot leave the level's slots alone
+for (const parser of adapters) for (const [name, source, slot, expected] of [
+  ['member-chain mutator', 'const w = { k: [Array] }; w.k.unshift(x);', ['k', '0'], true],
+  ['member-chain mutator, hop spelling', 'const w = { k: [Array] }; w.k.push.call(w.k, x);', ['k', '0'], true],
+  ['member-chain mutator, apply spelling', 'const w = { k: [Array] }; w.k.push.apply(w.k, [x]);', ['k', '0'], true],
+  ['member-chain non-mutator', 'const w = { k: [Array] }; w.k.at(0);', ['k', '0'], false],
+  ['length write on the container', 'const w = [Array]; w.length = 0;', ['0'], true],
+  ['length write under a key', 'const w = { k: [Array] }; w.k.length = 0;', ['k', '0'], true],
+  ['length write leaves a sibling key alone', 'const w = { k: [Array], j: [Map] }; w.k.length = 0;', ['j', '0'], false],
+  ['length update', 'const w = [Array]; w.length++;', ['0'], true],
+  // ... and an ARRAY a call yields is the container of the binding holding it, as an inline one is: a
+  // write, a truncation and a handout through the binding count, whether the callee is named, an
+  // IIFE or a CHAIN (a callee returning another call); an untouched binding and a recursive callee
+  // that yields nothing record none
+  ['call-yielded array, slot write', 'const f = () => [Array, Map]; const w = f(); w[0] = Map;', ['0'], true],
+  ['call-yielded array, truncation', 'const f = () => [Array, Map]; const w = f(); w.length = 0;', ['0'], true],
+  ['call-yielded array, handout', 'const f = () => [Array, Map]; const w = f(); put(w);', ['0'], true],
+  ['call-yielded array, untouched', 'const f = () => [Array, Map]; const w = f(); w.at(0);', ['0'], false],
+  ['iife-yielded array, slot write', 'const w = (() => [Array, Map])(); w[0] = Map;', ['0'], true],
+  ['call chain, slot write', 'const f = () => [Array, Map]; const g = () => f(); const w = g(); w[0] = Map;', ['0'], true],
+  ['call chain, untouched', 'const f = () => [Array, Map]; const g = () => f(); const w = g(); w.at(0);', ['0'], false],
+  ['recursive callee', 'const g = () => g(); const w = g(); w[0] = Map;', ['0'], false],
+]) {
+  // the escape census resolves the callees a NAMED call's container is filed through: both reducers
+  // run, in either order - the answer must not move with which of them publishes first
+  for (const reducers of [
+    () => [mutationShapesReducer(), escapedCtorReferencesReducer()],
+    () => [escapedCtorReferencesReducer(), mutationShapesReducer()],
+  ]) {
+    const program = parser.parseAndScope(source);
+    const census = collectFileCensus(program.node, reducers());
+    const options = {
+      method: 'usage-pure',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    };
+    const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+    const [declarator] = parser.collectPaths(program, 'VariableDeclarator', path => path.node.id.name === 'w');
+    check(`${ parser.name }: ${ name }`, adapter.isWrittenContainerSlot('w', slot, declarator.node), expected);
+  }
+}
+// A local reader may expose the slot value, but it cannot replace the own data slot.
+// Keep method calls, getters, deferred work and body writes on the mutation path.
+for (const parser of adapters) for (const [name, body, source, keyPath, expected] of [
+  ['named reader', 'function reader(t) { return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], false],
+  ['computed reader', 'function reader(t) { return t["k"]; }', 'const box = { k: Object }; reader(box);', ['k'], false],
+  ['aliased reader', 'function read(t) { return t.k; } const reader = read;', 'const box = { k: Object }; reader(box);', ['k'], false],
+  ['invoker reader', 'function reader(t) { return t.k; }', 'const box = { k: Object }; reader.call(null, box);', ['k'], false],
+  ['wrapped reader', 'function reader(t) { return (t.k); }', 'const box = { k: Object }; (0, reader)(box);', ['k'], false],
+  ['reader result is retained', 'function reader(t) { return t.k; }', 'const box = { k: Object }; const value = reader(box); use(value);', ['k'], false],
+  ['reader exposes descendants', 'function reader(t) { return t.k; }', 'const box = { k: { value: Object } }; use(reader(box));', ['k', 'value'], true],
+  ['body writer', 'function reader(t) { t.k = {}; return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['arguments writer', 'function reader({ k }) { arguments[0].k = {}; return k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  [
+    'arguments in parameter default',
+    'function reader({ k }, extra = (arguments[0].k = {})) { return k; }',
+    'const box = { k: Object }; reader(box);',
+    ['k'],
+    true,
+  ],
+  ['receiver method', 'function reader(t) { return t.k(); }', 'const box = { k() { this.value = {}; }, value: Object }; reader(box);', ['value'], true],
+  ['getter read', 'function reader(t) { return t.k; }', 'const box = { get k() { this.value = {}; return Object; }, value: Object }; reader(box);', ['value'], true],
+  [
+    'getter replaces itself',
+    'function reader(t) { return t.k; }',
+    'const box = { get k() { Object.defineProperty(this, "k", { value: {} }); return Object; } }; reader(box);',
+    ['k'],
+    true,
+  ],
+  ['async reader', 'async function reader(t) { return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['generator reader', 'function* reader(t) { return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['opaque reader', '', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['rebound reader', 'let reader = t => t.k; reader = foreign;', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['unpaired argument', 'function reader(t) { return t.k; }', 'const box = { k: Object }; reader(...foreign, box);', ['k'], true],
+]) {
+  for (const reducers of [
+    () => [mutationShapesReducer(), escapedCtorReferencesReducer()],
+    () => [escapedCtorReferencesReducer(), mutationShapesReducer()],
+  ]) {
+    const program = parser.parseAndScope(`${ body } ${ source } box.k.entries;`);
+    const census = collectFileCensus(program.node, reducers());
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-pure',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    });
+    const declaration = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'box');
+    const read = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'entries');
+    check(`${ parser.name }: ${ name }`,
+      adapter.isWrittenContainerSlot('box', keyPath, declaration.node, read, read.node), expected);
+  }
+}
+finish();

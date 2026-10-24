@@ -3,7 +3,7 @@
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
 ## Modules
-[`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-iterator.async-dispose.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js).
+[`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.async-iterator.async-dispose.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.dispose.js).
 
 ## Built-ins signatures
 ```ts
@@ -56,8 +56,6 @@ class AsyncIterator {
 ```plaintext
 core-js(-pure)/es|stable|actual|full/disposable-stack
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
-core-js(-pure)/es|stable|actual|full/iterator/dispose
-core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
 core-js(-pure)/es|stable|actual|full/suppressed-error
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose
 core-js(-pure)/es|stable|actual|full/symbol/dispose

@@ -2,7 +2,7 @@
 [Specification](https://webidl.spec.whatwg.org/#idl-DOMException)
 
 ## Modules
-[`web.dom-exception.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.to-string-tag.js).
+[`web.dom-exception.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-exception.to-string-tag.js).
 
 ## Built-ins signatures
 ```ts
@@ -20,8 +20,10 @@ class DOMException {
 ```plaintext
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
-core-js/stable|actual|full/dom-exception/to-string-tag
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/dom-exception`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/dom-exception.d.ts)
 
 ## Examples
 ```js

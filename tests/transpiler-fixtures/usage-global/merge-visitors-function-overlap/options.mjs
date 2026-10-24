@@ -1,0 +1,10 @@
+export default {
+  parserOpts: { plugins: ['typescript'] },
+  plugins: [
+    ['@core-js', {
+      method: 'usage-global',
+      version: '4.0',
+      targets: { ie: 11 },
+    }],
+  ],
+};

@@ -3,16 +3,16 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
 var classof = require('../internals/classof');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var inspectSource = require('../internals/inspect-source');
 
 var noop = function () { /* empty */ };
-var construct = getBuiltIn('Reflect', 'construct');
+var construct = getBuiltInStaticMethod('Reflect', 'construct');
 var constructorRegExp = /^\s*(?:class|function)\b/;
 var exec = uncurryThis(constructorRegExp.exec);
 var INCORRECT_TO_STRING = !constructorRegExp.test(noop);
 
-var isConstructorModern = function isConstructor(argument) {
+var isConstructorModern = function (argument) {
   if (!isCallable(argument)) return false;
   try {
     construct(noop, [], argument);
@@ -22,7 +22,7 @@ var isConstructorModern = function isConstructor(argument) {
   }
 };
 
-var isConstructorLegacy = function isConstructor(argument) {
+var isConstructorLegacy = function (argument) {
   if (!isCallable(argument)) return false;
   switch (classof(argument)) {
     case 'AsyncFunction':
@@ -38,8 +38,6 @@ var isConstructorLegacy = function isConstructor(argument) {
     return true;
   }
 };
-
-isConstructorLegacy.sham = true;
 
 // `IsConstructor` abstract operation
 // https://tc39.es/ecma262/#sec-isconstructor

@@ -1,4 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('Array#slice', assert => {
   const { slice } = Array.prototype;
@@ -26,10 +26,10 @@ QUnit.test('Array#slice', assert => {
   if (list) {
     assert.notThrows(() => isArray(slice.call(list)), 'works on NodeList');
   }
-  if (STRICT) {
-    assert.throws(() => slice.call(null), TypeError);
-    assert.throws(() => slice.call(undefined), TypeError);
-  }
+
+  assert.throws(() => slice.call(null), TypeError);
+  assert.throws(() => slice.call(undefined), TypeError);
+
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {
