@@ -500,6 +500,7 @@ QUnit.module('structuredClone', () => {
     assert.arrayEqual(new Uint8Array(clone), [1, 2, 3, 4], 'transferred data preserved');
     assert.same(buffer.byteLength, 0, 'source buffer detached');
     assert.same(clone.byteLength, 4, 'clone buffer has correct length');
+    assert.throws(() => structuredClone(buffer), 'a detached buffer is not cloneable');
   });
 
   // Non-serializable types

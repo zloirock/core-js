@@ -24,6 +24,7 @@ var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
 var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
+var isDetached = require('../internals/array-buffer-is-detached');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
@@ -153,7 +154,8 @@ var cloneBuffer = function (value, map, $type) {
     // `ArrayBuffer#slice` is not available in IE10
     // `ArrayBuffer#slice` and `DataView` are not available in old FF
     if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
-    // detached buffers throws in `DataView` and `.slice`
+    // detached buffers throw in `DataView` and `.slice`, but not in every engine
+    if (isDetached(value)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     try {
       if (isCallable(value.slice) && !value.resizable) {
         clone = value.slice(0);
