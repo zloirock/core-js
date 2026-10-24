@@ -1,4 +1,4 @@
-# ECMAScript: Explicit Resource Management
+# ECMAScript: Explicit resource management
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
@@ -54,11 +54,11 @@ class AsyncIterator {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/disposable-stack
-core-js(-pure)/es|stable|actual|full/async-disposable-stack
-core-js(-pure)/es|stable|actual|full/suppressed-error
-core-js(-pure)/es|stable|actual|full/symbol/async-dispose
-core-js(-pure)/es|stable|actual|full/symbol/dispose
+{ core-js, @core-js/pure }/es|stable|actual|full/disposable-stack
+{ core-js, @core-js/pure }/es|stable|actual|full/async-disposable-stack
+{ core-js, @core-js/pure }/es|stable|actual|full/suppressed-error
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-dispose
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/dispose
 ```
 
 ## Examples

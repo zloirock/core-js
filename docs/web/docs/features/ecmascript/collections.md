@@ -29,10 +29,10 @@ class Map {
 
 ### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/map
-core-js(-pure)/es|stable|actual|full/map/group-by
-core-js(-pure)/es|stable|actual|full/map/get-or-insert
-core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
+{ core-js, @core-js/pure }/es|stable|actual|full/map
+{ core-js, @core-js/pure }/es|stable|actual|full/map/group-by
+{ core-js, @core-js/pure }/es|stable|actual|full/map/get-or-insert
+{ core-js, @core-js/pure }/es|stable|actual|full/map/get-or-insert-computed
 ```
 
 ### Examples
@@ -117,14 +117,14 @@ class Set {
 
 ### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/set
-core-js(-pure)/es|stable|actual|full/set/difference
-core-js(-pure)/es|stable|actual|full/set/intersection
-core-js(-pure)/es|stable|actual|full/set/is-disjoint-from
-core-js(-pure)/es|stable|actual|full/set/is-subset-of
-core-js(-pure)/es|stable|actual|full/set/is-superset-of
-core-js(-pure)/es|stable|actual|full/set/symmetric-difference
-core-js(-pure)/es|stable|actual|full/set/union
+{ core-js, @core-js/pure }/es|stable|actual|full/set
+{ core-js, @core-js/pure }/es|stable|actual|full/set/difference
+{ core-js, @core-js/pure }/es|stable|actual|full/set/intersection
+{ core-js, @core-js/pure }/es|stable|actual|full/set/is-disjoint-from
+{ core-js, @core-js/pure }/es|stable|actual|full/set/is-subset-of
+{ core-js, @core-js/pure }/es|stable|actual|full/set/is-superset-of
+{ core-js, @core-js/pure }/es|stable|actual|full/set/symmetric-difference
+{ core-js, @core-js/pure }/es|stable|actual|full/set/union
 ```
 
 ### Examples
@@ -179,9 +179,9 @@ class WeakMap {
 ```
 ### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/weak-map
-core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
-core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
+{ core-js, @core-js/pure }/es|stable|actual|full/weak-map
+{ core-js, @core-js/pure }/es|stable|actual|full/weak-map/get-or-insert
+{ core-js, @core-js/pure }/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
 
 ### Examples
@@ -231,7 +231,7 @@ class WeakSet {
 
 ### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/weak-set
+{ core-js, @core-js/pure }/es|stable|actual|full/weak-set
 ```
 ### Examples
 ```js

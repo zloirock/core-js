@@ -1,4 +1,4 @@
-# ECMAScript: Typed Arrays
+# ECMAScript: Typed arrays
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support for descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
 
 ## Modules
@@ -181,7 +181,7 @@ console.log(newBuffer.detached); // => false
 console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
 ```
 
-## Base64 / Hex examples
+## Base64 / hex examples
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
 console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='

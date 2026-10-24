@@ -15,7 +15,7 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-sequencing
-core-js(-pure)/es|stable|actual|full/iterator/concat
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/concat
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

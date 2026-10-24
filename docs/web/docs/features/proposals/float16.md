@@ -1,4 +1,4 @@
-# `Float16` methods
+# `Float16`
 [Specification](https://tc39.es/proposal-float16array/)\
 [Proposal repo](https://github.com/tc39/proposal-float16array)
 

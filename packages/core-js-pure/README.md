@@ -9,7 +9,7 @@
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/v4/docs/2023-02-14-so-whats-next.md)**
 ---
 
-> [`core-js`](https://core-js.io) is a modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2026: [promises](https://core-js.io/v4/docs/features/ecmascript/promise), [symbols](https://core-js.io/v4/docs/features/ecmascript/symbol), [collections](https://core-js.io/v4/docs/features/ecmascript/collections), [iterators](https://core-js.io/v4/docs/features/ecmascript/iterator), [typed arrays](https://core-js.io/v4/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](https://core-js.io/v4/docs/features/web-standards/url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> [`core-js`](https://core-js.io) is a modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2026: [promises](https://core-js.io/v4/docs/features/ecmascript/promise), [symbols](https://core-js.io/v4/docs/features/ecmascript/symbol), [collections](https://core-js.io/v4/docs/features/ecmascript/collections), [iterators](https://core-js.io/v4/docs/features/ecmascript/iterator), [typed arrays](https://core-js.io/v4/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](https://core-js.io/v4/docs/features/web-standards/url). You can load only required features or use it without global namespace pollution.
 
 ## Raising funds
 

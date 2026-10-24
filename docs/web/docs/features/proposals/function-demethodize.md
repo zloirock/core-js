@@ -1,4 +1,4 @@
-# Function.prototype.demethodize
+# Demethodize function
 [Proposal repo](https://github.com/js-choi/proposal-function-demethodize)
 
 ## Module 
@@ -14,8 +14,8 @@ class Function {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/function-demethodize
-core-js(-pure)/full/function/demethodize
-core-js(-pure)/full/function/prototype/demethodize
+{ core-js, @core-js/pure }/full/function/demethodize
+{ core-js, @core-js/pure }/full/function/prototype/demethodize
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

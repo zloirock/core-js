@@ -10,7 +10,7 @@ let globalThis: GlobalThisValue;
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/global-this
+{ core-js, @core-js/pure }/es|stable|actual|full/global-this
 ```
 
 ## Examples

@@ -43,9 +43,9 @@ class SuppressedError extends Error {
 ```plaintext
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
-core-js(-pure)/es|stable|actual|full/error/is-error
-core-js(-pure)/es|stable|actual|full/aggregate-error
-core-js(-pure)/es|stable|actual|full/suppressed-error
+{ core-js, @core-js/pure }/es|stable|actual|full/error/is-error
+{ core-js, @core-js/pure }/es|stable|actual|full/aggregate-error
+{ core-js, @core-js/pure }/es|stable|actual|full/suppressed-error
 ```
 
 ## Examples

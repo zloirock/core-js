@@ -16,8 +16,8 @@ class Symbol {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/symbol-predicates
-core-js(-pure)/full/symbol/is-registered-symbol
-core-js(-pure)/full/symbol/is-well-known-symbol
+{ core-js, @core-js/pure }/full/symbol/is-registered-symbol
+{ core-js, @core-js/pure }/full/symbol/is-well-known-symbol
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

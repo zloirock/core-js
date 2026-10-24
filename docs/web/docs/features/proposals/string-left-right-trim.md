@@ -1,4 +1,4 @@
-# `String.prototype.trimStart` / `String.prototype.trimEnd`
+# `String.prototype.{ trimStart, trimEnd }`
 [Specification](https://tc39.es/proposal-string-left-right-trim/)\
 [Proposal repo](https://github.com/tc39/proposal-string-left-right-trim)
 

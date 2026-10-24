@@ -1179,11 +1179,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/iterator-join');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
-  load('proposals/math-clamp');
   load('proposals/map-upsert');
   load('proposals/math-sum');
+  load('proposals/number-clamp');
   load('proposals/object-from-entries');
-  load('proposals/object-getownpropertydescriptors');
+  load('proposals/object-get-own-property-descriptors');
   load('proposals/object-keys-length');
   load('proposals/object-values-entries');
   load('proposals/pattern-matching');

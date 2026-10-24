@@ -28,8 +28,8 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/joint-iteration
-core-js(-pure)/es|stable|actual|full/iterator/zip
-core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/zip
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/zip-keyed
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

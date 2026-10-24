@@ -1,5 +1,5 @@
 # Iterator join
-[Specification](https://tc39.es/proposal-iterator-join)\
+[Specification](https://tc39.es/proposal-iterator-join/)\
 [Proposal repo](https://github.com/tc39/proposal-iterator-join)
 
 ## Modules
@@ -15,7 +15,7 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-join
-core-js(-pure)/es|stable|actual|full/iterator/join
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/join
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

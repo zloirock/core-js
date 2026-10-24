@@ -1,4 +1,4 @@
-# Symbol.customMatcher for pattern matching
+# Pattern matching
 [Specification](https://tc39.es/proposal-pattern-matching/)\
 [Proposal repo](https://github.com/tc39/proposal-pattern-matching)
 
@@ -15,7 +15,7 @@ class Symbol {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/pattern-matching
-core-js(-pure)/full/symbol/custom-matcher
+{ core-js, @core-js/pure }/full/symbol/custom-matcher
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
