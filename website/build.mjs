@@ -160,7 +160,7 @@ function isRelativePath(href) {
 // a copy of a repository file (see `copyCommonFiles`) links other repository files by paths relative to its place there
 function resolveRepositoryPath(href) {
   const { posix } = path;
-  const [link, hash] = href.split('#');
+  const [link, hash] = href.split('#', 2);
   const target = link.startsWith('/') ? posix.normalize(link.slice(1)) : posix.join(posix.dirname(fileMetadata.repoPath), link);
   // GitHub redirects between `tree` and `blob` anyway, the extension only saves the redirect
   const kind = posix.extname(target) ? 'blob' : 'tree';
