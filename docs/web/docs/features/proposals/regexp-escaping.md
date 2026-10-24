@@ -15,7 +15,7 @@ class RegExp {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/regexp-escaping
-core-js(-pure)/es|stable|actual|full/regexp/escape
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/escape
 ```
 
 ## Examples

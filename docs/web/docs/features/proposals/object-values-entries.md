@@ -16,8 +16,8 @@ class Object {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/object-values-entries
-core-js(-pure)/es|stable|actual|full/object/entries
-core-js(-pure)/es|stable|actual|full/object/values
+{ core-js, @core-js/pure }/es|stable|actual|full/object/entries
+{ core-js, @core-js/pure }/es|stable|actual|full/object/values
 ```
 
 ## Examples

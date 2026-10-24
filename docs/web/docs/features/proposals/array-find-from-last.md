@@ -21,8 +21,8 @@ class %TypedArray% {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-find-from-last
-core-js(-pure)/es|stable|actual|full/array(/virtual)/find-last
-core-js(-pure)/es|stable|actual|full/array(/virtual)/find-last-index
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/virtual)/find-last
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/virtual)/find-last-index
 core-js/es|stable|actual|full/typed-array/find-last
 core-js/es|stable|actual|full/typed-array/find-last-index
 ```

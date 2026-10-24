@@ -15,7 +15,7 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-includes
-core-js(-pure)/es|stable|actual|full/iterator/includes
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/includes
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

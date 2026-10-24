@@ -13,8 +13,8 @@ function btoa(data: string): string;
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/stable|actual|full/atob
-core-js(-pure)/stable|actual|full/btoa
+{ core-js, @core-js/pure }/stable|actual|full/atob
+{ core-js, @core-js/pure }/stable|actual|full/btoa
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

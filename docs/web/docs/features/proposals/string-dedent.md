@@ -15,7 +15,7 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-dedent
-core-js(-pure)/full/string/dedent
+{ core-js, @core-js/pure }/full/string/dedent
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

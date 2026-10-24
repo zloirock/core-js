@@ -15,7 +15,7 @@ class Object {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/accessible-object-hasownproperty
-core-js(-pure)/es|stable|actual|full/object/has-own
+{ core-js, @core-js/pure }/es|stable|actual|full/object/has-own
 ```
 
 ## Examples

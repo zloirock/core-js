@@ -15,7 +15,7 @@ namespace JSON {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/well-formed-stringify
-core-js(-pure)/es|stable|actual|full/json/stringify
+{ core-js, @core-js/pure }/es|stable|actual|full/json/stringify
 ```
 
 ## Examples

@@ -14,7 +14,7 @@ class Date {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/es|stable|actual|full/date
-core-js(-pure)/es|stable|actual|full/date/to-json
+{ core-js, @core-js/pure }/es|stable|actual|full/date/to-json
 ```
 
 ## Examples

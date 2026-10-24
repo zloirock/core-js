@@ -1,4 +1,4 @@
-# TypeScript Type Definitions
+# TypeScript type definitions
 
 This package contains types for the global and pure versions of `core-js`.
 Although `core-js` is a JavaScript standard library polyfill, the built-in TypeScript types are often not sufficient.

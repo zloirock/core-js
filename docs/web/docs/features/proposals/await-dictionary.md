@@ -16,8 +16,8 @@ class Promise {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/await-dictionary
-core-js(-pure)/actual|full/promise/all-keyed
-core-js(-pure)/actual|full/promise/all-settled-keyed
+{ core-js, @core-js/pure }/actual|full/promise/all-keyed
+{ core-js, @core-js/pure }/actual|full/promise/all-settled-keyed
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

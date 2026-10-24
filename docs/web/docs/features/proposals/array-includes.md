@@ -19,7 +19,7 @@ class %TypedArray% {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-includes
-core-js(-pure)/es|stable|actual|full/array(/virtual)/includes
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/virtual)/includes
 core-js/es|stable|actual|full/typed-array/includes
 ```
 

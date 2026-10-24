@@ -27,19 +27,19 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-helpers
-core-js(-pure)/es|stable|actual|full/iterator
-core-js(-pure)/es|stable|actual|full/iterator/drop
-core-js(-pure)/es|stable|actual|full/iterator/every
-core-js(-pure)/es|stable|actual|full/iterator/filter
-core-js(-pure)/es|stable|actual|full/iterator/find
-core-js(-pure)/es|stable|actual|full/iterator/flat-map
-core-js(-pure)/es|stable|actual|full/iterator/for-each
-core-js(-pure)/es|stable|actual|full/iterator/from
-core-js(-pure)/es|stable|actual|full/iterator/map
-core-js(-pure)/es|stable|actual|full/iterator/reduce
-core-js(-pure)/es|stable|actual|full/iterator/some
-core-js(-pure)/es|stable|actual|full/iterator/take
-core-js(-pure)/es|stable|actual|full/iterator/to-array
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/drop
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/every
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/filter
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/find
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/flat-map
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/for-each
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/from
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/map
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/reduce
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/some
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/take
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/to-array
 ```
 
 ## Examples

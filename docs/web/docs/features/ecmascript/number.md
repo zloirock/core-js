@@ -27,22 +27,22 @@ function parseInt(string: string, radix?: number): number;
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/number
-core-js(-pure)/es|stable|actual|full/number/virtual
-core-js(-pure)/es|stable|actual|full/number/constructor
-core-js(-pure)/es|stable|actual|full/number/is-finite
-core-js(-pure)/es|stable|actual|full/number/is-nan
-core-js(-pure)/es|stable|actual|full/number/is-integer
-core-js(-pure)/es|stable|actual|full/number/is-safe-integer
-core-js(-pure)/es|stable|actual|full/number/parse-float
-core-js(-pure)/es|stable|actual|full/number/parse-int
-core-js(-pure)/es|stable|actual|full/number/epsilon
-core-js(-pure)/es|stable|actual|full/number/max-safe-integer
-core-js(-pure)/es|stable|actual|full/number/min-safe-integer
-core-js(-pure)/es|stable|actual|full/number(/prototype)/to-exponential
-core-js(-pure)/es|stable|actual|full/number(/prototype)/to-fixed
-core-js(-pure)/es|stable|actual|full/parse-float
-core-js(-pure)/es|stable|actual|full/parse-int
+{ core-js, @core-js/pure }/es|stable|actual|full/number
+{ core-js, @core-js/pure }/es|stable|actual|full/number/virtual
+{ core-js, @core-js/pure }/es|stable|actual|full/number/constructor
+{ core-js, @core-js/pure }/es|stable|actual|full/number/is-finite
+{ core-js, @core-js/pure }/es|stable|actual|full/number/is-nan
+{ core-js, @core-js/pure }/es|stable|actual|full/number/is-integer
+{ core-js, @core-js/pure }/es|stable|actual|full/number/is-safe-integer
+{ core-js, @core-js/pure }/es|stable|actual|full/number/parse-float
+{ core-js, @core-js/pure }/es|stable|actual|full/number/parse-int
+{ core-js, @core-js/pure }/es|stable|actual|full/number/epsilon
+{ core-js, @core-js/pure }/es|stable|actual|full/number/max-safe-integer
+{ core-js, @core-js/pure }/es|stable|actual|full/number/min-safe-integer
+{ core-js, @core-js/pure }/es|stable|actual|full/number(/prototype)/to-exponential
+{ core-js, @core-js/pure }/es|stable|actual|full/number(/prototype)/to-fixed
+{ core-js, @core-js/pure }/es|stable|actual|full/parse-float
+{ core-js, @core-js/pure }/es|stable|actual|full/parse-int
 ```
 
 ## Examples

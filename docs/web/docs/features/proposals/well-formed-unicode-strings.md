@@ -16,8 +16,8 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/well-formed-unicode-strings
-core-js(-pure)/es|stable|actual|full/string(/virtual)/is-well-formed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/to-well-formed
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/is-well-formed
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/to-well-formed
 ```
 
 ## Examples

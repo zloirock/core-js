@@ -15,7 +15,7 @@ class Promise {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/promise-finally
-core-js(-pure)/es|stable|actual|full/promise/finally
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/finally
 ```
 
 ## Examples

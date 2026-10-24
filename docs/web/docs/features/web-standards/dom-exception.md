@@ -44,8 +44,8 @@ class DOMException {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/stable|actual|full/dom-exception
-core-js(-pure)/stable|actual|full/dom-exception/constructor
+{ core-js, @core-js/pure }/stable|actual|full/dom-exception
+{ core-js, @core-js/pure }/stable|actual|full/dom-exception/constructor
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

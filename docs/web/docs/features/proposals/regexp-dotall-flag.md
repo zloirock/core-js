@@ -21,7 +21,7 @@ class RegExp {
 core-js/proposals/regexp-dotall-flag
 core-js/es|stable|actual|full/regexp/constructor
 core-js/es|stable|actual|full/regexp/dot-all
-core-js(-pure)/es|stable|actual|full/regexp/flags
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/flags
 ```
 
 ## Examples

@@ -25,20 +25,20 @@ namespace Reflect {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/reflect
-core-js(-pure)/es|stable|actual|full/reflect/apply
-core-js(-pure)/es|stable|actual|full/reflect/construct
-core-js(-pure)/es|stable|actual|full/reflect/define-property
-core-js(-pure)/es|stable|actual|full/reflect/delete-property
-core-js(-pure)/es|stable|actual|full/reflect/get
-core-js(-pure)/es|stable|actual|full/reflect/get-own-property-descriptor
-core-js(-pure)/es|stable|actual|full/reflect/get-prototype-of
-core-js(-pure)/es|stable|actual|full/reflect/has
-core-js(-pure)/es|stable|actual|full/reflect/is-extensible
-core-js(-pure)/es|stable|actual|full/reflect/own-keys
-core-js(-pure)/es|stable|actual|full/reflect/prevent-extensions
-core-js(-pure)/es|stable|actual|full/reflect/set
-core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/apply
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/construct
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/define-property
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/delete-property
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/get
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/get-own-property-descriptor
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/get-prototype-of
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/has
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/is-extensible
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/own-keys
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/prevent-extensions
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/set
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/set-prototype-of
 ```
 
 ## Examples

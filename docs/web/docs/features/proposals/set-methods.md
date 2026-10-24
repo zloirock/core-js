@@ -21,13 +21,13 @@ class Set {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/set-methods
-core-js(-pure)/es|stable|actual|full/set/difference
-core-js(-pure)/es|stable|actual|full/set/intersection
-core-js(-pure)/es|stable|actual|full/set/is-disjoint-from
-core-js(-pure)/es|stable|actual|full/set/is-subset-of
-core-js(-pure)/es|stable|actual|full/set/is-superset-of
-core-js(-pure)/es|stable|actual|full/set/symmetric-difference
-core-js(-pure)/es|stable|actual|full/set/union
+{ core-js, @core-js/pure }/es|stable|actual|full/set/difference
+{ core-js, @core-js/pure }/es|stable|actual|full/set/intersection
+{ core-js, @core-js/pure }/es|stable|actual|full/set/is-disjoint-from
+{ core-js, @core-js/pure }/es|stable|actual|full/set/is-subset-of
+{ core-js, @core-js/pure }/es|stable|actual|full/set/is-superset-of
+{ core-js, @core-js/pure }/es|stable|actual|full/set/symmetric-difference
+{ core-js, @core-js/pure }/es|stable|actual|full/set/union
 ```
 
 ## Examples

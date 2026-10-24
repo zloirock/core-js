@@ -11,7 +11,7 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/stable|actual|full/structured-clone
+{ core-js, @core-js/pure }/stable|actual|full/structured-clone
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

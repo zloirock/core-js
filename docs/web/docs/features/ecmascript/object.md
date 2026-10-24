@@ -39,35 +39,35 @@ class Object {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/object
-core-js(-pure)/es|stable|actual|full/object/assign
-core-js(-pure)/es|stable|actual|full/object/is
-core-js(-pure)/es|stable|actual|full/object/set-prototype-of
-core-js(-pure)/es|stable|actual|full/object/get-prototype-of
-core-js(-pure)/es|stable|actual|full/object/create
-core-js(-pure)/es|stable|actual|full/object/define-property
-core-js(-pure)/es|stable|actual|full/object/define-properties
-core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptor
-core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptors
-core-js(-pure)/es|stable|actual|full/object/group-by
-core-js(-pure)/es|stable|actual|full/object/has-own
-core-js(-pure)/es|stable|actual|full/object/keys
-core-js(-pure)/es|stable|actual|full/object/values
-core-js(-pure)/es|stable|actual|full/object/entries
-core-js(-pure)/es|stable|actual|full/object/get-own-property-names
-core-js(-pure)/es|stable|actual|full/object/freeze
-core-js(-pure)/es|stable|actual|full/object/from-entries
-core-js(-pure)/es|stable|actual|full/object/seal
-core-js(-pure)/es|stable|actual|full/object/prevent-extensions
+{ core-js, @core-js/pure }/es|stable|actual|full/object
+{ core-js, @core-js/pure }/es|stable|actual|full/object/assign
+{ core-js, @core-js/pure }/es|stable|actual|full/object/is
+{ core-js, @core-js/pure }/es|stable|actual|full/object/set-prototype-of
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-prototype-of
+{ core-js, @core-js/pure }/es|stable|actual|full/object/create
+{ core-js, @core-js/pure }/es|stable|actual|full/object/define-property
+{ core-js, @core-js/pure }/es|stable|actual|full/object/define-properties
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-own-property-descriptor
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-own-property-descriptors
+{ core-js, @core-js/pure }/es|stable|actual|full/object/group-by
+{ core-js, @core-js/pure }/es|stable|actual|full/object/has-own
+{ core-js, @core-js/pure }/es|stable|actual|full/object/keys
+{ core-js, @core-js/pure }/es|stable|actual|full/object/values
+{ core-js, @core-js/pure }/es|stable|actual|full/object/entries
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-own-property-names
+{ core-js, @core-js/pure }/es|stable|actual|full/object/freeze
+{ core-js, @core-js/pure }/es|stable|actual|full/object/from-entries
+{ core-js, @core-js/pure }/es|stable|actual|full/object/seal
+{ core-js, @core-js/pure }/es|stable|actual|full/object/prevent-extensions
 core-js/es|stable|actual|full/object/proto
-core-js(-pure)/es|stable|actual|full/object/is-frozen
-core-js(-pure)/es|stable|actual|full/object/is-sealed
-core-js(-pure)/es|stable|actual|full/object/is-extensible
+{ core-js, @core-js/pure }/es|stable|actual|full/object/is-frozen
+{ core-js, @core-js/pure }/es|stable|actual|full/object/is-sealed
+{ core-js, @core-js/pure }/es|stable|actual|full/object/is-extensible
 core-js/es|stable|actual|full/object/to-string
-core-js(-pure)/es|stable|actual|full/object/define-getter
-core-js(-pure)/es|stable|actual|full/object/define-setter
-core-js(-pure)/es|stable|actual|full/object/lookup-getter
-core-js(-pure)/es|stable|actual|full/object/lookup-setter
+{ core-js, @core-js/pure }/es|stable|actual|full/object/define-getter
+{ core-js, @core-js/pure }/es|stable|actual|full/object/define-setter
+{ core-js, @core-js/pure }/es|stable|actual|full/object/lookup-getter
+{ core-js, @core-js/pure }/es|stable|actual|full/object/lookup-setter
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

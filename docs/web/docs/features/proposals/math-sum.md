@@ -15,7 +15,7 @@ namespace Math {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/math-sum
-core-js(-pure)/es|stable|actual|full/math/sum-precise
+{ core-js, @core-js/pure }/es|stable|actual|full/math/sum-precise
 ```
 
 ## Examples

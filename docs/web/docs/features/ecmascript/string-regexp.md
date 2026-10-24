@@ -71,51 +71,51 @@ class RegExp {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/string
-core-js(-pure)/es|stable|actual|full/string/virtual
-core-js(-pure)/es|stable|actual|full/string/from-code-point
-core-js(-pure)/es|stable|actual|full/string/raw
+{ core-js, @core-js/pure }/es|stable|actual|full/string
+{ core-js, @core-js/pure }/es|stable|actual|full/string/virtual
+{ core-js, @core-js/pure }/es|stable|actual|full/string/from-code-point
+{ core-js, @core-js/pure }/es|stable|actual|full/string/raw
 core-js/es|stable|actual|full/string/match
 core-js/es|stable|actual|full/string/replace
 core-js/es|stable|actual|full/string/search
 core-js/es|stable|actual|full/string/split
-core-js(-pure)/es|stable|actual|full/string(/prototype)/at
-core-js(-pure)/es|stable|actual|full/string(/prototype)/code-point-at
-core-js(-pure)/es|stable|actual|full/string(/prototype)/ends-with
-core-js(-pure)/es|stable|actual|full/string(/prototype)/includes
-core-js(-pure)/es|stable|actual|full/string(/prototype)/starts-with
-core-js(-pure)/es|stable|actual|full/string(/prototype)/match-all
-core-js(-pure)/es|stable|actual|full/string(/prototype)/pad-start
-core-js(-pure)/es|stable|actual|full/string(/prototype)/pad-end
-core-js(-pure)/es|stable|actual|full/string(/prototype)/repeat
-core-js(-pure)/es|stable|actual|full/string(/prototype)/replace-all
-core-js(-pure)/es|stable|actual|full/string(/prototype)/trim
-core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-start
-core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-end
-core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-left
-core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-right
-core-js(-pure)/es|stable|actual|full/string(/prototype)/is-well-formed
-core-js(-pure)/es|stable|actual|full/string(/prototype)/to-well-formed
-core-js(-pure)/es|stable|actual|full/string(/prototype)/anchor
-core-js(-pure)/es|stable|actual|full/string(/prototype)/big
-core-js(-pure)/es|stable|actual|full/string(/prototype)/blink
-core-js(-pure)/es|stable|actual|full/string(/prototype)/bold
-core-js(-pure)/es|stable|actual|full/string(/prototype)/fixed
-core-js(-pure)/es|stable|actual|full/string(/prototype)/fontcolor
-core-js(-pure)/es|stable|actual|full/string(/prototype)/fontsize
-core-js(-pure)/es|stable|actual|full/string(/prototype)/italics
-core-js(-pure)/es|stable|actual|full/string(/prototype)/link
-core-js(-pure)/es|stable|actual|full/string(/prototype)/small
-core-js(-pure)/es|stable|actual|full/string(/prototype)/strike
-core-js(-pure)/es|stable|actual|full/string(/prototype)/sub
-core-js(-pure)/es|stable|actual|full/string(/prototype)/sup
-core-js(-pure)/es|stable|actual|full/string(/prototype)/iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/at
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/code-point-at
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/ends-with
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/includes
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/starts-with
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/match-all
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/pad-start
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/pad-end
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/repeat
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/replace-all
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-start
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-end
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-left
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-right
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/is-well-formed
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/to-well-formed
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/anchor
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/big
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/blink
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/bold
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/fixed
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/fontcolor
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/fontsize
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/italics
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/link
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/small
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/strike
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/sub
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/sup
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/iterator
 core-js/es|stable|actual|full/regexp
 core-js/es|stable|actual|full/regexp/constructor
-core-js(-pure)/es|stable|actual|full/regexp/escape
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/escape
 core-js/es|stable|actual|full/regexp/dot-all
-core-js(-pure)/es|stable|actual|full/regexp/flags
-core-js(-pure)/es|stable|actual|full/regexp/instance/flags
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/flags
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/instance/flags
 core-js/es|stable|actual|full/regexp/match
 core-js/es|stable|actual|full/regexp/replace
 core-js/es|stable|actual|full/regexp/search

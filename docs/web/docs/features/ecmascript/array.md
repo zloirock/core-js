@@ -52,43 +52,43 @@ class Arguments {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/array
-core-js(-pure)/es|stable|actual|full/array/virtual
-core-js(-pure)/es|stable|actual|full/array/from
-core-js(-pure)/es|stable|actual|full/array/from-async
-core-js(-pure)/es|stable|actual|full/array/of
-core-js(-pure)/es|stable|actual|full/array(/prototype)/at
-core-js(-pure)/es|stable|actual|full/array(/prototype)/concat
-core-js(-pure)/es|stable|actual|full/array(/prototype)/copy-within
-core-js(-pure)/es|stable|actual|full/array(/prototype)/entries
-core-js(-pure)/es|stable|actual|full/array(/prototype)/fill
-core-js(-pure)/es|stable|actual|full/array(/prototype)/filter
-core-js(-pure)/es|stable|actual|full/array(/prototype)/find
-core-js(-pure)/es|stable|actual|full/array(/prototype)/find-index
-core-js(-pure)/es|stable|actual|full/array(/prototype)/find-last
-core-js(-pure)/es|stable|actual|full/array(/prototype)/find-last-index
-core-js(-pure)/es|stable|actual|full/array(/prototype)/flat
-core-js(-pure)/es|stable|actual|full/array(/prototype)/flat-map
-core-js(-pure)/es|stable|actual|full/array(/prototype)/includes
-core-js(-pure)/es|stable|actual|full/array(/prototype)/index-of
-core-js(-pure)/es|stable|actual|full/array(/prototype)/iterator
-core-js(-pure)/es|stable|actual|full/array(/prototype)/join
-core-js(-pure)/es|stable|actual|full/array(/prototype)/keys
-core-js(-pure)/es|stable|actual|full/array(/prototype)/last-index-of
-core-js(-pure)/es|stable|actual|full/array(/prototype)/map
-core-js(-pure)/es|stable|actual|full/array(/prototype)/push
-core-js(-pure)/es|stable|actual|full/array(/prototype)/reduce
-core-js(-pure)/es|stable|actual|full/array(/prototype)/reduce-right
-core-js(-pure)/es|stable|actual|full/array(/prototype)/reverse
-core-js(-pure)/es|stable|actual|full/array(/prototype)/slice
-core-js(-pure)/es|stable|actual|full/array(/prototype)/sort
-core-js(-pure)/es|stable|actual|full/array(/prototype)/splice
-core-js(-pure)/es|stable|actual|full/array(/prototype)/to-reversed
-core-js(-pure)/es|stable|actual|full/array(/prototype)/to-sorted
-core-js(-pure)/es|stable|actual|full/array(/prototype)/to-spliced
-core-js(-pure)/es|stable|actual|full/array(/prototype)/unshift
-core-js(-pure)/es|stable|actual|full/array(/prototype)/values
-core-js(-pure)/es|stable|actual|full/array(/prototype)/with
+{ core-js, @core-js/pure }/es|stable|actual|full/array
+{ core-js, @core-js/pure }/es|stable|actual|full/array/virtual
+{ core-js, @core-js/pure }/es|stable|actual|full/array/from
+{ core-js, @core-js/pure }/es|stable|actual|full/array/from-async
+{ core-js, @core-js/pure }/es|stable|actual|full/array/of
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/at
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/concat
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/copy-within
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/entries
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/fill
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/filter
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/find
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/find-index
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/find-last
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/find-last-index
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/flat
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/flat-map
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/includes
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/index-of
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/join
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/keys
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/last-index-of
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/map
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/push
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/reduce
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/reduce-right
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/reverse
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/slice
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/sort
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/splice
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-reversed
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-sorted
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-spliced
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/unshift
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/values
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/with
 ```
 
 ## Examples

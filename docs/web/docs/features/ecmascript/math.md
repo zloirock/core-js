@@ -31,27 +31,27 @@ namespace Math {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/math
-core-js(-pure)/es|stable|actual|full/math/acosh
-core-js(-pure)/es|stable|actual|full/math/asinh
-core-js(-pure)/es|stable|actual|full/math/atanh
-core-js(-pure)/es|stable|actual|full/math/cbrt
-core-js(-pure)/es|stable|actual|full/math/clz32
-core-js(-pure)/es|stable|actual|full/math/cosh
-core-js(-pure)/es|stable|actual|full/math/expm1
-core-js(-pure)/es|stable|actual|full/math/fround
-core-js(-pure)/es|stable|actual|full/math/f16round
-core-js(-pure)/es|stable|actual|full/math/hypot
-core-js(-pure)/es|stable|actual|full/math/imul
-core-js(-pure)/es|stable|actual|full/math/log1p
-core-js(-pure)/es|stable|actual|full/math/log10
-core-js(-pure)/es|stable|actual|full/math/log2
-core-js(-pure)/es|stable|actual|full/math/sign
-core-js(-pure)/es|stable|actual|full/math/sinh
-core-js(-pure)/es|stable|actual|full/math/sum-precise
-core-js(-pure)/es|stable|actual|full/math/tanh
-core-js(-pure)/es|stable|actual|full/math/trunc
-core-js(-pure)/es|stable|actual|full/math/to-string-tag
+{ core-js, @core-js/pure }/es|stable|actual|full/math
+{ core-js, @core-js/pure }/es|stable|actual|full/math/acosh
+{ core-js, @core-js/pure }/es|stable|actual|full/math/asinh
+{ core-js, @core-js/pure }/es|stable|actual|full/math/atanh
+{ core-js, @core-js/pure }/es|stable|actual|full/math/cbrt
+{ core-js, @core-js/pure }/es|stable|actual|full/math/clz32
+{ core-js, @core-js/pure }/es|stable|actual|full/math/cosh
+{ core-js, @core-js/pure }/es|stable|actual|full/math/expm1
+{ core-js, @core-js/pure }/es|stable|actual|full/math/fround
+{ core-js, @core-js/pure }/es|stable|actual|full/math/f16round
+{ core-js, @core-js/pure }/es|stable|actual|full/math/hypot
+{ core-js, @core-js/pure }/es|stable|actual|full/math/imul
+{ core-js, @core-js/pure }/es|stable|actual|full/math/log1p
+{ core-js, @core-js/pure }/es|stable|actual|full/math/log10
+{ core-js, @core-js/pure }/es|stable|actual|full/math/log2
+{ core-js, @core-js/pure }/es|stable|actual|full/math/sign
+{ core-js, @core-js/pure }/es|stable|actual|full/math/sinh
+{ core-js, @core-js/pure }/es|stable|actual|full/math/sum-precise
+{ core-js, @core-js/pure }/es|stable|actual|full/math/tanh
+{ core-js, @core-js/pure }/es|stable|actual|full/math/trunc
+{ core-js, @core-js/pure }/es|stable|actual|full/math/to-string-tag
 ```
 
 ## Examples

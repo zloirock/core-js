@@ -15,7 +15,7 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-cooked
-core-js(-pure)/full/string/cooked
+{ core-js, @core-js/pure }/full/string/cooked
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

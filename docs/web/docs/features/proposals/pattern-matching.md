@@ -15,7 +15,7 @@ class Symbol {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/pattern-matching
-core-js(-pure)/full/symbol/custom-matcher
+{ core-js, @core-js/pure }/full/symbol/custom-matcher
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

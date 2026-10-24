@@ -15,7 +15,7 @@ class Symbol {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/async-iteration
-core-js(-pure)/es|stable|actual|full/symbol/async-iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-iterator
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
