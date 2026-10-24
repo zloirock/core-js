@@ -24,6 +24,12 @@ const { check, checkDeep, checkTruthy, finish } = createChecker('census-alias-wr
 
 const sibling = 'function sibling() { var a = {}; a = Set; void a.name; }';
 const rows = [
+  // Single held values and forwarding positions share the same alias/seen contract.
+  ['single alias value', 'function expose() { const held = Map; const a = held; hand(a); }'],
+  ['sequence forwarded value', 'function expose() { const held = Map; const a = (mark(), held); hand(a); }'],
+  ['selection forwarded values', 'function expose(flag) { const held = Map; const a = flag ? held : held; hand(a); }'],
+  ['passthrough forwarded value', 'function expose() { const held = Map; const pass = x => x; const a = pass(held); hand(a); }'],
+  ['cyclic alias still exposes its concrete value', 'function expose(flag) { let a = Map, b = a; if (flag) a = b; hand(a); }'],
   ['plain assignment', 'function expose() { var a = {}; a = Map; hand(a); }'],
   ['logical assignment', 'function expose() { var a; a ||= Map; hand(a); }'],
   ['object assignment', 'function expose() { var a; ({ value: a } = { value: Map }); hand(a); }'],

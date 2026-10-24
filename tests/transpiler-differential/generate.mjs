@@ -7918,6 +7918,11 @@ function * generateChains() {
 // combine; a bail there stranded them as overlapping standalone transforms (an unplugin composition
 // CRASH the three-way surfaces as a transform error). strip-valid: flat / at are strippable
 const CIC_INNERS = [
+  // A rejected outer key still evaluates its receiver/key once and visits inner claims.
+  { id: 'shifted-index', obj: '(log.push("receiver"), { 1: () => [[4, 5], [6]] })', access: '[[0, 4].at(1) >> 2]' },
+  { id: 'bigint-index', obj: '(log.push("receiver"), { 2: () => [[4, 5], [6]] })', access: '[(log.push("key"), 1n) << 1n]' },
+  { id: 'unary-index', obj: '(log.push("receiver"), { 0: () => [[4, 5], [6]] })', access: '[-[0].at(0)]' },
+  { id: 'custom-key', obj: '(log.push("receiver"), { unrelatedField: () => [[4, 5], [6]] })', access: '.unrelatedField' },
   { id: 'numeric', obj: '({ 0: () => [[4, 5], [6]] })', access: '[0]' },
   { id: 'nonident', obj: '({ \'a-b\': () => [[4, 5], [6]] })', access: '[\'a-b\']' },
 ];
