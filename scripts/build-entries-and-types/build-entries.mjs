@@ -27,6 +27,8 @@ const exportsFields = {
   './configurator.js': './configurator.js',
   './modules/*': './modules/*.js',
   './modules/*.js': './modules/*.js',
+  // Node 12.17-12.19, 13, 14.0-14.12
+  './modules/': './modules/',
 };
 
 const entriesMap = AllModules.reduce((memo, it) => {
@@ -96,6 +98,8 @@ async function buildEntry(entry, options) {
     const entrySlice2 = split.slice(0, 2).join('/');
     exportsFields[`./${ entrySlice2 }/*`] = `./${ entrySlice2 }/*.js`;
     exportsFields[`./${ entrySlice2 }/*.js`] = `./${ entrySlice2 }/*.js`;
+    // Node 12.17-12.19, 13, 14.0-14.12
+    exportsFields[`./${ entrySlice2 }/`] = `./${ entrySlice2 }/`;
   }
 
   entriesMap[entry.replace(/\/index$/, '')] = modules;
