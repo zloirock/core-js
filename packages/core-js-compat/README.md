@@ -49,7 +49,7 @@ console.log(targets);
   'es.iterator.concat': { ios: '18.5-18.7', samsung: '30' },
   ...
   'web.dom-exception.stack': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
-  'web.immediate': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
+  'web.set-immediate': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
   'web.structured-clone': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' }
 }
 */
@@ -128,6 +128,6 @@ import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types
 // => { staticMethods, staticProperties, instanceMethods, instanceProperties, ... }
 ```
 
-If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
+If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)

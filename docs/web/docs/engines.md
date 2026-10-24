@@ -15,6 +15,6 @@ Examples of supported engines:
 - FF15
 - Node 0.11
 
-`core-js` provides (as the [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools to work with it - it's useful for integration with tools like `babel` or `swc`. If you want to help, you could take a look at the related section of [`CONTRIBUTING`](contributing#h-how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/v4/compat/), the example:
+`core-js` provides (as the [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools to work with it - it's useful for integration with tools like `babel` or `swc`. If you want to help, you could take a look at the related section of [`CONTRIBUTING`](contributing#h-how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/v4/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)
