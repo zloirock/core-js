@@ -2,14 +2,14 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/builder.svg)](https://www.npmjs.com/package/@core-js/builder)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/builder.svg)](https://www.npmjs.com/package/@core-js/builder)
 
 </div>
 
-**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
+**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/v4/docs/2023-02-14-so-whats-next.md)**
 ---
 
-In some cases, it could be useful to exclude some [`core-js`](https://core-js.io) features or generate a polyfill for target engines. This API helps conditionally include or exclude certain parts of [`core-js`](https://core-js.io) and build for targets. `modules`, `exclude` and `targets` options are specified in [the `@core-js/compat` format](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat).
+In some cases, it could be useful to exclude some [`core-js`](https://core-js.io) features or generate a polyfill for target engines. This API helps conditionally include or exclude certain parts of [`core-js`](https://core-js.io) and build for targets. `modules`, `exclude` and `targets` options are specified in [the `@core-js/compat` format](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat).
 
 ```js
 import builder from '@core-js/builder';

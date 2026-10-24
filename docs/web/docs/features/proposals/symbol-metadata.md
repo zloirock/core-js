@@ -1,5 +1,5 @@
 # `Symbol.metadata` for the decorator metadata proposal
-[Specification](https://tc39.es/proposal-decorator-metadata/)\
+[Specification](https://github.com/pzuraq/ecma262/pull/10)\
 [Proposal repo](https://github.com/tc39/proposal-decorator-metadata)
 
 ## Modules

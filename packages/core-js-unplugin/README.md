@@ -2,11 +2,11 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/unplugin.svg)](https://www.npmjs.com/package/@core-js/unplugin)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/unplugin.svg)](https://www.npmjs.com/package/@core-js/unplugin)
 
 </div>
 
-Universal plugin for automatic injection of [`core-js`](https://core-js.io) polyfills. Works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, **Rspack**, **Rsbuild**, **Bun**, and **Farm** via [unplugin](https://github.com/unjs/unplugin). Powered by [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for fast AST parsing with full TypeScript support.
+Universal plugin for automatic injection of [`core-js`](https://core-js.io) polyfills. Works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, **Rspack**, **Rsbuild**, **Bun**, and **Farm** via [unplugin](https://github.com/unjs/unplugin). Powered by [oxc-parser](https://oxc.rs/docs/guide/usage/parser) for fast AST parsing with full TypeScript support.
 
 An alternative to [`@core-js/babel-plugin`](https://www.npmjs.com/package/@core-js/babel-plugin) for projects that don't use Babel.
 
@@ -198,7 +198,7 @@ Both `//` and `/* */` styles are supported. A reason can be added after ` -- `.
 
 ## Differences from `@core-js/babel-plugin`
 
-- **No Babel required** - uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for parsing
+- **No Babel required** - uses [oxc-parser](https://oxc.rs/docs/guide/usage/parser) for parsing
 - **Universal** - works with any bundler via unplugin
 - **Same data** - uses the same `@core-js/compat` data and `@core-js/polyfill-provider` logic
 - **Transform timing** - babel-plugin runs inside Babel's own pipeline and shares a single AST traversal with other Babel transforms (TS, class down-compile, etc.), always seeing the original source. The unplugin runs in the bundler plugin chain alongside separate TS/down-compile plugins; the `phase` option controls where in the chain it sits. The default `'pre'` sees the original source. `'post'` and `'pre+post'` can additionally scan code produced by siblings to catch polyfills in emitted helpers (e.g. `Symbol.iterator` in `_toConsumableArray`), at the cost of losing semantic context siblings may have stripped (type info in particular), which can over-polyfill
