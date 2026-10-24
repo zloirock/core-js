@@ -554,7 +554,7 @@ GLOBAL.tests = {
   },
   'es.reflect.set': function () {
     var object = Object.defineProperty({}, 'a', { configurable: true });
-    return Reflect.set(Object.getPrototypeOf(object), 'a', 1, object) === false;
+    return !Reflect.set(Object.getPrototypeOf(object), 'a', 1, object);
   },
   'es.reflect.set-prototype-of': function () {
     return Reflect.setPrototypeOf;
