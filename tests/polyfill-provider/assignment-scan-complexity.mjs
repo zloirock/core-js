@@ -10,7 +10,7 @@ import { transformFromAstSync } from '@babel/core';
 import plugin from '../../packages/core-js-babel-plugin/index.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, resolvePure } from './harness.mjs';
 
 const { checkTruthy, finish } = createChecker('assignment-scan-complexity');
 
@@ -55,11 +55,6 @@ function babelReads(code, method) {
     filename: 'input.mjs',
   });
   return { reads: counter.reads, injected: /import /.test(out) };
-}
-
-// every global the rows read is served by the build, as the detection's own tests serve it
-function resolvePure(meta) {
-  return { kind: meta.kind === 'global' ? 'global' : 'static' };
 }
 
 function estreeReads(code, method) {

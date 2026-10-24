@@ -38,6 +38,8 @@ import './census-never-run-writes.mjs';
 import './census-settling-complexity.mjs';
 import './self-reading-writes-complexity.mjs';
 import './narrowed-settling-complexity.mjs';
+import './guard-settling-complexity.mjs';
+import './alias-union-complexity.mjs';
 import './write-ceiling.mjs';
 import './written-binding-complexity.mjs';
 import './assignment-scan-complexity.mjs';

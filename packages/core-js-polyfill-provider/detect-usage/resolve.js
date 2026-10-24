@@ -180,6 +180,12 @@ import { argIndexForParam, dropLeadingThisParam, nodeRangeContains } from '../re
 // object-name and binding walks (`withinAliasWalkBudget`)
 const MAX_KEY_DEPTH = 64;
 
+// the most hop sources one union of alias values follows (`reachableAliasValues`): a ring of aliases copying one
+// another holds a source per copy, and every claim on the ring walks them all, so a source past the ceiling is not
+// followed - the values the sources before it named stand. a ring of a few names has every name expanded long
+// before it; a text layout's copies, or a few aliases copied a handful of times each, stay far below it
+const MAX_UNION_SOURCES = 64;
+
 // SequenceExpression collect mode: push side-effect preceding elements into `effects` for
 // the caller to re-attach via a SequenceExpression wrap around the polyfill replacement.
 // the deliberate counterpart of the plain `unwrapParens` (helpers/ast-patterns.js), which peels
@@ -3140,19 +3146,161 @@ export function readKeepingAdapter(adapter) {
 // primary. Each hop carries its capture position.
 // `includeDeclaredCandidates` also admits initializers for a preserved runtime identity guard;
 // a proven overwrite, later initializer or opposite branch in the same execution excludes them.
+// the hops form a graph and are walked as one: a source two hops spell is expanded once (`reached`, by the node
+// spelling it and whether it is followed as a call), on an explicit stack, in the order a recursion would meet
+// it - an alias yields its values and hops in turn (`entriesOf`), and a hop's entries run before the rest of its
+// alias's - and a hop past the alias-chain ceiling reaches nothing more (`MAX_KEY_DEPTH`, counted from the
+// walks already in flight). a walk cut at a name on its own path instead enumerated every simple path of a ring
+// of aliases copying one another, a power of the copies, and left out what a name on the path held at the copy's
+// own site; `seen` cuts the names in flight outside this walk alone, and reaches the slot and call canons with the
+// names of the aliases a hop was reached through, as before. a union follows at most `MAX_UNION_SOURCES` hop sources
+// and keeps what it named before the one past them: it is partial as it is wherever a source names nothing
+// (`{ value: null }`), and its readers add guard arms and imports per value, deciding nothing by their count
 export function reachableAliasValues({
-  aliasNode, primary, resolve, scope, adapter, path, seen, usageNode = null, includeDeclaredCandidates = false,
+  aliasNode: rootAlias,
+  primary,
+  resolve,
+  scope: rootScope,
+  adapter,
+  path: rootPath,
+  seen,
+  usageNode: rootRead = null,
+  includeDeclaredCandidates = false,
 }) {
   const values = primary ? [primary] : [];
-  // follow an Identifier alias SOURCE (a declarator init OR a reassignment value) to the aliased
-  // binding's own reachable values, so `const/let M = M0`, `M = M0` and `[M] = [M0]` all reach M0's
-  // transitive reassignments (`let M0 = Object; if (c) M0 = Array; ...; M.from()`). ADDITIVE to the
-  // reassigned-arm: a reassigned alias whose source aliases another reassigned binding still reaches
-  // the source's targets on the no-own-write path. anchored at the alias read site (a later write to
-  // the source does not enter the union); `asCall` re-enters the factory branch for an `f()` receiver;
-  // `seen` guards alias cycles. `sourceScope` is where the source expression lives - the hop's own
-  // binding resolves there
-  function pushAliasHop(source, currentName, asCall, sourceScope, sourcePath = path) {
+  const reached = { value: new Set(), call: new Set() };
+  const ceiling = MAX_KEY_DEPTH - aliasWalks;
+  // the values of one alias and the hops its sources spell, in the order the walk meets them: `{ value }` a
+  // candidate (null where a source names none), `{ hop }` a source to follow - an Identifier alias SOURCE (a
+  // declarator init OR a reassignment value) reaches the aliased binding's own reachable values, so `const/let
+  // M = M0`, `M = M0` and `[M] = [M0]` all reach M0's transitive reassignments (`let M0 = Object; if (c) M0 =
+  // Array; ...; M.from()`). ADDITIVE to the reassigned-arm: a reassigned alias whose source aliases another
+  // reassigned binding still reaches the source's targets on the no-own-write path. anchored at the alias read
+  // site (a later write to the source does not enter the union); `asCall` re-enters the factory branch for an
+  // `f()` receiver. `sourceScope` is where the source expression lives - the hop's own binding resolves there.
+  // `pathSeen` holds the names of the aliases this one was reached through, for the slot and call canons
+  function * entriesOf({ aliasNode, scope, path, usageNode, pathSeen }) {
+    function hop(source, currentName, asCall, sourceScope, sourcePath = path) {
+      return { hop: { source, currentName, asCall, sourceScope, sourcePath, pathSeen } };
+    }
+    if (aliasNode?.type === 'Identifier') {
+      const binding = adapter.getBinding({ scope, name: aliasNode.name, path, read: aliasNode });
+      const declScope = binding ? aliasDeclScope(binding, scope) : scope;
+      // A loop declaration has no initializer. Its finite elements are candidates just like
+      // written values, even when no single one proves the receiver's identity. a PATTERN head pairs
+      // each element as a declarator pairs its init - a call element through the call canon
+      const declaration = bindingDeclarationPath(binding);
+      // ... where the declaration still binds this name: a relocation re-spells a pattern head in place
+      const id = declaration?.node?.id;
+      if (declaration?.node?.type === 'VariableDeclarator' && !declaration.node.init
+        && (id?.type !== 'Identifier' || id.name === aliasNode.name)) {
+        const ctx = { scope: declScope, adapter, path: declaration, resolveKey };
+        for (const element of forOfHeadIterableElements(declaration) ?? []) {
+          const read = { pattern: declaration.node.id, init: element, name: aliasNode.name, ctx, seen: pathSeen };
+          // ... beside every value the file wrote into that slot of the element's container
+          const slotValues = declaration.node.id.type === 'Identifier' ? [{ node: installedWriteValue(element), scope: declScope }]
+            : [...pairedSlotValues(read), ...writtenPatternSlotValues(read).map(node => ({ node, scope: declScope }))];
+          for (const { node, scope: valueScope } of slotValues) {
+            yield { value: resolve({ node, readNode: node, ctx: { ...ctx, scope: valueScope } }) };
+            yield hop(node, aliasNode.name, false, valueScope);
+          }
+        }
+      }
+      if (binding && isReassignedBeyondDeclarator(binding)) {
+        for (const { node: rhs, scope: valueScope, path: valuePath } of reassignedAliasValues({
+          binding, name: aliasNode.name, scope, declScope, adapter, path, usageNode, seen: pathSeen,
+        })) {
+          // the written value was READ at its write site - anchor its own resolution there, so a
+          // cross-write (`a = b; b = x`) resolves b's value as captured BEFORE `b = x` overwrote it,
+          // and in the write's own scope, so a use-site shadow cannot swallow the RHS name
+          yield { value: resolve({
+            node: rhs, readNode: rhs, ctx: { scope: valueScope, adapter: readKeepingAdapter(adapter), path: valuePath ?? path },
+          }) };
+          yield hop(rhs, aliasNode.name, false, valueScope, valuePath ?? path);
+        }
+      }
+      // pattern-gated init follow: a destructure declarator binds the name to a SLOT of the init -
+      // following the whole init smuggled the CONTAINER into the union (`const { M } = src` fanned
+      // src's reachable values as M's)
+      if (binding && (!includeDeclaredCandidates || !reassignmentBlocksGlobalResolve({
+        binding, adapter: { method: 'usage-global' }, path, usageNode,
+      }))) {
+        const init = identifierDeclaratorInit(binding);
+        const declarator = bindingDeclaratorNode(binding);
+        if (includeDeclaredCandidates && init && declarator
+          && (writeIsInOppositeBranch(declarator, path, usageNode ?? path?.node)
+            || provablyPrecedes(usageNode ?? path?.node, declarator))
+          && noReassignmentReachesUsage({
+            reassignmentNodes: [declarator],
+            usagePath: path,
+            usageNode,
+            bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
+            bindingAnchor: bindingLoopAnchor(binding),
+          })) return;
+        if (includeDeclaredCandidates && init) {
+          yield { value: resolve({ node: init, readNode: init, ctx: { scope: declScope, adapter, path } }) };
+        }
+        yield hop(init, aliasNode.name, false, declScope);
+        // a PATTERN declarator binds the name to a slot of its init, and that slot's possible values
+        // are the declared candidates: the same pairing the reassignment walk reads for a pattern
+        // write, each branching value unfolded to its arms (`const { a: A } = { a: c ? Array : Map }`
+        // reaches both). the primary names the slot only where every arm agrees, so a disagreeing
+        // slot reaches the union through these arms alone; a lone agreeing arm just repeats it
+        if (!init && declarator?.type === 'VariableDeclarator' && declarator.init) {
+          const ctx = { scope: declScope, adapter, path: declaration, resolveKey, liveArmsOnly: true };
+          const slotValues = pairedSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx, seen: pathSeen });
+          // ... and the values the file WROTE into that slot: the read lands on one of them where the
+          // write reached the container, so each joins the union beside the literal's own
+          const written = writtenPatternSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx })
+            .map(node => ({ node, scope: declScope }));
+          const arms = [...slotValues, ...written]
+            .flatMap(({ node, scope: valueScope }) => flattenBranchingValueNodes([node], { ctx: { ...ctx, scope: valueScope } })
+              .map(arm => [arm, valueScope]));
+          for (const [arm, valueScope] of arms) {
+            yield { value: resolve({ node: arm, readNode: arm, ctx: { ...ctx, scope: valueScope } }) };
+            yield hop(arm, aliasNode.name, false, valueScope);
+          }
+        }
+      }
+    } else if (aliasNode?.type === 'CallExpression' || aliasNode?.type === 'OptionalCallExpression') {
+      // IIFE-callee receiver `f()` whose factory `f` is a reassigned alias: each reachable `() => X`
+      // value returns X. recover each so a dominating reassignment to a polyfillable global (`let f =
+      // () => Object; f = () => Array; f().from()`) still injects the reaching value's polyfill - the
+      // direct-Identifier-receiver union path could not, since `f()` is not an Identifier alias
+      const callee = unwrapTransparentSeq(aliasNode.callee);
+      const binding = callee.type === 'Identifier' ? adapter.getBinding({ scope, name: callee.name, path, read: callee }) : null;
+      const declScope = binding ? aliasDeclScope(binding, scope) : scope;
+      if (binding && isReassignedBeyondDeclarator(binding)) {
+        // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
+        // patternSlotValues - the Identifier-receiver branch above passes it for the same reason
+        for (const rhs of reassignmentValueNodes({
+          binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
+        })) {
+          const fn = unwrapTransparentSeq(rhs);
+          if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
+            && !fn.params?.length && !fn.async && !fn.generator) {
+            const ret = singleReturnBodyExpression(fn.body);
+            yield { value: ret && resolve({ node: ret, ctx: { scope: declScope, adapter, path } }) };
+          } else yield hop(rhs, callee.name, true, declScope); // a factory bound through an Identifier alias
+        }
+      }
+      if (binding) yield hop(identifierDeclaratorInit(binding), callee.name, true, declScope);
+    }
+  }
+  const root = entriesOf({ aliasNode: rootAlias, scope: rootScope, path: rootPath, usageNode: rootRead, pathSeen: seen });
+  const stack = [{ depth: 0, entries: root }];
+  while (stack.length) {
+    const frame = stack.at(-1);
+    const { done, value: entry } = frame.entries.next();
+    if (done) {
+      stack.pop();
+      continue;
+    }
+    if (!entry.hop) {
+      if (entry.value) values.push(entry.value);
+      continue;
+    }
+    const { source, currentName, asCall, sourceScope, sourcePath, pathSeen } = entry.hop;
     let node = source && unwrapTransparentSeq(source);
     // a source wrapped in zero-arg IIFEs (`const f = (() => f0)()`, nested `(() => (() => f0)())()`)
     // aliases the IIFEs' return, so peel to a fixpoint to reach the underlying binding - the same
@@ -3162,132 +3310,30 @@ export function reachableAliasValues({
       if (!ret) break;
       node = unwrapTransparentSeq(ret);
     }
-    if (node?.type !== 'Identifier' || node.name === currentName || cycleGuardHas(seen, node.name)) return;
+    if (node?.type !== 'Identifier' || node.name === currentName || cycleGuardHas(seen, node.name)) continue;
+    const sources = asCall ? reached.call : reached.value;
+    if (sources.has(node)) continue;
+    // a hop past the alias-chain ceiling reaches nothing more, and is not reached: a shorter chain may still expand it
+    if (frame.depth >= ceiling) continue;
+    // at the ceiling on the sources one union follows the walk stops with what it named: finishing the open frames
+    // would resolve every value they still hold, the very cost the ceiling cuts
+    if (reached.value.size + reached.call.size >= MAX_UNION_SOURCES) break;
+    sources.add(node);
     const recursed = asCall ? { type: 'CallExpression', callee: node, arguments: [] } : node;
-    // an `f()` receiver has no caller-resolved primary (the call is opaque to `resolveObjectName`), so
-    // the aliased factory's DECLARED return is captured here beside its reassignments: `const f = f0`
-    // with `let f0 = () => Object; if (c) f0 = () => Map` reaches BOTH Object and Map. `node` anchors
-    // the dominance check at the alias-read, excluding a dead factory init. an Identifier receiver
-    // already gets its declared value from the caller's primary, so re-resolving it would double-count
-    // (and mis-anchor a dead init) - it stays null
-    // a hop past the alias-chain ceiling reaches nothing more (`withinAliasWalkBudget`)
-    values.push(...withinAliasWalkBudget(reachableAliasValues, {
-      aliasNode: recursed,
-      resolve,
-      primary: asCall ? resolve({ node: recursed, readNode: node, ctx: { scope: sourceScope, adapter, path: sourcePath } }) : null,
-      scope: sourceScope,
-      adapter,
-      path: sourcePath,
-      seen: new Set(seen).add(currentName),
-      usageNode: node,
-      includeDeclaredCandidates,
-    }) ?? []);
-  }
-  if (aliasNode?.type === 'Identifier') {
-    const binding = adapter.getBinding({ scope, name: aliasNode.name, path, read: aliasNode });
-    const declScope = binding ? aliasDeclScope(binding, scope) : scope;
-    // A loop declaration has no initializer. Its finite elements are candidates just like
-    // written values, even when no single one proves the receiver's identity. a PATTERN head pairs
-    // each element as a declarator pairs its init - a call element through the call canon
-    const declaration = bindingDeclarationPath(binding);
-    // ... where the declaration still binds this name: a relocation re-spells a pattern head in place
-    const id = declaration?.node?.id;
-    if (declaration?.node?.type === 'VariableDeclarator' && !declaration.node.init
-      && (id?.type !== 'Identifier' || id.name === aliasNode.name)) {
-      const ctx = { scope: declScope, adapter, path: declaration, resolveKey };
-      for (const element of forOfHeadIterableElements(declaration) ?? []) {
-        const read = { pattern: declaration.node.id, init: element, name: aliasNode.name, ctx, seen };
-        // ... beside every value the file wrote into that slot of the element's container
-        const slotValues = declaration.node.id.type === 'Identifier' ? [{ node: installedWriteValue(element), scope: declScope }]
-          : [...pairedSlotValues(read), ...writtenPatternSlotValues(read).map(node => ({ node, scope: declScope }))];
-        for (const { node, scope: valueScope } of slotValues) {
-          const value = resolve({ node, readNode: node, ctx: { ...ctx, scope: valueScope } });
-          if (value) values.push(value);
-          pushAliasHop(node, aliasNode.name, false, valueScope);
-        }
-      }
-    }
-    if (binding && isReassignedBeyondDeclarator(binding)) {
-      for (const { node: rhs, scope: valueScope, path: valuePath } of reassignedAliasValues({
-        binding, name: aliasNode.name, scope, declScope, adapter, path, usageNode, seen,
-      })) {
-        // the written value was READ at its write site - anchor its own resolution there, so a
-        // cross-write (`a = b; b = x`) resolves b's value as captured BEFORE `b = x` overwrote it,
-        // and in the write's own scope, so a use-site shadow cannot swallow the RHS name
-        const value = resolve({
-          node: rhs, readNode: rhs, ctx: { scope: valueScope, adapter: readKeepingAdapter(adapter), path: valuePath ?? path },
-        });
-        if (value) values.push(value);
-        pushAliasHop(rhs, aliasNode.name, false, valueScope, valuePath ?? path);
-      }
-    }
-    // pattern-gated init follow: a destructure declarator binds the name to a SLOT of the init -
-    // following the whole init smuggled the CONTAINER into the union (`const { M } = src` fanned
-    // src's reachable values as M's)
-    if (binding && (!includeDeclaredCandidates || !reassignmentBlocksGlobalResolve({
-      binding, adapter: { method: 'usage-global' }, path, usageNode,
-    }))) {
-      const init = identifierDeclaratorInit(binding);
-      const declarator = bindingDeclaratorNode(binding);
-      if (includeDeclaredCandidates && init && declarator
-        && (writeIsInOppositeBranch(declarator, path, usageNode ?? path?.node)
-          || provablyPrecedes(usageNode ?? path?.node, declarator))
-        && noReassignmentReachesUsage({
-          reassignmentNodes: [declarator], usagePath: path, usageNode,
-          bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
-          bindingAnchor: bindingLoopAnchor(binding),
-        })) return [...new Set(values)];
-      if (includeDeclaredCandidates && init) {
-        const value = resolve({ node: init, readNode: init, ctx: { scope: declScope, adapter, path } });
-        if (value) values.push(value);
-      }
-      pushAliasHop(init, aliasNode.name, false, declScope);
-      // a PATTERN declarator binds the name to a slot of its init, and that slot's possible values
-      // are the declared candidates: the same pairing the reassignment walk reads for a pattern
-      // write, each branching value unfolded to its arms (`const { a: A } = { a: c ? Array : Map }`
-      // reaches both). the primary names the slot only where every arm agrees, so a disagreeing
-      // slot reaches the union through these arms alone; a lone agreeing arm just repeats it
-      if (!init && declarator?.type === 'VariableDeclarator' && declarator.init) {
-        const ctx = { scope: declScope, adapter, path: declaration, resolveKey, liveArmsOnly: true };
-        const slotValues = pairedSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx, seen });
-        // ... and the values the file WROTE into that slot: the read lands on one of them where the
-        // write reached the container, so each joins the union beside the literal's own
-        const written = writtenPatternSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx })
-          .map(node => ({ node, scope: declScope }));
-        const arms = [...slotValues, ...written]
-          .flatMap(({ node, scope: valueScope }) => flattenBranchingValueNodes([node], { ctx: { ...ctx, scope: valueScope } })
-            .map(arm => [arm, valueScope]));
-        for (const [arm, valueScope] of arms) {
-          const value = resolve({ node: arm, readNode: arm, ctx: { ...ctx, scope: valueScope } });
-          if (value) values.push(value);
-          pushAliasHop(arm, aliasNode.name, false, valueScope);
-        }
-      }
-    }
-  } else if (aliasNode?.type === 'CallExpression' || aliasNode?.type === 'OptionalCallExpression') {
-    // IIFE-callee receiver `f()` whose factory `f` is a reassigned alias: each reachable `() => X`
-    // value returns X. recover each so a dominating reassignment to a polyfillable global (`let f =
-    // () => Object; f = () => Array; f().from()`) still injects the reaching value's polyfill - the
-    // direct-Identifier-receiver union path could not, since `f()` is not an Identifier alias
-    const callee = unwrapTransparentSeq(aliasNode.callee);
-    const binding = callee.type === 'Identifier' ? adapter.getBinding({ scope, name: callee.name, path, read: callee }) : null;
-    const declScope = binding ? aliasDeclScope(binding, scope) : scope;
-    if (binding && isReassignedBeyondDeclarator(binding)) {
-      // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
-      // patternSlotValues - the Identifier-receiver branch above passes it for the same reason
-      for (const rhs of reassignmentValueNodes({
-        binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
-      })) {
-        const fn = unwrapTransparentSeq(rhs);
-        if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
-          && !fn.params?.length && !fn.async && !fn.generator) {
-          const ret = singleReturnBodyExpression(fn.body);
-          const value = ret && resolve({ node: ret, ctx: { scope: declScope, adapter, path } });
-          if (value) values.push(value);
-        } else pushAliasHop(rhs, callee.name, true, declScope); // a factory bound through an Identifier alias
-      }
-    }
-    if (binding) pushAliasHop(identifierDeclaratorInit(binding), callee.name, true, declScope);
+    // a root `f()` receiver has no primary from the consumer: `f` is reassigned, so `resolveObjectName` names
+    // nothing for the call. the hop into its factory resolves the DECLARED return itself, beside the
+    // reassignments `entriesOf` yields: `const f = f0` with `let f0 = () => Object; if (c) f0 = () => Map` reaches
+    // BOTH Object and Map. `node` anchors the dominance check at the alias-read, excluding a dead factory init.
+    // an Identifier source's own value was yielded beside its hop already, so resolving it here would count it
+    // twice (and mis-anchor a dead init) - the hop adds none
+    const hopPrimary = asCall ? resolve({ node: recursed, readNode: node, ctx: { scope: sourceScope, adapter, path: sourcePath } }) : null;
+    if (hopPrimary) values.push(hopPrimary);
+    stack.push({
+      depth: frame.depth + 1,
+      entries: entriesOf({
+        aliasNode: recursed, scope: sourceScope, path: sourcePath, usageNode: node, pathSeen: new Set(pathSeen).add(currentName),
+      }),
+    });
   }
   return [...new Set(values)];
 }

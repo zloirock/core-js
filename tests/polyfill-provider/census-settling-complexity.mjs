@@ -6,14 +6,9 @@ import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer, settleCensusWrites } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, resolvePure } from './harness.mjs';
 
 const { check, checkTruthy, finish } = createChecker('census-settling-complexity');
-
-// every global the rows read is served by the build, as pure serves it
-function resolvePure(meta) {
-  return { kind: meta.kind === 'global' ? 'global' : 'static' };
-}
 
 function install(index, test = '!globalThis.Map') {
   return `function install${ index }() { if (${ test }) globalThis.Map = Shim${ index }; }`;
