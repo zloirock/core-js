@@ -152,7 +152,7 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
   // `node_modules` is ignored by git, so after a checkout it still holds the dependencies of the previous version
   await installDependencies(srcDir, checkout);
 
-  // the package keeps the last build, and local tests of `core-js-bundle` need the standard one
+  // the package keeps the last build, and local tests of `@core-js/bundle` need the standard one
   await bundlePackage(true);
   await bundlePackage(false);
 

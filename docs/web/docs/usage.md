@@ -78,8 +78,8 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 ## Automatic polyfill injection
 
 `core-js` provides plugins for automatic polyfill injection that analyze your code and add only the polyfills needed for your target environments:
-- [`@core-js/babel-plugin`](#corejs-babel-plugin) - for projects using Babel
-- [`@core-js/unplugin`](#corejs-unplugin) - for Vite, Webpack, Rollup, Rolldown, esbuild, Rspack, Rsbuild, Farm, and Bun (no Babel required)
+- [`@core-js/babel-plugin`](#h-core-jsbabel-plugin) - for projects using Babel
+- [`@core-js/unplugin`](#h-core-jsunplugin) - for Vite, Webpack, Rollup, Rolldown, esbuild, Rspack, Rsbuild, Farm, and Bun (no Babel required)
 
 ## `@core-js/babel-plugin`
 
@@ -351,7 +351,10 @@ await Bun.build({
 ## `@babel/preset-env`
 
 > [!TIP]
-> [`@core-js/babel-plugin`](#corejs-babel-plugin) is recommended over `@babel/preset-env` for `core-js` polyfill injection.
+> [`@core-js/babel-plugin`](#h-core-jsbabel-plugin) is recommended over `@babel/preset-env` for `core-js` polyfill injection.
+
+> [!NOTE]
+> `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#h-babel-plugin-polyfill-corejs3). These options and `babel-plugin-polyfill-corejs3` are deprecated in favor of [`@core-js/babel-plugin`](#h-core-jsbabel-plugin).
 
 [`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes the use of the global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to the used version of `core-js`, like `corejs: '4.1'`.
 
@@ -427,7 +430,7 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 ## `@babel/runtime`
 
 > [!TIP]
-> [`@core-js/babel-plugin`](#corejs-babel-plugin) with `method: 'usage-pure'` is recommended over `@babel/runtime` for `core-js` polyfill injection.
+> [`@core-js/babel-plugin`](#h-core-jsbabel-plugin) with `method: 'usage-pure'` is recommended over `@babel/runtime` for `core-js` polyfill injection.
 
 [`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 4` option simplifies work with the `@core-js/pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```ts
@@ -451,6 +454,18 @@ By default, `@babel/plugin-transform-runtime` only polyfills stable features, bu
 
 > [!WARNING]
 > If you use `@babel/preset-env` and `@babel/plugin-transform-runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+
+## `babel-plugin-polyfill-corejs3`
+
+> [!WARNING]
+> `babel-plugin-polyfill-corejs3` is deprecated in favor of [`@core-js/babel-plugin`](#h-core-jsbabel-plugin).
+
+[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
+```json
+{
+  "plugins": [["polyfill-corejs3", { "method": "usage-global", "version": "3.51" }]]
+}
+```
 
 ## `@babel/polyfill`
 

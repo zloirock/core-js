@@ -22,7 +22,6 @@ core-js(-pure)/es|stable|actual|full/json/is-raw-json
 core-js(-pure)/es|stable|actual|full/json/parse
 core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
-core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 
 ## Examples
