@@ -19,7 +19,7 @@ var PROPER_NAME = typedArrayIterator
   && typedArrayIterator.name === 'values';
 
 // `%TypedArray%.prototype[@@iterator]` method
-// https://tc39.es/ecma262/#sec-%typedarray%.prototype-%symbol.iterator%]
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype-%symbol.iterator%
 exportTypedArrayMethod(ITERATOR, function values() {
   return arrayMethod(aTypedArray(this));
 }, GENERIC || !PROPER_NAME, { name: 'values' });

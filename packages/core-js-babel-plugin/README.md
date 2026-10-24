@@ -6,7 +6,7 @@
 
 </div>
 
-Babel plugin for automatic injection of [`core-js`](https://core-js.io) polyfills. It analyzes your code and adds only the polyfills that are actually needed for your target environments. Works with both global (`core-js`) and pure (`@core-js/pure`) variants. [Documentation](https://core-js.io/docs/usage#corejs-babel-plugin).
+Babel plugin for automatic injection of [`core-js`](https://core-js.io) polyfills. It analyzes your code and adds only the polyfills that are actually needed for your target environments. Works with both global (`core-js`) and pure (`@core-js/pure`) variants. [Documentation](https://core-js.io/docs/usage#h-core-jsbabel-plugin).
 
 ## Methods
 

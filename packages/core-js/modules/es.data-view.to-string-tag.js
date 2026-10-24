@@ -2,5 +2,5 @@
 var setToStringTag = require('../internals/set-to-string-tag');
 
 // DataView.prototype[@@toStringTag] property
-// https://tc39.es/ecma262/#sec-dataview.prototype-@@tostringtag
+// https://tc39.es/ecma262/#sec-dataview.prototype-%symbol.tostringtag%
 setToStringTag(DataView, 'DataView');
