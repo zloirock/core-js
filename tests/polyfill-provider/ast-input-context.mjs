@@ -13,6 +13,7 @@ import {
   lookupReadPath,
   objectOwnThisMethodInfo,
   pathOfNode,
+  readsConstructorKey,
   walkAstNodes,
   writtenNames,
   withCanonQuestion,
@@ -22,7 +23,7 @@ import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packa
 import { hasCtorAliasCandidateShapes } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { adapters, createChecker } from './harness.mjs';
 
-const { check, checkDeep, finish, runBoth } = createChecker('ast-input-context');
+const { check, checkDeep, finish, runBoth, throwsWith } = createChecker('ast-input-context');
 
 for (const type of ['CommentBlock', 'CommentLine', 'Block', 'Line']) {
   check(`comment ${ type } is not syntax`, isASTNode({ type, value: 'text' }), false);
@@ -62,6 +63,51 @@ for (const parser of adapters) {
   }]);
   walkAstNodes({ root: comments.node, visit(node) { visited.push(node.type); } });
   check(`${ parser.name }/walks exclude comments`, visited.some(type => ['CommentBlock', 'CommentLine', 'Block', 'Line'].includes(type)), false);
+
+  // Every visit finishes before preparation, and all preparation precedes the ordered results.
+  // Repeat on the same program so a cached file fact cannot skip the reducers themselves.
+  const lifecycleTree = parser.parseAndScope('value.constructor;');
+  const lifecycleKey = parser.pickPath(lifecycleTree, 'MemberExpression').node.property;
+  for (const cached of [false, true]) {
+    const visits = [[], []];
+    const lifecycle = [];
+    const prepared = new Set();
+    const census = collectFileCensus(lifecycleTree.node, [0, 1].map(index => ({
+      visit(node) {
+        visits[index].push(node);
+        check(`${ parser.name }/census ${ cached }/visit before prepare`, prepared.size, 0);
+      },
+      prepare() {
+        prepared.add(index);
+        lifecycle.push(`prepare ${ index }`);
+        // Reading the already published answer must not start a new walk after preparation edits.
+        lifecycleKey.name = 'other';
+        try {
+          check(`${ parser.name }/census ${ cached }/publish before prepare`, readsConstructorKey(lifecycleTree.node), true);
+        } finally {
+          lifecycleKey.name = 'constructor';
+        }
+      },
+      result() {
+        check(`${ parser.name }/census ${ cached }/all reducers prepared`, prepared.size, 2);
+        lifecycle.push(`result ${ index }`);
+        return { last: index };
+      },
+    })));
+    checkDeep(`${ parser.name }/census ${ cached }/same ordered visits`, visits[0], visits[1]);
+    check(`${ parser.name }/census ${ cached }/visits stay live`, visits[0].includes(lifecycleTree.node), true);
+    checkDeep(`${ parser.name }/census ${ cached }/finalization order`, lifecycle, ['prepare 0', 'prepare 1', 'result 0', 'result 1']);
+    check(`${ parser.name }/census ${ cached }/last result wins`, census.last, 1);
+  }
+  const failedTree = parser.parseAndScope('value.constructor;');
+  let finalized = false;
+  throwsWith(`${ parser.name }/census/visit error propagates`, () => collectFileCensus(failedTree.node, [{
+    visit() { throw new Error('census visit failed'); },
+    prepare() { finalized = true; },
+    result() { finalized = true; return {}; },
+  }]), 'census visit failed');
+  check(`${ parser.name }/census/failed walk is not finalized`, finalized, false);
+  check(`${ parser.name }/census/failed walk publishes no partial fact`, readsConstructorKey(failedTree.node), true);
 
   // These are evaluation-context questions, including TS shapes with no typechecked this.
   for (const [name, source, expected] of [
