@@ -5065,6 +5065,9 @@ for (const [effect, claim] of [
       }
     },
   });
+  // Root setup belongs to the host traversal; early subtree claims share descendants only.
+  check(`discarded receiver/${ claim }/no root handler`, Object.hasOwn(visitors, 'Program'), false);
+  check(`discarded receiver/${ claim }/no traversal metadata`, Object.hasOwn(visitors, '$'), false);
   traverse(ast, { $: { scope: true }, ...visitors });
   check(`discarded receiver/${ claim }/retained ${ retain }`, seen.filter(item => item === claim).length, retain ? 1 : 0);
   check(`discarded receiver/${ claim }/live sibling ${ retain }`, seen.includes('property/isArray'), true);

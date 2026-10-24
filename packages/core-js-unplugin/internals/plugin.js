@@ -164,15 +164,7 @@ function blankPatternInterior(node) {
 export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
   if (!node || typeof node !== 'object') return;
   if (Array.isArray(node.params) && !PARAM_PATTERN_SCOPE_OWNERS.has(node.type)) {
-    for (let i = 0; i < node.params.length; i++) {
-      const original = node.params[i];
-      const blanked = blankPatternInterior(original);
-      if (blanked === original) continue;
-      restorations?.push(() => {
-        node.params[i] = original;
-      });
-      node.params[i] = blanked;
-    }
+    neutralizeSignatureParameters(node, restorations);
     // fall through: `returnType` and `typeParameters` of the same node carry their own
     // type-level signatures, and a defaulted type parameter is reached by the crawler too
   }
@@ -188,22 +180,7 @@ export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
   // every slot; the shape they land on IS defined, which is exactly the case the decorator
   // compensation covers by hand
   if (node.type === 'TSParameterProperty' && node.parameter?.type === 'AssignmentPattern') {
-    const { decorators } = node;
-    const inner = node.parameter;
-    const saved = { ...node };
-    restorations?.push(() => {
-      // the walk may have REWRITTEN inside the unwrapped parameter (a polyfillable default):
-      // the wrapper restores around what it produced, never around the pre-walk snapshot -
-      // that would silently drop the emission
-      const mutated = { ...node };
-      if (decorators?.length) delete mutated.decorators;
-      for (const key of Object.keys(node)) delete node[key];
-      Object.assign(node, saved);
-      node.parameter = mutated;
-    });
-    for (const key of Object.keys(node)) delete node[key];
-    Object.assign(node, inner);
-    if (decorators?.length) node.decorators = decorators;
+    unwrapParameterProperty(node, restorations);
     neutralizeUnwalkedParamPatterns(node, restorations);
     return;
   }
@@ -213,6 +190,41 @@ export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
   }
   // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
   for (const key in node) neutralizeUnwalkedParamPatterns(node[key], restorations);
+}
+
+// Signatures without a runtime scope must hide their pattern interiors from the crawler.
+// This rare edit is separate from the recursive walk over ordinary syntax.
+function neutralizeSignatureParameters(node, restorations) {
+  for (let i = 0; i < node.params.length; i++) {
+    const original = node.params[i];
+    const blanked = blankPatternInterior(original);
+    if (blanked === original) continue;
+    restorations?.push(() => {
+      node.params[i] = original;
+    });
+    node.params[i] = blanked;
+  }
+}
+
+// Unwrap a defaulted parameter property for detection, then restore its wrapper around
+// the rewritten inner parameter, including its original decorators.
+function unwrapParameterProperty(node, restorations) {
+  const { decorators } = node;
+  const inner = node.parameter;
+  const saved = { ...node };
+  restorations?.push(() => {
+    // the walk may have REWRITTEN inside the unwrapped parameter (a polyfillable default):
+    // the wrapper restores around what it produced, never around the pre-walk snapshot -
+    // that would silently drop the emission
+    const mutated = { ...node };
+    if (decorators?.length) delete mutated.decorators;
+    for (const key of Object.keys(node)) delete node[key];
+    Object.assign(node, saved);
+    node.parameter = mutated;
+  });
+  for (const key of Object.keys(node)) delete node[key];
+  Object.assign(node, inner);
+  if (decorators?.length) node.decorators = decorators;
 }
 
 // 1-based `line:col` from oxc's first label via shared offset->line+column helper.
@@ -1379,14 +1391,16 @@ export default function createPlugin(options) {
           ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
         }, completedClaims), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
-        // a pure walk rewrites as it goes, so only what holds through a rewrite is kept for it
-        withVarScopeOwners(() => traverse(ast, mergeVisitors({
+        // Usage handlers own descendants only; the traversal adds its root setup without
+        // re-merging every descendant handler. A pure walk keeps only rewrite-safe facts.
+        withVarScopeOwners(() => traverse(ast, {
+          ...walkVisitors,
           $: { scope: true },
           Program(path) {
             injector.rootScope = path.scope;
             memoProgramPath = path;
           },
-        }, walkVisitors)));
+        }));
         destructureEmit.drain();
         // the partly dead user selections still standing fold to what they yield - an operand, kept a
         // value in its slot (`foldedOperandNeedsValue`), or the value a decided test answers: a claim owns

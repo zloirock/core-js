@@ -12,6 +12,36 @@ import { adapters, createChecker, findNode } from './harness.mjs';
 const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // Raw child scheduling must retain receiver and exception boundaries independently.
+  // An arrow keeps its receiver but opens a deferred exception region.
+  {
+    const program = parser.parseAndScope(`
+      this.outer;
+      function f(value = this.parameter) {
+        try { this.direct; const later = () => this.deferred; }
+        catch (error) { this.caught; }
+        finally { this.finalized; }
+      }
+    `);
+    const owner = parser.pickPath(program, 'FunctionDeclaration').node;
+    const handler = parser.pickPath(program, 'CatchClause').node;
+    const seen = new Map();
+    collectFileCensus(program.node, [{
+      visit(node, frame) {
+        if (node.type === 'MemberExpression') seen.set(node.property.name, frame);
+      },
+      result() { return {}; },
+    }]);
+    check(`${ parser.name }/census frames/all slots`, seen.size, 6);
+    for (const name of ['outer', 'parameter', 'direct', 'deferred', 'caught', 'finalized']) {
+      const frame = seen.get(name);
+      check(`${ parser.name }/census frames/${ name }/receiver`, frame.thisOwner, name === 'outer' ? null : owner);
+      check(`${ parser.name }/census frames/${ name }/top this`, frame.atThisTopLevel, name === 'outer');
+      check(`${ parser.name }/census frames/${ name }/scope`, frame.scopes.includes(owner), name !== 'outer');
+      check(`${ parser.name }/census frames/${ name }/handler`, frame.throwHandler, name === 'direct' ? handler : null);
+    }
+  }
+
   // A census visits every leaf without asking it for a scope or annotation context
   // that no child can inherit. Empty child lists have the same bound as absent ones.
   for (const size of [32, 128]) {
