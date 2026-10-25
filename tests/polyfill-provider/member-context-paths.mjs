@@ -42,21 +42,26 @@ const rows = [
 ];
 
 for (const parser of adapters) {
-  // Numeric operators need no receiver analysis. Named and literal keys retain their
+  // Rejected keys skip primary receiver analysis. Named and literal keys retain their
   // receiver fallback, including unsupported slots and metadata-only consumers.
-  for (const [source, supported] of [
+  for (const [source, supported, fallbackReads = 0] of [
     ['source.unrelatedField', true],
     ['source?.unrelatedField', true],
     ['source["unrelatedField"]', true],
     ['source[index >> 2]', false],
     ['source[1n << shift]', false],
     ['source[-index]', false],
+    ['source[unknownKey]', false, 3],
+    ['source[chooseKey()]', false, 3],
+    ['(effect(), source)[chooseKey()]', false, 3],
+    ['source.prototype', false, 3],
     ['Map.unrelatedField', true],
     ['source[0]', true],
     ['source.at', true],
     ['Array.from', true],
     ['globalThis.Map', true],
     ['source["fr" + "om"]', true],
+    ['(effect(), source)["at"]', true],
   ]) for (const method of ['usage-global', 'usage-pure']) {
     const program = parser.parseAndScope(`${ source };`);
     const path = parser.pickPath(program, 'MemberExpression') ?? parser.pickPath(program, 'OptionalMemberExpression');
@@ -78,7 +83,9 @@ for (const parser of adapters) {
     const label = `${ parser.name }/${ method }/key admission/${ source }`;
     if (supported) checkTruthy(`${ label }/positive receiver control`, reads > 0, `${ reads } reads`);
     else {
-      check(`${ label }/no receiver work`, reads, 0);
+      // Import and guarded-receiver fallbacks still inspect the source after a key
+      // rejection. Classification must add no receiver read to those three accesses.
+      checkTruthy(`${ label }/receiver read budget`, reads <= fallbackReads, `${ reads } reads`);
       check(`${ label }/no claim`, meta, null);
       check(`${ label }/children stay visitable`, handledObjects.size, 0);
     }

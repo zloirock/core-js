@@ -1520,9 +1520,12 @@ function realmGlobalName(programNode, node) {
   const name = value?.type === 'Identifier' ? value.name : isMemberAccessNode(value) ? globalProxyMemberName({ node: value }) : null;
   const root = name && isKnownGlobalName(name) ? runtimeChainRoot(value) : null;
   if (root?.type === 'Identifier' && REALM_CTOR_REFS.get(programNode)?.(root) === 'proven') return name;
-  if (!isMemberAccessNode(value) || !readsOffRealm(programNode, CTOR_ALIAS_INITS.get(programNode), value)) return null;
+  if (!isMemberAccessNode(value)) return null;
   const key = staticMemberKeyName(value);
-  return key !== null && isKnownGlobalName(key) ? key : null;
+  // A realm root cannot turn an unrelated key into a global. Reject it before expanding
+  // the root's alias graph; container-held constructors are read by their own slot walk.
+  if (key === null || !isKnownGlobalName(key)) return null;
+  return readsOffRealm(programNode, CTOR_ALIAS_INITS.get(programNode), value) ? key : null;
 }
 
 // does a member chain read its last key off the REALM: every hop above it a proxy key, its root a name
