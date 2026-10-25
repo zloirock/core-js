@@ -20150,6 +20150,28 @@ function * generateLocalFlowJoins() {
   };
 }
 
+// Aliases read by an earlier closure must settle before detection, including when the
+// source host is split out of a sequence. A live static patch must still win over the import.
+function * generatePrepassHostOrder() {
+  const hosts = [
+    ['statement', write => `${ write }; effects.push('stored');`],
+    ['sequence', write => `(effects.push('before'), ${ write }, effects.push('after'));`],
+    ['unbraced', write => `if (true) (${ write }, effects.push('stored'));`],
+  ];
+  for (const [host, wrap] of hosts) for (const selection of [false, true]) for (const mutation of [false, true]) yield {
+    name: `prepass-host-order/${ host }/${ selection ? 'selected' : 'direct' }/${ mutation ? 'mutation' : 'alias' }`,
+    code: `const effects = [];
+      let A;
+      function read() { return A.from([3, 7]).at(-1); }
+      ${ mutation ? "const saved = Object.getOwnPropertyDescriptor(Array, 'from'); let r; try { Array.from = () => [19];" : '' }
+      ${ wrap(`({ Array: A } = ${ selection ? 'globalThis.window || globalThis' : 'globalThis' })`) }
+      ${ mutation ? 'r = read();' : 'const r = read();' }
+      ${ mutation ? "} finally { if (saved) Object.defineProperty(Array, 'from', saved); else delete Array.from; }" : '' }
+      export { r, effects };`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20532,4 +20554,5 @@ export function * generate() {
   yield * generatePositionalParameterBarriers();
   yield * generateLocalFlowJoins();
   yield * generateAliasRings();
+  yield * generatePrepassHostOrder();
 }

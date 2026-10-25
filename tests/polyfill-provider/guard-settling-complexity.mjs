@@ -7,7 +7,7 @@
 // kept, the count grows by a bounded factor; settled anew, by a power. Then the keep itself, on a pair of writes
 // guarding one another: a settling reached twice under one in flight is settled once, settled afresh once that
 // settling completed, and kept for good after that
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus, withReentrantQuestion, writeNeverRuns } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -71,7 +71,7 @@ function detect({ parser, method, source, budget }) {
     if (method === 'usage-pure') {
       const census = collectFileCensus(program.node, [mutationShapesReducer()]);
       mutated = (parser.name === 'babel'
-        ? collectMutationPrePass(program, adapter, census)
+        ? collectBabelPrePassSites(program, adapter, census)
         : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true })).mutated;
     }
     const core = createUsageHandlerCore({ adapter, method, resolvePure, onUsage() { claims++; } });

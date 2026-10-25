@@ -7,7 +7,7 @@
 // bounded factor; enumerated by path they grow past any factor, and past the ceiling here. And the union has a
 // ceiling of its own: it follows at most 64 hop sources and keeps what they named - a constructor reached through
 // the 64th source is named, one reached only through the 65th is not
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -56,7 +56,7 @@ function detect({ parser, method, source, budget }) {
     if (method === 'usage-pure') {
       const census = collectFileCensus(program.node, [mutationShapesReducer()]);
       mutated = (parser.name === 'babel'
-        ? collectMutationPrePass(program, adapter, census)
+        ? collectBabelPrePassSites(program, adapter, census)
         : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true })).mutated;
     }
     const core = createUsageHandlerCore({ adapter, method, resolvePure, onUsage() { claims++; } });

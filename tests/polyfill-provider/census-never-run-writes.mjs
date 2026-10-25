@@ -3,7 +3,7 @@
 // is such a patch, settled in the patch's own frame, whichever presence test spells the guard. A static install
 // guarded by a static stays written: its own test cannot be decided ahead of it
 import { createChecker, resolvePure } from './harness.mjs';
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus, isPristineProxyGlobal } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -17,7 +17,7 @@ function censusAdapter(parser, program) {
     method: 'usage-pure', resolvePure, getMutatedStatics: () => mutated,
   });
   mutated = (parser.name === 'babel'
-    ? collectMutationPrePass(program, adapter, census)
+    ? collectBabelPrePassSites(program, adapter, census)
     : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true })).mutated;
   return adapter;
 }

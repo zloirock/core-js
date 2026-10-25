@@ -121,7 +121,7 @@ import {
   mutationShapesReducer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { parse as babelParse } from '@babel/parser';
 import * as babelTypes from '@babel/types';
@@ -3755,7 +3755,7 @@ for (const [name, source, expected] of [
 ]) runBoth(`open pattern slot candidates/${ name }`, `${ source } held.groupBy;`, (parser, program, label) => {
   const census = collectFileCensus(program.node, [mutationShapesReducer()]);
   const { mutated } = parser.name === 'babel'
-    ? collectMutationPrePass(program, createBabelAdapter({ method: 'usage-pure' }), census)
+    ? collectBabelPrePassSites(program, createBabelAdapter({ method: 'usage-pure' }), census)
     : collectPrePassSites({ ast: program.node, adapter: createEstreeAdapter({ method: 'usage-pure' }), census, collectMutations: true });
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', getMutatedStatics: () => mutated });
   const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'held');

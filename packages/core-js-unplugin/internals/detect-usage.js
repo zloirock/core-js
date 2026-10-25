@@ -27,7 +27,6 @@ import {
   IMPORT_SPECIFIER_TYPES,
   importBindingView,
   isAmbientBindingShape,
-  isDestructurePattern,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isNonReferencePosition,
@@ -51,6 +50,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
+  destructureSiteVisitors,
   hasCtorAliasCandidateShapes,
   isPolyfillAliasBinding,
   soleAliasWrite,
@@ -443,7 +443,7 @@ export function collectPrePassSites({
   const aliasSites = [];
   if (!handleSite && !wantsAliases) return { mutated, aliasSites };
   const siteVisitors = wantsAliases
-    ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
+    ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, destructureSiteVisitors(aliasSites, isDisabled))
     : handleSite ? mutationSiteVisitors(handleSite) : {};
   let programPath = null;
   traverse(ast, {
@@ -453,38 +453,6 @@ export function collectPrePassSites({
   });
   finalize?.();
   return { mutated, aliasSites, programPath };
-}
-
-// the ctor-alias lane's collectors: the destructure-of-global sites in document order, each
-// carrying what registration cannot read later - the host's declaration kind and the site's own
-// scope, both facts of where the walk stands
-function aliasSiteVisitors(sites, isDisabled) {
-  return {
-    AssignmentExpression(path) {
-      const { node } = path;
-      if (node.operator !== '=' || isDisabled(node)
-        || !isDestructurePattern(node.left)) return;
-      sites.push({
-        pattern: node.left,
-        init: node.right,
-        assignNode: node,
-        scope: path.scope,
-        path,
-      });
-    },
-    VariableDeclarator(path) {
-      const { node } = path;
-      if (!node.init || isDisabled(node)
-        || !isDestructurePattern(node.id)) return;
-      sites.push({
-        pattern: node.id,
-        init: node.init,
-        declKind: path.parent.kind,
-        scope: path.scope,
-        path,
-      });
-    },
-  };
 }
 
 // early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
