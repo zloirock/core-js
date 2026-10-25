@@ -694,12 +694,20 @@ export default function createPlugin(options) {
     // must see the resolved language goal before consulting the memoised strictness model.
     // Entry-global collects format and minifier-sequence facts; the remaining reducers belong to the usage lanes
     const readsCensus = methodReadsUsageCensus(method);
+    const optionalCalls = [];
     const fileCensus = collectFileCensus(ast, [
       moduleFormatReducer(moduleFormat => {
         format = resolveModuleFormat({ ...formatOptions, moduleFormat });
         ast.sourceType = format.sourceType;
       }),
       minifierSequenceReducer(),
+      // Normalization only needs nodes, so its rare sites ride the existing raw census.
+      ...code.includes('?.') ? [{
+        visit(node) {
+          if (node.type === 'CallExpression' && optionalCallInstantiationCallee(node)) optionalCalls.push(node);
+        },
+        result() { return {}; },
+      }] : [],
       // Only defaults with comments need source-lifetime tracking. Include the gap after
       // the binding, so an annotation before the value cannot migrate to a surviving effect.
       ...method === 'usage-pure' && comments.length ? [{
@@ -904,7 +912,7 @@ export default function createPlugin(options) {
           // AST re-pointed at that prefix, so the syntax visitor still polyfills any usage inside the kept
           // prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
           const kept = new Set();
-          const prefixes = extractEntrySideEffectPrefixes(ast, removed, estreeAdapter);
+          const prefixes = extractEntrySideEffectPrefixes(ast, removed, estreeAdapter, prePass?.programPath);
           for (const node of removed) {
             const sePrefix = prefixes.get(node);
             if (!sePrefix?.length) continue;
@@ -969,36 +977,23 @@ export default function createPlugin(options) {
       // mutated-static enrichment above, which feeds the very hints it registers through
       if (prePass) registerAliasPrePassSites(prePass.aliasSites, { adapter: estreeAdapter, injector });
 
-      // one pass for every method, ahead of the emitters: a type instantiation sitting directly
-      // under an optional call is the one shape whose SOURCE spelling a later lowering reads wrong,
-      // so it is normalized here rather than left to whoever consumes the output. edits land on
-      // `ms` before any queued transform, and both are point edits on type-only text no emitter
-      // claims. this is the deliberate exception to "the spelling the author chose survives"
-      // `?.` is a necessary condition for the shape, and cheaper to rule out than a walk: this pass
-      // is the only one every method pays for, so files that cannot contain it skip it entirely
-      if (code.includes('?.')) {
-        traverse(ast, {
-          CallExpression(path) {
-            // an opt-out is an opt-out whatever the edit is FOR: the whole-file directive already
-            // bails before this pass, and a line-scoped one has to reach it too, or the same
-            // directive family would hold at file scope and be ignored at line scope
-            if (isDisabled(path.node)) return;
-            const instantiation = optionalCallInstantiationCallee(path.node);
-            if (!instantiation) return;
-            // the decision applied as node surgery: the instantiation dissolves into
-            // the call's own type arguments and its operand takes its slot. the source parens
-            // around it stay - a comment the author wrote after them still has their span to trail
-            let holder = path.node;
-            let key = 'callee';
-            while (holder[key] !== instantiation) {
-              holder = holder[key];
-              key = 'expression';
-            }
-            path.node.typeArguments = instantiation.typeArguments ?? instantiation.typeParameters;
-            holder[key] = instantiation.expression;
-            astNormalized = true;
-          },
-        });
+      // Normalize indexed optional calls before every method's emitter. The source parens
+      // remain around the operand, preserving trailing comments and the later lowering's this.
+      // Removed import subtrees can still be indexed; editing them is inert and body surgery
+      // has already invalidated the scoped root. Retained prefixes keep these same node objects.
+      for (const node of optionalCalls) {
+        if (isDisabled(node)) continue;
+        const instantiation = optionalCallInstantiationCallee(node);
+        if (!instantiation) continue;
+        let holder = node;
+        let key = 'callee';
+        while (holder[key] !== instantiation) {
+          holder = holder[key];
+          key = 'expression';
+        }
+        node.typeArguments = instantiation.typeArguments ?? instantiation.typeParameters;
+        holder[key] = instantiation.expression;
+        astNormalized = true;
       }
 
       const isInTypeAnnotation = createTypeAnnotationChecker();
@@ -1023,7 +1018,8 @@ export default function createPlugin(options) {
         // baseline rather than bailing to the untouched bytes
         if (!plan.found) {
           outputDebug();
-          return null;
+          // Optional-call normalization is owed even in a file without entry imports.
+          return astNormalized ? finalizeAst() : null;
         }
         debugOutput?.markEntryFound();
         applyEntryProgram({

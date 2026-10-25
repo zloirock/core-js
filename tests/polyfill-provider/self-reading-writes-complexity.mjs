@@ -4,7 +4,7 @@
 // lookups the detection makes over k blocks and over 2k - the census pre-pass and every member read, both parsers,
 // both methods: a reader walking the binding again through each such write grows with a power of the blocks, and a
 // union folding them into itself with their factorial
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -48,7 +48,7 @@ function detect({ parser, method, memberWrite, blocks, budget = Infinity }) {
     if (method === 'usage-pure') {
       const census = collectFileCensus(program.node, [mutationShapesReducer()]);
       mutated = (parser.name === 'babel'
-        ? collectMutationPrePass(program, adapter, census)
+        ? collectBabelPrePassSites(program, adapter, census)
         : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true })).mutated;
     }
     const core = createUsageHandlerCore({ adapter, method, resolvePure, onUsage() { claims++; } });

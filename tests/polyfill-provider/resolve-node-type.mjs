@@ -6,7 +6,7 @@ import { adapters, createChecker, expectError, findNode } from './harness.mjs';
 import { transformSync as babelTransform } from '@babel/core';
 import { parseSync as parseSyncOxc } from 'oxc-parser';
 import {
-  collectMutationPrePass as collectBabelMutationPrePass,
+  collectPrePassSites as collectBabelMutationPrePass,
   createBabelAdapter,
 } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import {
