@@ -469,8 +469,8 @@ function syntheticWideContainerPatterns(width, functions) {
   }`).join('\n');
 }
 
-function threeBuild(file) {
-  return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
+function threeFile(file) {
+  return readFile(join(HERE, 'node_modules/three', file), 'utf8');
 }
 
 // a framework runtime whose factories return 30-to-50-slot object literals, and whose bundle then
@@ -516,25 +516,29 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 // and so further inside the bound
 const CASES = [
   ...['three.core.js', 'three.module.js'].map(file => ({
-    name: `entry-global ${ file }`, source: async () => `import 'core-js/actual';\n${ await threeBuild(file) }`,
+    name: `entry-global ${ file }`, source: async () => `import 'core-js/actual';\n${ await threeFile(`build/${ file }`) }`,
     bounds: { 'entry-global': { babel: 1, unplugin: 1 } },
   })),
   { name: 'rxjs pre+post, shared snapshot lifecycle', source: () => packageModules('rxjs/dist/esm'),
     emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
     bounds: { 'usage-global': { unplugin: 2 }, 'usage-pure': { unplugin: 2 } } },
-  { name: 'three.core.js', source: () => threeBuild('three.core.js'), bounds: {
+  { name: 'three.core.js', source: () => threeFile('build/three.core.js'), bounds: {
     'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
   } },
-  { name: 'three.module.js', source: () => threeBuild('three.module.js'), bounds: {
+  { name: 'three.module.js', source: () => threeFile('build/three.module.js'), bounds: {
     'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
+  // generated decoder code stresses nested control flow, parameter reads and member analysis
+  { name: 'draco_decoder.js, generated decoder',
+    source: () => threeFile('examples/jsm/libs/draco/draco_decoder.js'),
+    bounds: { 'usage-global': { babel: 12, unplugin: 12 }, 'usage-pure': { babel: 15, unplugin: 15 } } },
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic wide container patterns, 256 slots in 8 scopes', source: () => syntheticWideContainerPatterns(256, 8), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
-  // Keep both Babel codegen paths covered independently of the calibrated source size.
+  // keep both Babel codegen paths covered independently of the calibrated source size
   { name: 'synthetic single-scope, 550 reassigned names, compact Babel', source: () => syntheticSingleScope(550), compact: true, bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
@@ -665,8 +669,8 @@ const CASES = [
   { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 4, bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  // Two opaque member arguments used to branch recursively through the same wildcard write.
-  // These tiny inputs discriminate exponential work; push also proves detection stayed live.
+  // two opaque member arguments used to branch recursively through the same wildcard write
+  // these tiny inputs discriminate exponential work; push also proves detection stayed live
   ...['namesake-container-member-arguments', 'block-local-container-member-arguments'].map(name => ({
     name,
     source: () => readFile(join(HERE, '../transpiler-fixtures/usage-global', name, 'input.mjs'), 'utf8'),
