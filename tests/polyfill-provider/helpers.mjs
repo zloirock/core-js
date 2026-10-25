@@ -58,6 +58,7 @@ import {
   functionScopeBindsVarOrFunction,
   getDirectStatementBody,
   identifierReferencedInSubtree,
+  declaredIdentifierNodes,
   aliasReadGuardedAgainstNullish,
   inferTypeParameterNames,
   isBindingDeclarationPath,
@@ -3087,6 +3088,47 @@ for (const adapter of adapters) {
       identifierReferencedInSubtree(body, new Set()), false);
   }
   check(`identifierReferencedInSubtree/every declaration probed [${ adapter.name }]`, bodies.length, Object.keys(expected).length);
+}
+
+// Unrelated declarations need no temporary sets in a reference query. Matching binding
+// identities still suppress declarations without hiding defaults or nested body reads.
+for (const adapter of adapters) for (const width of [32, 128]) {
+  const padding = Array.from({ length: width }, (_, i) => `var unused${ i } = 0;`).join(' ');
+  for (const [shape, tail, expected] of [
+    ['binding', '', false],
+    ['default', 'var { value = needle } = source;', true],
+    ['nested binding', 'function inner(needle) { var needle; }', false],
+    ['nested read', 'function inner(needle) { return needle; }', true],
+  ]) {
+    const program = adapter.parseAndScope(`function holder(needle) { ${ padding } ${ tail } }`);
+    const fn = adapter.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'holder').node;
+    const { Set: NativeSet } = globalThis;
+    for (const query of ['needle', new Set(['needle', 'absent'])]) {
+      let allocations = 0;
+      let answer;
+      const label = `identifierReferencedInSubtree/allocations/${ adapter.name }/${ width }/${ shape }/${ typeof query }`;
+      globalThis.Set = class extends NativeSet {
+        constructor(...args) {
+          super(...args);
+          allocations++;
+        }
+      };
+      try {
+        check(`${ label }/control value`, new Set(['control']).has('control'), true);
+        check(`${ label }/counter control`, allocations, 1);
+        allocations = 0;
+        answer = identifierReferencedInSubtree(fn, query);
+      } finally {
+        globalThis.Set = NativeSet;
+      }
+      check(`${ label }/reference`, answer, expected);
+      checkTruthy(`${ label }/bounded sets`, allocations > 0 && allocations <= 8, `${ allocations } sets`);
+    }
+    checkDeep(`declaredIdentifierNodes/all/${ adapter.name }/${ width }/${ shape }`,
+      [...declaredIdentifierNodes(fn)], [fn.id, fn.params[0]]);
+    check(`declaredIdentifierNodes/empty selection/${ adapter.name }/${ width }/${ shape }`,
+      declaredIdentifierNodes(fn, () => false), null);
+  }
 }
 
 // Metadata is not a reference position. Its width must not multiply source-slot queries.
