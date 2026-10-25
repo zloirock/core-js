@@ -252,6 +252,30 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
     if (label === 'instantiation') check(`optional census/${ method }/normalized`, /\?\.\s*<number>/u.test(code), true);
     else if (label === 'opted out') check(`optional census/${ method }/directive`, code.includes('<number>)?.'), true);
   }
+  // The existing source gate remains shared by all dialects, while TypeScript
+  // retains its normalization in files that can carry an optional instantiation.
+  const { includes } = String.prototype;
+  for (const [id, typed] of [
+    ['/optional-census.js', false], ['/optional-census.jsx', false],
+    ['/optional-census.mjs', false], ['/optional-census.cjs', false],
+    ['/optional-census.ts', true], ['/optional-census.tsx', true],
+    ['/optional-census.mts', true], ['/optional-census.cts', true],
+    ['/App.vue?vue&type=script', false], ['/App.vue?vue&type=script&lang.ts', true],
+    ['/App.vue?vue&type=script&lang=tsx', true],
+  ]) {
+    for (const source of ['const value = user.unknown;', 'const value = user?.unknown;']) {
+      let scans = 0;
+      const output = withTemporaryProperty(String.prototype, 'includes', function (search, ...args) {
+        if (this === source && search === '?.') scans++;
+        return includes.call(this, search, ...args);
+      }, () => plugin.transform(source, id)?.code ?? source);
+      check(`optional census/${ method }/${ id }/${ source }/one source scan`, scans, 1);
+      check(`optional census/${ method }/${ id }/${ source }/uninstrumented output`, output,
+        plugin.transform(source, id)?.code ?? source);
+    }
+    if (typed) check(`optional census/${ method }/${ id }/normalization retained`,
+      /\?\.\s*<number>/u.test(plugin.transform('const value = (user.unknown<number>)?.(1);', id)?.code), true);
+  }
 }
 
 // --- shouldTransform ---
