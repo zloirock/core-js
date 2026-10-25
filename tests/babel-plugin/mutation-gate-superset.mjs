@@ -7,7 +7,7 @@
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { createChecker } from '../polyfill-provider/harness.mjs';
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
@@ -126,7 +126,7 @@ for (const [label, source] of CHANNELS) {
   const programPath = await programOf(source);
   const census = collectFileCensus(programPath.node, [mutationShapesReducer(null)]);
   const adapter = createBabelAdapter({ method: 'usage-pure', getMutatedStatics: () => null });
-  const scoped = [...collectMutationPrePass(programPath, adapter, census).mutated ?? []];
+  const scoped = [...collectPrePassSites(programPath, adapter, census).mutated ?? []];
   checkTruthy(`scoped channel is nonempty: ${ label }`, scoped.length > 0);
   if (label.includes(' returns ')) checkTruthy(`returned mutation is observed: ${ label }`, scoped.includes('Object.create'));
   // the PINNED marker is not a slot fact: it says only that the ctor's ENTRY has to carry a member

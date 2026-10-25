@@ -10,7 +10,7 @@ import { expressionStatement, renderInjectedImportNodes } from '@core-js/polyfil
 
 // Bind only removed entry statements carrying a comma prefix before body surgery. Plain entry
 // imports and direct requires need no scoped walk; decisions about observable reads stay shared.
-export function extractEntrySideEffectPrefixes(program, removed, adapter) {
+export function extractEntrySideEffectPrefixes(program, removed, adapter, programPath = null) {
   const candidates = new Set([...removed].filter(node => {
     const expression = unwrapRuntimeExpr(node.expression);
     const call = peelSequenceTail(expression, { step: unwrapRuntimeExpr });
@@ -19,13 +19,15 @@ export function extractEntrySideEffectPrefixes(program, removed, adapter) {
   }));
   const prefixes = new Map();
   if (!candidates.size) return prefixes;
-  traverse(program, {
-    $: { scope: true },
-    ExpressionStatement(path) {
-      if (!candidates.has(path.node)) return;
-      prefixes.set(path.node, extractIndirectRequireSEPrefix(path.node, { scope: path.scope, adapter, path }));
-    },
-  });
+  function collect(path) {
+    if (!candidates.has(path.node)) return;
+    prefixes.set(path.node, extractIndirectRequireSEPrefix(path.node, { scope: path.scope, adapter, path }));
+  }
+  // The usage pre-pass still owns an intact tree here. All removed entries are body
+  // statements, so their existing paths need neither another walk nor another scope crawl.
+  if (programPath) {
+    for (const path of programPath.get('body')) collect(path);
+  } else traverse(program, { $: { scope: true }, ExpressionStatement: collect });
   return prefixes;
 }
 

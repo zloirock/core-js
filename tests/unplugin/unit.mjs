@@ -180,8 +180,8 @@ for (const method of ['usage-global', 'usage-pure']) {
     ['alias', alias, 'mjs', 1],
     ['mutation', 'Array.from = shim; export const read = v => Array.from(v);', 'mjs', 1],
     ['import removal', `import 'core-js/modules/es.array.from'; ${ alias }`, 'mjs', 2],
-    // The preserved require prefix also has its own scoped side-effect collector.
-    ['require prefix', `(values.at(0), require)('core-js/modules/es.array.from'); ${ alias }`, 'mjs', 3],
+    // The prefix is read before surgery using the same scoped pre-pass root.
+    ['require prefix', `(values.at(0), require)('core-js/modules/es.array.from'); ${ alias }`, 'mjs', 2],
     ['optional normalization', `${ alias } fn<number>?.(1);`, 'ts', 2],
     ['decorator', `${ alias } class C { constructor(@dec(new M()) public value: any) {} }`, 'ts', 1],
   ];
@@ -227,6 +227,31 @@ for (const method of ['usage-global', 'usage-pure']) {
   const innerSource = 'Array.from = replacement; export const read = v => Array.from(v);';
   check(`scope reuse/${ method }/inner isolated`, nested,
     createPlugin(options).transform(innerSource, '/scope-inner.mjs', 'single')?.code ?? innerSource);
+}
+
+// Optional-call normalization shares the raw census: ordinary optional syntax must not
+// add a separate whole-file traversal. The same bound holds for its actual TS edit.
+for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+  const plugin = createPlugin({ method, version: '4.0', targets: { ie: 11 } });
+  const { visitPath } = Traverser.prototype;
+  const results = [];
+  for (const [label, source] of [
+    ['ordinary', 'const value = user.unknown;'],
+    ['optional', 'const value = user?.unknown;'],
+    ['instantiation', 'const value = (user.unknown<number>)?.(1);'],
+    ['opted out', '// core-js-disable-next-line\nconst value = (user.unknown<number>)?.(1);'],
+  ]) {
+    let walks = 0;
+    const code = withTemporaryProperty(Traverser.prototype, 'visitPath', function (context, path, ...args) {
+      if (path.node?.type === 'Program') walks++;
+      return visitPath.call(this, context, path, ...args);
+    }, () => plugin.transform(source, '/optional-census.ts')?.code ?? source);
+    results.push({ walks, code });
+    check(`optional census/${ method }/${ label }/no extra program walk`, walks, results[0].walks);
+    // The edit dissolves only the instantiation, retaining its source parens and type arguments.
+    if (label === 'instantiation') check(`optional census/${ method }/normalized`, /\?\.\s*<number>/u.test(code), true);
+    else if (label === 'opted out') check(`optional census/${ method }/directive`, code.includes('<number>)?.'), true);
+  }
 }
 
 // --- shouldTransform ---

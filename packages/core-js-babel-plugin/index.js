@@ -54,7 +54,6 @@ import {
   peelSkippableWrapperPath,
   peelTransparentExpr,
   subtreeContainsNode,
-  isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   usableAliasInfo,
@@ -182,7 +181,7 @@ import createASTHelpers, {
 } from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
-  collectMutationPrePass,
+  collectPrePassSites,
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
@@ -356,6 +355,7 @@ export default function plugin(api, options) {
   // `nestedTSRuntimeDeclarations`)? set with the census, before any scoped walk asks a binding
   let nestedTSRuntimeDeclarations = null;
   let fileCensus = null;
+  let prePassSites = null;
   // the census's escape half, by NAME. Its sets also key AST-bearing escape-walk caches,
   // so the answer must be released with the rest of the census after each file.
   let escapedCtorNames = null;
@@ -2232,6 +2232,14 @@ export default function plugin(api, options) {
             patternOrderReducer(),
           ] : [],
         ]);
+        // the minifier-sequence split lands before any usage / entry visitor sees the program, and
+        // after the directives were read: a `-next-line` over a collapsed statement spans the whole
+        // statement the author wrote, so every product stays covered. gated below skipFile so a
+        // `core-js-disable-file` directive, internal core-js source or a declaration file is
+        // returned verbatim, not rewritten (entry-global needs it too - a `require('core-js/...')`
+        // collapsed into a comma sequence - so the gate is `!skipFile`, not the narrower entry
+        // exclusion below)
+        if (!skipFile) splitMinifierSequence(path, t, fileCensus);
         nestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
@@ -2242,10 +2250,14 @@ export default function plugin(api, options) {
         mutatedStatics = null;
         writtenContainerSlots = null;
         escapedCtorNames = null;
-        const mutationPrePass = method === 'usage-pure' && !isInternalCoreJS
-          ? collectMutationPrePass(path, adapter, fileCensus,
-            (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath)) : null;
-        mutatedStatics = mutationPrePass?.mutated ?? null;
+        const prePass = !skipFile && method !== 'entry-global'
+          ? collectPrePassSites(path, adapter, fileCensus,
+            (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath), {
+              collectMutations: isPure,
+              collectDestructures: isPure ? fileCensus.hasDestructureSource : fileCensus.hasCtorAliasShapes,
+            }) : null;
+        prePassSites = prePass?.sites ?? [];
+        mutatedStatics = prePass?.mutated ?? null;
         escapedCtorNames = fileCensus.escapedCtorNames ?? null;
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
@@ -2333,14 +2345,6 @@ export default function plugin(api, options) {
           debugOutput?.warn('the source mixes ESM and CommonJS, so its output is mixed whatever the injection spells');
         }
         deoptNotedNames = new Set();
-        // the minifier-sequence split lands before any usage / entry visitor sees the program, and
-        // after the directives were read: a `-next-line` over a collapsed statement spans the whole
-        // statement the author wrote, so every product stays covered. gated below skipFile so a
-        // `core-js-disable-file` directive, internal core-js source or a declaration file is
-        // returned verbatim, not rewritten (entry-global needs it too - a `require('core-js/...')`
-        // collapsed into a comma sequence - so the gate is `!skipFile`, not the narrower entry
-        // exclusion below)
-        if (!skipFile) splitMinifierSequence(path, t, fileCensus);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
@@ -2383,6 +2387,13 @@ export default function plugin(api, options) {
               else stmt.remove();
             }
           }
+          // Body surgery can reparent a retained require prefix. Rebind only the host lane;
+          // mutation classification stays the source verdict collected before import registration.
+          if (removed.size && prePassSites.length) {
+            prePassSites = collectPrePassSites(path, adapter, fileCensus, null, {
+              collectMutations: false, collectDestructures: true,
+            }).sites;
+          }
           // mutated-key enrichment runs AFTER the scan registers the user's existing pure imports, so
           // `injectPureImport` dedups a mutated key against a same-entry user import instead of emitting
           // a duplicate (scan-before-enrich, mirroring unplugin). pure-only: it pins pure entries
@@ -2398,36 +2409,9 @@ export default function plugin(api, options) {
           // folds through the hints, usage-global resolves its injections through them - without
           // the table a split-anchor / hoisted-var alias drops the injection (the unsafe direction)
           if (fileCensus.hasCtorAliasShapes) {
-            path.traverse({
-              AssignmentExpression(p) {
-                const { node } = p;
-                if (node.operator !== '=' || isDisabled(node)
-                    || !isDestructurePattern(node.left)) return;
-                registerAliasPrePassSite({
-                  pattern: node.left, init: node.right, assignNode: node,
-                  scope: p.scope, adapter, injector, path: p,
-                });
-              },
-              VariableDeclarator(p) {
-                const { node } = p;
-                if (!node.init || isDisabled(node)
-                    || !isDestructurePattern(node.id)) return;
-                registerAliasPrePassSite({
-                  pattern: node.id, init: node.init, declKind: p.parent.kind,
-                  scope: p.scope, adapter, injector, path: p,
-                });
-              },
-              // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this
-              // traverse never descends into a constructor param-property's legacy decorator and a
-              // ctor-alias write hosted there goes unregistered - the member read then stays native
-              // while the estree side (pristine AST) folds it. requeue each decorator so the
-              // AssignmentExpression / VariableDeclarator visitors above fire on it, mirroring the
-              // mutation pre-pass and usage-visitor requeues
-              TSParameterProperty(p) {
-                if (!p.node.decorators?.length) return;
-                for (const decoratorPath of p.get('decorators')) p.requeue(decoratorPath);
-              },
-            });
+            for (const site of prePassSites) {
+              if (!isDisabled(site.path.node)) registerAliasPrePassSite({ ...site, adapter, injector });
+            }
           }
         }
       }
@@ -2532,10 +2516,8 @@ export default function plugin(api, options) {
         // the HOST rewrite, ahead of detection: a realm-selecting destructure init names ONE object,
         // so every meta below resolves against that object instead of against a branch of it, and no
         // route has to unpick a selection the plan has already declared dead
-        path.traverse({
-          VariableDeclarator: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
-          AssignmentExpression: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
-        });
+        if (isPure) for (const site of prePassSites) destructureEmit.collapseRealmSelectingHost(site.path);
+        prePassSites = null;
         function walk() {
           return path.traverse(visitors);
         }
@@ -2851,7 +2833,8 @@ export default function plugin(api, options) {
         // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
         // emitters do. its derived slots go with it - they are read only during traversal
         lateEscapeProgram = sourceGlobalUses = null;
-        fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = memberKeyNames = null;
+        prePassSites = fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = null;
+        writtenContainerSlots = containerSlotIndex = memberKeyNames = null;
       }
 
       // every per-file slot that is NOT heap-allocated, in one place: postHook nulls the

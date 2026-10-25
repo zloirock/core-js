@@ -3,7 +3,7 @@ import { transformAsync } from '@babel/core';
 import { createChecker } from './harness.mjs';
 import plugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { moduleDefaultSource, resolveInlineCalleeFunction } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
@@ -88,7 +88,7 @@ for (const [label, source] of rows) runBoth(label, source, (parser, program, nam
   const makeAdapter = parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter;
   const adapter = makeAdapter({ method: 'usage-pure' });
   const { mutated } = parser.name === 'babel'
-    ? collectMutationPrePass(program, adapter, census)
+    ? collectBabelPrePassSites(program, adapter, census)
     : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true });
   check(`${ name }: scoped slot`, mutated?.has('Array.from'), true);
   const coarse = makeAdapter({ method: 'usage-global', getMutationRoots: () => census.mutationRoots });
