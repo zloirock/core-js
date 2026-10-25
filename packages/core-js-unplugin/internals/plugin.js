@@ -701,8 +701,9 @@ export default function createPlugin(options) {
         ast.sourceType = format.sourceType;
       }),
       minifierSequenceReducer(),
-      // Normalization only needs nodes, so its rare sites ride the existing raw census.
-      ...code.includes('?.') ? [{
+      // Keep the source gate first: ordinary files need no extra dialect check.
+      // Only TS/TSX can contain the instantiations collected by this raw census.
+      ...code.includes('?.') && sourceDialect.lang !== 'jsx' ? [{
         visit(node) {
           if (node.type === 'CallExpression' && optionalCallInstantiationCallee(node)) optionalCalls.push(node);
         },
