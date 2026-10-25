@@ -1997,6 +1997,9 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
   // callee is a SOURCE node, so identity folds it: the synthesized members this walk feeds itself
   // are the reason the state above is keyed by NAME instead, and they never come through here
   const expanded = new Set();
+  // One source value can occur in many written/alias answers. Its dispatch is identical
+  // within this walk; synthesized member reads still use the slot-key memo below.
+  const visited = new Set();
   // a ceiling under a walk that cannot converge: the census is an over-approximation already, so a
   // truncated answer is honest where a throw on user code is not - and a work list still standing
   // when the ceiling runs out is what the tail below counts, since a BACKSTOP carrying load is the
@@ -2007,6 +2010,8 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
     // Iteration provenance is a source expression too, including a call returning the iterable.
     // Unwrap it before the ordinary call/alias dispatch so both paths follow the same returns.
     const pending = work.pop();
+    if (visited.has(pending)) continue;
+    visited.add(pending);
     const popped = peelPassthroughCalls(pending?.opaqueSource ?? pending, passthrough);
     const stands = callCallees?.get(unwrapRuntimeExpr(popped));
     let leaf;
