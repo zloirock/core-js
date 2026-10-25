@@ -1,4 +1,4 @@
-# `DataView` get / set `Uint8Clamped` methods
+# `DataView` get/set `Uint8Clamped` methods
 [Specification](https://tc39.es/proposal-dataview-get-set-uint8clamped/)\
 [Proposal repo](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)
 

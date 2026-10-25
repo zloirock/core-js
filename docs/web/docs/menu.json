@@ -62,11 +62,11 @@
             "url": "{docs-version}/docs/features/ecmascript/collections"
           },
           {
-            "title": "ECMAScript: Explicit Resource Management",
+            "title": "ECMAScript: Explicit resource management",
             "url": "{docs-version}/docs/features/ecmascript/explicit-resource-management"
           },
           {
-            "title": "ECMAScript: Typed Arrays",
+            "title": "ECMAScript: Typed arrays",
             "url": "{docs-version}/docs/features/ecmascript/typed-arrays"
           },
           {
@@ -79,7 +79,7 @@
           },
           {
             "title": "ECMAScript: globalThis",
-            "url": "{docs-version}/docs/features/ecmascript/globalthis"
+            "url": "{docs-version}/docs/features/ecmascript/global-this"
           }
         ]
       },
@@ -91,7 +91,7 @@
             "children": [
               {
                 "title": "globalThis",
-                "url": "{docs-version}/docs/features/proposals/globalthis"
+                "url": "{docs-version}/docs/features/proposals/global-this"
               },
               {
                 "title": "Relative indexing method",
@@ -99,11 +99,11 @@
               },
               {
                 "title": "Array.prototype.includes",
-                "url": "{docs-version}/docs/features/proposals/array-prototype-includes"
+                "url": "{docs-version}/docs/features/proposals/array-includes"
               },
               {
-                "title": "Array.prototype.flat / Array.prototype.flatMap",
-                "url": "{docs-version}/docs/features/proposals/array-prototype-flat-flatmap"
+                "title": "Array.prototype.{ flat, flatMap }",
+                "url": "{docs-version}/docs/features/proposals/array-flat-map"
               },
               {
                 "title": "Array find from last",
@@ -119,27 +119,31 @@
               },
               {
                 "title": "Array.fromAsync",
-                "url": "{docs-version}/docs/features/proposals/array-fromasync"
+                "url": "{docs-version}/docs/features/proposals/array-from-async"
               },
               {
                 "title": "ArrayBuffer.prototype.transfer and friends",
-                "url": "{docs-version}/docs/features/proposals/arraybuffer-prototype-transfer"
+                "url": "{docs-version}/docs/features/proposals/array-buffer-transfer"
               },
               {
-                "title": "Uint8Array to / from base64 and hex",
-                "url": "{docs-version}/docs/features/proposals/uint8array-base64-hex"
+                "title": "Uint8Array to/from base64 and hex",
+                "url": "{docs-version}/docs/features/proposals/array-buffer-base64"
+              },
+              {
+                "title": "Error cause",
+                "url": "{docs-version}/docs/features/proposals/error-cause"
               },
               {
                 "title": "Error.isError",
-                "url": "{docs-version}/docs/features/proposals/error-iserror"
+                "url": "{docs-version}/docs/features/proposals/is-error"
               },
               {
-                "title": "Explicit Resource Management",
+                "title": "Explicit resource management",
                 "url": "{docs-version}/docs/features/proposals/explicit-resource-management"
               },
               {
-                "title": "Float16 methods",
-                "url": "{docs-version}/docs/features/proposals/float16-methods"
+                "title": "Float16",
+                "url": "{docs-version}/docs/features/proposals/float16"
               },
               {
                 "title": "Iterator helpers",
@@ -171,15 +175,15 @@
               },
               {
                 "title": "Object.fromEntries",
-                "url": "{docs-version}/docs/features/proposals/object-fromentries"
+                "url": "{docs-version}/docs/features/proposals/object-from-entries"
               },
               {
                 "title": "Object.getOwnPropertyDescriptors",
-                "url": "{docs-version}/docs/features/proposals/object-getownpropertydescriptors"
+                "url": "{docs-version}/docs/features/proposals/object-get-own-property-descriptors"
               },
               {
                 "title": "Accessible Object.prototype.hasOwnProperty",
-                "url": "{docs-version}/docs/features/proposals/accessible-object-prototype-hasownproperty"
+                "url": "{docs-version}/docs/features/proposals/accessible-object-hasownproperty"
               },
               {
                 "title": "String padding",
@@ -187,15 +191,15 @@
               },
               {
                 "title": "String.prototype.matchAll",
-                "url": "{docs-version}/docs/features/proposals/string-matchall"
+                "url": "{docs-version}/docs/features/proposals/string-match-all"
               },
               {
                 "title": "String.prototype.replaceAll",
-                "url": "{docs-version}/docs/features/proposals/string-replaceall"
+                "url": "{docs-version}/docs/features/proposals/string-replace-all"
               },
               {
-                "title": "String.prototype.trimStart / String.prototype.trimEnd",
-                "url": "{docs-version}/docs/features/proposals/string-trimstart-trimend"
+                "title": "String.prototype.{ trimStart, trimEnd }",
+                "url": "{docs-version}/docs/features/proposals/string-left-right-trim"
               },
               {
                 "title": "RegExp s (dotAll) flag",
@@ -203,7 +207,7 @@
               },
               {
                 "title": "RegExp named capture groups",
-                "url": "{docs-version}/docs/features/proposals/regexp-named-capture-groups"
+                "url": "{docs-version}/docs/features/proposals/regexp-named-groups"
               },
               {
                 "title": "RegExp escaping",
@@ -211,7 +215,7 @@
               },
               {
                 "title": "Promise.allSettled",
-                "url": "{docs-version}/docs/features/proposals/promise-allsettled"
+                "url": "{docs-version}/docs/features/proposals/promise-all-settled"
               },
               {
                 "title": "Promise.any",
@@ -219,7 +223,7 @@
               },
               {
                 "title": "Promise.prototype.finally",
-                "url": "{docs-version}/docs/features/proposals/promise-prototype-finally"
+                "url": "{docs-version}/docs/features/proposals/promise-finally"
               },
               {
                 "title": "Promise.try",
@@ -227,23 +231,23 @@
               },
               {
                 "title": "Promise.withResolvers",
-                "url": "{docs-version}/docs/features/proposals/promise-withresolvers"
+                "url": "{docs-version}/docs/features/proposals/promise-with-resolvers"
               },
               {
-                "title": "Symbol.asyncIterator for asynchronous iteration",
-                "url": "{docs-version}/docs/features/proposals/symbol-asynciterator"
+                "title": "Asynchronous iteration",
+                "url": "{docs-version}/docs/features/proposals/async-iteration"
               },
               {
                 "title": "Symbol.prototype.description",
-                "url": "{docs-version}/docs/features/proposals/symbol-prototype-description"
+                "url": "{docs-version}/docs/features/proposals/symbol-description"
               },
               {
                 "title": "JSON.parse source text access",
-                "url": "{docs-version}/docs/features/proposals/json-parse-source-text-access"
+                "url": "{docs-version}/docs/features/proposals/json-parse-with-source"
               },
               {
                 "title": "Well-formed JSON.stringify",
-                "url": "{docs-version}/docs/features/proposals/well-formed-jsonstringify"
+                "url": "{docs-version}/docs/features/proposals/well-formed-stringify"
               },
               {
                 "title": "Well-formed Unicode strings",
@@ -259,7 +263,7 @@
               },
               {
                 "title": "Math.sumPrecise",
-                "url": "{docs-version}/docs/features/proposals/math-sumprecise"
+                "url": "{docs-version}/docs/features/proposals/math-sum"
               }
             ]
           },
@@ -276,8 +280,8 @@
             "title": "Stage 2.7 proposals",
             "children": [
               {
-                "title": "Symbol.metadata for the decorator metadata proposal",
-                "url": "{docs-version}/docs/features/proposals/symbol-metadata"
+                "title": "Decorator metadata",
+                "url": "{docs-version}/docs/features/proposals/decorator-metadata"
               }
             ]
           },
@@ -285,8 +289,8 @@
             "title": "Stage 2 proposals",
             "children": [
               {
-                "title": "AsyncIterator helpers",
-                "url": "{docs-version}/docs/features/proposals/asynciterator-helpers"
+                "title": "Async iterator helpers",
+                "url": "{docs-version}/docs/features/proposals/async-iterator-helpers"
               },
               {
                 "title": "Iterator.range",
@@ -294,7 +298,7 @@
               },
               {
                 "title": "Number.prototype.clamp",
-                "url": "{docs-version}/docs/features/proposals/number-prototype-clamp"
+                "url": "{docs-version}/docs/features/proposals/number-clamp"
               },
               {
                 "title": "String.dedent",
@@ -305,8 +309,8 @@
                 "url": "{docs-version}/docs/features/proposals/symbol-predicates"
               },
               {
-                "title": "Symbol.customMatcher for extractors",
-                "url": "{docs-version}/docs/features/proposals/symbol-custommatcher-for-extractors"
+                "title": "Extractors",
+                "url": "{docs-version}/docs/features/proposals/extractors"
               }
             ]
           },
@@ -319,15 +323,15 @@
               },
               {
                 "title": "New collections methods",
-                "url": "{docs-version}/docs/features/proposals/new-collections-methods"
+                "url": "{docs-version}/docs/features/proposals/collection-methods"
               },
               {
                 "title": ".of and .from methods on collection constructors",
-                "url": "{docs-version}/docs/features/proposals/of-and-from-methods-on-collections"
+                "url": "{docs-version}/docs/features/proposals/collection-of-from"
               },
               {
                 "title": "compositeKey and compositeSymbol",
-                "url": "{docs-version}/docs/features/proposals/compositekey-compositesymbol"
+                "url": "{docs-version}/docs/features/proposals/keys-composition"
               },
               {
                 "title": "Array filtering",
@@ -335,11 +339,11 @@
               },
               {
                 "title": "Array deduplication",
-                "url": "{docs-version}/docs/features/proposals/array-deduplication"
+                "url": "{docs-version}/docs/features/proposals/array-unique"
               },
               {
-                "title": "DataView get / set Uint8Clamped methods",
-                "url": "{docs-version}/docs/features/proposals/dataview-get-set-uint8clamped"
+                "title": "DataView get/set Uint8Clamped methods",
+                "url": "{docs-version}/docs/features/proposals/data-view-get-set-uint8-clamped"
               },
               {
                 "title": "Number.fromString",
@@ -351,11 +355,11 @@
               },
               {
                 "title": "String.prototype.codePoints",
-                "url": "{docs-version}/docs/features/proposals/string-prototype-codepoints"
+                "url": "{docs-version}/docs/features/proposals/string-code-points"
               },
               {
-                "title": "Symbol.customMatcher for pattern matching",
-                "url": "{docs-version}/docs/features/proposals/symbol-custommatcher-pattern-matching"
+                "title": "Pattern matching",
+                "url": "{docs-version}/docs/features/proposals/pattern-matching"
               }
             ]
           },
@@ -363,8 +367,8 @@
             "title": "Stage 0 proposals",
             "children": [
               {
-                "title": "Function.prototype.demethodize",
-                "url": "{docs-version}/docs/features/proposals/function-prototype-demethodize"
+                "title": "Demethodize function",
+                "url": "{docs-version}/docs/features/proposals/function-demethodize"
               },
               {
                 "title": "Function.{ isCallable, isConstructor }",
@@ -396,7 +400,7 @@
           },
           {
             "title": "Base64 utility methods",
-            "url": "{docs-version}/docs/features/web-standards/base64-utility-methods"
+            "url": "{docs-version}/docs/features/web-standards/atob-btoa"
           },
           {
             "title": "setTimeout and setInterval",
@@ -404,15 +408,15 @@
           },
           {
             "title": "setImmediate",
-            "url": "{docs-version}/docs/features/web-standards/setimmediate"
+            "url": "{docs-version}/docs/features/web-standards/set-immediate"
           },
           {
             "title": "queueMicrotask",
-            "url": "{docs-version}/docs/features/web-standards/queuemicrotask"
+            "url": "{docs-version}/docs/features/web-standards/queue-microtask"
           },
           {
             "title": "URL and URLSearchParams",
-            "url": "{docs-version}/docs/features/web-standards/url-and-urlsearchparams"
+            "url": "{docs-version}/docs/features/web-standards/url"
           },
           {
             "title": "DOMException",
@@ -439,7 +443,7 @@
     "url": "contributing"
   },
   {
-    "title": "Security Policy",
+    "title": "Security policy",
     "url": "security"
   }
 ]

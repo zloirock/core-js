@@ -1,4 +1,4 @@
-# AsyncIterator helpers
+# Async iterator helpers
 [Specification](https://tc39.es/proposal-async-iterator-helpers/)\
 [Proposal repo](https://github.com/tc39/proposal-async-iterator-helpers)
 

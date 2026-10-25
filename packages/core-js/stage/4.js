@@ -17,6 +17,7 @@ require('../proposals/iterator-chunking-v2');
 require('../proposals/iterator-includes');
 require('../proposals/iterator-join');
 require('../proposals/iterator-sequencing');
+require('../proposals/joint-iteration');
 require('../proposals/json-parse-with-source');
 require('../proposals/map-upsert-v4');
 require('../proposals/math-sum');

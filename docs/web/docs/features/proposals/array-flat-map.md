@@ -1,4 +1,4 @@
-# `Array.prototype.flat` / `Array.prototype.flatMap`
+# `Array.prototype.{ flat, flatMap }`
 [Specification](https://tc39.es/proposal-flatMap/)\
 [Proposal repo](https://github.com/tc39/proposal-flatMap)
 

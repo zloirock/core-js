@@ -1,4 +1,4 @@
-# Symbol.customMatcher for pattern matching
+# Pattern matching
 [Specification](https://tc39.es/proposal-pattern-matching/)\
 [Proposal repo](https://github.com/tc39/proposal-pattern-matching)
 

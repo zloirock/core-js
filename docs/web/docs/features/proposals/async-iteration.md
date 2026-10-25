@@ -1,4 +1,4 @@
-# `Symbol.asyncIterator` for asynchronous iteration
+# Asynchronous iteration
 [Specification](https://tc39.es/proposal-async-iteration/)\
 [Proposal repo](https://github.com/tc39/proposal-async-iteration)
 

@@ -125,8 +125,8 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
     - [ECMAScript: Promise](#ecmascript-promise)
     - [ECMAScript: Symbol](#ecmascript-symbol)
     - [ECMAScript: Collections](#ecmascript-collections)
-    - [ECMAScript: Explicit Resource Management](#ecmascript-explicit-resource-management)
-    - [ECMAScript: Typed Arrays](#ecmascript-typed-arrays)
+    - [ECMAScript: Explicit resource management](#ecmascript-explicit-resource-management)
+    - [ECMAScript: Typed arrays](#ecmascript-typed-arrays)
     - [ECMAScript: Reflect](#ecmascript-reflect)
     - [ECMAScript: JSON](#ecmascript-json)
     - [ECMAScript: globalThis](#ecmascript-globalthis)
@@ -142,8 +142,9 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
       - [`Array.fromAsync`](#arrayfromasync)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
+      - [`Error` cause](#error-cause)
       - [`Error.isError`](#erroriserror)
-      - [Explicit Resource Management](#explicit-resource-management)
+      - [Explicit resource management](#explicit-resource-management)
       - [`Float16` methods](#float16-methods)
       - [`Iterator` helpers](#iterator-helpers)
       - [`Iterator` sequencing](#iterator-sequencing)
@@ -1909,7 +1910,7 @@ console.log(weakset.has(b));   // => false
 > - Weak-collections polyfill stores values as hidden properties of keys. It works correctly and does not leak in most cases. However, it is desirable to store a collection longer than its keys.
 > - Native symbols as `WeakMap` keys can't be properly polyfilled without memory leaks.
 
-#### ECMAScript: Explicit Resource Management[⬆](#index)
+#### ECMAScript: Explicit resource management[⬆](#index)
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
@@ -2015,7 +2016,7 @@ iterator.next();
 iterator[Symbol.dispose](); // => 'iterator closed'
 ```
 
-#### ECMAScript: Typed Arrays[⬆](#index)
+#### ECMAScript: Typed arrays[⬆](#index)
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support for descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
 
 Modules [`es.array-buffer.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.constructor.js), [`es.array-buffer.is-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.is-view.js), [`es.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.detached.js), [`es.array-buffer.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.slice.js), [`es.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.transfer.js), [`es.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.transfer-to-fixed-length.js), [`es.data-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.js), [`es.data-view.get-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.get-float16.js), [`es.data-view.set-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.set-float16.js), [`es.typed-array.int8-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int8-array.js), [`es.typed-array.uint8-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint8-array.js), [`es.typed-array.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint8-clamped-array.js), [`es.typed-array.int16-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int16-array.js), [`es.typed-array.uint16-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint16-array.js), [`es.typed-array.int32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int32-array.js), [`es.typed-array.uint32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint32-array.js), [`es.typed-array.float32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.float32-array.js), [`es.typed-array.float64-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.float64-array.js), [`es.typed-array.copy-within`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.copy-within.js), [`es.typed-array.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.every.js), [`es.typed-array.fill`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.fill.js), [`es.typed-array.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.filter.js), [`es.typed-array.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find.js), [`es.typed-array.find-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-index.js), [`es.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last.js), [`es.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last-index.js), [`es.typed-array.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.for-each.js), [`es.typed-array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.from.js), [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.includes.js), [`es.typed-array.index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.index-of.js), [`es.typed-array.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.iterator.js), [`es.typed-array.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.join.js), [`es.typed-array.last-index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.last-index-of.js), [`es.typed-array.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.map.js), [`es.typed-array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.of.js), [`es.typed-array.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reduce.js), [`es.typed-array.reduce-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reduce-right.js), [`es.typed-array.reverse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reverse.js), [`es.typed-array.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.set.js), [`es.typed-array.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.slice.js), [`es.typed-array.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.some.js), [`es.typed-array.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.sort.js), [`es.typed-array.subarray`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.subarray.js), [`es.typed-array.to-locale-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-locale-string.js), [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-string.js), [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js), [`es.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-reversed.js), [`es.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-sorted.js), [`es.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.with.js), [`es.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-base64.js), [`es.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-hex.js), [`es.uint8-array.set-from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-base64.js), [`es.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-hex.js), [`es.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-base64.js), [`es.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-hex.js).
@@ -2233,7 +2234,7 @@ console.log(newBuffer.detached); // => false
 console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
 ```
 
-*Base64 / Hex examples*:
+*Base64 / hex examples*:
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
 console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
@@ -2515,6 +2516,39 @@ class Uint8Array {
 core-js/proposals/array-buffer-base64
 ```
 
+##### [`Error` cause](https://github.com/tc39/proposal-error-cause)[⬆](#index)
+```ts
+class Error {
+  constructor(message: string, { cause: any }): %Error%;
+}
+
+class [
+  EvalError,
+  RangeError,
+  ReferenceError,
+  SyntaxError,
+  TypeError,
+  URIError,
+  WebAssembly.CompileError,
+  WebAssembly.LinkError,
+  WebAssembly.RuntimeError,
+] extends Error {
+  constructor(message: string, { cause: any }): %Error%;
+}
+
+class AggregateError extends Error {
+  constructor(errors: Iterable, message?: string, { cause: any }?): AggregateError;
+  cause: any;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/error-cause
+core-js/es|stable|actual|full/error
+core-js/es|stable|actual|full/error/constructor
+core-js(-pure)/es|stable|actual|full/aggregate-error
+```
+
 ##### [`Error.isError`](https://github.com/tc39/proposal-is-error)[⬆](#index)
 ```ts
 class Error {
@@ -2530,7 +2564,7 @@ core-js/proposals/is-error
 > We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's a rather naive implementation.
 
 
-##### [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
+##### [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 ```ts
@@ -3191,7 +3225,7 @@ class Iterator {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/number-range
+core-js/proposals/iterator-range
 core-js(-pure)/full/iterator/range
 ```
 [*Example*](https://core-js.io/playground#code=for+%28const+i+of+Iterator.range%281%2C+10%29%29+%7B%0A++console.log%28i%29%3B+%2F%2F+%3D%3E+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%0A%7D%0A%0Afor+%28const+i+of+Iterator.range%281%2C+10%2C+%7B+step%3A+3%2C+inclusive%3A+true+%7D%29%29+%7B%0A++console.log%28i%29%3B+%2F%2F+%3D%3E+1%2C+4%2C+7%2C+10%0A%7D):

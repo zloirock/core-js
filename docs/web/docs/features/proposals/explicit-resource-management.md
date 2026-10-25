@@ -1,4 +1,4 @@
-# Explicit Resource Management
+# Explicit resource management
 [Specification](https://tc39.es/proposal-explicit-resource-management/)\
 [Proposal repo](https://github.com/tc39/proposal-explicit-resource-management)
 

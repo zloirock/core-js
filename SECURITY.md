@@ -1,10 +1,10 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
 The [latest released version](https://github.com/zloirock/core-js/releases) of `core-js` is supported.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
 To report a vulnerability, please send an email with the details to zloirock@zloirock.ru.
 This will help us to assess the risk and start the necessary steps.

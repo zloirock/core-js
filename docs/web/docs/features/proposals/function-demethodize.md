@@ -1,4 +1,4 @@
-# Function.prototype.demethodize
+# Demethodize function
 [Proposal repo](https://github.com/js-choi/proposal-function-demethodize)
 
 ## Module 

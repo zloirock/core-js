@@ -1,4 +1,4 @@
-# Symbol.customMatcher for extractors
+# Extractors
 [Specification](https://tc39.es/proposal-extractors/)\
 [Proposal repo](https://github.com/tc39/proposal-extractors)
 

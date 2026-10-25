@@ -1,4 +1,4 @@
-# `Uint8Array` to / from base64 and hex
+# `Uint8Array` to/from base64 and hex
 [Specification](https://tc39.es/proposal-arraybuffer-base64/)\
 [Proposal repo](https://github.com/tc39/proposal-arraybuffer-base64)
 

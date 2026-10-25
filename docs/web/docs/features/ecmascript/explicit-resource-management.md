@@ -1,4 +1,4 @@
-# ECMAScript: Explicit Resource Management
+# ECMAScript: Explicit resource management
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
