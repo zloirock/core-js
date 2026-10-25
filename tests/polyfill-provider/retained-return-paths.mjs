@@ -212,6 +212,42 @@ for (const adapter of adapters) {
   check(`${ adapter.name }: caller sources are scanned linearly`, censusReads.Math < size * 40, true);
   check(`${ adapter.name }: the held family adds a linear pass over the sources`, censusReads.Reflect - censusReads.Math <= size * 4, true);
 }
+// Alias answers can forward the same source read through many stores. A receiver query
+// must not redispatch that read per answer, or expose its private facts as real escapes.
+for (const adapter of adapters) for (const size of [16, 64]) for (const reversed of [false, true]) {
+  const stores = Array.from({ length: size }, (_, index) => `value = heap[0]; heap[${ index }] = value;`);
+  const program = adapter.parseAndScope(`function identity(value) { return value; }
+    const heap = identity(flag ? Map : []); let value = 0;
+    ${ stores.join('\n') } heap.groupBy([]);`);
+  let sourceReads = 0;
+  for (const { node } of adapter.collectPaths(program, 'MemberExpression', path => path.node.computed)) {
+    Object.defineProperty(node, 'type', { configurable: true, get() {
+      sourceReads++;
+      return 'MemberExpression';
+    } });
+  }
+  const reducers = [escapedCtorReferencesReducer(), mutationShapesReducer()];
+  const { escapedCtorNames } = collectFileCensus(program.node, reversed ? reducers.reverse() : reducers);
+  const member = adapter.collectPaths(program, 'MemberExpression', path => path.node.property?.name === 'groupBy').at(-1);
+  const query = CENSUS_STATIC_RECEIVERS.get(program.node);
+  const escaped = [false, true].map(pure => escapedCtorNames.has('Map', pure));
+  const before = sourceReads;
+  const names = [...query(member.node.object, true)];
+  const label = `${ adapter.name }: repeated source ${ size }: reversed=${ reversed }`;
+  check(`${ label }: constructor candidate survives`, names.join(','), 'Map');
+  check(`${ label }: source counter is live`, sourceReads - before > size, true);
+  check(`${ label }: shared sources are not redispatched`, sourceReads - before < size * 20, true);
+  const firstReads = sourceReads;
+  check(`${ label }: repeated question preserves candidates`, [...query(member.node.object, true)].join(','), 'Map');
+  check(`${ label }: repeated question reuses the answer`, sourceReads, firstReads);
+  for (const [index, pure] of [false, true].entries()) {
+    check(`${ label }: private candidates keep escape facts pure=${ pure }`, escapedCtorNames.has('Map', pure), escaped[index]);
+  }
+  // Reanalyzing the same AST must start a new source visit domain, even with identical nodes.
+  collectFileCensus(program.node, reversed ? reducers.reverse() : reducers);
+  check(`${ label }: new census keeps the same source candidates`,
+    [...CENSUS_STATIC_RECEIVERS.get(program.node)(member.node.object, true)].join(','), 'Map');
+}
 // Reusing one root answer must preserve each key's obligation, including an unknown key after
 // a named read. Two bindings spelling the same name must never share that answer. a read through
 // an ALIAS of the call is one pure cannot guard, whichever control flow the returns sit in
