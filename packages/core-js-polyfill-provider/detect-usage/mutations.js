@@ -869,7 +869,8 @@ function storedGlobalFacts(written) {
   }
   return facts;
 }
-// ... with the containers those writes store kept beside, for the question what they carry
+// ... with the containers those writes may use to carry a static owner kept beside.
+// The shared owner test rejects inert aliases before expanding every value for every store.
 function writtenNameGlobals(written, name) {
   const facts = storedGlobalFacts(written);
   let globals = facts.globals.get(name);
@@ -877,6 +878,7 @@ function writtenNameGlobals(written, name) {
     globals = new Set();
     const containers = [];
     for (const values of written.get(name)?.values() ?? []) for (const value of values) {
+      if (!slotMayOwn(facts, installedWriteValue(value))) continue;
       for (const global of writtenValueGlobals(facts.scope, value, containers)) globals.add(global);
     }
     facts.globals.set(name, globals);
