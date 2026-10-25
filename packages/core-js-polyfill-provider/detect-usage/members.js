@@ -1101,38 +1101,6 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
 // usage-global - the reachable union of every other receiver x key pair the aliases can hold
 // eslint-disable-next-line max-statements -- member classification and guarded candidate selection
 function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, resolvePure = null, proxySegments = null }) {
-  // collect side effects from both the receiver and the computed-key so a polyfill
-  // replacement on this MemberExpression (which discards the whole subtree) can re-emit
-  // them via a SequenceExpression wrap in the plugin's emission path
-  const sideEffects = [];
-  // a sequence-prefix element the receiver owes: one whose discard keeps anything
-  function keepsEffect(element) {
-    return discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0;
-  }
-  // `obj` is then passed to `resolveObjectName` which calls `unwrapTransparentSeq` again - idempotent
-  // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
-  // walk is cheap; avoids threading an "already-unwrapped" flag through every caller.
-  // receiver-SE comes first (source eval order). the emit decides how to replay it: peel +
-  // prepend (non-optional) vs the null-guard memoize (optional, where it re-runs) - in the
-  // memoize case the suppress path drops this prefix and folds only the trailing key-SE
-  let obj = unwrapParensCollectingEffects(node.object, sideEffects, keepsEffect);
-  // a `||` / `??` its LEFT always decides never runs its right: where that left names a constructor - a static
-  // container's slot the one it holds (`box.U`) - the claim reads the static off it and the receiver owes the
-  // left's effects alone (`(Map || Set).groupBy` reads `Map.groupBy`), and so does a for-of head binding every element of
-  // which is such a left (`forOfHeadLeftAlwaysYields`), read as the head spelled alone - the guard
-  // over its elements tests the left too (`decidedReceiver`). any other left keeps the selection
-  // whole, and so does a stored one, whose write the chain-assignment channel replays off the
-  // receiver it spells
-  const decided = decidingFallbackLeft(obj, { scope, adapter, path });
-  const decidedValue = decided && peelReceiverSequenceTail(decided);
-  let decidedReceiver = null;
-  if (decidedValue && !peelChainAssignment(decidedValue).outer
-    && (isKnownStaticGlobal(resolveObjectName({ objectNode: decidedValue, scope, adapter, path })
-      ?? staticContainerReceiverName({ node: decidedValue, scope, adapter, path }) ?? '', adapter)
-      || forOfHeadLeftAlwaysYields(decidedValue, { scope, adapter, path }))) {
-    obj = unwrapParensCollectingEffects(decided, sideEffects, keepsEffect);
-    decidedReceiver = decided;
-  }
   // `this.#foo` / `obj.#field` - private field access; not a candidate for any polyfill
   // table (keys never carry `#` prefix). skip explicitly so downstream resolver scans
   // don't chase a doomed key lookup. the canon recognises the private-name node under either
@@ -1174,6 +1142,38 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   // Effectful realm keys remain source reads in pure mode. Their independent key claims
   // still run through the ordinary traversal; static and instance leaf keys keep this channel.
   if (adapter.method === 'usage-pure' && POSSIBLE_GLOBAL_OBJECTS.has(key) && keyEffects.length) return null;
+  // Classify the receiver only after the key survives. The caller still owns import
+  // and guarded-receiver fallbacks for a rejected key. Keep receiver/key effects
+  // separate until they are combined in source order for a replacement.
+  const sideEffects = [];
+  // a sequence-prefix element the receiver owes: one whose discard keeps anything
+  function keepsEffect(element) {
+    return discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0;
+  }
+  // `obj` is then passed to `resolveObjectName` which calls `unwrapTransparentSeq` again - idempotent
+  // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
+  // walk is cheap; avoids threading an "already-unwrapped" flag through every caller.
+  // receiver-SE comes first (source eval order). the emit decides how to replay it: peel +
+  // prepend (non-optional) vs the null-guard memoize (optional, where it re-runs) - in the
+  // memoize case the suppress path drops this prefix and folds only the trailing key-SE
+  let obj = unwrapParensCollectingEffects(node.object, sideEffects, keepsEffect);
+  // a `||` / `??` its LEFT always decides never runs its right: where that left names a constructor - a static
+  // container's slot the one it holds (`box.U`) - the claim reads the static off it and the receiver owes the
+  // left's effects alone (`(Map || Set).groupBy` reads `Map.groupBy`), and so does a for-of head binding every element of
+  // which is such a left (`forOfHeadLeftAlwaysYields`), read as the head spelled alone - the guard
+  // over its elements tests the left too (`decidedReceiver`). any other left keeps the selection
+  // whole, and so does a stored one, whose write the chain-assignment channel replays off the
+  // receiver it spells
+  const decided = decidingFallbackLeft(obj, { scope, adapter, path });
+  const decidedValue = decided && peelReceiverSequenceTail(decided);
+  let decidedReceiver = null;
+  if (decidedValue && !peelChainAssignment(decidedValue).outer
+    && (isKnownStaticGlobal(resolveObjectName({ objectNode: decidedValue, scope, adapter, path })
+      ?? staticContainerReceiverName({ node: decidedValue, scope, adapter, path }) ?? '', adapter)
+      || forOfHeadLeftAlwaysYields(decidedValue, { scope, adapter, path }))) {
+    obj = unwrapParensCollectingEffects(decided, sideEffects, keepsEffect);
+    decidedReceiver = decided;
+  }
   let meta = key ? tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) : null;
   // an effect-bearing ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
   // .has`, the deeper `(c++, globalThis).self.Map.prototype.has`, or a computed-KEY effect
