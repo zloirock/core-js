@@ -1963,11 +1963,12 @@ export function writeRunsPastRanked(write, ranked, usagePath) {
 
 // the identifiers a construct DECLARES - the leaves of its binding patterns, its own name, an
 // import's local - as node identities: the reference walk skips exactly those nodes, so a
-// same-named declaration in the subtree does not read as a read. null for a node declaring nothing
-export function declaredIdentifierNodes(node) {
+// same-named declaration in the subtree does not read as a read. An optional selector keeps only
+// relevant identifiers before allocating their set; null when no selected declaration remains.
+export function declaredIdentifierNodes(node, select = null) {
   let out = null;
   function add(id) {
-    (out ??= new Set()).add(id);
+    if (!select || select(id)) (out ??= new Set()).add(id);
   }
   switch (node.type) {
     case 'VariableDeclarator': walkPatternIdentifiers(node.id, add); break;
@@ -2038,10 +2039,8 @@ function identifierReferencedIn(node, matches, declared) {
   // reached only as a JSXMemberExpression root now - the referencing position
   if (node.type === 'JSXIdentifier') return matches(node);
   if (TYPE_SPACE_NODE_TYPES.has(node.type)) return false;
-  const own = declaredIdentifierNodes(node);
-  // Only queried spellings can match; unrelated declarations need not be copied down
-  // into every nested scope. The set belongs to this call, not to the declaration census.
-  if (own) for (const id of own) if (!matches(id)) own.delete(id);
+  // Only queried spellings can match; unrelated declarations need no temporary set.
+  const own = declaredIdentifierNodes(node, matches);
   const inner = !own?.size ? declared : !declared ? own : new Set([...declared, ...own]);
   // recurse, skipping the source-text name slots `isNonReferencePosition` recognises (member tail,
   // object / class / method / field key, label, import / export specifier, JSX attribute name /
