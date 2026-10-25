@@ -3,7 +3,7 @@
 // mutation site through it, and a fallback off such an alias walks it inside a decision-root lookup. count the
 // guard decisions (`adapter.settledSelection`) the detection takes over k such asks and over 2k, both parsers,
 // both methods: settled once per context, the count does not grow with the asks - settled afresh, it doubles
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
   collectFileCensus, refuseReentry, withReentrantQuestion, writeNeverRuns,
@@ -41,7 +41,7 @@ function decisions(parser, shape, count, method) {
   if (method === 'usage-pure') {
     const census = collectFileCensus(program.node, [mutationShapesReducer()]);
     mutated = (parser.name === 'babel'
-      ? collectMutationPrePass(program, adapter, census)
+      ? collectBabelPrePassSites(program, adapter, census)
       : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true })).mutated;
   }
   const core = createUsageHandlerCore({ adapter, method, resolvePure, onUsage() { /* the decisions alone are counted */ } });

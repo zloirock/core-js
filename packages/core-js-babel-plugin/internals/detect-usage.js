@@ -9,6 +9,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
+import { mergeVisitors } from '@core-js/polyfill-provider/helpers/source-scan';
 import {
   ancestorChainDetached,
   jsxTagRootReferencesBinding,
@@ -49,6 +50,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
+  destructureSiteVisitors,
   isPolyfillAliasBinding,
   isSymbolDestructureAliasBinding,
   soleAliasWrite,
@@ -67,30 +69,31 @@ function stringLiteralValue(node) {
   return inner?.type === 'StringLiteral' ? inner.value : null;
 }
 
-// Collect scoped mutation sites only when the census reports a possible mutation.
-export function collectMutationPrePass(programPath, adapter, census = null, resolveStaticKey = null) {
-  const { mutated, handleSite, finalize } = beginMutationPrePass(
-    { resolveStaticKey, rootNode: programPath.node, adapter, census },
-  );
-  if (!handleSite) return { mutated };
+// One scoped walk collects mutations and the destructure hosts needed before detection.
+// Resolution of aliases and realm selections waits for user imports and mutation enrichment.
+export function collectPrePassSites(programPath, adapter, census = null, resolveStaticKey = null, {
+  collectMutations = true,
+  collectDestructures = false,
+} = {}) {
+  const { mutated, handleSite, finalize } = collectMutations
+    ? beginMutationPrePass({ resolveStaticKey, rootNode: programPath.node, adapter, census })
+    : { mutated: null };
+  const sites = [];
+  if (!handleSite && !collectDestructures) return { mutated, sites };
   programPath.traverse({
-    ...handleSite ? mutationSiteVisitors(handleSite) : {},
-    // babel's Optional* dialect twins of the shared member / call sites: without them an
-    // optional-chain mutation (`Object?.assign(Array, {...})`) escapes detection and
-    // usage-pure substitutes over the user patch
+    ...mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {},
+      collectDestructures ? destructureSiteVisitors(sites) : {}),
+    // Babel's Optional* twins must see patches such as Object?.assign(Array, {...}).
     ...handleSite ? { OptionalMemberExpression: handleSite, OptionalCallExpression: handleSite } : {},
-    // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this scoped
-    // traverse never descends into a constructor parameter-property's legacy decorator and a
-    // monkey-patch hidden there escapes detection - usage-pure would then substitute over the
-    // user patch. requeue each decorator so the mutation-site visitors fire on it, mirroring
-    // the read-side requeue in createUsageVisitors
+    // Babel omits parameter-property decorators from its visitor keys. Both mutation sites
+    // and alias writes in those decorators belong to the same pre-pass as ordinary ones.
     TSParameterProperty(path) {
       if (!path.node.decorators?.length) return;
       for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
     },
   });
   finalize?.();
-  return { mutated };
+  return { mutated, sites };
 }
 
 // babel's own binding lookup, before any correction the provider applies to it
