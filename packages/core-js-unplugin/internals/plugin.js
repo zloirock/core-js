@@ -1107,6 +1107,15 @@ export default function createPlugin(options) {
         containerReceiverName: staticContainerReceiverName,
       });
 
+      // Reuse an existing scoped pre-pass only while its tree is intact. Import surgery
+      // can replace a path's container or expression; optional-call normalization replaces
+      // its callee. Those paths need a new context, not merely another cached scope crawl.
+      // Each path traversal owns its skip marks; semantic cache windows stay with the caller.
+      function walkUsage(visitors) {
+        if (prePass?.programPath && !astSweptImports && !astNormalized) prePass.programPath.traverse(visitors);
+        else traverse(ast, visitors);
+      }
+
       // usage-global mode
       function collectUsageGlobal() {
         const usageGlobalCallback = createUsageGlobalCallback({
@@ -1137,7 +1146,7 @@ export default function createPlugin(options) {
         });
         const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
-        withTraversalCaches(true, () => traverse(ast, mergeVisitors({
+        withTraversalCaches(true, () => walkUsage(mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           ...usageVisitors,
@@ -1393,7 +1402,7 @@ export default function createPlugin(options) {
         }, completedClaims), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
         // Usage handlers own descendants only; the traversal adds its root setup without
         // re-merging every descendant handler. A pure walk keeps only rewrite-safe facts.
-        withVarScopeOwners(() => traverse(ast, {
+        withVarScopeOwners(() => walkUsage({
           ...walkVisitors,
           $: { scope: true },
           Program(path) {

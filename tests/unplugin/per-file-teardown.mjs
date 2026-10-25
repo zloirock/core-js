@@ -31,6 +31,9 @@ if (typeof globalThis.gc === 'function') {
   // This source reaches both views - a reassigned alias, and a container a branch declares
   const FIRST_CODE = `let C = Array;
   if (Math.random() > 2) C = Set;
+  // The constructor alias forces the scoped pre-pass in both usage methods.
+  const { Map: SavedMap } = globalThis;
+  export const viaSaved = values => new SavedMap(values);
   export const viaAlias = C.from([1]);
   export function viaBox(c) {
     if (c) { var box = { A: Array } }

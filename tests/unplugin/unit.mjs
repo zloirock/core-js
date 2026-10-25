@@ -6,6 +6,7 @@ import './probe-planning.mjs';
 import './fixture-output-normalization.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { Traverser } from 'estree-toolkit/dist-es/traverse';
+import { Scope } from 'estree-toolkit/dist-es/scope';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
@@ -167,6 +168,65 @@ for (const throws of [false, true]) {
   checkDeep(`traversal/${ throws }/nested skip isolation`, inner, ['hidden', 'value', 'use', 'value']);
   checkDeep(`traversal/${ throws }/later skip isolation`, later, ['hidden', 'value', 'use', 'value', 'after']);
   checkDeep(`traversal/${ throws }/outer skip restored`, outer, ['after']);
+}
+
+// A scoped pre-pass and detection share one scope tree only before any host edit.
+// Count actual root crawls, including the no-prepass and invalidation controls.
+for (const method of ['usage-global', 'usage-pure']) {
+  const options = { method, version: '4.0', targets: { ie: 11 }, additionalPackages: ['core-js'] };
+  const alias = 'const { Map: M } = globalThis; export const make = values => new M(values);';
+  const cases = [
+    ['no prepass', 'export const read = v => v.at(0);', 'mjs', 1],
+    ['alias', alias, 'mjs', 1],
+    ['mutation', 'Array.from = shim; export const read = v => Array.from(v);', 'mjs', 1],
+    ['import removal', `import 'core-js/modules/es.array.from'; ${ alias }`, 'mjs', 2],
+    // The preserved require prefix also has its own scoped side-effect collector.
+    ['require prefix', `(values.at(0), require)('core-js/modules/es.array.from'); ${ alias }`, 'mjs', 3],
+    ['optional normalization', `${ alias } fn<number>?.(1);`, 'ts', 2],
+    ['decorator', `${ alias } class C { constructor(@dec(new M()) public value: any) {} }`, 'ts', 1],
+  ];
+  const plugin = createPlugin(options);
+  for (const [label, source, extension, expected] of cases) {
+    const roots = [];
+    const { crawl } = Scope.prototype;
+    const output = withTemporaryProperty(Scope.prototype, 'crawl', function (...args) {
+      if (this.path.node.type === 'Program') roots.push(this.path);
+      return crawl.apply(this, args);
+    }, () => plugin.transform(source, `/scope-${ label }.${ extension }`, 'single')?.code ?? source);
+    check(`scope reuse/${ method }/${ label }/root crawls`, roots.length, expected);
+    check(`scope reuse/${ method }/${ label }/independent roots`, new Set(roots).size, expected);
+    const fresh = createPlugin(options).transform(source, `/fresh.${ extension }`, 'single')?.code ?? source;
+    check(`scope reuse/${ method }/${ label }/file isolation`, output, fresh);
+  }
+  const phaseRoots = [];
+  const { crawl } = Scope.prototype;
+  withTemporaryProperty(Scope.prototype, 'crawl', function (...args) {
+    if (this.path.node.type === 'Program') phaseRoots.push(this.path);
+    return crawl.apply(this, args);
+  }, () => {
+    const pre = plugin.transform(alias, '/scope-phases.mjs', 'pre')?.code ?? alias;
+    plugin.transform(pre, '/scope-phases.mjs', 'post');
+  });
+  check(`scope reuse/${ method }/one crawl per phase`, phaseRoots.length, 2);
+  check(`scope reuse/${ method }/each phase parses its tree`, new Set(phaseRoots.map(path => path.node)).size, 2);
+  // Re-entry can happen inside provider queries, before the outer traversal finishes.
+  let nested;
+  let entered = false;
+  const reentrant = createPlugin({ ...options, shouldInjectPolyfill(name, needed) {
+    if (!entered) {
+      entered = true;
+      const source = 'Array.from = replacement; export const read = v => Array.from(v);';
+      nested = reentrant.transform(source, '/scope-inner.mjs', 'single')?.code ?? source;
+    }
+    return needed;
+  } });
+  const outer = reentrant.transform(alias, '/scope-outer.mjs', 'single')?.code ?? alias;
+  check(`scope reuse/${ method }/re-entry reached`, entered, true);
+  check(`scope reuse/${ method }/outer restored`, outer,
+    createPlugin(options).transform(alias, '/scope-outer.mjs', 'single')?.code ?? alias);
+  const innerSource = 'Array.from = replacement; export const read = v => Array.from(v);';
+  check(`scope reuse/${ method }/inner isolated`, nested,
+    createPlugin(options).transform(innerSource, '/scope-inner.mjs', 'single')?.code ?? innerSource);
 }
 
 // --- shouldTransform ---

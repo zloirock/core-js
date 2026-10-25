@@ -426,6 +426,7 @@ function hasRuntimeBinding(scope, name, path = null, read = null) {
 // registration reads an injector this walk runs ahead of and has to
 // stay behind the mutated-static enrichment that feeds it. shares every resolution step with the
 // read side via `mutations` (provider)
+// Retain the root for the main walk while its tree stays intact; a skipped pre-pass creates none.
 export function collectPrePassSites({
   ast,
   adapter,
@@ -444,12 +445,14 @@ export function collectPrePassSites({
   const siteVisitors = wantsAliases
     ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
     : handleSite ? mutationSiteVisitors(handleSite) : {};
+  let programPath = null;
   traverse(ast, {
     $: { scope: true },
+    Program(path) { programPath = path; },
     ...siteVisitors,
   });
   finalize?.();
-  return { mutated, aliasSites };
+  return { mutated, aliasSites, programPath };
 }
 
 // the ctor-alias lane's collectors: the destructure-of-global sites in document order, each
