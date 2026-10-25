@@ -4427,9 +4427,11 @@ export function isAlwaysEvaluatedSlot(parentNode, childNode) {
 
 // is `node` (a reassignment site) a logical-assignment of its binding? babel records the
 // AssignmentExpression directly; estree-toolkit records the target Identifier, so resolve the
-// enclosing `name <op>= ...` to read its operator
+// enclosing `name <op>= ...` to read its operator. Only a name or member can be a logical
+// assignment target; declarations and branching hosts need no owner-wide write index.
 function isLogicalAssignReassignment(node, ownerNode) {
-  const assignment = node.type === 'AssignmentExpression' ? node : enclosingValueFlowAssignment(node, ownerNode);
+  const assignment = node.type === 'AssignmentExpression' ? node
+    : node.type === 'Identifier' || isMemberAccessNode(node) ? enclosingValueFlowAssignment(node, ownerNode) : null;
   return !!assignment && LOGICAL_ASSIGN_OPS.has(assignment.operator);
 }
 
