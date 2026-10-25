@@ -4,8 +4,11 @@ import {
   bindingWrittenBeyondItsFrame,
   buildScopeReassignmentIndex,
   collectFileCensus,
+  completeBranchWritesBefore,
   isForXWriteTarget,
+  isGuardedAliasingWrite,
   isTopLevelThisContext,
+  reassignmentDominatesUsage,
   reassignmentValueEnumeration,
   receiverSlotRead,
   walkAstChildren,
@@ -26,6 +29,53 @@ import { adapters, createChecker, findNode } from './harness.mjs';
 const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // A declaration or a complete branch is never a logical-assignment target.
+  // Guard queries must not index writes in unrelated nested function bodies.
+  for (const size of [32, 128]) for (const [shape, source, hostType, guarded] of [
+    ['plain', 'var C = Map;', null, false],
+    ['guarded', 'if (flag) { var C = Map; }', null, true],
+    ['if', 'if (flag) { var C = Map; } else { var C = Set; }', 'IfStatement'],
+    ['switch', 'switch (flag) { case 0: var C = Map; break; default: var C = Set; }', 'SwitchStatement'],
+    ['try', 'try { var C = Map; } catch (error) { var C = Set; }', 'TryStatement'],
+  ]) {
+    const program = parser.parseAndScope(`function f(flag) {
+      ${ source } use(C); function nested() { ${ 'sink(0);'.repeat(size) } }
+    }`);
+    const owner = parser.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'f').node;
+    const nested = parser.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'nested').node;
+    const writes = parser.collectPaths(program, 'VariableDeclarator').map(path => path.node);
+    const read = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'use').node;
+    const host = hostType && parser.pickPath(program, hostType).node;
+    const label = `${ parser.name }/guard indexing/${ shape }/${ size }`;
+    let visits = 0;
+    for (const node of nested.body.body) Object.defineProperty(node, 'guardWalkProbe', {
+      configurable: true, enumerable: true, get() { visits++; return null; },
+    });
+    try {
+      walkAstNodes({ root: nested.body, visit() { return true; } });
+      check(`${ label }/counter control`, visits, size);
+      visits = 0;
+      if (host) check(`${ label }/complete branch`, completeBranchWritesBefore({
+        ownerNode: owner, name: 'C', writeNodes: writes, readNode: read,
+      }), host);
+      else check(`${ label }/declaration guard`, isGuardedAliasingWrite({
+        node: writes[0], kind: 'var', ownerNode: owner,
+      }), guarded);
+      check(`${ label }/no unrelated body walk`, visits, 0);
+    } finally {
+      for (const node of nested.body.body) delete node.guardWalkProbe;
+    }
+  }
+
+  // Both trackers' write identities retain the short-circuit guard, for names and members.
+  for (const operator of ['=', '&&=', '||=', '??=']) for (const target of ['C', 'box.C']) {
+    const program = parser.parseAndScope(`function f(C, box) { ${ target } ${ operator } Set; use(${ target }); }`);
+    const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+    const usagePath = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'use');
+    for (const write of [assignment, assignment.left]) check(`${ parser.name }/write guard/${ target }/${ operator }/${ write.type }`,
+      reassignmentDominatesUsage({ reassignmentNodes: [write], usagePath }), operator === '=');
+  }
+
   // Width in ordinary expressions must not build empty write/shadow lists per node.
   // Count empty array iteration only in the synchronous scan, after parsing and setup.
   for (const size of [64, 256]) {
