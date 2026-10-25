@@ -7923,6 +7923,8 @@ const CIC_INNERS = [
   { id: 'bigint-index', obj: '(log.push("receiver"), { 2: () => [[4, 5], [6]] })', access: '[(log.push("key"), 1n) << 1n]' },
   { id: 'unary-index', obj: '(log.push("receiver"), { 0: () => [[4, 5], [6]] })', access: '[-[0].at(0)]' },
   { id: 'custom-key', obj: '(log.push("receiver"), { unrelatedField: () => [[4, 5], [6]] })', access: '.unrelatedField' },
+  { id: 'dynamic-key', obj: '(log.push("receiver"), { leaf: () => [[4, 5], [6]] })', access: '[(log.push("key"), Object.keys({ leaf: 0 }).at(0))]' },
+  { id: 'prototype-key', obj: '(log.push("receiver"), { prototype: () => [[4, 5], [6]] })', access: '.prototype' },
   { id: 'numeric', obj: '({ 0: () => [[4, 5], [6]] })', access: '[0]' },
   { id: 'nonident', obj: '({ \'a-b\': () => [[4, 5], [6]] })', access: '[\'a-b\']' },
 ];

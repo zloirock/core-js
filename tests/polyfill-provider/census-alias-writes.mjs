@@ -24,6 +24,10 @@ const { check, checkDeep, checkTruthy, finish } = createChecker('census-alias-wr
 
 const sibling = 'function sibling() { var a = {}; a = Set; void a.name; }';
 const rows = [
+  ['realm alias named constructor', 'function expose() { const realm = globalThis; const a = realm.Map; hand(a); }'],
+  ['realm alias computed constructor', 'function expose() { const realm = globalThis; const a = realm["Map"]; hand(a); }'],
+  ['container under a non-global key', 'function expose() { const box = { unrelated: Map }; const a = box.unrelated; hand(a); }'],
+  ['unrelated realm member stays opaque', 'function expose() { const realm = globalThis; const a = realm.unrelated; hand(a); }', false],
   // Single held values and forwarding positions share the same alias/seen contract.
   ['single alias value', 'function expose() { const held = Map; const a = held; hand(a); }'],
   ['sequence forwarded value', 'function expose() { const held = Map; const a = (mark(), held); hand(a); }'],
@@ -472,6 +476,37 @@ for (const parser of adapters) for (const kind of ['const', 'let', 'var']) for (
   const program = parser.parseAndScope(code.replaceAll('const ', `${ kind } `));
   const { escapedCtorNames } = collectFileCensus(program.node, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
   check(`${ parser.name }/${ kind }/${ name }/unnamed static`, escapedCtorNames.readsUnnamedStatic('Array'), unnamed);
+}
+
+// An unrelated member key cannot name a realm constructor. Its receiver still belongs
+// to the ordinary escape census, but must not be expanded again for each stored slot.
+for (const parser of adapters) for (const size of [16, 64]) {
+  const stores = Array.from({ length: size }, (_, index) => `holder.slot${ index } = receiverMarker.unrelated;`);
+  const program = parser.parseAndScope(`function expose(source) {
+    const receiverMarker = source; const holder = {};
+    ${ stores.join('\n') }
+    hand(holder); hand(Map);
+  }`).node;
+  const original = Map.prototype.get;
+  let lookups = 0;
+  let census;
+  const label = `${ parser.name }/unrelated key/${ size }`;
+  try {
+    // eslint-disable-next-line no-extend-native -- Count only the synchronous census; restore in finally.
+    Map.prototype.get = function (key) {
+      if (key === 'receiverMarker' || typeof key === 'string' && key.startsWith('receiverMarker\u0000')) lookups++;
+      return original.call(this, key);
+    };
+    new Map([['receiverMarker', 1]]).get('receiverMarker');
+    check(`${ label }/counter control`, lookups, 1);
+    lookups = 0;
+    census = collectFileCensus(program, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
+  } finally {
+    // eslint-disable-next-line no-extend-native -- Restore the exact original lookup.
+    Map.prototype.get = original;
+  }
+  check(`${ label }/escape control`, census.escapedCtorNames.has('Map', true), true);
+  checkTruthy(`${ label }/receiver lookup budget`, lookups > size && lookups <= 64 + 6 * size, `${ lookups } lookups`);
 }
 
 finish();
