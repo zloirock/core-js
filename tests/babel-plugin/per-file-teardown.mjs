@@ -13,7 +13,9 @@ import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
 
 // `cfg` is bound to an object literal, so the census records `cfg.at` with the assigned
 // FunctionExpression as its value node; the trailing call gives the file real work to do
-const CODE = 'const cfg = { at: 1 };\ncfg.at = function marker() {};\n[1].at(0);\n';
+// The alias also makes both methods retain a pre-pass path until detection starts.
+const CODE = 'const cfg = { at: 1 };\ncfg.at = function marker() {};\n[1].at(0);\n'
+  + 'const { Map: SavedMap } = globalThis; new SavedMap();\n';
 // A restored parameter makes its wrapper opaque. The escape answer's held-name set then
 // keys an AST-bearing walk cache, even though the answer itself only closes over name sets.
 const RESTORED_CODE = `export function checkDirty(link) {

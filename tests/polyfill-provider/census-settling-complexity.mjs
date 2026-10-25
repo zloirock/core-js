@@ -2,7 +2,7 @@
 // answer reads every install's never-run answer. Settling them must take a bounded number of guard decisions per
 // install, however they are spelled or framed: count the decisions one census settling makes over n installs and
 // over 2n - settling every other install anew per order of asks multiplies the count by the installs per install
-import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer, settleCensusWrites } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -47,7 +47,7 @@ function decisions(parser, shape, installs, budget = Infinity) {
     method: 'usage-pure', resolvePure, getMutatedStatics: () => mutated,
   });
   mutated = (parser.name === 'babel'
-    ? collectMutationPrePass(program, adapter, census)
+    ? collectBabelPrePassSites(program, adapter, census)
     : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true })).mutated;
   let count = 0;
   const { decidedSelection } = adapter;

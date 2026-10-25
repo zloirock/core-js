@@ -490,6 +490,27 @@ function collectCtorAliasPairs({ pattern, init, ctx }) {
   return pairs;
 }
 
+// Collect declaration/assignment hosts in traversal order, keeping their original scope and
+// declaration kind. Resolution waits for the injector and mutation enrichment. Babel also uses
+// these paths for its pre-detection realm-host rewrites; callers choose whether opt-outs belong.
+export function destructureSiteVisitors(sites, isDisabled = null) {
+  function collect(path) {
+    const { node } = path;
+    const declaration = node.type === 'VariableDeclarator';
+    const pattern = declaration ? node.id : node.left;
+    const init = declaration ? node.init : node.right;
+    if (!init || !declaration && node.operator !== '='
+      || !isDestructurePattern(pattern) || isDisabled?.(node)) return;
+    sites.push({
+      pattern, init,
+      declKind: declaration ? path.parent.kind : undefined,
+      assignNode: declaration ? undefined : node,
+      scope: path.scope, path,
+    });
+  }
+  return { AssignmentExpression: collect, VariableDeclarator: collect };
+}
+
 // pre-pass registration of one destructure-of-global site (assignment or declaration form),
 // through the SAME trust gates the render-time registration used - but BEFORE any member visit,
 // so a use textually earlier than its write (a hoisted-var read, an earlier-defined closure)
@@ -520,6 +541,7 @@ export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, 
 // global key, as collectCtorAliasPairs / registerAliasPrePassSite require. Ordinary data patterns
 // need no scoped walk. The shared census sees nested patterns too; the two facts may come from
 // unrelated sites, which only over-records candidates and keeps this gate conservative.
+// The destructure-source fact also gates collection of Babel's realm-host rewrite paths.
 export function ctorAliasShapesReducer() {
   let hasDestructureSource = false;
   let hasGlobalKey = false;
@@ -533,7 +555,7 @@ export function ctorAliasShapesReducer() {
         hasGlobalKey = node.properties.some(prop => isKnownGlobalName(propertyKeyName(prop)));
       }
     },
-    result() { return { hasCtorAliasShapes: hasDestructureSource && hasGlobalKey }; },
+    result() { return { hasDestructureSource, hasCtorAliasShapes: hasDestructureSource && hasGlobalKey }; },
   };
 }
 
