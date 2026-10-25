@@ -87,6 +87,32 @@ for (const series of new Set(counts.keys().map(key => key.slice(0, key.lastIndex
   }
 }
 
+// Numeric values written through many slots cannot carry a static owner. Their alias history
+// must not be expanded once per store; a constructor written later through an alias still escapes.
+for (const size of [32, 64]) for (const reversed of [false, true]) {
+  const code = [
+    'const sink = {}; let value = 0;',
+    ...Array.from({ length: size }, (unused, index) => `value = ${ index + 1 }; sink.k${ index } = value;`),
+    'const box = {}, other = {}; const via = flag ? box : other; via.C = Map; use(box);',
+  ];
+  runBoth(`numeric stores/${ size }/reversed=${ reversed }`, code.join('\n'), (parser, program, label) => {
+    let reads = 0;
+    for (const { node } of parser.collectPaths(program, parser.name === 'babel' ? 'NumericLiteral' : 'Literal')) {
+      const { type } = node;
+      Object.defineProperty(node, 'type', { configurable: true, get() {
+        reads++;
+        return type;
+      } });
+    }
+    const reducers = [escapedCtorReferencesReducer(), mutationShapesReducer()];
+    const { escapedCtorNames } = collectFileCensus(program.node, reversed ? reducers.reverse() : reducers);
+    check(`${ label }: the stored constructor escapes in global`, escapedCtorNames.has('Map'), true);
+    check(`${ label }: the stored constructor escapes in pure`, escapedCtorNames.has('Map', true), true);
+    checkTruthy(`${ label }: numeric source reads are observed`, reads > size);
+    checkTruthy(`${ label }: numeric source reads stay linear`, reads < size * 160);
+  });
+}
+
 // ... and a binding many aliases hold (`const hK = box`) is asked at every call through one of them whether something
 // opens it: the walk answering that steps through the aliases once per binding, and asked anew per call it stepped
 // through all of them again. no read of the tree shows those steps - each files the alias it enters in a set - so
