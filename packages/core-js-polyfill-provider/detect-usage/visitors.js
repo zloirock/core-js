@@ -71,6 +71,12 @@ export function createUsageHandlerCore({
   let handledObjects = new WeakSet();
   let proxySegments = method === 'usage-global' ? new WeakMap() : null;
 
+  // Reject ordinary names before the host analyzes their reference position. A stored-nav
+  // hook still consumes local aliases, so its names must reach the full identifier funnel.
+  function mayEmitGlobalUsage(name) {
+    return !!suppressKeptNavRoot || isKnownGlobalName(name);
+  }
+
   // the identifier tail every host runs after its own referenced-position gates
   function emitGlobalUsage(path) {
     const { node } = path;
@@ -339,6 +345,7 @@ export function createUsageHandlerCore({
 
   return {
     skipUpdateTargets,
+    mayEmitGlobalUsage,
     emitGlobalUsage: dropsHeldLevel(emitGlobalUsage),
     memberAlreadyHandled: dropsHeldLevel(memberAlreadyHandled),
     emitMemberUsage: dropsHeldLevel(emitMemberUsage),
