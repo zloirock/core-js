@@ -22,7 +22,7 @@ async function versionsFrom(lockPath) {
   const base = dirname(lockPath);
   let entries;
   try {
-    entries = Object.entries(JSON.parse(await readFile(lockPath, 'utf8')).packages ?? {});
+    entries = Object.entries(JSON.parse(await readFile(lockPath)).packages ?? {});
   } catch { return versions; } // a lock that cannot be read reports nothing, never ends a run
   for (const [key, entry] of entries) {
     if (!key.startsWith('node_modules/')) continue;
@@ -33,7 +33,7 @@ async function versionsFrom(lockPath) {
     if (entry.version) versions.set(name, entry.version);
     else if (entry.resolved) {
       try {
-        versions.set(name, JSON.parse(await readFile(resolve(base, entry.resolved, 'package.json'), 'utf8')).version);
+        versions.set(name, JSON.parse(await readFile(resolve(base, entry.resolved, 'package.json'))).version);
       } catch { /* a link that does not resolve is reported as unknown below, never as a failure */ }
     }
   }
@@ -49,7 +49,7 @@ async function digestOf(file) {
 export async function describeInput() {
   const tables = await Promise.all(LOCK_FILES.map(lock => versionsFrom(lock)));
   const digests = await Promise.all(LOCK_FILES.map(lock => digestOf(lock)));
-  const declared = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')).devDependencies ?? {};
+  const declared = JSON.parse(await readFile(PACKAGE_JSON)).devDependencies ?? {};
   const names = [...new Set([...Object.keys(declared), ...UNPINNED])].sort();
 
   return {
