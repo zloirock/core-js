@@ -10,6 +10,7 @@
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
 - Fixed order of `/full/promise/all-settled` entry dependencies
 - Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy` and `Map.prototype.merge` entries and of `/es/object/` namespace
+- Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
 - Fixed legacy `/full/typed-array/from-async` entry dependencies
 - Compat data improvements:
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
