@@ -13,6 +13,10 @@
 - Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
 - Fixed legacy `/full/typed-array/from-async` entry dependencies
 - Compat data improvements:
+  - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
+    - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
+    - [FF156](https://bugzilla.mozilla.org/show_bug.cgi?id=2062293)
+    - [Bun 1.4.1](https://bun.com/blog/bun-v1.4.1#upgraded-javascriptcore)
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - Chromium-based Edge and Opera no longer inherit EdgeHTML and Presto data where Chrome needs a later version: `Array.prototype.{ reduce, reduceRight }` are no longer marked as supported in Edge 79-82, `Object.{ defineProperty, defineProperties }` - in Opera 15-23, `atob` - in Opera 15-20
   - Updated [Electron 46](https://releases.electronjs.org/) compat data mapping

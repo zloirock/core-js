@@ -1544,9 +1544,9 @@ export const data = {
   'es.promise.try': {
     // includes `PromiseResolve` semantics detection from
     // https://github.com/tc39/ecma262/pull/3883
-    // bun: '1.1.22',
-    // chrome: '128',
-    // firefox: '134',
+    bun: '1.4.1', // '1.1.22',
+    chrome: '154', // '128',
+    firefox: '156', // '134',
     // rhino: '1.9.0',
     // safari: '18.2',
   },
