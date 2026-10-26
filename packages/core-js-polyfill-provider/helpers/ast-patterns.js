@@ -5238,12 +5238,13 @@ export function noReassignmentReachesUsage({
   if (usageCrossesLoopBackEdgeReassign(usagePath, reassignmentNodes, bindingAnchor, readNode)) return false;
   // an early container slot observes the init before that container's late writes even when the
   // source places them above it. the relation excludes writes outside the container. a write holding
-  // the read in the value it stores runs after it (`writeHoldsRead`), in the read's own frame alone
-  return reassignmentNodes.every(node => useOutrunsWrite(node, usagePath)
+  // the read in the value it stores runs after it (`writeHoldsRead`), in the read's own frame alone.
+  // A host path emptied since the binding lookup supplies no proof about the write's order.
+  return reassignmentNodes.every(node => node && (useOutrunsWrite(node, usagePath)
     || nodeFollowsUsageInScope({ node, readNode, owner })
     || (writeHoldsRead(node, readNode, owner.node) && collectVarGuardsToDeclarator(owner.node, node) !== null)
     || (writeIsInOppositeBranch(node, usagePath, readNode)
-      && collectVarGuardsToDeclarator(owner.node, node) !== null));
+      && collectVarGuardsToDeclarator(owner.node, node) !== null)));
 }
 
 // the value a reassignment site INSTALLS (`installedWriteValue` of its `=` RHS), normalized across
@@ -7758,7 +7759,8 @@ export function bindingWrittenBeyondItsFrame(binding, ctx = null, { closedCalls 
     return up?.node !== frame;
   }
   return !frame || reassignmentNodesBeyondDeclarator(binding).some(write => {
-    const sourceWrite = write.type === 'Identifier' ? enclosingValueFlowAssignment(write, frame) : write;
+    // A recorded identifier can declare a local or name an update, without an enclosing assignment.
+    const sourceWrite = (write.type === 'Identifier' && enclosingValueFlowAssignment(write, frame)) || write;
     // Find live source writes by their path before building an index of the whole owner.
     // A cached path can locate a re-emitted copy within its still-live source frame.
     // Missing local copies use the statement holding their span before the owner index,
@@ -7870,10 +7872,10 @@ function retiredWrite(write, rootPath) {
 // (babel), the written identifier (estree-toolkit)
 const WRITE_RECORD_TYPES = new Set([...OWNER_WRITE_PATH_TYPES, 'Identifier']);
 
-// is `write` a record path a render replaced in place? babel keeps the path object and swaps its node,
-// which then holds something that writes nothing (`({ Map: M } = g)` turned `(M = _Map, ...)`)
+// is `write` a record path a render replaced or emptied in place? babel keeps the path object and
+// swaps its node, which then writes nothing (`({ Map: M } = g)` turned `(M = _Map, ...)`) or is null
 function replacedInPlace(write) {
-  return write !== violationNode(write) && !WRITE_RECORD_TYPES.has(write.node?.type);
+  return write.node === null || write !== violationNode(write) && !WRITE_RECORD_TYPES.has(write.node?.type);
 }
 
 // the writes a render re-emitted as copies in another slot of the tree, retiring the nodes it copied (an
