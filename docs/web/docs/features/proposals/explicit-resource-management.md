@@ -16,8 +16,8 @@ class DisposableStack {
   constructor(): DisposableStack;
   readonly attribute disposed: boolean;
   dispose(): undefined;
-  use(value: Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  use(value: Disposable | null | undefined): value;
+  adopt(value: any, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   move(): DisposableStack;
   @@dispose(): undefined;
@@ -28,8 +28,8 @@ class AsyncDisposableStack {
   constructor(): AsyncDisposableStack;
   readonly attribute disposed: boolean;
   disposeAsync(): Promise<undefined>;
-  use(value: AsyncDisposable | Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  use(value: AsyncDisposable | Disposable | null | undefined): value;
+  adopt(value: any, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   move(): AsyncDisposableStack;
   @@asyncDispose(): Promise<undefined>;

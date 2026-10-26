@@ -1335,7 +1335,7 @@ Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
 ```
 
 #### ECMAScript: Date[⬆](#index)
-Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js).
+Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-string.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-iso-string.js) and [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js).
 
 Annex B methods. Modules [`es.date.get-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.get-year.js), [`es.date.set-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.set-year.js) and [`es.date.to-gmt-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-gmt-string.js).
 ```ts
@@ -1430,7 +1430,7 @@ Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
-`Promise.all` [*example*](https://core-js.io/playground#code=Promise.all%28%5B%0A++%27foo%27%2C%0A++sleepRandom%285%29%2C%0A++sleepRandom%2815%29%2C%0A++sleepRandom%2810%29%2C++++++++++++%2F%2F+after+15+sec%3A%0A%5D%29.then%28x+%3D%3E+console.log%28x%29%29%3B+%2F%2F+%3D%3E+%5B%27foo%27%2C+956%2C+85%2C+382%5D):
+`Promise.all` [*example*](https://core-js.io/playground#code=function+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0APromise.all%28%5B%0A++%27foo%27%2C%0A++sleepRandom%285%29%2C%0A++sleepRandom%2815%29%2C%0A++sleepRandom%2810%29%2C++++++++++++%2F%2F+after+15+sec%3A%0A%5D%29.then%28x+%3D%3E+console.log%28x%29%29%3B+%2F%2F+%3D%3E+%5B%27foo%27%2C+956%2C+85%2C+382%5D):
 ```js
 Promise.all([
   'foo',
@@ -1439,7 +1439,7 @@ Promise.all([
   sleepRandom(10),            // after 15 sec:
 ]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
 ```
-`Promise.race` [*example*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+timeLimit%28promise%2C+time%29+%7B%0A++return+Promise.race%28%5Bpromise%2C+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28reject%2C+time+%2A+1e3%2C+new+Error%28%60Await+%3E+%24%7B+time+%7D+sec%60%29%29%3B%0A++%7D%29%5D%29%3B%0A%7D%0A%0AtimeLimit%28sleepRandom%285%29%2C+10%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++++%2F%2F+%3D%3E+853%2C+after+5+sec.%0AtimeLimit%28sleepRandom%2815%29%2C+10%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+Error%3A+Await+%3E+10+sec):
+`Promise.race` [*example*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Afunction+timeLimit%28promise%2C+time%29+%7B%0A++return+Promise.race%28%5Bpromise%2C+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28reject%2C+time+%2A+1e3%2C+new+Error%28%60Await+%3E+%24%7B+time+%7D+sec%60%29%29%3B%0A++%7D%29%5D%29%3B%0A%7D%0A%0AtimeLimit%28sleepRandom%285%29%2C+10%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++++%2F%2F+%3D%3E+853%2C+after+5+sec.%0AtimeLimit%28sleepRandom%2815%29%2C+10%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+Error%3A+Await+%3E+10+sec):
 ```js
 /* eslint-disable promise/prefer-await-to-callbacks -- example */
 function timeLimit(promise, time) {
@@ -1830,7 +1830,7 @@ new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 ##### WeakMap[⬆](#index)
-Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert-computed.js).
+Modules [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert-computed.js).
 ```ts
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
@@ -1925,8 +1925,8 @@ class DisposableStack {
   constructor(): DisposableStack;
   readonly attribute disposed: boolean;
   dispose(): undefined;
-  use(value: Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  use(value: Disposable | null | undefined): value;
+  adopt(value: any, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   move(): DisposableStack;
   @@dispose(): undefined;
@@ -1937,8 +1937,8 @@ class AsyncDisposableStack {
   constructor(): AsyncDisposableStack;
   readonly attribute disposed: boolean;
   disposeAsync(): Promise<undefined>;
-  use(value: AsyncDisposable | Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  use(value: AsyncDisposable | Disposable | null | undefined): value;
+  adopt(value: any, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   move(): AsyncDisposableStack;
   @@asyncDispose(): Promise<undefined>;
@@ -2070,6 +2070,8 @@ class [
   constructor(length: number): %TypedArray%;
   constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
   constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
+  BYTES_PER_ELEMENT: number;
+  static BYTES_PER_ELEMENT: number;
 }
 
 class %TypedArray% {
@@ -2109,10 +2111,8 @@ class %TypedArray% {
   readonly attribute byteLength: number;
   readonly attribute byteOffset: number;
   readonly attribute length: number;
-  BYTES_PER_ELEMENT: number;
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): %TypedArray%;
   static of(...args: Array<mixed>): %TypedArray%;
-  static BYTES_PER_ELEMENT: number;
 }
 
 class Uint8Array {
@@ -2245,7 +2245,7 @@ console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72,
 ```
 
 > [!WARNING]
-> - Polyfills of Typed Arrays constructors work exactly as the spec requires. Still, because of the internal usage of getters / setters on each instance, they are slow and consume significant memory. However, polyfills of Typed Arrays constructors are required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
+> - Polyfills of Typed Arrays constructors work as close to the spec as possible without `Proxy` - integer-indexed exotic behavior, like ignoring out-of-range numeric keys, can't be emulated. Still, because of the internal usage of getters / setters on each instance, they are slow and consume significant memory. However, polyfills of Typed Arrays constructors are required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
 > - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` are polyfilled only in runtimes with native `structuredClone` with `ArrayBuffer` transfer or `MessageChannel` support.
 
 #### ECMAScript: Reflect[⬆](#index)
@@ -2362,7 +2362,7 @@ globalThis.Array === Array; // => true
 ### ECMAScript proposals[⬆](#index)
 [The TC39 process.](https://tc39.es/process-document/)
 
-`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2.7` - stage 2.7 and stage 3, etc.
+`core-js/stage/3` entry point contains stage 3 and all higher-stage proposals (including finished ones and obsolete versions kept for compatibility), `core-js/stage/2.7` - stage 2.7 and higher, etc.
 
 #### Finished proposals[⬆](#index)
 
@@ -2577,8 +2577,8 @@ class DisposableStack {
   constructor(): DisposableStack;
   readonly attribute disposed: boolean;
   dispose(): undefined;
-  use(value: Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  use(value: Disposable | null | undefined): value;
+  adopt(value: any, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   move(): DisposableStack;
   @@dispose(): undefined;
@@ -2589,8 +2589,8 @@ class AsyncDisposableStack {
   constructor(): AsyncDisposableStack;
   readonly attribute disposed: boolean;
   disposeAsync(): Promise<undefined>;
-  use(value: AsyncDisposable | Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  use(value: AsyncDisposable | Disposable | null | undefined): value;
+  adopt(value: any, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   move(): AsyncDisposableStack;
   @@asyncDispose(): Promise<undefined>;
@@ -2745,14 +2745,14 @@ class Iterator {
       mode?: 'shortest' | 'longest' | 'strict';
       padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
     }
-  ): IterableIterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
+  ): Iterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
   static zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
     iterables: V,
     options?: {
       mode?: 'shortest' | 'longest' | 'strict';
       padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
     }
-  ): IterableIterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+  ): Iterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3768,7 +3768,7 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 ```
 core-js(-pure)/stable|actual|full/structured-clone
 ```
-[*Examples*](https://core-js.io/playground#code=const+structured+%3D+%5B%7B+a%3A+42+%7D%5D%3B%0Aconst+sclone+%3D+structuredClone%28structured%29%3B%0Aconsole.log%28sclone%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%5B%7B+a%3A+42+%7D%5D%0Aconsole.log%28structured+%21%3D%3D+sclone%29%3B+++++++%2F%2F+%3D%3E+true%0Aconsole.log%28structured%5B0%5D+%21%3D%3D+sclone%5B0%5D%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+circular+%3D+%7B%7D%3B%0Acircular.circular+%3D+circular%3B%0Aconst+cclone+%3D+structuredClone%28circular%29%3B%0Aconsole.log%28cclone.circular+%3D%3D%3D+cclone%29%3B++%2F%2F+%3D%3E+true%0A%0AstructuredClone%2842%29%3B++++++++++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+42%0AstructuredClone%28%7B+x%3A+42+%7D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%7B+x%3A+42+%7D%0AstructuredClone%28%5B1%2C+2%2C+3%5D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D%0AstructuredClone%28new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%5D%29%29%3B+++++++++++++++++%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+2+%7D%0AstructuredClone%28new+Int8Array%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+new+Int8Array%28%5B1%2C+2%2C+3%5D%29%0AstructuredClone%28new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%29%3B++++++%2F%2F+%3D%3E+new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%0AstructuredClone%28new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%29%3B+++++++%2F%2F+%3D%3E+new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%0AstructuredClone%28new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%29%3B+%2F%2F+%3D%3E+new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%0AstructuredClone%28document.getElementById%28%27myfileinput%27%29.files%29%3B++%2F%2F+%3D%3E+new+FileList%0AstructuredClone%28new+DOMPoint%281%2C+2%2C+3%2C+4%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+new+DOMPoint%281%2C+2%2C+3%2C+4%29%0AstructuredClone%28new+Blob%28%5B%27test%27%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Blob%28%5B%27test%27%5D%29%0AstructuredClone%28new+ImageData%288%2C+8%29%29%3B+++++++++++++++++++++++++++%2F%2F+%3D%3E+new+ImageData%288%2C+8%29%0A%2F%2F+etc.%0A%0AstructuredClone%28new+WeakMap%28%29%29%3B+%2F%2F+%3D%3E+DataCloneError+on+non-serializable+types):
+[*Examples*](https://core-js.io/playground#code=const+structured+%3D+%5B%7B+a%3A+42+%7D%5D%3B%0Aconst+sclone+%3D+structuredClone%28structured%29%3B%0Aconsole.log%28sclone%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%5B%7B+a%3A+42+%7D%5D%0Aconsole.log%28structured+%21%3D%3D+sclone%29%3B+++++++%2F%2F+%3D%3E+true%0Aconsole.log%28structured%5B0%5D+%21%3D%3D+sclone%5B0%5D%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+circular+%3D+%7B%7D%3B%0Acircular.circular+%3D+circular%3B%0Aconst+cclone+%3D+structuredClone%28circular%29%3B%0Aconsole.log%28cclone.circular+%3D%3D%3D+cclone%29%3B++%2F%2F+%3D%3E+true%0A%0AstructuredClone%2842%29%3B++++++++++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+42%0AstructuredClone%28%7B+x%3A+42+%7D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%7B+x%3A+42+%7D%0AstructuredClone%28%5B1%2C+2%2C+3%5D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D%0AstructuredClone%28new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%5D%29%29%3B+++++++++++++++++%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+2+%7D%0AstructuredClone%28new+Int8Array%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+new+Int8Array%28%5B1%2C+2%2C+3%5D%29%0AstructuredClone%28new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%29%3B++++++%2F%2F+%3D%3E+new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%0AstructuredClone%28new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%29%3B+++++++%2F%2F+%3D%3E+new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%0AstructuredClone%28new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%29%3B+%2F%2F+%3D%3E+new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%0AstructuredClone%28document.getElementById%28%27myfileinput%27%29.files%29%3B++%2F%2F+%3D%3E+new+FileList%0AstructuredClone%28new+Date%280%29%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Date%280%29%0AstructuredClone%28new+Blob%28%5B%27test%27%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Blob%28%5B%27test%27%5D%29%0AstructuredClone%28new+ImageData%288%2C+8%29%29%3B+++++++++++++++++++++++++++%2F%2F+%3D%3E+new+ImageData%288%2C+8%29%0A%2F%2F+etc.%0A%0AstructuredClone%28new+WeakMap%28%29%29%3B+%2F%2F+%3D%3E+DataCloneError+on+non-serializable+types):
 ```js
 const structured = [{ a: 42 }];
 const sclone = structuredClone(structured);

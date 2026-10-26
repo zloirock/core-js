@@ -8,13 +8,8 @@
 ## Built-ins signatures
 ```ts
 class Promise {
-  static allKeyed<T extends Record<string, unknown>>(
-    obj: T
-  ): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
-
-  static allSettledKeyed<T extends Record<string, unknown>>(
-    obj: T
-  ): Promise<{ [K in keyof T]: PromiseSettledResult<Awaited<T[K]>> }>;
+  static allKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, any>>;
+  static allSettledKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, { status: 'fulfilled', value: any } | { status: 'rejected', reason: any }>>;
 }
 ```
 

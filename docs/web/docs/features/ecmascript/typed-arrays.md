@@ -55,6 +55,8 @@ class [
   constructor(length: number): %TypedArray%;
   constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
   constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
+  BYTES_PER_ELEMENT: number;
+  static BYTES_PER_ELEMENT: number;
 }
 
 class %TypedArray% {
@@ -94,10 +96,8 @@ class %TypedArray% {
   readonly attribute byteLength: number;
   readonly attribute byteOffset: number;
   readonly attribute length: number;
-  BYTES_PER_ELEMENT: number;
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): %TypedArray%;
   static of(...args: Array<mixed>): %TypedArray%;
-  static BYTES_PER_ELEMENT: number;
 }
 
 class Uint8Array {
@@ -232,5 +232,5 @@ console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72,
 ```
 
 > [!WARNING]
-> - Polyfills of Typed Arrays constructors work exactly as the spec requires. Still, because of the internal usage of getters / setters on each instance, they are slow and consume significant memory. However, polyfills of Typed Arrays constructors are required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
+> - Polyfills of Typed Arrays constructors work as close to the spec as possible without `Proxy` - integer-indexed exotic behavior, like ignoring out-of-range numeric keys, can't be emulated. Still, because of the internal usage of getters / setters on each instance, they are slow and consume significant memory. However, polyfills of Typed Arrays constructors are required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
 > - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` are polyfilled only in runtimes with native `structuredClone` with `ArrayBuffer` transfer or `MessageChannel` support.
