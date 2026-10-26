@@ -1,4 +1,5 @@
 -@core-js/pure/full/object/define-properties
 -@core-js/pure/full/object/get-own-property-descriptors
 -@core-js/pure/full/reflect/construct
+-@core-js/pure/full/symbol/constructor
 -@core-js/pure/full/symbol/to-primitive
