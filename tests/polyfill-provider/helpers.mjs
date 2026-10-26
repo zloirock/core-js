@@ -2121,6 +2121,9 @@ for (const [label, source, expected, receiverExpected] of [
 check('isReusableReceiver/direct callee keeps this', isReusableReceiver({ type: 'ThisExpression' }, { directCallee: true, interveningEffects: true }), true);
 
 for (const [label, source, expected, writerExpected, effectExpected = expected] of [
+  ['function name shadowed by var', 'const probe = function rows() { var rows = readAnything(); return rows.at(0); };', true, false],
+  ['function name shadowed by let', 'const probe = function rows() { let rows = readAnything(); return rows.at(0); };', true, false],
+  ['function name shadowed by const', 'const probe = function rows() { const rows = readAnything(); return rows.at(0); };', true, false],
   ['parameter written before lookup', 'function probe(rows) { rows = readAnything(); return rows.at(0); }', true, false],
   ['local written before lookup', 'function probe() { let rows = []; rows = other; return rows.at(0); }', true, false],
   ['local written after lookup', 'function probe() { let rows = []; const value = rows.at(0); rows = other; return value; }', true, false],
@@ -3914,6 +3917,31 @@ for (const [name, expression, expected, before = 'const index = 0;', after = '']
     const path = parser.pickPath(program, 'CallExpression', candidate => candidate.node.callee.name === 'consume');
     const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
     check(label, callArgumentMayBeObserved(path.node.arguments[0], { scope: path.scope, path, adapter }), expected);
+  });
+
+runBoth('isReusableReceiver/function name shadowed by block var',
+  'const probe = function rows() { if (flag) { var rows = readAnything(); } return rows.at(0); };', (parser, program, label) => {
+    const use = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: use.scope, adapter, path: use };
+    const binding = adapter.getBinding({ scope: use.scope, name: 'rows', path: use });
+    check(`${ label }/write stays in the activation`, bindingWrittenBeyondItsFrame(binding), false);
+    check(`${ label }/read has a scope anchor`, isReusableReceiver(use.node.object, { ctx }), true);
+  });
+
+// An emptied tracker path must rebuild the binding's live writes, not erase the surviving assignment.
+runBoth('wrapScopeBindingLookup/emptied tracker path',
+  'let rows = []; if (flag) rows = other; rows.at(0);', (parser, program, label) => {
+    const use = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property.name === 'at');
+    const native = use.scope.getBinding('rows');
+    const empty = { node: null, type: 'AssignmentExpression', parentPath: null };
+    const binding = { ...native, constantViolations: [empty, ...native.constantViolations], constant: false };
+    const lookup = wrapScopeBindingLookup(() => binding);
+    const options = { scope: use.scope, name: 'rows', path: use };
+    const live = lookup(options);
+    check(`${ label }/retired path removed`, live.constantViolations.includes(empty), false);
+    check(`${ label }/live conditional write retained`, live.constantViolations.length, 1);
+    check(`${ label }/repeated lookup preserves identity`, lookup(options), live);
   });
 
 finish();
