@@ -31,8 +31,10 @@ for (const scope of [data, external]) {
       map('ChromeToDeno');
       map('ChromeToNode');
     }
+    // Edge 79+ and Opera 15+ are Chromium: a version of the EdgeHTML / Presto lineage holds there
+    // only while Chrome does not need a later one
     if (!has(module, 'edge')) {
-      if (ie && !key.includes('immediate')) {
+      if (ie && chrome <= 79) {
         module.edge = '12';
       } else if (chrome) {
         module.edge = String(Math.max(chrome, 79));
@@ -40,6 +42,9 @@ for (const scope of [data, external]) {
     }
     if (/^(?:es|esnext|web)\./.test(key)) {
       map('ChromeToElectron');
+    }
+    if (chrome && module.opera < 15 && mappings.ChromeToOpera(chrome) > 15) {
+      module.opera = String(mappings.ChromeToOpera(chrome));
     }
     map('ChromeToOpera');
     map('ChromeToChromeAndroid');
