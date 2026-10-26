@@ -531,7 +531,7 @@ const CASES = [
   // generated decoder code stresses nested control flow, parameter reads and member analysis
   { name: 'draco_decoder.js, generated decoder',
     source: () => threeFile('examples/jsm/libs/draco/draco_decoder.js'),
-    bounds: { 'usage-global': { babel: 12, unplugin: 12 }, 'usage-pure': { babel: 15, unplugin: 15 } } },
+    bounds: { 'usage-global': { babel: 11, unplugin: 11 }, 'usage-pure': { babel: 13, unplugin: 12 } } },
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
@@ -540,7 +540,7 @@ const CASES = [
   } },
   // keep both Babel codegen paths covered independently of the calibrated source size
   { name: 'synthetic single-scope, 550 reassigned names, compact Babel', source: () => syntheticSingleScope(550), compact: true, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
@@ -552,10 +552,10 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic written function returns, 1000 writes and calls', source: () => syntheticWrittenFunctionReturns(1000), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic opaque function returns, 1000 writes and calls', source: () => syntheticWrittenFunctionReturns(1000, true), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic returned container writes, 3000 slots', source: () => syntheticReturnedContainerWrites(3000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -585,7 +585,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic aliased slot writes, 800 aliases', source: () => syntheticAliasedSlotWrites(800), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic factory patterns, 1900 calls', source: () => syntheticFactoryPatterns(1900), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
@@ -594,7 +594,7 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic literal stores, 4000 calls', source: () => syntheticLiteralStores(4000), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic shared-param calls, 6500 calls', source: () => syntheticSharedParamCalls(6500), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
@@ -649,7 +649,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic positional array reads, 1200 references', source: () => syntheticArraySlotReads(1200), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   ...[8, 32].map(width => ({
     name: `synthetic import width ${ width }, 4096 reads`, source: () => syntheticImportWidth(width), entries: width - 1,
