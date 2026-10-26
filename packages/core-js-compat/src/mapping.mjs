@@ -136,19 +136,24 @@ export default {
   // https://github.com/Kilian/electron-to-chromium/blob/main/chromium-versions.js
   // Maybe also required to handle used Node versions?
   // https://github.com/electron/releases/blob/master/lite.json
+  // releases.electronjs.org and electron-to-chromium give some releases before 2.0 a later Chromium than they had,
+  // so the early rows follow Electron release notes
   ChromeToElectron: [
     [39, '0.20'],
-    [41, '0.21'],
+    [40, '0.21'],
+    [41, '0.22'],
     [42, '0.25'],
     [43, '0.27'],
-    [44, '0.30'],
-    [45, '0.31'],
+    [44, '0.31'],
+    [45, '0.32'],
     [47, '0.36'],
     [49, '0.37'],
     [50, '1.1'],
     [51, '1.2'],
     [52, '1.3'],
-    [54, '1.4'],
+    [53, '1.4'],
+    // [54, '1.4.12'], // reverted to 53 in 1.4.13
+    [54, '1.5'],
     [56, '1.6'],
     [58, '1.7'],
     [59, '1.8'],
@@ -203,7 +208,7 @@ export default {
     return chrome <= 28 ? 15
          : chrome <= 82 ? chrome - 13
          : chrome <= 129 ? chrome - 14
-         : chrome <= 135 ? chrome - 15
+         : chrome <= 136 ? chrome - 15
          : chrome - 16;
   },
   ChromeToAndroid: [

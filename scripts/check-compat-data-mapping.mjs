@@ -66,7 +66,8 @@ const [
 assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
 assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0], 'Electron');
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
-assert(oculus.engine <= latest(mapping.ChromeAndroidToQuest)[0], 'Meta Quest');
+// Quest Browser after 42 follows the Chromium version, so the build derives it without the mapping
+assert(oculus.engine <= latest(mapping.ChromeAndroidToQuest)[0] || coerce(oculus.version).major === Number(oculus.engine), 'Meta Quest');
 assert(opera.version === String(mapping.ChromeToOpera(opera.engine)), 'Opera');
 assert(operaAndroid.engine <= latest(mapping.ChromeAndroidToOperaAndroid)[0], 'Opera for Android');
 assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
