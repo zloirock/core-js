@@ -8,7 +8,8 @@
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator (Firefox < 46)
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
-- Fixed `/full/promise/all-settled` entry
+- Fixed order of `/full/promise/all-settled` entry dependencies
+- Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy` and `Map.prototype.merge` entries and of `/es/object/` namespace
 - Compat data improvements:
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - Updated [Electron 46](https://releases.electronjs.org/) compat data mapping

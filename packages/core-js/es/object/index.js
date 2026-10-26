@@ -1,5 +1,6 @@
 'use strict';
 require('../../modules/es.symbol');
+require('../../modules/es.array.iterator');
 require('../../modules/es.object.assign');
 require('../../modules/es.object.create');
 require('../../modules/es.object.define-property');
@@ -31,6 +32,7 @@ require('../../modules/es.object.lookup-setter');
 require('../../modules/es.json.to-string-tag');
 require('../../modules/es.math.to-string-tag');
 require('../../modules/es.reflect.to-string-tag');
+require('../../modules/es.string.iterator');
 var path = require('../../internals/path');
 
 module.exports = path.Object;

@@ -1,6 +1,8 @@
 'use strict';
 require('../../modules/es.object.to-string');
+require('../../modules/es.array.iterator');
 require('../../modules/es.map');
+require('../../modules/es.string.iterator');
 require('../../modules/esnext.map.key-by');
 require('../../modules/esnext.map.delete-all');
 require('../../modules/esnext.map.emplace');
@@ -18,6 +20,7 @@ require('../../modules/esnext.map.merge');
 require('../../modules/esnext.map.reduce');
 require('../../modules/esnext.map.some');
 require('../../modules/esnext.map.update');
+require('../../modules/web.dom-collections.iterator');
 var call = require('../../internals/function-call');
 var isCallable = require('../../internals/is-callable');
 var path = require('../../internals/path');
