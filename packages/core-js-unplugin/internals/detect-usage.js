@@ -905,6 +905,7 @@ export function createUsageVisitors({
   }
 
   function identifierVisitor(path) {
+    if (!core.mayEmitGlobalUsage(path.node?.name)) return;
     // orphaned node (parent removed by sibling transform / pruning): downstream isReferenced
     // and parent-shape checks would crash on null. parity with babel-plugin's handleIdentifier
     if (!path.parent) return;
