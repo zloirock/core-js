@@ -813,6 +813,7 @@ export function createUsageVisitors({
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
   // already established the read context (e.g., assignment LHS - strict-mode binding lookup)
   function handleIdentifier(path, skipReferencedCheck = false) {
+    if (!core.mayEmitGlobalUsage(path.node?.name)) return;
     // orphaned node (parent removed by a sibling transform): `isReferencedIdentifier`
     // reads `parent.type` unconditionally and would crash. check BEFORE everything else
     if (!path.parent) return;
