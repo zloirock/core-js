@@ -31,9 +31,9 @@ core-js/es|stable|actual|full/typed-array/to-hex
 ## Examples
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
-console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
-console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
-console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
-console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
-console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+arr.toBase64(); // => 'SGVsbG8gV29ybGQ='
+arr.toBase64({ omitPadding: true }); // => 'SGVsbG8gV29ybGQ'
+arr.toHex(); // => '48656c6c6f20576f726c64'
+Uint8Array.fromBase64('SGVsbG8gV29ybGQ='); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+Uint8Array.fromHex('48656c6c6f20576f726c64'); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 ```

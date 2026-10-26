@@ -25,5 +25,5 @@ core-js(-pure)/es|stable|actual|full/function/virtual/bind
 ```js
 (function foo() { /* empty */ }).name; // => 'foo'
 
-console.log.bind(console, 42)(43); // => 42 43
+console.log.bind(console, 42)(43); // -> 42 43
 ```

@@ -39,18 +39,18 @@ function sleepRandom(time) {
   });
 }
 
-console.log('Run');                    // => Run
+console.log('Run');                    // -> Run
 sleepRandom(5).then(result => {
-  console.log(result);                 // => 869, after 5 sec.
+  console.log(result);                 // -> 869, after 5 sec.
   return sleepRandom(10);
 }).then(result => {
-  console.log(result);                 // => 202, after 10 sec.
+  console.log(result);                 // -> 202, after 10 sec.
 }).then(() => {
-  console.log('immediately after');    // => immediately after
+  console.log('immediately after');    // -> immediately after
   throw new Error('Irror!');
 }).then(() => {
   console.log('will not be displayed');
-}).catch(error => console.log(error)); // => Error: Irror!
+}).catch(error => console.log(error)); // -> Error: Irror!
 ```
 
 ## `Promise.resolve` and `Promise.reject` examples
@@ -59,13 +59,13 @@ const getJson = () => new Promise(resolve => {
   resolve({ message: "Hello, world!", success: true });
 });
 
-Promise.resolve(42).then(x => console.log(x));         // => 42
-Promise.reject(42).catch(error => console.log(error)); // => 42
+Promise.resolve(42).then(x => console.log(x));         // -> 42
+Promise.reject(42).catch(error => console.log(error)); // -> 42
 
 Promise.resolve(getJson()); // => ES promise
 ```
 
-## `Promise#finally` examples
+## `Promise.prototype.finally` examples
 ```js
 Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
@@ -83,7 +83,7 @@ Promise.all([
   sleepRandom(5),
   sleepRandom(15),
   sleepRandom(10),            // after 15 sec:
-]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
+]).then(x => console.log(x)); // -> ['foo', 956, 85, 382]
 ```
 
 ## `Promise.race` examples
@@ -98,8 +98,8 @@ function timeLimit(promise, time) {
   })]);
 }
 
-timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // => 853, after 5 sec.
-timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // Error: Await > 10 sec
+timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // -> 853, after 5 sec.
+timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // -> Error: Await > 10 sec
 ```
 
 ## `Promise.allSettled` examples
@@ -108,7 +108,7 @@ Promise.allSettled([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+]).then(console.log); // -> [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
 
 ## `Promise.any` examples
@@ -117,13 +117,13 @@ Promise.any([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => 1
+]).then(console.log); // -> 1
 
 Promise.any([
   Promise.reject(1),
   Promise.reject(2),
   Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+]).catch(({ errors }) => console.log(errors)); // -> [1, 2, 3]
 ```
 
 ## `Promise.try` examples
@@ -143,7 +143,7 @@ Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`)
 ```js
 const d = Promise.withResolvers();
 d.resolve(42);
-d.promise.then(console.log); // => 42
+d.promise.then(console.log); // -> 42
 ```
 
 ## Example with async functions
@@ -162,18 +162,18 @@ async function sleepError(time, msg) {
 
 (async () => {
   try {
-    console.log('Run');                // => Run
-    console.log(await sleepRandom(5)); // => 936, after 5 sec.
+    console.log('Run');                // -> Run
+    console.log(await sleepRandom(5)); // -> 936, after 5 sec.
     let [a, b, c] = await Promise.all([
       sleepRandom(5),
       sleepRandom(15),
       sleepRandom(10),
     ]);
-    console.log(a, b, c);              // => 210 445 71, after 15 sec.
+    console.log(a, b, c);              // -> 210 445 71, after 15 sec.
     await sleepError(5, 'Error!');
     console.log('Will not be displayed');
   } catch (error) {
-    console.log(error);                // => Error: 'Error!', after 5 sec.
+    console.log(error);                // -> Error: Error!, after 5 sec.
   }
 })();
 ```
@@ -186,10 +186,10 @@ process.on('unhandledRejection', (reason, promise) => console.log('unhandled', r
 process.on('rejectionHandled', promise => console.log('handled', promise));
 
 let promise = Promise.reject(42);
-// unhandled 42 [object Promise]
+// -> unhandled 42 [object Promise]
 
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
-// handled [object Promise]
+// -> handled [object Promise]
 ```
 In a browser, an unhandled rejection is reported to the console by default; you can also add handlers for unhandled and later handled rejections, for example:
 ```js
@@ -200,8 +200,8 @@ globalThis.onunhandledrejection = e => console.log('unhandled', e.reason, e.prom
 globalThis.onrejectionhandled = e => console.log('handled', e.reason, e.promise);
 
 let promise = Promise.reject(42);
-// => unhandled 42 [object Promise]
+// -> unhandled 42 [object Promise]
 
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
-// => handled 42 [object Promise]
+// -> handled 42 [object Promise]
 ```

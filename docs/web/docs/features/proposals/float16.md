@@ -27,9 +27,9 @@ core-js(-pure)/es|stable|actual|full/math/f16round
 
 ## Examples
 ```js
-console.log(Math.f16round(1.337)); // => 1.3369140625
+Math.f16round(1.337); // => 1.3369140625
 
 const view = new DataView(new ArrayBuffer(2));
 view.setFloat16(0, 1.337);
-console.log(view.getFloat16(0)); // => 1.3369140625
+view.getFloat16(0); // => 1.3369140625
 ```

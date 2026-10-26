@@ -24,9 +24,9 @@ const message = 42;
 
 console.log(String.dedent`
   print('${ message }')
-`); // => print('42')
+`); // -> print('42')
 
 String.dedent(console.log)`
   print('${ message }')
-`; // => ["print('", "')", raw: Array(2)], 42
+`; // -> ["print('", "')", raw: Array(2)], 42
 ```

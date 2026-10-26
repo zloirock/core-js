@@ -21,7 +21,7 @@ core-js(-pure)/full/string/code-points
 ## Examples
 ```js
 for (let { codePoint, position } of 'qwe'.codePoints()) {
-  console.log(codePoint); // => 113, 119, 101
-  console.log(position);  // => 0, 1, 2
+  console.log(codePoint); // -> 113, 119, 101
+  console.log(position);  // -> 0, 1, 2
 }
 ```

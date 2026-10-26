@@ -65,30 +65,30 @@ URL.parse('https'); // => null
 
 const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
-console.log(url.href);       // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
-console.log(url.origin);     // => 'https://example.com:8080'
-console.log(url.protocol);   // => 'https:'
-console.log(url.username);   // => 'login'
-console.log(url.password);   // => 'password'
-console.log(url.host);       // => 'example.com:8080'
-console.log(url.hostname);   // => 'example.com'
-console.log(url.port);       // => '8080'
-console.log(url.pathname);   // => '/foo/bar'
-console.log(url.search);     // => '?a=1&b=2&a=3'
-console.log(url.hash);       // => '#fragment'
-console.log(url.toJSON());   // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
-console.log(url.toString()); // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+url.href;       // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+url.origin;     // => 'https://example.com:8080'
+url.protocol;   // => 'https:'
+url.username;   // => 'login'
+url.password;   // => 'password'
+url.host;       // => 'example.com:8080'
+url.hostname;   // => 'example.com'
+url.port;       // => '8080'
+url.pathname;   // => '/foo/bar'
+url.search;     // => '?a=1&b=2&a=3'
+url.hash;       // => '#fragment'
+url.toJSON();   // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+url.toString(); // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
 
 for (let [key, value] of url.searchParams) {
-  console.log(key);   // => 'a', 'b', 'a'
-  console.log(value); // => '1', '2', '3'
+  console.log(key);   // -> 'a', 'b', 'a'
+  console.log(value); // -> '1', '2', '3'
 }
 
 url.pathname = '';
 url.searchParams.append('c', 4);
 
-console.log(url.search); // => '?a=1&b=2&a=3&c=4'
-console.log(url.href);   // => 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
+url.search; // => '?a=1&b=2&a=3&c=4'
+url.href;   // => 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
 
 const params = new URLSearchParams('?a=1&b=2&a=3');
 
@@ -97,18 +97,18 @@ params.append('a', 2);
 params.delete('a', 1);
 params.sort();
 
-console.log(params.size); // => 4
+params.size; // => 4
 
 for (let [key, value] of params) {
-  console.log(key);   // => 'a', 'a', 'b', 'c'
-  console.log(value); // => '3', '2', '2', '4'
+  console.log(key);   // -> 'a', 'a', 'b', 'c'
+  console.log(value); // -> '3', '2', '2', '4'
 }
 
-console.log(params.has('a')); // => true
-console.log(params.has('a', 3)); // => true
-console.log(params.has('a', 4)); // => false
+params.has('a'); // => true
+params.has('a', 3); // => true
+params.has('a', 4); // => false
 
-console.log(params.toString()); // => 'a=3&a=2&b=2&c=4'
+params.toString(); // => 'a=3&a=2&b=2&c=4'
 ```
 
 > [!WARNING]

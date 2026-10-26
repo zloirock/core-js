@@ -25,23 +25,23 @@ let list = (function () {
   return arguments;
 })(1, 2, 3);
 
-console.log(isIterable(list)); // => true
+isIterable(list); // => true
 
 let iterator = getIterator(list);
-console.log(iterator.next().value); // => 1
-console.log(iterator.next().value); // => 2
-console.log(iterator.next().value); // => 3
-console.log(iterator.next().value); // => undefined
+iterator.next().value; // => 1
+iterator.next().value; // => 2
+iterator.next().value; // => 3
+iterator.next().value; // => undefined
 
 getIterator({}); // => TypeError: [object Object] is not iterable
 
 let method = getIteratorMethod(list);
-console.log(typeof method);         // => 'function'
+typeof method;         // => 'function'
 iterator = method.call(list);
-console.log(iterator.next().value); // => 1
-console.log(iterator.next().value); // => 2
-console.log(iterator.next().value); // => 3
-console.log(iterator.next().value); // => undefined
+iterator.next().value; // => 1
+iterator.next().value; // => 2
+iterator.next().value; // => 3
+iterator.next().value; // => undefined
 
-console.log(getIteratorMethod({})); // => undefined
+getIteratorMethod({}); // => undefined
 ```

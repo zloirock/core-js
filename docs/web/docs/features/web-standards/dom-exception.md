@@ -52,12 +52,12 @@ core-js/stable|actual|full/dom-exception/to-string-tag
 ## Examples
 ```js
 const exception = new DOMException('error', 'DataCloneError');
-console.log(exception.name);                            // => 'DataCloneError'
-console.log(exception.message);                         // => 'error'
-console.log(exception.code);                            // => 25
-console.log(typeof exception.stack);                    // => 'string'
-console.log(exception instanceof DOMException);         // => true
-console.log(exception instanceof Error);                // => true
-console.log(exception.toString());                      // => 'DataCloneError: error'
-console.log(Object.prototype.toString.call(exception)); // => '[object DOMException]'
+exception.name;                            // => 'DataCloneError'
+exception.message;                         // => 'error'
+exception.code;                            // => 25
+typeof exception.stack;                    // => 'string'
+exception instanceof DOMException;         // => true
+exception instanceof Error;                // => true
+exception.toString();                      // => 'DataCloneError: error'
+Object.prototype.toString.call(exception); // => '[object DOMException]'
 ```

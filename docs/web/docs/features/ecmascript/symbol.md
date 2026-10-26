@@ -86,10 +86,10 @@ let Person = (() => {
 })();
 
 let person = new Person('Vasya');
-console.log(person.getName());            // => 'Vasya'
-console.log(person.name);                 // => undefined
-console.log(person[Symbol('name')]);      // => undefined, symbols are unique
-for (let key in person) console.log(key); // => nothing, for-in skips symbol keys
+person.getName();                         // => 'Vasya'
+person.name;                              // => undefined
+person[Symbol('name')];                   // => undefined, symbols are unique
+for (let key in person) console.log(key); // -> nothing, for-in skips symbol keys
 ```
 
 ## `Symbol.for` & `Symbol.keyFor` examples
@@ -110,7 +110,7 @@ Object.getOwnPropertySymbols(object); // => [Symbol(c)]
 Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
 ```
 
-## Symbol#description getter examples
+## `Symbol.prototype.description` getter examples
 ```js
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
@@ -126,11 +126,11 @@ You can disable defining setters in `Object.prototype`. *Example*:
 ```ts
 Symbol.useSimple();
 let object1 = { [Symbol('symbol1')]: true };
-for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
+for (let key in object1) console.log(key); // -> 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
 
 Symbol.useSetter();
 let object2 = { [Symbol('symbol2')]: true };
-for (let key in object2) console.log(key); // nothing
+for (let key in object2) console.log(key); // -> nothing
 ```
 - Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
 - Some problems are possible with environment exotic objects (for example, IE `localStorage`).

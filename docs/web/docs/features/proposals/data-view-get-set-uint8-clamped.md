@@ -24,5 +24,5 @@ core-js/full/data-view/set-uint8-clamped
 ```js
 const view = new DataView(new ArrayBuffer(1));
 view.setUint8Clamped(0, 100500);
-console.log(view.getUint8Clamped(0)); // => 255
+view.getUint8Clamped(0); // => 255
 ```

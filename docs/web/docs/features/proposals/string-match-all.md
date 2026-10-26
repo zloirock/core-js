@@ -20,6 +20,6 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/match-all
 ## Examples
 ```js
 for (let { groups: { number, letter } } of '1111a2b3cccc'.matchAll(RegExp('(?<number>\\d)(?<letter>\\D)', 'g'))) {
-  console.log(number, letter); // => 1 a, 2 b, 3 c
+  console.log(number, letter); // -> 1 a, 2 b, 3 c
 }
 ```

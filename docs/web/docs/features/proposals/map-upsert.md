@@ -39,5 +39,5 @@ map.getOrInsertComputed('a', key => key); // => 1
 
 map.getOrInsertComputed('c', key => key); // => 'c'
 
-console.log(map); // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
+map; // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
 ```

@@ -25,12 +25,12 @@ core-js/es|stable|actual|full/array-buffer/transfer-to-fixed-length
 ## Examples
 ```js
 const buffer = Int8Array.of(1, 2, 3, 4, 5, 6, 7, 8).buffer;
-console.log(buffer.byteLength); // => 8
-console.log(buffer.detached); // => false
+buffer.byteLength; // => 8
+buffer.detached; // => false
 const newBuffer = buffer.transfer(4);
-console.log(buffer.byteLength); // => 0
-console.log(buffer.detached); // => true
-console.log(newBuffer.byteLength); // => 4
-console.log(newBuffer.detached); // => false
-console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
+buffer.byteLength; // => 0
+buffer.detached; // => true
+newBuffer.byteLength; // => 4
+newBuffer.detached; // => false
+[...new Int8Array(newBuffer)]; // => [1, 2, 3, 4]
 ```

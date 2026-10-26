@@ -22,5 +22,5 @@ core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```js
 const d = Promise.withResolvers();
 d.resolve(42);
-d.promise.then(console.log); // => 42
+d.promise.then(console.log); // -> 42
 ```

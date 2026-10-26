@@ -41,30 +41,30 @@ let array = [1];
 let map = new Map([['a', 1], [42, 2]]);
 map.set(array, 3).set(true, 4);
 
-console.log(map.size);        // => 4
-console.log(map.has(array));  // => true
-console.log(map.has([1]));    // => false
-console.log(map.get(array));  // => 3
+map.size;        // => 4
+map.has(array);  // => true
+map.has([1]);    // => false
+map.get(array);  // => 3
 map.forEach((val, key) => {
-  console.log(val);           // => 1, 2, 3, 4
-  console.log(key);           // => 'a', 42, [1], true
+  console.log(val);           // -> 1, 2, 3, 4
+  console.log(key);           // -> 'a', 42, [1], true
 });
 map.delete(array);
-console.log(map.size);        // => 3
-console.log(map.get(array));  // => undefined
-console.log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
+map.size;        // => 3
+map.get(array);  // => undefined
+Array.from(map); // => [['a', 1], [42, 2], [true, 4]]
 
 map = new Map([['a', 1], ['b', 2], ['c', 3]]);
 
 for (let [key, value] of map) {
-  console.log(key);                                 // => 'a', 'b', 'c'
-  console.log(value);                               // => 1, 2, 3
+  console.log(key);                                 // -> 'a', 'b', 'c'
+  console.log(value);                               // -> 1, 2, 3
 }
-for (let value of map.values()) console.log(value); // => 1, 2, 3
-for (let key of map.keys()) console.log(key);       // => 'a', 'b', 'c'
+for (let value of map.values()) console.log(value); // -> 1, 2, 3
+for (let key of map.keys()) console.log(key);       // -> 'a', 'b', 'c'
 for (let [key, value] of map.entries()) {
-  console.log(key);                                 // => 'a', 'b', 'c'
-  console.log(value);                               // => 1, 2, 3
+  console.log(key);                                 // -> 'a', 'b', 'c'
+  console.log(value);                               // -> 1, 2, 3
 }
 
 map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
@@ -82,7 +82,7 @@ map.getOrInsertComputed('a', key => key); // => 1
 
 map.getOrInsertComputed('c', key => key); // => 'c'
 
-console.log(map); // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
+map; // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
 ```
 
 ## Set
@@ -129,24 +129,24 @@ core-js(-pure)/es|stable|actual|full/set/union
 ```js
 let set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
-console.log(set.size);        // => 5
-console.log(set.has('b'));    // => true
+set.size;        // => 5
+set.has('b');    // => true
 set.forEach(it => {
-  console.log(it);            // => 'a', 'b', 'c', 'd', 'e'
+  console.log(it);            // -> 'a', 'b', 'c', 'd', 'e'
 });
 set.delete('b');
-console.log(set.size);        // => 4
-console.log(set.has('b'));    // => false
-console.log(Array.from(set)); // => ['a', 'c', 'd', 'e']
+set.size;        // => 4
+set.has('b');    // => false
+Array.from(set); // => ['a', 'c', 'd', 'e']
 
 set = new Set([1, 2, 3, 2, 1]);
 
-for (let value of set) console.log(value);          // => 1, 2, 3
-for (let value of set.values()) console.log(value); // => 1, 2, 3
-for (let key of set.keys()) console.log(key);       // => 1, 2, 3
+for (let value of set) console.log(value);          // -> 1, 2, 3
+for (let value of set.values()) console.log(value); // -> 1, 2, 3
+for (let key of set.keys()) console.log(key);       // -> 1, 2, 3
 for (let [key, value] of set.entries()) {
-  console.log(key);                                 // => 1, 2, 3
-  console.log(value);                               // => 1, 2, 3
+  console.log(key);                                 // -> 1, 2, 3
+  console.log(value);                               // -> 1, 2, 3
 }
 
 new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set { 1, 2, 3, 4, 5 }
@@ -190,11 +190,11 @@ let c = [3];
 
 let weakmap = new WeakMap([[a, 1], [b, 2]]);
 weakmap.set(c, 3).set(b, 4);
-console.log(weakmap.has(a));   // => true
-console.log(weakmap.has([1])); // => false
-console.log(weakmap.get(a));   // => 1
+weakmap.has(a);   // => true
+weakmap.has([1]); // => false
+weakmap.get(a);   // => 1
 weakmap.delete(a);
-console.log(weakmap.get(a));   // => undefined
+weakmap.get(a);   // => undefined
 
 // Private properties store:
 let Person = (() => {
@@ -210,7 +210,7 @@ let Person = (() => {
 })();
 
 let person = new Person('Vasya');
-console.log(person.getName());            // => 'Vasya'
+person.getName(); // => 'Vasya'
 ```
 
 ## WeakSet
@@ -239,10 +239,10 @@ let c = [3];
 
 let weakset = new WeakSet([a, b, a]);
 weakset.add(c).add(b).add(c);
-console.log(weakset.has(b));   // => true
-console.log(weakset.has([2])); // => false
+weakset.has(b);   // => true
+weakset.has([2]); // => false
 weakset.delete(b);
-console.log(weakset.has(b));   // => false
+weakset.has(b);   // => false
 ```
 
 > [!WARNING]

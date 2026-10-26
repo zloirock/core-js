@@ -99,8 +99,8 @@ Object.values({ a: 1, b: 2, c: 3 });  // => [1, 2, 3]
 Object.entries({ a: 1, b: 2, c: 3 }); // => [['a', 1], ['b', 2], ['c', 3]]
 
 for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
-  console.log(key);   // => 'a', 'b', 'c'
-  console.log(value); // => 1, 2, 3
+  console.log(key);   // -> 'a', 'b', 'c'
+  console.log(value); // -> 1, 2, 3
 }
 
 const object = { a: '1' };

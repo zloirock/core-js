@@ -22,10 +22,10 @@ core-js(-pure)/full/iterator/range
 ## Examples
 ```js
 for (const i of Iterator.range(1, 10)) {
-  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
+  console.log(i); // -> 1, 2, 3, 4, 5, 6, 7, 8, 9
 }
 
 for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
-  console.log(i); // => 1, 4, 7, 10
+  console.log(i); // -> 1, 4, 7, 10
 }
 ```

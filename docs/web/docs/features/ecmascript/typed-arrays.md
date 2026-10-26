@@ -199,36 +199,36 @@ typed.buffer === b.buffer; // => true
 typed.filter(it => it % 2); // => [1, 3]
 typed.map(it => it * 1.5);  // => [1, 3, 4]
 
-for (let value of typed) console.log(value);          // => 1, 2, 3
-for (let value of typed.values()) console.log(value); // => 1, 2, 3
-for (let key of typed.keys()) console.log(key);       // => 0, 1, 2
+for (let value of typed) console.log(value);          // -> 1, 2, 3
+for (let value of typed.values()) console.log(value); // -> 1, 2, 3
+for (let key of typed.keys()) console.log(key);       // -> 0, 1, 2
 for (let [key, value] of typed.entries()) {
-  console.log(key);                                   // => 0, 1, 2
-  console.log(value);                                 // => 1, 2, 3
+  console.log(key);                                   // -> 0, 1, 2
+  console.log(value);                                 // -> 1, 2, 3
 }
 
 new Int32Array([1, 2, 3]).at(1);  // => 2
 new Int32Array([1, 2, 3]).at(-1); // => 3
 
 buffer = Int8Array.of(1, 2, 3, 4, 5, 6, 7, 8).buffer;
-console.log(buffer.byteLength); // => 8
-console.log(buffer.detached); // => false
+buffer.byteLength; // => 8
+buffer.detached; // => false
 const newBuffer = buffer.transfer(4);
-console.log(buffer.byteLength); // => 0
-console.log(buffer.detached); // => true
-console.log(newBuffer.byteLength); // => 4
-console.log(newBuffer.detached); // => false
-console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
+buffer.byteLength; // => 0
+buffer.detached; // => true
+newBuffer.byteLength; // => 4
+newBuffer.detached; // => false
+[...new Int8Array(newBuffer)]; // => [1, 2, 3, 4]
 ```
 
 ## Base64 / hex examples
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
-console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
-console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
-console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
-console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
-console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+arr.toBase64(); // => 'SGVsbG8gV29ybGQ='
+arr.toBase64({ omitPadding: true }); // => 'SGVsbG8gV29ybGQ'
+arr.toHex(); // => '48656c6c6f20576f726c64'
+Uint8Array.fromBase64('SGVsbG8gV29ybGQ='); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+Uint8Array.fromHex('48656c6c6f20576f726c64'); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 ```
 
 > [!WARNING]

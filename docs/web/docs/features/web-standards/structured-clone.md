@@ -18,14 +18,14 @@ core-js(-pure)/stable|actual|full/structured-clone
 ```js
 const structured = [{ a: 42 }];
 const sclone = structuredClone(structured);
-console.log(sclone);                      // => [{ a: 42 }]
-console.log(structured !== sclone);       // => true
-console.log(structured[0] !== sclone[0]); // => true
+sclone;                      // => [{ a: 42 }]
+structured !== sclone;       // => true
+structured[0] !== sclone[0]; // => true
 
 const circular = {};
 circular.circular = circular;
 const cclone = structuredClone(circular);
-console.log(cclone.circular === cclone);  // => true
+cclone.circular === cclone;  // => true
 
 structuredClone(42);                                            // => 42
 structuredClone({ x: 42 });                                     // => { x: 42 }

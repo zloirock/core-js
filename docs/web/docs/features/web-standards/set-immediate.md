@@ -18,7 +18,7 @@ core-js(-pure)/stable|actual|full/clear-immediate
 ## Examples
 ```js
 setImmediate((arg1, arg2) => {
-  console.log(arg1, arg2); // => Message will be displayed with minimum delay
+  console.log(arg1, arg2); // -> Message will be displayed with minimum delay
 }, 'Message will be displayed', 'with minimum delay');
 
 clearImmediate(setImmediate(() => {

@@ -24,5 +24,5 @@ Promise.allSettled([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+]).then(console.log); // -> [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```

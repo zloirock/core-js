@@ -31,7 +31,7 @@ const {
   inverse: false,             // inverse of the result - shows modules that are NOT required for the target environment
 });
 
-console.log(targets);
+targets;
 /* =>
 {
   'es.symbol.async-dispose': { ios: '18.5-18.7', safari: '26.6' },

@@ -110,12 +110,12 @@ Array.of(1, 2, 3); // => [1, 2, 3]
 
 let array = ['a', 'b', 'c'];
 
-for (let value of array) console.log(value);          // => 'a', 'b', 'c'
-for (let value of array.values()) console.log(value); // => 'a', 'b', 'c'
-for (let key of array.keys()) console.log(key);       // => 0, 1, 2
+for (let value of array) console.log(value);          // -> 'a', 'b', 'c'
+for (let value of array.values()) console.log(value); // -> 'a', 'b', 'c'
+for (let key of array.keys()) console.log(key);       // -> 0, 1, 2
 for (let [key, value] of array.entries()) {
-  console.log(key);                                   // => 0, 1, 2
-  console.log(value);                                 // => 'a', 'b', 'c'
+  console.log(key);                                   // -> 0, 1, 2
+  console.log(value);                                 // -> 'a', 'b', 'c'
 }
 
 function isOdd(value) {

@@ -21,25 +21,25 @@ core-js(-pure)/full/composite-symbol
 ```js
 // returns a symbol
 const symbol = compositeSymbol({});
-console.log(typeof symbol); // => 'symbol'
+typeof symbol; // => 'symbol'
 
 // works the same, but returns a plain frozen object without a prototype
 const key = compositeKey({});
-console.log(typeof key); // => 'object'
-console.log({}.toString.call(key)); // => '[object Object]'
-console.log(Object.getPrototypeOf(key)); // => null
-console.log(Object.isFrozen(key)); // => true
+typeof key; // => 'object'
+({}).toString.call(key); // => '[object Object]'
+Object.getPrototypeOf(key); // => null
+Object.isFrozen(key); // => true
 
 const a = ['a'];
 const b = ['b'];
 const c = ['c'];
 
-console.log(compositeSymbol(a) === compositeSymbol(a)); // => true
-console.log(compositeSymbol(a) !== compositeSymbol(['a'])); // => true
-console.log(compositeSymbol(a, 1) === compositeSymbol(a, 1)); // => true
-console.log(compositeSymbol(a, b) !== compositeSymbol(b, a)); // => true
-console.log(compositeSymbol(a, b, c) === compositeSymbol(a, b, c)); // => true
-console.log(compositeSymbol(1, a) === compositeSymbol(1, a)); // => true
-console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => true
-console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
+compositeSymbol(a) === compositeSymbol(a); // => true
+compositeSymbol(a) !== compositeSymbol(['a']); // => true
+compositeSymbol(a, 1) === compositeSymbol(a, 1); // => true
+compositeSymbol(a, b) !== compositeSymbol(b, a); // => true
+compositeSymbol(a, b, c) === compositeSymbol(a, b, c); // => true
+compositeSymbol(1, a) === compositeSymbol(1, a); // => true
+compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b); // => true
+compositeSymbol(a, a) === compositeSymbol(a, a); // => true
 ```

@@ -30,11 +30,11 @@
 
 ---
 
-[*Example of usage*](https://core-js.io/playground#code=import+%27core-js%2Factual%27%3B%0A%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28it%29%29%3B+%2F%2F+%3D%3E+42%0A%0AArray.from%28new+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%5D.flatMap%28it+%3D%3E+%5Bit%2C+it%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+2%2C+2%5D%0A%0AIterator.concat%28%5B1%2C+2%5D%2C+function+%2A+%28i%29+%7B+while+%28true%29+yield+i%2B%2B%3B+%7D%283%29%29%0A++.drop%281%29.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D):
+[*Example of usage*](https://core-js.io/playground#code=import+%27core-js%2Factual%27%3B%0A%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28it%29%29%3B+%2F%2F+-%3E+42%0A%0AArray.from%28new+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%5D.flatMap%28it+%3D%3E+%5Bit%2C+it%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+2%2C+2%5D%0A%0AIterator.concat%28%5B1%2C+2%5D%2C+function+%2A+%28i%29+%7B+while+%28true%29+yield+i%2B%2B%3B+%7D%283%29%29%0A++.drop%281%29.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D):
 ```js
 import 'core-js/actual';
 
-Promise.try(() => 42).then(it => console.log(it)); // => 42
+Promise.try(() => 42).then(it => console.log(it)); // -> 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
@@ -58,7 +58,7 @@ import 'core-js/actual/array/from';
 import 'core-js/actual/array/flat-map';
 import 'core-js/actual/structured-clone';
 
-Promise.try(() => 42).then(it => console.log(it)); // => 42
+Promise.try(() => 42).then(it => console.log(it)); // -> 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
@@ -82,7 +82,7 @@ import from from 'core-js-pure/actual/array/from';
 import flatMap from 'core-js-pure/actual/array/flat-map';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 
-Promise.try(() => 42).then(it => console.log(it)); // => 42
+Promise.try(() => 42).then(it => console.log(it)); // -> 42
 
 from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
@@ -588,8 +588,8 @@ Object.values({ a: 1, b: 2, c: 3 });  // => [1, 2, 3]
 Object.entries({ a: 1, b: 2, c: 3 }); // => [['a', 1], ['b', 2], ['c', 3]]
 
 for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
-  console.log(key);   // => 'a', 'b', 'c'
-  console.log(value); // => 1, 2, 3
+  console.log(key);   // -> 'a', 'b', 'c'
+  console.log(value); // -> 1, 2, 3
 }
 
 // Shallow object cloning with prototype and descriptors:
@@ -637,11 +637,11 @@ core-js/es|stable|actual|full/function/has-instance
 core-js(-pure)/es|stable|actual|full/function/bind
 core-js(-pure)/es|stable|actual|full/function/virtual/bind
 ```
-[*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27%0A%0Aconsole.log.bind%28console%2C+42%29%2843%29%3B+%2F%2F+%3D%3E+42+43):
+[*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27%0A%0Aconsole.log.bind%28console%2C+42%29%2843%29%3B+%2F%2F+-%3E+42+43):
 ```js
 (function foo() { /* empty */ }).name; // => 'foo'
 
-console.log.bind(console, 42)(43); // => 42 43
+console.log.bind(console, 42)(43); // -> 42 43
 ```
 
 #### ECMAScript: Error[⬆](#index)
@@ -813,7 +813,7 @@ core-js(-pure)/es|stable|actual|full/array(/virtual)/unshift
 core-js(-pure)/es|stable|actual|full/array(/virtual)/values
 core-js(-pure)/es|stable|actual|full/array(/virtual)/with
 ```
-[*Examples*](https://core-js.io/playground#code=Array.from%28new+Set%28%5B1%2C+2%2C+3%2C+2%2C+1%5D%29%29%3B++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AArray.from%28%7B+0%3A+1%2C+1%3A+2%2C+2%3A+3%2C+length%3A+3+%7D%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AArray.from%28%27123%27%2C+Number%29%3B+++++++++++++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AArray.from%28%27123%27%2C+it+%3D%3E+it+%2A%2A+2%29%3B++++++++++++%2F%2F+%3D%3E+%5B1%2C+4%2C+9%5D%0A%0AArray.of%281%29%3B+++++++%2F%2F+%3D%3E+%5B1%5D%0AArray.of%281%2C+2%2C+3%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0A%0Alet+array+%3D+%5B%27a%27%2C+%27b%27%2C+%27c%27%5D%3B%0A%0Afor+%28let+value+of+array%29+console.log%28value%29%3B++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+value+of+array.values%28%29%29+console.log%28value%29%3B+%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+key+of+array.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+%3D%3E+0%2C+1%2C+2%0Afor+%28let+%5Bkey%2C+value%5D+of+array.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+0%2C+1%2C+2%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A%7D%0A%0Afunction+isOdd%28value%29+%7B%0A++return+value+%25+2%3B%0A%7D%0A%5B4%2C+8%2C+15%2C+16%2C+23%2C+42%5D.find%28isOdd%29%3B++++++%2F%2F+%3D%3E+15%0A%5B4%2C+8%2C+15%2C+16%2C+23%2C+42%5D.findIndex%28isOdd%29%3B+%2F%2F+%3D%3E+2%0A%5B1%2C+2%2C+3%2C+4%5D.findLast%28isOdd%29%3B++++++++++++%2F%2F+%3D%3E+3%0A%5B1%2C+2%2C+3%2C+4%5D.findLastIndex%28isOdd%29%3B+++++++%2F%2F+%3D%3E+2%0A%0AArray%285%29.fill%2842%29%3B+%2F%2F+%3D%3E+%5B42%2C+42%2C+42%2C+42%2C+42%5D%0A%0A%5B1%2C+2%2C+3%2C+4%2C+5%5D.copyWithin%280%2C+3%29%3B+%2F%2F+%3D%3E+%5B4%2C+5%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%2C+3%5D.includes%282%29%3B++++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.includes%284%29%3B++++++++%2F%2F+%3D%3E+false%0A%5B1%2C+2%2C+3%5D.includes%282%2C+2%29%3B+++++%2F%2F+%3D%3E+false%0A%0A%5BNaN%5D.indexOf%28NaN%29%3B+++++++++++%2F%2F+%3D%3E+-1%0A%5BNaN%5D.includes%28NaN%29%3B++++++++++%2F%2F+%3D%3E+true%0AArray%281%29.indexOf%28undefined%29%3B++%2F%2F+%3D%3E+-1%0AArray%281%29.includes%28undefined%29%3B+%2F%2F+%3D%3E+true%0A%0A%5B1%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%5D.flat%28%29%3B++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%5B1%2C+%5B2%2C+%5B3%2C+%5B4%5D%5D%5D%2C+5%5D.flat%28%29%3B++%2F%2F+%3D%3E+%5B1%2C+2%2C+%5B3%2C+%5B4%5D%5D%2C+5%5D%0A%5B1%2C+%5B2%2C+%5B3%2C+%5B4%5D%5D%5D%2C+5%5D.flat%283%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B%7B+a%3A+1%2C+b%3A+2+%7D%2C+%7B+a%3A+3%2C+b%3A+4+%7D%2C+%7B+a%3A+5%2C+b%3A+6+%7D%5D.flatMap%28it+%3D%3E+%5Bit.a%2C+it.b%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%5D%0A%0A%5B1%2C+2%2C+3%5D.at%281%29%3B++%2F%2F+%3D%3E+2%0A%5B1%2C+2%2C+3%5D.at%28-1%29%3B+%2F%2F+%3D%3E+3%0A%0Aconst+sequence+%3D+%5B1%2C+2%2C+3%5D%3B%0Asequence.toReversed%28%29%3B+%2F%2F+%3D%3E+%5B3%2C+2%2C+1%5D%0Asequence%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0A%0Aconst+initialArray+%3D+%5B1%2C+2%2C+3%2C+4%5D%3B%0AinitialArray.toSpliced%281%2C+2%2C+5%2C+6%2C+7%29%3B+%2F%2F+%3D%3E+%5B1%2C+5%2C+6%2C+7%2C+4%5D%0AinitialArray%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%5D%0A%0Aconst+outOfOrder+%3D+%5B3%2C+1%2C+2%5D%3B%0AoutOfOrder.toSorted%28%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AoutOfOrder%3B+%2F%2F+%3D%3E+%5B3%2C+1%2C+2%5D%0A%0Aconst+correctionNeeded+%3D+%5B1%2C+1%2C+3%5D%3B%0AcorrectionNeeded.with%281%2C+2%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AcorrectionNeeded%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+3%5D):
+[*Examples*](https://core-js.io/playground#code=Array.from%28new+Set%28%5B1%2C+2%2C+3%2C+2%2C+1%5D%29%29%3B++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AArray.from%28%7B+0%3A+1%2C+1%3A+2%2C+2%3A+3%2C+length%3A+3+%7D%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AArray.from%28%27123%27%2C+Number%29%3B+++++++++++++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AArray.from%28%27123%27%2C+it+%3D%3E+it+%2A%2A+2%29%3B++++++++++++%2F%2F+%3D%3E+%5B1%2C+4%2C+9%5D%0A%0AArray.of%281%29%3B+++++++%2F%2F+%3D%3E+%5B1%5D%0AArray.of%281%2C+2%2C+3%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0A%0Alet+array+%3D+%5B%27a%27%2C+%27b%27%2C+%27c%27%5D%3B%0A%0Afor+%28let+value+of+array%29+console.log%28value%29%3B++++++++++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+value+of+array.values%28%29%29+console.log%28value%29%3B+%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+key+of+array.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+-%3E+0%2C+1%2C+2%0Afor+%28let+%5Bkey%2C+value%5D+of+array.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+-%3E+0%2C+1%2C+2%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A%7D%0A%0Afunction+isOdd%28value%29+%7B%0A++return+value+%25+2%3B%0A%7D%0A%5B4%2C+8%2C+15%2C+16%2C+23%2C+42%5D.find%28isOdd%29%3B++++++%2F%2F+%3D%3E+15%0A%5B4%2C+8%2C+15%2C+16%2C+23%2C+42%5D.findIndex%28isOdd%29%3B+%2F%2F+%3D%3E+2%0A%5B1%2C+2%2C+3%2C+4%5D.findLast%28isOdd%29%3B++++++++++++%2F%2F+%3D%3E+3%0A%5B1%2C+2%2C+3%2C+4%5D.findLastIndex%28isOdd%29%3B+++++++%2F%2F+%3D%3E+2%0A%0AArray%285%29.fill%2842%29%3B+%2F%2F+%3D%3E+%5B42%2C+42%2C+42%2C+42%2C+42%5D%0A%0A%5B1%2C+2%2C+3%2C+4%2C+5%5D.copyWithin%280%2C+3%29%3B+%2F%2F+%3D%3E+%5B4%2C+5%2C+3%2C+4%2C+5%5D%0A%0A%5B1%2C+2%2C+3%5D.includes%282%29%3B++++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.includes%284%29%3B++++++++%2F%2F+%3D%3E+false%0A%5B1%2C+2%2C+3%5D.includes%282%2C+2%29%3B+++++%2F%2F+%3D%3E+false%0A%0A%5BNaN%5D.indexOf%28NaN%29%3B+++++++++++%2F%2F+%3D%3E+-1%0A%5BNaN%5D.includes%28NaN%29%3B++++++++++%2F%2F+%3D%3E+true%0AArray%281%29.indexOf%28undefined%29%3B++%2F%2F+%3D%3E+-1%0AArray%281%29.includes%28undefined%29%3B+%2F%2F+%3D%3E+true%0A%0A%5B1%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%5D.flat%28%29%3B++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%5B1%2C+%5B2%2C+%5B3%2C+%5B4%5D%5D%5D%2C+5%5D.flat%28%29%3B++%2F%2F+%3D%3E+%5B1%2C+2%2C+%5B3%2C+%5B4%5D%5D%2C+5%5D%0A%5B1%2C+%5B2%2C+%5B3%2C+%5B4%5D%5D%5D%2C+5%5D.flat%283%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%5D%0A%0A%5B%7B+a%3A+1%2C+b%3A+2+%7D%2C+%7B+a%3A+3%2C+b%3A+4+%7D%2C+%7B+a%3A+5%2C+b%3A+6+%7D%5D.flatMap%28it+%3D%3E+%5Bit.a%2C+it.b%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%5D%0A%0A%5B1%2C+2%2C+3%5D.at%281%29%3B++%2F%2F+%3D%3E+2%0A%5B1%2C+2%2C+3%5D.at%28-1%29%3B+%2F%2F+%3D%3E+3%0A%0Aconst+sequence+%3D+%5B1%2C+2%2C+3%5D%3B%0Asequence.toReversed%28%29%3B+%2F%2F+%3D%3E+%5B3%2C+2%2C+1%5D%0Asequence%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0A%0Aconst+initialArray+%3D+%5B1%2C+2%2C+3%2C+4%5D%3B%0AinitialArray.toSpliced%281%2C+2%2C+5%2C+6%2C+7%29%3B+%2F%2F+%3D%3E+%5B1%2C+5%2C+6%2C+7%2C+4%5D%0AinitialArray%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%5D%0A%0Aconst+outOfOrder+%3D+%5B3%2C+1%2C+2%5D%3B%0AoutOfOrder.toSorted%28%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AoutOfOrder%3B+%2F%2F+%3D%3E+%5B3%2C+1%2C+2%5D%0A%0Aconst+correctionNeeded+%3D+%5B1%2C+1%2C+3%5D%3B%0AcorrectionNeeded.with%281%2C+2%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AcorrectionNeeded%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+3%5D):
 ```js
 Array.from(new Set([1, 2, 3, 2, 1]));        // => [1, 2, 3]
 Array.from({ 0: 1, 1: 2, 2: 3, length: 3 }); // => [1, 2, 3]
@@ -825,12 +825,12 @@ Array.of(1, 2, 3); // => [1, 2, 3]
 
 let array = ['a', 'b', 'c'];
 
-for (let value of array) console.log(value);          // => 'a', 'b', 'c'
-for (let value of array.values()) console.log(value); // => 'a', 'b', 'c'
-for (let key of array.keys()) console.log(key);       // => 0, 1, 2
+for (let value of array) console.log(value);          // -> 'a', 'b', 'c'
+for (let value of array.values()) console.log(value); // -> 'a', 'b', 'c'
+for (let key of array.keys()) console.log(key);       // -> 0, 1, 2
 for (let [key, value] of array.entries()) {
-  console.log(key);                                   // => 0, 1, 2
-  console.log(value);                                 // => 'a', 'b', 'c'
+  console.log(key);                                   // -> 0, 1, 2
+  console.log(value);                                 // -> 'a', 'b', 'c'
 }
 
 function isOdd(value) {
@@ -1140,10 +1140,10 @@ core-js/es|stable|actual|full/regexp/to-string
 core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
-[*Examples*](https://core-js.io/playground#code=for+%28let+value+of+%27a%F0%A0%AE%B7b%27%29+%7B%0A++console.log%28value%29%3B+%2F%2F+%3D%3E+%27a%27%2C+%27%F0%A0%AE%B7%27%2C+%27b%27%0A%7D%0A%0A%27foobarbaz%27.includes%28%27bar%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.includes%28%27bar%27%2C+4%29%3B+++%2F%2F+%3D%3E+false%0A%27foobarbaz%27.startsWith%28%27foo%27%29%3B++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.startsWith%28%27bar%27%2C+3%29%3B+%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27baz%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27bar%27%2C+6%29%3B+++%2F%2F+%3D%3E+true%0A%0A%27string%27.repeat%283%29%3B+%2F%2F+%3D%3E+%27stringstringstring%27%0A%0A%27hello%27.padStart%2810%29%3B+++++++++%2F%2F+%3D%3E+%27+++++hello%27%0A%27hello%27.padStart%2810%2C+%271234%27%29%3B+%2F%2F+%3D%3E+%2712341hello%27%0A%27hello%27.padEnd%2810%29%3B+++++++++++%2F%2F+%3D%3E+%27hello+++++%27%0A%27hello%27.padEnd%2810%2C+%271234%27%29%3B+++%2F%2F+%3D%3E+%27hello12341%27%0A%0A%27%F0%A0%AE%B7%27.codePointAt%280%29%3B+%2F%2F+%3D%3E+134071%0AString.fromCodePoint%2897%2C+134071%2C+98%29%3B+%2F%2F+%3D%3E+%27a%F0%A0%AE%B7b%27%0A%0Alet+name+%3D+%27Bob%27%3B%0AString.raw%60Hi%5Cn%24%7B+name+%7D%21%60%3B+++++++++++%2F%2F+%3D%3E+%27Hi%5C%5CnBob%21%27+%28ES2015+template+string+syntax%29%0AString.raw%28%7B+raw%3A+%27test%27+%7D%2C+0%2C+1%2C+2%29%3B+%2F%2F+%3D%3E+%27t0e1s2t%27%0A%0A%27foo%27.bold%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27%3Cb%3Efoo%3C%2Fb%3E%27%0A%27bar%27.anchor%28%27a%22b%27%29%3B+++++++++++++++%2F%2F+%3D%3E+%27%3Ca+name%3D%22a%26quot%3Bb%22%3Ebar%3C%2Fa%3E%27%0A%27baz%27.link%28%27https%3A%2F%2Fexample.com%27%29%3B+%2F%2F+%3D%3E+%27%3Ca+href%3D%22https%3A%2F%2Fexample.com%22%3Ebaz%3C%2Fa%3E%27%0A%0ARegExp%28%27.%27%2C+%27s%27%29.test%28%27%5Cn%27%29%3B+%2F%2F+%3D%3E+true%0ARegExp%28%27.%27%2C+%27s%27%29.dotAll%3B+++++%2F%2F+%3D%3E+true%0A%0ARegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29.exec%28%27foo%3Aabc%2Cbar%3Adef%27%29.groups%3B+%2F%2F+%3D%3E+%7B+foo%3A+%27abc%27%2C+bar%3A+%27def%27+%7D%0A%0A%27foo%3Aabc%2Cbar%3Adef%27.replace%28RegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29%2C+%27%24%3Cbar%3E%2C%24%3Cfoo%3E%27%29%3B+%2F%2F+%3D%3E+%27def%2Cabc%27%0A%0A%2F%2F+eslint-disable-next-line+regexp%2Fno-useless-flag+--+example%0ARegExp%28%2F.%2Fg%2C+%27m%27%29%3B+%2F%2F+%3D%3E+%2F.%2Fm%0A%0A%2Ffoo%2F.flags%3B+++%2F%2F+%3D%3E+%27%27%0A%2Ffoo%2Fgi.flags%3B+%2F%2F+%3D%3E+%27gi%27%0A%0ARegExp%28%27foo%27%2C+%27y%27%29.sticky%3B+%2F%2F+%3D%3E+true%0A%0Aconst+text+%3D+%27First+line%5CnSecond+line%27%3B%0Aconst+regex+%3D+RegExp%28%27%28%3F%3Cindex%3E%5C%5CS%2B%29+line%5C%5Cn%3F%27%2C+%27y%27%29%3B%0A%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27First%27%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27Second%27%0Aregex.exec%28text%29%3B++++%2F%2F+%3D%3E+null%0A%0A%27foo%27.match%28%7B+%5BSymbol.match%5D%3A+%28%29+%3D%3E+1+%7D%29%3B+++++%2F%2F+%3D%3E+1%0A%27foo%27.replace%28%7B+%5BSymbol.replace%5D%3A+%28%29+%3D%3E+2+%7D%29%3B+%2F%2F+%3D%3E+2%0A%27foo%27.search%28%7B+%5BSymbol.search%5D%3A+%28%29+%3D%3E+3+%7D%29%3B+++%2F%2F+%3D%3E+3%0A%27foo%27.split%28%7B+%5BSymbol.split%5D%3A+%28%29+%3D%3E+4+%7D%29%3B+++++%2F%2F+%3D%3E+4%0A%0ARegExp.prototype.toString.call%28%7B+source%3A+%27foo%27%2C+flags%3A+%27bar%27+%7D%29%3B+%2F%2F+%3D%3E+%27%2Ffoo%2Fbar%27%0A%0A%27+++hello+++%27.trimLeft%28%29%3B++%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimRight%28%29%3B+%2F%2F+%3D%3E+%27+++hello%27%0A%27+++hello+++%27.trimStart%28%29%3B+%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimEnd%28%29%3B+++%2F%2F+%3D%3E+%27+++hello%27%0A%0Afor+%28let+%7B+groups%3A+%7B+number%2C+letter+%7D+%7D+of+%271111a2b3cccc%27.matchAll%28RegExp%28%27%28%3F%3Cnumber%3E%5C%5Cd%29%28%3F%3Cletter%3E%5C%5CD%29%27%2C+%27g%27%29%29%29+%7B%0A++console.log%28number%2C+letter%29%3B+%2F%2F+%3D%3E+1+a%2C+2+b%2C+3+c%0A%7D%0A%0A%27Test+abc+test+test+abc+test.%27.replaceAll%28%27abc%27%2C+%27foo%27%29%3B+%2F%2F+%3D%3E+%27Test+foo+test+test+foo+test.%27%0A%0A%27abc%27.at%281%29%3B++%2F%2F+%3D%3E+%27b%27%0A%27abc%27.at%28-1%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0A%27a%F0%9F%92%A9b%27.isWellFormed%28%29%3B++++++%2F%2F+%3D%3E+true%0A%27a%5CuD83Db%27.isWellFormed%28%29%3B++%2F%2F+%3D%3E+false%0A%0A%27a%F0%9F%92%A9b%27.toWellFormed%28%29%3B++++++%2F%2F+%3D%3E+%27a%F0%9F%92%A9b%27%0A%27a%5CuD83Db%27.toWellFormed%28%29%3B++%2F%2F+%3D%3E+%27a%EF%BF%BDb%27):
+[*Examples*](https://core-js.io/playground#code=for+%28let+value+of+%27a%F0%A0%AE%B7b%27%29+%7B%0A++console.log%28value%29%3B+%2F%2F+-%3E+%27a%27%2C+%27%F0%A0%AE%B7%27%2C+%27b%27%0A%7D%0A%0A%27foobarbaz%27.includes%28%27bar%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.includes%28%27bar%27%2C+4%29%3B+++%2F%2F+%3D%3E+false%0A%27foobarbaz%27.startsWith%28%27foo%27%29%3B++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.startsWith%28%27bar%27%2C+3%29%3B+%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27baz%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27bar%27%2C+6%29%3B+++%2F%2F+%3D%3E+true%0A%0A%27string%27.repeat%283%29%3B+%2F%2F+%3D%3E+%27stringstringstring%27%0A%0A%27hello%27.padStart%2810%29%3B+++++++++%2F%2F+%3D%3E+%27+++++hello%27%0A%27hello%27.padStart%2810%2C+%271234%27%29%3B+%2F%2F+%3D%3E+%2712341hello%27%0A%27hello%27.padEnd%2810%29%3B+++++++++++%2F%2F+%3D%3E+%27hello+++++%27%0A%27hello%27.padEnd%2810%2C+%271234%27%29%3B+++%2F%2F+%3D%3E+%27hello12341%27%0A%0A%27%F0%A0%AE%B7%27.codePointAt%280%29%3B+%2F%2F+%3D%3E+134071%0AString.fromCodePoint%2897%2C+134071%2C+98%29%3B+%2F%2F+%3D%3E+%27a%F0%A0%AE%B7b%27%0A%0Alet+name+%3D+%27Bob%27%3B%0AString.raw%60Hi%5Cn%24%7B+name+%7D%21%60%3B+++++++++++%2F%2F+%3D%3E+%27Hi%5C%5CnBob%21%27+%28ES2015+template+string+syntax%29%0AString.raw%28%7B+raw%3A+%27test%27+%7D%2C+0%2C+1%2C+2%29%3B+%2F%2F+%3D%3E+%27t0e1s2t%27%0A%0A%27foo%27.bold%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27%3Cb%3Efoo%3C%2Fb%3E%27%0A%27bar%27.anchor%28%27a%22b%27%29%3B+++++++++++++++%2F%2F+%3D%3E+%27%3Ca+name%3D%22a%26quot%3Bb%22%3Ebar%3C%2Fa%3E%27%0A%27baz%27.link%28%27https%3A%2F%2Fexample.com%27%29%3B+%2F%2F+%3D%3E+%27%3Ca+href%3D%22https%3A%2F%2Fexample.com%22%3Ebaz%3C%2Fa%3E%27%0A%0ARegExp%28%27.%27%2C+%27s%27%29.test%28%27%5Cn%27%29%3B+%2F%2F+%3D%3E+true%0ARegExp%28%27.%27%2C+%27s%27%29.dotAll%3B+++++%2F%2F+%3D%3E+true%0A%0ARegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29.exec%28%27foo%3Aabc%2Cbar%3Adef%27%29.groups%3B+%2F%2F+%3D%3E+%7B+foo%3A+%27abc%27%2C+bar%3A+%27def%27+%7D%0A%0A%27foo%3Aabc%2Cbar%3Adef%27.replace%28RegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29%2C+%27%24%3Cbar%3E%2C%24%3Cfoo%3E%27%29%3B+%2F%2F+%3D%3E+%27def%2Cabc%27%0A%0A%2F%2F+eslint-disable-next-line+regexp%2Fno-useless-flag+--+example%0ARegExp%28%2F.%2Fg%2C+%27m%27%29%3B+%2F%2F+%3D%3E+%2F.%2Fm%0A%0A%2Ffoo%2F.flags%3B+++%2F%2F+%3D%3E+%27%27%0A%2Ffoo%2Fgi.flags%3B+%2F%2F+%3D%3E+%27gi%27%0A%0ARegExp%28%27foo%27%2C+%27y%27%29.sticky%3B+%2F%2F+%3D%3E+true%0A%0Aconst+text+%3D+%27First+line%5CnSecond+line%27%3B%0Aconst+regex+%3D+RegExp%28%27%28%3F%3Cindex%3E%5C%5CS%2B%29+line%5C%5Cn%3F%27%2C+%27y%27%29%3B%0A%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27First%27%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27Second%27%0Aregex.exec%28text%29%3B++++%2F%2F+%3D%3E+null%0A%0A%27foo%27.match%28%7B+%5BSymbol.match%5D%3A+%28%29+%3D%3E+1+%7D%29%3B+++++%2F%2F+%3D%3E+1%0A%27foo%27.replace%28%7B+%5BSymbol.replace%5D%3A+%28%29+%3D%3E+2+%7D%29%3B+%2F%2F+%3D%3E+2%0A%27foo%27.search%28%7B+%5BSymbol.search%5D%3A+%28%29+%3D%3E+3+%7D%29%3B+++%2F%2F+%3D%3E+3%0A%27foo%27.split%28%7B+%5BSymbol.split%5D%3A+%28%29+%3D%3E+4+%7D%29%3B+++++%2F%2F+%3D%3E+4%0A%0ARegExp.prototype.toString.call%28%7B+source%3A+%27foo%27%2C+flags%3A+%27bar%27+%7D%29%3B+%2F%2F+%3D%3E+%27%2Ffoo%2Fbar%27%0A%0A%27+++hello+++%27.trimLeft%28%29%3B++%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimRight%28%29%3B+%2F%2F+%3D%3E+%27+++hello%27%0A%27+++hello+++%27.trimStart%28%29%3B+%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimEnd%28%29%3B+++%2F%2F+%3D%3E+%27+++hello%27%0A%0Afor+%28let+%7B+groups%3A+%7B+number%2C+letter+%7D+%7D+of+%271111a2b3cccc%27.matchAll%28RegExp%28%27%28%3F%3Cnumber%3E%5C%5Cd%29%28%3F%3Cletter%3E%5C%5CD%29%27%2C+%27g%27%29%29%29+%7B%0A++console.log%28number%2C+letter%29%3B+%2F%2F+-%3E+1+a%2C+2+b%2C+3+c%0A%7D%0A%0A%27Test+abc+test+test+abc+test.%27.replaceAll%28%27abc%27%2C+%27foo%27%29%3B+%2F%2F+%3D%3E+%27Test+foo+test+test+foo+test.%27%0A%0A%27abc%27.at%281%29%3B++%2F%2F+%3D%3E+%27b%27%0A%27abc%27.at%28-1%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0A%27a%F0%9F%92%A9b%27.isWellFormed%28%29%3B++++++%2F%2F+%3D%3E+true%0A%27a%5CuD83Db%27.isWellFormed%28%29%3B++%2F%2F+%3D%3E+false%0A%0A%27a%F0%9F%92%A9b%27.toWellFormed%28%29%3B++++++%2F%2F+%3D%3E+%27a%F0%9F%92%A9b%27%0A%27a%5CuD83Db%27.toWellFormed%28%29%3B++%2F%2F+%3D%3E+%27a%EF%BF%BDb%27):
 ```js
 for (let value of 'a𠮷b') {
-  console.log(value); // => 'a', '𠮷', 'b'
+  console.log(value); // -> 'a', '𠮷', 'b'
 }
 
 'foobarbaz'.includes('bar');      // => true
@@ -1206,7 +1206,7 @@ RegExp.prototype.toString.call({ source: 'foo', flags: 'bar' }); // => '/foo/bar
 '   hello   '.trimEnd();   // => '   hello'
 
 for (let { groups: { number, letter } } of '1111a2b3cccc'.matchAll(RegExp('(?<number>\\d)(?<letter>\\D)', 'g'))) {
-  console.log(number, letter); // => 1 a, 2 b, 3 c
+  console.log(number, letter); // -> 1 a, 2 b, 3 c
 }
 
 'Test abc test test abc test.'.replaceAll('abc', 'foo'); // => 'Test foo test test foo test.'
@@ -1221,17 +1221,17 @@ for (let { groups: { number, letter } } of '1111a2b3cccc'.matchAll(RegExp('(?<nu
 'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
 
-[*Examples*](https://core-js.io/playground#code=console.log%28RegExp.escape%28%2710%24%27%29%29%3B+%2F%2F+%3D%3E+%27%5C%5Cx310%5C%5C%24%27%0Aconsole.log%28RegExp.escape%28%27abcdefg_123456%27%29%29%3B+%2F%2F+%3D%3E+%27%5C%5Cx61bcdefg_123456%27%0Aconsole.log%28RegExp.escape%28%27%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%27%29%29%3B+%2F%2F+%3D%3E+%27%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%27%0Aconsole.log%28RegExp.escape%28%27%28%29%7B%7D%5B%5D%7C%2C.%3F%2A%2B-%5E%24%3D%3C%3E%5C%5C%2F%23%26%21%25%3A%3B%40~%5C%27%22%60%27%29%29%3B%0A%2F%2F+%3D%3E+%27%5C%5C%28%5C%5C%29%5C%5C%7B%5C%5C%7D%5C%5C%5B%5C%5C%5D%5C%5C%7C%5C%5Cx2c%5C%5C.%5C%5C%3F%5C%5C%2A%5C%5C%2B%5C%5Cx2d%5C%5C%5E%5C%5C%24%5C%5Cx3d%5C%5Cx3c%5C%5Cx3e%5C%5C%5C%5C%5C%5C%2F%5C%5Cx23%5C%5Cx26%5C%5Cx21%5C%5Cx25%5C%5Cx3a%5C%5Cx3b%5C%5Cx40%5C%5Cx7e%5C%5Cx27%5C%5Cx22%5C%5Cx60%27%0Aconsole.log%28RegExp.escape%28%27%5Cu0009%5Cu000A%5Cu000B%5Cu000C%5Cu000D%5Cu0020%5Cu00A0%5Cu1680%5Cu2000%5Cu2001%5Cu2002%5Cu2003%5Cu2004%5Cu2005%5Cu2006%5Cu2007%5Cu2008%5Cu2009%5Cu200A%5Cu202F%5Cu205F%5Cu3000%5Cu2028%5Cu2029%5CuFEFF%27%29%29%3B%0A%2F%2F+%3D%3E+%27%5C%5Ct%5C%5Cn%5C%5Cv%5C%5Cf%5C%5Cr%5C%5Cx20%5C%5Cxa0%5C%5Cu1680%5C%5Cu2000%5C%5Cu2001%5C%5Cu2002%5C%5Cu2003%5C%5Cu2004%5C%5Cu2005%5C%5Cu2006%5C%5Cu2007%5C%5Cu2008%5C%5Cu2009%5C%5Cu200a%5C%5Cu202f%5C%5Cu205f%5C%5Cu3000%5C%5Cu2028%5C%5Cu2029%5C%5Cufeff%27%0Aconsole.log%28RegExp.escape%28%27%F0%9F%92%A9%27%29%29%3B+%2F%2F+%3D%3E+%27%F0%9F%92%A9%27%0Aconsole.log%28RegExp.escape%28%27%5CuD83D%27%29%29%3B+%2F%2F+%3D%3E+%27%5C%5Cud83d%27):
+[*Examples*](https://core-js.io/playground#code=RegExp.escape%28%2710%24%27%29%3B+%2F%2F+%3D%3E+%27%5C%5Cx310%5C%5C%24%27%0ARegExp.escape%28%27abcdefg_123456%27%29%3B+%2F%2F+%3D%3E+%27%5C%5Cx61bcdefg_123456%27%0ARegExp.escape%28%27%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%27%29%3B+%2F%2F+%3D%3E+%27%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%27%0ARegExp.escape%28%27%28%29%7B%7D%5B%5D%7C%2C.%3F%2A%2B-%5E%24%3D%3C%3E%5C%5C%2F%23%26%21%25%3A%3B%40~%5C%27%22%60%27%29%3B%0A%2F%2F+%3D%3E+%27%5C%5C%28%5C%5C%29%5C%5C%7B%5C%5C%7D%5C%5C%5B%5C%5C%5D%5C%5C%7C%5C%5Cx2c%5C%5C.%5C%5C%3F%5C%5C%2A%5C%5C%2B%5C%5Cx2d%5C%5C%5E%5C%5C%24%5C%5Cx3d%5C%5Cx3c%5C%5Cx3e%5C%5C%5C%5C%5C%5C%2F%5C%5Cx23%5C%5Cx26%5C%5Cx21%5C%5Cx25%5C%5Cx3a%5C%5Cx3b%5C%5Cx40%5C%5Cx7e%5C%5Cx27%5C%5Cx22%5C%5Cx60%27%0ARegExp.escape%28%27%5Cu0009%5Cu000A%5Cu000B%5Cu000C%5Cu000D%5Cu0020%5Cu00A0%5Cu1680%5Cu2000%5Cu2001%5Cu2002%5Cu2003%5Cu2004%5Cu2005%5Cu2006%5Cu2007%5Cu2008%5Cu2009%5Cu200A%5Cu202F%5Cu205F%5Cu3000%5Cu2028%5Cu2029%5CuFEFF%27%29%3B%0A%2F%2F+%3D%3E+%27%5C%5Ct%5C%5Cn%5C%5Cv%5C%5Cf%5C%5Cr%5C%5Cx20%5C%5Cxa0%5C%5Cu1680%5C%5Cu2000%5C%5Cu2001%5C%5Cu2002%5C%5Cu2003%5C%5Cu2004%5C%5Cu2005%5C%5Cu2006%5C%5Cu2007%5C%5Cu2008%5C%5Cu2009%5C%5Cu200a%5C%5Cu202f%5C%5Cu205f%5C%5Cu3000%5C%5Cu2028%5C%5Cu2029%5C%5Cufeff%27%0ARegExp.escape%28%27%F0%9F%92%A9%27%29%3B+%2F%2F+%3D%3E+%27%F0%9F%92%A9%27%0ARegExp.escape%28%27%5CuD83D%27%29%3B+%2F%2F+%3D%3E+%27%5C%5Cud83d%27):
 ```js
-console.log(RegExp.escape('10$')); // => '\\x310\\$'
-console.log(RegExp.escape('abcdefg_123456')); // => '\\x61bcdefg_123456'
-console.log(RegExp.escape('Привет')); // => 'Привет'
-console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
+RegExp.escape('10$'); // => '\\x310\\$'
+RegExp.escape('abcdefg_123456'); // => '\\x61bcdefg_123456'
+RegExp.escape('Привет'); // => 'Привет'
+RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`');
 // => '\\(\\)\\{\\}\\[\\]\\|\\x2c\\.\\?\\*\\+\\x2d\\^\\$\\x3d\\x3c\\x3e\\\\\\/\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
-console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
+RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF');
 // => '\\t\\n\\v\\f\\r\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
-console.log(RegExp.escape('💩')); // => '💩'
-console.log(RegExp.escape('\uD83D')); // => '\\ud83d'
+RegExp.escape('💩'); // => '💩'
+RegExp.escape('\uD83D'); // => '\\ud83d'
 ```
 
 #### ECMAScript: Number[⬆](#index)
@@ -1394,7 +1394,7 @@ core-js(-pure)/es|stable|actual|full/promise/finally
 core-js(-pure)/es|stable|actual|full/promise/try
 core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```
-Basic [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Aconsole.log%28%27Run%27%29%3B++++++++++++++++++++%2F%2F+%3D%3E+Run%0AsleepRandom%285%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+%3D%3E+869%2C+after+5+sec.%0A++return+sleepRandom%2810%29%3B%0A%7D%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+%3D%3E+202%2C+after+10+sec.%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27immediately+after%27%29%3B++++%2F%2F+%3D%3E+immediately+after%0A++throw+new+Error%28%27Irror%21%27%29%3B%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27will+not+be+displayed%27%29%3B%0A%7D%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+%3D%3E+Error%3A+Irror%21):
+Basic [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Aconsole.log%28%27Run%27%29%3B++++++++++++++++++++%2F%2F+-%3E+Run%0AsleepRandom%285%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+-%3E+869%2C+after+5+sec.%0A++return+sleepRandom%2810%29%3B%0A%7D%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+-%3E+202%2C+after+10+sec.%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27immediately+after%27%29%3B++++%2F%2F+-%3E+immediately+after%0A++throw+new+Error%28%27Irror%21%27%29%3B%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27will+not+be+displayed%27%29%3B%0A%7D%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+Error%3A+Irror%21):
 ```js
 /* eslint-disable promise/prefer-await-to-callbacks -- example */
 function sleepRandom(time) {
@@ -1403,24 +1403,24 @@ function sleepRandom(time) {
   });
 }
 
-console.log('Run');                    // => Run
+console.log('Run');                    // -> Run
 sleepRandom(5).then(result => {
-  console.log(result);                 // => 869, after 5 sec.
+  console.log(result);                 // -> 869, after 5 sec.
   return sleepRandom(10);
 }).then(result => {
-  console.log(result);                 // => 202, after 10 sec.
+  console.log(result);                 // -> 202, after 10 sec.
 }).then(() => {
-  console.log('immediately after');    // => immediately after
+  console.log('immediately after');    // -> immediately after
   throw new Error('Irror!');
 }).then(() => {
   console.log('will not be displayed');
-}).catch(error => console.log(error)); // => Error: Irror!
+}).catch(error => console.log(error)); // -> Error: Irror!
 ```
-`Promise.resolve` and `Promise.reject` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0APromise.resolve%2842%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++%2F%2F+%3D%3E+42%0APromise.reject%2842%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+%3D%3E+42%0A%0APromise.resolve%28%24.getJSON%28%27%2Fdata.json%27%29%29%3B+%2F%2F+%3D%3E+ES+promise):
+`Promise.resolve` and `Promise.reject` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0APromise.resolve%2842%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++%2F%2F+-%3E+42%0APromise.reject%2842%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+42%0A%0APromise.resolve%28%24.getJSON%28%27%2Fdata.json%27%29%29%3B+%2F%2F+%3D%3E+ES+promise):
 ```js
 /* eslint-disable promise/prefer-await-to-callbacks -- example */
-Promise.resolve(42).then(x => console.log(x));         // => 42
-Promise.reject(42).catch(error => console.log(error)); // => 42
+Promise.resolve(42).then(x => console.log(x));         // -> 42
+Promise.reject(42).catch(error => console.log(error)); // -> 42
 
 Promise.resolve($.getJSON('/data.json')); // => ES promise
 ```
@@ -1430,16 +1430,16 @@ Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
-`Promise.all` [*examples*](https://core-js.io/playground#code=function+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0APromise.all%28%5B%0A++%27foo%27%2C%0A++sleepRandom%285%29%2C%0A++sleepRandom%2815%29%2C%0A++sleepRandom%2810%29%2C++++++++++++%2F%2F+after+15+sec%3A%0A%5D%29.then%28x+%3D%3E+console.log%28x%29%29%3B+%2F%2F+%3D%3E+%5B%27foo%27%2C+956%2C+85%2C+382%5D):
+`Promise.all` [*examples*](https://core-js.io/playground#code=function+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0APromise.all%28%5B%0A++%27foo%27%2C%0A++sleepRandom%285%29%2C%0A++sleepRandom%2815%29%2C%0A++sleepRandom%2810%29%2C++++++++++++%2F%2F+after+15+sec%3A%0A%5D%29.then%28x+%3D%3E+console.log%28x%29%29%3B+%2F%2F+-%3E+%5B%27foo%27%2C+956%2C+85%2C+382%5D):
 ```js
 Promise.all([
   'foo',
   sleepRandom(5),
   sleepRandom(15),
   sleepRandom(10),            // after 15 sec:
-]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
+]).then(x => console.log(x)); // -> ['foo', 956, 85, 382]
 ```
-`Promise.race` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Afunction+timeLimit%28promise%2C+time%29+%7B%0A++return+Promise.race%28%5Bpromise%2C+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28reject%2C+time+%2A+1e3%2C+new+Error%28%60Await+%3E+%24%7B+time+%7D+sec%60%29%29%3B%0A++%7D%29%5D%29%3B%0A%7D%0A%0AtimeLimit%28sleepRandom%285%29%2C+10%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++++%2F%2F+%3D%3E+853%2C+after+5+sec.%0AtimeLimit%28sleepRandom%2815%29%2C+10%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+Error%3A+Await+%3E+10+sec):
+`Promise.race` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Afunction+timeLimit%28promise%2C+time%29+%7B%0A++return+Promise.race%28%5Bpromise%2C+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28reject%2C+time+%2A+1e3%2C+new+Error%28%60Await+%3E+%24%7B+time+%7D+sec%60%29%29%3B%0A++%7D%29%5D%29%3B%0A%7D%0A%0AtimeLimit%28sleepRandom%285%29%2C+10%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++++%2F%2F+-%3E+853%2C+after+5+sec.%0AtimeLimit%28sleepRandom%2815%29%2C+10%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+Error%3A+Await+%3E+10+sec):
 ```js
 /* eslint-disable promise/prefer-await-to-callbacks -- example */
 function timeLimit(promise, time) {
@@ -1448,30 +1448,30 @@ function timeLimit(promise, time) {
   })]);
 }
 
-timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // => 853, after 5 sec.
-timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // Error: Await > 10 sec
+timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // -> 853, after 5 sec.
+timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // -> Error: Await > 10 sec
 ```
-`Promise.allSettled` [*examples*](https://core-js.io/playground#code=Promise.allSettled%28%5B%0A++Promise.resolve%281%29%2C%0A++Promise.reject%282%29%2C%0A++Promise.resolve%283%29%2C%0A%5D%29.then%28console.log%29%3B+%2F%2F+%3D%3E+%5B%7B+value%3A+1%2C+status%3A+%27fulfilled%27+%7D%2C+%7B+reason%3A+2%2C+status%3A+%27rejected%27+%7D%2C+%7B+value%3A+3%2C+status%3A+%27fulfilled%27+%7D%5D):
+`Promise.allSettled` [*examples*](https://core-js.io/playground#code=Promise.allSettled%28%5B%0A++Promise.resolve%281%29%2C%0A++Promise.reject%282%29%2C%0A++Promise.resolve%283%29%2C%0A%5D%29.then%28console.log%29%3B+%2F%2F+-%3E+%5B%7B+value%3A+1%2C+status%3A+%27fulfilled%27+%7D%2C+%7B+reason%3A+2%2C+status%3A+%27rejected%27+%7D%2C+%7B+value%3A+3%2C+status%3A+%27fulfilled%27+%7D%5D):
 ```js
 Promise.allSettled([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+]).then(console.log); // -> [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
-`Promise.any` [*examples*](https://core-js.io/playground#code=Promise.any%28%5B%0A++Promise.resolve%281%29%2C%0A++Promise.reject%282%29%2C%0A++Promise.resolve%283%29%2C%0A%5D%29.then%28console.log%29%3B+%2F%2F+%3D%3E+1%0A%0APromise.any%28%5B%0A++Promise.reject%281%29%2C%0A++Promise.reject%282%29%2C%0A++Promise.reject%283%29%2C%0A%5D%29.catch%28%28%7B+errors+%7D%29+%3D%3E+console.log%28errors%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D):
+`Promise.any` [*examples*](https://core-js.io/playground#code=Promise.any%28%5B%0A++Promise.resolve%281%29%2C%0A++Promise.reject%282%29%2C%0A++Promise.resolve%283%29%2C%0A%5D%29.then%28console.log%29%3B+%2F%2F+-%3E+1%0A%0APromise.any%28%5B%0A++Promise.reject%281%29%2C%0A++Promise.reject%282%29%2C%0A++Promise.reject%283%29%2C%0A%5D%29.catch%28%28%7B+errors+%7D%29+%3D%3E+console.log%28errors%29%29%3B+%2F%2F+-%3E+%5B1%2C+2%2C+3%5D):
 ```js
 Promise.any([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => 1
+]).then(console.log); // -> 1
 
 Promise.any([
   Promise.reject(1),
   Promise.reject(2),
   Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+]).catch(({ errors }) => console.log(errors)); // -> [1, 2, 3]
 ```
 `Promise.try` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B%0A%0APromise.try%28%28%29+%3D%3E+%7B+throw+new+Error%28%2742%27%29%3B+%7D%29.catch%28error+%3D%3E+console.log%28%60Promise%2C+rejected+as+%24%7B+error+%7D%60%29%29%3B%0A%0APromise.try%28async+%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B%0A%0APromise.try%28async+%28%29+%3D%3E+%7B+throw+new+Error%28%2742%27%29%3B+%7D%29.catch%28error+%3D%3E+console.log%28%60Promise%2C+rejected+as+%24%7B+error+%7D%60%29%29%3B%0A%0APromise.try%28it+%3D%3E+it%2C+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B):
 ```js
@@ -1486,13 +1486,13 @@ Promise.try(async () => { throw new Error('42'); }).catch(error => console.log(`
 
 Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`));
 ```
-`Promise.withResolvers` [*examples*](https://core-js.io/playground#code=const+d+%3D+Promise.withResolvers%28%29%3B%0Ad.resolve%2842%29%3B%0Ad.promise.then%28console.log%29%3B+%2F%2F+%3D%3E+42):
+`Promise.withResolvers` [*examples*](https://core-js.io/playground#code=const+d+%3D+Promise.withResolvers%28%29%3B%0Ad.resolve%2842%29%3B%0Ad.promise.then%28console.log%29%3B+%2F%2F+-%3E+42):
 ```js
 const d = Promise.withResolvers();
 d.resolve(42);
-d.promise.then(console.log); // => 42
+d.promise.then(console.log); // -> 42
 ```
-[Example](https://core-js.io/playground#code=let+delay+%3D+time+%3D%3E+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+%3D%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+%3D%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+%3D%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+%3D%3E+Error%3A+%27Error%21%27%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
+[Example](https://core-js.io/playground#code=let+delay+%3D+time+%3D%3E+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+-%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+-%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+-%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+-%3E+Error%3A+Error%21%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time));
 
@@ -1508,18 +1508,18 @@ async function sleepError(time, msg) {
 
 (async () => {
   try {
-    console.log('Run');                // => Run
-    console.log(await sleepRandom(5)); // => 936, after 5 sec.
+    console.log('Run');                // -> Run
+    console.log(await sleepRandom(5)); // -> 936, after 5 sec.
     let [a, b, c] = await Promise.all([
       sleepRandom(5),
       sleepRandom(15),
       sleepRandom(10),
     ]);
-    console.log(a, b, c);              // => 210 445 71, after 15 sec.
+    console.log(a, b, c);              // -> 210 445 71, after 15 sec.
     await sleepError(5, 'Error!');
     console.log('Will not be displayed');
   } catch (error) {
-    console.log(error);                // => Error: 'Error!', after 5 sec.
+    console.log(error);                // -> Error: Error!, after 5 sec.
   }
 })();
 ```
@@ -1532,13 +1532,13 @@ process.on('unhandledRejection', (reason, promise) => console.log('unhandled', r
 process.on('rejectionHandled', promise => console.log('handled', promise));
 
 let promise = Promise.reject(42);
-// unhandled 42 [object Promise]
+// -> unhandled 42 [object Promise]
 
 // eslint-disable-next-line promise/prefer-await-to-then -- example
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
-// handled [object Promise]
+// -> handled [object Promise]
 ```
-In a browser, an unhandled rejection is reported to the console by default; you can also add handlers for unhandled and later handled rejections, [*examples*](https://core-js.io/playground#code=globalThis.addEventListener%28%27unhandledrejection%27%2C+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%29%3B%0AglobalThis.addEventListener%28%27rejectionhandled%27%2C+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%29%3B%0A%2F%2F+or%0AglobalThis.onunhandledrejection+%3D+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%3B%0AglobalThis.onrejectionhandled+%3D+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%3B%0A%0Alet+promise+%3D+Promise.reject%2842%29%3B%0A%2F%2F+%3D%3E+unhandled+42+%5Bobject+Promise%5D%0A%0A%2F%2F+eslint-disable-next-line+promise%2Fprefer-await-to-then+--+example%0AsetTimeout%28%28%29+%3D%3E+promise.catch%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%2C+1e3%29%3B%0A%2F%2F+%3D%3E+handled+42+%5Bobject+Promise%5D):
+In a browser, an unhandled rejection is reported to the console by default; you can also add handlers for unhandled and later handled rejections, [*examples*](https://core-js.io/playground#code=globalThis.addEventListener%28%27unhandledrejection%27%2C+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%29%3B%0AglobalThis.addEventListener%28%27rejectionhandled%27%2C+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%29%3B%0A%2F%2F+or%0AglobalThis.onunhandledrejection+%3D+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%3B%0AglobalThis.onrejectionhandled+%3D+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%3B%0A%0Alet+promise+%3D+Promise.reject%2842%29%3B%0A%2F%2F+-%3E+unhandled+42+%5Bobject+Promise%5D%0A%0A%2F%2F+eslint-disable-next-line+promise%2Fprefer-await-to-then+--+example%0AsetTimeout%28%28%29+%3D%3E+promise.catch%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%2C+1e3%29%3B%0A%2F%2F+-%3E+handled+42+%5Bobject+Promise%5D):
 ```js
 globalThis.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
 globalThis.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));
@@ -1547,11 +1547,11 @@ globalThis.onunhandledrejection = e => console.log('unhandled', e.reason, e.prom
 globalThis.onrejectionhandled = e => console.log('handled', e.reason, e.promise);
 
 let promise = Promise.reject(42);
-// => unhandled 42 [object Promise]
+// -> unhandled 42 [object Promise]
 
 // eslint-disable-next-line promise/prefer-await-to-then -- example
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
-// => handled 42 [object Promise]
+// -> handled 42 [object Promise]
 ```
 
 #### ECMAScript: Symbol[⬆](#index)
@@ -1620,7 +1620,7 @@ core-js(-pure)/es|stable|actual|full/symbol/key-for
 core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
 core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
-[*Basic example*](https://core-js.io/playground#code=let+Person+%3D+%28%28%29+%3D%3E+%7B%0A++let+NAME+%3D+Symbol%28%27name%27%29%3B%0A++return+class+%7B%0A++++constructor%28name%29+%7B%0A++++++this%5BNAME%5D+%3D+name%3B%0A++++%7D%0A++++getName%28%29+%7B%0A++++++return+this%5BNAME%5D%3B%0A++++%7D%0A++%7D%3B%0A%7D%29%28%29%3B%0A%0Alet+person+%3D+new+Person%28%27Vasya%27%29%3B%0Aconsole.log%28person.getName%28%29%29%3B++++++++++++%2F%2F+%3D%3E+%27Vasya%27%0Aconsole.log%28person.name%29%3B+++++++++++++++++%2F%2F+%3D%3E+undefined%0Aconsole.log%28person%5BSymbol%28%27name%27%29%5D%29%3B++++++%2F%2F+%3D%3E+undefined%2C+symbols+are+unique%0Afor+%28let+key+in+person%29+console.log%28key%29%3B+%2F%2F+%3D%3E+nothing%2C+for-in+skips+symbol+keys):
+[*Basic example*](https://core-js.io/playground#code=let+Person+%3D+%28%28%29+%3D%3E+%7B%0A++let+NAME+%3D+Symbol%28%27name%27%29%3B%0A++return+class+%7B%0A++++constructor%28name%29+%7B%0A++++++this%5BNAME%5D+%3D+name%3B%0A++++%7D%0A++++getName%28%29+%7B%0A++++++return+this%5BNAME%5D%3B%0A++++%7D%0A++%7D%3B%0A%7D%29%28%29%3B%0A%0Alet+person+%3D+new+Person%28%27Vasya%27%29%3B%0Aperson.getName%28%29%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27Vasya%27%0Aperson.name%3B++++++++++++++++++++++++++++++%2F%2F+%3D%3E+undefined%0Aperson%5BSymbol%28%27name%27%29%5D%3B+++++++++++++++++++%2F%2F+%3D%3E+undefined%2C+symbols+are+unique%0Afor+%28let+key+in+person%29+console.log%28key%29%3B+%2F%2F+-%3E+nothing%2C+for-in+skips+symbol+keys):
 ```js
 let Person = (() => {
   let NAME = Symbol('name');
@@ -1635,10 +1635,10 @@ let Person = (() => {
 })();
 
 let person = new Person('Vasya');
-console.log(person.getName());            // => 'Vasya'
-console.log(person.name);                 // => undefined
-console.log(person[Symbol('name')]);      // => undefined, symbols are unique
-for (let key in person) console.log(key); // => nothing, for-in skips symbol keys
+person.getName();                         // => 'Vasya'
+person.name;                              // => undefined
+person[Symbol('name')];                   // => undefined, symbols are unique
+for (let key in person) console.log(key); // -> nothing, for-in skips symbol keys
 ```
 `Symbol.for` & `Symbol.keyFor` [*examples*](https://core-js.io/playground#code=let+symbol+%3D+Symbol.for%28%27key%27%29%3B%0Asymbol+%3D%3D%3D+Symbol.for%28%27key%27%29%3B+%2F%2F+%3D%3E+true%0ASymbol.keyFor%28symbol%29%3B++++++++%2F%2F+%3D%3E+%27key%27):
 ```js
@@ -1669,15 +1669,15 @@ Symbol().description;      // => undefined
 - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
 - By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
 
-You can disable defining setters in `Object.prototype`. [Example](https://core-js.io/playground#code=Symbol.useSimple%28%29%3B%0Alet+object1+%3D+%7B+%5BSymbol%28%27symbol1%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object1%29+console.log%28key%29%3B+%2F%2F+%3D%3E+%27Symbol%28symbol1%29_t.qamkg9f3q%27%2C+without+native+%60Symbol%60%0A%0ASymbol.useSetter%28%29%3B%0Alet+object2+%3D+%7B+%5BSymbol%28%27symbol2%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object2%29+console.log%28key%29%3B+%2F%2F+nothing):
+You can disable defining setters in `Object.prototype`. [Example](https://core-js.io/playground#code=Symbol.useSimple%28%29%3B%0Alet+object1+%3D+%7B+%5BSymbol%28%27symbol1%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object1%29+console.log%28key%29%3B+%2F%2F+-%3E+%27Symbol%28symbol1%29_t.qamkg9f3q%27%2C+without+native+%60Symbol%60%0A%0ASymbol.useSetter%28%29%3B%0Alet+object2+%3D+%7B+%5BSymbol%28%27symbol2%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object2%29+console.log%28key%29%3B+%2F%2F+-%3E+nothing):
 ```js
 Symbol.useSimple();
 let object1 = { [Symbol('symbol1')]: true };
-for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
+for (let key in object1) console.log(key); // -> 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
 
 Symbol.useSetter();
 let object2 = { [Symbol('symbol2')]: true };
-for (let key in object2) console.log(key); // nothing
+for (let key in object2) console.log(key); // -> nothing
 ```
 - Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
 - Some problems are possible with environment exotic objects (for example, IE `localStorage`).
@@ -1712,37 +1712,37 @@ core-js(-pure)/es|stable|actual|full/map/group-by
 core-js(-pure)/es|stable|actual|full/map/get-or-insert
 core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
 ```
-[*Examples*](https://core-js.io/playground#code=let+array+%3D+%5B1%5D%3B%0A%0Alet+map+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B42%2C+2%5D%5D%29%3B%0Amap.set%28array%2C+3%29.set%28true%2C+4%29%3B%0A%0Aconsole.log%28map.size%29%3B++++++++%2F%2F+%3D%3E+4%0Aconsole.log%28map.has%28array%29%29%3B++%2F%2F+%3D%3E+true%0Aconsole.log%28map.has%28%5B1%5D%29%29%3B++++%2F%2F+%3D%3E+false%0Aconsole.log%28map.get%28array%29%29%3B++%2F%2F+%3D%3E+3%0Amap.forEach%28%28val%2C+key%29+%3D%3E+%7B%0A++console.log%28val%29%3B+++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%2C+4%0A++console.log%28key%29%3B+++++++++++%2F%2F+%3D%3E+%27a%27%2C+42%2C+%5B1%5D%2C+true%0A%7D%29%3B%0Amap.delete%28array%29%3B%0Aconsole.log%28map.size%29%3B++++++++%2F%2F+%3D%3E+3%0Aconsole.log%28map.get%28array%29%29%3B++%2F%2F+%3D%3E+undefined%0Aconsole.log%28Array.from%28map%29%29%3B+%2F%2F+%3D%3E+%5B%5B%27a%27%2C+1%5D%2C+%5B42%2C+2%5D%2C+%5Btrue%2C+4%5D%5D%0A%0Amap+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%2C+%5B%27c%27%2C+3%5D%5D%29%3B%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+map%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A%7D%0Afor+%28let+value+of+map.values%28%29%29+console.log%28value%29%3B+%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+key+of+map.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+%5Bkey%2C+value%5D+of+map.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A%7D%0A%0Amap+%3D+Map.groupBy%28%5B1%2C+2%2C+3%2C+4%2C+5%5D%2C+it+%3D%3E+it+%25+2%29%3B%0Amap.get%281%29%3B+%2F%2F+%3D%3E+%5B1%2C+3%2C+5%5D%0Amap.get%280%29%3B+%2F%2F+%3D%3E+%5B2%2C+4%5D%0A%0Amap+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%5D%29%3B%0A%0Amap.getOrInsert%28%27a%27%2C+2%29%3B+%2F%2F+%3D%3E+1%0A%0Amap.getOrInsert%28%27b%27%2C+3%29%3B+%2F%2F+%3D%3E+3%0A%0Amap.getOrInsertComputed%28%27a%27%2C+key+%3D%3E+key%29%3B+%2F%2F+%3D%3E+1%0A%0Amap.getOrInsertComputed%28%27c%27%2C+key+%3D%3E+key%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0Aconsole.log%28map%29%3B+%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+3%2C+%27c%27+%3D%3E+%27c%27+%7D):
+[*Examples*](https://core-js.io/playground#code=let+array+%3D+%5B1%5D%3B%0A%0Alet+map+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B42%2C+2%5D%5D%29%3B%0Amap.set%28array%2C+3%29.set%28true%2C+4%29%3B%0A%0Amap.size%3B++++++++%2F%2F+%3D%3E+4%0Amap.has%28array%29%3B++%2F%2F+%3D%3E+true%0Amap.has%28%5B1%5D%29%3B++++%2F%2F+%3D%3E+false%0Amap.get%28array%29%3B++%2F%2F+%3D%3E+3%0Amap.forEach%28%28val%2C+key%29+%3D%3E+%7B%0A++console.log%28val%29%3B+++++++++++%2F%2F+-%3E+1%2C+2%2C+3%2C+4%0A++console.log%28key%29%3B+++++++++++%2F%2F+-%3E+%27a%27%2C+42%2C+%5B1%5D%2C+true%0A%7D%29%3B%0Amap.delete%28array%29%3B%0Amap.size%3B++++++++%2F%2F+%3D%3E+3%0Amap.get%28array%29%3B++%2F%2F+%3D%3E+undefined%0AArray.from%28map%29%3B+%2F%2F+%3D%3E+%5B%5B%27a%27%2C+1%5D%2C+%5B42%2C+2%5D%2C+%5Btrue%2C+4%5D%5D%0A%0Amap+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%2C+%5B%27c%27%2C+3%5D%5D%29%3B%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+map%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0A%7D%0Afor+%28let+value+of+map.values%28%29%29+console.log%28value%29%3B+%2F%2F+-%3E+1%2C+2%2C+3%0Afor+%28let+key+of+map.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+%5Bkey%2C+value%5D+of+map.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0A%7D%0A%0Amap+%3D+Map.groupBy%28%5B1%2C+2%2C+3%2C+4%2C+5%5D%2C+it+%3D%3E+it+%25+2%29%3B%0Amap.get%281%29%3B+%2F%2F+%3D%3E+%5B1%2C+3%2C+5%5D%0Amap.get%280%29%3B+%2F%2F+%3D%3E+%5B2%2C+4%5D%0A%0Amap+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%5D%29%3B%0A%0Amap.getOrInsert%28%27a%27%2C+2%29%3B+%2F%2F+%3D%3E+1%0A%0Amap.getOrInsert%28%27b%27%2C+3%29%3B+%2F%2F+%3D%3E+3%0A%0Amap.getOrInsertComputed%28%27a%27%2C+key+%3D%3E+key%29%3B+%2F%2F+%3D%3E+1%0A%0Amap.getOrInsertComputed%28%27c%27%2C+key+%3D%3E+key%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0Amap%3B+%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+3%2C+%27c%27+%3D%3E+%27c%27+%7D):
 ```js
 let array = [1];
 
 let map = new Map([['a', 1], [42, 2]]);
 map.set(array, 3).set(true, 4);
 
-console.log(map.size);        // => 4
-console.log(map.has(array));  // => true
-console.log(map.has([1]));    // => false
-console.log(map.get(array));  // => 3
+map.size;        // => 4
+map.has(array);  // => true
+map.has([1]);    // => false
+map.get(array);  // => 3
 map.forEach((val, key) => {
-  console.log(val);           // => 1, 2, 3, 4
-  console.log(key);           // => 'a', 42, [1], true
+  console.log(val);           // -> 1, 2, 3, 4
+  console.log(key);           // -> 'a', 42, [1], true
 });
 map.delete(array);
-console.log(map.size);        // => 3
-console.log(map.get(array));  // => undefined
-console.log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
+map.size;        // => 3
+map.get(array);  // => undefined
+Array.from(map); // => [['a', 1], [42, 2], [true, 4]]
 
 map = new Map([['a', 1], ['b', 2], ['c', 3]]);
 
 for (let [key, value] of map) {
-  console.log(key);                                 // => 'a', 'b', 'c'
-  console.log(value);                               // => 1, 2, 3
+  console.log(key);                                 // -> 'a', 'b', 'c'
+  console.log(value);                               // -> 1, 2, 3
 }
-for (let value of map.values()) console.log(value); // => 1, 2, 3
-for (let key of map.keys()) console.log(key);       // => 'a', 'b', 'c'
+for (let value of map.values()) console.log(value); // -> 1, 2, 3
+for (let key of map.keys()) console.log(key);       // -> 'a', 'b', 'c'
 for (let [key, value] of map.entries()) {
-  console.log(key);                                 // => 'a', 'b', 'c'
-  console.log(value);                               // => 1, 2, 3
+  console.log(key);                                 // -> 'a', 'b', 'c'
+  console.log(value);                               // -> 1, 2, 3
 }
 
 map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
@@ -1759,7 +1759,7 @@ map.getOrInsertComputed('a', key => key); // => 1
 
 map.getOrInsertComputed('c', key => key); // => 'c'
 
-console.log(map); // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
+map; // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
 ```
 
 ##### Set[⬆](#index)
@@ -1797,28 +1797,28 @@ core-js(-pure)/es|stable|actual|full/set/is-superset-of
 core-js(-pure)/es|stable|actual|full/set/symmetric-difference
 core-js(-pure)/es|stable|actual|full/set/union
 ```
-[*Examples*](https://core-js.io/playground#code=let+set+%3D+new+Set%28%5B%27a%27%2C+%27b%27%2C+%27a%27%2C+%27c%27%5D%29%3B%0Aset.add%28%27d%27%29.add%28%27b%27%29.add%28%27e%27%29%3B%0Aconsole.log%28set.size%29%3B++++++++%2F%2F+%3D%3E+5%0Aconsole.log%28set.has%28%27b%27%29%29%3B++++%2F%2F+%3D%3E+true%0Aset.forEach%28it+%3D%3E+%7B%0A++console.log%28it%29%3B++++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%2C+%27d%27%2C+%27e%27%0A%7D%29%3B%0Aset.delete%28%27b%27%29%3B%0Aconsole.log%28set.size%29%3B++++++++%2F%2F+%3D%3E+4%0Aconsole.log%28set.has%28%27b%27%29%29%3B++++%2F%2F+%3D%3E+false%0Aconsole.log%28Array.from%28set%29%29%3B+%2F%2F+%3D%3E+%5B%27a%27%2C+%27c%27%2C+%27d%27%2C+%27e%27%5D%0A%0Aset+%3D+new+Set%28%5B1%2C+2%2C+3%2C+2%2C+1%5D%29%3B%0A%0Afor+%28let+value+of+set%29+console.log%28value%29%3B++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+value+of+set.values%28%29%29+console.log%28value%29%3B+%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+key+of+set.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+%5Bkey%2C+value%5D+of+set.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A%7D%0A%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B+++++++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3%2C+4%2C+5+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.intersection%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B++++++++%2F%2F+%3D%3E+Set+%7B+3+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.difference%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.symmetricDifference%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+4%2C+5+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.isDisjointFrom%28new+Set%28%5B4%2C+5%2C+6%5D%29%29%3B++++++%2F%2F+%3D%3E+true%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.isSubsetOf%28new+Set%28%5B5%2C+4%2C+3%2C+2%2C+1%5D%29%29%3B++++%2F%2F+%3D%3E+true%0Anew+Set%28%5B5%2C+4%2C+3%2C+2%2C+1%5D%29.isSupersetOf%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B++%2F%2F+%3D%3E+true):
+[*Examples*](https://core-js.io/playground#code=let+set+%3D+new+Set%28%5B%27a%27%2C+%27b%27%2C+%27a%27%2C+%27c%27%5D%29%3B%0Aset.add%28%27d%27%29.add%28%27b%27%29.add%28%27e%27%29%3B%0Aset.size%3B++++++++%2F%2F+%3D%3E+5%0Aset.has%28%27b%27%29%3B++++%2F%2F+%3D%3E+true%0Aset.forEach%28it+%3D%3E+%7B%0A++console.log%28it%29%3B++++++++++++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27c%27%2C+%27d%27%2C+%27e%27%0A%7D%29%3B%0Aset.delete%28%27b%27%29%3B%0Aset.size%3B++++++++%2F%2F+%3D%3E+4%0Aset.has%28%27b%27%29%3B++++%2F%2F+%3D%3E+false%0AArray.from%28set%29%3B+%2F%2F+%3D%3E+%5B%27a%27%2C+%27c%27%2C+%27d%27%2C+%27e%27%5D%0A%0Aset+%3D+new+Set%28%5B1%2C+2%2C+3%2C+2%2C+1%5D%29%3B%0A%0Afor+%28let+value+of+set%29+console.log%28value%29%3B++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0Afor+%28let+value+of+set.values%28%29%29+console.log%28value%29%3B+%2F%2F+-%3E+1%2C+2%2C+3%0Afor+%28let+key+of+set.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+-%3E+1%2C+2%2C+3%0Afor+%28let+%5Bkey%2C+value%5D+of+set.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0A%7D%0A%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.union%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B+++++++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3%2C+4%2C+5+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.intersection%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B++++++++%2F%2F+%3D%3E+Set+%7B+3+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.difference%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.symmetricDifference%28new+Set%28%5B3%2C+4%2C+5%5D%29%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+4%2C+5+%7D%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.isDisjointFrom%28new+Set%28%5B4%2C+5%2C+6%5D%29%29%3B++++++%2F%2F+%3D%3E+true%0Anew+Set%28%5B1%2C+2%2C+3%5D%29.isSubsetOf%28new+Set%28%5B5%2C+4%2C+3%2C+2%2C+1%5D%29%29%3B++++%2F%2F+%3D%3E+true%0Anew+Set%28%5B5%2C+4%2C+3%2C+2%2C+1%5D%29.isSupersetOf%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B++%2F%2F+%3D%3E+true):
 ```js
 let set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
-console.log(set.size);        // => 5
-console.log(set.has('b'));    // => true
+set.size;        // => 5
+set.has('b');    // => true
 set.forEach(it => {
-  console.log(it);            // => 'a', 'b', 'c', 'd', 'e'
+  console.log(it);            // -> 'a', 'b', 'c', 'd', 'e'
 });
 set.delete('b');
-console.log(set.size);        // => 4
-console.log(set.has('b'));    // => false
-console.log(Array.from(set)); // => ['a', 'c', 'd', 'e']
+set.size;        // => 4
+set.has('b');    // => false
+Array.from(set); // => ['a', 'c', 'd', 'e']
 
 set = new Set([1, 2, 3, 2, 1]);
 
-for (let value of set) console.log(value);          // => 1, 2, 3
-for (let value of set.values()) console.log(value); // => 1, 2, 3
-for (let key of set.keys()) console.log(key);       // => 1, 2, 3
+for (let value of set) console.log(value);          // -> 1, 2, 3
+for (let value of set.values()) console.log(value); // -> 1, 2, 3
+for (let key of set.keys()) console.log(key);       // -> 1, 2, 3
 for (let [key, value] of set.entries()) {
-  console.log(key);                                 // => 1, 2, 3
-  console.log(value);                               // => 1, 2, 3
+  console.log(key);                                 // -> 1, 2, 3
+  console.log(value);                               // -> 1, 2, 3
 }
 
 new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set { 1, 2, 3, 4, 5 }
@@ -1848,7 +1848,7 @@ core-js(-pure)/es|stable|actual|full/weak-map
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
-[*Examples*](https://core-js.io/playground#code=let+a+%3D+%5B1%5D%3B%0Alet+b+%3D+%5B2%5D%3B%0Alet+c+%3D+%5B3%5D%3B%0A%0Alet+weakmap+%3D+new+WeakMap%28%5B%5Ba%2C+1%5D%2C+%5Bb%2C+2%5D%5D%29%3B%0Aweakmap.set%28c%2C+3%29.set%28b%2C+4%29%3B%0Aconsole.log%28weakmap.has%28a%29%29%3B+++%2F%2F+%3D%3E+true%0Aconsole.log%28weakmap.has%28%5B1%5D%29%29%3B+%2F%2F+%3D%3E+false%0Aconsole.log%28weakmap.get%28a%29%29%3B+++%2F%2F+%3D%3E+1%0Aweakmap.delete%28a%29%3B%0Aconsole.log%28weakmap.get%28a%29%29%3B+++%2F%2F+%3D%3E+undefined%0A%0A%2F%2F+Private+properties+store%3A%0Alet+Person+%3D+%28%28%29+%3D%3E+%7B%0A++let+names+%3D+new+WeakMap%28%29%3B%0A++return+class+%7B%0A++++constructor%28name%29+%7B%0A++++++names.set%28this%2C+name%29%3B%0A++++%7D%0A++++getName%28%29+%7B%0A++++++return+names.get%28this%29%3B%0A++++%7D%0A++%7D%3B%0A%7D%29%28%29%3B%0A%0Alet+person+%3D+new+Person%28%27Vasya%27%29%3B%0Aconsole.log%28person.getName%28%29%29%3B++++++++++++%2F%2F+%3D%3E+%27Vasya%27):
+[*Examples*](https://core-js.io/playground#code=let+a+%3D+%5B1%5D%3B%0Alet+b+%3D+%5B2%5D%3B%0Alet+c+%3D+%5B3%5D%3B%0A%0Alet+weakmap+%3D+new+WeakMap%28%5B%5Ba%2C+1%5D%2C+%5Bb%2C+2%5D%5D%29%3B%0Aweakmap.set%28c%2C+3%29.set%28b%2C+4%29%3B%0Aweakmap.has%28a%29%3B+++%2F%2F+%3D%3E+true%0Aweakmap.has%28%5B1%5D%29%3B+%2F%2F+%3D%3E+false%0Aweakmap.get%28a%29%3B+++%2F%2F+%3D%3E+1%0Aweakmap.delete%28a%29%3B%0Aweakmap.get%28a%29%3B+++%2F%2F+%3D%3E+undefined%0A%0A%2F%2F+Private+properties+store%3A%0Alet+Person+%3D+%28%28%29+%3D%3E+%7B%0A++let+names+%3D+new+WeakMap%28%29%3B%0A++return+class+%7B%0A++++constructor%28name%29+%7B%0A++++++names.set%28this%2C+name%29%3B%0A++++%7D%0A++++getName%28%29+%7B%0A++++++return+names.get%28this%29%3B%0A++++%7D%0A++%7D%3B%0A%7D%29%28%29%3B%0A%0Alet+person+%3D+new+Person%28%27Vasya%27%29%3B%0Aperson.getName%28%29%3B++++++++++++%2F%2F+%3D%3E+%27Vasya%27):
 ```js
 let a = [1];
 let b = [2];
@@ -1856,11 +1856,11 @@ let c = [3];
 
 let weakmap = new WeakMap([[a, 1], [b, 2]]);
 weakmap.set(c, 3).set(b, 4);
-console.log(weakmap.has(a));   // => true
-console.log(weakmap.has([1])); // => false
-console.log(weakmap.get(a));   // => 1
+weakmap.has(a);   // => true
+weakmap.has([1]); // => false
+weakmap.get(a);   // => 1
 weakmap.delete(a);
-console.log(weakmap.get(a));   // => undefined
+weakmap.get(a);   // => undefined
 
 // Private properties store:
 let Person = (() => {
@@ -1876,7 +1876,7 @@ let Person = (() => {
 })();
 
 let person = new Person('Vasya');
-console.log(person.getName());            // => 'Vasya'
+person.getName();            // => 'Vasya'
 ```
 ##### WeakSet[⬆](#index)
 Modules [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
@@ -1892,7 +1892,7 @@ class WeakSet {
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```
-[*Examples*](https://core-js.io/playground#code=let+a+%3D+%5B1%5D%3B%0Alet+b+%3D+%5B2%5D%3B%0Alet+c+%3D+%5B3%5D%3B%0A%0Alet+weakset+%3D+new+WeakSet%28%5Ba%2C+b%2C+a%5D%29%3B%0Aweakset.add%28c%29.add%28b%29.add%28c%29%3B%0Aconsole.log%28weakset.has%28b%29%29%3B+++%2F%2F+%3D%3E+true%0Aconsole.log%28weakset.has%28%5B2%5D%29%29%3B+%2F%2F+%3D%3E+false%0Aweakset.delete%28b%29%3B%0Aconsole.log%28weakset.has%28b%29%29%3B+++%2F%2F+%3D%3E+false):
+[*Examples*](https://core-js.io/playground#code=let+a+%3D+%5B1%5D%3B%0Alet+b+%3D+%5B2%5D%3B%0Alet+c+%3D+%5B3%5D%3B%0A%0Alet+weakset+%3D+new+WeakSet%28%5Ba%2C+b%2C+a%5D%29%3B%0Aweakset.add%28c%29.add%28b%29.add%28c%29%3B%0Aweakset.has%28b%29%3B+++%2F%2F+%3D%3E+true%0Aweakset.has%28%5B2%5D%29%3B+%2F%2F+%3D%3E+false%0Aweakset.delete%28b%29%3B%0Aweakset.has%28b%29%3B+++%2F%2F+%3D%3E+false):
 ```js
 let a = [1];
 let b = [2];
@@ -1900,10 +1900,10 @@ let c = [3];
 
 let weakset = new WeakSet([a, b, a]);
 weakset.add(c).add(b).add(c);
-console.log(weakset.has(b));   // => true
-console.log(weakset.has([2])); // => false
+weakset.has(b);   // => true
+weakset.has([2]); // => false
 weakset.delete(b);
-console.log(weakset.has(b));   // => false
+weakset.has(b);   // => false
 ```
 
 > [!WARNING]
@@ -1970,7 +1970,7 @@ core-js(-pure)/es|stable|actual|full/suppressed-error
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose
 core-js(-pure)/es|stable|actual|full/symbol/dispose
 ```
-[*Examples*](https://core-js.io/playground#code=const+stack+%3D+new+DisposableStack%28%29%3B%0Astack.use%28%7B%0A++%5BSymbol.dispose%5D%28%29+%7B%0A++++console.log%28%27resource+disposed%27%29%3B%0A++%7D%2C%0A%7D%29%3B%0Astack.defer%28%28%29+%3D%3E+console.log%28%27deferred+cleanup%27%29%29%3B%0Astack.adopt%2842%2C+value+%3D%3E+console.log%28%60%24%7B+value+%7D+released%60%29%29%3B%0A%0Astack.disposed%3B+%2F%2F+%3D%3E+false%0Astack.dispose%28%29%3B+%2F%2F+%3D%3E+%2742+released%27%2C+%27deferred+cleanup%27%2C+%27resource+disposed%27%0Astack.disposed%3B+%2F%2F+%3D%3E+true%0A%0Aconst+failing+%3D+new+DisposableStack%28%29%3B%0Afailing.defer%28%28%29+%3D%3E+%7B%0A++throw+new+Error%28%27first%27%29%3B%0A%7D%29%3B%0Afailing.defer%28%28%29+%3D%3E+%7B%0A++throw+new+Error%28%27second%27%29%3B%0A%7D%29%3B%0Atry+%7B%0A++failing.dispose%28%29%3B%0A%7D+catch+%28error%29+%7B%0A++error+instanceof+SuppressedError%3B+%2F%2F+%3D%3E+true%0A++error.error.message%3B++++++++++++++%2F%2F+%3D%3E+%27first%27%0A++error.suppressed.message%3B+++++++++%2F%2F+%3D%3E+%27second%27%0A%7D%0A%0Aconst+asyncStack+%3D+new+AsyncDisposableStack%28%29%3B%0AasyncStack.defer%28async+%28%29+%3D%3E+console.log%28%27async+cleanup%27%29%29%3B%0Aawait+asyncStack.disposeAsync%28%29%3B+%2F%2F+%3D%3E+%27async+cleanup%27%0A%0Afunction+%2A+gen%28%29+%7B%0A++try+%7B%0A++++yield+1%3B%0A++%7D+finally+%7B%0A++++console.log%28%27iterator+closed%27%29%3B%0A++%7D%0A%7D%0Aconst+iterator+%3D+gen%28%29%3B%0Aiterator.next%28%29%3B%0Aiterator%5BSymbol.dispose%5D%28%29%3B+%2F%2F+%3D%3E+%27iterator+closed%27):
+[*Examples*](https://core-js.io/playground#code=const+stack+%3D+new+DisposableStack%28%29%3B%0Astack.use%28%7B%0A++%5BSymbol.dispose%5D%28%29+%7B%0A++++console.log%28%27resource+disposed%27%29%3B%0A++%7D%2C%0A%7D%29%3B%0Astack.defer%28%28%29+%3D%3E+console.log%28%27deferred+cleanup%27%29%29%3B%0Astack.adopt%2842%2C+value+%3D%3E+console.log%28%60%24%7B+value+%7D+released%60%29%29%3B%0A%0Astack.disposed%3B+%2F%2F+%3D%3E+false%0Astack.dispose%28%29%3B+%2F%2F+-%3E+%2742+released%27%2C+%27deferred+cleanup%27%2C+%27resource+disposed%27%0Astack.disposed%3B+%2F%2F+%3D%3E+true%0A%0Aconst+failing+%3D+new+DisposableStack%28%29%3B%0Afailing.defer%28%28%29+%3D%3E+%7B%0A++throw+new+Error%28%27first%27%29%3B%0A%7D%29%3B%0Afailing.defer%28%28%29+%3D%3E+%7B%0A++throw+new+Error%28%27second%27%29%3B%0A%7D%29%3B%0Atry+%7B%0A++failing.dispose%28%29%3B%0A%7D+catch+%28error%29+%7B%0A++error+instanceof+SuppressedError%3B+%2F%2F+%3D%3E+true%0A++error.error.message%3B++++++++++++++%2F%2F+%3D%3E+%27first%27%0A++error.suppressed.message%3B+++++++++%2F%2F+%3D%3E+%27second%27%0A%7D%0A%0Aconst+asyncStack+%3D+new+AsyncDisposableStack%28%29%3B%0AasyncStack.defer%28async+%28%29+%3D%3E+console.log%28%27async+cleanup%27%29%29%3B%0Aawait+asyncStack.disposeAsync%28%29%3B+%2F%2F+-%3E+%27async+cleanup%27%0A%0Afunction+%2A+gen%28%29+%7B%0A++try+%7B%0A++++yield+1%3B%0A++%7D+finally+%7B%0A++++console.log%28%27iterator+closed%27%29%3B%0A++%7D%0A%7D%0Aconst+iterator+%3D+gen%28%29%3B%0Aiterator.next%28%29%3B%0Aiterator%5BSymbol.dispose%5D%28%29%3B+%2F%2F+-%3E+%27iterator+closed%27):
 ```js
 const stack = new DisposableStack();
 stack.use({
@@ -1982,7 +1982,7 @@ stack.defer(() => console.log('deferred cleanup'));
 stack.adopt(42, value => console.log(`${ value } released`));
 
 stack.disposed; // => false
-stack.dispose(); // => '42 released', 'deferred cleanup', 'resource disposed'
+stack.dispose(); // -> '42 released', 'deferred cleanup', 'resource disposed'
 stack.disposed; // => true
 
 const failing = new DisposableStack();
@@ -2002,7 +2002,7 @@ try {
 
 const asyncStack = new AsyncDisposableStack();
 asyncStack.defer(async () => console.log('async cleanup'));
-await asyncStack.disposeAsync(); // => 'async cleanup'
+await asyncStack.disposeAsync(); // -> 'async cleanup'
 
 function * gen() {
   try {
@@ -2013,7 +2013,7 @@ function * gen() {
 }
 const iterator = gen();
 iterator.next();
-iterator[Symbol.dispose](); // => 'iterator closed'
+iterator[Symbol.dispose](); // -> 'iterator closed'
 ```
 
 #### ECMAScript: Typed arrays[⬆](#index)
@@ -2188,7 +2188,7 @@ core-js/es|stable|actual|full/typed-array/to-string
 core-js/es|stable|actual|full/typed-array/values
 core-js/es|stable|actual|full/typed-array/with
 ```
-[*Examples*](https://core-js.io/playground#code=new+Int32Array%284%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+%5B0%2C+0%2C+0%2C+0%5D%0Anew+Uint8ClampedArray%28%5B1%2C+2%2C+3%2C+666%5D%29%3B++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+255%5D%0Anew+Float32Array%28new+Set%28%5B1%2C+2%2C+3%2C+2%2C+1%5D%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0A%0Alet+buffer+%3D+new+ArrayBuffer%288%29%3B%0Alet+view+%3D+new+DataView%28buffer%29%3B%0Aview.setFloat64%280%2C+123.456%2C+true%29%3B%0Anew+Uint8Array%28buffer.slice%284%29%29%3B+%2F%2F+%3D%3E+%5B47%2C+221%2C+94%2C+64%5D%0A%0AInt8Array.of%281%2C+1.5%2C+5.7%2C+745%29%3B++++++%2F%2F+%3D%3E+%5B1%2C+1%2C+5%2C+-23%5D%0AUint8Array.from%28%5B1%2C+1.5%2C+5.7%2C+745%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+5%2C+233%5D%0A%0Alet+typed+%3D+new+Uint8Array%28%5B1%2C+2%2C+3%5D%29%3B%0A%0Alet+a+%3D+typed.slice%281%29%3B++++%2F%2F+%3D%3E+%5B2%2C+3%5D%0Atyped.buffer+%3D%3D%3D+a.buffer%3B+%2F%2F+%3D%3E+false%0Alet+b+%3D+typed.subarray%281%29%3B+%2F%2F+%3D%3E+%5B2%2C+3%5D%0Atyped.buffer+%3D%3D%3D+b.buffer%3B+%2F%2F+%3D%3E+true%0A%0Atyped.filter%28it+%3D%3E+it+%25+2%29%3B+%2F%2F+%3D%3E+%5B1%2C+3%5D%0Atyped.map%28it+%3D%3E+it+%2A+1.5%29%3B++%2F%2F+%3D%3E+%5B1%2C+3%2C+4%5D%0A%0Afor+%28let+value+of+typed%29+console.log%28value%29%3B++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+value+of+typed.values%28%29%29+console.log%28value%29%3B+%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+key+of+typed.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+%3D%3E+0%2C+1%2C+2%0Afor+%28let+%5Bkey%2C+value%5D+of+typed.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+0%2C+1%2C+2%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A%7D%0A%0Anew+Int32Array%28%5B1%2C+2%2C+3%5D%29.at%281%29%3B++%2F%2F+%3D%3E+2%0Anew+Int32Array%28%5B1%2C+2%2C+3%5D%29.at%28-1%29%3B+%2F%2F+%3D%3E+3%0A%0Abuffer+%3D+Int8Array.of%281%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%29.buffer%3B%0Aconsole.log%28buffer.byteLength%29%3B+%2F%2F+%3D%3E+8%0Aconsole.log%28buffer.detached%29%3B+%2F%2F+%3D%3E+false%0Aconst+newBuffer+%3D+buffer.transfer%284%29%3B%0Aconsole.log%28buffer.byteLength%29%3B+%2F%2F+%3D%3E+0%0Aconsole.log%28buffer.detached%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28newBuffer.byteLength%29%3B+%2F%2F+%3D%3E+4%0Aconsole.log%28newBuffer.detached%29%3B+%2F%2F+%3D%3E+false%0Aconsole.log%28%5B...new+Int8Array%28newBuffer%29%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%5D):
+[*Examples*](https://core-js.io/playground#code=new+Int32Array%284%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+%5B0%2C+0%2C+0%2C+0%5D%0Anew+Uint8ClampedArray%28%5B1%2C+2%2C+3%2C+666%5D%29%3B++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+255%5D%0Anew+Float32Array%28new+Set%28%5B1%2C+2%2C+3%2C+2%2C+1%5D%29%29%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0A%0Alet+buffer+%3D+new+ArrayBuffer%288%29%3B%0Alet+view+%3D+new+DataView%28buffer%29%3B%0Aview.setFloat64%280%2C+123.456%2C+true%29%3B%0Anew+Uint8Array%28buffer.slice%284%29%29%3B+%2F%2F+%3D%3E+%5B47%2C+221%2C+94%2C+64%5D%0A%0AInt8Array.of%281%2C+1.5%2C+5.7%2C+745%29%3B++++++%2F%2F+%3D%3E+%5B1%2C+1%2C+5%2C+-23%5D%0AUint8Array.from%28%5B1%2C+1.5%2C+5.7%2C+745%5D%29%3B+%2F%2F+%3D%3E+%5B1%2C+1%2C+5%2C+233%5D%0A%0Alet+typed+%3D+new+Uint8Array%28%5B1%2C+2%2C+3%5D%29%3B%0A%0Alet+a+%3D+typed.slice%281%29%3B++++%2F%2F+%3D%3E+%5B2%2C+3%5D%0Atyped.buffer+%3D%3D%3D+a.buffer%3B+%2F%2F+%3D%3E+false%0Alet+b+%3D+typed.subarray%281%29%3B+%2F%2F+%3D%3E+%5B2%2C+3%5D%0Atyped.buffer+%3D%3D%3D+b.buffer%3B+%2F%2F+%3D%3E+true%0A%0Atyped.filter%28it+%3D%3E+it+%25+2%29%3B+%2F%2F+%3D%3E+%5B1%2C+3%5D%0Atyped.map%28it+%3D%3E+it+%2A+1.5%29%3B++%2F%2F+%3D%3E+%5B1%2C+3%2C+4%5D%0A%0Afor+%28let+value+of+typed%29+console.log%28value%29%3B++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0Afor+%28let+value+of+typed.values%28%29%29+console.log%28value%29%3B+%2F%2F+-%3E+1%2C+2%2C+3%0Afor+%28let+key+of+typed.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+-%3E+0%2C+1%2C+2%0Afor+%28let+%5Bkey%2C+value%5D+of+typed.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+-%3E+0%2C+1%2C+2%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++++%2F%2F+-%3E+1%2C+2%2C+3%0A%7D%0A%0Anew+Int32Array%28%5B1%2C+2%2C+3%5D%29.at%281%29%3B++%2F%2F+%3D%3E+2%0Anew+Int32Array%28%5B1%2C+2%2C+3%5D%29.at%28-1%29%3B+%2F%2F+%3D%3E+3%0A%0Abuffer+%3D+Int8Array.of%281%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%29.buffer%3B%0Abuffer.byteLength%3B+%2F%2F+%3D%3E+8%0Abuffer.detached%3B+%2F%2F+%3D%3E+false%0Aconst+newBuffer+%3D+buffer.transfer%284%29%3B%0Abuffer.byteLength%3B+%2F%2F+%3D%3E+0%0Abuffer.detached%3B+%2F%2F+%3D%3E+true%0AnewBuffer.byteLength%3B+%2F%2F+%3D%3E+4%0AnewBuffer.detached%3B+%2F%2F+%3D%3E+false%0A%5B...new+Int8Array%28newBuffer%29%5D%3B+%2F%2F+%3D%3E+%5B1%2C+2%2C+3%2C+4%5D):
 ```js
 new Int32Array(4);                          // => [0, 0, 0, 0]
 new Uint8ClampedArray([1, 2, 3, 666]);      // => [1, 2, 3, 255]
@@ -2212,36 +2212,36 @@ typed.buffer === b.buffer; // => true
 typed.filter(it => it % 2); // => [1, 3]
 typed.map(it => it * 1.5);  // => [1, 3, 4]
 
-for (let value of typed) console.log(value);          // => 1, 2, 3
-for (let value of typed.values()) console.log(value); // => 1, 2, 3
-for (let key of typed.keys()) console.log(key);       // => 0, 1, 2
+for (let value of typed) console.log(value);          // -> 1, 2, 3
+for (let value of typed.values()) console.log(value); // -> 1, 2, 3
+for (let key of typed.keys()) console.log(key);       // -> 0, 1, 2
 for (let [key, value] of typed.entries()) {
-  console.log(key);                                   // => 0, 1, 2
-  console.log(value);                                 // => 1, 2, 3
+  console.log(key);                                   // -> 0, 1, 2
+  console.log(value);                                 // -> 1, 2, 3
 }
 
 new Int32Array([1, 2, 3]).at(1);  // => 2
 new Int32Array([1, 2, 3]).at(-1); // => 3
 
 buffer = Int8Array.of(1, 2, 3, 4, 5, 6, 7, 8).buffer;
-console.log(buffer.byteLength); // => 8
-console.log(buffer.detached); // => false
+buffer.byteLength; // => 8
+buffer.detached; // => false
 const newBuffer = buffer.transfer(4);
-console.log(buffer.byteLength); // => 0
-console.log(buffer.detached); // => true
-console.log(newBuffer.byteLength); // => 4
-console.log(newBuffer.detached); // => false
-console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
+buffer.byteLength; // => 0
+buffer.detached; // => true
+newBuffer.byteLength; // => 4
+newBuffer.detached; // => false
+[...new Int8Array(newBuffer)]; // => [1, 2, 3, 4]
 ```
 
 *Base64 / hex examples*:
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
-console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
-console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
-console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
-console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
-console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+arr.toBase64(); // => 'SGVsbG8gV29ybGQ='
+arr.toBase64({ omitPadding: true }); // => 'SGVsbG8gV29ybGQ'
+arr.toHex(); // => '48656c6c6f20576f726c64'
+Uint8Array.fromBase64('SGVsbG8gV29ybGQ='); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+Uint8Array.fromHex('48656c6c6f20576f726c64'); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 ```
 
 > [!WARNING]
@@ -2323,7 +2323,7 @@ core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
-[*Examples*](https://core-js.io/playground#code=JSON.stringify%28%7B+%27%F0%A0%AE%B7%27%3A+%5B%27%5CuDF06%5CuD834%27%5D+%7D%29%3B+%2F%2F+%3D%3E+%27%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D%27%0A%0Afunction+digitsToBigInt%28key%2C+val%2C+%7B+source+%7D%29+%7B%0A++return+%2F%5E%5Cd%2B%24%2F.test%28source%29+%3F+BigInt%28source%29+%3A+val%3B%0A%7D%0A%0Afunction+bigIntToRawJSON%28key%2C+val%29+%7B%0A++return+typeof+val+%3D%3D%3D+%27bigint%27+%3F+JSON.rawJSON%28String%28val%29%29+%3A+val%3B%0A%7D%0A%0Aconst+tooBigForNumber+%3D+BigInt%28Number.MAX_SAFE_INTEGER%29+%2B+2n%3B%0AJSON.parse%28String%28tooBigForNumber%29%2C+digitsToBigInt%29+%3D%3D%3D+tooBigForNumber%3B+%2F%2F+true%0A%0Aconst+wayTooBig+%3D+BigInt%28%601%24%7B+%270%27.repeat%281000%29+%7D%60%29%3B%0AJSON.parse%28String%28wayTooBig%29%2C+digitsToBigInt%29+%3D%3D%3D+wayTooBig%3B+%2F%2F+true%0A%0Aconst+embedded+%3D+JSON.stringify%28%7B+tooBigForNumber+%7D%2C+bigIntToRawJSON%29%3B%0Aembedded+%3D%3D%3D+%27%7B%22tooBigForNumber%22%3A9007199254740993%7D%27%3B+%2F%2F+true):
+[*Examples*](https://core-js.io/playground#code=JSON.stringify%28%7B+%27%F0%A0%AE%B7%27%3A+%5B%27%5CuDF06%5CuD834%27%5D+%7D%29%3B+%2F%2F+%3D%3E+%27%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D%27%0A%0Afunction+digitsToBigInt%28key%2C+val%2C+%7B+source+%7D%29+%7B%0A++return+%2F%5E%5Cd%2B%24%2F.test%28source%29+%3F+BigInt%28source%29+%3A+val%3B%0A%7D%0A%0Afunction+bigIntToRawJSON%28key%2C+val%29+%7B%0A++return+typeof+val+%3D%3D%3D+%27bigint%27+%3F+JSON.rawJSON%28String%28val%29%29+%3A+val%3B%0A%7D%0A%0Aconst+tooBigForNumber+%3D+BigInt%28Number.MAX_SAFE_INTEGER%29+%2B+2n%3B%0AJSON.parse%28String%28tooBigForNumber%29%2C+digitsToBigInt%29+%3D%3D%3D+tooBigForNumber%3B+%2F%2F+%3D%3E+true%0A%0Aconst+wayTooBig+%3D+BigInt%28%601%24%7B+%270%27.repeat%281000%29+%7D%60%29%3B%0AJSON.parse%28String%28wayTooBig%29%2C+digitsToBigInt%29+%3D%3D%3D+wayTooBig%3B+%2F%2F+%3D%3E+true%0A%0Aconst+embedded+%3D+JSON.stringify%28%7B+tooBigForNumber+%7D%2C+bigIntToRawJSON%29%3B%0Aembedded+%3D%3D%3D+%27%7B%22tooBigForNumber%22%3A9007199254740993%7D%27%3B+%2F%2F+%3D%3E+true):
 ```js
 JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
 
@@ -2336,13 +2336,13 @@ function bigIntToRawJSON(key, val) {
 }
 
 const tooBigForNumber = BigInt(Number.MAX_SAFE_INTEGER) + 2n;
-JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // true
+JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // => true
 
 const wayTooBig = BigInt(`1${ '0'.repeat(1000) }`);
-JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
+JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // => true
 
 const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
-embedded === '{"tooBigForNumber":9007199254740993}'; // true
+embedded === '{"tooBigForNumber":9007199254740993}'; // => true
 ```
 
 #### ECMAScript: globalThis[⬆](#index)
@@ -2761,7 +2761,7 @@ core-js/proposals/joint-iteration
 core-js(-pure)/es|stable|actual|full/iterator/zip
 core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
-[*Examples*](https://core-js.io/playground#code=Iterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F):
+[*Examples*](https://core-js.io/playground#code=Iterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F):
 ```js
 Iterator.zip([
   [0, 1, 2],
@@ -2775,7 +2775,7 @@ Iterator.zipKeyed({
 }, {
   mode: 'longest',
   padding: { c: 10 },
-}).toArray();
+}).toArray(); // =>
 /*
 [
   { a: 0,         b: 3, c: 7  },
@@ -3228,14 +3228,14 @@ class Iterator {
 core-js/proposals/iterator-range
 core-js(-pure)/full/iterator/range
 ```
-[*Examples*](https://core-js.io/playground#code=for+%28const+i+of+Iterator.range%281%2C+10%29%29+%7B%0A++console.log%28i%29%3B+%2F%2F+%3D%3E+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%0A%7D%0A%0Afor+%28const+i+of+Iterator.range%281%2C+10%2C+%7B+step%3A+3%2C+inclusive%3A+true+%7D%29%29+%7B%0A++console.log%28i%29%3B+%2F%2F+%3D%3E+1%2C+4%2C+7%2C+10%0A%7D):
+[*Examples*](https://core-js.io/playground#code=for+%28const+i+of+Iterator.range%281%2C+10%29%29+%7B%0A++console.log%28i%29%3B+%2F%2F+-%3E+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%0A%7D%0A%0Afor+%28const+i+of+Iterator.range%281%2C+10%2C+%7B+step%3A+3%2C+inclusive%3A+true+%7D%29%29+%7B%0A++console.log%28i%29%3B+%2F%2F+-%3E+1%2C+4%2C+7%2C+10%0A%7D):
 ```js
 for (const i of Iterator.range(1, 10)) {
-  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
+  console.log(i); // -> 1, 2, 3, 4, 5, 6, 7, 8, 9
 }
 
 for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
-  console.log(i); // => 1, 4, 7, 10
+  console.log(i); // -> 1, 4, 7, 10
 }
 ```
 
@@ -3270,17 +3270,17 @@ class String {
 core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent
 ```
-[*Examples*](https://core-js.io/playground#code=const+message+%3D+42%3B%0A%0Aconsole.log%28String.dedent%60%0A++print%28%27%24%7B+message+%7D%27%29%0A%60%29%3B+%2F%2F+%3D%3E+print%28%2742%27%29%0A%0AString.dedent%28console.log%29%60%0A++print%28%27%24%7B+message+%7D%27%29%0A%60%3B+%2F%2F+%3D%3E+%5B%22print%28%27%22%2C+%22%27%29%22%2C+raw%3A+Array%282%29%5D%2C+42):
+[*Examples*](https://core-js.io/playground#code=const+message+%3D+42%3B%0A%0Aconsole.log%28String.dedent%60%0A++print%28%27%24%7B+message+%7D%27%29%0A%60%29%3B+%2F%2F+-%3E+print%28%2742%27%29%0A%0AString.dedent%28console.log%29%60%0A++print%28%27%24%7B+message+%7D%27%29%0A%60%3B+%2F%2F+-%3E+%5B%22print%28%27%22%2C+%22%27%29%22%2C+raw%3A+Array%282%29%5D%2C+42):
 ```js
 const message = 42;
 
 console.log(String.dedent`
   print('${ message }')
-`); // => print('42')
+`); // -> print('42')
 
 String.dedent(console.log)`
   print('${ message }')
-`; // => ["print('", "')", raw: Array(2)], 42
+`; // -> ["print('", "')", raw: Array(2)], 42
 ```
 
 ##### [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)[⬆](#index)
@@ -3482,32 +3482,32 @@ core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key
 core-js(-pure)/full/composite-symbol
 ```
-[*Examples*](https://core-js.io/playground#code=%2F%2F+returns+a+symbol%0Aconst+symbol+%3D+compositeSymbol%28%7B%7D%29%3B%0Aconsole.log%28typeof+symbol%29%3B+%2F%2F+%3D%3E+%27symbol%27%0A%0A%2F%2F+works+the+same%2C+but+returns+a+plain+frozen+object+without+a+prototype%0Aconst+key+%3D+compositeKey%28%7B%7D%29%3B%0Aconsole.log%28typeof+key%29%3B+%2F%2F+%3D%3E+%27object%27%0Aconsole.log%28%7B%7D.toString.call%28key%29%29%3B+%2F%2F+%3D%3E+%27%5Bobject+Object%5D%27%0Aconsole.log%28Object.getPrototypeOf%28key%29%29%3B+%2F%2F+%3D%3E+null%0Aconsole.log%28Object.isFrozen%28key%29%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+a+%3D+%5B%27a%27%5D%3B%0Aconst+b+%3D+%5B%27b%27%5D%3B%0Aconst+c+%3D+%5B%27c%27%5D%3B%0A%0A%2F%2A+eslint-disable+no-self-compare+--+example+%2A%2F%0Aconsole.log%28compositeSymbol%28a%29+%3D%3D%3D+compositeSymbol%28a%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%28a%29+%21%3D%3D+compositeSymbol%28%5B%27a%27%5D%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%28a%2C+1%29+%3D%3D%3D+compositeSymbol%28a%2C+1%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%28a%2C+b%29+%21%3D%3D+compositeSymbol%28b%2C+a%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%28a%2C+b%2C+c%29+%3D%3D%3D+compositeSymbol%28a%2C+b%2C+c%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%281%2C+a%29+%3D%3D%3D+compositeSymbol%281%2C+a%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%281%2C+a%2C+2%2C+b%29+%3D%3D%3D+compositeSymbol%281%2C+a%2C+2%2C+b%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28compositeSymbol%28a%2C+a%29+%3D%3D%3D+compositeSymbol%28a%2C+a%29%29%3B+%2F%2F+%3D%3E+true):
+[*Examples*](https://core-js.io/playground#code=%2F%2F+returns+a+symbol%0Aconst+symbol+%3D+compositeSymbol%28%7B%7D%29%3B%0Atypeof+symbol%3B+%2F%2F+%3D%3E+%27symbol%27%0A%0A%2F%2F+works+the+same%2C+but+returns+a+plain+frozen+object+without+a+prototype%0Aconst+key+%3D+compositeKey%28%7B%7D%29%3B%0Atypeof+key%3B+%2F%2F+%3D%3E+%27object%27%0A%28%7B%7D%29.toString.call%28key%29%3B+%2F%2F+%3D%3E+%27%5Bobject+Object%5D%27%0AObject.getPrototypeOf%28key%29%3B+%2F%2F+%3D%3E+null%0AObject.isFrozen%28key%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+a+%3D+%5B%27a%27%5D%3B%0Aconst+b+%3D+%5B%27b%27%5D%3B%0Aconst+c+%3D+%5B%27c%27%5D%3B%0A%0A%2F%2A+eslint-disable+no-self-compare+--+example+%2A%2F%0AcompositeSymbol%28a%29+%3D%3D%3D+compositeSymbol%28a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%29+%21%3D%3D+compositeSymbol%28%5B%27a%27%5D%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+1%29+%3D%3D%3D+compositeSymbol%28a%2C+1%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%29+%21%3D%3D+compositeSymbol%28b%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%2C+c%29+%3D%3D%3D+compositeSymbol%28a%2C+b%2C+c%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%29+%3D%3D%3D+compositeSymbol%281%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%2C+2%2C+b%29+%3D%3D%3D+compositeSymbol%281%2C+a%2C+2%2C+b%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+a%29+%3D%3D%3D+compositeSymbol%28a%2C+a%29%3B+%2F%2F+%3D%3E+true):
 ```js
 // returns a symbol
 const symbol = compositeSymbol({});
-console.log(typeof symbol); // => 'symbol'
+typeof symbol; // => 'symbol'
 
 // works the same, but returns a plain frozen object without a prototype
 const key = compositeKey({});
-console.log(typeof key); // => 'object'
-console.log({}.toString.call(key)); // => '[object Object]'
-console.log(Object.getPrototypeOf(key)); // => null
-console.log(Object.isFrozen(key)); // => true
+typeof key; // => 'object'
+({}).toString.call(key); // => '[object Object]'
+Object.getPrototypeOf(key); // => null
+Object.isFrozen(key); // => true
 
 const a = ['a'];
 const b = ['b'];
 const c = ['c'];
 
 /* eslint-disable no-self-compare -- example */
-console.log(compositeSymbol(a) === compositeSymbol(a)); // => true
-console.log(compositeSymbol(a) !== compositeSymbol(['a'])); // => true
-console.log(compositeSymbol(a, 1) === compositeSymbol(a, 1)); // => true
-console.log(compositeSymbol(a, b) !== compositeSymbol(b, a)); // => true
-console.log(compositeSymbol(a, b, c) === compositeSymbol(a, b, c)); // => true
-console.log(compositeSymbol(1, a) === compositeSymbol(1, a)); // => true
-console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => true
-console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
+compositeSymbol(a) === compositeSymbol(a); // => true
+compositeSymbol(a) !== compositeSymbol(['a']); // => true
+compositeSymbol(a, 1) === compositeSymbol(a, 1); // => true
+compositeSymbol(a, b) !== compositeSymbol(b, a); // => true
+compositeSymbol(a, b, c) === compositeSymbol(a, b, c); // => true
+compositeSymbol(1, a) === compositeSymbol(1, a); // => true
+compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b); // => true
+compositeSymbol(a, a) === compositeSymbol(a, a); // => true
 ```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).
@@ -3572,11 +3572,11 @@ core-js/proposals/data-view-get-set-uint8-clamped
 core-js/full/data-view/get-uint8-clamped
 core-js/full/data-view/set-uint8-clamped
 ```
-[Examples](https://core-js.io/playground#code=const+view+%3D+new+DataView%28new+ArrayBuffer%281%29%29%3B%0Aview.setUint8Clamped%280%2C+100500%29%3B%0Aconsole.log%28view.getUint8Clamped%280%29%29%3B+%2F%2F+%3D%3E+255):
+[Examples](https://core-js.io/playground#code=const+view+%3D+new+DataView%28new+ArrayBuffer%281%29%29%3B%0Aview.setUint8Clamped%280%2C+100500%29%3B%0Aview.getUint8Clamped%280%29%3B+%2F%2F+%3D%3E+255):
 ```js
 const view = new DataView(new ArrayBuffer(1));
 view.setUint8Clamped(0, 100500);
-console.log(view.getUint8Clamped(0)); // => 255
+view.getUint8Clamped(0); // => 255
 ```
 
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
@@ -3626,11 +3626,11 @@ class String {
 core-js/proposals/string-code-points
 core-js(-pure)/full/string/code-points
 ```
-[*Examples*](https://core-js.io/playground#code=for+%28let+%7B+codePoint%2C+position+%7D+of+%27qwe%27.codePoints%28%29%29+%7B%0A++console.log%28codePoint%29%3B+%2F%2F+%3D%3E+113%2C+119%2C+101%0A++console.log%28position%29%3B++%2F%2F+%3D%3E+0%2C+1%2C+2%0A%7D):
+[*Examples*](https://core-js.io/playground#code=for+%28let+%7B+codePoint%2C+position+%7D+of+%27qwe%27.codePoints%28%29%29+%7B%0A++console.log%28codePoint%29%3B+%2F%2F+-%3E+113%2C+119%2C+101%0A++console.log%28position%29%3B++%2F%2F+-%3E+0%2C+1%2C+2%0A%7D):
 ```js
 for (let { codePoint, position } of 'qwe'.codePoints()) {
-  console.log(codePoint); // => 113, 119, 101
-  console.log(position);  // => 0, 1, 2
+  console.log(codePoint); // -> 113, 119, 101
+  console.log(position);  // -> 0, 1, 2
 }
 ```
 
@@ -3769,18 +3769,18 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 ```
 core-js(-pure)/stable|actual|full/structured-clone
 ```
-[*Examples*](https://core-js.io/playground#code=const+structured+%3D+%5B%7B+a%3A+42+%7D%5D%3B%0Aconst+sclone+%3D+structuredClone%28structured%29%3B%0Aconsole.log%28sclone%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%5B%7B+a%3A+42+%7D%5D%0Aconsole.log%28structured+%21%3D%3D+sclone%29%3B+++++++%2F%2F+%3D%3E+true%0Aconsole.log%28structured%5B0%5D+%21%3D%3D+sclone%5B0%5D%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+circular+%3D+%7B%7D%3B%0Acircular.circular+%3D+circular%3B%0Aconst+cclone+%3D+structuredClone%28circular%29%3B%0Aconsole.log%28cclone.circular+%3D%3D%3D+cclone%29%3B++%2F%2F+%3D%3E+true%0A%0AstructuredClone%2842%29%3B++++++++++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+42%0AstructuredClone%28%7B+x%3A+42+%7D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%7B+x%3A+42+%7D%0AstructuredClone%28%5B1%2C+2%2C+3%5D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D%0AstructuredClone%28new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%5D%29%29%3B+++++++++++++++++%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+2+%7D%0AstructuredClone%28new+Int8Array%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+new+Int8Array%28%5B1%2C+2%2C+3%5D%29%0AstructuredClone%28new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%29%3B++++++%2F%2F+%3D%3E+new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%0AstructuredClone%28new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%29%3B+++++++%2F%2F+%3D%3E+new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%0AstructuredClone%28new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%29%3B+%2F%2F+%3D%3E+new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%0AstructuredClone%28document.getElementById%28%27myfileinput%27%29.files%29%3B++%2F%2F+%3D%3E+new+FileList%0AstructuredClone%28new+Date%280%29%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Date%280%29%0AstructuredClone%28new+Blob%28%5B%27test%27%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Blob%28%5B%27test%27%5D%29%0AstructuredClone%28new+ImageData%288%2C+8%29%29%3B+++++++++++++++++++++++++++%2F%2F+%3D%3E+new+ImageData%288%2C+8%29%0A%2F%2F+etc.%0A%0AstructuredClone%28new+WeakMap%28%29%29%3B+%2F%2F+%3D%3E+DataCloneError+on+non-serializable+types):
+[*Examples*](https://core-js.io/playground#code=const+structured+%3D+%5B%7B+a%3A+42+%7D%5D%3B%0Aconst+sclone+%3D+structuredClone%28structured%29%3B%0Asclone%3B++++++++++++++++++++++%2F%2F+%3D%3E+%5B%7B+a%3A+42+%7D%5D%0Astructured+%21%3D%3D+sclone%3B+++++++%2F%2F+%3D%3E+true%0Astructured%5B0%5D+%21%3D%3D+sclone%5B0%5D%3B+%2F%2F+%3D%3E+true%0A%0Aconst+circular+%3D+%7B%7D%3B%0Acircular.circular+%3D+circular%3B%0Aconst+cclone+%3D+structuredClone%28circular%29%3B%0Acclone.circular+%3D%3D%3D+cclone%3B++%2F%2F+%3D%3E+true%0A%0AstructuredClone%2842%29%3B++++++++++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+42%0AstructuredClone%28%7B+x%3A+42+%7D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%7B+x%3A+42+%7D%0AstructuredClone%28%5B1%2C+2%2C+3%5D%29%3B+++++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%5B1%2C+2%2C+3%5D%0AstructuredClone%28new+Set%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D%0AstructuredClone%28new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%5D%29%29%3B+++++++++++++++++%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+2+%7D%0AstructuredClone%28new+Int8Array%28%5B1%2C+2%2C+3%5D%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+new+Int8Array%28%5B1%2C+2%2C+3%5D%29%0AstructuredClone%28new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%29%3B++++++%2F%2F+%3D%3E+new+AggregateError%28%5B1%2C+2%2C+3%5D%2C+%27message%27%29%0AstructuredClone%28new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%29%3B+++++++%2F%2F+%3D%3E+new+TypeError%28%27message%27%2C+%7B+cause%3A+42+%7D%29%0AstructuredClone%28new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%29%3B+%2F%2F+%3D%3E+new+DOMException%28%27message%27%2C+%27DataCloneError%27%29%0AstructuredClone%28document.getElementById%28%27myfileinput%27%29.files%29%3B++%2F%2F+%3D%3E+new+FileList%0AstructuredClone%28new+Date%280%29%29%3B+++++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Date%280%29%0AstructuredClone%28new+Blob%28%5B%27test%27%5D%29%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+new+Blob%28%5B%27test%27%5D%29%0AstructuredClone%28new+ImageData%288%2C+8%29%29%3B+++++++++++++++++++++++++++%2F%2F+%3D%3E+new+ImageData%288%2C+8%29%0A%2F%2F+etc.%0A%0AstructuredClone%28new+WeakMap%28%29%29%3B+%2F%2F+%3D%3E+DataCloneError+on+non-serializable+types):
 ```js
 const structured = [{ a: 42 }];
 const sclone = structuredClone(structured);
-console.log(sclone);                      // => [{ a: 42 }]
-console.log(structured !== sclone);       // => true
-console.log(structured[0] !== sclone[0]); // => true
+sclone;                      // => [{ a: 42 }]
+structured !== sclone;       // => true
+structured[0] !== sclone[0]; // => true
 
 const circular = {};
 circular.circular = circular;
 const cclone = structuredClone(circular);
-console.log(cclone.circular === cclone);  // => true
+cclone.circular === cclone;  // => true
 
 structuredClone(42);                                            // => 42
 structuredClone({ x: 42 });                                     // => { x: 42 }
@@ -3848,10 +3848,10 @@ function clearImmediate(id: number): void;
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
 ```
-[*Examples*](https://core-js.io/playground#code=setImmediate%28%28arg1%2C+arg2%29+%3D%3E+%7B%0A++console.log%28arg1%2C+arg2%29%3B+%2F%2F+%3D%3E+Message+will+be+displayed+with+minimum+delay%0A%7D%2C+%27Message+will+be+displayed%27%2C+%27with+minimum+delay%27%29%3B%0A%0AclearImmediate%28setImmediate%28%28%29+%3D%3E+%7B%0A++console.log%28%27Message+will+not+be+displayed%27%29%3B%0A%7D%29%29%3B):
+[*Examples*](https://core-js.io/playground#code=setImmediate%28%28arg1%2C+arg2%29+%3D%3E+%7B%0A++console.log%28arg1%2C+arg2%29%3B+%2F%2F+-%3E+Message+will+be+displayed+with+minimum+delay%0A%7D%2C+%27Message+will+be+displayed%27%2C+%27with+minimum+delay%27%29%3B%0A%0AclearImmediate%28setImmediate%28%28%29+%3D%3E+%7B%0A++console.log%28%27Message+will+not+be+displayed%27%29%3B%0A%7D%29%29%3B):
 ```js
 setImmediate((arg1, arg2) => {
-  console.log(arg1, arg2); // => Message will be displayed with minimum delay
+  console.log(arg1, arg2); // -> Message will be displayed with minimum delay
 }, 'Message will be displayed', 'with minimum delay');
 
 clearImmediate(setImmediate(() => {
@@ -3923,7 +3923,7 @@ core-js(-pure)/stable|actual|full/url/parse
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
-[*Examples*](https://core-js.io/playground#code=URL.canParse%28%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment%27%29%3B+%2F%2F+%3D%3E+true%0AURL.canParse%28%27https%27%29%3B+%2F%2F+%3D%3E+false%0A%0AURL.parse%28%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment%27%29%3B+%2F%2F+%3D%3E+url%0AURL.parse%28%27https%27%29%3B+%2F%2F+%3D%3E+null%0A%0Aconst+url+%3D+new+URL%28%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%29%3B%0A%0Aconsole.log%28url.href%29%3B+++++++%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%0Aconsole.log%28url.origin%29%3B+++++%2F%2F+%3D%3E+%27https%3A%2F%2Fexample.com%3A8080%27%0Aconsole.log%28url.protocol%29%3B+++%2F%2F+%3D%3E+%27https%3A%27%0Aconsole.log%28url.username%29%3B+++%2F%2F+%3D%3E+%27login%27%0Aconsole.log%28url.password%29%3B+++%2F%2F+%3D%3E+%27password%27%0Aconsole.log%28url.host%29%3B+++++++%2F%2F+%3D%3E+%27example.com%3A8080%27%0Aconsole.log%28url.hostname%29%3B+++%2F%2F+%3D%3E+%27example.com%27%0Aconsole.log%28url.port%29%3B+++++++%2F%2F+%3D%3E+%278080%27%0Aconsole.log%28url.pathname%29%3B+++%2F%2F+%3D%3E+%27%2Ffoo%2Fbar%27%0Aconsole.log%28url.search%29%3B+++++%2F%2F+%3D%3E+%27%3Fa%3D1%26b%3D2%26a%3D3%27%0Aconsole.log%28url.hash%29%3B+++++++%2F%2F+%3D%3E+%27%23fragment%27%0Aconsole.log%28url.toJSON%28%29%29%3B+++%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%0Aconsole.log%28url.toString%28%29%29%3B+%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+url.searchParams%29+%7B%0A++console.log%28key%29%3B+++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27a%27%0A++console.log%28value%29%3B+%2F%2F+%3D%3E+%271%27%2C+%272%27%2C+%273%27%0A%7D%0A%0Aurl.pathname+%3D+%27%27%3B%0Aurl.searchParams.append%28%27c%27%2C+4%29%3B%0A%0Aconsole.log%28url.search%29%3B+%2F%2F+%3D%3E+%27%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%27%0Aconsole.log%28url.href%29%3B+++%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment%27%0A%0Aconst+params+%3D+new+URLSearchParams%28%27%3Fa%3D1%26b%3D2%26a%3D3%27%29%3B%0A%0Aparams.append%28%27c%27%2C+4%29%3B%0Aparams.append%28%27a%27%2C+2%29%3B%0Aparams.delete%28%27a%27%2C+1%29%3B%0Aparams.sort%28%29%3B%0A%0Aconsole.log%28params.size%29%3B+%2F%2F+%3D%3E+4%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+params%29+%7B%0A++console.log%28key%29%3B+++%2F%2F+%3D%3E+%27a%27%2C+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+%2F%2F+%3D%3E+%273%27%2C+%272%27%2C+%272%27%2C+%274%27%0A%7D%0A%0Aconsole.log%28params.has%28%27a%27%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28params.has%28%27a%27%2C+3%29%29%3B+%2F%2F+%3D%3E+true%0Aconsole.log%28params.has%28%27a%27%2C+4%29%29%3B+%2F%2F+%3D%3E+false%0A%0Aconsole.log%28params.toString%28%29%29%3B+%2F%2F+%3D%3E+%27a%3D3%26a%3D2%26b%3D2%26c%3D4%27):
+[*Examples*](https://core-js.io/playground#code=URL.canParse%28%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment%27%29%3B+%2F%2F+%3D%3E+true%0AURL.canParse%28%27https%27%29%3B+%2F%2F+%3D%3E+false%0A%0AURL.parse%28%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment%27%29%3B+%2F%2F+%3D%3E+url%0AURL.parse%28%27https%27%29%3B+%2F%2F+%3D%3E+null%0A%0Aconst+url+%3D+new+URL%28%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%29%3B%0A%0Aurl.href%3B+++++++%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%0Aurl.origin%3B+++++%2F%2F+%3D%3E+%27https%3A%2F%2Fexample.com%3A8080%27%0Aurl.protocol%3B+++%2F%2F+%3D%3E+%27https%3A%27%0Aurl.username%3B+++%2F%2F+%3D%3E+%27login%27%0Aurl.password%3B+++%2F%2F+%3D%3E+%27password%27%0Aurl.host%3B+++++++%2F%2F+%3D%3E+%27example.com%3A8080%27%0Aurl.hostname%3B+++%2F%2F+%3D%3E+%27example.com%27%0Aurl.port%3B+++++++%2F%2F+%3D%3E+%278080%27%0Aurl.pathname%3B+++%2F%2F+%3D%3E+%27%2Ffoo%2Fbar%27%0Aurl.search%3B+++++%2F%2F+%3D%3E+%27%3Fa%3D1%26b%3D2%26a%3D3%27%0Aurl.hash%3B+++++++%2F%2F+%3D%3E+%27%23fragment%27%0Aurl.toJSON%28%29%3B+++%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%0Aurl.toString%28%29%3B+%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment%27%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+url.searchParams%29+%7B%0A++console.log%28key%29%3B+++%2F%2F+-%3E+%27a%27%2C+%27b%27%2C+%27a%27%0A++console.log%28value%29%3B+%2F%2F+-%3E+%271%27%2C+%272%27%2C+%273%27%0A%7D%0A%0Aurl.pathname+%3D+%27%27%3B%0Aurl.searchParams.append%28%27c%27%2C+4%29%3B%0A%0Aurl.search%3B+%2F%2F+%3D%3E+%27%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%27%0Aurl.href%3B+++%2F%2F+%3D%3E+%27https%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment%27%0A%0Aconst+params+%3D+new+URLSearchParams%28%27%3Fa%3D1%26b%3D2%26a%3D3%27%29%3B%0A%0Aparams.append%28%27c%27%2C+4%29%3B%0Aparams.append%28%27a%27%2C+2%29%3B%0Aparams.delete%28%27a%27%2C+1%29%3B%0Aparams.sort%28%29%3B%0A%0Aparams.size%3B+%2F%2F+%3D%3E+4%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+params%29+%7B%0A++console.log%28key%29%3B+++%2F%2F+-%3E+%27a%27%2C+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+%2F%2F+-%3E+%273%27%2C+%272%27%2C+%272%27%2C+%274%27%0A%7D%0A%0Aparams.has%28%27a%27%29%3B+%2F%2F+%3D%3E+true%0Aparams.has%28%27a%27%2C+3%29%3B+%2F%2F+%3D%3E+true%0Aparams.has%28%27a%27%2C+4%29%3B+%2F%2F+%3D%3E+false%0A%0Aparams.toString%28%29%3B+%2F%2F+%3D%3E+%27a%3D3%26a%3D2%26b%3D2%26c%3D4%27):
 ```js
 URL.canParse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'); // => true
 URL.canParse('https'); // => false
@@ -3933,30 +3933,30 @@ URL.parse('https'); // => null
 
 const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
-console.log(url.href);       // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
-console.log(url.origin);     // => 'https://example.com:8080'
-console.log(url.protocol);   // => 'https:'
-console.log(url.username);   // => 'login'
-console.log(url.password);   // => 'password'
-console.log(url.host);       // => 'example.com:8080'
-console.log(url.hostname);   // => 'example.com'
-console.log(url.port);       // => '8080'
-console.log(url.pathname);   // => '/foo/bar'
-console.log(url.search);     // => '?a=1&b=2&a=3'
-console.log(url.hash);       // => '#fragment'
-console.log(url.toJSON());   // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
-console.log(url.toString()); // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+url.href;       // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+url.origin;     // => 'https://example.com:8080'
+url.protocol;   // => 'https:'
+url.username;   // => 'login'
+url.password;   // => 'password'
+url.host;       // => 'example.com:8080'
+url.hostname;   // => 'example.com'
+url.port;       // => '8080'
+url.pathname;   // => '/foo/bar'
+url.search;     // => '?a=1&b=2&a=3'
+url.hash;       // => '#fragment'
+url.toJSON();   // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+url.toString(); // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
 
 for (let [key, value] of url.searchParams) {
-  console.log(key);   // => 'a', 'b', 'a'
-  console.log(value); // => '1', '2', '3'
+  console.log(key);   // -> 'a', 'b', 'a'
+  console.log(value); // -> '1', '2', '3'
 }
 
 url.pathname = '';
 url.searchParams.append('c', 4);
 
-console.log(url.search); // => '?a=1&b=2&a=3&c=4'
-console.log(url.href);   // => 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
+url.search; // => '?a=1&b=2&a=3&c=4'
+url.href;   // => 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
 
 const params = new URLSearchParams('?a=1&b=2&a=3');
 
@@ -3965,18 +3965,18 @@ params.append('a', 2);
 params.delete('a', 1);
 params.sort();
 
-console.log(params.size); // => 4
+params.size; // => 4
 
 for (let [key, value] of params) {
-  console.log(key);   // => 'a', 'a', 'b', 'c'
-  console.log(value); // => '3', '2', '2', '4'
+  console.log(key);   // -> 'a', 'a', 'b', 'c'
+  console.log(value); // -> '3', '2', '2', '4'
 }
 
-console.log(params.has('a')); // => true
-console.log(params.has('a', 3)); // => true
-console.log(params.has('a', 4)); // => false
+params.has('a'); // => true
+params.has('a', 3); // => true
+params.has('a', 4); // => false
 
-console.log(params.toString()); // => 'a=3&a=2&b=2&c=4'
+params.toString(); // => 'a=3&a=2&b=2&c=4'
 ```
 
 > [!WARNING]
@@ -4002,17 +4002,17 @@ core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
 core-js/stable|actual|full/dom-exception/to-string-tag
 ```
-[*Examples*](https://core-js.io/playground#code=const+exception+%3D+new+DOMException%28%27error%27%2C+%27DataCloneError%27%29%3B%0Aconsole.log%28exception.name%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%27%0Aconsole.log%28exception.message%29%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27error%27%0Aconsole.log%28exception.code%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+25%0Aconsole.log%28typeof+exception.stack%29%3B++++++++++++++++++++%2F%2F+%3D%3E+%27string%27%0Aconsole.log%28exception+instanceof+DOMException%29%3B+++++++++%2F%2F+%3D%3E+true%0Aconsole.log%28exception+instanceof+Error%29%3B++++++++++++++++%2F%2F+%3D%3E+true%0Aconsole.log%28exception.toString%28%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%3A+error%27%0Aconsole.log%28Object.prototype.toString.call%28exception%29%29%3B+%2F%2F+%3D%3E+%27%5Bobject+DOMException%5D%27):
+[*Examples*](https://core-js.io/playground#code=const+exception+%3D+new+DOMException%28%27error%27%2C+%27DataCloneError%27%29%3B%0Aexception.name%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%27%0Aexception.message%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27error%27%0Aexception.code%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+25%0Atypeof+exception.stack%3B++++++++++++++++++++%2F%2F+%3D%3E+%27string%27%0Aexception+instanceof+DOMException%3B+++++++++%2F%2F+%3D%3E+true%0Aexception+instanceof+Error%3B++++++++++++++++%2F%2F+%3D%3E+true%0Aexception.toString%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%3A+error%27%0AObject.prototype.toString.call%28exception%29%3B+%2F%2F+%3D%3E+%27%5Bobject+DOMException%5D%27):
 ```js
 const exception = new DOMException('error', 'DataCloneError');
-console.log(exception.name);                            // => 'DataCloneError'
-console.log(exception.message);                         // => 'error'
-console.log(exception.code);                            // => 25
-console.log(typeof exception.stack);                    // => 'string'
-console.log(exception instanceof DOMException);         // => true
-console.log(exception instanceof Error);                // => true
-console.log(exception.toString());                      // => 'DataCloneError: error'
-console.log(Object.prototype.toString.call(exception)); // => '[object DOMException]'
+exception.name;                            // => 'DataCloneError'
+exception.message;                         // => 'error'
+exception.code;                            // => 25
+typeof exception.stack;                    // => 'string'
+exception instanceof DOMException;         // => true
+exception instanceof Error;                // => true
+exception.toString();                      // => 'DataCloneError: error'
+Object.prototype.toString.call(exception); // => '[object DOMException]'
 ```
 
 #### Iterable DOM collections[⬆](#index)
@@ -4101,25 +4101,25 @@ let list = (function () {
   return arguments;
 })(1, 2, 3);
 
-console.log(isIterable(list)); // => true
+isIterable(list); // => true
 
 let iterator = getIterator(list);
-console.log(iterator.next().value); // => 1
-console.log(iterator.next().value); // => 2
-console.log(iterator.next().value); // => 3
-console.log(iterator.next().value); // => undefined
+iterator.next().value; // => 1
+iterator.next().value; // => 2
+iterator.next().value; // => 3
+iterator.next().value; // => undefined
 
 getIterator({}); // => TypeError: [object Object] is not iterable
 
 let method = getIteratorMethod(list);
-console.log(typeof method);         // => 'function'
+typeof method;         // => 'function'
 iterator = method.call(list);
-console.log(iterator.next().value); // => 1
-console.log(iterator.next().value); // => 2
-console.log(iterator.next().value); // => 3
-console.log(iterator.next().value); // => undefined
+iterator.next().value; // => 1
+iterator.next().value; // => 2
+iterator.next().value; // => 3
+iterator.next().value; // => undefined
 
-console.log(getIteratorMethod({})); // => undefined
+getIteratorMethod({}); // => undefined
 ```
 
 ## Missing polyfills[⬆](#index)

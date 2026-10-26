@@ -74,9 +74,9 @@ stack.use({
 stack.defer(() => console.log('deferred cleanup'));
 stack.adopt(42, value => console.log(`${ value } released`));
 
-stack.disposed; // => false
-stack.dispose(); // => '42 released', 'deferred cleanup', 'resource disposed'
-stack.disposed; // => true
+stack.disposed;  // => false
+stack.dispose(); // -> '42 released', 'deferred cleanup', 'resource disposed'
+stack.disposed;  // => true
 
 const failing = new DisposableStack();
 failing.defer(() => {
@@ -95,7 +95,7 @@ try {
 
 const asyncStack = new AsyncDisposableStack();
 asyncStack.defer(async () => console.log('async cleanup'));
-await asyncStack.disposeAsync(); // => 'async cleanup'
+await asyncStack.disposeAsync(); // -> 'async cleanup'
 
 function * gen() {
   try {
@@ -106,5 +106,5 @@ function * gen() {
 }
 const iterator = gen();
 iterator.next();
-iterator[Symbol.dispose](); // => 'iterator closed'
+iterator[Symbol.dispose](); // -> 'iterator closed'
 ```

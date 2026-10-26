@@ -29,5 +29,5 @@ const iterable = {
   },
 };
 
-for await (const value of iterable) console.log(value); // => 0, 1
+for await (const value of iterable) console.log(value); // -> 0, 1
 ```
