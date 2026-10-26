@@ -81,6 +81,42 @@ const rows = [
 ];
 
 for (const parser of adapters) {
+  // The emission funnel rejects an ordinary key once its plain receiver names no global.
+  // The metadata API below still answers unsupported keys for callers that need that shape.
+  for (const [source, admitted] of [
+    ['source.unrelatedField', false], ['source?.unrelatedField', false], ['Map.unrelatedField', true],
+    ['globalThis.Map.unrelatedField', true], ['(effect(), source).length', true],
+    ['source["unrelatedField"]', true], ['source[key()]', true], ['source[Symbol.iterator]', true],
+    ['source.at', true], ['Array.from', true], ['globalThis.Map', true], ['globalThis.Array', true],
+    ['source.call', false], ['source.apply', true], ['source.bind', false],
+    ['source.prototype', false], ['source.constructor', false],
+    ['Map.call', true], ['Map.bind', true], ['Map.prototype', true], ['Map.constructor', true],
+  ]) for (const method of ['usage-global', 'usage-pure']) {
+    const program = parser.parseAndScope(`${ source };`);
+    const path = parser.pickPath(program, 'MemberExpression') ?? parser.pickPath(program, 'OptionalMemberExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const receiver = path.node.object;
+    let reads = 0;
+    let claims = 0;
+    const core = createUsageHandlerCore({ adapter, method, resolveMeta: resolve, onUsage() { claims++; } });
+    withTemporaryProperty(path.node, 'object', undefined, () => {
+      Object.defineProperty(path.node, 'object', { configurable: true, get() {
+        reads++;
+        return receiver;
+      } });
+      core.emitMemberUsage(path);
+    });
+    const label = `${ parser.name }/${ method }/emission key gate/${ source }`;
+    // The preliminary proof also reads the receiver. A positive control must reach
+    // the full handler, whose reads exceed that proof's two-access budget.
+    check(`${ label }/full receiver analysis`, reads > 2, admitted);
+    if (!admitted) {
+      checkTruthy(`${ label }/receiver read budget`, reads <= 2, `${ reads } reads`);
+      check(`${ label }/no claim`, claims, 0);
+      check(`${ label }/receiver stays visitable`, core.memberAlreadyHandled(path.get('object')), false);
+    }
+  }
+
   // Rejected keys skip primary receiver analysis. Named and literal keys retain their
   // receiver fallback, including unsupported slots and metadata-only consumers.
   for (const [source, supported, fallbackReads = 0] of [
