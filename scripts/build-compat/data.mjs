@@ -58,7 +58,7 @@ for (const scope of [data, external]) {
       module.opera_mobile = module['opera-android'];
     }
     map('ChromeAndroidToQuest');
-    if (!has(module, 'quest') && chrome >= 144) {
+    if (!has(module, 'quest') && chrome >= 143) {
       module.quest = String(Math.ceil(chrome / 2) * 2);
     }
     // TODO: Remove from `core-js@4`
