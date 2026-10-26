@@ -350,3 +350,15 @@ QUnit.test('chain: optional ordinary calls distinguish nullish from falsy', asse
   assert.throws(() => present.prototype?.(argument()), TypeError);
   assert.same(reads, 2, 'arguments run before a non-callable value throws');
 });
+
+QUnit.test('chain: copied callbacks retain their receiver writes', assert => {
+  const effects = [];
+  const result = [[1, 2], [3, 4]].map((rows, index) => {
+    rows = (effects.push(`read${ index }`), index ? 'cd' : rows.slice());
+    const first = rows.at(0);
+    rows = (effects.push(`write${ index }`), index ? [7, 8] : 'ab');
+    return [first, rows.at(-1), rows.includes(index ? 8 : 'b')];
+  });
+  assert.deepEqual(result, [[1, 'b', true], ['c', 8, true]]);
+  assert.deepEqual(effects, ['read0', 'write0', 'read1', 'write1']);
+});

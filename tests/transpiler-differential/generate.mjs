@@ -20255,6 +20255,27 @@ function * generateCallableMemberTails() {
   };
 }
 
+// Callback copies keep source writes live across later receiver reads and rewrites.
+function * generateCopiedCallbackWrites() {
+  for (const [shape, write] of [
+    ['direct', "rows = index ? [7, 8] : 'ab';"],
+    ['conditional', "if (index) rows = [7, 8]; else rows = 'ab';"],
+    ['pattern', "({ rows } = { rows: index ? [7, 8] : 'ab' });"],
+  ]) for (const optional of [false, true]) yield {
+    name: `copied-callback-writes/${ shape }/${ optional ? 'optional' : 'direct' }`,
+    code: `const effects = [];
+      const r = [[1, 2], [3, 4]].map((rows, index) => {
+        rows = (effects.push('read' + index), index ? 'cd' : rows.slice());
+        const first = rows${ optional ? '?.' : '.' }at(0);
+        effects.push('write' + index);
+        ${ write }
+        return [first, rows${ optional ? '?.' : '.' }at(-1), rows.includes(index ? 8 : 'b')];
+      });
+      export { r, effects };`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20641,4 +20662,5 @@ export function * generate() {
   yield * generateNamedFunctionLocalReceivers();
   yield * generateUnsupportedMemberTails();
   yield * generateCallableMemberTails();
+  yield * generateCopiedCallbackWrites();
 }
