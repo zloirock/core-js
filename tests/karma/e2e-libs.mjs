@@ -62,7 +62,7 @@ try {
 
 let report;
 try {
-  report = JSON.parse(await readFile(RESULTS, 'utf8'));
+  report = JSON.parse(await readFile(RESULTS));
 } catch (error) {
   throw launchError ?? new Error(`karma finished without writing ${ RESULTS }`, { cause: error });
 }
