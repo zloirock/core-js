@@ -22,6 +22,12 @@ Some analyses also have deterministic call budgets, in the `*-complexity.mjs` su
 
 The synthetic cases exist because real code is never dense enough in any single dimension: reassigned names, guards, discriminants, lagged aliases. A quadratic root in the machinery behind one of them stays invisible on a real bundle and is catastrophic on the shape built for it. A case whose source is an array of module sources gates the per-call axis instead, the way a bundler feeds modules one by one; those cases also demand a minimum number of injections, so a run cannot be fast by detecting nothing.
 
+## Application and realm sources
+
+`applications.mjs` pins Excalidraw (MIT), NodeBB (GPL-3.0) and Squoosh (Apache-2.0) by commit/SHA-256. Sources are downloaded to `node_modules/.cache/applications`; fetched and cached bytes are verified outside timing. Source text is only transformed, never executed.
+
+Applications cover both emitters/modes and unplugin `pre -> esbuild -> post` (same instance/filename; lowering timed). Preserve Squoosh's `h`, legacy decorators and assignment-style fields. RxJS `pre+post` has no lowering. Realm sources are `whatwg-fetch`, `es6-promise` and `globalthis`; the first two must inject.
+
 ## Rules
 
 - Every transform also asserts that an injection happened, so a detection-dead run cannot pass by being fast. Keep that property when adding a case
