@@ -20,6 +20,7 @@ function lines(count, line) {
 
 const SHAPES = {
   'census pre-pass': count => `let C = Array;\nif (typeof Symbol == 'undefined') C = Shim;\n${ lines(count, index => `C.a${ index } = ${ index };`) }`,
+  'known member lookup': count => `let C = Array;\nif (typeof Symbol == 'undefined') C = Shim;\n${ lines(count, index => `C.from = ${ index };`) }`,
   'decision-root lookup': count => `let P = Promise;\nif (typeof Symbol == 'undefined') P = Shim;\n${
     lines(count, index => `export const a${ index } = P || Fallback${ index };`) }`,
 };

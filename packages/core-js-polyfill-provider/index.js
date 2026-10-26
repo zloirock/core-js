@@ -371,6 +371,12 @@ export function hasStaticDefinitionKey(key) {
   return STATIC_DEFINITION_KEYS.has(key);
 }
 
+// Whether any static or instance definition can answer this property name. Global names
+// and receiver-navigation tails are separate questions for the usage visitor.
+export function hasMemberDefinitionKey(key) {
+  return hasOwn(instance, key) || hasStaticDefinitionKey(key);
+}
+
 const CONSTRUCTOR_TAIL = '/constructor';
 
 // Whether an object rest over this global may take its whole index - whether it does is the build's
