@@ -10,7 +10,7 @@ export const MANIFEST = join(ARTIFACTS, 'manifest.json');
 export async function read() {
   let parsed;
   try {
-    parsed = JSON.parse(await readFile(MANIFEST, 'utf8'));
+    parsed = JSON.parse(await readFile(MANIFEST));
   } catch (err) {
     if (err.code !== 'ENOENT') throw err;
     throw new Error('no e2e-libs manifest - `npm run test-e2e-libs-runtime` builds the pages this leg runs');
