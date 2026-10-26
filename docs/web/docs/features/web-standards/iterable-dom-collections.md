@@ -41,7 +41,7 @@ class [
 }
 
 class [DOMTokenList, NodeList] {
-  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
+  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg?: any): void;
   entries(): Iterator<[key, value]>;
   keys(): Iterator<key>;
   values(): Iterator<value>;

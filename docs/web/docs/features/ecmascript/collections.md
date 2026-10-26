@@ -2,7 +2,7 @@
 `core-js` uses native collections in most cases and only fixes methods / constructors where required; in old environments, it uses a fast polyfill (O(1) lookup).
 
 ## Map
-### Modules 
+### Modules
 [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js), [`es.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert.js) and [`es.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert-computed.js).
 
 ### Built-ins signatures
@@ -11,7 +11,7 @@ class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
   clear(): void;
   delete(key: any): boolean;
-  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
+  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg?: any): void;
   get(key: any): any;
   getOrInsert(key: any, value: any): any;
   getOrInsertComputed(key: any, callbackfn: (key: any) => any): any;
@@ -86,8 +86,8 @@ console.log(map); // => Map { 'a' => 1, 'b' => 3, 'c' => 'c' }
 ```
 
 ## Set
-### Modules 
-[`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
+### Modules
+[`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js).
 
 ### Built-ins signatures
 ```ts
@@ -96,7 +96,7 @@ class Set {
   add(key: any): this;
   clear(): void;
   delete(key: any): boolean;
-  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
+  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg?: any): void;
   has(key: any): boolean;
   values(): Iterator<value>;
   keys(): Iterator<value>;
@@ -214,7 +214,7 @@ console.log(person.getName());            // => 'Vasya'
 ```
 
 ## WeakSet
-### Modules 
+### Modules
 [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
 
 ### Built-ins signatures

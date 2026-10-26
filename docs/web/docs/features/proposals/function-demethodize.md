@@ -1,8 +1,8 @@
 # Demethodize function
 [Proposal repo](https://github.com/js-choi/proposal-function-demethodize)
 
-## Module 
-[`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js)
+## Modules
+[`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js).
 
 ## Built-ins signatures
 ```ts

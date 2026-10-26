@@ -2,6 +2,9 @@
 [Specification](https://tc39.es/proposal-string-replaceall/)\
 [Proposal repo](https://github.com/tc39/proposal-string-replaceall)
 
+## Modules
+[`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js).
+
 ## Built-ins signatures
 ```ts
 class String {
@@ -12,4 +15,10 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-replace-all-stage-4
+core-js(-pure)/es|stable|actual|full/string(/virtual)/replace-all
+```
+
+## Examples
+```js
+'Test abc test test abc test.'.replaceAll('abc', 'foo'); // => 'Test foo test test foo test.'
 ```

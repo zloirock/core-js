@@ -18,7 +18,7 @@ class Array {
   findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
   findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): number;
   flat(depthArg?: number = 1): Array<mixed>;
-  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
+  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>;
   forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg?: any): void;
   includes(searchElement: any, from?: number): boolean;
   indexOf(searchElement: any, from?: number): number;
@@ -165,10 +165,10 @@ correctionNeeded.with(1, 2); // => [1, 2, 3]
 correctionNeeded; // => [1, 1, 3]
 ```
 
-## `Array.fromAsync` example
+## `Array.fromAsync` examples
 ```js
 await Array.fromAsync(
-  (async function * () { yield * [1, 2, 3]; })(), 
+  (async function * () { yield * [1, 2, 3]; })(),
   i => i ** 2
 ); // => [1, 4, 9]
 ```

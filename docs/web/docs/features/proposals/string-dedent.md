@@ -1,9 +1,9 @@
-# String.dedent
+# `String.dedent`
 [Specification](https://tc39.es/proposal-string-dedent/)\
 [Proposal repo](https://github.com/tc39/proposal-string-dedent)
 
 ## Modules
-[`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
+[`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js).
 
 ## Built-ins signatures
 ```ts
@@ -18,7 +18,7 @@ core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent
 ```
 
-## Example
+## Examples
 ```js
 const message = 42;
 

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-observable)
 
 ## Modules
-[`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js), [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
+[`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js), [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js).
 
 ## Built-ins signatures
 ```ts
@@ -28,7 +28,7 @@ core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable
 ```
 
-## Example
+## Examples
 ```js
 new Observable(observer => {
   observer.next('hello');

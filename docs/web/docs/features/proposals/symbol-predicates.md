@@ -20,7 +20,7 @@ core-js(-pure)/full/symbol/is-registered-symbol
 core-js(-pure)/full/symbol/is-well-known-symbol
 ```
 
-## Example
+## Examples
 ```js
 Symbol.isRegisteredSymbol(Symbol.for('key')); // => true
 Symbol.isRegisteredSymbol(Symbol('key')); // => false

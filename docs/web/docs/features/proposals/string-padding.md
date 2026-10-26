@@ -2,6 +2,9 @@
 [Specification](https://tc39.es/proposal-string-pad-start-end/)\
 [Proposal repo](https://github.com/tc39/proposal-string-pad-start-end)
 
+## Modules
+[`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js) and [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js).
+
 ## Built-ins signatures
 ```ts
 class String {
@@ -14,4 +17,14 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-padding
+core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-end
+core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-start
+```
+
+## Examples
+```js
+'hello'.padStart(10);         // => '     hello'
+'hello'.padStart(10, '1234'); // => '12341hello'
+'hello'.padEnd(10);           // => 'hello     '
+'hello'.padEnd(10, '1234');   // => 'hello12341'
 ```

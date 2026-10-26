@@ -1,12 +1,12 @@
 # structuredClone
 [Specification](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone)
 
-## Module 
-[`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
+## Modules
+[`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js).
 
 ## Built-ins signatures
 ```ts
-function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
+function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }?): any;
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)

@@ -1,6 +1,6 @@
 # setImmediate
 
-## Module 
+## Modules
 [`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
 
 ## Built-ins signatures

@@ -8,9 +8,9 @@ The `Number` constructor supports binary and octal literals
 ```ts
 class Number {
   constructor(value: any): number;
-  toExponential(digits: number): string;
-  toFixed(digits: number): string;
-  toPrecision(precision: number): string;
+  toExponential(digits?: number): string;
+  toFixed(digits?: number): string;
+  toPrecision(precision?: number): string;
   static isFinite(number: any): boolean;
   static isNaN(number: any): boolean;
   static isInteger(number: any): boolean;

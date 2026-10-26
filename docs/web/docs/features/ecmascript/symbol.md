@@ -71,7 +71,7 @@ core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
 core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 
-## Basic example
+## Basic examples
 ```js
 let Person = (() => {
   let NAME = Symbol('name');
@@ -92,7 +92,7 @@ console.log(person[Symbol('name')]);      // => undefined, symbols are unique
 for (let key in person) console.log(key); // => nothing, for-in skips symbol keys
 ```
 
-## `Symbol.for` & `Symbol.keyFor` example
+## `Symbol.for` & `Symbol.keyFor` examples
 ```js
 let symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // => true
@@ -110,7 +110,7 @@ Object.getOwnPropertySymbols(object); // => [Symbol(c)]
 Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
 ```
 
-## Symbol#description getter example
+## Symbol#description getter examples
 ```js
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined

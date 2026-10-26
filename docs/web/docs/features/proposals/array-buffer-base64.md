@@ -2,6 +2,9 @@
 [Specification](https://tc39.es/proposal-arraybuffer-base64/)\
 [Proposal repo](https://github.com/tc39/proposal-arraybuffer-base64)
 
+## Modules
+[`es.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-base64.js), [`es.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-hex.js), [`es.uint8-array.set-from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-base64.js), [`es.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-hex.js), [`es.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-base64.js) and [`es.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-hex.js).
+
 ## Built-ins signatures
 ```ts
 class Uint8Array {
@@ -17,4 +20,20 @@ class Uint8Array {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-buffer-base64
+core-js/es|stable|actual|full/typed-array/from-base64
+core-js/es|stable|actual|full/typed-array/from-hex
+core-js/es|stable|actual|full/typed-array/set-from-base64
+core-js/es|stable|actual|full/typed-array/set-from-hex
+core-js/es|stable|actual|full/typed-array/to-base64
+core-js/es|stable|actual|full/typed-array/to-hex
+```
+
+## Examples
+```js
+let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
+console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
+console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
+console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
+console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 ```

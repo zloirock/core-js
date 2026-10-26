@@ -2,6 +2,9 @@
 [Specification](https://tc39.es/proposal-is-error/)\
 [Proposal repo](https://github.com/tc39/proposal-is-error)
 
+## Modules
+[`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js).
+
 ## Built-ins signatures
 ```ts
 class Error {
@@ -12,6 +15,18 @@ class Error {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/is-error
+core-js(-pure)/es|stable|actual|full/error/is-error
+```
+
+## Examples
+```js
+Error.isError(new Error('error')); // => true
+Error.isError(new TypeError('error')); // => true
+Error.isError(new DOMException('error')); // => true
+
+Error.isError(null); // => false
+Error.isError({}); // => false
+Error.isError(Object.create(Error.prototype)); // => false
 ```
 
 > [!WARNING]

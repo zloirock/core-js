@@ -3,13 +3,13 @@
 
 Additional arguments fix for IE9-.
 
-## Module 
+## Modules
 [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js).
 
 ## Built-ins signatures
 ```ts
-function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
-function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
+function setTimeout(callback: any, time?: any, ...args: Array<mixed>): number;
+function setInterval(callback: any, time?: any, ...args: Array<mixed>): number;
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)

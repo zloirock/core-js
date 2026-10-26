@@ -2,10 +2,13 @@
 [Specification](https://tc39.es/proposal-error-cause/)\
 [Proposal repo](https://github.com/tc39/proposal-error-cause)
 
+## Modules
+[`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js) and [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js).
+
 ## Built-ins signatures
 ```ts
 class Error {
-  constructor(message: string, { cause: any }): %Error%;
+  constructor(message?: string, { cause: any }?): %Error%;
 }
 
 class [
@@ -19,7 +22,7 @@ class [
   WebAssembly.LinkError,
   WebAssembly.RuntimeError,
 ] extends Error {
-  constructor(message: string, { cause: any }): %Error%;
+  constructor(message?: string, { cause: any }?): %Error%;
 }
 
 class AggregateError extends Error {
@@ -36,7 +39,7 @@ core-js/es|stable|actual|full/error/constructor
 core-js(-pure)/es|stable|actual|full/aggregate-error
 ```
 
-## Example
+## Examples
 ```js
 const cause = new TypeError('Something wrong');
 const error = new TypeError('Here is what went wrong', { cause });

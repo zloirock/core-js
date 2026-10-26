@@ -6,7 +6,7 @@
 ```ts
 class Error {
   static isError(value: any): boolean;
-  constructor(message: string, { cause: any }): %Error%;
+  constructor(message?: string, { cause: any }?): %Error%;
   toString(): string; // different fixes
 }
 
@@ -21,7 +21,7 @@ class [
   WebAssembly.LinkError,
   WebAssembly.RuntimeError,
 ] extends Error {
-  constructor(message: string, { cause: any }): %Error%;
+  constructor(message?: string, { cause: any }?): %Error%;
 }
 
 class AggregateError extends Error {

@@ -1,9 +1,9 @@
-# Iterator.range
+# `Iterator.range`
 [Specification](https://tc39.es/proposal-iterator.range/)\
 [Proposal repo](https://github.com/tc39/proposal-iterator.range)
 
-## Module
-[`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+## Modules
+[`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js).
 
 ## Built-ins signatures
 ```ts
@@ -19,7 +19,7 @@ core-js/proposals/iterator-range
 core-js(-pure)/full/iterator/range
 ```
 
-## Example
+## Examples
 ```js
 for (const i of Iterator.range(1, 10)) {
   console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9

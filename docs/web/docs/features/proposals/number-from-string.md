@@ -1,14 +1,14 @@
-# Number.fromString
+# `Number.fromString`
 [Specification](https://tc39.es/proposal-number-fromstring/)\
 [Proposal repo](https://github.com/tc39/proposal-number-fromstring)
 
-## Module
-[`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
+## Modules
+[`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js).
 
 ## Built-ins signatures
 ```ts
 class Number {
-  static fromString(string: string, radix: number): number;
+  static fromString(string: string, radix?: number): number;
 }
 ```
 

@@ -2,6 +2,9 @@
 [Specification](https://tc39.es/proposal-promise-allSettled/)\
 [Proposal repo](https://github.com/tc39/proposal-promise-allSettled)
 
+## Modules
+[`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js).
+
 ## Built-ins signatures
 ```ts
 class Promise {
@@ -12,4 +15,14 @@ class Promise {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/promise-all-settled
+core-js(-pure)/es|stable|actual|full/promise/all-settled
+```
+
+## Examples
+```js
+Promise.allSettled([
+  Promise.resolve(1),
+  Promise.reject(2),
+  Promise.resolve(3),
+]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```

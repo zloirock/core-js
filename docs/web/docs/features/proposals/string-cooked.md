@@ -1,9 +1,9 @@
-# String.cooked
+# `String.cooked`
 [Specification](https://tc39.es/proposal-string-cooked/)\
 [Proposal repo](https://github.com/tc39/proposal-string-cooked)
 
-## Module
-[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
+## Modules
+[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js).
 
 ## Built-ins signatures
 ```ts
@@ -18,7 +18,7 @@ core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```
 
-## Example
+## Examples
 ```js
 function safePath(strings, ...subs) {
   return String.cooked(strings, ...subs.map(sub => encodeURIComponent(sub)));

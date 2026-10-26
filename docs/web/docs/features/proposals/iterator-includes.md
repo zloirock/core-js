@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-includes)
 
 ## Modules
-[`es.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.includes.js)
+[`es.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.includes.js).
 
 ## Built-ins signatures
 ```ts

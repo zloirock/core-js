@@ -7,7 +7,7 @@
 ```ts
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
-  then(onFulfilled: Function, onRejected: Function): Promise;
+  then(onFulfilled?: Function, onRejected?: Function): Promise;
   catch(onRejected: Function): Promise;
   finally(onFinally: Function): Promise;
   static all(iterable: Iterable): Promise;
@@ -31,7 +31,7 @@ core-js(-pure)/es|stable|actual|full/promise/try
 core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```
 
-## Basic example
+## Basic examples
 ```js
 function sleepRandom(time) {
   return new Promise((resolve, reject) => {
@@ -53,7 +53,7 @@ sleepRandom(5).then(result => {
 }).catch(error => console.log(error)); // => Error: Irror!
 ```
 
-## `Promise.resolve` and `Promise.reject` example
+## `Promise.resolve` and `Promise.reject` examples
 ```js
 const getJson = () => new Promise(resolve => {
   resolve({ message: "Hello, world!", success: true });
@@ -65,14 +65,14 @@ Promise.reject(42).catch(error => console.log(error)); // => 42
 Promise.resolve(getJson()); // => ES promise
 ```
 
-## `Promise#finally` example
+## `Promise#finally` examples
 ```js
 Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
 
-## `Promise.all` example
+## `Promise.all` examples
 ```js
 function sleepRandom(time) {
   return new Promise(resolve => setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3));
@@ -86,7 +86,7 @@ Promise.all([
 ]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
 ```
 
-## `Promise.race` example
+## `Promise.race` examples
 ```js
 function sleepRandom(time) {
   return new Promise(resolve => setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3));
@@ -102,7 +102,7 @@ timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // => 853, af
 timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // Error: Await > 10 sec
 ```
 
-## `Promise.allSettled` example
+## `Promise.allSettled` examples
 ```js
 Promise.allSettled([
   Promise.resolve(1),
@@ -111,7 +111,7 @@ Promise.allSettled([
 ]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
 
-## `Promise.any` example
+## `Promise.any` examples
 ```js
 Promise.any([
   Promise.resolve(1),

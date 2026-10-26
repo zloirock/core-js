@@ -7,7 +7,7 @@
 ## Built-ins signatures
 ```ts
 class DOMException {
-  constructor(message: string, name?: string);
+  constructor(message?: string, name?: string);
   readonly attribute name: string;
   readonly attribute message: string;
   readonly attribute code: number;

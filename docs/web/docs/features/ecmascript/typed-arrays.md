@@ -10,7 +10,7 @@ class ArrayBuffer {
   constructor(length: any): ArrayBuffer;
   readonly attribute byteLength: number;
   readonly attribute detached: boolean;
-  slice(start: any, end: any): ArrayBuffer;
+  slice(start?: any, end?: any): ArrayBuffer;
   transfer(newLength?: number): ArrayBuffer;
   transferToFixedLength(newLength?: number): ArrayBuffer;
   static isView(arg: any): boolean;

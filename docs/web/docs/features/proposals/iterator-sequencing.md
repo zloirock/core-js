@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-sequencing)
 
 ## Modules
-[`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js)
+[`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js).
 
 ## Built-ins signatures
 ```ts
@@ -18,7 +18,7 @@ core-js/proposals/iterator-sequencing
 core-js(-pure)/es|stable|actual|full/iterator/concat
 ```
 
-## Example
+## Examples
 ```js
 Iterator.concat([0, 1].values(), [2, 3], function * () {
   yield 4;
