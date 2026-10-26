@@ -194,7 +194,7 @@ import "core-js/stage/2";
 
 ---
 
-这仅仅是冰山一角，更多的变化在内部。更多关于 `core-js` 变化可以在 [changelog](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md#300) 中找到。
+这仅仅是冰山一角，更多的变化在内部。更多关于 `core-js` 变化可以在 [changelog](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md#300---20190319) 中找到。
 
 ## Babel
 
@@ -240,7 +240,7 @@ Babel 7.4.0 引入了两种模式的共同更改，以及每种模式的特定�
 
 - `compat-table` 不是为了向工具提供数据而设计的。我是 `compat-table` 的维护者之一，但是[其他的维护者反对为维护这个功能](https://github.com/kangax/compat-table/pull/1312)。
 
-因为这个原因，我创建了 [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat)：它提供了对于不同浏览器 `core-js` 模块的必要性数据。当使用 `core-js@3` 时，`@babel/preset-env` 将使用新的包取代 `compat-table`。[请帮助我们测试并提供缺少的引擎的数据的映射关系！](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data)😊。
+因为这个原因，我创建了 [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat)：它提供了对于不同浏览器 `core-js` 模块的必要性数据。当使用 `core-js@3` 时，`@babel/preset-env` 将使用新的包取代 `compat-table`。[请帮助我们测试并提供缺少的引擎的数据的映射关系！](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data)😊。
 
 在 Babel 7.3 之前，`@babel/preset-env` 有一些与 polyfills 注入顺序有关的问题。从 7.4.0开始，`@babel/preset-env` 只按推荐顺序增加需要的 polyfills 。
 

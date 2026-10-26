@@ -188,7 +188,7 @@ For almost all users, for optimization of `core-js` import, I recommend using [`
 
 ---
 
-This is just the tip of the iceberg, much more changes were done internally. You can find more info about `core-js` changes in the [changelog](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md#300).
+This is just the tip of the iceberg, much more changes were done internally. You can find more info about `core-js` changes in the [changelog](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md#300---20190319).
 
 ## Babel
 
@@ -230,7 +230,7 @@ One of the most important parts of `@babel/preset-env` was the source providing 
 - it contains only some basic and naive tests, which do not check that features work as they should in real-world cases. For example, old Safari has broken iterators without `.next` method, but `compat-table` shows them as supported because it just checks that `typeof` of methods which should return iterators is `"function"`. Some features like typed arrays are almost completely not covered.
 - `compat-table` is not designed for providing data for tools. I'm one of the `compat-table` maintainers, but [some of the other maintainers are against maintaining this functionality](https://github.com/kangax/compat-table/pull/1312).
 
-For this reason, I created the [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) package: it provides data about the necessity of `core-js` modules for different target engines. When using `core-js@3`, `@babel/preset-env` will use that new package instead of `compat-table`. [Please help us with testing and providing data and mappings for missing engines! 😊](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data)
+For this reason, I created the [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) package: it provides data about the necessity of `core-js` modules for different target engines. When using `core-js@3`, `@babel/preset-env` will use that new package instead of `compat-table`. [Please help us with testing and providing data and mappings for missing engines! 😊](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data)
 
 Until Babel 7.3, `@babel/preset-env` had some problems related to the order polyfills were injected. Starting from version 7.4.0, `@babel/preset-env` will add the polyfills only when it knows which of them is required and in the recommended order.
 
