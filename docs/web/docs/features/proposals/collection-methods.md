@@ -20,7 +20,7 @@ class Set {
 }
 
 class Map {
-  static keyBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
+  static keyBy(iterable: Iterable<mixed>, callbackfn: (value: any) => any): Map;
   deleteAll(...args: Array<mixed>): boolean;
   every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
   filter(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Map;

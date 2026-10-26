@@ -30,7 +30,7 @@ class URLSearchParams {
   constructor(params?: string | Iterable<[key, value]> | Object);
   append(name: string, value: string): void;
   delete(name: string, value?: string): void;
-  get(name: string): string | void;
+  get(name: string): string | null;
   getAll(name: string): Array<string>;
   has(name: string, value?: string): boolean;
   set(name: string, value: string): void;

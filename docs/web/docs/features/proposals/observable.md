@@ -9,7 +9,8 @@
 ```ts
 class Observable {
   constructor(subscriber: Function): Observable;
-  subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
+  subscribe(observer: { start?: Function, next?: Function, error?: Function, complete?: Function }): Subscription;
+  subscribe(next: Function, error?: Function, complete?: Function): Subscription;
   @@observable(): this;
   static of(...items: Array<mixed>): Observable;
   static from(x: Observable | Iterable): Observable;

@@ -20,5 +20,8 @@ QUnit.test('Map.keyBy', assert => {
   const element = {};
   Map.keyBy([element], it => assert.same(it, element));
 
+  assert.throws(() => Map.keyBy([1, 2]), TypeError, 'missing callback');
+  assert.throws(() => Map.keyBy([1, 2], {}), TypeError, 'non-callable callback');
+
   // assert.throws(() => keyBy([1, 2], it => it));
 });
