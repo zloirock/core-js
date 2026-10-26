@@ -8,6 +8,7 @@ import {
   isForXWriteTarget,
   isGuardedAliasingWrite,
   isTopLevelThisContext,
+  noteRenderRetiredWrites,
   reassignmentDominatesUsage,
   reassignmentValueEnumeration,
   receiverSlotRead,
@@ -377,6 +378,61 @@ for (const parser of adapters) {
       } finally {
         bodies.forEach((body, index) => Object.defineProperty(body.node, 'body', descriptors[index]));
       }
+    }
+  }
+
+  // Several binding views can retain the same source write after its callback is copied.
+  // One read-only question must not rebuild the whole file for every view of that write.
+  for (const size of [8, 32]) for (const context of ['question', 'traversal', 'plain', 'presence', 'reentrant']) {
+    const program = parser.parseAndScope('function run(rows) { rows = [...rows]; return rows.at(0); }');
+    const owner = parser.pickPath(program, 'FunctionDeclaration');
+    const use = parser.pickPath(program, 'MemberExpression');
+    const original = parser.pickPath(program, 'AssignmentExpression').node;
+    const native = use.scope.getBinding('rows');
+    const binding = { ...native, constantViolations: [original], constant: false };
+    buildScopeReassignmentIndex(owner.node);
+    owner.replaceWith({ ...owner.node, body: { ...owner.node.body, body: [...owner.node.body.body] } });
+    const write = parser.pickPath(program, 'AssignmentExpression');
+    noteRenderRetiredWrites(write.node);
+    write.replaceWith({ ...write.node, left: { ...write.node.left } });
+    const path = parser.pickPath(program, 'MemberExpression');
+    let root = path;
+    while (root.parentPath) root = root.parentPath;
+    const label = `${ parser.name }/copied write/${ context }/${ size }`;
+    const { traverse } = root;
+    let traversals = 0;
+    root.traverse = function (...args) {
+      traversals++;
+      return traverse.apply(this, args);
+    };
+    function lookup() {
+      // Trackers may return distinct views with the same declaration and source records.
+      return wrapScopeBindingLookup(() => ({ ...binding }), () => false)({ scope: path.scope, name: 'rows', path });
+    }
+    function visit() {
+      for (let i = 0; i < size; i++) {
+        const writes = lookup().constantViolations;
+        check(`${ label }/one live write/${ i }`, writes.length, 1);
+        check(`${ label }/copied write/${ i }`, (writes[0].node ?? writes[0]) === original, false);
+      }
+    }
+    try {
+      root.traverse({});
+      check(`${ label }/traversal counter control`, traversals, 1);
+      traversals = 0;
+      if (context === 'plain') visit();
+      else if (context === 'traversal') withTraversalCaches(true, visit);
+      else withCanonQuestion(() => context === 'presence' ? withPresenceReadQuestion(visit)
+        : context === 'reentrant' ? withReentrantQuestion(visit, 'lookup') : visit());
+      const reusable = context === 'question' || context === 'traversal';
+      check(`${ label }/bounded live index builds`, traversals, reusable ? 1 : size);
+      // A later question must observe a restored source write, then its replacement again.
+      parser.pickPath(program, 'AssignmentExpression').replaceWith(original);
+      check(`${ label }/restored write`, withCanonQuestion(() => lookup()).constantViolations.some(item => (item.node ?? item) === original), true);
+      parser.pickPath(program, 'AssignmentExpression').replaceWith({ ...original, left: { ...original.left } });
+      check(`${ label }/replacement after restore`, withCanonQuestion(() => lookup()).constantViolations.some(item => (item.node ?? item) === original), false);
+    } finally {
+      root.traverse = traverse;
     }
   }
 

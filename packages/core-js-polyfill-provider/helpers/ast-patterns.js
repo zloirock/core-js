@@ -7858,6 +7858,11 @@ function isPatternWriteNode(node) {
 // a detached chain. a node the index misses is written since it was built or removed before: the index is
 // built again to tell the two apart, unless the lookup asking built it (`writeLookupSerial`)
 function retiredWrite(write, rootPath) {
+  // Different binding views can ask about the same copied write in one read-only question.
+  // Keep that verdict until the question ends; later rewrites and re-entrant asks stay live.
+  const answers = canonAnswerTable(retiredWrite, [rootPath]);
+  const known = answers?.get(write);
+  if (known !== undefined) return known;
   const node = violationNode(write);
   const index = write.parentPath ? null : ownerWritePathIndex(rootPath);
   let live = index ? index.get(node) : write;
@@ -7865,7 +7870,9 @@ function retiredWrite(write, rootPath) {
     ownerWritePathIndexCache.delete(rootPath);
     live = ownerWritePathIndex(rootPath).get(node);
   }
-  return !live || live.node !== node || ancestorChainDetached(live);
+  const answer = !live || live.node !== node || ancestorChainDetached(live);
+  answers?.set(write, answer);
+  return answer;
 }
 
 // the node types a scope's own record names a write by: the write itself, a for-x head, a re-declaration
