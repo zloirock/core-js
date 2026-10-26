@@ -215,7 +215,7 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
 
 By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` uses native implementation.
 
-But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
+But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires support for unhandled rejection tracking and `@@species`.
 
 Sometimes we could have an inverse problem - a knowingly broken environment with problems not covered by `core-js` feature detection.
 

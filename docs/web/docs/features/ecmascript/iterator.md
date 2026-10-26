@@ -5,6 +5,7 @@
 ## Built-ins signatures
 ```ts
 class Iterator {
+  constructor(): Iterator; // abstract
   static concat(...items: Array<IterableObject>): Iterator<any>;
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
   static zip<T extends readonly Iterable<unknown>[]>(
@@ -122,11 +123,9 @@ Array.from([0, 1].values().windows(3));  // => []
 [1, 2, 3].values().includes(3, 2);  // => true
 [1, 2, 3].values().includes(1, 1);  // => false
 
-/* eslint-disable unicorn/require-array-join-separator -- example */
 [1, 2, 3].values().join();     // => '1,2,3'
 [1, 2, 3].values().join('-');  // => '1-2-3'
 [1, null, 3].values().join();  // => '1,,3'
-/* eslint-enable unicorn/require-array-join-separator -- example */
 ```
 
 > [!WARNING]

@@ -9,11 +9,11 @@ class Array {
 }
 
 class String {
-  at(index: int): string;
+  at(index: int): string | void;
 }
 
 class %TypedArray% {
-  at(index: int): number;
+  at(index: int): number | void;
 }
 ```
 

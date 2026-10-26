@@ -11,7 +11,7 @@ class Date {
   setYear(year: int): number;
   toGMTString(): string;
   toISOString(): string;
-  toJSON(): string;
+  toJSON(): string | null;
   toString(): string;
   @@toPrimitive(hint: 'default' | 'number' | 'string'): string | number;
   static now(): number;

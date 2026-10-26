@@ -7,6 +7,8 @@
 class Symbol {
   constructor(description?): symbol;
   readonly attribute description: string | void;
+  @@toPrimitive(hint: 'default' | 'number' | 'string'): symbol;
+  @@toStringTag: 'Symbol';
   static asyncDispose: @@asyncDispose;
   static asyncIterator: @@asyncIterator;
   static dispose: @@dispose;
@@ -23,7 +25,7 @@ class Symbol {
   static toStringTag: @@toStringTag;
   static unscopables: @@unscopables;
   static for(key: string): symbol;
-  static keyFor(sym: symbol): string;
+  static keyFor(sym: symbol): string | void;
   static useSimple(): void;
   static useSetter(): void;
 }

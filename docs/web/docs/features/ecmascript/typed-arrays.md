@@ -58,7 +58,7 @@ class [
 }
 
 class %TypedArray% {
-  at(index: int): number;
+  at(index: int): number | void;
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;

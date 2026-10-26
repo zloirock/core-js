@@ -14,7 +14,7 @@ Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-j
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
   static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
-  at(index: int): string;
+  at(index: int): string | void;
   includes(searchString: string, position?: number): boolean;
   startsWith(searchString: string, position?: number): boolean;
   endsWith(searchString: string, position?: number): boolean;
@@ -53,7 +53,7 @@ class String {
 }
 
 class RegExp {
-  // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
+  // support for sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
   constructor(pattern: RegExp | string, flags?: string): RegExp;
   static escape(value: string): string;
   exec(string: string): Array<string | undefined> | null; // IE8 fixes
@@ -168,7 +168,6 @@ RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)').exec('foo:abc,bar:def').groups; // =
 
 'foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), '$<bar>,$<foo>'); // => 'def,abc'
 
-// eslint-disable-next-line regexp/no-useless-flag -- example
 RegExp(/./g, 'm'); // => /./m
 
 /foo/.flags;   // => ''

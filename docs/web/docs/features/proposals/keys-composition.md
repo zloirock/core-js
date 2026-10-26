@@ -34,7 +34,6 @@ const a = ['a'];
 const b = ['b'];
 const c = ['c'];
 
-/* eslint-disable no-self-compare -- example */
 console.log(compositeSymbol(a) === compositeSymbol(a)); // => true
 console.log(compositeSymbol(a) !== compositeSymbol(['a'])); // => true
 console.log(compositeSymbol(a, 1) === compositeSymbol(a, 1)); // => true

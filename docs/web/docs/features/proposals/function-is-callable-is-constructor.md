@@ -21,7 +21,6 @@ core-js(-pure)/full/function/is-constructor
 
 ## Examples
 ```js
-/* eslint-disable prefer-arrow-callback -- example */
 Function.isCallable(null);                        // => false
 Function.isCallable({});                          // => false
 Function.isCallable(function () { /* empty */ }); // => true

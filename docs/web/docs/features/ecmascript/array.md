@@ -7,7 +7,7 @@
 ```ts
 class Array {
   at(index: int): any;
-  concat(...args: Array<mixed>): Array<mixed>; // with adding support of @@isConcatSpreadable and @@species
+  concat(...args: Array<mixed>): Array<mixed>; // with added support for @@isConcatSpreadable and @@species
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;

@@ -22,7 +22,6 @@ import getIterator from 'core-js-pure/actual/get-iterator';
 import getIteratorMethod from 'core-js-pure/actual/get-iterator-method';
 
 let list = (function () {
-  // eslint-disable-next-line prefer-rest-params -- example
   return arguments;
 })(1, 2, 3);
 

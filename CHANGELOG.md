@@ -143,7 +143,7 @@
 - Fixed order of arguments validation in `Array.prototype.flat` polyfill
 - Fixed handling strings as iterables in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
-- Fixed validation of iterators `.next()` results an objects in `Iterator.{ zip, zipKeyed }` polyfills
+- Fixed validation of iterators `.next()` results as objects in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed a lack of early error in `Iterator.concat` polyfill on primitive as an iterator
 - Fixed buffer mutation exposure in `Iterator.prototype.windows` polyfill
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
@@ -162,8 +162,8 @@
 - Fixed handling of some line terminators in case of `multiline` + `sticky` mode in `RegExp` polyfill
 - Fixed `.input` slicing on result object with `RegExp` `sticky` mode polyfill
 - Fixed handling of empty groups with `global` and `unicode` modes in polyfills
-- Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
-- Fixed possible removal of unnecessary entries in `URLSearchParam.prototype.delete` polyfill with second argument
+- Fixed `URLSearchParams.prototype.delete` polyfill with duplicate key-value pairs
+- Fixed possible removal of unnecessary entries in `URLSearchParams.prototype.delete` polyfill with second argument
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode cases / character sets in the `URL` polyfill
 - Fixed parsing of non-IPv4 hosts ends in a number in the `URL` polyfill
@@ -213,7 +213,7 @@
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
 - In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
-- Just in case, added an extra input string validation to the  polyfill of obsolete `Number.fromString` proposals
+- Just in case, added an extra input string validation to the polyfill of obsolete `Number.fromString` proposal
 - Simplified `iOS` detection
 - Many minor stylistic fixes and optimizations
 - Compat data improvements:
@@ -2182,7 +2182,7 @@
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-explicit-resource-management))
     - `Promise.any` (with `AggregateError`) ([stage 0 proposal](https://github.com/tc39/proposal-promise-any))
-    - `URL` and `URLSearchParam` [from `URL` standard](https://url.spec.whatwg.org/), also [stage 0 proposal to ECMAScript](https://github.com/jasnell/proposal-url)
+    - `URL` and `URLSearchParams` [from `URL` standard](https://url.spec.whatwg.org/), also [stage 0 proposal to ECMAScript](https://github.com/jasnell/proposal-url)
       - `URL`
         - `URL#href`
         - `URL#origin`
@@ -2286,7 +2286,7 @@
     - **~440kb for `core-js-pure` package**
   - Finally remove `bower.json`
 - CommonJS API, namespaces:
-  - Add availability [configuration of aggressiveness](https://github.com/zloirock/core-js/blob/master/README.md#configurable-level-of-aggressiveness).
+  - Add availability [configuration of aggressiveness](https://github.com/zloirock/core-js/blob/v3.0.0/README.md#configurable-level-of-aggressiveness).
   - Move `core-js/library` to separate `core-js-pure` package.
   - Because of removing all non-standard features, we no longer need `core-js/shim` entry point, replace it just with `core-js`.
   - Move all features from ES5, ES2015, ES2016, ES2017, ES2018 and ES2019 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
@@ -2568,7 +2568,7 @@
   - `ArrayBuffer`, `ArrayBuffer.isView`, `ArrayBuffer#slice`
   - `DataView` with all getter / setter methods
   - `Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array` and `Float64Array` constructors
-  - `%TypedArray%.{for, of}`, `%TypedArray%#{copyWithin, every, fill, filter, find, findIndex, forEach, indexOf, includes, join, lastIndexOf, map, reduce, reduceRight, reverse, set, slice, some, sort, subarray, values, keys, entries, @@iterator, ...}`
+  - `%TypedArray%.{from, of}`, `%TypedArray%#{copyWithin, every, fill, filter, find, findIndex, forEach, indexOf, includes, join, lastIndexOf, map, reduce, reduceRight, reverse, set, slice, some, sort, subarray, values, keys, entries, @@iterator, ...}`
 - Added [`System.global`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-global), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#systemglobal-jhd)
 - Added [`Error.isError`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-is-error), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#jhd-erroriserror)
 - Added [`Math.{iaddh, isubh, imulh, umulh}`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals), [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
@@ -2585,7 +2585,7 @@
 - Added [annex B HTML methods](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-string) - ugly, but also [the part of the spec](https://262.ecma-international.org/6.0/#sec-string.prototype.anchor)
 - Added little fix for [`Date#toString`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-6-date) - `new Date(NaN).toString()` [should be `'Invalid Date'`](https://262.ecma-international.org/6.0/#sec-todatestring)
 - Added [`{keys, values, entries, @@iterator}` methods to DOM collections](https://github.com/zloirock/core-js#iterable-dom-collections) which should have [iterable interface](https://webidl.spec.whatwg.org/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass) - `NodeList`, `DOMTokenList`, `MediaList`, `StyleSheetList`, `CSSRuleList`.
-- Removed Mozilla `Array` generics - [deprecated and will be removed from FF](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods), [looks like strawman is dead](https://web.archive.org/web/20160805230354/http://wiki.ecmascript.org/doku.php?id=strawman:array_statics), available [alternative shim](https://github.com/plusdude/array-generics)
+- Removed Mozilla `Array` generics - [deprecated and will be removed from FF](https://web.archive.org/web/20151211162424/https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods), [looks like strawman is dead](https://web.archive.org/web/20160805230354/http://wiki.ecmascript.org/doku.php?id=strawman:array_statics), available [alternative shim](https://github.com/plusdude/array-generics)
 - Removed `core.log` module
 - CommonJS API
   - Added entry points for [virtual methods](https://github.com/zloirock/core-js#commonjs-and-prototype-methods-without-global-namespace-pollution)
@@ -2634,7 +2634,7 @@
 
 ### [1.2.0 - 2015.09.27](https://github.com/zloirock/core-js/releases/tag/v1.2.0)
 - Added browser [`Promise` rejection hook](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#unhandled-rejection-tracking), [#106](https://github.com/zloirock/core-js/issues/106)
-- Added correct [`IsRegExp`](https://262.ecma-international.org/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#Disabling_the_isRegExp_check)
+- Added correct [`IsRegExp`](https://262.ecma-international.org/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#marking_a_regexp_as_not_a_regex)
 - Updated [`String#leftPad`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals) [with proposal](https://github.com/tc39/proposal-string-pad-start-end/issues/6): string filler truncated from the right side
 - Replaced V8 [`Object.assign`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-object) - its properties order not only incorrect, it is non-deterministic and it causes some problems
 - Fixed behavior with deleted in getters properties for `Object.{`[`assign`](https://github.com/zloirock/core-js/blob/v1.2.0/README.md#ecmascript-6-object)`, `[`entries, values`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)`}`, [example](http://goo.gl/iQE01c)
@@ -2768,7 +2768,7 @@
 - Added `Object#toString.toString` as fallback for [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)
 
 ### [0.9.7 - 2015.05.07](https://github.com/zloirock/core-js/releases/tag/v0.9.7)
-- Added [support DOM collections](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice#Streamlining_cross-browser_behavior) to IE8- `Array#slice`
+- Added [support DOM collections](https://web.archive.org/web/20150405170414/https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice#Streamlining_cross-browser_behavior) to IE8- `Array#slice`
 
 ### [0.9.6 - 2015.05.01](https://github.com/zloirock/core-js/releases/tag/v0.9.6)
 - Added [`String#lpad`, `String#rpad`](https://github.com/zloirock/core-js/blob/v2.0.0/README.md#ecmascript-7-proposals)

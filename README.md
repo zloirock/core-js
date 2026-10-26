@@ -447,7 +447,7 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
 
 By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` uses native implementation.
 
-But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
+But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires support for unhandled rejection tracking and `@@species`.
 
 Sometimes we could have an inverse problem - a knowingly broken environment with problems not covered by `core-js` feature detection.
 
@@ -724,7 +724,7 @@ Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packag
 ```ts
 class Array {
   at(index: int): any;
-  concat(...args: Array<mixed>): Array<mixed>; // with adding support of @@isConcatSpreadable and @@species
+  concat(...args: Array<mixed>): Array<mixed>; // with added support for @@isConcatSpreadable and @@species
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
@@ -1026,7 +1026,7 @@ Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-j
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
   static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
-  at(index: int): string;
+  at(index: int): string | void;
   includes(searchString: string, position?: number): boolean;
   startsWith(searchString: string, position?: number): boolean;
   endsWith(searchString: string, position?: number): boolean;
@@ -1065,7 +1065,7 @@ class String {
 }
 
 class RegExp {
-  // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
+  // support for sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
   constructor(pattern: RegExp | string, flags?: string): RegExp;
   static escape(value: string): string;
   exec(string: string): Array<string | undefined> | null; // IE8 fixes
@@ -1344,7 +1344,7 @@ class Date {
   setYear(year: int): number;
   toGMTString(): string;
   toISOString(): string;
-  toJSON(): string;
+  toJSON(): string | null;
   toString(): string;
   @@toPrimitive(hint: 'default' | 'number' | 'string'): string | number;
   static now(): number;
@@ -1576,7 +1576,7 @@ class Symbol {
   static toStringTag: @@toStringTag;
   static unscopables: @@unscopables;
   static for(key: string): symbol;
-  static keyFor(sym: symbol): string;
+  static keyFor(sym: symbol): string | void;
   static useSimple(): void;
   static useSetter(): void;
 }
@@ -2073,7 +2073,7 @@ class [
 }
 
 class %TypedArray% {
-  at(index: int): number;
+  at(index: int): number | void;
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
@@ -2383,11 +2383,11 @@ class Array {
 }
 
 class String {
-  at(index: int): string;
+  at(index: int): string | void;
 }
 
 class %TypedArray% {
-  at(index: int): number;
+  at(index: int): number | void;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
