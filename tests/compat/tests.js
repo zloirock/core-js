@@ -1242,7 +1242,7 @@ GLOBAL.tests = {
   'es.promise.try': [PROMISES_SUPPORT, function () {
     var ACCEPT_ARGUMENTS = false;
     var p = Promise.resolve();
-    Promise['try'](function (argument) {
+    return Promise['try'](function (argument) {
       // avoiding the use of polyfills of the previous iteration of this proposal
       // that does not accept arguments of the callback
       ACCEPT_ARGUMENTS = argument === 8;
