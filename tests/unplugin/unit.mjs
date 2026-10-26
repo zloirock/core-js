@@ -2233,6 +2233,35 @@ await checkAstInternalsCore();
 // --- AST-engine internals: printProgram contracts (the roundtrip gate holds the corpus;
 // these lock the specific promises the emitters lean on) ---
 async function checkAstPrintContracts() {
+  // Scalar AST fields cannot contain child nodes. Count accidental property lookups
+  // without changing their answers, and keep the printer's code and map observable.
+  const scalarSource = '// scalar fields\nconst result = ["x", 1, true, null];\nJSON.stringify(result);';
+  const scalarPrint = astPrint(scalarSource);
+  for (const [label, prototype, scalar] of [
+    ['string', String.prototype, 'x'],
+    ['number', Number.prototype, 1],
+    ['boolean', Boolean.prototype, true],
+  ]) {
+    let reads = 0;
+    const { printed, control: observedReads, answer: observedAnswer } = withTemporaryProperty(prototype, 'type', undefined, () => {
+      Object.defineProperty(prototype, 'type', {
+        configurable: true,
+        get() {
+          reads++;
+          return undefined;
+        },
+      });
+      const answer = scalar.type;
+      const control = reads;
+      reads = 0;
+      return { printed: astPrint(scalarSource), control, answer };
+    });
+    check(`print scalar fields/${ label }/counter observes a lookup`, observedReads, 1);
+    check(`print scalar fields/${ label }/counter preserves the answer`, observedAnswer, undefined);
+    check(`print scalar fields/${ label }/no child lookups`, reads, 0);
+    check(`print scalar fields/${ label }/code and map`, JSON.stringify(printed), JSON.stringify(scalarPrint));
+    check(`print scalar fields/${ label }/runtime`, runInNewContext(printed.code), runInNewContext(scalarSource));
+  }
   function reprint(src, anchoredComments = null) {
     // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
     const parsed = parseSync('/p.mjs', src, { sourceType: 'module' });
