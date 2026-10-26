@@ -2511,6 +2511,11 @@ const packagesPackageJSON = {
   'package-json/valid-name': ERROR,
 };
 
+const transpilerPerfPackageJSON = {
+  // allow polyfill source as benchmark input, not a runtime dependency
+  'depend/ban-dependencies': [ERROR, { allowed: ['globalthis'] }],
+};
+
 const nodeDependencies = {
   // enforce the versions of the engines of the dependencies to be compatible
   'node-dependencies/compat-engines': [ERROR, { devDependencies: true }],
@@ -2882,6 +2887,10 @@ export default [
   {
     files: ['packages/*/package.json'],
     rules: packagesPackageJSON,
+  },
+  {
+    files: ['tests/transpiler-perf/package.json'],
+    rules: transpilerPerfPackageJSON,
   },
   {
     files: ['**/*.md'],
