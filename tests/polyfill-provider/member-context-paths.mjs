@@ -1,5 +1,5 @@
-import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
-import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { createBabelAdapter, createUsageVisitors as createBabelUsageVisitors } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter, createUsageVisitors as createEstreeUsageVisitors } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
@@ -16,8 +16,47 @@ import {
   withVarScopeOwners,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker, expectError } from './harness.mjs';
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
-const { check, checkTruthy, finish } = createChecker('member-context-paths');
+const { check, checkTruthy, checkDeep, finish } = createChecker('member-context-paths');
+// An ordinary identifier needs no global reference-position query, unless a live
+// navigation hook consumes aliases too. Known names retain their normal detection.
+for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
+  const program = parser.parseAndScope('ordinary; Map;');
+  const paths = parser.collectPaths(program, 'Identifier');
+  const createAdapter = parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter;
+  const createVisitors = parser.name === 'babel' ? createBabelUsageVisitors : createEstreeUsageVisitors;
+  for (const hook of [false, true]) {
+    const claims = [];
+    const roots = [];
+    const visitors = createVisitors({
+      adapter: createAdapter({ method }),
+      method,
+      walkAnnotations: false,
+      onUsage(meta) { claims.push(meta.name); },
+      suppressKeptNavRoot: hook ? path => { roots.push(path.node.name); return true; } : null,
+    });
+    for (const path of paths) {
+      const { parent } = path;
+      let reads = 0;
+      withTemporaryProperty(path, 'parent', undefined, () => {
+        Object.defineProperty(path, 'parent', {
+          configurable: true,
+          get() {
+            reads++;
+            return parent;
+          },
+        });
+        (visitors.ReferencedIdentifier ?? visitors.Identifier)(path);
+      });
+      const observed = hook || path.node.name === 'Map';
+      check(`global name gate/${ parser.name }/${ method }/${ hook }/${ path.node.name }/reference query`, reads > 0, observed);
+    }
+    checkDeep(`global name gate/${ parser.name }/${ method }/${ hook }/claims`, claims, hook ? [] : ['Map']);
+    checkDeep(`global name gate/${ parser.name }/${ method }/${ hook }/alias hook`, roots, hook ? ['ordinary', 'Map'] : []);
+  }
+}
+
 const nav = `globalThis${ '.self'.repeat(16) }.Map`;
 // the marker lines a generated row puts above the line `tsc` rejects on purpose
 const COMPUTED_KEY = expectError('a computed key tsc refuses is the shape under test');
