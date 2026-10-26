@@ -330,6 +330,7 @@ function synthesizeLocs(program, comments, source) {
     for (const key in node) {
       if (key === 'loc' || key === 'replacedSpan') continue;
       const value = node[key];
+      if (!value || typeof value !== 'object') continue;
       if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i++) value[i] = peelOwnedParens(value[i], node);
       } else {
