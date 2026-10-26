@@ -20193,6 +20193,68 @@ function * generateNamedFunctionLocalReceivers() {
   };
 }
 
+// A raw tail still evaluates its receiver, nested polyfills and optional boundaries.
+// Each result depends on the nested claim in a stripped realm, independently of print parity.
+function * generateUnsupportedMemberTails() {
+  for (const [id, receiver, key] of [
+    ['static', 'Array.from([1, 2])', 'length'], ['instance', '[1, [2]].flat()', 'length'],
+    ['global', 'new globalThis.Map([[1, 2]])', 'size'],
+  ]) for (const tail of ['dot', 'optional', 'computed']) {
+    const read = tail === 'computed' ? `[(log.push("key"), ${ JSON.stringify(key) })]` : `${ tail === 'optional' ? '?.' : '.' }${ key }`;
+    const code = `(log.push("receiver"), ${ receiver })${ read }`;
+    yield { ...snippet(`unsupported-member-tail/${ id }/${ tail }`, code), strip: true };
+  }
+}
+
+// Ordinary callable and prototype names retain getter order, the captured receiver,
+// optional short-circuits and argument claims without a special name whitelist.
+function * generateCallableMemberTails() {
+  for (const key of ['call', 'bind', 'constructor', 'prototype']) {
+    for (const form of ['plain', 'optional', 'null', 'falsy', 'computed']) {
+      const access = form === 'computed' ? `[${ JSON.stringify(key) }]`
+        : `.${ key }${ form === 'plain' ? '' : '?.' }`;
+      const value = form === 'null' ? 'null' : form === 'falsy' ? '0'
+        : "function (arg) { effects.push('body'); return [this === original, arg[0]]; }";
+      yield {
+        name: `callable-member-tail/${ key }/${ form }`,
+        code: `const effects = [];
+          let box = {};
+          const original = box;
+          Object.defineProperty(box, ${ JSON.stringify(key) }, { get() {
+            effects.push('get'); box = {}; return ${ value };
+          } });
+          function argument() {
+            effects.push('arg'); const values = Array.from([7]); effects.push(values[0]); return values;
+          }
+          let r;
+          try { r = box${ access }(argument()); }
+          catch (error) { r = error instanceof TypeError; }
+          export { r, effects };`,
+        strip: form !== 'null',
+      };
+    }
+  }
+  for (const method of ['call', 'bind']) for (const source of ['local', 'static']) yield {
+    name: `callable-member-tail/inherited/${ method }/${ source }`,
+    code: `const effects = [];
+      function read(arg) { effects.push('body'); return this.value + arg[0]; }
+      const fn = ${ source === 'static' ? 'Array.from' : 'read' };
+      const receiver = ${ source === 'static' ? 'Array' : '{ value: 5 }' };
+      const r = fn.${ method }(receiver, (effects.push('arg'), Array.of(7)))${ method === 'bind' ? '()' : '' };
+      export { r, effects };`,
+    strip: true,
+  };
+  yield {
+    name: 'callable-member-tail/constructor-alias',
+    code: `const effects = [];
+      const C = Map;
+      const value = new C.prototype.constructor(Array.from([[1, 7]]));
+      const r = [value.get(1), C.prototype.has.call(value, 1)];
+      export { r, effects };`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20577,4 +20639,6 @@ export function * generate() {
   yield * generateAliasRings();
   yield * generatePrepassHostOrder();
   yield * generateNamedFunctionLocalReceivers();
+  yield * generateUnsupportedMemberTails();
+  yield * generateCallableMemberTails();
 }

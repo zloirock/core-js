@@ -273,3 +273,80 @@ QUnit.test('chaining: a poly GET over a poly call keeps both claims', assert => 
   const empty = [];
   assert.same(empty.at?.(9)?.at, undefined, 'a short-circuited chain yields undefined, not a throw');
 });
+
+QUnit.test('chain: unsupported tails keep nested claims and call receivers', assert => {
+  const log = [];
+  const box = { read() {
+    log.push(this === box);
+    return [1, [2]].flat();
+  } };
+  assert.same((log.push('receiver'), box).read().length, 2);
+  assert.deepEqual(log, ['receiver', true]);
+  assert.same(Array.from({ 0: 1, 1: 2, length: 2 }).length, 2);
+  // eslint-disable-next-line es/no-nonstandard-map-properties -- an unsupported tail must still visit its constructor
+  assert.same(globalThis.Map.unrelatedField, undefined);
+  assert.same(new globalThis.Map([['x', 1]]).size, 1);
+  const absent = null;
+  assert.same(absent?.unrelatedField?.(log.push('argument')), undefined);
+  assert.deepEqual(log, ['receiver', true]);
+});
+
+QUnit.test('chain: ordinary callable properties keep getters, arguments and receivers', assert => {
+  const log = [];
+  function argument() {
+    log.push('argument');
+    return Array.from([7]);
+  }
+  const reads = [
+    ['call', source => source.call(argument())], ['bind', source => source.bind(argument())],
+    ['constructor', source => source.constructor(argument())], ['prototype', source => source.prototype(argument())],
+  ];
+  for (const [key, read] of reads) {
+    log.length = 0;
+    let box = {};
+    const original = box;
+    Object.defineProperty(box, key, { get() {
+      log.push('get');
+      box = {};
+      return function (value) {
+        log.push('body');
+        return [this === original, value[0]];
+      };
+    } });
+    assert.deepEqual(read(box), [true, 7], key);
+    assert.deepEqual(log, ['get', 'argument', 'body'], key);
+    assert.notSame(box, original, 'getter changed the binding, not the captured receiver');
+  }
+});
+
+QUnit.test('chain: inherited call, bind and prototype constructor keep their behavior', assert => {
+  function read(value) { return this.base + value[0]; }
+  const receiver = { base: 5 };
+  assert.same(read.call(receiver, Array.of(7)), 12);
+  assert.same(read.bind(receiver)(Array.of(7)), 12);
+  // eslint-disable-next-line prefer-destructuring -- direct static alias capture is the form under test
+  const from = Array.from;
+  assert.deepEqual(from.call(Array, { 0: 3, length: 1 }), [3]);
+  assert.deepEqual(from.bind(Array)({ 0: 3, length: 1 }), [3]);
+  const C = Map;
+  // eslint-disable-next-line new-cap -- constructor is the prototype property under test
+  const value = new C.prototype.constructor([[1, 7]]);
+  assert.same(value.get(1), 7);
+  assert.true(C.prototype.has.call(value, 1));
+});
+
+QUnit.test('chain: optional ordinary calls distinguish nullish from falsy', assert => {
+  let reads = 0;
+  function argument() {
+    reads++;
+    return Array.from([7]);
+  }
+  const absent = { call: null, bind: undefined };
+  assert.same(absent.call?.(argument()), undefined);
+  assert.same(absent.bind?.(argument()), undefined);
+  assert.same(reads, 0);
+  const present = { constructor: 0, prototype: false };
+  assert.throws(() => present.constructor?.(argument()), TypeError);
+  assert.throws(() => present.prototype?.(argument()), TypeError);
+  assert.same(reads, 2, 'arguments run before a non-callable value throws');
+});

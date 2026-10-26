@@ -11,13 +11,16 @@ import {
   walkTypeAnnotationGlobals,
 } from './annotations.js';
 import { isKnownGlobalName } from './globals.js';
+import { hasMemberDefinitionKey } from '../index.js';
 import {
+  aliasWriteCtorNames,
   classifyDestructureLeafHost,
   collectDestructureUnionCandidates,
   decidedSelection,
   defaultDroppedAsDead,
   destructurePatternHostPath,
   prepareDestructureUnion,
+  staticContainerReceiverName,
 } from './destructure.js';
 import { agreeingTernaryArm, resolveObjectName } from './resolve.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
@@ -120,22 +123,39 @@ export function createUsageHandlerCore({
   }
 
   function emitMemberUsage(path) {
+    const { node } = path;
     // Metadata asks several questions of the same receiver without rewriting it.
     // End their shared question before onUsage can replace nodes or register bindings.
-    const meta = withCanonQuestion(() => handleMemberExpressionNode({
-      node: path.node,
-      scope: path.scope,
-      adapter,
-      handledObjects,
-      suppressProxyGlobals,
-      path,
-      resolveMeta,
-      isEntryAvailable,
-      resolvePure,
-      keptProxyHops,
-      resolveStaticKey,
-      proxySegments,
-    }));
+    const meta = withCanonQuestion(() => {
+      // An unsupported key can still need a constructor fallback. Only a plain receiver
+      // with no global or guarded alias answer may skip metadata; its children remain live.
+      if (!node.computed && node.property.type === 'Identifier'
+        && !hasMemberDefinitionKey(node.property.name) && !isKnownGlobalName(node.property.name)) {
+        const receiver = node.object;
+        if (receiver.type === 'Identifier' && !isKnownGlobalName(receiver.name)) {
+          const ctx = { scope: path.scope, adapter, path };
+          const candidates = [];
+          const object = resolveObjectName({ objectNode: receiver, ...ctx, readNode: receiver, resolveStaticKey })
+            ?? staticContainerReceiverName({ node: receiver, ...ctx,
+              unionSink: candidates, conditionalSink: candidates, selectionSink: candidates });
+          if (!object && !candidates.length && !aliasWriteCtorNames({ name: receiver.name, ...ctx, read: receiver }).length) return null;
+        }
+      }
+      return handleMemberExpressionNode({
+        node,
+        scope: path.scope,
+        adapter,
+        handledObjects,
+        suppressProxyGlobals,
+        path,
+        resolveMeta,
+        isEntryAvailable,
+        resolvePure,
+        keptProxyHops,
+        resolveStaticKey,
+        proxySegments,
+      });
+    });
     if (meta) {
       onUsage(meta, path);
       // usage-global union: extra reachable receiver / key targets each earn a side-effect import
