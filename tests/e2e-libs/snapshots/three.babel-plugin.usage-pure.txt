@@ -15,6 +15,7 @@
 @core-js/pure/full/array/instance/splice
 @core-js/pure/full/array/instance/unshift
 @core-js/pure/full/function/instance/name
+@core-js/pure/full/get-iterator
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/instance/includes
@@ -49,7 +50,6 @@
 @core-js/pure/full/promise/resolve
 @core-js/pure/full/reflect/construct
 @core-js/pure/full/reflect/get
-@core-js/pure/full/reflect/namespace
 @core-js/pure/full/self
 @core-js/pure/full/set/constructor
 @core-js/pure/full/string/instance/repeat
@@ -58,5 +58,6 @@
 @core-js/pure/full/symbol/constructor
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/symbol/to-primitive
+@core-js/pure/full/symbol/to-string-tag
 @core-js/pure/full/url/constructor
 @core-js/pure/full/weak-map/constructor

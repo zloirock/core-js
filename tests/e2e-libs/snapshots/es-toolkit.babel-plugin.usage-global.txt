@@ -168,5 +168,4 @@ core-js/modules/web.dom-collections.values
 core-js/modules/web.dom-exception.constructor
 core-js/modules/web.dom-exception.stack
 core-js/modules/web.dom-exception.to-string-tag
-core-js/modules/web.self
 core-js/modules/web.structured-clone

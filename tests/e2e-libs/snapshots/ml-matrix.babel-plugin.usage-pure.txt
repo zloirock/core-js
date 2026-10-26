@@ -7,6 +7,7 @@
 @core-js/pure/full/array/instance/sort
 @core-js/pure/full/array/instance/splice
 @core-js/pure/full/function/instance/name
+@core-js/pure/full/get-iterator
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/entries
 @core-js/pure/full/instance/includes
@@ -34,7 +35,6 @@
 @core-js/pure/full/number/is-nan
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-property
-@core-js/pure/full/object/get-own-property-descriptor
 @core-js/pure/full/object/get-prototype-of
 @core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
@@ -42,7 +42,6 @@
 @core-js/pure/full/parse-int
 @core-js/pure/full/reflect/construct
 @core-js/pure/full/reflect/get
-@core-js/pure/full/reflect/namespace
 @core-js/pure/full/set/constructor
 @core-js/pure/full/string/instance/ends-with
 @core-js/pure/full/string/instance/pad-end
@@ -52,5 +51,6 @@
 @core-js/pure/full/symbol/for
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/symbol/to-primitive
+@core-js/pure/full/symbol/to-string-tag
 @core-js/pure/full/weak-map/constructor
 @core-js/pure/full/weak-set/constructor

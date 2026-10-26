@@ -1,4 +1,5 @@
 -@core-js/pure/full/array/instance/concat
+-@core-js/pure/full/get-iterator
 -@core-js/pure/full/get-iterator-method
 -@core-js/pure/full/object/create
 -@core-js/pure/full/object/define-properties
@@ -10,3 +11,4 @@
 -@core-js/pure/full/reflect/construct
 -@core-js/pure/full/symbol/iterator
 -@core-js/pure/full/symbol/to-primitive
+-@core-js/pure/full/symbol/to-string-tag
