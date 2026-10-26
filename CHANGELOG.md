@@ -12,6 +12,7 @@
 - Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy` and `Map.prototype.merge` entries and of `/es/object/` namespace
 - Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
 - Fixed legacy `/full/typed-array/from-async` entry dependencies
+- Fixed `DataView` dependencies of `/array-buffer/constructor` entries, a regression since 3.36.0, of some `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }`, `ArrayBuffer.isView` and `ArrayBuffer.prototype.slice` entries
 - Compat data improvements:
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
