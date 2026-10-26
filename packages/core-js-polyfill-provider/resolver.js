@@ -461,6 +461,10 @@ export function createPolyfillResolver(options, {
         if (!plainMember || !proxyNavEffectsHarvestable(protoReceiver.object)) {
           return { result: null, fallback: null };
         }
+        // A resolved constructor alias already carries its substituted value. Retain
+        // that reference at a prototype leaf instead of swapping the constructor again.
+        const ctorReceiver = unwrapRuntimeExpr(protoReceiver.object);
+        if (ctorReceiver.type === 'Identifier' && ctorReceiver.name !== meta.object) return { result: null, fallback: null };
       }
       const globalMeta = { kind: 'global', name: meta.object };
       const globalResolved = resolve(globalMeta);

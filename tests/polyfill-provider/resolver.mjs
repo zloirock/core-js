@@ -13,7 +13,7 @@ import {
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
 import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
 import { createDetectionAdapter, enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
-import { createChecker } from './harness.mjs';
+import { adapters, createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
 
@@ -493,6 +493,20 @@ for (const [label, meta, options, expected] of [
     ...makeFilterEnv(), readsUnnamedStatic: () => true, isEscapedCtor: () => true,
   });
   checkDeep(`unnamed static entries/${ label }`, resolver.resolveUsage(meta), expected);
+}
+
+// Prototype leaves keep a resolved alias, while direct constructors and realm hops
+// still need their own substitution. The metadata names the proven constructor.
+for (const parser of adapters) for (const [source, fallback] of [
+  ['Map.prototype.constructor', true], ['globalThis.Map.prototype.constructor', true],
+  ['const C = Map; C.prototype.constructor', false], ['const C = Map; (C.prototype).has', false],
+]) {
+  const program = parser.parseAndScope(source);
+  const path = parser.pickPath(program, 'MemberExpression');
+  const { resolver } = createPolyfillResolver({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }, makeFilterEnv());
+  const result = resolver.resolvePureOrGlobalFallback({ kind: 'property', object: 'Map',
+    key: path.node.property.name, placement: 'prototype' }, path);
+  check(`${ parser.name }/prototype alias fallback/${ source }`, !!result.fallback, fallback);
 }
 
 // Exercise enrichment with the real resolver. Prototype entries live in the instance
