@@ -10,8 +10,7 @@ const NOISE = /^(?:ok \d+|TAP version)/;
 // idling - and the cost is the fallback's own delay, not the suite's. only node pays for it:
 // a browser page never has to exit, so the karma legs stay silent about the same leak
 function reportArmedTimers() {
-  // the bun leg shares this reporter and runs the qunit cli on whatever node is on PATH,
-  // which is not necessarily one that has this
+  // the bun leg shares this reporter, and not every Bun has this
   /* eslint-disable node/no-unsupported-features/node-builtins -- safe */
   if (typeof process.getActiveResourcesInfo != 'function') return;
   const armed = process.getActiveResourcesInfo().filter(type => type === 'Timeout').length;
