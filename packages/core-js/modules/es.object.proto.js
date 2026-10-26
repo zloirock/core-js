@@ -15,9 +15,10 @@ var PROTO = '__proto__';
 
 // `Object.prototype.__proto__` accessor
 // https://tc39.es/ecma262/#sec-object.prototype.__proto__
-// Deno 2.9+ patch this accessor, so we can't use `in` for feature detection
-if (DESCRIPTORS && getPrototypeOf && setPrototypeOf && ({}[PROTO] !== ObjectPrototype)) try {
-  defineBuiltInAccessor(ObjectPrototype, PROTO, {
+// Deno 2.9+ patch this accessor, so we can't use `in` for feature detection,
+// and its getter throws under `node --disable-proto=throw`, so it's read inside `try`
+if (DESCRIPTORS && getPrototypeOf && setPrototypeOf) try {
+  if ({}[PROTO] !== ObjectPrototype) defineBuiltInAccessor(ObjectPrototype, PROTO, {
     configurable: true,
     get: function __proto__() {
       return getPrototypeOf(toObject(this));

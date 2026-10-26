@@ -6,6 +6,7 @@
 - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies of `/es/` and `/stable/` namespaces, the `JSON.parse` source text access proposal entry and the stage 4 entry, a regression since 3.47.0
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator (Firefox < 46)
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill in V8 ~ Chrome < 70, Safari < 12.1, FF < 63, Rhino < 1.8.0
+- Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
 - Compat data improvements:
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - Updated [Electron 46](https://releases.electronjs.org/) compat data mapping
