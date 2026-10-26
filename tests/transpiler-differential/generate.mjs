@@ -20172,6 +20172,27 @@ function * generatePrepassHostOrder() {
   };
 }
 
+// Body declarations can shadow the name of their function expression. A later getter or
+// argument write must not replace the receiver already captured for a method call.
+function * generateNamedFunctionLocalReceivers() {
+  for (const kind of ['var', 'let']) for (const effect of ['plain', 'argument', 'getter']) yield {
+    name: `named-function-local-receivers/${ kind }/${ effect }`,
+    code: `const effects = [];
+      const read = function rows(input) {
+        ${ kind } rows = input;
+        ${ effect === 'getter' ? `Object.defineProperty(rows, 'at', { get() {
+          effects.push('get'); rows = ['changed'];
+          return function (index) { effects.push(this[0]); return this[index]; };
+        } });` : '' }
+        const value = rows.at(${ effect === 'argument' ? "(effects.push('arg'), rows = ['changed'], 0)" : '0' });
+        return [value, rows[0]];
+      };
+      const r = read(['held']);
+      export { r, effects };`,
+    strip: effect !== 'getter',
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20555,4 +20576,5 @@ export function * generate() {
   yield * generateLocalFlowJoins();
   yield * generateAliasRings();
   yield * generatePrepassHostOrder();
+  yield * generateNamedFunctionLocalReceivers();
 }

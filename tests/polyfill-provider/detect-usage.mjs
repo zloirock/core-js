@@ -1102,6 +1102,17 @@ runBoth('noReassignmentReachesUsage/reassign after use -> true',
     check(lbl, noReassignmentReachesUsage({ reassignmentNodes, usagePath }), true);
   });
 
+// A path removed after the binding lookup cannot prove the initializer still reaches the read.
+runBoth('noReassignmentReachesUsage/empty write path supplies no order proof',
+  'let rows = []; rows.at(0); rows = other;', (adapter, prog, lbl) => {
+    const usagePath = adapter.pickPath(prog, 'MemberExpression', path => path.node.property.name === 'at');
+    const write = adapter.pickPath(prog, 'AssignmentExpression').node;
+    for (const reassignmentNodes of [[null], [write, null], [null, write]]) {
+      check(lbl, noReassignmentReachesUsage({ reassignmentNodes, usagePath }), false);
+    }
+    check(`${ lbl } known later write`, noReassignmentReachesUsage({ reassignmentNodes: [write], usagePath }), true);
+  });
+
 // --- returnedReceiverHasEffects: an inlined call's returned expr carries droppable side effects ---
 // (the receiver value the caller resolves is excluded; only writes / SE-prefixes around it count)
 
