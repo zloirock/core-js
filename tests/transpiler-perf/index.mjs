@@ -14,9 +14,11 @@
 // is invisible there and shows up only when the same bytes arrive as hundreds of separate calls.
 import { fileURLToPath } from 'node:url';
 import { transformAsync } from '@babel/core';
+import { transform as lower } from 'esbuild';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import { censusWalkTruncations } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { APPLICATIONS, applicationSource } from './applications.mjs';
 
 const { cyan, green, red } = chalk;
 const { readdir, readFile } = fs;
@@ -535,6 +537,21 @@ const CASES = [
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
+  ...APPLICATIONS.flatMap(application => [
+    { ...application, source: () => applicationSource(application), bounds: {
+      'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    } },
+    { ...application, name: `${ application.name }, pre+lowering+post`, source: () => applicationSource(application),
+      emitters: ['unplugin'], phase: 'pre+post', lowering: true,
+      bounds: { 'usage-global': { unplugin: 1 }, 'usage-pure': { unplugin: 1 } } },
+  ]),
+  // globalthis's Node entry only exports `global`; the other two sources must inject.
+  { name: 'browser realm libraries, global guards and aliases',
+    source: () => Promise.all(['whatwg-fetch/fetch.js', 'es6-promise/dist/es6-promise.js', 'globalthis/implementation.js']
+      .map(file => readFile(join(HERE, 'node_modules', file), 'utf8'))),
+    injections: 2, bounds: {
+      'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    } },
   { name: 'synthetic wide container patterns, 256 slots in 8 scopes', source: () => syntheticWideContainerPatterns(256, 8), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
@@ -691,28 +708,44 @@ function emittedSources(code) {
 
 // One instance per lane, as in a bundler. Both emitters keep their option identity across
 // modules and samples, so the per-call cases exercise their cross-file caches too.
-function createTransform(emitter, mode, ts, phase = 'pre', compact = 'auto') {
+function createTransform(emitter, mode, {
+  ts = false, jsx = false, decorators = false, tsconfigRaw,
+  filename = ts ? 'input.ts' : 'input.mjs', phase = 'pre', compact = 'auto', lowering = false,
+}) {
   const options = { method: mode, version: '4.0', targets: { ie: 11 } };
-  const filename = ts ? 'input.ts' : 'input.mjs';
+  if (lowering && (emitter !== 'unplugin' || phase !== 'pre+post')) {
+    throw new Error('Intermediate lowering requires unplugin pre+post');
+  }
   if (emitter === 'babel') {
     const config = {
       plugins: [[babelPlugin, options]],
       filename,
       compact,
       sourceType: 'module',
-      parserOpts: ts ? { plugins: ['typescript'] } : undefined,
+      parserOpts: ts || jsx || decorators ? { plugins: [
+        ...decorators ? ['decorators-legacy'] : [], ...ts ? ['typescript'] : [], ...jsx ? ['jsx'] : [],
+      ] } : undefined,
       configFile: false,
       babelrc: false,
     };
     return async source => (await transformAsync(source, config)).code;
   }
   const stages = unplugin.raw({ ...options, phase }, { framework: 'vite' });
+  function transformStage(stage, code) {
+    if (!stage.transformInclude(filename)) throw new Error(`Public stage rejected ${ filename }`);
+    return stage.transform(code, filename)?.code ?? code;
+  }
+  if (lowering) return async source => {
+    const code = transformStage(stages[0], source);
+    const lowered = await lower(code, {
+      loader: ts ? jsx ? 'tsx' : 'ts' : jsx ? 'jsx' : 'js',
+      target: 'es2018', format: 'esm', sourcefile: filename, tsconfigRaw,
+    });
+    return transformStage(stages[1], lowered.code);
+  };
   return source => {
     let code = source;
-    for (const stage of stages) {
-      if (!stage.transformInclude(filename)) throw new Error(`Public stage rejected ${ filename }`);
-      code = stage.transform(code, filename)?.code ?? code;
-    }
+    for (const stage of stages) code = transformStage(stage, code);
     return code;
   };
 }
@@ -721,7 +754,7 @@ let failed = 0;
 for (const {
   name,
   source,
-  ts = false,
+  ts, jsx, decorators, tsconfigRaw, filename, lowering,
   injections = 1,
   entries = 0,
   bounds,
@@ -736,7 +769,7 @@ for (const {
   const size = bytes < 1024 ? `${ cyan(bytes) } B` : `${ cyan((bytes / 1024).toFixed(1)) } KiB`;
   for (const [mode, modeBounds] of Object.entries(bounds)) {
     for (const emitter of emitters) {
-      const transform = createTransform(emitter, mode, ts, phase, compact);
+      const transform = createTransform(emitter, mode, { ts, jsx, decorators, tsconfigRaw, filename, phase, compact, lowering });
       const samples = [];
       let injected = Infinity;
       let distinctEntries = Infinity;
