@@ -948,7 +948,7 @@ core-js(-pure)/es|stable|actual|full/iterator/windows
 core-js(-pure)/es|stable|actual|full/iterator/zip
 core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
-[Examples](https://tinyurl.com/24ouu2ju):
+[Examples](https://core-js.io/playground#code=%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D.values%28%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AIterator.from%28%7B%0A++next%3A+%28%29+%3D%3E+%28%7B+done%3A+Math.random%28%29+%3E+0.9%2C+value%3A+Math.random%28%29+%2A+10+%7C+0+%7D%29%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B7%2C+6%2C+3%2C+0%2C+2%2C+8%5D%0A%0AIterator.concat%28%5B0%2C+1%5D.values%28%29%2C+%5B2%2C+3%5D%2C+function+%2A+%28%29+%7B%0A++yield+4%3B%0A++yield+5%3B%0A%7D%28%29%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%5D%0A%0AIterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F%0A%0Aconst+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0AArray.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D%0A%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%282%29%3B+++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%284%29%3B+++++%2F%2F+%3D%3E+false%0A%5BNaN%5D.values%28%29.includes%28NaN%29%3B+++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%283%2C+2%29%3B++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%281%2C+1%29%3B++%2F%2F+%3D%3E+false%0A%0A%2F%2A+eslint-disable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27%0A%2F%2A+eslint-enable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F):
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -1068,7 +1068,7 @@ class RegExp {
   // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
   constructor(pattern: RegExp | string, flags?: string): RegExp;
   static escape(value: string): string;
-  exec(): Array<string | undefined> | null; // IE8 fixes
+  exec(string: string): Array<string | undefined> | null; // IE8 fixes
   test(string: string): boolean; // delegation to `.exec`
   toString(): string; // ES2015+ fix - generic
   @@match(string: string): Array | null;
@@ -1712,7 +1712,7 @@ core-js(-pure)/es|stable|actual|full/map/group-by
 core-js(-pure)/es|stable|actual|full/map/get-or-insert
 core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
 ```
-[*Examples*](https://tinyurl.com/298ekxmq):
+[*Examples*](https://core-js.io/playground#code=let+array+%3D+%5B1%5D%3B%0A%0Alet+map+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B42%2C+2%5D%5D%29%3B%0Amap.set%28array%2C+3%29.set%28true%2C+4%29%3B%0A%0Aconsole.log%28map.size%29%3B++++++++%2F%2F+%3D%3E+4%0Aconsole.log%28map.has%28array%29%29%3B++%2F%2F+%3D%3E+true%0Aconsole.log%28map.has%28%5B1%5D%29%29%3B++++%2F%2F+%3D%3E+false%0Aconsole.log%28map.get%28array%29%29%3B++%2F%2F+%3D%3E+3%0Amap.forEach%28%28val%2C+key%29+%3D%3E+%7B%0A++console.log%28val%29%3B+++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%2C+4%0A++console.log%28key%29%3B+++++++++++%2F%2F+%3D%3E+%27a%27%2C+42%2C+%5B1%5D%2C+true%0A%7D%29%3B%0Amap.delete%28array%29%3B%0Aconsole.log%28map.size%29%3B++++++++%2F%2F+%3D%3E+3%0Aconsole.log%28map.get%28array%29%29%3B++%2F%2F+%3D%3E+undefined%0Aconsole.log%28Array.from%28map%29%29%3B+%2F%2F+%3D%3E+%5B%5B%27a%27%2C+1%5D%2C+%5B42%2C+2%5D%2C+%5Btrue%2C+4%5D%5D%0A%0Amap+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%2C+%5B%27b%27%2C+2%5D%2C+%5B%27c%27%2C+3%5D%5D%29%3B%0A%0Afor+%28let+%5Bkey%2C+value%5D+of+map%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A%7D%0Afor+%28let+value+of+map.values%28%29%29+console.log%28value%29%3B+%2F%2F+%3D%3E+1%2C+2%2C+3%0Afor+%28let+key+of+map.keys%28%29%29+console.log%28key%29%3B+++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0Afor+%28let+%5Bkey%2C+value%5D+of+map.entries%28%29%29+%7B%0A++console.log%28key%29%3B+++++++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27a%27%2C+%27b%27%2C+%27c%27%0A++console.log%28value%29%3B+++++++++++++++++++++++++++++++%2F%2F+%3D%3E+1%2C+2%2C+3%0A%7D%0A%0Amap+%3D+Map.groupBy%28%5B1%2C+2%2C+3%2C+4%2C+5%5D%2C+it+%3D%3E+it+%25+2%29%3B%0Amap.get%281%29%3B+%2F%2F+%3D%3E+%5B1%2C+3%2C+5%5D%0Amap.get%280%29%3B+%2F%2F+%3D%3E+%5B2%2C+4%5D%0A%0Amap+%3D+new+Map%28%5B%5B%27a%27%2C+1%5D%5D%29%3B%0A%0Amap.getOrInsert%28%27a%27%2C+2%29%3B+%2F%2F+%3D%3E+1%0A%0Amap.getOrInsert%28%27b%27%2C+3%29%3B+%2F%2F+%3D%3E+3%0A%0Amap.getOrInsertComputed%28%27a%27%2C+key+%3D%3E+key%29%3B+%2F%2F+%3D%3E+1%0A%0Amap.getOrInsertComputed%28%27c%27%2C+key+%3D%3E+key%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0Aconsole.log%28map%29%3B+%2F%2F+%3D%3E+Map+%7B+%27a%27+%3D%3E+1%2C+%27b%27+%3D%3E+3%2C+%27c%27+%3D%3E+%27c%27+%7D):
 ```js
 let array = [1];
 
@@ -2323,7 +2323,7 @@ core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
-[*Examples*](https://tinyurl.com/34ctm7cn):
+[*Examples*](https://core-js.io/playground#code=JSON.stringify%28%7B+%27%F0%A0%AE%B7%27%3A+%5B%27%5CuDF06%5CuD834%27%5D+%7D%29%3B+%2F%2F+%3D%3E+%27%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D%27%0A%0Afunction+digitsToBigInt%28key%2C+val%2C+%7B+source+%7D%29+%7B%0A++return+%2F%5E%5Cd%2B%24%2F.test%28source%29+%3F+BigInt%28source%29+%3A+val%3B%0A%7D%0A%0Afunction+bigIntToRawJSON%28key%2C+val%29+%7B%0A++return+typeof+val+%3D%3D%3D+%27bigint%27+%3F+JSON.rawJSON%28String%28val%29%29+%3A+val%3B%0A%7D%0A%0Aconst+tooBigForNumber+%3D+BigInt%28Number.MAX_SAFE_INTEGER%29+%2B+2n%3B%0AJSON.parse%28String%28tooBigForNumber%29%2C+digitsToBigInt%29+%3D%3D%3D+tooBigForNumber%3B+%2F%2F+true%0A%0Aconst+wayTooBig+%3D+BigInt%28%601%24%7B+%270%27.repeat%281000%29+%7D%60%29%3B%0AJSON.parse%28String%28wayTooBig%29%2C+digitsToBigInt%29+%3D%3D%3D+wayTooBig%3B+%2F%2F+true%0A%0Aconst+embedded+%3D+JSON.stringify%28%7B+tooBigForNumber+%7D%2C+bigIntToRawJSON%29%3B%0Aembedded+%3D%3D%3D+%27%7B%22tooBigForNumber%22%3A9007199254740993%7D%27%3B+%2F%2F+true):
 ```js
 JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
 
@@ -2877,7 +2877,7 @@ core-js/proposals/string-left-right-trim
 // patched to support the `RegExp` dotAll (`s`) flag:
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null;
+  exec(string: string): Array<string | undefined> | null;
   readonly attribute dotAll: boolean;
   readonly attribute flags: string;
 }
@@ -2891,7 +2891,7 @@ core-js/proposals/regexp-dotall-flag
 // patched to support `RegExp` named capture groups:
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null;
+  exec(string: string): Array<string | undefined> | null;
   @@replace(string: string, replaceValue: Function | string): string;
 }
 ```

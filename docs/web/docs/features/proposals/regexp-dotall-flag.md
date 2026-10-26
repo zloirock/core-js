@@ -7,7 +7,7 @@
 // patched to support the `RegExp` dotAll (`s`) flag:
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null;
+  exec(string: string): Array<string | undefined> | null;
   readonly attribute dotAll: boolean;
   readonly attribute flags: string;
 }

@@ -56,7 +56,7 @@ class RegExp {
   // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
   constructor(pattern: RegExp | string, flags?: string): RegExp;
   static escape(value: string): string;
-  exec(): Array<string | undefined> | null; // IE8 fixes
+  exec(string: string): Array<string | undefined> | null; // IE8 fixes
   test(string: string): boolean; // delegation to `.exec`
   toString(): string; // ES2015+ fix - generic
   @@match(string: string): Array | null;
