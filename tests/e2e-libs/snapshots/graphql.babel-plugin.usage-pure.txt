@@ -16,6 +16,7 @@
 @core-js/pure/full/array/instance/sort
 @core-js/pure/full/array/instance/splice
 @core-js/pure/full/function/instance/name
+@core-js/pure/full/get-iterator
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/global-this
 @core-js/pure/full/instance/entries

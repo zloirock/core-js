@@ -25,7 +25,6 @@
 @core-js/pure/full/instance/includes
 @core-js/pure/full/instance/keys
 @core-js/pure/full/instance/values
-@core-js/pure/full/json/parse
 @core-js/pure/full/json/stringify
 @core-js/pure/full/map/constructor
 @core-js/pure/full/number/epsilon

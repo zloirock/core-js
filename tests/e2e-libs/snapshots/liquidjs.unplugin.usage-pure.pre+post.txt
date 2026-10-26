@@ -1,2 +1,1 @@
 +@core-js/pure/full/instance/entries
-+@core-js/pure/full/symbol

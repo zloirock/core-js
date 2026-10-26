@@ -17,6 +17,7 @@
 @core-js/pure/full/atob
 @core-js/pure/full/btoa
 @core-js/pure/full/function/instance/name
+@core-js/pure/full/get-iterator
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/instance/includes
@@ -31,7 +32,6 @@
 @core-js/pure/full/object/define-property
 @core-js/pure/full/object/entries
 @core-js/pure/full/object/from-entries
-@core-js/pure/full/object/get-own-property-descriptor
 @core-js/pure/full/object/get-prototype-of
 @core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
@@ -42,7 +42,6 @@
 @core-js/pure/full/promise/resolve
 @core-js/pure/full/reflect/construct
 @core-js/pure/full/reflect/get
-@core-js/pure/full/reflect/namespace
 @core-js/pure/full/regexp/instance/flags
 @core-js/pure/full/set/constructor
 @core-js/pure/full/string/instance/code-point-at
@@ -57,4 +56,5 @@
 @core-js/pure/full/symbol/constructor
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/symbol/to-primitive
+@core-js/pure/full/symbol/to-string-tag
 @core-js/pure/full/weak-map/constructor

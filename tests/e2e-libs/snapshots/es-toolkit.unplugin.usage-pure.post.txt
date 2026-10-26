@@ -1,1 +1,1 @@
-+@core-js/pure/full/symbol
++@core-js/pure/full/self

@@ -64,6 +64,7 @@ core-js/modules/es.reflect.has
 core-js/modules/es.reflect.set
 core-js/modules/es.regexp.constructor
 core-js/modules/es.regexp.dot-all
+core-js/modules/es.regexp.escape
 core-js/modules/es.regexp.exec
 core-js/modules/es.regexp.species
 core-js/modules/es.regexp.sticky

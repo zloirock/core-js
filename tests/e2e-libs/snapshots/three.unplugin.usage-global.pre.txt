@@ -1,4 +1,7 @@
+-core-js/modules/es.array.from-async
+-core-js/modules/es.array.of
 -core-js/modules/es.date.to-primitive
+-core-js/modules/es.error.is-error
 -core-js/modules/es.json.to-string-tag
 -core-js/modules/es.math.to-string-tag
 -core-js/modules/es.object.get-own-property-descriptor
