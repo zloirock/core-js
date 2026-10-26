@@ -58,8 +58,7 @@ async function getDocsMenuItems(version) {
   echo(chalk.green(`Getting menu items from file for version: ${ version }`));
   const jsonPath = BRANCH ? `${ config.docsDir }docs/menu.json` : `${ config.docsDir }${ version }/docs/menu.json`;
   try {
-    const docsMenuJson = await readJson(jsonPath);
-    docsMenuItems[version] = docsMenuJson === '' ? [] : docsMenuJson;
+    docsMenuItems[version] = await readJson(jsonPath);
     return docsMenuItems[version];
   } catch {
     echo(chalk.yellow(`Menu JSON file not found: ${ jsonPath }`));
@@ -268,10 +267,8 @@ async function buildPlayground(template, version, versions) {
   const playgroundFilePath = path.join(config.resultDir, version.path, 'playground.html');
 
   if (version.default) {
-    const defaultVersionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
-    const defaultVersionPlayground = playground.replace('{versions-menu}', defaultVersionsMenu);
     const defaultPlaygroundPath = path.join(config.resultDir, 'playground.html');
-    await writeFile(defaultPlaygroundPath, defaultVersionPlayground, 'utf8');
+    await writeFile(defaultPlaygroundPath, playgroundWithVersion, 'utf8');
     echo(chalk.green(`File created: ${ defaultPlaygroundPath }`));
   } else {
     await mkdir(path.dirname(playgroundFilePath), { recursive: true });
@@ -357,7 +354,6 @@ async function build() {
     resultHtml = resultHtml.replace('{core-js-bundle}', bundleScript);
     resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
-    resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
     if (isDocs || isBlog || isChangelog) {
       const resultDOM = new JSDOM(resultHtml);

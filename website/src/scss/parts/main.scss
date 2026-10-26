@@ -379,7 +379,7 @@ main {
           .h3 {
             margin-left: 0.5rem;
           }
-          .h4, .h5, .h6, .h7 {
+          .h4, .h5, .h6 {
             margin-left: 1rem;
           }
         }
@@ -443,10 +443,6 @@ main {
               color: themed('font-success');
             }
           }
-        }
-
-        .desc {
-
         }
       }
     }
