@@ -179,8 +179,6 @@ function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScope
     // detection adapters climb, and a declaration below the scope asked is none of its answer
     hasBinding: ({ scope, name, path = null, read = null }) => !!getScopeBinding({ scope, name, path, read })
       || (!!path && !!hoistedDeclarationInScope(scope, lookupReadPath(path, read), name)),
-    getBindingNodeType: ({ scope, name, path = null, read = null }) => getScopeBinding({ scope, name, path, read })?.path?.node?.type
-      ?? (path && hoistedDeclarationInScope(scope, lookupReadPath(path, read), name)?.declarator ? 'VariableDeclarator' : undefined),
     getBinding: ({ scope, name, path = null, read = null }) => getScopeBinding({ scope, name, path, read })
       ?? hoistedBindingVisibleInScope(scope, path, name),
     // forward the raw hint verbatim (mirroring the unplugin estree adapter's `polyfillHint`):

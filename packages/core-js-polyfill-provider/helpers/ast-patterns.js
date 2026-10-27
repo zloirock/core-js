@@ -5716,6 +5716,13 @@ export function patternBindsName(pattern, name) {
   return patternBindsIdentifier(pattern, id => id.name === name);
 }
 
+// Read the declaration type from the binding already selected for this read. Usage adapters carry
+// `.node` (including registry-only declarations); raw parser bindings carry `.path.node` instead.
+// A virtual, not-yet-crawled import may carry neither, so it has no declaration type yet.
+export function bindingNodeType(binding) {
+  return binding?.node?.type ?? binding?.path?.node?.type ?? null;
+}
+
 // the binding's own VariableDeclarator, across BOTH binding shapes the resolvers are handed: the
 // usage adapters wrap the declarator on `.node`, while a raw parser binding carries only `.path`.
 // exported because the value canon and the class walk are handed the same pair - a resolver reading

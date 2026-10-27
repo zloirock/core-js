@@ -23,6 +23,7 @@ import {
   bindingDeclaratorNode,
   bindingHoldsNoGlobal,
   bindingLoopAnchor,
+  bindingNodeType,
   bindingPolyfillHint,
   bindsModuleDefault,
   boundModuleDefaultSource,
@@ -1662,7 +1663,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
         || initializerReachesRead({ adapter, binding, declaratorNode: binding.node, usagePath: path, usageNode }));
     if (hintFlowSound) return hint;
   }
-  const bindingType = adapter.getBindingNodeType({ scope, name, path, read });
+  const bindingType = bindingNodeType(binding);
   // an import binding maps to a known global ONLY through a pure GLOBAL-PROXY entry source
   // (`import g from '<pkg>/<mode>/global-this'`) - any other imported value stays opaque;
   // catch / class names fall through to the final null; parameters need their own proof below.
