@@ -6262,7 +6262,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // declaration's own value source, not a reassignment - so it is read here, ahead of the writes,
   // and an iterable the head cannot enumerate leaves the set open
   const own = bindingDeclaratorNode(binding);
-  const ownHead = own ? enclosingForXStatement(own, violationSearchRoot) : null;
+  const ownHead = own ? enclosingForXStatement(own, violationSearchRoot, bindingDeclarationPath(binding)) : null;
   if (ownHead) {
     const head = forXHeadValueNodes(ownHead, bindingName, ctx);
     if (!head.nodes.length) complete = false;
@@ -7504,8 +7504,14 @@ function indexValueFlow(index, root) {
 }
 
 // the for-x statement whose LEFT records this violation node (the head declarator, or the
-// LHS identifier - direct or inside a pattern)
-function enclosingForXStatement(node, ownerNode) {
+// LHS identifier - direct or inside a pattern). An exact live declarator path already knows
+// its head; other node shapes and unavailable paths keep the owner's source index.
+function enclosingForXStatement(node, ownerNode, nodePath = null) {
+  if (node.type === 'VariableDeclarator' && nodePath?.node === node
+    && pathContainedBy(nodePath, ownerNode) && !ancestorChainDetached(nodePath)) {
+    const loop = forXHeadLoopPath(nodePath);
+    return loop && pathContainedBy(loop, ownerNode) ? loop.node : null;
+  }
   return ownerValueFlowIndex(ownerNode).forX.get(node) ?? null;
 }
 
