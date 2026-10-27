@@ -104,11 +104,11 @@ for (let [key, value] of params) {
   console.log(value); // -> '3', '2', '2', '4'
 }
 
-params.has('a'); // => true
+params.has('a');    // => true
 params.has('a', 3); // => true
 params.has('a', 4); // => false
 
-params.toString(); // => 'a=3&a=2&b=2&c=4'
+params.toString();  // => 'a=3&a=2&b=2&c=4'
 ```
 
 > [!WARNING]

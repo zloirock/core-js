@@ -46,8 +46,8 @@ map.has(array);  // => true
 map.has([1]);    // => false
 map.get(array);  // => 3
 map.forEach((val, key) => {
-  console.log(val);           // -> 1, 2, 3, 4
-  console.log(key);           // -> 'a', 42, [1], true
+  console.log(val); // -> 1, 2, 3, 4
+  console.log(key); // -> 'a', 42, [1], true
 });
 map.delete(array);
 map.size;        // => 3
