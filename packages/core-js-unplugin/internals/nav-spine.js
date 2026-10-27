@@ -1,9 +1,9 @@
 // spine navigation over proxy-global hops: climbs, peels, kept writes, the fold/keep
 // verdicts of unbacked hops - the position questions the usage-pure emitters ask
+import { prepareKeptMemoTail } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   foldableRealmHop,
   planProvenNavGuardCollapse,
-  planKeptSequenceTail,
   resolveKey,
   resolveObjectName,
   sealedLayerBetween,
@@ -124,8 +124,9 @@ export function respellKeptHop(spelling, { keyName, keyNode = null }) {
 
 // Apply the provider's kept-sequence decision to this host's live slot.
 export function foldTailPristineProxyHops(node, ctx) {
-  const plan = planKeptSequenceTail(node, ctx);
-  if (plan) plan.holder[plan.key] = renderKeptSequenceTail(plan, { injectImport: ctx.injectPureImport });
+  prepareKeptMemoTail(node, {
+    ...ctx.aliasCtx, adapter: ctx.adapter, resolvePure: ({ name }) => ctx.resolveGlobalPolyfill(name),
+  }, { renderKeptTail: plan => renderKeptSequenceTail(plan, { injectImport: ctx.injectPureImport }) });
 }
 
 // an INSTANCE dispatch riding the absorbed tail (`....Set.name` -> `_nameMaybeFunction(_Set)`)
