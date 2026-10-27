@@ -933,6 +933,7 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
+    rhino: '1.9.2',
     safari: '7.1',
   },
   'es.math.asinh': {
@@ -941,8 +942,7 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    // its own `log(x + sqrt(x * x + 1))` is imprecise for small and big values on any platform, up to 1.9.1 at least
-    // rhino: '1.7.13',
+    rhino: '1.9.2', // '1.7.13',
     safari: '7.1',
   },
   'es.math.atanh': {
@@ -1554,6 +1554,7 @@ export const data = {
     bun: '0.7.1',
     chrome: '119',
     firefox: '121',
+    rhino: '1.9.0',
     safari: '17.4',
   },
   'es.array.from-async': { // <- `Array#values` and `Promise` dependencies should be loaded before
@@ -1562,7 +1563,6 @@ export const data = {
     chrome: '121',
     deno: '1.38',
     firefox: '115',
-    rhino: '1.9.0',
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     safari: '18.0', // '16.4',
   },
