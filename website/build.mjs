@@ -1,6 +1,5 @@
 import { expandVersionsConfig, getBranchPreviewName, getDefaultVersion } from './scripts/helpers.mjs';
 import fm from 'front-matter';
-import { JSDOM } from 'jsdom';
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
@@ -132,6 +131,10 @@ function metadata(markdown) {
 
 const markedInline = new Marked();
 
+function stripTags(html) {
+  return html.replaceAll(/<[^<>]*>/g, '');
+}
+
 // heading ids get a prefix, so an anchor written as on GitHub has to get it too
 function headingId(anchor) {
   const id = anchor.toLowerCase();
@@ -202,8 +205,23 @@ function menuTrigger(controls, label) {
   return `<button type="button" class="mobile-trigger" aria-controls="${ controls }" aria-expanded="false" aria-label="${ label }"></button>`;
 }
 
+const ANCHOR_ICON = '<svg viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg>';
+
+// a heading with the link to itself; like the TOC, the anchor has the versioned path of its page, which the client
+// strips on the `docs/` alias. Only the headings marked renders get it: a heading typed as raw HTML in the markdown and
+// the headings of the blog previews, which come to the blog index already rendered, stay without an anchor
+function headingWithAnchor({ id, level, text }) {
+  return `<h${ level } id="${ id }" class="with-anchor">${ text }<a class="anchor with-docs-version" data-default-version="${
+    LINKS_DEFAULT_VERSION }" href="${ htmlFileName.replace('.html', '') }#${ id }">${ ANCHOR_ICON }</a></h${ level }>`;
+}
+
 function buildMenus(html) {
   const headings = getHeadingList().filter(({ level }) => level > 1);
+  for (const heading of headings) {
+    const { id, level, text } = heading;
+    // found by the markup `marked-gfm-heading-id` renders, a function replacement keeps `$` patterns of the text as is
+    html = html.replace(`<h${ level } id="${ id }">${ text }</h${ level }>`, () => headingWithAnchor(heading));
+  }
   let result = '<div class="wrapper">';
   if (isBlog || isDocs) {
     result += `<div class="docs-menu sticky"><div class="container"><div class="docs-links" id="docs-links">${
@@ -213,13 +231,22 @@ function buildMenus(html) {
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
     result += `<div class="table-of-contents sticky"><div class="container">${
       menuTrigger('toc-links', 'Table of contents') }<div class="toc-links" id="toc-links">
-          ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
+          ${ headings.map(({ id, text, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
             level } with-docs-version scroll-to" data-hash="#${ id }" data-default-version="${ LINKS_DEFAULT_VERSION }">${
-            raw }</a></div>`).join('\n') }
+            // the rendered heading without its tags: `raw` is the source of the slug, without entities
+            stripTags(text) }</a></div>`).join('\n') }
         </div></div></div>`;
   }
   return result;
+}
+
+// the previews of the blog index are HTML already: its markdown holds placeholders, since rendered again, a blank line
+// in a preview (a code block) would end the HTML block
+const blogPreviews = [];
+
+function insertBlogPreviews(html) {
+  return html.replaceAll(/<!-- blog-preview-(?<index>\d+) -->/g, (_, index) => blogPreviews[index]);
 }
 
 let blogMenuCache = '';
@@ -229,7 +256,7 @@ async function buildBlogMenu() {
 
   const mdFiles = await getAllMdFiles(config.blogDir);
   mdFiles.reverse();
-  let index = '---\ndisableContentMenu: true\n---\n';
+  let index = '---\ndisableContentMenu: true\n---\n# Blog\n\n';
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
@@ -252,10 +279,12 @@ async function buildBlogMenu() {
     const match = mdPath.match(/(?<date>\d{4}-\d{2}-\d{2})-/);
     const date = match?.groups?.date ?? '';
     const fileName = mdPath.replace(config.blogDir, '').replace(/\.md$/i, '');
-    menu += `<li><a href="./blog/${ fileName }">${ date }: ${ firstH1.text }</a></li>`;
+    // the H1 is inline markdown, its own links can't stay inside the link of the menu
+    menu += `<li><a href="./blog/${ fileName }">${ date }: ${
+      markedInline.parseInline(firstH1.text).replaceAll(/<\/?a\b[^<>]*>/g, '') }</a></li>`;
     index += `## [${ firstH1.text }](./blog/${ fileName })\n\n`;
     if (date) index += `*${ date }*\n\n`;
-    index += `${ preview }\n\n`;
+    index += `<!-- blog-preview-${ blogPreviews.push(preview) - 1 } -->\n\n`;
   }
   menu += '</ul>';
   blogMenuCache = menu;
@@ -347,7 +376,7 @@ async function getVersions() {
 function getTitle(content) {
   const match = /^# (?<title>.+)$/m.exec(content);
   // `<title>` is plain text, so the inline markdown of the heading is rendered and its tags are dropped
-  return match?.groups?.title ? `${ markedInline.parseInline(match.groups.title).replaceAll(/<[^<>]*>/g, '') } - ` : '';
+  return match?.groups?.title ? `${ stripTags(markedInline.parseInline(match.groups.title)) } - ` : '';
 }
 
 async function build() {
@@ -380,7 +409,7 @@ async function build() {
 
     htmlFileName = mdPath.replace(config.docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(config.resultDir, htmlFileName);
-    const htmlContent = isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content);
+    const htmlContent = insertBlogPreviews(isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content));
 
     let resultHtml = template.replace('{content}', htmlContent.replaceAll('$', '&#36;'));
 
@@ -389,24 +418,6 @@ async function build() {
     resultHtml = resultHtml.replace('{core-js-bundle}', bundleScript);
     resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
-
-    if (isDocs || isBlog || isChangelog) {
-      const resultDOM = new JSDOM(resultHtml);
-      const { document } = resultDOM.window;
-      document.querySelectorAll('h2[id], h3[id], h4[id], h5[id], h6[id]').forEach(heading => {
-        const newHeading = heading.cloneNode(true);
-        const anchor = document.createElement('a');
-        // like the TOC, the anchor has the versioned path of its page, which the client strips on the `docs/` alias
-        anchor.className = 'anchor with-docs-version';
-        anchor.dataset.defaultVersion = LINKS_DEFAULT_VERSION;
-        anchor.href = `${ htmlFileName.replace('.html', '') }#${ newHeading.id }`;
-        anchor.innerHTML = '<svg viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg>';
-        newHeading.append(anchor);
-        newHeading.classList.add('with-anchor');
-        resultHtml = resultHtml.replaceAll(heading.outerHTML, newHeading.outerHTML);
-      });
-    }
-
     resultHtml = resultHtml.replaceAll('{docs-version}/', docsVersionPath(currentVersion));
 
     await mkdir(path.dirname(htmlFilePath), { recursive: true });
