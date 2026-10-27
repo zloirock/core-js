@@ -2057,6 +2057,25 @@ function identifierReferencedIn(node, matches, declared) {
   return false;
 }
 
+// one parser attaches a scope only to the paths that OWN one, so a CHILD path handed to the resolver
+// (`assign.get('right')`, an expression inside a statement) carries none, and every scope-dependent
+// route below it silently resolves nothing - a member, a call return, a `new C()` all came back
+// unresolved where the other parser resolved them. a path's scope IS its nearest enclosing one, so
+// anchor it here for resolver entries and followed bindings. paths that
+// already carry a scope (always, on the other parser) pass through untouched
+const scopeAnchoredPaths = new WeakMap();
+export function anchorPathScope(path) {
+  if (!path || path.scope) return path;
+  const cached = scopeAnchoredPaths.get(path);
+  if (cached) return cached;
+  let scope = null;
+  for (let cur = path.parentPath; cur && !scope; cur = cur.parentPath) scope = cur.scope ?? null;
+  if (!scope) return path;
+  const anchored = Object.create(path, { scope: { value: scope, enumerable: true } });
+  scopeAnchoredPaths.set(path, anchored);
+  return anchored;
+}
+
 // walk parentPath chain (inclusive) to the nearest enclosing function-like. used by
 // param-destructure body-extract (insert `const x = _polyfill;` at body top) and any
 // other transform that needs the binding's owning scope. parser-agnostic - reads
@@ -2881,15 +2900,27 @@ const writeIndexSerials = new WeakMap();
 
 const ownerSourceWritePaths = new WeakMap();
 
+// Locate an exact live write through the shared span-guided navigator before indexing
+// the whole owner. Keep the index for missing spans, foreign paths and incomplete scopes.
+function ownerWritePath(ownerPath, node) {
+  const live = OWNER_WRITE_PATH_TYPES.has(node?.type) && pathOfNode(ownerPath, node);
+  if (live && live.node !== ownerPath.node && pathContainedBy(live, ownerPath.node)) {
+    const anchored = anchorPathScope(live);
+    if (anchored.scope) return anchored;
+  }
+  return ownerWritePathIndex(ownerPath).get(node) ?? null;
+}
+
 // A census write and the live traversal may hold different copies of the SAME source node.
-// Index the existing owner walk by source position once; duplicate positions are ambiguous.
+// Try the exact live node first, then index the owner by source position once; duplicates are ambiguous.
 // This lookup is only for writes from this file's census, never nodes from another program.
 export function ownerSourceWritePath(ownerPath, node) {
   // A read-shaped capture can never match this write-only index. Reject it before
   // a speculative query pays for a traversal of the whole enclosing owner.
   if (!OWNER_WRITE_PATH_TYPES.has(node?.type)) return null;
+  const live = ownerWritePath(ownerPath, node);
+  if (live) return live;
   const paths = ownerWritePathIndex(ownerPath);
-  if (paths.has(node)) return paths.get(node);
   const key = nodePositionKey(node);
   if (key === null) return null;
   let positions = ownerSourceWritePaths.get(paths);
@@ -2913,10 +2944,10 @@ export function enclosingOwnerWritePath(path, node) {
 }
 
 // PATHS for the synthetic binding's declarator and its reassignment nodes, resolved through the
-// shared owner index. the node scan above stays the source of truth for WHICH nodes those are
+// shared live-path lookup. the node scan above stays the source of truth for WHICH nodes those are
 // (its shadow-stopping rules are subtle); this only maps them onto the live paths the flow layer
 // climbs. the scan decides which writes exist, so this map has to reach every one of them: a
-// write shape the scan records but no index key matches is caught by the `complete` check, and
+// write shape the scan records but no live path matches is caught by the `complete` check, and
 // the caller declines the twin instead of handing the flow gates a list it cannot vouch for -
 // a contract against a LATER write shape being added to the scan alone (a miss degrades the
 // gates to the generic answer rather than mis-narrowing)
@@ -2924,14 +2955,13 @@ function memoizeDeclaratorSearch(found, violationNodes) {
   let resolved;
   return () => {
     if (resolved === undefined) {
-      const index = ownerWritePathIndex(found.owner);
       const violationPaths = [];
       for (const node of violationNodes) {
-        const violationPath = index.get(node);
+        const violationPath = ownerWritePath(found.owner, node);
         if (violationPath) violationPaths.push(violationPath);
       }
       resolved = {
-        declaratorPath: index.get(found.declarator) ?? null,
+        declaratorPath: ownerWritePath(found.owner, found.declarator),
         violationPaths,
         complete: violationPaths.length === violationNodes.length,
       };
