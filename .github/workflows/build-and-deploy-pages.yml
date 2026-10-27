@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branches: ${{ steps.set-branches.outputs.branches }}
+      recipe: ${{ steps.set-branches.outputs.recipe }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
@@ -21,13 +22,15 @@ jobs:
         run: |
           BRANCHES=$(
             git branch -r |
-            grep -Ev 'HEAD|v1|v2' |
+            grep -Ev '^ *origin/(HEAD|v1|v2)( |$)' |
             sed 's/^[ *]*//' |
             sed 's/^origin\///' |
             jq -R . |
             jq -cs
           )
           echo "branches=$BRANCHES" >> "$GITHUB_OUTPUT"
+          # the artifacts of a branch are cached per build recipe too: a matrix job checks out that branch, not this file
+          echo "recipe=$(sha256sum .github/workflows/build-and-deploy-pages.yml | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
   build-compat-pages:
     needs: list-branches
@@ -46,11 +49,12 @@ jobs:
         id: cache-key
         env:
           BRANCH: ${{ matrix.branch }}
+          RECIPE: ${{ needs.list-branches.outputs.recipe }}
         run: |
           HASH=$(git rev-parse --short HEAD)
           SAFE_BRANCH="${BRANCH//\//-}"
           echo "SAFE_BRANCH=$SAFE_BRANCH" >> "$GITHUB_ENV"
-          echo "CACHE_KEY=$SAFE_BRANCH-$HASH" >> "$GITHUB_ENV"
+          echo "CACHE_KEY=$SAFE_BRANCH-$HASH-$RECIPE" >> "$GITHUB_ENV"
       - name: Restore cached artifacts
         id: artifacts-restore
         uses: actions/cache/restore@v6

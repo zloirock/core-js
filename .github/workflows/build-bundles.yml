@@ -1,6 +1,13 @@
 name: Build bundles
 
-on: push
+# branches only: the website runner builds and caches the bundles of a tag itself
+on:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
 
 jobs:
   build-and-upload:

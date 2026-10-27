@@ -2,8 +2,8 @@
 import childProcess from 'node:child_process';
 import { constants } from 'node:fs';
 // eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
-import { cp, access, readdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { cp, access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 const exec = promisify(childProcess.exec);
@@ -80,13 +80,19 @@ export async function copyCommonFiles(srcDir, branch) {
   console.timeEnd('Copied common files');
 }
 
+// the site serves no source maps, so a bundle loses its reference to one
+async function copyBundle(from, to) {
+  await mkdir(dirname(to), { recursive: true });
+  await writeFile(to, (await readFile(from, 'utf8')).replace(/\n\/\/# sourceMappingURL=\S+\s*$/, '\n'));
+}
+
 export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, checkout = false) {
   async function bundlePackage(esModules) {
     await exec(`npm run bundle-package${ esModules ? ' esmodules' : '' }`, { cwd: srcDir });
     const bundleName = `core-js-bundle${ esModules ? '-esmodules' : '' }.js`;
     const srcPath = join(srcDir, 'packages/core-js-bundle/minified.js');
     const destPath = join(srcDir, 'website/src/public/bundles/', target, bundleName);
-    await cp(srcPath, destPath);
+    await copyBundle(srcPath, destPath);
     if (cacheDir !== null) {
       const cachePath = join(cacheDir, target, bundleName);
       await cp(srcPath, cachePath);
@@ -101,11 +107,11 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
     console.time('Core JS bundles copied');
     const bundlePath = join(targetBundlePath, 'core-js-bundle.js');
     const destBundlePath = join(srcDir, 'website/src/public/bundles/', target, 'core-js-bundle.js');
-    await cp(bundlePath, destBundlePath);
+    await copyBundle(bundlePath, destBundlePath);
 
     const esmodulesBundlePath = join(targetBundlePath, 'core-js-bundle-esmodules.js');
     const esmodulesDestBundlePath = join(srcDir, 'website/src/public/bundles/', target, 'core-js-bundle-esmodules.js');
-    await cp(esmodulesBundlePath, esmodulesDestBundlePath);
+    await copyBundle(esmodulesBundlePath, esmodulesDestBundlePath);
     console.timeEnd('Core JS bundles copied');
     return;
   }
