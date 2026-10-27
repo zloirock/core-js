@@ -11,7 +11,9 @@ import { createChecker } from '../polyfill-provider/harness.mjs';
 import { createBabelAdapter, freshPathOfNode, rebuildLaggedScopeBinding } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { rangePreservingTypes, removePatternSlot } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
-import { ancestorChainDetached, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  ancestorChainDetached, bindingNodeType, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
@@ -448,7 +450,7 @@ for (const [label, outer, parameter, body, key, decorator, expectedKind, expecte
   check(`parameter-property/${ label }: binding kind`, binding?.kind, expectedKind);
   check(`parameter-property/${ label }: declaration shape`, binding?.declarationPath?.node.type, expectedType);
   check(`parameter-property/${ label }: write list`, binding?.constantViolations?.length, writes);
-  check(`parameter-property/${ label }: node-type query agrees`, adapter.getBindingNodeType({ scope: usePath.scope, name: 'value', path: usePath }), expectedType);
+  check(`parameter-property/${ label }: node-type query agrees`, bindingNodeType(binding), expectedType);
   if (expectedKind === 'param' && label !== 'nearer ordinary parameter') {
     checkTruthy(`parameter-property/${ label }: actual constructor declaration`, binding?.declarationPath?.parentPath?.node.type === 'TSParameterProperty');
   } else {
@@ -471,7 +473,7 @@ for (const [label, source, expectedType, expectedInit] of [
   check(`explicit lookup scope/${ label }: declaration`, binding?.node?.type, expectedType);
   check(`explicit lookup scope/${ label }: initializer`, binding?.node?.init?.name, expectedInit);
   checkTruthy(`explicit lookup scope/${ label }: actual outer scope`, binding?.scope === programPath.scope);
-  check(`explicit lookup scope/${ label }: node-type query agrees`, adapter.getBindingNodeType({ scope: programPath.scope, name: 'value', path: usePath }), expectedType);
+  check(`explicit lookup scope/${ label }: node-type query agrees`, bindingNodeType(binding), expectedType);
 }
 
 // A render that COPIES a source write to where it renders it leaves the source write out of the tree: the
