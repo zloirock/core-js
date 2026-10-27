@@ -45,6 +45,7 @@ import './written-binding-complexity.mjs';
 import './assignment-scan-complexity.mjs';
 import './array-index-complexity.mjs';
 import './binding-reference-index.mjs';
+import './binding-query-cache.mjs';
 import './served-reads.mjs';
 import './member-context-paths.mjs';
 import './ast-input-context.mjs';

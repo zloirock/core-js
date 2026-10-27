@@ -20276,6 +20276,27 @@ function * generateCopiedCallbackWrites() {
   };
 }
 
+// Definition-time reads and parameter writes must not share a same-named receiver fact.
+function * generateMemberBindingFrames() {
+  for (const shape of ['object', 'class']) for (const optional of [false, true]) {
+    const method = `[(effects.push('key'), value.at(0))](value = [1, 2]) {
+      effects.push('body');
+      const first = value${ optional ? '?.' : '.' }at(-1);
+      value = 'ab';
+      return [first, value.includes('b')];
+    }`;
+    yield {
+      name: `member-binding-frames/${ shape }/${ optional ? 'optional' : 'direct' }`,
+      code: `const effects = [];
+        const value = 'outer';
+        ${ shape === 'class' ? `class Box { ${ method } } const box = new Box();` : `const box = { ${ method } };` }
+        const r = [box.o(), box.o([3, 4]), value];
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20663,4 +20684,5 @@ export function * generate() {
   yield * generateUnsupportedMemberTails();
   yield * generateCallableMemberTails();
   yield * generateCopiedCallbackWrites();
+  yield * generateMemberBindingFrames();
 }
