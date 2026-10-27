@@ -58,5 +58,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "chmod +x /var/www/core-js/runner.sh"
 
       - name: Run node runner.mjs on remote server
+        env:
+          BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        # git allows `$`, `;`, `(`, quotes and alike in branch names, so the name is escaped for the remote shell
         run: |
-          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "cd /var/www/core-js/ && ./runner.sh ${{ steps.extract_branch.outputs.branch }}"
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "cd /var/www/core-js/ && ./runner.sh $(printf '%q' "$BRANCH")"

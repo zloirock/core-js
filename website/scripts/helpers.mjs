@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 const exec = promisify(childProcess.exec);
+// a branch name goes to a command as an argument, never through a shell: git allows `$`, `;`, `(`, quotes and alike in it
+const execFile = promisify(childProcess.execFile);
 
 const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 
@@ -23,17 +25,17 @@ export async function hasDocs(version, execDir) {
   const target = version.branch ? `origin/${ version.branch }` : version.tag;
   console.log(`Checking if docs exist in "${ target }"...`);
   try {
-    await exec(`git ls-tree -r --name-only ${ target } | grep "docs/web/docs/"`, { cwd: execDir });
-  } catch {
-    throw new Error(`Docs not found in "${ target }".`);
-  }
+    const { stdout } = await execFile('git', ['ls-tree', '-r', '--name-only', target, 'docs/web/docs/'], { cwd: execDir });
+    if (stdout) return;
+  } catch { /* a missing ref */ }
+  throw new Error(`Docs not found in "${ target }".`);
 }
 
-export async function installDependencies(execDir) {
+export async function installDependencies(execDir, reinstall = false) {
   console.log('Installing dependencies...');
   console.time('Installed dependencies');
   const nodeModulesPath = join(execDir, 'node_modules');
-  if (!await isExists(nodeModulesPath)) {
+  if (reinstall || !await isExists(nodeModulesPath)) {
     await exec('npm ci', { cwd: execDir });
   }
   console.timeEnd('Installed dependencies');
@@ -112,7 +114,8 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
   if (checkout) {
     await checkoutVersion(version, srcDir);
   }
-  await installDependencies(srcDir);
+  // `node_modules` is ignored by git, so after a checkout it still holds the dependencies of the previous version
+  await installDependencies(srcDir, checkout);
 
   // the package keeps the last build, and local tests of `core-js-bundle` need the standard one
   await bundlePackage(true);
@@ -122,20 +125,16 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
 }
 
 export async function checkoutVersion(version, execDir) {
-  if (version.branch) {
-    await exec(`git checkout origin/${ version.branch }`, { cwd: execDir });
-  } else {
-    await exec(`git checkout ${ version.tag }`, { cwd: execDir });
-  }
+  await execFile('git', ['checkout', version.branch ? `origin/${ version.branch }` : version.tag], { cwd: execDir });
 }
 
 export async function buildWeb(branch, execDir, local = false) {
   console.log('Building web...');
   console.time('Built web');
-  let command = 'npm run build-website';
-  if (branch) command += ` branch=${ branch }`;
-  if (local) command += ' local';
-  const stdout = await exec(command, { cwd: execDir });
+  const args = ['run', 'build-website'];
+  if (branch) args.push(`branch=${ branch }`);
+  if (local) args.push('local');
+  const stdout = await execFile('npm', args, { cwd: execDir });
   console.timeEnd('Built web');
   return stdout;
 }
@@ -146,6 +145,12 @@ export async function getCurrentBranch(execDir) {
   const { stdout } = await exec('git rev-parse --abbrev-ref HEAD', { cwd: execDir });
   console.timeEnd('Got current branch');
   return stdout.trim();
+}
+
+// a branch build is published as one entry of `branches/`: `/` becomes `~`, which git does not allow in branch names,
+// so different branches never share an entry
+export function getBranchPreviewName(branch) {
+  return branch.replaceAll('/', '~');
 }
 
 export async function getDefaultVersion(versionFile, defaultVersion = null) {

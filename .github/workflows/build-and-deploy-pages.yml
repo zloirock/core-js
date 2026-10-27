@@ -70,13 +70,14 @@ jobs:
           npm run bundle
       - name: Prepare build artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        # git allows `$`, `;`, `(`, quotes and alike in branch names, so the name is a quoted variable, not a part of the script
         run: |
-          mkdir -p ${{ env.SAFE_BRANCH }}/compat
-          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js ${{ env.SAFE_BRANCH }}/compat
-          mkdir -p ${{ env.SAFE_BRANCH }}/bundles
-          cp tests/bundles/* ${{ env.SAFE_BRANCH }}/bundles
-          mkdir -p ${{ env.SAFE_BRANCH }}/unit-browser
-          cp tests/unit-browser/* ${{ env.SAFE_BRANCH }}/unit-browser
+          mkdir -p "$SAFE_BRANCH/compat"
+          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js "$SAFE_BRANCH/compat"
+          mkdir -p "$SAFE_BRANCH/bundles"
+          cp tests/bundles/* "$SAFE_BRANCH/bundles"
+          mkdir -p "$SAFE_BRANCH/unit-browser"
+          cp tests/unit-browser/* "$SAFE_BRANCH/unit-browser"
       - name: Save cached artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6

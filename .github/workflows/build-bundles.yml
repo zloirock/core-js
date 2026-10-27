@@ -9,7 +9,12 @@ jobs:
     steps:
       - name: Extract branch name
         shell: bash
-        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+        # scp-action passes `target` to the remote shell as is, so a branch name with other characters is not uploaded:
+        # the website runner builds the bundles of such a branch itself
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          if [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then echo 'upload=true' >> "$GITHUB_OUTPUT"; fi
         id: extract_branch
 
       - name: Checkout repo
@@ -28,6 +33,7 @@ jobs:
         run: npm run bundle-package minified-name core-js-bundle
 
       - name: Copy files to server over SSH
+        if: steps.extract_branch.outputs.upload == 'true'
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.REMOTE_HOST }}
@@ -41,6 +47,7 @@ jobs:
         run: npm run bundle-package esmodules minified-name core-js-bundle-esmodules
 
       - name: Copy files to server over SSH
+        if: steps.extract_branch.outputs.upload == 'true'
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.REMOTE_HOST }}

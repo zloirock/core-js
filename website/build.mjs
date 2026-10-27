@@ -1,4 +1,4 @@
-import { expandVersionsConfig, getDefaultVersion } from './scripts/helpers.mjs';
+import { expandVersionsConfig, getBranchPreviewName, getDefaultVersion } from './scripts/helpers.mjs';
 import fm from 'front-matter';
 import { JSDOM } from 'jsdom';
 import { Marked } from 'marked';
@@ -12,8 +12,13 @@ const { copy, mkdir, readFile, readJson, readdir, writeFile } = fs;
 const branchArg = argv._.find(item => item.startsWith('branch='));
 const BRANCH = branchArg ? branchArg.slice('branch='.length) : undefined;
 const LOCAL = argv._.includes('local');
-const BASE = LOCAL && BRANCH ? '/core-js/website/dist/' : BRANCH ? `/branches/${ BRANCH }/` : '/';
+// a local build is served from the parent directory of the checkout
+const BASE = LOCAL && BRANCH ? `/${ encodePath(path.basename(process.cwd())) }/website/dist/`
+  : BRANCH ? `/branches/${ encodePath(getBranchPreviewName(BRANCH)) }/` : '/';
 const DEFAULT_VERSION = await getDefaultVersion(config.versionsFile, BRANCH);
+// the client strips this version from `.with-docs-version` links on the unversioned `docs/` pages; the links of a branch
+// build have no version to strip
+const LINKS_DEFAULT_VERSION = BRANCH ? '' : DEFAULT_VERSION;
 const HEADING_ID_PREFIX = 'h-';
 
 let htmlFileName = '';
@@ -46,7 +51,7 @@ async function buildDocsMenu(item) {
     return result;
   }
 
-  return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ DEFAULT_VERSION }">${ item.title }</a></li>`;
+  return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ LINKS_DEFAULT_VERSION }">${ item.title }</a></li>`;
 }
 
 const docsMenus = [];
@@ -81,8 +86,18 @@ async function buildDocsMenuForVersion(version) {
   return menu;
 }
 
+// a branch, a tag or a directory name as a URL path: each segment percent-encoded, `/` kept - the server decodes it back
+function encodePath(name) {
+  return name.split('/').map(encodeURIComponent).join('/');
+}
+
+// a version label - the branch name in a branch build - as HTML text; `$` too, since the menu goes to pages by `replace`
+function escapeLabel(label) {
+  return label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('$', '&#36;');
+}
+
 function getBundlesPath(version) {
-  return path.join(config.bundlesPath, version.branch ?? version.tag);
+  return path.join(config.bundlesPath, encodePath(version.branch ?? version.tag));
 }
 
 async function buildVersionsMenuList(versions, currentVersion, section) {
@@ -91,7 +106,7 @@ async function buildVersionsMenuList(versions, currentVersion, section) {
     const activityClass = v.label === currentVersion && !v.default ? ' class="active"' : '';
     const defaultBadge = v.default ? ' (default)' : '';
     const versionPath = v.default ? '' : `${ v.path }/`;
-    versionsMenuHtml += `<a href="./${ versionPath }${ section }"${ activityClass }>${ v.label }${ defaultBadge }</a>`;
+    versionsMenuHtml += `<a href="./${ versionPath }${ section }"${ activityClass }>${ escapeLabel(v.label) }${ defaultBadge }</a>`;
   }
   versionsMenuHtml += '</div>';
 
@@ -102,7 +117,7 @@ async function buildVersionsMenu(versions, currentVersion, section) {
   const innerMenu = await buildVersionsMenuList(versions, currentVersion, section);
 
   return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
-    currentVersion }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
+    escapeLabel(currentVersion) }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
 }
 
 let fileMetadata = {};
@@ -144,7 +159,7 @@ function resolveRepositoryPath(href) {
   const target = link.startsWith('/') ? posix.normalize(link.slice(1)) : posix.join(posix.dirname(fileMetadata.repoPath), link);
   // GitHub redirects between `tree` and `blob` anyway, the extension only saves the redirect
   const kind = posix.extname(target) ? 'blob' : 'tree';
-  return `${ config.repositoryURL }/${ kind }/${ fileMetadata.repoBranch }/${ target }${ hash === undefined ? '' : `#${ hash }` }`;
+  return `${ config.repositoryURL }/${ kind }/${ encodePath(fileMetadata.repoBranch) }/${ target }${ hash === undefined ? '' : `#${ hash }` }`;
 }
 
 const linkRenderer = {
@@ -188,7 +203,7 @@ function buildMenus(html) {
     result += `<div class="table-of-contents sticky"><div class="container"><div class="mobile-trigger"></div><div class="toc-links">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
-            level } with-docs-version scroll-to" data-hash="#${ id }" data-default-version="${ DEFAULT_VERSION }">${
+            level } with-docs-version scroll-to" data-hash="#${ id }" data-default-version="${ LINKS_DEFAULT_VERSION }">${
             raw }</a></div>`).join('\n') }
         </div></div></div>`;
   }
@@ -244,6 +259,11 @@ async function getVersionFromMdFile(mdPath) {
   return match?.groups?.version ?? DEFAULT_VERSION;
 }
 
+// what `{docs-version}/` of docs paths becomes: a branch build has one version and writes its pages without its directory
+function docsVersionPath(version) {
+  return BRANCH ? '' : `${ version }/`;
+}
+
 async function buildPlaygrounds(template, versions) {
   for (const version of versions) {
     await buildPlayground(template, version, versions);
@@ -286,7 +306,7 @@ async function createDocsIndexes(versions) {
     const menuItems = await getDocsMenuItems(versionPath);
     if (!menuItems.length) continue;
     const firstDocPath = path.join(config.resultDir,
-      `${ menuItems[0].url }.html`.replace(`{docs-version}${ BRANCH ? '/' : '' }`, versionPath));
+      `${ menuItems[0].url }.html`.replace('{docs-version}/', docsVersionPath(versionPath)));
     const indexFilePath = path.join(config.resultDir, `${ versionPath }/docs/`, 'index.html');
     await copy(firstDocPath, indexFilePath);
     echo(chalk.green(`File created: ${ indexFilePath }`));
@@ -370,7 +390,7 @@ async function build() {
       });
     }
 
-    resultHtml = resultHtml.replaceAll('{docs-version}', currentVersion);
+    resultHtml = resultHtml.replaceAll('{docs-version}/', docsVersionPath(currentVersion));
 
     await mkdir(path.dirname(htmlFilePath), { recursive: true });
 

@@ -113,6 +113,8 @@ function init() {
 
     docsVersionLinks.forEach(link => {
       const defaultVersion = link.getAttribute('data-default-version');
+      // the links of a branch build have no version
+      if (!defaultVersion) return;
       const re = new RegExp(`${ defaultVersion }/`);
       const newLink = link.getAttribute('href').replace(re, '');
       link.setAttribute('href', newLink);

@@ -10,10 +10,13 @@ import {
   buildAndCopyCoreJS,
   expandVersionsConfig,
   isExists,
+  checkoutVersion,
+  getBranchPreviewName,
+  installDependencies,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
 // eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
-import { cp, readdir, readlink, rename, rm, symlink, unlink } from 'node:fs/promises';
+import { cp, mkdir, readdir, readlink, rename, rm, symlink, unlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { dirname, relative, resolve, join } from 'node:path';
 
@@ -56,13 +59,6 @@ async function createBuildDir() {
   console.timeEnd(`Created build directory ${ BUILD_DIR }`);
 }
 
-async function installDependencies(dir = BUILD_SRC_DIR) {
-  console.log('Installing dependencies...');
-  console.time('Installed dependencies');
-  await exec('npm ci', { cwd: dir });
-  console.timeEnd('Installed dependencies');
-}
-
 async function cloneRepo() {
   console.log('Cloning core-js repository...');
   console.time('Cloned core-js repository');
@@ -73,6 +69,8 @@ async function cloneRepo() {
 async function switchToLatestBuild(link) {
   console.log(`Switching "${ link }" to the latest build...`);
   console.time(`Switched "${ link }" to the latest build`);
+  // a fresh server has no `branches/` yet
+  await mkdir(dirname(link), { recursive: true });
   // one rename replaces the old link, which serves until then; no git branch name ends with `.lock`
   const next = `${ link }.lock`;
   await rm(next, { force: true });
@@ -102,7 +100,7 @@ async function copyDocsToBuilder(version) {
   const target = version.branch ?? version.tag;
   console.log(`Copying docs to builder for "${ target }"`);
   console.time(`Copied docs to builder for "${ target }"`);
-  await checkoutVersion(version);
+  await checkoutVersion(version, BUILD_SRC_DIR);
   const fromDir = `${ BUILD_SRC_DIR }docs/web/docs/`;
   const toDir = `${ BUILD_DOCS_DIR }${ version.path ?? version.label }/docs/`;
   await copyDocs(fromDir, toDir);
@@ -119,18 +117,10 @@ async function copyBuilderDocs() {
 async function prepareBuilder(targetBranch) {
   console.log('Preparing builder...');
   console.time('Prepared builder');
-  await exec(`git checkout origin/${ targetBranch }`, { cwd: BUILD_SRC_DIR });
-  await installDependencies();
+  await checkoutVersion({ branch: targetBranch }, BUILD_SRC_DIR);
+  await installDependencies(BUILD_SRC_DIR, true);
   if (!BRANCH) await exec(`rm -rf ${ BUILD_SRC_DIR }docs/web/docs/`);
   console.timeEnd('Prepared builder');
-}
-
-async function checkoutVersion(version) {
-  if (version.branch) {
-    await exec(`git checkout origin/${ version.branch }`, { cwd: BUILD_SRC_DIR });
-  } else {
-    await exec(`git checkout ${ version.tag }`, { cwd: BUILD_SRC_DIR });
-  }
 }
 
 // the links the runner made in `branches/`; any other entry there is not its own
@@ -153,7 +143,7 @@ async function clearDeletedBranches() {
   console.log('Clearing deleted branches...');
   console.time('Cleared deleted branches');
   const { stdout } = await exec("git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin/", { cwd: BUILD_SRC_DIR });
-  const liveBranches = new Set(stdout.split('\n'));
+  const liveBranches = new Set(stdout.split('\n').map(getBranchPreviewName));
   for (const name of await readBranchLinks()) {
     if (!liveBranches.has(name)) {
       await unlink(`./branches/${ name }`);
@@ -189,14 +179,14 @@ async function createLastDocsLink() {
   const defaultVersion = await getDefaultVersion(VERSIONS_FILE);
   const absoluteBuildPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ defaultVersion }/docs/`);
   const absoluteLastDocsPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/docs/`);
-  await exec(`ln -s ${ absoluteBuildPath } ${ absoluteLastDocsPath }`);
+  await symlink(absoluteBuildPath, absoluteLastDocsPath);
   console.timeEnd('Created last docs link');
 }
 
 async function getVersions(targetBranch) {
   console.log('Getting versions...');
   console.time('Got versions');
-  await exec(`git checkout origin/${ targetBranch }`, { cwd: BUILD_SRC_DIR });
+  await checkoutVersion({ branch: targetBranch }, BUILD_SRC_DIR);
   const versions = await readJSON(VERSIONS_FILE);
   console.timeEnd('Got versions');
 
@@ -232,9 +222,12 @@ try {
   await buildWeb(BRANCH, BUILD_SRC_DIR);
 
   await copyWeb();
-  await createLastDocsLink();
+  // a branch build has no version directories, its docs are already in `docs/`
+  if (!BRANCH) {
+    await createLastDocsLink();
+  }
 
-  await switchToLatestBuild(BRANCH ? `./branches/${ BRANCH }` : './latest');
+  await switchToLatestBuild(BRANCH ? `./branches/${ getBranchPreviewName(BRANCH) }` : './latest');
   await clearDeletedBranches();
   await clearBuildDir();
   await clearOldBuilds();
