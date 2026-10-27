@@ -2562,8 +2562,8 @@ export default [
       '@(scripts|tests)/*/**',
     ],
     rules: {
-      // disable this rule for lazily installed dependencies
-      'import/no-unresolved': [ERROR, { commonjs: true, ignore: ['^[^.]'] }],
+      // disable this rule for lazily installed dependencies and for test bundles, which are built before the tests
+      'import/no-unresolved': [ERROR, { commonjs: true, ignore: ['^[^.]', '/bundles/'] }],
     },
   },
   {

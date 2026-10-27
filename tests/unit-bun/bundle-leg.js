@@ -9,5 +9,4 @@ const filename = join(__dirname, '../../packages/core-js-bundle/index.js');
 // eslint-disable-next-line node/no-sync -- the bundle has to be installed before the tests load
 runInThisContext(readFileSync(filename, 'utf8'), { filename });
 // the qunit cli loads its files sorted by path, so the tests are loaded here, after the bundle
-// eslint-disable-next-line import/no-unresolved -- generated later
 require('../bundles/unit-global.js');

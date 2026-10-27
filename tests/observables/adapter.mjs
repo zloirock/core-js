@@ -3,7 +3,6 @@ delete globalThis.Observable;
 
 const pkg = argv.pure ? 'core-js-pure' : 'core-js';
 
-// eslint-disable-next-line import/no-unresolved -- generated later
 const { runTests } = require('./bundles/observables-tests/default');
 
 globalThis.Symbol = require(`../../packages/${ pkg }/full/symbol`);
