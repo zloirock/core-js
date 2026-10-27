@@ -3093,6 +3093,36 @@ for (const adapter of adapters) {
   check(`identifierReferencedInSubtree/every declaration probed [${ adapter.name }]`, bodies.length, Object.keys(expected).length);
 }
 
+// A nearby reference needs no descent into earlier function declarations. A miss still
+// searches their defaults and bodies, and a declaration alone still names no reference.
+for (const adapter of adapters) for (const width of [16, 64]) {
+  const declarations = Array.from({ length: width }, (_, index) => `function nested${ index }(local = fallback) { var nestedOnly; return hidden; }`).join(' ');
+  const program = adapter.parseAndScope(`function outer() { ${ declarations } use(nearby); }`);
+  const { body } = adapter.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'outer').node;
+  const functions = body.body.filter(node => node.type === 'FunctionDeclaration');
+  const descriptors = functions.map(node => Object.getOwnPropertyDescriptor(node, 'body'));
+  let visits = 0;
+  for (const [index, node] of functions.entries()) Object.defineProperty(node, 'body', {
+    configurable: true, enumerable: true,
+    get() { visits++; return descriptors[index].value; },
+  });
+  const queries = [
+    ['nearby', true, false], ['hidden', true, true], ['fallback', true, null],
+    ['nestedOnly', false, true], ['absent', false, true],
+  ].flatMap(([name, expected, walked]) => [false, true].map(set => ({ name, expected, walked, set })));
+  try {
+    for (const { name, expected, walked, set } of queries) {
+      visits = 0;
+      const label = `identifierReferencedInSubtree/lazy bodies/${ adapter.name }/${ width }/${ set }/${ name }`;
+      check(`${ label }/answer`, identifierReferencedInSubtree(body, set ? new Set([name]) : name), expected);
+      if (walked !== null) check(`${ label }/body walk`, visits > 0, walked);
+      if (!expected) check(`${ label }/complete miss`, visits, width);
+    }
+  } finally {
+    for (const [index, node] of functions.entries()) Object.defineProperty(node, 'body', descriptors[index]);
+  }
+}
+
 // Unrelated declarations need no temporary sets in a reference query. Matching binding
 // identities still suppress declarations without hiding defaults or nested body reads.
 for (const adapter of adapters) for (const width of [32, 128]) {
