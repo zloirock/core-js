@@ -24,3 +24,25 @@ QUnit.test('optional receiver captures an unbound accessor before its null test'
     delete globalThis.fcOptionalReceiver;
   }
 });
+
+QUnit.test('optional receiver keeps nested prefixes and its stored value', assert => {
+  const log = [];
+  let held;
+  function prefix(name) {
+    log.push(name);
+  }
+  function index() {
+    log.push(held ? 'index-after-store' : 'index-before-store');
+    return 0;
+  }
+  function read(value) {
+    // eslint-disable-next-line @stylistic/no-extra-parens -- nested sequence is the tested receiver shape
+    return (prefix('outer'), (prefix('inner'), held = value))?.at(index());
+  }
+  assert.same(read(['held']), 'held');
+  assert.deepEqual(log, ['outer', 'inner', 'index-after-store']);
+  log.length = 0;
+  assert.same(read(null), undefined);
+  assert.same(held, null);
+  assert.deepEqual(log, ['outer', 'inner']);
+});

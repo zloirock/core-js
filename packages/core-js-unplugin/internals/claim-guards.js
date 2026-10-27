@@ -1,13 +1,11 @@
 // guard rendering for claims over undefinable receivers: the null-probe tests, seals,
 // absorbed tails and the guarded-hop replacement every channel spells through
+import { guardProbeUndefinable as probeValueCanBeUndefined } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   directClaimProbePlan,
-  callYieldCanBeUndefined,
   deleteHostAboveCarriedChain,
   descendToChainRoot,
   guardTailPullCount,
-  inlineCallProxyGlobalRoot,
-  proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
   sealedChainBoundary,
@@ -23,13 +21,11 @@ import {
   memberKeyName,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
-  singleSequenceTail,
   stepOverChainWrappers,
   subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
-  peelChainAssignmentDeep,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
@@ -528,118 +524,11 @@ export function sealedLayerAbove(metaPath, node) {
   return up?.node?.type === 'ParenthesizedExpression' || !!up?.node?.extra?.parenthesized;
 }
 
-// does a nav (or bare identifier) bottom out on a realm root the binding-aware canon proves -
-// a pristine proxy-global name or an alias of one, shadow bail included
-function realmRootProves(node, aliasCtx) {
-  let cur = unwrapRuntimeExpr(node);
-  for (;;) {
-    if (cur?.type === 'MemberExpression') {
-      cur = unwrapRuntimeExpr(cur.object);
-      continue;
-    }
-    if (cur?.type === 'SequenceExpression' && cur.expressions?.length) {
-      cur = unwrapRuntimeExpr(cur.expressions.at(-1));
-      continue;
-    }
-    if (cur?.type === 'AssignmentExpression') {
-      cur = unwrapRuntimeExpr(cur.right);
-      continue;
-    }
-    break;
-  }
-  if (cur?.type !== 'Identifier') return false;
-  const name = proxyGlobalRootName({ node: cur, ...aliasCtx });
-  return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name);
-}
-
-// a probe that provably cannot be nullish ERASES its guard - only a genuinely
-// undefinable value keeps one. an optional CALL short-circuits to undefined whenever
-// its CALLEE is nullish, so any non-literal callee keeps it undefinable (`condFn?.()`);
-// an inline function literal never is (`(() => Symbol)?.()`)
-export function guardProbeUndefinable(probe, {
-  metaPath,
-  adapter,
-  resolvePure,
-  observableRead = false,
-  nestedSeqUnproven = false,
-}) {
-  if (probe?.type === 'CallExpression') {
-    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-    const probeCallee = unwrapRuntimeExpr(probe.callee);
-    function resolveHere(meta) {
-      return resolvePure(meta, metaPath);
-    }
-    // an INLINE-resolvable call answers with its YIELD, not its callee: a body navigating to
-    // an environment probe (`() => globalThis.window`) is absent-able however defined the
-    // callee is, and the `?.` above the call is the only thing standing between the collapse
-    // and a read off `undefined`. the canonical question, the one the detection itself asks
-    if (inlineCallProxyGlobalRoot({ callNode: probe, ...aliasCtx, rejectConditional: true })) {
-      return callYieldCanBeUndefined(probe, aliasCtx, resolveHere);
-    }
-    if (probeCallee?.type === 'ArrowFunctionExpression' || probeCallee?.type === 'FunctionExpression') return false;
-    if (proxyReceiverValueCanBeUndefined(probeCallee, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true })) return true;
-    // an INIT-LESS declaration (`let condFn;` + conditional assigns) is nullish on the
-    // unassigned path - the callee canon only follows kept proxy writes
-    if (probeCallee?.type === 'Identifier') {
-      const calleeBinding = adapter.getBinding({ scope: metaPath.scope, name: probeCallee.name, path: metaPath });
-      if (calleeBinding?.node?.type === 'VariableDeclarator' && !calleeBinding.node.init) return true;
-    }
-    return false;
-  }
-  // a KEPT WRITE holds its VALUE: the canon judges what the write yields, while the
-  // test clones the write whole (`null == (w = _globalThis.window)`). the write makes
-  // the read OBSERVABLE, so a proxy spine below the probe hop counts as one surface
-  const peeledProbe = unwrapRuntimeExpr(probe);
-  let probeValue = peelChainAssignmentDeep(peeledProbe);
-  // ... and it is the WRITE that makes it observable, not the peel: a sequence hands its tail's
-  // value on and observes nothing, so a plain nav under one is judged by the value canon exactly
-  // like its bare twin (`(eff(), globalThis.window.self)?.Promise.k` folds where the bare form does)
-  let storeObserved = probeValue !== peeledProbe;
-  // effectful sequence tails peel manually - the SE-bailing canon stops at them
-  // (`(s = (e++, globalThis.self))` proves through the tail)
-  for (;;) {
-    if (probeValue?.type === 'SequenceExpression') {
-      // ... ONE level for the routes that ASK it: a NESTED sequence is where the value canon
-      // stops, so its value stays unproven and the guard over it lives
-      // (`(d++, (c++, globalThis))?.Map.name`). a whole-swap claim reads no value through the
-      // sequence and keeps the ordinary peel (`(d++, (c++, globalThis))?.Array.of` erases)
-      const tail = singleSequenceTail(probeValue);
-      if (!tail) {
-        const deepTail = singleSequenceTail(probeValue, { nested: true });
-        // ... but a tail carrying its OWN `?.` renders that guard itself - already rendered by an
-        // earlier claim or still spelled - and a second one over it tests a value the first
-        // already answered for
-        const selfGuarded = receiverCarriesOptional(deepTail)
-          || (deepTail?.type === 'ConditionalExpression' && deepTail.consequent?.type === 'UnaryExpression'
-            && deepTail.consequent.operator === 'void');
-        // ... and the boundary speaks only for a spine the realm canon owns: a root the
-        // binding-aware canon cannot prove (a SHADOWED realm name, a user binding) is the
-        // user's value, and this verdict may not call it a probe - the ordinary walk decides
-        if (nestedSeqUnproven && !selfGuarded
-          && realmRootProves(deepTail, { scope: metaPath.scope, adapter, path: metaPath })) return true;
-        probeValue = deepTail;
-        continue;
-      }
-      probeValue = tail;
-      continue;
-    }
-    const dechained = peelChainAssignmentDeep(probeValue);
-    if (dechained === probeValue) break;
-    storeObserved = true;
-    probeValue = unwrapRuntimeExpr(dechained);
-  }
-  // a bare ALIAS answers through the value canon like every other probe: an alias of an
-  // entry-backed surface (`const g = globalThis`) holds the realm object and proves defined
-  // there, an alias of a probe read (`const w = globalThis.window`) or of a rendered guard
-  // (`null == _globalThis.window ? void 0 : _self`) holds a value that can be absent and keeps
-  // its `?.`. asked of the NAME the alias resolves to instead, the guard render's alias read as
-  // `self` - the defined branch the value canon classifies through - and the guard over a value
-  // the other leg still tests was dropped
-  return proxyReceiverValueCanBeUndefined(
-    probeValue, m => resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter, path: metaPath },
-    { throughChainAssign: true, observableRead: observableRead || storeObserved });
+// Bind the shared value question to the caller's native scope and entry resolver.
+export function guardProbeUndefinable(probe, { metaPath, adapter, resolvePure, ...options }) {
+  return probeValueCanBeUndefined(probe, {
+    path: metaPath, adapter, resolvePure: meta => resolvePure(meta, metaPath), ...options,
+  });
 }
 
 // an optional STATIC member keeps its guard routes when its OBJECT can genuinely be undefined -

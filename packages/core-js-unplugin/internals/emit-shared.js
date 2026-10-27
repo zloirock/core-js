@@ -1,4 +1,4 @@
-import { POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 import { cloneNode, sequenceExpression } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
@@ -6,23 +6,8 @@ import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 // helpers shared by the AST engine's emitters (usage-pure and the destructure pipeline) -
 // they live outside both so neither imports the other
 
-// does any hop under this receiver carry a `?.` - sealed spellings included: the seal ends
-// the CHAIN, but the short-circuit still makes the sealed VALUE undefinable
-export function receiverCarriesOptional(node) {
-  if (!node || typeof node !== 'object' || !node.type) return false;
-  if ((node.type === 'MemberExpression' || node.type === 'CallExpression') && node.optional) return true;
-  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in node) {
-    const value = node[key];
-    if (Array.isArray(value)) {
-      for (const item of value) if (receiverCarriesOptional(item)) return true;
-    } else if (receiverCarriesOptional(value)) return true;
-  }
-  return false;
-}
+export { receiverContainsOptional as receiverCarriesOptional } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
-// swap `target` for `next` wherever it sits - the emit plans hand NODES, not paths, so the
-// parent slot is found by identity from the given root
 // a rebuilt spelling STANDS where its source stood: hand the printer that span through a
 // side channel, so the sourcemap keeps the region a text splice would have kept. `start` /
 // `end` themselves stay absent on minted nodes - `spellsSameSource` tells a clone from a
@@ -35,6 +20,7 @@ export function stampReplacementSpan(next, source) {
 }
 
 // Replace a node only through native AST nodes and arrays, retaining its source span.
+// Emit plans hand nodes, not paths, so find the parent slot by identity from the root.
 // Throw on an over-deep graph: returning false would claim the target is absent and
 // let a caller emit statements around a replacement that never happened.
 export function replaceNodeInTree(root, target, next, depth = 0) {
@@ -81,15 +67,7 @@ export function proxyStoreIsSpellable(storedNode, resolveGlobalPolyfill, isSubst
   return true;
 }
 
-// the source-global NAME a minted pure import stands for (`_self` -> 'self'), through the
-// injector's pure-import registry - null for anything else. the one reverse lookup both
-// ast surfaces ask (a proxy-name check and the hint-name spelling were hand-kept twins)
-export function mintedProxyGlobalName(name, injectorState) {
-  const source = [...injectorState?.pureImports ?? []].find(([, minted]) => minted === name)?.[0];
-  if (!source) return null;
-  const tail = source.split('/').at(-1).replaceAll(/-(?<ch>[a-z])/g, (match, ch) => ch.toUpperCase());
-  return POSSIBLE_GLOBAL_OBJECTS.has(tail) ? tail : null;
-}
+export { mintedProxyGlobalName } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 
 // SE wrap: `(se1, se2, leaf)` - the sequence spelling both legs share
 export function withSideEffects(leaf, effects) {

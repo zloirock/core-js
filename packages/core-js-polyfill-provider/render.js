@@ -81,11 +81,11 @@ export function planMethodCall({
   receiver, sourceReceiver = receiver, sideEffects = [], receiverEffectCount = 0,
   prepared = false, methodGuarded = false, args = [], optional = false, callPath = null, ctx = null,
 }) {
-  const sequence = prepared ? null : peelNestedSequenceExpressions(receiver);
-  const tail = sequence?.prefix.length ? sequence.tail : receiver;
   const effects = sideEffects ?? [];
   const keyEffects = effects.slice(receiverEffectCount);
-  const reusable = prepared || isReusableReceiver(tail, { interveningEffects: keyEffects.length > 0, ctx });
+  const memo = !prepared && planReceiverMemo(receiver, { interveningEffects: keyEffects.length > 0, ctx });
+  const tail = memo ? memo.receiver : receiver;
+  const reusable = !memo?.capture;
   return {
     firstReceiver: receiver,
     receiver: tail,
@@ -114,15 +114,13 @@ export function planMethodCall({
 // These are source-local facts: no imports, refs, claims or tree changes on a query.
 // The host retains the source slots and applies this answer synchronously in their frame.
 export function planOptionalMethodCall({ callee, receiver = callee.object, call = null, continuation = null, ctx = null }) {
-  const { prefix, tail } = peelNestedSequenceExpressions(receiver);
-  const value = prefix.length ? tail : receiver;
-  const superReceiver = unwrapRuntimeExpr(value)?.type === 'Super';
   const interveningEffects = !!callee.computed && mayHaveSideEffects(callee.property, ctx);
+  const memo = planReceiverMemo(receiver, { interveningEffects, ctx });
+  const superReceiver = unwrapRuntimeExpr(memo.receiver)?.type === 'Super';
   return {
-    firstReceiver: receiver,
-    receiver: value,
+    ...memo,
     receiverGuard: optionalCallReceiverGuard(callee),
-    capture: !superReceiver && !isReusableReceiver(value, { interveningEffects, ctx }),
+    capture: !superReceiver && memo.capture,
     superReceiver,
     interveningEffects,
     compactMethod: !!call?.optional && isMemberAccessNode(continuation) && !!continuation.optional
@@ -206,6 +204,16 @@ export function renderReceiverMemo({ firstReceiver, receiver = firstReceiver, ca
       : embed(firstReceiver, 'lookup'),
     makeBase: () => embed(name ? identifier(name) : receiver, 'receiver'),
   };
+}
+
+// Decide the first and repeated reads of a prepared receiver. Only its sequence tail
+// is repeated; the prefix remains in the first read even when no capture is needed.
+// This query retains source identity and never allocates refs or changes the tree.
+export function planReceiverMemo(receiver, { interveningEffects = false, directCallee = false, ctx = null } = {}) {
+  const { prefix, tail } = peelNestedSequenceExpressions(receiver);
+  const value = prefix.length ? tail : receiver;
+  return { firstReceiver: receiver, receiver: value,
+    capture: !isReusableReceiver(value, { interveningEffects, directCallee, ctx }) };
 }
 
 // A receiver guard owns the first read and leaves key effects in its live branch. A sealed
