@@ -93,17 +93,27 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
     const srcPath = join(srcDir, 'packages/core-js-bundle/minified.js');
     const destPath = join(srcDir, 'website/src/public/bundles/', target, bundleName);
     await copyBundle(srcPath, destPath);
-    if (cacheDir !== null) {
+    // the bundles of a branch are cached only by the `Build bundles` workflow, together with their commit
+    if (cacheDir !== null && !version.branch) {
       const cachePath = join(cacheDir, target, bundleName);
       await cp(srcPath, cachePath);
     }
+  }
+
+  // a branch moves with each push, so its cache serves only the commit being built
+  async function isCached() {
+    if (!version.branch) return isExists(targetBundlePath);
+    const commitPath = join(targetBundlePath, 'commit');
+    if (!await isExists(commitPath)) return false;
+    const { stdout } = await execFile('git', ['rev-parse', `origin/${ version.branch }`], { cwd: srcDir });
+    return (await readFile(commitPath, 'utf8')).trim() === stdout.trim();
   }
 
   const target = version.branch ?? version.tag;
   console.log(`Building and copying core-js for ${ target }`);
   const targetBundlePath = join(cacheDir ?? '', target);
 
-  if (cacheDir !== null && await isExists(targetBundlePath)) {
+  if (cacheDir !== null && await isCached()) {
     console.time('Core JS bundles copied');
     const bundlePath = join(targetBundlePath, 'core-js-bundle.js');
     const destBundlePath = join(srcDir, 'website/src/public/bundles/', target, 'core-js-bundle.js');

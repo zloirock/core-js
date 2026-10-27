@@ -64,7 +64,8 @@ async function getDocsMenuItems(version) {
   try {
     docsMenuItems[version] = await readJson(jsonPath);
     return docsMenuItems[version];
-  } catch {
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
     echo(chalk.yellow(`Menu JSON file not found: ${ jsonPath }`));
     return [];
   }
@@ -430,4 +431,4 @@ async function build() {
   await createDocsIndexes(versions);
 }
 
-await build().catch(console.error);
+await build();

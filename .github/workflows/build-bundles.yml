@@ -39,20 +39,14 @@ jobs:
       - name: Build bundle
         run: npm run bundle-package minified-name core-js-bundle
 
-      - name: Copy files to server over SSH
-        if: steps.extract_branch.outputs.upload == 'true'
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.REMOTE_HOST }}
-          username: ci
-          key: ${{ secrets.CI_SSH_KEY }}
-          source: "packages/core-js-bundle/core-js-bundle.js"
-          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
-          strip_components: 2
-
       - name: Build esmodules bundle
         run: npm run bundle-package esmodules minified-name core-js-bundle-esmodules
 
+      # the website runner takes the bundles of a branch only for the commit it builds, so the commit goes last
+      - name: Write commit of bundles
+        if: steps.extract_branch.outputs.upload == 'true'
+        run: echo "$GITHUB_SHA" > packages/core-js-bundle/commit
+
       - name: Copy files to server over SSH
         if: steps.extract_branch.outputs.upload == 'true'
         uses: appleboy/scp-action@v1
@@ -60,6 +54,6 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ci
           key: ${{ secrets.CI_SSH_KEY }}
-          source: "packages/core-js-bundle/core-js-bundle-esmodules.js"
+          source: "packages/core-js-bundle/core-js-bundle.js,packages/core-js-bundle/core-js-bundle-esmodules.js,packages/core-js-bundle/commit"
           target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
           strip_components: 2

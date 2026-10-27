@@ -12,6 +12,9 @@ permissions:
 jobs:
   run-on-server:
     runs-on: ubuntu-latest
+    env:
+      # a build may wait for the lock while other pushes upload their runners, so each run has its own copy
+      RUN_DIR: /var/www/core-js/runners/${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Extract branch name
@@ -24,11 +27,20 @@ jobs:
         with:
           ref: ${{ steps.extract_branch.outputs.branch }}
 
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.CI_SSH_KEY }}
+
+      - name: Create run directory on remote server
+        run: |
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "mkdir -p $RUN_DIR"
+
       - name: Copy runner file to remote server
         uses: garygrossgarten/github-action-scp@0.10.0
         with:
           local: website/scripts/runner.mjs
-          remote: /var/www/core-js/runner.mjs
+          remote: ${{ env.RUN_DIR }}/runner.mjs
           host: ${{ secrets.REMOTE_HOST }}
           username: ci
           privateKey: ${{ secrets.CI_SSH_KEY }}
@@ -37,7 +49,7 @@ jobs:
         uses: garygrossgarten/github-action-scp@0.10.0
         with:
           local: website/scripts/runner.sh
-          remote: /var/www/core-js/runner.sh
+          remote: ${{ env.RUN_DIR }}/runner.sh
           host: ${{ secrets.REMOTE_HOST }}
           username: ci
           privateKey: ${{ secrets.CI_SSH_KEY }}
@@ -46,20 +58,16 @@ jobs:
         uses: garygrossgarten/github-action-scp@0.10.0
         with:
           local: website/scripts/helpers.mjs
-          remote: /var/www/core-js/helpers.mjs
+          remote: ${{ env.RUN_DIR }}/helpers.mjs
           host: ${{ secrets.REMOTE_HOST }}
           username: ci
           privateKey: ${{ secrets.CI_SSH_KEY }}
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.10.0
-        with:
-          ssh-private-key: ${{ secrets.CI_SSH_KEY }}
-
-      - name: Make runner.sh executable on remote
-        run: |
-          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "chmod +x /var/www/core-js/runner.sh"
-
       - name: Run node runner.mjs on remote server
         run: |
-          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "cd /var/www/core-js/ && ./runner.sh"
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "cd /var/www/core-js/ && bash $RUN_DIR/runner.sh"
+
+      - name: Remove run directory from remote server
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "rm -rf $RUN_DIR"
