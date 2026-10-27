@@ -2399,10 +2399,13 @@ const FA_KEY_SETS = [
   { id: 'single', keys: ['from'] },
   { id: 'multi', keys: ['from', 'of'] },
 ];
-// the two IIFE wrapper forms - both routed through `detectIifeArgPath` to locate the winning call-arg
+// Both IIFE forms locate the winning call-arg through the shared receiver choice. A later Array
+// parameter makes the default dead in its OWN frame, while the member argument resolves outside it.
 const FA_HOSTS = [
   { id: 'arrow', wrap: (params, body, arg) => `(({ ${ params } } = Number) => ${ body })(${ arg })` },
   { id: 'fn-expr', wrap: (params, body, arg) => `(function ({ ${ params } } = Number) { return ${ body }; })(${ arg })` },
+  { id: 'arrow-shadowed-default', wrap: (params, body, arg) => `(({ ${ params } } = Array, Array) => ${ body })(${ arg })` },
+  { id: 'fn-expr-shadowed-default', wrap: (params, body, arg) => `(function ({ ${ params } } = Array, Array) { return ${ body }; })(${ arg })` },
 ];
 function * generateFallbackArg() {
   for (const host of FA_HOSTS) {

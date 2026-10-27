@@ -14,13 +14,13 @@
 import { renderSynthLiteral } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   nestedSequenceValueSpelling,
-  isRestProperty,
   peelTransparentWrapperPath,
   isMemberWriteHost,
   isReceiverShapedNode,
   isReusableReceiver,
   peelNestedSequenceExpressions,
   findIifeArgPath,
+  unwrapSafeSequenceTailPath,
   isSynthSimpleObjectPattern,
   deleteHostAboveChain,
   unwrapRuntimeExpr,
@@ -29,18 +29,16 @@ import {
   bindingPolyfillHint,
   trustedIdentifierAliasWrite,
   peelChainAssignment,
-  invocationNode,
   runtimeChainRoot,
   pathOfNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  isClassifiableReceiverArg,
-  isExpandedClassifiableReceiver,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   synthPropDedupKey,
+  findSynthSwapReceiverPath,
   buildPatternRenderPlan,
   patternComputedKeysSynthSafe,
   undefinedArmEffectiveReceiver,
@@ -49,8 +47,6 @@ import {
   fallbackBranchWalk,
   planSynthReceiverGuard,
   isViableBranchForKey,
-  resolvableArgSupersedesDeadDefault,
-  decidedRunningOperandPath,
   instanceSynthSpellsReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import estreeToBabel from './estree-to-babel.js';
@@ -85,8 +81,6 @@ import {
   proxyReceiverValueCanBeUndefined,
   resolveSynthKeys,
   peelReceiverSequenceTail,
-  decidedLiveOperandKey,
-  decidedRunningPath,
   directClaimProbePlan,
   directClaimProbeEffects,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -141,111 +135,16 @@ export default function createSynthSwapEmitter({
   // runs twice per file - end of pre-traverse and programExit)
   let pendingSwapCount = 0;
 
-  // `(fn, R)` SE evaluates to its tail. peel SE prefixes recursively through paren wrappers
-  // so flat / nested forms (`(0, R)` vs `(0, (1, R))`) classify identically. peel is
-  // unconditional including for side-effecting prefixes: synth-swap's `replaceWith` mutates
-  // ONLY the tail node, so prefix expressions stay in the SE structure and run at runtime.
-  // path-version companion of node-version `unwrapSafeSequenceTail` (`helpers/ast-patterns.js`)
-  function unwrapSequenceTail(argPath) {
-    while (argPath?.node) {
-      argPath = peelTransparentWrapperPath(argPath);
-      if (!argPath?.isSequenceExpression()) return argPath;
-      const tail = argPath.get('expressions').at(-1);
-      if (!tail) return argPath;
-      argPath = tail;
-    }
-    return argPath;
-  }
-
-  // path-iteration with inline-spread expansion + `unwrapSequenceTail`. accepts both
+  // path-iteration with inline-spread expansion + `unwrapSafeSequenceTailPath`. accepts both
   // ArrowFunctionExpression and FunctionExpression IIFE: arrow lacks `arguments`, function
   // has its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
   // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
   // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
   // locating the argument is the shared `findIifeArgPath` (call site + spread-expanding
-  // coordinates); only the trailing peel is substrate-local - this emitter reads through a
-  // sequence tail, the unplugin peels transparent wrappers
+  // coordinates); the shared trailing peel retains every prefix outside the replaced slot
   function detectIifeArgPath(wrapper, objectPattern) {
     const argPath = findIifeArgPath(wrapper, objectPattern.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
-    return argPath ? unwrapSequenceTail(argPath) : null;
-  }
-
-  // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
-  // mirrors the resolution-layer choice in detect-usage.js: a classifiable bare-Identifier
-  // caller-arg wins first; then a RESOLVABLE non-Identifier arg (proxy-global member
-  // `globalThis.X`, inline-resolvable call `(() => Array)()`) wins over a polyfill-DEAD-END
-  // default via `resolvableArgSupersedesDeadDefault` - its SE is rescued ahead of the synth.
-  // otherwise the wrapper-default stays the synth target (the live fallback for the
-  // undefined-arg runtime path); an opaque non-resolvable arg yields nothing and keeps it
-  function findTargetPath(wrapper, objectPattern) {
-    // rest in EITHER spelling bails the synth (the canon predicate - a SpreadElement-spelled
-    // rest slipping through would destructure the synth literal and lose the remainder)
-    if (objectPattern.node.properties.some(property => isRestProperty(property))) return null;
-    if (wrapper?.isAssignmentPattern()) {
-      // peel parens / TS wrappers / SE-tail through `unwrapSequenceTail` so all these
-      // shapes reach the inner receiver and synth-swap fires:
-      //   `({from} = (Array)) => ...`            - createParens=true
-      //   `({from} = Array as any) => ...`        - TS cast wrapper
-      //   `({from} = (0, Array)) => ...`          - SE tail (minified / TS-emit form)
-      //   `({from} = (logCall(), Array)) => ...`  - SE tail with side-effecting prefix
-      // synth-swap's `replaceWith` mutates ONLY the tail Identifier - the SE prefix
-      // expressions stay in the AST and run at runtime exactly as written. caller's
-      // `({from: customFn})` still beats the synth-emitted default (default fires only
-      // when caller-arg is undefined), preserving caller-passed values
-      let rightPath = unwrapSequenceTail(wrapper.get('right'));
-      // ... and through a ternary or an `&&` the build decides to the operand it always yields
-      // (`decidedLiveOperandKey`): the synth replaces that operand, and the fold drops the dead arm around
-      // it. a `||` / `??` collapses whole below (`fallbackCollapse`)
-      while (!rightPath.isLogicalExpression() || rightPath.node.operator === '&&') {
-        const key = decidedLiveOperandKey(rightPath.node, { scope: rightPath.scope, adapter, path: rightPath });
-        if (!key) break;
-        rightPath = unwrapSequenceTail(rightPath.get(key));
-      }
-      // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order): a classifiable
-      // live arg wins regardless of the wrapper-default's shape - gating on the default first
-      // would leave `(({ from } = []) => ...)(Array)` native even though the live receiver is
-      // statically known. the default fires only on caller-omitted
-      // invocation; (Optional)MemberExpression defaults included (`({of} = globalThis.Iterator)
-      // (Array)`) - synthesising onto the dead default would leave the live caller-arg native
-      // ... an argument the build decides counts by the operand of it that runs (`decidedRunningOperandPath`)
-      const rawArgPath = detectIifeArgPath(wrapper.parentPath, wrapper);
-      const argPath = rawArgPath && unwrapSequenceTail(decidedRunningOperandPath(rawArgPath, adapter));
-      if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
-      // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
-      // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
-      if (argPath && resolvableArgSupersedesDeadDefault({
-        argNode: argPath.node, defaultNode: rightPath.node, objectPattern: objectPattern.node,
-        scope: argPath.scope, adapter, path: argPath, resolvePure,
-      })) return argPath;
-      // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`, a CALL left `f() || Set`) resolves its meta
-      // through the LEFT branch (detection peels fallback wrappers deterministically), so the
-      // synth replaces the WHOLE expression with the literal - the same left-collapse the
-      // declarator flatten applies. `&&` selects its RIGHT side at runtime and stays out.
-      // unresolved keys re-read through the peeled LEFT alone - the right operand is skip-marked
-      // at registration and never reaches emission
-      // ... a left the build decides counts by the part of it that runs (`decidedRunningPath`)
-      const leftTail = rightPath.isLogicalExpression()
-        ? unwrapSequenceTail(decidedRunningPath(rightPath.get('left'), adapter)).node : null;
-      const fallbackCollapse = rightPath.isLogicalExpression() && rightPath.node.operator !== '&&'
-        && (isReceiverShapedNode(leftTail) || !!invocationNode(leftTail));
-      // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
-      // `isExpandedClassifiableReceiver`'s `globalProxyMemberName` walk which already handles
-      // optional-chain shapes. without OME the OME-default silently bails to inline-default
-      // a `this` default inside a STATIC method reads the inherited static surface: the meta
-      // funnel already resolved it against the extends host (resolution is the drain gate -
-      // an unresolved `this` never reaches the synth registration), so the shape is admitted
-      if (!fallbackCollapse && !isReceiverShapedNode(rightPath.node) && !rightPath.isThisExpression()) return null;
-      return rightPath;
-    }
-    // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
-    // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
-    // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
-    // succeeds, otherwise destructure-emitter falls through to inline-default
-    const rawArgPath = detectIifeArgPath(wrapper, objectPattern);
-    const argPath = rawArgPath && unwrapSequenceTail(decidedRunningOperandPath(rawArgPath, adapter));
-    return argPath && isExpandedClassifiableReceiver({
-      node: argPath.node, scope: argPath.scope, path: argPath, adapter,
-    }) ? argPath : null;
+    return argPath ? unwrapSafeSequenceTailPath(argPath) : null;
   }
 
   // register a polyfill for a single key on a synth target. ensures the pending entry
@@ -378,12 +277,12 @@ export default function createSynthSwapEmitter({
   }
 
   // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
-  // gets per-branch synth-swap. `unwrapSequenceTail` peels paren / TS / chain AND SE tail
+  // gets per-branch synth-swap. `unwrapSafeSequenceTailPath` peels paren / TS / chain AND SE tail
   // so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds the
   // branches, and recursion registers each leaf. SE prefix stays in the AST around the
   // substitution target so side-effects run at runtime
   function registerBranchTreeForKey({ branchPath, objectPattern, lookupKey, slotKey, undefinedArmFallback = null }) {
-    const peeled = unwrapSequenceTail(branchPath);
+    const peeled = unwrapSafeSequenceTailPath(branchPath);
     if (!peeled?.node) return false;
     const walk = fallbackBranchWalk(peeled.node, { scope: peeled.scope, adapter, path: peeled });
     if (walk) {
@@ -916,7 +815,8 @@ export default function createSynthSwapEmitter({
 
   return {
     apply, collapseProxyGlobalReceiver, collapseProxyHopRoot, refreshKeptStore,
-    findTargetPath, detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
+    findTargetPath: (wrapper, pattern) => findSynthSwapReceiverPath(wrapper, pattern.node, adapter, resolvePure),
+    detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
     // a suppressed-hop drive must not detach a receiver this ledger will replace at apply().
     ownsReceiver: node => !!synthSwapByReceiver.get(node) && !synthSwapByReceiver.get(node).applied,
   };
