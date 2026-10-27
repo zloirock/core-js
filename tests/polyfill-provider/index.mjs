@@ -47,6 +47,7 @@ import './array-index-complexity.mjs';
 import './binding-reference-index.mjs';
 import './binding-query-cache.mjs';
 import './binding-node-type.mjs';
+import './owner-write-paths.mjs';
 import './served-reads.mjs';
 import './member-context-paths.mjs';
 import './ast-input-context.mjs';
