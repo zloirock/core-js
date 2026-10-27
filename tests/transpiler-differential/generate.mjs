@@ -20336,6 +20336,56 @@ function * generateMemberBindingPresence() {
   }
 }
 
+// Fully consumed static patterns retain the initializer's source effects, including a
+// getter read and a store. The same decision reaches immediate and deferred host channels.
+function * generateDiscardedDestructureInitializers() {
+  for (const [shape, init] of [
+    ['sequence', '(effects.push("outer"), (effects.push("inner"), Array))'],
+    ['fallback', '(effects.push("left"), Array) ?? (effects.push("dead"), Object)'],
+    ['getter', '(effects.push("prefix"), source.C)'],
+    ['store', '(effects.push("prefix"), held = Array)'],
+  ]) {
+    const pattern = '{ from: read = (effects.push("default"), () => []) }';
+    for (const [host, body] of [
+      ['declaration', `const ${ pattern } = ${ init };`],
+      ['assignment', `let read; (${ pattern } = ${ init });`],
+      ['sequence', `let read; (0, (${ pattern } = ${ init }), effects.push("tail"));`],
+      ['bodyless-declaration', `if (true) var ${ pattern } = ${ init };`],
+      ['bodyless-assignment', `let read; if (true) (${ pattern } = ${ init });`],
+      ['for-init', `for (var ${ pattern } = ${ init };;) break;`],
+    ]) yield {
+      name: `discarded-destructure-init/${ shape }/${ host }`,
+      code: `const effects = [];
+        let held;
+        const source = { get C() { effects.push("getter"); return Array; } };
+        ${ body }
+        const r = [read([7])[0], typeof held];
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+  // An instance dispatch reuses its literal slot, so the other initializer effects
+  // belong to the discarded host instead of riding inside the dispatch receiver.
+  for (const prefix of ['', 'effects.push("outer"), ']) {
+    const init = `(${ prefix }{ before: effects.push("before"), y: values, after: effects.push("after") })`;
+    const assignment = `({ y: { at: read } } = ${ init })`;
+    for (const [host, body] of [
+      ['statement', `${ assignment };`],
+      ['bodyless', `if (true) ${ assignment };`],
+      ['sequence', `(0, ${ assignment }, effects.push("tail"));`],
+    ]) yield {
+      name: `discarded-destructure-init/overwrite-${ prefix ? 'prefix' : 'literal' }/${ host }`,
+      code: `const effects = [];
+        const values = [7, 8];
+        let read;
+        ${ body }
+        const r = read.call(values, -1);
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20726,4 +20776,5 @@ export function * generate() {
   yield * generateMemberBindingFrames();
   yield * generateMemberBindingDeclarations();
   yield * generateMemberBindingPresence();
+  yield * generateDiscardedDestructureInitializers();
 }
