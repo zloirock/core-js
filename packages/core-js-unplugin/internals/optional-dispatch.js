@@ -2,23 +2,21 @@
 // optional call, an optional member hop, the receiver splits) and the instance/inherited
 // dispatches with their guard spellings. created per transform over the factory's context
 import {
-  composableNavGuardPlan,
   chainSealsAShortCircuit,
   findProxyGlobal,
-  inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
   navValueCanShortCircuit,
   navRootPrefixNodes,
   peelReceiverSequenceTail,
-  planProvenNavGuardCollapse,
   proxyGlobalMemberCtorPureSwap,
   proxyReceiverValueCanBeUndefined,
   resolveKey,
   resolveObjectName,
-  unwrapParensCollectingEffects,
   vestigialNavOptionals,
-  peelChainRootValue,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  prepareGuardReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
+} from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { storedProxyNavProvesHop } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { decidedReusableReceiver, instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
@@ -40,7 +38,6 @@ import {
   bindingPolyfillHint,
   isAliasProxyRoot,
   computedKeyStaticName,
-  peelChainAssignment,
   peelChainAssignmentDeep,
   staticMemberKeyName,
   climbTransparentWrapperPath,
@@ -62,6 +59,7 @@ import {
   renderGuardedMethodCall,
   renderOptionalMethodCall,
   renderReceiverMemo,
+  renderKeptSequenceTail,
   planMethodCall,
   planOptionalMethodCall,
   renderNavCollapseValue,
@@ -82,7 +80,6 @@ import {
   cloneSpinePeeled,
   cloneStamped,
   foldSeqKeyLiteralTail,
-  foldTailPristineProxyHops,
   foldedResolvedKey,
   isDeleteOperand,
   markSubtreeSkipped,
@@ -130,288 +127,45 @@ export default function createOptionalDispatchChannel(ctx) {
     typeStampCtx,
   } = ctx;
 
-  // a dropped hop's base PROVEN always-defined makes the hop's `?.` dead: the memo folds
-  // straight onto the ponyfill, keeping only what the base observably did - the seq-prefix
-  // effects, and the call itself when its body or arguments carry any (`dh()?.self` memoizes
-  // `_self`, `(c++, dh(a++))?.self` memoizes `(c++, dh(a++), _self)`) - the other leg's
-  // spelling for this shape. proving WHICH global the call yields is not proving it yields a
-  // DEFINED one, so the probe-yield gate stands between; null = unproven, the caller keeps
-  // its guard render
-  function provenDroppedHopFoldedMemo(baseNode, dropped, metaPath) {
-    const effects = [];
-    const core = unwrapParensCollectingEffects(baseNode, effects);
-    const proven = core?.type === 'CallExpression' && !core.optional
-      && !!inlineCallProxyGlobalRoot({
-        callNode: core, scope: metaPath.scope, adapter, path: metaPath, rejectConditional: true,
-      })
-      && !guardProbeUndefinable(core, { metaPath, adapter, resolvePure });
-    if (!proven) return null;
-    if (inlineCallHasObservableEffects({ callNode: core, scope: metaPath.scope, adapter, path: metaPath })) {
-      effects.push(core);
-    }
-    return withSideEffects(identifier(injectPureImport(dropped.entry, dropped.hintName)), effects);
-  }
-
-  // guard for the OBJECT of a chain's last optional hop: a reusable single token spells
-  // `X == null` and is re-read; anything else memoizes - KEEPING its own inner `?.` (that
-  // short-circuit routes into this guard), wrapped back into a chain of its own when the
-  // extraction strands it outside the original ChainExpression
-  function guardObject(objectNode, metaPath, {
-    bareMemo = false,
-    mutatedLeaf = false,
-    readerKey = null,
-    interveningEffects = false,
-  } = {}) {
-    const receiverPure = !mutatedLeaf && instanceSynthReceiverPure(objectNode, {
-      scope: metaPath.scope,
-      path: metaPath,
-      adapter,
-      injectorState,
-      resolvePure: meta => resolvePure(meta, metaPath),
-    });
-    if (receiverPure) objectNode = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
-    if (isReusableReceiver(objectNode, {
-      interveningEffects,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-    })) {
-      return {
-        disjuncts: [cloneNode(objectNode)],
-        makeBase: () => cloneNode(objectNode),
-      };
-    }
-    // the ref is minted only where a memo survives: a value that renders as a guard of this canon
-    // composes instead, and an eagerly minted ref would leave a dead declaration behind
-    const surface = proxySurfaceNameOf(objectNode, metaPath);
-    // under a PROXY hop the memo respells bare - babel's hop-drop rebuild starts from the
-    // kept write, the TS wrappers drop (`((a = gw) as any)?.self...` -> `_ref = a =
-    // _globalThis.window`); every other memo keeps its cast (the `satisfies` canon, and a
-    // ctor hop above - `((v = gw) as any)?.Array...` keeps `as any`)
-    let memoSource = objectNode;
-    // Plan the WHOLE source value before peeling its backed leaf. a plain middle probe has no
-    // source guard of its own: the shared bare or sequence plan replaces it with the leaf and keeps the
-    // call's arguments or sequence effects. peeling first freezes a raw off-window dereference.
-    const navPlan = !mutatedLeaf && planProvenNavGuardCollapse({
-      rootNode: objectNode, scope: metaPath.scope, adapter, path: metaPath,
-      resolvePure: meta => resolvePure(meta, metaPath), allowSequenceRoot: true,
-    });
-    // A bare call fold must also prove its yield defined: the memo guards that yield.
-    if (navPlan && navPlan.kind !== 'nested' && !navPlan.topAssign
-      && (navPlan.kind === 'sequence' || !navPlan.call
-        || !guardProbeUndefinable(navPlan.call, { metaPath, adapter, resolvePure }))) {
-      const pure = navPlan.leafPure;
-      memoSource = renderNavCollapseValue(navPlan, identifier(injectPureImport(pure.entry, pure.hintName)), {
-        prefix: navPlan.kind === 'sequence' ? navRootPrefixNodes(navPlan, cloneNode) : [], cloneHost: cloneNode,
-      });
-    } else if (surface) {
-      // trailing ERASABLE hops drop from a SURFACE memo - the surface below them IS the
-      // memo's value (`(v = gw)?.self` memoizes `_ref = v = _globalThis.window`); a hop
-      // pure cannot back (`window`) is the probe the test must read and stays
-      for (let peeledVal = unwrapRuntimeExpr(memoSource);
-        peeledVal?.type === 'MemberExpression' && !peeledVal.computed
-          && POSSIBLE_GLOBAL_OBJECTS.has(peeledVal.property?.name)
-          && isPristineProxyGlobal(adapter, peeledVal.property.name)
-          && resolveGlobalPolyfill(peeledVal.property.name);
-        peeledVal = unwrapRuntimeExpr(memoSource)) {
-        // a dropped hop that carried a LIVE `?.` owed a short-circuit of its own: the memo
-        // holds that RENDER, not the bare probe below it (`window?.window?.self` memoizes
-        // `null == _globalThis.window?.window ? void 0 : _self`). over a KEPT WRITE the memo
-        // IS the stored value and the drop stands (`(v = gw)?.self` memoizes `v = _gw.window`)
-        // - asked as the canon's own `outer` answer: the identity spelling peeled an effect-free
-        // sequence tail along with the wrappers, so `(0, dh())?.self` read as a write and the
-        // plain drop lost both the short-circuit and the ponyfill
-        const droppedBase = unwrapRuntimeExpr(peeledVal.object);
-        if (peeledVal.optional && !peelChainAssignment(droppedBase).outer) {
-          const dropped = resolveGlobalPolyfill(peeledVal.property.name);
-          memoSource = provenDroppedHopFoldedMemo(peeledVal.object, dropped, metaPath)
-            ?? renderShortCircuitGuard(nullGuardTest(cloneNode(peeledVal.object)),
-              identifier(injectPureImport(dropped.entry, dropped.hintName)));
-          break;
-        }
-        memoSource = peeledVal.object;
-      }
-      // a NAMED pure proven call at the bottom folds onto the surface's pure spelling
-      // (`dh().self` renders `_self`); a LITERAL IIFE keeps its source spelling.
-      // the probe-yield gate stands between, as in the dropped-hop fold above: a call
-      // yielding the PROBE is the one value the guard exists for, and folding it leaves an
-      // always-defined ponyfill under the null test - the memo keeps the raw call instead
-      const bottomCall = unwrapRuntimeExpr(memoSource);
-      if (bottomCall?.type === 'CallExpression' && !bottomCall.optional
-        && unwrapRuntimeExpr(bottomCall.callee)?.type === 'Identifier'
-        && !guardProbeUndefinable(bottomCall, { metaPath, adapter, resolvePure })
-        && !inlineCallHasObservableEffects({ callNode: bottomCall, scope: metaPath.scope, adapter, path: metaPath })) {
-        const surfacePure = resolveGlobalPolyfill(surface);
-        if (surfacePure) memoSource = identifier(injectPureImport(surfacePure.entry, surfacePure.hintName));
-      }
-    }
-    const peeled = bareMemo ? cloneNode(unwrapRuntimeExpr(memoSource)) : cloneSpinePeeled(memoSource);
-    // a memo holding a KEPT SEQUENCE observes its value by construction (the null test reads the
-    // ref), so the sequence tail takes the kept-value canon NOW - the ponyfill fold, or the guarded
-    // render over the probe - instead of the plain fold the clone's re-visit would land. a tail
-    // carrying its own live `?.` stands down: that short-circuit belongs to the composed-guard
-    // machinery, and the fold would erase the probe read the source wrote
-    const peeledCore = unwrapRuntimeExpr(peeled);
-    if (peeledCore?.type === 'SequenceExpression'
-      && !receiverCarriesLiveOptional(singleSequenceTail(peeledCore, { nested: true }))) {
-      foldTailPristineProxyHops(peeledCore, {
-        adapter,
-        resolveGlobalPolyfill,
-        injectPureImport,
-        aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
-        // the memo is a VALUE slot (its null test reads the ref): an alias root's kept value
-        // folds to the leaf ponyfill exactly like the guard test's
-      });
-    }
-    // The rendered receiver is read in the guard once, including any sequence prefix.
-    // Its scoped stable value supplies every later read without a second capture.
-    const renderedTail = peeledCore?.type === 'SequenceExpression' ? peelReceiverSequenceTail(peeledCore) : peeled;
-    if (renderedTail && isReusableReceiver(renderedTail, {
-      interveningEffects,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-    })) {
-      return { disjuncts: [peeled], makeBase: () => cloneNode(renderedTail) };
-    }
-    // the nav under this memo COLLAPSES to a ponyfill under one probe (the kept-nav plan's own
-    // verdict): memoizing it then spells a SECOND test over the guard that render builds, so
-    // compose with it instead - the probe decides the branch and the claim reads the always-defined
-    // leaf. asked AHEAD of the memo deopts below: those read the value as the memo's own spelling,
-    // where a written call yield proves definedness the composed test may not assume - it IS that
-    // read, so the `?.` the source wrote stays. the babel binding asks the same plan at its own
-    // memo site
-    // the member reading the memo names its key for the plan's mutated-slot rule
-    const composed = composableNavGuardPlan(objectNode, {
-      scope: metaPath.scope,
-      adapter,
-      path: metaPath,
-      resolvePure: meta => resolvePure(meta, metaPath),
-      readThrough: true,
-      readerKey,
-    });
-    if (composed) {
-      return {
-        disjuncts: [cloneNode(composed.probe)],
-        makeBase: () => identifier(injectPureImport(composed.pure.entry, composed.pure.hintName)),
-      };
-    }
-    // a `?.` sitting directly on a KEPT WRITE whose stored value is provably defined is dead
-    // in the memo spelling too - babel writes the read plain (`(h = globalThis)?.window`
-    // memoizes `(h = _globalThis).window`). only that hop: every other `?.` in the spelling
-    // belongs to a probe the test still owes
-    // a rendered dropped hop carries the same spine inside its TEST - deoptionalize there too
-    const rendered = peeled.type === 'ConditionalExpression';
-    const spine = rendered ? unwrapRuntimeExpr(peeled.test?.right) : peeled;
-    for (let hop = spine; hop?.type === 'MemberExpression'; hop = unwrapRuntimeExpr(hop.object)) {
-      let base = unwrapRuntimeExpr(hop.object);
-      // a PLAIN erasable hop between the `?.` and a kept write already throws on a nullish
-      // stored value, so the `?.` above it can never fire and erases with the collapse
-      // (`(w = globalThis.window).self?.Array` memoizes `(w = _globalThis.window).Array`)
-      let crossedHop = false;
-      while (base?.type === 'MemberExpression' && !base.computed && !base.optional
-        && POSSIBLE_GLOBAL_OBJECTS.has(base.property?.name) && isPristineProxyGlobal(adapter, base.property.name)
-        && resolveGlobalPolyfill(base.property.name)) {
-        base = unwrapRuntimeExpr(base.object);
-        crossedHop = true;
-      }
-      // inside a RENDERED drop the whole prefix is the test's OWN read, and a proven inline
-      // call proves there the way a kept write proves everywhere (`dr()?.window` reads plain);
-      // a bare probe memo keeps its `?.` - the test is the source's short-circuit itself
-      // a kept write of a CALL YIELD proves nothing about definedness - proving WHICH global a
-      // call yields is not proving it yields a defined one (the strict opaque-root canon), so
-      // the memo keeps the `?.` the source spelled (`(held = ca())?.window`)
-      const writtenValue = base?.type === 'AssignmentExpression'
-        ? unwrapRuntimeExpr(peelChainAssignmentDeep(base)) : null;
-      const provenBase = (writtenValue ? rendered || writtenValue.type !== 'CallExpression' : false)
-        || (rendered && base?.type === 'CallExpression' && !base.optional && !!inlineCallProxyGlobalRoot({
-          callNode: base,
-          scope: metaPath.scope,
-          adapter,
-          path: metaPath,
-          rejectConditional: true,
-        }));
-      if (hop.optional && provenBase
-        && (crossedHop || !guardProbeUndefinable(base, { metaPath, adapter, resolvePure }))) hop.optional = false;
-    }
-    memoValueClones.add(peeled);
-    const memoized = receiverCarriesOptional(peeled) ? chainExpression(peeled) : peeled;
-    // the base REF stands for the guarded object's VALUE, so it carries that type - a claim
-    // rebuilt onto it resolves its typed entry instead of falling generic (`arr.at(0)?.at(0)
-    // .at(0)` - the middle dispatch owes `_atMaybeArray`). a MINTED object has no path to
-    // descend, so its stamp is the only channel. a PROXY-SURFACE memo stands down: it
-    // registers as a global alias and its claims resolve through that table, not the type
-    // ... a SOURCE receiver with no stamp still refines through the resolver directly - a
-    // literal receiver is a KNOWN type, and losing it under the memo minted a generic Maybe
-    // dispatch over a certain receiver (`"abcde"?.slice(1)` kept `.slice` native on the
-    // other emitters)
-    const baseType = surface ? null
-      : resolvedType.get(objectNode)
-        ?? memoizedCallResultType(objectNode, metaPath, resolveNodeType)
-        ?? nodeTypeRefinement(unwrapRuntimeExpr(objectNode), metaPath.scope, resolveNodeType);
-    const ref = injector.generateDeclaredRef(metaPath);
-    // a memo holding a PROXY SURFACE registers as a global alias - the rebuilt spine's
-    // claims must resolve through `_ref` exactly like the source root (babel's
-    // `tagProxyGlobalMemoRef`); trusted: the ref is plugin-minted, user code cannot rebind
-    if (surface) injectorState?.registerGlobalAlias?.(ref, surface, { trusted: true, minted: true });
-    else {
-      const ctorSurface = proxyCtorSurfaceOf(objectNode, metaPath);
-      if (ctorSurface) injectorState?.registerGlobalAlias?.(ref, ctorSurface, { trusted: true, minted: true });
-    }
-    return {
-      disjuncts: [assignmentExpression('=', identifier(ref), memoized)],
-      makeBase() {
-        const base = identifier(ref);
-        if (baseType) resolvedType.set(base, baseType);
-        return base;
+  // Bind the shared guard preparation to ESTree cloning and native memo/type state.
+  function guardObject(objectNode, metaPath, options = {}) {
+    const aliasCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState,
+      resolvePure: meta => resolvePure(meta, metaPath) };
+    const decision = prepareGuardReceiver(objectNode, aliasCtx, {
+      pure: pure => identifier(injectPureImport(pure.entry, pure.hintName)),
+      renderNav: plan => renderNavCollapseValue(plan,
+        identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)), {
+          prefix: plan.kind === 'sequence' ? navRootPrefixNodes(plan, cloneNode) : [], cloneHost: cloneNode,
+        }),
+      folded: (pure, effects) => withSideEffects(identifier(injectPureImport(pure.entry, pure.hintName)), effects),
+      guarded: (probe, pure) => renderShortCircuitGuard(nullGuardTest(cloneNode(probe)),
+        identifier(injectPureImport(pure.entry, pure.hintName))),
+      cloneMemo: (node, bare) => bare ? cloneNode(unwrapRuntimeExpr(node)) : cloneSpinePeeled(node),
+      renderKeptTail: plan => renderKeptSequenceTail(plan, { injectImport: injectPureImport }),
+      deoptionalize(hop) { hop.optional = false; },
+    }, options);
+    const { source, surface, capture } = decision;
+    const baseType = capture && !surface && (resolvedType.get(source)
+      ?? memoizedCallResultType(source, metaPath, resolveNodeType)
+      ?? nodeTypeRefinement(unwrapRuntimeExpr(source), metaPath.scope, resolveNodeType));
+    const memo = renderReceiverMemo(decision, {
+      mintRef() {
+        const ref = injector.generateDeclaredRef(metaPath);
+        const name = surface || memoReceiverGlobalName(source, aliasCtx, { constructors: true });
+        if (name) injectorState?.registerGlobalAlias?.(ref, name, { trusted: true, minted: true });
+        return ref;
       },
-    };
-  }
-
-  // the possible-global SURFACE a receiver's value denotes (`globalThis.window` -> 'window',
-  // a bare pristine root -> its own name), or null when the value is not that shape
-  // a CTOR read off the proxy surface, for the memo tag: the ref holds the constructor itself, so a
-  // static claim rebuilt onto it resolves through the alias table (`_ref = <nav>.Number` serves
-  // `_ref.MAX_SAFE_INTEGER`) - babel's `tagProxyGlobalMemoRef` ctor arm, missing here, left the claim
-  // reading raw off the memo and the polyfill never landed. the CONSTRUCTOR spelling is what makes it
-  // one: a lowercase key off the surface is a user property, and a proxy HOP names the realm again
-  function proxyCtorSurfaceOf(objectNode, metaPath) {
-    if (!metaPath) return null;
-    const value = peelChainRootValue(objectNode);
-    if (!isMemberAccessNode(value)) return null;
-    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-    const name = resolveObjectName({ objectNode: value, ...aliasCtx });
-    if (!name || !/^[A-Z]/u.test(name) || POSSIBLE_GLOBAL_OBJECTS.has(name)
-      || adapter.isMutatedStatic?.('globalThis', name)) return null;
-    const host = resolveObjectName({ objectNode: peelChainRootValue(value.object), ...aliasCtx });
-    return host && POSSIBLE_GLOBAL_OBJECTS.has(host) && isPristineProxyGlobal(adapter, host) ? name : null;
-  }
-
-  function proxySurfaceNameOf(objectNode, metaPath = null) {
-    const value = peelChainRootValue(objectNode);
-    // a PROVEN call yields the surface too (`(() => self)()` - the inline canon)
-    if (value?.type === 'CallExpression' && !value.optional && metaPath) {
-      const called = resolveObjectName({ objectNode: value, scope: metaPath.scope, adapter, path: metaPath });
-      return called && POSSIBLE_GLOBAL_OBJECTS.has(called) && isPristineProxyGlobal(adapter, called) ? called : null;
-    }
-    const surfaceKey = isMemberAccessNode(value) ? staticMemberKeyName(value) : null;
-    if (surfaceKey && POSSIBLE_GLOBAL_OBJECTS.has(surfaceKey) && holdsProxySurface(objectNode, metaPath)) {
-      return surfaceKey;
-    }
-    if (value?.type === 'Identifier') {
-      // binding-aware: a SHADOWED realm name holds the user's object, not the surface
-      if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
-        return isPristineProxyGlobal(adapter, value.name)
-          && !(metaPath && adapter.getBinding?.({ scope: metaPath.scope, name: value.name, path: metaPath })) ? value.name : null;
-      }
-      const minted = mintedProxyGlobalName(value.name, injectorState);
-      if (minted) return minted;
-      // an ALIAS resolves through the canon (`const w = globalThis.window; (a = w)`)
-      const aliased = metaPath && resolveObjectName({
-        objectNode: value,
-        scope: metaPath.scope,
-        adapter,
-        path: metaPath,
-      });
-      if (aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) && isPristineProxyGlobal(adapter, aliased)) return aliased;
-    }
-    return null;
+      embed(node, role) {
+        if (role === 'capture') {
+          memoValueClones.add(node);
+          return receiverCarriesOptional(node) ? chainExpression(node) : node;
+        }
+        const clone = cloneNode(node);
+        if (role === 'receiver' && baseType) resolvedType.set(clone, baseType);
+        return clone;
+      },
+    });
+    return { disjuncts: [memo.firstRead], makeBase: memo.makeBase };
   }
 
   // Bind the shared optional call product to source spans, receiver types and live claims.
@@ -945,70 +699,9 @@ export default function createOptionalDispatchChannel(ctx) {
       && !isMutatedGlobalSlot(adapter, key) ? resolveGlobalPolyfill(key) : null;
   }
 
-  // does this receiver hold a pristine proxy-global SURFACE (the value of `q = globalThis
-  // .window` is the window global itself) - the question the pristine-hop drop above asks
+  // Native frame binding for the shared realm-value classifier.
   function holdsProxySurface(objectNode, metaPath = null) {
-    // a write EARLIER in the same sequence dominates every read below it, and that is the only
-    // flow fact this question needs: `(g = globalThis, v = g.window?.self)` navigates the realm,
-    // while the alias walk can prove nothing about `g` - pure bails on a reassigned binding, and
-    // the write it would have to trust is right here beside the read. NOT the canon's
-    // before-use reassignment question (that one weighs textual order across a function body,
-    // where a loop back-edge or a conditional write can reach the use): inside ONE sequence the
-    // order IS the evaluation, so the fact is local and needs no flow proof
-    const sequenceWrites = new Map();
-    const followed = new Set();
-    // writes interleave with the hops (`((dw = gw) as any)?.self` holds the surface too),
-    // so the peel alternates instead of running write-then-members once
-    let value = unwrapRuntimeExpr(objectNode);
-    for (;;) {
-      // ... and the value of a SEQUENCE is its tail, which the hops read through
-      if (value?.type === 'SequenceExpression') {
-        for (const expr of value.expressions.slice(0, -1)) {
-          const write = unwrapRuntimeExpr(expr);
-          if (write?.type === 'AssignmentExpression' && write.operator === '='
-            && write.left?.type === 'Identifier') {
-            sequenceWrites.set(write.left.name, unwrapRuntimeExpr(write.right));
-          }
-        }
-        value = unwrapRuntimeExpr(value.expressions.at(-1));
-        continue;
-      }
-      if (value?.type === 'Identifier' && sequenceWrites.has(value.name) && !followed.has(value.name)) {
-        followed.add(value.name);
-        value = sequenceWrites.get(value.name);
-        continue;
-      }
-      if (value?.type === 'AssignmentExpression') {
-        value = unwrapRuntimeExpr(value.right);
-        continue;
-      }
-      const hop = isMemberAccessNode(value) && proxyHopKey(value, { allowOptional: true, metaPath });
-      if (hop) {
-        value = unwrapRuntimeExpr(value.object);
-        continue;
-      }
-      break;
-    }
-    // a PROVEN call yields the surface too (`(() => globalThis)()` - the inline canon)
-    if (value?.type === 'CallExpression' && !value.optional && metaPath) {
-      const called = resolveObjectName({ objectNode: value, scope: metaPath.scope, adapter, path: metaPath });
-      return !!called && POSSIBLE_GLOBAL_OBJECTS.has(called) && isPristineProxyGlobal(adapter, called);
-    }
-    if (value?.type !== 'Identifier') return false;
-    // binding-aware: a SHADOWED realm name holds the user's object, not the surface
-    if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
-      return isPristineProxyGlobal(adapter, value.name)
-        && !(metaPath && adapter.getBinding?.({ scope: metaPath.scope, name: value.name, path: metaPath }));
-    }
-    // an ALIAS root resolves through the canon (`const w = globalThis.window; (a = w)`
-    // holds the window surface exactly like the direct spelling)
-    const aliased = metaPath && resolveObjectName({
-      objectNode: value,
-      scope: metaPath.scope,
-      adapter,
-      path: metaPath,
-    });
-    return !!aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) && isPristineProxyGlobal(adapter, aliased);
+    return receiverHoldsProxySurface(objectNode, { path: metaPath, scope: metaPath?.scope, adapter });
   }
 
   // `recv.at(args)` -> `_at(recv).call(recv, args)`; `recv.at` -> `_at(recv)`; the receiver
