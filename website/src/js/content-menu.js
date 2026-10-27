@@ -1,6 +1,6 @@
-import scrollToElement from './scroll-to.js';
+import scrollToElement, { smoothScroll } from './scroll-to.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   const triggers = document.querySelectorAll('.scroll-to');
   const menuItems = document.querySelectorAll('.toc-link');
   const offset = 10;
@@ -21,14 +21,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetHash = trigger.dataset.hash;
       const element = document.querySelector(targetHash);
       if (element) {
-        targetBoundaries[targetHash] = { top: element.getBoundingClientRect().top + window.scrollY };
+        // `scrollY` is missing in IE
+        targetBoundaries[targetHash] = { top: element.getBoundingClientRect().top + window.pageYOffset };
       }
     });
     return targetBoundaries;
   }
 
   function observeMenu() {
-    const scroll = window.scrollY;
+    const scroll = window.pageYOffset;
     const targetBoundaries = getBlocksBoundaries();
     for (const [hash, target] of Object.entries(targetBoundaries)) {
       if (target.top > scroll && target.top < scroll + window.innerHeight / 2) {
@@ -39,18 +40,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function isIE() {
-    return window.MSInputMethodContext && document.documentMode;
-  }
-
   triggers.forEach(trigger => {
     trigger.addEventListener('click', function (e) {
-      if (!isIE()) {
+      // the scripted scroll is only for smoothness, without it the native jump to the fragment serves
+      if (smoothScroll) {
         e.preventDefault();
         const { hash } = this.dataset;
         const href = this.getAttribute('href');
         const target = document.querySelector(hash);
         if (target) {
+          // a scripted scroll leaves the keyboard where it was, so the section takes the focus
+          target.setAttribute('tabindex', '-1');
+          target.focus({ preventScroll: true });
           scrollToElement(target, offset);
           history.pushState(null, null, href);
         }
@@ -59,4 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('scroll', observeMenu);
-});
+}
+
+// the legacy chunks run after DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

@@ -13,9 +13,14 @@ export default defineConfig({
     },
     outDir: '../templates',
     emptyOutDir: true,
-    minify: true,
+    // oxc minifies the legacy chunks with an es2015 target (template literals, arrows) - terser keeps them ES5
+    minify: 'terser',
+    // the browsers of the legacy targets below: the CSS gets their prefixes (`-webkit-` flexbox, sticky) only from here
     cssTarget: [
       'ie11',
+      'chrome38',
+      'safari7.1',
+      'firefox15',
     ],
   },
   plugins: [

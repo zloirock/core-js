@@ -165,8 +165,9 @@ function resolveRepositoryPath(href) {
 }
 
 const linkRenderer = {
-  link({ href, text }) {
-    const htmlContent = markedInline.parseInline(text);
+  link({ href, tokens }) {
+    // the lexed content, not its text parsed again: an autolink's text would turn into a link nested in the link
+    const htmlContent = this.parser.parseInline(tokens);
     const inPage = href.startsWith('#');
     if (inPage) href = resolveAnchor(href);
     else if (href.startsWith('{docs-version}')) href = resolvePageAnchor(href);
@@ -196,16 +197,22 @@ markedWithContents.use({
   renderer: linkRenderer,
 });
 
+// the toggle of a menu folded into a strip on narrow screens, a button for the keyboard; main.js keeps `aria-expanded`
+function menuTrigger(controls, label) {
+  return `<button type="button" class="mobile-trigger" aria-controls="${ controls }" aria-expanded="false" aria-label="${ label }"></button>`;
+}
+
 function buildMenus(html) {
   const headings = getHeadingList().filter(({ level }) => level > 1);
   let result = '<div class="wrapper">';
   if (isBlog || isDocs) {
-    result += `<div class="docs-menu sticky"><div class="container"><div class="docs-links">${
-      isBlog ? blogMenuCache : docsMenu }</div><div class="mobile-trigger"></div></div></div>`;
+    result += `<div class="docs-menu sticky"><div class="container"><div class="docs-links" id="docs-links">${
+      isBlog ? blogMenuCache : docsMenu }</div>${ menuTrigger('docs-links', 'Menu') }</div></div>`;
   }
   result += `<div class="content">${ html }</div>`;
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
-    result += `<div class="table-of-contents sticky"><div class="container"><div class="mobile-trigger"></div><div class="toc-links">
+    result += `<div class="table-of-contents sticky"><div class="container">${
+      menuTrigger('toc-links', 'Table of contents') }<div class="toc-links" id="toc-links">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
             level } with-docs-version scroll-to" data-hash="#${ id }" data-default-version="${ LINKS_DEFAULT_VERSION }">${
@@ -279,14 +286,17 @@ async function buildPlayground(template, version, versions) {
   const bundlesPath = getBundlesPath(version);
   const bundleScript = `<script nomodule src="${ bundlesPath }/${ config.bundleName }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
-  const babelScript = '<script src="./babel.min.js"></script>';
+  // Babel standalone needs the polyfills of the bundle when it loads, so each copy follows its bundle: with modules,
+  // the bundle is a deferred module and Babel the module right after it, ahead of the site scripts in document order
+  const babelESModulesScript = '<script type="module" src="./babel.min.js"></script>';
+  const babelScript = '<script nomodule src="./babel.min.js"></script>';
   const playgroundContent = await readFile(`${ config.srcDir }playground.html`, 'utf8');
   const versionsMenu = await buildVersionsMenu(versions, version.path, 'playground');
   let playground = template.replace('{content}', playgroundContent);
   playground = playground.replace('{base}', BASE);
   playground = playground.replace('{title}', 'Playground - ');
   playground = playground.replace('{core-js-bundle}', bundleScript);
-  playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
+  playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript + babelESModulesScript);
   playground = playground.replace('{babel-script}', babelScript);
   const playgroundWithVersion = playground.replace('{versions-menu}', versionsMenu);
   const playgroundFilePath = path.join(config.resultDir, version.path, 'playground.html');

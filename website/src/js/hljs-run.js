@@ -16,6 +16,7 @@ export default class RunButtonPlugin {
     const runButton = document.createElement('a');
     runButton.href = '#';
     runButton.innerHTML = this.text;
+    runButton.setAttribute('aria-label', 'Run in the playground');
     runButton.classList.add('hljs-run-button');
     runButton.addEventListener('click', event => {
       event.preventDefault();

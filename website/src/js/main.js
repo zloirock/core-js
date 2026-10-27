@@ -13,6 +13,32 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 hljs.registerLanguage('plaintext', plaintext);
 
+// toggles with what each opens, `[element, toggle]`: `aria-expanded` follows the `active` class of the element, and
+// Escape closes the panels, which lie over the page with keyboard focus able to move under them; returns the sync
+function trackDisclosures(panels, sections) {
+  const disclosures = panels.concat(sections);
+
+  function syncExpanded() {
+    disclosures.forEach(([element, toggle]) => {
+      toggle && toggle.setAttribute('aria-expanded', String(element.classList.contains('active')));
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    // KeyboardEvent#key is missing in Chrome < 51 and Safari < 10.1
+    if (e.keyCode !== 27) return;
+    panels.forEach(([panel, toggle]) => {
+      if (!toggle || !panel.classList.contains('active')) return;
+      panel.classList.remove('active');
+      // the panel hides its own links
+      if (panel.contains(document.activeElement)) toggle.focus();
+    });
+    syncExpanded();
+  });
+
+  return syncExpanded;
+}
+
 let initialized = false;
 function init() {
   if (initialized) return;
@@ -36,9 +62,16 @@ function init() {
   const mainMenuItems = document.querySelectorAll('.menu-item.highlightable > a');
   let isDocs, docsVersion;
   const currentPath = getRelativePath();
+  const syncExpanded = trackDisclosures([
+    [menu, menuSwitcher],
+    [contentMenu, contentMenuTrigger],
+    [sectionMenu, sectionMenuTrigger],
+    ...[...dropdownTriggers].map(trigger => [trigger.parentElement.parentElement, trigger]),
+  ], [...collapsibleTrigger].map(trigger => [trigger.parentElement, trigger]));
 
   function toggleMenu() {
     menu.classList.toggle('active');
+    syncExpanded();
   }
 
   menuBackdrop.addEventListener('click', () => {
@@ -54,6 +87,7 @@ function init() {
     el.addEventListener('click', function (e) {
       e.preventDefault();
       this.parentElement.classList.toggle('active');
+      syncExpanded();
     });
   });
 
@@ -61,6 +95,7 @@ function init() {
     el.addEventListener('click', function (e) {
       e.preventDefault();
       this.parentElement.parentElement.classList.toggle('active');
+      syncExpanded();
     });
   });
 
@@ -73,6 +108,7 @@ function init() {
   dropdownBackdrops.forEach(el => {
     el.addEventListener('click', function () {
       this.parentElement.classList.remove('active');
+      syncExpanded();
     });
   });
 
@@ -172,21 +208,14 @@ function init() {
     isDark ? setTheme('theme-light') : setTheme('theme-dark');
   });
 
-  contentMenuTrigger && contentMenuTrigger.addEventListener('click', e => {
-    e.preventDefault();
-    contentMenu.classList.toggle('active');
-    if (contentMenu.classList.contains('active') && sectionMenu && sectionMenu.classList.contains('active')) {
-      sectionMenu.classList.remove('active');
-    }
-  });
+  function togglePanel(panel, other) {
+    panel.classList.toggle('active');
+    if (other && panel.classList.contains('active')) other.classList.remove('active');
+    syncExpanded();
+  }
 
-  sectionMenuTrigger && sectionMenuTrigger.addEventListener('click', e => {
-    e.preventDefault();
-    sectionMenu.classList.toggle('active');
-    if (sectionMenu.classList.contains('active') && contentMenu && contentMenu.classList.contains('active')) {
-      contentMenu.classList.remove('active');
-    }
-  });
+  contentMenuTrigger && contentMenuTrigger.addEventListener('click', () => togglePanel(contentMenu, sectionMenu));
+  sectionMenuTrigger && sectionMenuTrigger.addEventListener('click', () => togglePanel(sectionMenu, contentMenu));
 
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
@@ -195,6 +224,7 @@ function init() {
   highlightActiveDocsMenuItem();
   openFirstCollapsibleMenuItem();
   highlightMainMenu();
+  syncExpanded();
 }
 
 if (document.readyState === 'loading') {

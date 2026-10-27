@@ -78,6 +78,22 @@ main {
       display: flex;
       position: relative;
 
+      // the toggles of the docs menu and the TOC: shown by the narrow layouts, buttons in markup, not in look
+      .mobile-trigger {
+        display: none;
+        padding: 0;
+        border-radius: 0;
+        @include themify($themes) {
+          border: 0;
+          background-color: transparent;
+        }
+
+        // old engines can't make a button a flex container - the button itself centers only inline content there
+        &:after {
+          display: inline-block;
+        }
+      }
+
       .docs-menu {
         position: sticky;
         top: 1rem;
@@ -165,7 +181,6 @@ main {
 
             &:after {
               content: '';
-              display: block;
               width: 10px;
               height: 10px;
               transform: rotate(-45deg);
@@ -272,10 +287,6 @@ main {
           border-left: 1px solid themed('border-color-lighter');
         }
 
-        .mobile-trigger {
-          display: none;
-        }
-
         @include media('max', 'xl') {
           position: absolute;
           right: -1rem;
@@ -319,7 +330,6 @@ main {
 
             &:after {
               content: '';
-              display: block;
               transform: rotate(135deg);
               width: 10px;
               height: 10px;

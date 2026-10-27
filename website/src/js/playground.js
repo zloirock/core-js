@@ -2,6 +2,7 @@
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import { createPopper } from '@popperjs/core';
+import scrollToElement from './scroll-to.js';
 
 hljs.registerLanguage('javascript', javascript);
 
@@ -251,12 +252,7 @@ function init() {
       e.preventDefault();
       resultBlock.innerHTML = '';
       runCode(codeInput.value);
-      if (!elementInViewport(resultBlock)) {
-        window.scrollTo({
-          top: resultBlock.getBoundingClientRect().top + window.scrollY,
-          behavior: 'smooth',
-        });
-      }
+      if (!elementInViewport(resultBlock)) scrollToElement(resultBlock);
     });
   });
 
