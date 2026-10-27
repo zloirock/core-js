@@ -131,3 +131,4 @@ if (orphans.length) throw new Error(`polyfill-provider: ${ orphans.join(', ') } 
 const { green } = chalk;
 echo(`\n${ green('all polyfill-provider suites passed') }`);
 import './guard-preparation.mjs';
+import './discarded-init.mjs';

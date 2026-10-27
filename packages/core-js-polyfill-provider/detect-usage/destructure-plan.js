@@ -103,11 +103,13 @@ import {
   reusableArrayCaptureReceiver,
 } from '../destructure-host-shape.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { computedPropKeyHostsMachinery, planProxyReceiver } from './members.js';
+import { computedPropKeyHostsMachinery, harvestDiscardedReceiverSE, planProxyReceiver, shouldDropRescueReceiver } from './members.js';
 import { SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
 import {
   chainSealsAShortCircuit,
   computedKeyIsWellKnownSymbol,
+  decidedRunningPart,
+  directClaimProbeEffects,
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
   globalProxyMemberName,
@@ -155,6 +157,8 @@ import {
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   residualInitRunsEffects,
+  liftedInitElements,
+  liftedRealmNavEffect,
   destructurePatternHostPath,
   destructureRightIsReceiver,
   discardRescueNodesWithReads,
@@ -173,6 +177,46 @@ import {
   decidedRunningValue,
   constructorRestIndex,
 } from './destructure.js';
+
+// A discarded proxy receiver owes its harvested effects, or null when its read must stay.
+// Ask on the source initializer: a rewritten root no longer carries the navigation proof.
+// An empty list is a successful drop, distinct from an unproved drop (null).
+export function discardedReceiverEffects(init, ctx) {
+  const node = unwrapRuntimeExpr(init);
+  const { tail } = peelNestedSequenceExpressions(node);
+  if (!shouldDropRescueReceiver(unwrapRuntimeExpr(tail), ctx)) return null;
+  return harvestDiscardedReceiverSE(node, ctx);
+}
+
+// What a fully consumed initializer leaves at its original evaluation position. Both bindings
+// use this order: the running operand, observable reads, an accepted source probe, a dropped
+// navigation, then the remaining live value. A probe already owns its read and carried writes;
+// only its captured residual effects remain. No generated guard is re-analyzed here.
+// `replay` retains a source value (whole or trimmed), including stores that need the binding's
+// normal relocation treatment. Harvested nodes keep their existing ownership instead. Nodes
+// are borrowed, never mutated; bindings clone/move them and choose their native insertion slot.
+export function planDiscardedInit(init, ctx, probe = null) {
+  const node = unwrapRuntimeExpr(decidedRunningPart(init, ctx));
+  if (!node) return { effects: [], replay: false };
+  if (!mayHaveSideEffects(node)) {
+    return { effects: discardRescueNodesWithReads({ node, ...ctx }), replay: false };
+  }
+  if (probe) {
+    return { effects: directClaimProbeEffects(probe, probe.effects).filter(effect => effect !== probe.node), replay: false };
+  }
+  const discarded = discardedReceiverEffects(node, ctx);
+  if (discarded?.length === 0) return { effects: [], replay: false };
+  const realmNav = liftedRealmNavEffect(node, ctx);
+  if (realmNav) return { effects: realmNav.effects, replay: false };
+  // A getter read owns every effect buried in it; lifting the harvest as well would run them twice.
+  if (discardRescueNodesWithReads({ node, ...ctx })[0] === node) return { effects: [node], replay: true };
+  if (discarded) return { effects: discarded, replay: false };
+  const effects = liftedInitElements(node, ctx);
+  // An unchanged sequence keeps its own source span and comments, not just its children.
+  const keptWhole = node.type === 'SequenceExpression' && effects.length === node.expressions.length
+    && effects.every((effect, index) => effect === node.expressions[index]);
+  return { effects: keptWhole ? [node] : effects, replay: true };
+}
 
 // collapse a fallback init (logical / ternary / chain-assignment / transparent IIFE) to the
 // operand the flatten binds to, exactly like the flat meta - see the call site's contract

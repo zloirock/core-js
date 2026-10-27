@@ -28,6 +28,7 @@ import {
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   renderSynthLiteral,
+  planDiscardedInit,
   hostLevelSurvives,
   planCatchClauseExtraction,
   planLoopHeadExtraction,
@@ -2031,22 +2032,9 @@ export default function createDestructureDrains(ctx) {
     // right beside it would run them a second time - the dead host takes its right with it
     if (pruned.some(job => job.carriesInit)) return [];
     const [{ metaPath }] = pruned;
-    // ... and a right `mayHaveSideEffects` calls pure may still hold a receiver READ whose value only
-    // an object-literal getter could name: a plain member read looks inert to that predicate, so the
-    // rescue channel is where such a read reaches this host
-    if (!mayHaveSideEffects(assignment.right)) {
-      return discardRescueNodesWithReads({ node: assignment.right, scope: metaPath.scope, adapter, path: metaPath })
-        .map(expressionStatement);
-    }
-    // a nav off a call the census resolves to a realm keeps the call alone (the shared rule): its
-    // hops are dead reads, and their fold would print a bare ponyfill read
-    const site = { scope: metaPath.scope, adapter, path: metaPath };
-    const realmNav = liftedRealmNavEffect(assignment.right, site);
-    if (realmNav) return realmNav.effects.map(expressionStatement);
-    // ... and the rest lifts as one statement less its dead tail, the other leg's lift (`liftedInitElements`),
-    // of the part of a right the build decides that runs (`decidedRunningPart`)
-    const kept = liftedInitElements(decidedRunningPart(assignment.right, site), site);
-    return [expressionStatement(kept.length === 1 ? kept[0] : sequenceExpression(kept))];
+    const { effects, replay } = planDiscardedInit(assignment.right, { scope: metaPath.scope, adapter, path: metaPath, resolvePure });
+    // The consumed host releases these live ESTree nodes; no source-clone requeue is needed.
+    return (replay && effects.length > 1 ? [sequenceExpression(effects)] : effects).map(expressionStatement);
   }
 
   // the statement-position OVERWRITE host: the dispatches land after the destructure, and a slot the
