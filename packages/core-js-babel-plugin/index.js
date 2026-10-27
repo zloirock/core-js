@@ -230,16 +230,56 @@ function splitMinifierSequence(programPath, t, census) {
 }
 
 export default function plugin(api, options) {
-  // every clone in this plugin goes through the range-preserving wrapper: babel's own `cloneNode`
-  // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
-  const { types: babelTypes, caller } = api;
-  const t = rangePreservingTypes(babelTypes);
+  const { types } = api;
+  const isWebpack = api.caller?.(caller => caller?.name === 'babel-loader');
+  let babelTargets;
+  const getBabelTargets = typeof api.targets === 'function' ? () => babelTargets ??= api.targets() : null;
+  const stateKey = Symbol('core-js-file');
+  let idle = createFilePlugin(api, options, getBabelTargets, isWebpack);
 
   // Babel prints the value of a shorthand default, skipping comments on its key.
   // Share those comment objects with the value before the final generator runs.
   function inheritShorthandDefaultComments({ node }) {
-    if (node.shorthand && node.value?.type === 'AssignmentPattern') t.inheritsComments(node.value.left, node.key);
+    if (node.shorthand && node.value?.type === 'AssignmentPattern') types.inheritsComments(node.value.left, node.key);
   }
+
+  // Babel reuses a plugin instance across concurrent or nested files. A file owns its
+  // binding state through post(), including the late helper sweep and import flush.
+  // Reuse one completed state for sequential files; overlapping files get their own.
+  return {
+    name: 'core-js@4',
+    pre(...args) {
+      const state = idle ?? createFilePlugin(api, options, getBabelTargets, isWebpack);
+      idle = null;
+      this[stateKey] = state;
+      return state.pre.apply(this, args);
+    },
+    visitor: {
+      ObjectProperty: inheritShorthandDefaultComments,
+      Program: { exit(path, pass) {
+        return this[stateKey]?.visitor?.Program.exit.call(this, path, pass);
+      } },
+    },
+    post(...args) {
+      const state = this[stateKey];
+      try {
+        const result = state.post.apply(this, args);
+        idle = state;
+        return result;
+      } finally {
+        this[stateKey] = null;
+      }
+    },
+  };
+}
+
+// One native binding context. Configuration cache queries belong to the outer factory;
+// creating a context during an overlapping transform cannot reopen Babel's config cache.
+function createFilePlugin(api, options, getBabelTargets, isWebpack) {
+  // every clone in this plugin goes through the range-preserving wrapper: babel's own `cloneNode`
+  // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
+  const { types: babelTypes } = api;
+  const t = rangePreservingTypes(babelTypes);
 
   // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
   // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
@@ -314,7 +354,7 @@ export default function plugin(api, options) {
       isCallee: (node, parent) => isCalleeReference(parent, node),
       isSpreadElement: node => t.isSpreadElement(node),
     },
-    getBabelTargets: typeof api.targets === 'function' ? () => api.targets() : null,
+    getBabelTargets,
   });
 
   const { method, absoluteImports = false } = options;
@@ -466,9 +506,7 @@ export default function plugin(api, options) {
     },
   });
 
-  const isWebpack = caller?.(c => c?.name === 'babel-loader');
-
-  // per-plugin-instance adapter - closure reads current `injector` without module-level state.
+  // Per-binding-context adapter: each active file reads its own `injector`.
   // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const adapter = createBabelAdapter({
     getInjector: () => injector,
@@ -2928,7 +2966,6 @@ export default function plugin(api, options) {
             // pass would re-walk the whole file it just finished walking
             originalBodyNodes = new WeakSet(this.file.path.node.body);
           }),
-          visitor: { ObjectProperty: inheritShorthandDefaultComments },
           post: withBrand(function entryGlobalPost() {
             // the twin of `postHook`'s first line, for the same reasons spelled out there: last
             // reachable point, and ahead of every bail because a skipped file is reprinted too
@@ -2959,7 +2996,7 @@ export default function plugin(api, options) {
           pre: withBrand(function usageGlobalPre() {
             preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors));
           }),
-          visitor: { ObjectProperty: inheritShorthandDefaultComments, Program: { exit: withBrand(programExit) } },
+          visitor: { Program: { exit: withBrand(programExit) } },
           post: withBrand(postHook),
         };
       }
@@ -2968,7 +3005,7 @@ export default function plugin(api, options) {
         pre: withBrand(function usagePurePre() {
           preTraverse(this.file.path, usageWalkVisitors);
         }),
-        visitor: { ObjectProperty: inheritShorthandDefaultComments, Program: { exit: withBrand(programExit) } },
+        visitor: { Program: { exit: withBrand(programExit) } },
         post: withBrand(postHook),
       };
     })(),
