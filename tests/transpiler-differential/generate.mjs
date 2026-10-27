@@ -20310,6 +20310,29 @@ function * generateMemberBindingDeclarations() {
   };
 }
 
+// A computed method name reads outside its parameter binding; the body reads the supplied receiver.
+function * generateMemberBindingPresence() {
+  for (const shape of ['object', 'class']) for (const wrapped of [false, true]) {
+    const owner = `${ shape === 'class' ? 'new class' : '' } {
+      [(effects.push('key'), Array.from([1])[0])](Array) {
+        effects.push('body');
+        return Array.from((effects.push('argument'), [2]));
+      }
+    }`;
+    yield {
+      name: `member-binding-presence/${ shape }/${ wrapped ? 'rebuilt' : 'direct' }`,
+      code: `const effects = [];
+        const receiver = { tag: 10, from(xs) { effects.push('user'); return this.tag + xs[0]; } };
+        const out = [];
+        ${ wrapped ? `out.push((${ owner })[1](receiver));`
+          : `const box = ${ owner }; const value = box[1](receiver); out.push(value);` }
+        const r = out;
+        export { r, effects };`,
+      strip: true,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20699,4 +20722,5 @@ export function * generate() {
   yield * generateCopiedCallbackWrites();
   yield * generateMemberBindingFrames();
   yield * generateMemberBindingDeclarations();
+  yield * generateMemberBindingPresence();
 }
