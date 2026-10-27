@@ -13,7 +13,7 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    rhino: '1.7.14',
+    rhino: '1.7.13',
     safari: '9.0',
   },
   'es.symbol.description': {
@@ -50,7 +50,7 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    rhino: '1.7.14',
+    rhino: '1.7.13',
     safari: '9.0',
   },
   'es.symbol.has-instance': {
@@ -82,7 +82,7 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    rhino: '1.7.14',
+    rhino: '1.7.13',
     safari: '9.0',
   },
   'es.symbol.match': {
@@ -172,7 +172,7 @@ export const data = {
     firefox: '11',
     hermes: '0.1',
     ie: '9',
-    rhino: '1.7.14',
+    rhino: '1.7.13',
     safari: '8.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
@@ -516,7 +516,7 @@ export const data = {
     firefox: '29',
     hermes: '0.1',
     ie: '11',
-    rhino: '1.9.0',
+    rhino: '1.7.13',
     safari: '7.1',
   },
   'es.array-buffer.slice': {
@@ -1179,7 +1179,7 @@ export const data = {
     edge: '18',
     firefox: '87',
     hermes: '0.1',
-    rhino: '1.7.14',
+    rhino: '1.7.13',
     safari: '11',
   },
   'es.number.to-fixed': {
@@ -1302,7 +1302,7 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    rhino: '1.7.14',
+    rhino: '1.7.13',
     safari: '9.0',
   },
   'es.object.get-prototype-of': {
@@ -2210,7 +2210,7 @@ export const data = {
     edge: '13',
     firefox: '34',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.every': {
@@ -2218,7 +2218,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.fill': {
@@ -2233,7 +2233,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.find': {
@@ -2241,7 +2241,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.find-index': {
@@ -2249,7 +2249,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.find-last': {
@@ -2271,7 +2271,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.from': {
@@ -2285,7 +2285,7 @@ export const data = {
     edge: '14',
     firefox: '43',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.index-of': {
@@ -2293,7 +2293,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.iterator': {
@@ -2308,7 +2308,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.last-index-of': {
@@ -2316,7 +2316,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.map': {
@@ -2324,7 +2324,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.of': {
@@ -2338,7 +2338,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.reduce-right': {
@@ -2346,7 +2346,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.reverse': {
@@ -2354,7 +2354,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.set': {
@@ -2369,7 +2369,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.some': {
@@ -2377,14 +2377,14 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.sort': {
     chrome: '74',
     firefox: '67',
     hermes: '0.10',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
@@ -2393,14 +2393,14 @@ export const data = {
     edge: '13',
     firefox: '15',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.7.13',
     safari: '7.1',
   },
   'es.typed-array.to-locale-string': {
     chrome: '45',
     firefox: '51',
     hermes: '0.1',
-    rhino: '1.9.0',
+    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.typed-array.to-reversed': {

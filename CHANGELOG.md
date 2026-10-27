@@ -20,7 +20,7 @@
     - [Bun 1.4.1](https://bun.com/blog/bun-v1.4.1#upgraded-javascriptcore)
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
-  - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported
+  - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0
   - Chromium-based Edge and Opera no longer inherit EdgeHTML and Presto data where Chrome needs a later version: `Array.prototype.{ reduce, reduceRight }` are no longer marked as supported in Edge 79-82, `Object.{ defineProperty, defineProperties }` - in Opera 15-23, `atob` - in Opera 15-20
   - Fixed Opera 120 compat data mapping: `RegExp.escape`, `SuppressedError`, `DisposableStack`, `AsyncDisposableStack` and `Iterator.prototype[@@dispose]` are no longer marked as supported
   - Fixed Electron 0.21, 0.30, 0.31 and 1.4 compat data mapping

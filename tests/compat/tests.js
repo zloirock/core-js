@@ -1,7 +1,8 @@
 'use strict';
 /* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
 /* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
-var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
+// built-ins are read from here: in the Rhino shell, `global` is a function, not the global object
+var GLOBAL = Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
   '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
 
@@ -354,7 +355,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   };
 }
 
-GLOBAL.tests = {
+// the runner modules share data through `global` where it exists: with `-require`, each Rhino module has its own `this`
+(typeof global != 'undefined' ? global : GLOBAL).tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
     var symbol = Symbol('stringify detection');
@@ -1080,8 +1082,10 @@ GLOBAL.tests = {
         Infinity.toExponential(Infinity);
         NaN.toExponential(Infinity);
         return (-6.9e-11).toExponential(4) === '-6.9000e-11'
-          && 1.255.toExponential(2) === '1.25e+0';
-        // && 25.0.toExponential(0) === '3e+1';
+          && 1.255.toExponential(2) === '1.25e+0'
+          // FF86-, V8 ~ Chrome 49-50
+          && (12345).toExponential(3) === '1.235e+4'
+          && (25).toExponential(0) === '3e+1';
       }
     }
   },
@@ -1184,9 +1188,10 @@ GLOBAL.tests = {
     return Object.preventExtensions(true);
   },
   'es.object.proto': function () {
-    // Deno 2.9+ patch this accessor, so we can't use `in` for feature detection
-    // eslint-disable-next-line no-proto -- detection
-    return {}.__proto__ === Object.prototype;
+    // Deno 2.9+ patch this accessor, so we can't use `in` for feature detection;
+    // a computed key like in the module: Rhino < 1.9 supports only `{}.__proto__`
+    var PROTO = '__proto__';
+    return {}[PROTO] === Object.prototype;
   },
   'es.object.seal': function () {
     return Object.seal(true);
