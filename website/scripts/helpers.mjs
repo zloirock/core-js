@@ -153,11 +153,13 @@ export function getBranchPreviewName(branch) {
   return branch.replaceAll('/', '~');
 }
 
+// the default version by its path: the directory of its pages and the prefix of their URLs, not its label
 export async function getDefaultVersion(versionFile, defaultVersion = null) {
   if (defaultVersion) return defaultVersion;
 
   const versions = await readJSON(versionFile);
-  return versions.find(v => v.default)?.label;
+  const version = versions.find(v => v.default);
+  return version?.path ?? version?.label;
 }
 
 export async function readJSON(filePath) {

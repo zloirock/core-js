@@ -22,9 +22,9 @@ export default class RunButtonPlugin {
       const urlParams = new URLSearchParams();
       urlParams.set('code', text);
       const hash = urlParams.toString();
-      const hasVersion = this.RELATIVE_PATH !== '' && !this.RELATIVE_PATH.startsWith('docs/') && !this.RELATIVE_PATH.startsWith('index');
-      const version = hasVersion ? `${ this.RELATIVE_PATH.split('/')[0] }/` : '';
-      location.href = `${ this.ORIGIN }${ this.BASE_URL }${ version }${ this.PLAYGROUND_URL }#${ hash }`;
+      // only the pages of versioned docs, `<version>/docs/...`, have the playground of their version
+      const version = /^([^/]+)\/docs\//.exec(this.RELATIVE_PATH)?.[1];
+      location.href = `${ this.ORIGIN }${ this.BASE_URL }${ version ? `${ version }/` : '' }${ this.PLAYGROUND_URL }#${ hash }`;
     });
     const wrapper = document.createElement('div');
     wrapper.classList.add('hljs-run');

@@ -100,10 +100,10 @@ function getBundlesPath(version) {
   return path.join(config.bundlesPath, encodePath(version.branch ?? version.tag));
 }
 
-async function buildVersionsMenuList(versions, currentVersion, section) {
+async function buildVersionsMenuList(versions, currentPath, section) {
   let versionsMenuHtml = '<div class="dropdown-block">';
   for (const v of versions) {
-    const activityClass = v.label === currentVersion && !v.default ? ' class="active"' : '';
+    const activityClass = v.path === currentPath && !v.default ? ' class="active"' : '';
     const defaultBadge = v.default ? ' (default)' : '';
     const versionPath = v.default ? '' : `${ v.path }/`;
     versionsMenuHtml += `<a href="./${ versionPath }${ section }"${ activityClass }>${ escapeLabel(v.label) }${ defaultBadge }</a>`;
@@ -113,11 +113,13 @@ async function buildVersionsMenuList(versions, currentVersion, section) {
   return versionsMenuHtml;
 }
 
-async function buildVersionsMenu(versions, currentVersion, section) {
-  const innerMenu = await buildVersionsMenuList(versions, currentVersion, section);
+async function buildVersionsMenu(versions, currentPath, section) {
+  const innerMenu = await buildVersionsMenuList(versions, currentPath, section);
+  // a page knows its version by the path, the menu shows its label
+  const label = versions.find(v => v.path === currentPath)?.label ?? currentPath;
 
   return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
-    escapeLabel(currentVersion) }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
+    escapeLabel(label) }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
 }
 
 let fileMetadata = {};
@@ -165,11 +167,14 @@ function resolveRepositoryPath(href) {
 const linkRenderer = {
   link({ href, text }) {
     const htmlContent = markedInline.parseInline(text);
-    if (href.startsWith('#')) href = resolveAnchor(href);
+    const inPage = href.startsWith('#');
+    if (inPage) href = resolveAnchor(href);
     else if (href.startsWith('{docs-version}')) href = resolvePageAnchor(href);
     else if (fileMetadata.repoPath && isRelativePath(href)) href = resolveRepositoryPath(href);
     const isExternal = /^https?:\/\//.test(href);
     let html = `<a href="${ href }"`;
+    // like the TOC, an in-page anchor has the versioned path of its page, which the client strips on the `docs/` alias
+    if (inPage) html += ` class="with-docs-version" data-default-version="${ LINKS_DEFAULT_VERSION }"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${ htmlContent }</a>`;
     return html;
@@ -276,7 +281,7 @@ async function buildPlayground(template, version, versions) {
   const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
   const babelScript = '<script src="./babel.min.js"></script>';
   const playgroundContent = await readFile(`${ config.srcDir }playground.html`, 'utf8');
-  const versionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
+  const versionsMenu = await buildVersionsMenu(versions, version.path, 'playground');
   let playground = template.replace('{content}', playgroundContent);
   playground = playground.replace('{base}', BASE);
   playground = playground.replace('{title}', 'Playground - ');
@@ -381,7 +386,9 @@ async function build() {
       document.querySelectorAll('h2[id], h3[id], h4[id], h5[id], h6[id]').forEach(heading => {
         const newHeading = heading.cloneNode(true);
         const anchor = document.createElement('a');
-        anchor.className = 'anchor';
+        // like the TOC, the anchor has the versioned path of its page, which the client strips on the `docs/` alias
+        anchor.className = 'anchor with-docs-version';
+        anchor.dataset.defaultVersion = LINKS_DEFAULT_VERSION;
         anchor.href = `${ htmlFileName.replace('.html', '') }#${ newHeading.id }`;
         anchor.innerHTML = '<svg viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg>';
         newHeading.append(anchor);
