@@ -12303,7 +12303,7 @@ function isUpdateOperandWrapper(node) {
 
 // per-branch peel for fallback receivers: paren / TS / chain wrappers AND SequenceExpression
 // tail (`cond ? (0, Array) : Iterator` -> Array). SE prefix preserved at apply time via
-// `unwrapSequenceTail` (synth-swap replaces only the inner Identifier, prefix stays in the
+// `unwrapSafeSequenceTailPath` (synth-swap replaces only the inner Identifier, prefix stays in the
 // AST so `logCall()` side-effects in `(logCall(), Array)` still run). alternates the two
 // peel layers until stable so mixed shapes `cond ? ((0, Array) as any) : ...` reach the leaf
 // the `visited` set spans BOTH loops, so the alternation between them is guarded as a whole
@@ -13144,6 +13144,19 @@ export function peelNestedSequenceExpressions(node) {
 // where the polyfill belongs). shared between babel-plugin and unplugin synth-swap
 export function unwrapSafeSequenceTail(node) {
   return peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr });
+}
+
+// The live path of the same tail. Replacing it leaves every sequence prefix in place;
+// both native path APIs expose the existing source slot without cloning or a subtree search.
+export function unwrapSafeSequenceTailPath(path) {
+  while (path?.node) {
+    path = peelSkippableWrapperPath(path);
+    if (path?.node?.type !== 'SequenceExpression') return path;
+    const tail = path.get('expressions').at(-1);
+    if (!tail) return path;
+    path = tail;
+  }
+  return path;
 }
 
 // ONE sequence level's tail, the value a bare `(eff(), x)` root hands on. a NESTED sequence
