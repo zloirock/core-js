@@ -558,7 +558,7 @@ export default function createAstDestructureEmitter({
     }
     if (!isSynthSimpleObjectPattern(pattern)
       || !patternComputedKeysSynthSafe({ objectPatternNode: pattern, scope: metaPath.scope, adapter, path: metaPath })) return false;
-    const receiver = findSynthSwapReceiver(hostParent, pattern, metaPath.scope, adapter, resolvePure);
+    const receiver = findSynthSwapReceiver(hostParent, pattern, adapter, resolvePure);
     let baseIdent = receiver;
     let leadingEffects = null;
     let passthroughPrefix = null;
