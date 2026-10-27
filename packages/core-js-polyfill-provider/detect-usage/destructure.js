@@ -39,6 +39,7 @@ import {
   findNodeSlot,
   findEnclosingFunctionLikePath,
   findIifeCallSite,
+  findIifeArgPath,
   findObjectKeyBeforeSpread,
   flattenInlineArraySpreads,
   flattenBranchKeys,
@@ -157,6 +158,7 @@ import {
   propertyKeyName,
   CLASS_NODE_TYPES,
   unwrapSafeSequenceTail,
+  unwrapSafeSequenceTailPath,
   VALUE_FLOW_ASSIGN_OPS,
   varInitDominatesUsage,
   memberKeyName,
@@ -180,6 +182,8 @@ import {
 import { canonicalArrayIndex, literalNodeValue, PATTERN_WRAPPERS, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { ORPHAN_REF_PATTERN } from '../injector-base.js';
 import {
+  isClassifiableReceiverArg,
+  isExpandedClassifiableReceiver,
   findNamespaceMemberValue,
   isUsableFallbackReceiverArg,
 } from '../helpers/class-walk.js';
@@ -213,6 +217,7 @@ import {
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   decidedLiveOperand,
+  decidedLiveOperandKey,
   decidedRunningPart,
   decidedRunningPath,
   reachableAliasValues,
@@ -1891,9 +1896,9 @@ export function resolvableArgSupersedesDeadDefault({
   return !yieldsAny(defaultNode, scope, path) && yieldsAny(argNode, argScope, argPath);
 }
 
-// the IIFE-param fallback receiver choice, single-sourced across the meta layer and both emitters: a
-// classifiable arg (or per-branch conditional / logical) wins; else a safe-access proxy-global arg wins
-// over a polyfill-DEAD-END default; else the default
+// The receiver to enumerate for an IIFE parameter: an argument with classifiable branches wins,
+// then a resolvable argument over a polyfill-dead default, otherwise the default. Branch enumeration
+// accepts unresolved selections; selecting one replacement slot uses findSynthSwapReceiverPath.
 export function chooseFallbackReceiverNode({
   argNode,
   defaultNode,
@@ -1918,6 +1923,45 @@ export function chooseFallbackReceiverNode({
     argPath,
   })) return argNode;
   return defaultNode;
+}
+
+// The source slot to replace with a synthesized receiver, shared by both emitters. A classifiable
+// IIFE argument wins; a resolvable argument wins over a polyfill-dead default; otherwise retain the
+// default for an undefined argument. Each value is proved in its own evaluation frame. Rest declines.
+// Defaults keep a whole ||/?? for left-collapse, but peel decided ternaries/&& and sequence tails;
+// prefixes stay at their source slots. Without a default, an expanded classifiable argument suffices.
+// The returned native path carries identity and scope; this decision never rewrites or clones it.
+export function findSynthSwapReceiverPath(wrapperPath, objectPattern, adapter, resolvePure) {
+  if (objectPattern?.properties?.some(isRestProperty)) return null;
+  const wrapper = wrapperPath?.node;
+  const hasDefault = wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern;
+  let defaultPath = hasDefault ? unwrapSafeSequenceTailPath(wrapperPath.get('right')) : null;
+  if (defaultPath) {
+    while (defaultPath.node.type !== 'LogicalExpression' || defaultPath.node.operator === '&&') {
+      const key = decidedLiveOperandKey(defaultPath.node, { scope: defaultPath.scope, adapter, path: defaultPath });
+      if (!key) break;
+      defaultPath = unwrapSafeSequenceTailPath(defaultPath.get(key));
+    }
+  }
+  const rawArgument = findIifeArgPath(hasDefault ? wrapperPath.parentPath : wrapperPath,
+    hasDefault ? wrapper : objectPattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
+  const argument = rawArgument
+    && unwrapSafeSequenceTailPath(decidedRunningOperandPath(unwrapSafeSequenceTailPath(rawArgument), adapter));
+  if (!defaultPath) {
+    return argument && isExpandedClassifiableReceiver({
+      node: argument.node, scope: argument.scope, path: argument, adapter,
+    }) ? argument : null;
+  }
+  if (argument && (isClassifiableReceiverArg(argument.node, argument.scope, adapter)
+    || resolvableArgSupersedesDeadDefault({
+      argNode: argument.node, defaultNode: defaultPath.node, objectPattern,
+      scope: defaultPath.scope, path: defaultPath, adapter, resolvePure,
+      argScope: argument.scope, argPath: argument,
+    }))) return argument;
+  const fallback = defaultPath.node.type === 'LogicalExpression' && defaultPath.node.operator !== '&&';
+  const left = fallback ? unwrapSafeSequenceTailPath(decidedRunningPath(defaultPath.get('left'), adapter))?.node : null;
+  return (fallback && (isReceiverShapedNode(left) || invocationNode(left)))
+    || isReceiverShapedNode(defaultPath.node) || defaultPath.node.type === 'ThisExpression' ? defaultPath : null;
 }
 
 // does the value an extraction SPELLS perform every effect its init would? then the residual may be
