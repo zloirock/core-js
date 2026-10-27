@@ -8,7 +8,7 @@ await $`eslint \
   --concurrency=${ CONCURRENCY ? 'auto' : 'off' } \
   --cache \
   --cache-strategy content \
-  --cache-location: ${ CACHE_PATH } \
+  --cache-location ${ CACHE_PATH } \
   --config ./tests/eslint/eslint.config.js ./ \
   --fix=${ !!FIX } \
 `;
