@@ -2,6 +2,7 @@
 // TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.array.iterator');
 var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var call = require('../internals/function-call');
@@ -343,8 +344,9 @@ $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
   URLSearchParams: URLSearchParamsConstructor
 });
 
-// Wrap `fetch` and `Request` for correct work with polyfilled `URLSearchParams`
-if (!USE_NATIVE_URL && isCallable(Headers)) {
+// Wrap `fetch` and `Request` for correct work with polyfilled `URLSearchParams`; not in the pure version: nothing there
+// reads the wrappers, and the `Request` one would rewrite the native `Request.prototype.constructor`
+if (!IS_PURE && !USE_NATIVE_URL && isCallable(Headers)) {
   var headersHas = uncurryThis(HeadersPrototype.has);
   var headersSet = uncurryThis(HeadersPrototype.set);
 
