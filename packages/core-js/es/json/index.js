@@ -2,6 +2,7 @@
 require('../../modules/es.object.create');
 require('../../modules/es.object.freeze');
 require('../../modules/es.object.keys');
+require('../../modules/es.date.to-iso-string');
 require('../../modules/es.date.to-json');
 require('../../modules/es.json.is-raw-json');
 require('../../modules/es.json.parse');

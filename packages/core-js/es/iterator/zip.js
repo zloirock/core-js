@@ -19,7 +19,6 @@ require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
 require('../../modules/es.iterator.windows');
 require('../../modules/es.iterator.zip');
-require('../../modules/web.dom-collections.iterator');
 
 var path = require('../../internals/path');
 

@@ -3,16 +3,20 @@
 - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
 - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
 - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
-- Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies of `/es/` and `/stable/` namespaces, the `JSON.parse` source text access proposal entry and the stage 4 entry, a regression since 3.47.0
 - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator (Firefox < 46)
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
-- Fixed order of `/full/promise/all-settled` entry dependencies
-- Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy`, `Map.prototype.merge` and `AsyncIterator.prototype.flatMap` entries and of `/es/object/` namespace
-- Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
-- Fixed legacy `/full/typed-array/from-async` entry dependencies
-- Fixed `DataView` dependencies of `/array-buffer/constructor` entries, a regression since 3.36.0, of some `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }`, `ArrayBuffer.isView` and `ArrayBuffer.prototype.slice` entries
+- Entries fixes:
+  - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies of `/es/` and `/stable/` namespaces, the `JSON.parse` source text access proposal entry and the stage 4 entry, a regression since 3.47.0
+  - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
+  - Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
+  - Fixed `Map` dependencies of `/actual/array/` and `/full/array/` namespace entries, a regression since 3.29.1
+  - Fixed `DataView` dependencies of `/array-buffer/constructor` entries, a regression since 3.36.0, of some `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }`, `ArrayBuffer.isView` and `ArrayBuffer.prototype.slice` entries
+  - Fixed legacy `/full/typed-array/from-async` entry dependencies
+  - Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy`, `Map.prototype.merge` and `AsyncIterator.prototype.flatMap` entries and of `/es/object/` namespace
+  - `/es/iterator/{ concat, zip, zip-keyed }` entries no longer load DOM collections iterators, `/stable/iterator/concat` - the `esnext.` alias module
+  - Fixed order of `/full/promise/all-settled` entry dependencies
 - Compat data improvements:
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
