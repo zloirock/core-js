@@ -209,20 +209,24 @@ function init() {
       return navigator.clipboard.writeText(text);
     }
 
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.classList.add('copy-fallback');
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+    // the fallback is synchronous: in a promise both ways answer alike, and its exception becomes the rejection
+    return new Promise(resolve => {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.classList.add('copy-fallback');
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
 
-    try {
-      if (!document.execCommand('copy')) {
-        throw new Error('Copy command was unsuccessful');
+      try {
+        if (!document.execCommand('copy')) {
+          throw new Error('Copy command was unsuccessful');
+        }
+      } finally {
+        document.body.removeChild(textArea);
       }
-    } finally {
-      document.body.removeChild(textArea);
-    }
+      resolve();
+    });
   }
 
   function showTooltip(element, message, time = 3000) {
@@ -261,12 +265,11 @@ function init() {
       e.preventDefault();
       pageParams.set('code', codeInput.value);
       location.hash = String(pageParams);
-      try {
-        copyToClipboard(String(location));
+      copyToClipboard(String(location)).then(() => {
         showTooltip(linkButton, 'Link copied');
-      } catch {
+      }).catch(() => {
         showTooltip(linkButton, 'Can\'t copy link. Please copy the link manually');
-      }
+      });
     });
   });
 
