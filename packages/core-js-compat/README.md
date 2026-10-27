@@ -79,8 +79,9 @@ console.log(targets);
   safari: '14.0',         // Safari version
   samsung: '14.0',        // Samsung Internet version
   /**
-   * `true` sets the targets to the minimal versions of all browsers that support ES modules, ignoring the `browsers` target.
-   * 'intersect' option intersects the `browsers` target and `browserslist`'s targets. The maximum version will be used.
+   * `true` adds the minimal versions of all engines that support ES modules to the targets, ignoring the `browsers` target.
+   * 'intersect' option keeps only engines that support ES modules in the targets (including the `browsers` target),
+   * versions below the minimal ones with ES modules support are raised to them.
    */
   esmodules: true | 'intersect',
   browsers: '> 0.25%',    // Browserslist query or object with target browsers
