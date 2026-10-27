@@ -48,6 +48,7 @@ import './binding-reference-index.mjs';
 import './binding-query-cache.mjs';
 import './binding-node-type.mjs';
 import './owner-write-paths.mjs';
+import './for-x-head-lookups.mjs';
 import './served-reads.mjs';
 import './member-context-paths.mjs';
 import './ast-input-context.mjs';
