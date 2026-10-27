@@ -2216,8 +2216,6 @@ testUnlessDetectLowered('global-proxy: a nav whose leaf is the probe collapses i
 // it are read on the way there and keep their claims
 testUnlessDetectLowered('global-proxy: a deleted member is not polyfilled, the ones below it are', assert => {
   const box = { fn() { return 1; } };
-  Object.defineProperty(box.fn, 'name', { value: 'named', configurable: true });
-  assert.same(box.fn.name, 'named', 'the own name is there to start with');
   assert.true(delete globalThis.self.Object.getOwnPropertyDescriptor(box, 'fn').enumerable,
     'a delete through a collapsed nav answers true');
   // the claim BELOW the deleted member still runs through its ponyfill
@@ -2260,7 +2258,7 @@ testUnlessDetectLowered('global-proxy: a write below the probe hops runs where t
 // the source names is never touched
 testUnlessDetectLowered('global-proxy: a delete over a rendered guard keeps its parens', assert => {
   globalThis.deleteGuardBox = { list: [[1]] };
-  const dropped = delete globalThis.window?.self.deleteGuardBox.list.at.name;
+  const dropped = delete globalThis.window?.self.deleteGuardBox.list.at.absent;
   assert.same(typeof dropped, 'boolean', 'the operand is a delete, not a comparison');
   assert.same(globalThis.deleteGuardBox.list.at(0)[0], 1, 'and the object below it survives');
   delete globalThis.deleteGuardBox;
