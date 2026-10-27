@@ -9,7 +9,7 @@
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
 - Fixed order of `/full/promise/all-settled` entry dependencies
-- Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy` and `Map.prototype.merge` entries and of `/es/object/` namespace
+- Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy`, `Map.prototype.merge` and `AsyncIterator.prototype.flatMap` entries and of `/es/object/` namespace
 - Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
 - Fixed legacy `/full/typed-array/from-async` entry dependencies
 - Fixed `DataView` dependencies of `/array-buffer/constructor` entries, a regression since 3.36.0, of some `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }`, `ArrayBuffer.isView` and `ArrayBuffer.prototype.slice` entries
