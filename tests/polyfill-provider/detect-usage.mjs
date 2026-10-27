@@ -1291,10 +1291,6 @@ const unionAdapter = {
   ...provenanceAdapter,
   method: 'usage-global',
   getBinding({ scope, name }) { return scope?.getBinding?.(name); },
-  // the branch-objects axis probes the receiver's declarator through the full scope-adapter
-  // surface; a null node-type makes the indirection resolver bail, keeping these units on the
-  // reachable-reassignment axis they lock
-  getBindingNodeType() { return null; },
   hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
 };
 for (const [source, expected] of [
@@ -1513,7 +1509,6 @@ const superBaseAdapter = {
   isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
   getStringValue(node) { return node.value; },
   hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
-  getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
   isMutatedStatic() { return false; },
   getBinding({ scope, name }) {
     const binding = scope?.getBinding?.(name);
@@ -2116,7 +2111,6 @@ function realmScopeAdapter(adapter) {
     getStringValue(node) { return node.value; },
     hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
     getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
-    getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
     isMutatedStatic() { return false; },
   };
 }
@@ -2660,7 +2654,6 @@ function hintAdapter(hints) {
       const binding = scope?.getBinding?.(name);
       return binding && hints[name] ? { ...binding, polyfillHint: hints[name] } : binding;
     },
-    getBindingNodeType() { return null; },
   };
 }
 const SYMBOL_REF_CASES = [

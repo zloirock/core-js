@@ -362,3 +362,12 @@ QUnit.test('chain: copied callbacks retain their receiver writes', assert => {
   assert.deepEqual(result, [[1, 'b', true], ['c', 8, true]]);
   assert.deepEqual(effects, ['read0', 'write0', 'read1', 'write1']);
 });
+
+QUnit.test('chain: static calls through binding declarations preserve arguments', assert => {
+  const effects = [];
+  const first = { owner: Array };
+  const second = first;
+  const result = second.owner?.from((effects.push('argument'), [2, 3]));
+  assert.deepEqual(result, [2, 3]);
+  assert.deepEqual(effects, ['argument']);
+});

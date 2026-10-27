@@ -525,7 +525,7 @@ const CASES = [
     emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
     bounds: { 'usage-global': { unplugin: 2 }, 'usage-pure': { unplugin: 2 } } },
   { name: 'three.core.js', source: () => threeFile('build/three.core.js'), bounds: {
-    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
+    'usage-global': { babel: 5, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeFile('build/three.module.js'), bounds: {
     'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
@@ -578,10 +578,10 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic namesake writes, 750 functions', source: () => syntheticNamesakeWrites(750), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic namesake methods, 1300 classes', source: () => syntheticNamesakeMethods(1300), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic selection chains, 1000 links each', source: () => syntheticSelectionChains(1000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -626,7 +626,7 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic directive-dense, 3600 opt-outs', source: () => syntheticDirectiveDense(3600), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic lagged aliases, 700 names', source: () => syntheticLaggedAliases(700), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },

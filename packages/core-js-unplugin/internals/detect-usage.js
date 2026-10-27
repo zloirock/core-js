@@ -197,7 +197,7 @@ function isAmbientBinding(binding) {
 // surfaces it for a use OUTSIDE the block - a method reading the global past `static { let Promise;
 // }`. true when `native` is such a binding and `path` does NOT sit inside its block, so the
 // block-local declaration must not shadow the real global used outside. hasRuntimeBinding +
-// getBinding + getBindingNodeType share this so they stay consistent - matching babel, which scopes
+// getBinding share this so the two answers stay consistent - matching babel, which scopes
 // both blocks correctly
 function isOverHoistedBlockBinding(native, path) {
   if (!native || !path) return false;
@@ -520,7 +520,7 @@ export function closestVisibleNativeBinding(scope, name, path) {
   });
 }
 
-// closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
+// closest-binding resolution for getBinding (hasRuntimeBinding
 // shares the same primitives and branch order): forward `path` so the lookup stays position-aware;
 // walk past a native binding invisible at the use (over-hoisted namespace /
 // case-block let outside the cases); prefer the synthesized var-hoist binding when the visible
@@ -781,14 +781,6 @@ export function createEstreeAdapter(options = {}) {
         ? assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath, readNode })
         : soleAliasWrite({ binding: b, assignNode }))
         ? assignNode : null;
-    },
-    getBindingNodeType({ scope, name, path = null, read = null }) {
-      // stay consistent with getBinding through the SAME closest-binding resolution: a
-      // use-invisible native binding must not report its declarator type (else the resolver
-      // type-gates into resolveVariableBindingToGlobal with the null binding getBinding
-      // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
-      const { native, synth } = resolveClosestBinding({ scope, name, path, getScopeBinding, read: climbedRead(read) });
-      return synth ? synth.node.type : native?.path?.node?.type ?? null;
     },
     // estree-toolkit registers no binding for TSImportEquals at all (see hasTSRuntimeBinding) -
     // surface the declaration node through a dedicated lookup so the resolution canon can read

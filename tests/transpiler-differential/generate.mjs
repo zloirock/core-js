@@ -20297,6 +20297,19 @@ function * generateMemberBindingFrames() {
   }
 }
 
+// Reusing a binding's declaration type must preserve static calls through aliases and containers.
+function * generateMemberBindingDeclarations() {
+  for (const container of [false, true]) for (const optional of [false, true]) yield {
+    name: `member-binding-declarations/${ container ? 'container' : 'alias' }/${ optional ? 'optional' : 'direct' }`,
+    code: `const effects = [];
+      const first = ${ container ? '{ owner: Array }' : 'Array' };
+      const second = first;
+      const r = second${ container ? '.owner' : '' }${ optional ? '?.' : '.' }from((effects.push('argument'), [2, 3]));
+      export { r, effects };`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20685,4 +20698,5 @@ export function * generate() {
   yield * generateCallableMemberTails();
   yield * generateCopiedCallbackWrites();
   yield * generateMemberBindingFrames();
+  yield * generateMemberBindingDeclarations();
 }
