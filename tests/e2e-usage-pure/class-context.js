@@ -610,3 +610,21 @@ QUnit.test('class context: a static block declaration covers only its own block'
   assert.deepEqual(ranged, [0, 1, 2]);
   assert.deepEqual(Shadowed.zipped(), [[1, 3], [2, 4]]);
 });
+// A computed name reads the outer binding; the method default and its later write have their own values.
+QUnit.test('class: member reads across definition and parameter frames', assert => {
+  const value = 'outer';
+  let keys = 0;
+  class Box {
+    // eslint-disable-next-line no-shadow -- definition-time and parameter bindings must stay distinct
+    [(keys++, value.at(0))](value = [1, 2]) {
+      const first = value.at(-1);
+      value = 'ab';
+      return [first, value.includes('b')];
+    }
+  }
+  const box = new Box();
+  assert.deepEqual(box.o(), [2, true]);
+  assert.deepEqual(box.o?.([3, 4]), [4, true]);
+  assert.same(keys, 1);
+  assert.same(value, 'outer');
+});

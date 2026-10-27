@@ -32,6 +32,7 @@ import {
   boundInvocation,
   bindingLoopAnchor,
   canHoldBuiltIn,
+  canonAnswerTable,
   CENSUS_CONTAINER_TYPES,
   CLASS_NODE_TYPES,
   CLASS_DATA_FIELD_TYPES,
@@ -48,6 +49,7 @@ import {
   collectParamBindingNames,
   computedKeyStaticName,
   createDeclaredNameIndex,
+  cycleGuardCuts,
   declarationScopeIn,
   declarationScopesOf,
   declaredIdentifierNodes,
@@ -8697,7 +8699,20 @@ export function createDetectionAdapter({
     // that window (injector-only sourcing left the pre-pass packages-blind there)
     get packages() { return getPackages(); },
   };
-  return Object.defineProperties(adapter, Object.getOwnPropertyDescriptors(buildHostMembers(adapter)));
+  const descriptors = Object.getOwnPropertyDescriptors(buildHostMembers(adapter));
+  const lookup = descriptors.getBinding?.value;
+  // Binding metadata includes live writes and injector hints: reuse it only while the question
+  // keeps the tree and registry unchanged. Scope, use and read anchors distinguish shadows and
+  // definition-time slots; derived adapters keep their own answers. Re-entrant asks stay live.
+  if (lookup) descriptors.getBinding.value = function (ask) {
+    const table = canonAnswerTable(lookup, [this, ask.scope, ask.path ?? null, ask.read ?? null]);
+    if (table?.has(ask.name)) return table.get(ask.name);
+    const cuts = cycleGuardCuts();
+    const value = lookup.call(this, ask);
+    if (cycleGuardCuts() === cuts) table?.set(ask.name, value);
+    return value;
+  };
+  return Object.defineProperties(adapter, descriptors);
 }
 
 // --- slot-DEOPT model (usage-pure) ---
