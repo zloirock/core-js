@@ -8700,18 +8700,21 @@ export function createDetectionAdapter({
     get packages() { return getPackages(); },
   };
   const descriptors = Object.getOwnPropertyDescriptors(buildHostMembers(adapter));
-  const lookup = descriptors.getBinding?.value;
-  // Binding metadata includes live writes and injector hints: reuse it only while the question
-  // keeps the tree and registry unchanged. Scope, use and read anchors distinguish shadows and
-  // definition-time slots; derived adapters keep their own answers. Re-entrant asks stay live.
-  if (lookup) descriptors.getBinding.value = function (ask) {
-    const table = canonAnswerTable(lookup, [this, ask.scope, ask.path ?? null, ask.read ?? null]);
-    if (table?.has(ask.name)) return table.get(ask.name);
-    const cuts = cycleGuardCuts();
-    const value = lookup.call(this, ask);
-    if (cycleGuardCuts() === cuts) table?.set(ask.name, value);
-    return value;
-  };
+  // Reuse binding presence and metadata only while the question keeps the tree and registry
+  // unchanged. Scope, use and read anchors distinguish shadows and definition-time slots;
+  // derived adapters keep their own answers. Re-entrant asks stay live.
+  // Share the context prefix; the host function keeps the two answers separate.
+  for (const name of ['hasBinding', 'getBinding']) {
+    const lookup = descriptors[name]?.value;
+    if (lookup) descriptors[name].value = function (ask) {
+      const table = canonAnswerTable(this, [ask.scope, ask.name, ask.path ?? null, ask.read ?? null]);
+      if (table?.has(lookup)) return table.get(lookup);
+      const cuts = cycleGuardCuts();
+      const value = lookup.call(this, ask);
+      if (cycleGuardCuts() === cuts) table?.set(lookup, value);
+      return value;
+    };
+  }
   return Object.defineProperties(adapter, descriptors);
 }
 
