@@ -155,10 +155,11 @@ import {
   residualInitRunsEffects,
   decidedRunningOperand,
   decidedRunningOperandPath,
-  liftedInitElements,
   liftedPrefixSplit,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
+  discardedReceiverEffects,
+  planDiscardedInit,
   buildNestedDestructurePlan,
   planDestructureKeySegments,
   forgetDestructurePlan,
@@ -182,7 +183,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   anchoredResidualSymbolKeyName,
-  decidedRunningPart,
   descendToChainRoot,
   globalProxyMemberName,
   maximalProxyGlobalHop,
@@ -5510,28 +5510,12 @@ export default function createDestructureEmitter({
     rebindLiveDeclarators(declaration, scope);
   }
 
-  // a FULLY-DISCARDED destructure receiver (every prop a pure static, its value never read) that carries side
-  // effects keeps ONLY its COMPLETE harvested side effects (sequence prefixes + chain-assign + buried calls +
-  // hop-keys, via the canonical `harvestDiscardedReceiverSE`) - the whole proxy navigation is dead and would
-  // THROW off-browser on an unponyfillable hop, so re-emit the harvested SE in source-eval order (matching the
-  // unplugin drop). null (caller keeps the receiver verbatim, via its own collapse) when it is not a droppable
-  // proxy nav; a `sink` of null when it IS one and carries NO side effects - a different answer to the caller,
-  // since an effect-free droppable nav owes NOTHING at all and a lift there prints dead text. its bare-value
-  // collapse is owned by the caller's `collapseRetainedProxyReceiver` / fold, keeping the two emitters'
-  // output identical.
-  // shared by the for-init sink AND the statement-lifted plain-decl discard so their decision stays
-  // consistent. CALLERS MUST PASS THE RAW INIT: the gate inspects the navigation TAIL (peeled past a
-  // sequence root like `(d++, globalThis['self'].Array)`, while the whole leaf still feeds the SE
-  // harvest), and once the per-prop collapse has re-rooted the nav to `(se, _globalThis).member` that
-  // tail is a bare identifier the gate no longer recognizes
+  // The shared drop plan borrows source effects; this boundary makes native Babel clones.
   function discardedReceiverSinkInit(initNode, path) {
-    const leaf = unwrapRuntimeExpr(initNode);
-    const { tail } = peelNestedSequenceExpressions(leaf);
-    const dropCtx = path?.scope ? { scope: path.scope, adapter, path, resolvePure } : null;
-    if (!shouldDropRescueReceiver(tail !== leaf ? unwrapRuntimeExpr(tail) : leaf, dropCtx)) return null;
-    const se = harvestDiscardedReceiverSE(leaf, { scope: path.scope, adapter, path });
-    return { sink: se.length === 0 ? null
-      : se.length === 1 ? t.cloneDeep(se[0]) : t.sequenceExpression(se.map(node => t.cloneDeep(node))) };
+    const effects = discardedReceiverEffects(initNode, { scope: path.scope, adapter, path, resolvePure });
+    if (!effects) return null;
+    return { sink: effects.length === 0 ? null
+      : effects.length === 1 ? t.cloneDeep(effects[0]) : t.sequenceExpression(effects.map(node => t.cloneDeep(node))) };
   }
 
   // for-init with SE: keep SE inline so it doesn't escape the loop.
@@ -5621,23 +5605,6 @@ export default function createDestructureEmitter({
     newPath.scope.registerDeclaration(newPath);
   }
 
-  // `(inner(), Array)` - when we lift the init as a standalone statement only the
-  // side-effectful head is needed; the trailing value (`Array`, read by the destructure)
-  // becomes a no-op read once extraction leaves no destructure target. trim it so the
-  // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`. nested SE
-  // (`(x++, (y++, Array))`) is flattened first so the inner trailing identifier strips too -
-  // without the flatten the outer trim stops at `(y++, Array)` (which has
-  // its own `mayHaveSideEffects` from `y++`), leaving a useless `Array` read in the output
-  // ... a tail READ only a getter could name is work the source did: the rescue canon replays the whole
-  // init then, dead tail included (`liftedInitElements`, the other leg's emptied-assignment rule too)
-  function trimSideEffectTail(node, path) {
-    const flat = liftedInitElements(node, { scope: path.scope, adapter, path });
-    if (flat.length === 1) return flat[0];
-    const sameShape = flat.length === node.expressions.length
-      && flat.every((e, i) => e === node.expressions[i]);
-    return sameShape ? node : t.sequenceExpression(flat);
-  }
-
   // a residual that EMPTIES after `liftSurvivingResidualPrefix` split its prefix off owns no receiver
   // any more: its init belongs to the rescue channel WHOLE, where the source read it - the rule
   // `prepareSplitLiftedPrefixes` keeps for the multi-declarator host. the lifted statements rejoin the
@@ -5663,46 +5630,16 @@ export default function createDestructureEmitter({
     if (expression) plantLiftedExpression(containerPath, expression);
   }
 
-  // the expression a DISCARDED init still owes where the source ran it - the shared rescue canon, for
-  // the deferred lift and the bodyless block alike; null where it owes nothing. a TS wrapper leaves with
-  // the value it wraps - what stays reads no type - so the rescue is asked of the init it wraps, as the
-  // other leg's lift asks it (`(eff(), X) as any` keeps `eff()`)
-  // ... and a value the build decides owes what the part of it that runs owes (`decidedRunningPart`)
-  function rescuedInitExpression(containerPath, wrappedInit, probe = null) {
-    const initNode = unwrapRuntimeExpr(decidedRunningPart(wrappedInit, { scope: containerPath.scope, adapter, path: containerPath }));
-    if (!initNode) return null;
-    function spelled(nodes) {
-      if (!nodes.length) return null;
-      return nodes.length === 1 ? t.cloneNode(nodes[0], true) : t.sequenceExpression(nodes.map(node => t.cloneNode(node, true)));
+  // Bind the shared residual decision to Babel's clone and store-relocation lifecycle.
+  function rescuedInitExpression(containerPath, init, probe = null) {
+    const { effects, replay } = planDiscardedInit(init, { scope: containerPath.scope, adapter, path: containerPath, resolvePure }, probe);
+    if (!effects.length) return null;
+    if (replay) {
+      const value = effects.length === 1 ? effects[0] : t.sequenceExpression(effects);
+      return cloneReplayedEffect(value, containerPath);
     }
-    // ... and an init `mayHaveSideEffects` calls pure may still hold a receiver READ whose value only a
-    // getter could name: the rescue canon is where such a read reaches the lift, as it reaches the
-    // unplugin drain
-    function rescue() {
-      return discardRescueNodesWithReads({ node: initNode, scope: containerPath.scope, adapter, path: containerPath });
-    }
-    if (!mayHaveSideEffects(initNode)) return spelled(rescue());
-    // Harvested before receiver rewriting: its replacement may clone a store, but the probe's
-    // source facts still own that write. Re-reading the changed init would lose that identity.
-    if (probe) {
-      return spelled(directClaimProbeEffects(probe, probe.effects).filter(effect => effect !== probe.node));
-    }
-    // ... and a DROPPABLE proxy nav keeps ONLY what that harvest holds: with nothing harvested the
-    // init is the very read the extraction now performs, so the lift has nothing left to preserve
-    // and the statement it would leave is dead text the identifier twin never emits
-    const discarded = discardedReceiverSinkInit(initNode, containerPath);
-    if (discarded?.sink === null) return null;
-    // ... and a nav off a call the census resolves to a realm keeps the call alone (the shared rule):
-    // its hops are dead reads, and their fold would print a bare ponyfill read; a pure call lifts nothing
-    const realmNav = liftedRealmNavEffect(initNode, { scope: containerPath.scope, adapter, path: containerPath });
-    if (realmNav) return spelled(realmNav.effects);
-    // ... and a receiver read the TAIL performs replays with the whole init: trimmed as a dead tail,
-    // the getter it runs would leave with it. a fully-discarded proxy-nav receiver keeps only its
-    // harvested SE (the nav is dead and would throw off-browser on an unponyfillable hop); otherwise
-    // the whole init lifts minus a dead tail, a kept chain-assignment among it storing the value
-    // canon like its in-place twin
-    if (rescue()[0] === initNode) return cloneReplayedEffect(initNode, containerPath);
-    return discarded?.sink ?? cloneReplayedEffect(trimSideEffectTail(initNode, containerPath), containerPath);
+    const clones = effects.map(node => t.cloneNode(node, true));
+    return clones.length === 1 ? clones[0] : t.sequenceExpression(clones);
   }
 
   // one expression, lifted to the slot the source ran it in and planted at once, while the host still stands:
