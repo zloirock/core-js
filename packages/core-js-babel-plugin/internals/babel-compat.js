@@ -2,22 +2,26 @@
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import {
+  prepareMemoReceiver as prepareReceiverValue,
+  planGuardComposition,
+  guardProbeUndefinable,
+  memoReceiverOriginName,
+  planGuardRootMemo,
+  storedMemoProvesGuard,
+} from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import {
   directClaimProbePlan,
   destructureProbePlan,
-  composableNavGuardPlan,
   planProvenNavGuardCollapse,
-  planKeptSequenceTail,
   claimReceiverEvaluationMayThrow,
   descendToChainRoot,
   keySideEffectsOnly,
-  maximalProxyGlobalPrefix,
   chainReadsThroughSeal,
   collectChainAssignsThroughMemberChain,
   guardTailPullCount,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
   proxyHopLacksPureEntry,
-  peelChainRootValue,
   peelReceiverSequenceTail,
   callValueCanBeUndefined,
   deleteGuardKeepingHop,
@@ -29,14 +33,11 @@ import {
   storedUserAssignmentOf,
   navGuardTestPlan,
   navGuardSourcePlan,
-  proxyReceiverValueCanBeUndefined,
   probedNavGuardValuePlan,
   foldableRealmHop,
   handsValueOn,
   mutationGuardKeepingHop,
-  resolveObjectName,
   vestigialNavOptionals,
-  proxyGlobalRootName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   dispatchConsumesRun,
@@ -48,7 +49,6 @@ import { decidedReusableReceiver, isConstantLiteralReceiver } from '@core-js/pol
 import {
   classifyReceiverSE,
   chainValueCarrier,
-  isNullLiteralNode,
   isDeoptedGlobalSlotRead,
   createTypeAnnotationChecker,
   deleteHostAboveChain,
@@ -68,7 +68,6 @@ import {
   optionalCallReceiverGuard,
   peelParenAndTSParentPath,
   peelParenAndTSSlotPath,
-  peelNestedSequenceExpressions,
   peelSkippableWrapperPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -86,7 +85,6 @@ import {
   hasDeferredContextAncestor,
   collectFoldedReceiverSideEffects,
   definedBranchOfGuardConditional,
-  isRenderedStoredValue,
   peelChainAssignment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -100,6 +98,7 @@ import {
   renderGuardedMethodCall,
   renderOptionalMethodCall,
   renderReceiverMemo,
+  planReceiverMemo,
   planMethodCall,
   planOptionalMethodCall,
   renderDeleteShortCircuitGuard,
@@ -600,36 +599,19 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return t.identifier(getInjector().generateUnusedName());
   }
 
-  // Apply the already shared navigation decisions before the call asks about its receiver.
-  // This is an apply step: imports and source replacement must never enter planMethodCall.
+  // Native conversion and detached probe substitution for the shared preparation.
   function prepareMemoReceiver(node, ctx) {
-    // Preserve the kept sequence probe before cloning the receiver into its guard.
-    const canRender = ctx?.adapter && ctx.path && resolvePureGlobalEntry && injectPureGlobal;
-    const keptTail = canRender && planKeptSequenceTail(unwrapRuntimeExpr(node), {
-      adapter: ctx.adapter,
-      aliasCtx: ctx,
-      resolveGlobalPolyfill: name => resolvePureGlobalEntry(name, ctx.path),
+    if (!resolvePureGlobalEntry || !injectPureGlobal) return node;
+    return prepareReceiverValue(node, ctx && {
+      ...ctx, resolvePure: ({ name }) => resolvePureGlobalEntry(name, ctx.path),
+    }, {
+      prepareProbe: probe => cloneWithSubstitutedProxyRoot(probe, ctx.path,
+        { t, resolvePureGlobalEntry, injectPureGlobal }),
+      renderKeptTail: plan => estreeToBabel(renderKeptSequenceTail(plan, {
+        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name, embed: hostSlot,
+      })),
+      renderNav: plan => renderNavCollapseAst(plan, injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName)),
     });
-    if (keptTail) {
-      if (keptTail.probe) keptTail.probe = cloneWithSubstitutedProxyRoot(keptTail.probe, ctx.path,
-        { t, resolvePureGlobalEntry, injectPureGlobal });
-      keptTail.holder[keptTail.key] = estreeToBabel(renderKeptSequenceTail(keptTail, {
-        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
-        embed: hostSlot,
-      }));
-    }
-    const navPlan = canRender && planProvenNavGuardCollapse({
-      rootNode: node,
-      ...ctx,
-      resolvePure: ({ name }) => resolvePureGlobalEntry(name, ctx.path),
-      allowSequenceRoot: true,
-      descendSequenceTail: true,
-    });
-    if (navPlan && !navPlan.topAssign) {
-      const { leafPure: pure } = navPlan;
-      node = renderNavCollapseAst(navPlan, injectPureGlobal(pure.entry, pure.hintName));
-    }
-    return node;
   }
 
   // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
@@ -640,13 +622,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // a TS parameter-property default)
   function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
     node = prepareMemoReceiver(node, ctx);
-    const { prefix, tail } = peelNestedSequenceExpressions(node);
-    // The first read owns comments; repeated reads only need the stable tail.
-    const value = prefix.length ? tail : node;
-    const { firstRead, makeBase } = renderReceiverMemo({
-      firstReceiver: node, receiver: value,
-      capture: !isReusableReceiver(value, { interveningEffects, directCallee, ctx }),
-    }, {
+    const memo = planReceiverMemo(node, { interveningEffects, directCallee, ctx });
+    const { firstRead, makeBase } = renderReceiverMemo(memo, {
       mintRef: () => generateRef(scope, anchorNode).name,
       embed: (source, role) => hostSlot(role === 'capture' ? source
         : role === 'receiver' ? t.removeComments(t.cloneNode(source)) : t.cloneNode(source)),
@@ -1294,43 +1271,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return lookup?.kind === 'instance' ? injectPureGlobal(lookup.entry, lookup.hintName) : null;
   }
 
-  // a memoized NON-identifier optional root that RESOLVES to a proxy-global (an IIFE / call returning
-  // globalThis, `(() => globalThis)()`) loses its provenance once it becomes a synthetic `_ref`: the tail's
-  // redundant `.self` hop then survives (`_ref.self.X` reads undefined off-engine) and a static ctor method
-  // stays native (`_ref.Array.from`, not collapsed to `_Array$from`). tag the minted ref with its resolved
-  // proxy-global root so the natural hop / static-dispatch collapse recognises `_ref` when the replacement is
-  // re-traversed. that collapse CONSUMES the receiver (a static is receiver-independent), so `_ref` survives
-  // only in the null-guard afterwards, where the bare-read tag has no member access to rewrite. an identifier
-  // root already carries provenance (the natural rewrite handles it); `inlineCallReturnExpression` no-ops for
-  // a non-call root, so this only fires for the call/IIFE roots the natural collapse could not reach
+  // Re-entry knows native identifiers already. A captured expression loses that
+  // provenance, so bind the shared value classification to the generated native ref.
   function tagProxyGlobalMemoRef(ref, rootNode, scope) {
     const adapter = getAdapter?.();
+    const injectorState = getInjector();
     if (!adapter || !scope || !ref?.name) return;
-    // The memo already evaluated sequence prefixes and stores; its value is their canonical tail.
-    rootNode = peelChainRootValue(rootNode);
-    let name = rootNode?.type === 'Identifier' && getInjector().isOwnPassPureBinding?.(rootNode.name)
-      ? proxyGlobalRootName({ node: rootNode, scope, adapter, path: null }) : null;
-    if (rootNode?.type === 'CallExpression' || rootNode?.type === 'OptionalCallExpression') {
-      // a bare call / IIFE root: inline its return and recognise the proxy-global it yields
-      const rootId = inlineCallProxyGlobalRoot({ callNode: rootNode, scope, adapter, path: null });
-      name = rootId && proxyGlobalRootName({ node: rootId, scope, adapter, path: null });
-    } else if (rootNode?.type === 'MemberExpression' || rootNode?.type === 'OptionalMemberExpression') {
-      // the same provenance loss with the call BURIED under pristine proxy hops (`f()?.window`):
-      // the canonical receiver resolution walks the hops and the inline call in one go, and a
-      // non-proxy result stays untagged (an identifier root keeps its provenance naturally).
-      // an SE-carrying sequence at the chain root tags too - the memo assignment runs the
-      // effect exactly once in the guard test, so the tagged ref is safe in the branch
-      const resolved = resolveObjectName({ objectNode: rootNode, scope, adapter, path: null });
-      name = resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved) ? resolved : null;
-      // ... and a CTOR read off the surface tags the same way: the memo holds the
-      // constructor itself, so a claim rebuilt onto the ref resolves its statics
-      // (`_ref = (t = _globalThis, _globalThis).Array` serves `_ref?.from` -> `_Array$from`)
-      if (!name && resolved && /^[A-Z]/.test(resolved) && !adapter.isMutatedStatic('globalThis', resolved)) {
-        getInjector().registerGlobalAlias(ref.name, resolved, { minted: true, trusted: true });
-        return;
-      }
-    }
-    if (name) getInjector().registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
+    const name = memoReceiverOriginName(rootNode, { scope, adapter, path: null, injectorState });
+    if (name) injectorState.registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
   }
 
   // THE guard-test spelling, shared by every channel that builds a `null == <test>` guard: the
@@ -1464,28 +1412,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     else step.right = rendered;
   }
 
-  // is the `?.` over this store DEAD? the store hands its value on, so a stored NAVIGATION the value
-  // canon calls always-defined leaves the link as text (`(v = (eff(), globalThis.window.self))?.Array`
-  // - the unplugin emitter folds it whole). only over a navigation, or the ponyfill one collapsed to:
-  // a store of a bare USER binding (`(n = gw)?.Map`) keeps the guard both emitters spell for it,
-  // because the fold verdict speaks for what a nav navigates, not for what a binding happens to hold.
-  // never where that navigation passes a MUTATED slot - there the store holds the user's own object,
-  // which the value canon cannot speak for, and the mutated canon owns the read
+  // Retype the native link only after the shared stored-value proof accepts it.
   function deoptDeadOptionalOverStore(chainStart, key, path) {
     const adapter = getAdapter?.();
-    if (!adapter || !resolvePureGlobalEntry) return false;
-    const stored = peelChainAssignment(chainStart.node[key]);
-    if (!stored.outer) return false;
-    const nav = unwrapRuntimeExpr(peelChainRootValue(stored.value));
-    const isNav = nav?.type === 'MemberExpression' || nav?.type === 'OptionalMemberExpression'
-      || (nav?.type === 'Identifier' && !!getInjector?.()?.isOwnPassPureBinding?.(nav.name));
-    // the MUTATION question through the canon: a hop the file patched is not pristine, so the
-    // maximal proxy prefix stops short of the nav - there the store holds the user's own object and
-    // the value canon cannot speak for it (a patched `self` may be nullish)
-    const navCtx = { scope: path.scope, adapter, path };
-    if (!isNav || maximalProxyGlobalPrefix(nav, navCtx, { throughChainAssign: true }) !== nav
-      || proxyReceiverValueCanBeUndefined(stored.value,
-        ({ name }) => resolvePureGlobalEntry(name, path), { scope: path.scope, adapter, path })) return false;
+    if (!adapter || !resolvePureGlobalEntry || !storedMemoProvesGuard(chainStart.node[key], {
+      scope: path.scope, adapter, path, injectorState: getInjector(),
+      resolvePure: ({ name }) => resolvePureGlobalEntry(name, path),
+    })) return false;
     deoptionalizeNode(chainStart);
     return true;
   }
@@ -1495,28 +1428,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // and memoizing that spells a SECOND test over the first - the probe decides the branch and the
   // claim reads the always-defined leaf. the link and every optional above it deoptionalize with it
   function composeNavGuardCheck(chainStart, key, path, memoType) {
-    const value = chainStart.node[key];
-    // the slot may already hold OUR root guard (`null == A ? void 0 : _self`, the hop claim's render
-    // over an undefinable root): memoizing it spells a second test over the first, so compose with
-    // it the same way - the guarded operand is the test, the defined branch is what the claim reads
-    const definedBranch = isRenderedStoredValue(value) ? definedBranchOfGuardConditional(value) : null;
-    if (definedBranch && value.test?.type === 'BinaryExpression' && isNullLiteralNode(value.test.left)) {
-      const probe = value.test.right;
-      chainStart.node[key] = seededRefClone(t.cloneNode(definedBranch), memoType);
-      deoptionalizeNode(chainStart);
-      for (let up = chainStart.parentPath; up && up !== path; up = up.parentPath) {
-        if (isOptionalNode(up.node)) deoptionalizeNode(up);
-      }
-      return t.cloneNode(probe);
-    }
-    const composed = resolvePureGlobalEntry && composableNavGuardPlan(value, {
-      scope: path.scope, adapter: getAdapter?.(), path,
-      resolvePure: ({ name }) => resolvePureGlobalEntry(name, path),
+    const ctx = { scope: path.scope, adapter: getAdapter?.(), path,
+      resolvePure: resolvePureGlobalEntry && (({ name }) => resolvePureGlobalEntry(name, path)) };
+    const composed = planGuardComposition(chainStart.node[key], ctx, {
       readThrough: key === 'object',
       readerKey: key === 'object' ? staticMemberKeyName(chainStart.node) : null,
     });
     if (!composed) return null;
-    chainStart.node[key] = seededRefClone(injectPureGlobal(composed.pure.entry, composed.pure.hintName), memoType);
+    const receiver = composed.receiver ?? injectPureGlobal(composed.pure.entry, composed.pure.hintName);
+    chainStart.node[key] = seededRefClone(receiver, memoType);
     deoptionalizeNode(chainStart);
     for (let up = chainStart.parentPath; up && up !== path; up = up.parentPath) {
       if (isOptionalNode(up.node)) deoptionalizeNode(up);
@@ -2308,66 +2228,19 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!inlineCallProxyGlobalRoot({ callNode: cur, ...ctx, rejectConditional: true })) return null;
     // the MEMO target is the raw span below the DEEPEST realm hop, sequence spellings included:
     // the memo runs their prefixes exactly once, in source order, and the test reads the ref
-    return callValueCanBeUndefined(cur, ctx, ({ name }) => resolvePureGlobalEntry(name, path))
+    return guardProbeUndefinable(cur, { ...ctx, resolvePure: ({ name }) => resolvePureGlobalEntry(name, path) })
       ? memoTarget : null;
   }
 
-  // a guard target that is PURE PROXY NAVIGATION over a chain-assign root: the memo must
-  // bind the ROOT (the assignment result - the one value that can be undefined), not the hop
-  // nav. memoizing the nav lets the natural rewrite self-collapse the memo RHS into an
-  // always-defined ponyfill (`(n = w, _self)`) - the guard then never fires (silent wrong
-  // value, worse than the sealed throw). the hops re-hang RAW off the ref and their `?.`
-  // folds into the root guard - the proxy-collapse assumption (`self` is a realm-local
-  // self-reference), the unplugin emitter's canon for the same shape. returns the check or null
-  // when the target is not this shape (caller falls back to the plain memoize)
+  // Land the shared root-memo decision in native slots, then re-enter the held hops.
   function memoizeProxyNavRoot(navNode, scope, ownerNode, anchorPath = null) {
-    const adapter = getAdapter?.();
-    if (!adapter || !scope) return null;
-    if (navNode.type !== 'MemberExpression' && navNode.type !== 'OptionalMemberExpression') return null;
-    // `anchorPath` feeds the alias-aware walk: an ALIAS chain-assign value (`const w = globalThis
-    // .window; (a = w)?...`) resolves only through a path-anchored binding lookup - with a null
-    // path the prefix test misses the alias shape and the kept-swap plan drops the root guard
-    if (maximalProxyGlobalPrefix(navNode, { scope, adapter, path: anchorPath },
-      { throughChainAssign: true }) !== navNode) return null;
-    // the hop fold holds only while the hops are ALWAYS DEFINED (a realm self-reference, a
-    // ponyfilled forwarder). an UNRESOLVABLE hop is the environment probe itself - the one
-    // value the guard exists for - so folding it out of the test leaves an always-defined
-    // root under the null-check and runs the branch where the source short-circuits. keep
-    // the whole nav in the memo there (the caller's plain memoize), like the unplugin emitter
-    if (resolvePureGlobalEntry && navHasUnresolvableProxyHop(navNode,
-      ({ name }) => resolvePureGlobalEntry(name, anchorPath),
-      { scope: anchorPath.scope, adapter, path: anchorPath })) return null;
-    // descend the object spine to the root (the maximal-prefix check proved pure-nav shape);
-    // `holder` keeps the member whose object slot receives the ref - a transparent wrapper
-    // between it and the root is dropped with the swap (the same tradeoff as the optional
-    // method-call rewrite)
-    const spine = [];
-    let holder = null;
-    let root = navNode;
-    while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') {
-      spine.push(root);
-      holder = root;
-      root = unwrapRuntimeExpr(root.object);
-    }
-    // a SEQUENCE root (`(sc++, n = gw)`) memoizes WHOLE - its prefix SE then runs exactly
-    // once inside the memo, the unplugin emitter's canon; the assign is its tail
-    if (peelReceiverSequenceTail(root)?.type !== 'AssignmentExpression') return null;
-    // memoize the holder's OBJECT (wrappers included): a transparent wrapper between the last
-    // hop and the root rides INSIDE the memo (`_ref = (v = gw) as any`) - the unplugin emitter
-    // keeps it verbatim there, and dropping it desynced the spelling. the shape gates above
-    // ran on the PEELED root, so the wrapped memo target is the same value
-    const [check, ref] = memoize(holder.object, scope, ownerNode, false, anchorPath && {
-      scope,
-      path: anchorPath,
-      adapter,
-      injectorState: getInjector(),
-    });
-    holder.object = t.cloneNode(ref);
-    // node-level deoptionalize (the spine holds raw nodes, not paths): the hops ride the
-    // root guard now, and a member spine never carries optional CALLS (pure-nav shape).
-    // the rebuilt nav re-enters detection naturally: a mutated-landing guard-ref nav is
-    // kept raw by the drive-site gate, a resolvable one collapses as usual
-    for (const hop of spine) {
+    const ctx = { scope, adapter: getAdapter?.(), path: anchorPath, injectorState: getInjector(),
+      resolvePure: resolvePureGlobalEntry && (({ name }) => resolvePureGlobalEntry(name, anchorPath)) };
+    const plan = planGuardRootMemo(navNode, ctx);
+    if (!plan) return null;
+    const [check, ref] = memoize(plan.source, scope, ownerNode, false, anchorPath && ctx);
+    plan.holder.object = t.cloneNode(ref);
+    for (const hop of plan.spine) {
       hop.type = 'MemberExpression';
       delete hop.optional;
     }

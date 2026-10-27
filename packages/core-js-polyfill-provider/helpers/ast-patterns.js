@@ -9812,6 +9812,23 @@ export function receiverCarriesLiveOptional(node) {
   return false;
 }
 
+// Does any member or call inside this value carry an optional? Sealed links count:
+// the seal ends propagation of a chain, but its held value can still be undefined.
+export function receiverContainsOptional(node) {
+  if (!isASTNode(node)) return false;
+  if (node.optional && (isMemberAccessNode(node)
+    || node.type === 'CallExpression' || node.type === 'OptionalCallExpression')) return true;
+  // Keep the early-exit search: a bounded walk cannot prove absence below its depth cap.
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      for (const item of value) if (receiverContainsOptional(item)) return true;
+    } else if (receiverContainsOptional(value)) return true;
+  }
+  return false;
+}
+
 // what the guard of an optional method call (`R.m?.()`, the callee member passed peeled) owes its
 // receiver R. a `?.` on the member itself tests R's VALUE ('value': `R?.m?.()`). a plain member over
 // a receiver carrying a live `?.` tests that LINK - the object of R's last live `?.` - and reads R
