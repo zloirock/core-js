@@ -64,3 +64,17 @@ QUnit.test('realm alias: a window-valued alias keeps its probe under a delete', 
     });
   });
 });
+
+QUnit.test('realm alias: a later write keeps the optional receiver and argument guard', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    withTemporaryProperty(globalThis, 'e2eLaterAliasList', ['held'], () => {
+      let realm;
+      // eslint-disable-next-line prefer-const -- the separate write is the tested alias shape
+      realm = globalThis.window;
+      let calls = 0;
+      const result = realm?.window?.self.e2eLaterAliasList.at((calls++, -1));
+      assert.same(result, live ? 'held' : undefined, 'reads the held receiver only when present');
+      assert.same(calls, live ? 1 : 0, 'evaluates the argument only when present');
+    });
+  });
+});
