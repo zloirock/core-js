@@ -20,7 +20,7 @@ import unplugin from '../../packages/core-js-unplugin/index.js';
 import { censusWalkTruncations } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { APPLICATIONS, applicationSource } from './applications.mjs';
 
-const { cyan, green, red } = chalk;
+const { cyan, green, red, yellow } = chalk;
 const { readdir, readFile } = fs;
 const { dirname, join } = path;
 
@@ -750,6 +750,11 @@ function createTransform(emitter, mode, {
   };
 }
 
+// Color each measured time against its bound, independently of the row's verdict.
+function timeColor(seconds, bound) {
+  return seconds >= bound ? red : seconds > bound / 2 ? yellow : cyan;
+}
+
 let failed = 0;
 for (const {
   name,
@@ -801,10 +806,11 @@ for (const {
       // Highlight the failing datum: the verdict alone does not identify an over-bound time
       // or a missed detection floor.
       const status = ok ? green : red;
-      const time = (seconds < bound ? cyan : red)(`${ seconds.toFixed(2) } s`);
+      const time = timeColor(seconds, bound)(`${ seconds.toFixed(2) } s`);
+      const sampleTimes = samples.map(n => timeColor(n, bound)(n.toFixed(2))).join(', ');
       const injectionCount = (injected >= injectionFloor ? cyan : red)(injected);
       const entryCount = (distinctEntries >= entries ? cyan : red)(distinctEntries);
-      echo(status(`${ ok ? 'PASS' : 'FAIL' } ${ cyan(name) } (${ size }${ modules.length > 1 ? `, ${ cyan(modules.length) } modules` : '' }) | ${ cyan(mode) } ${ cyan(emitter) }: median ${ time } (limit ${ cyan(`${ bound.toFixed(2) } s`) }) | samples [${ cyan(samples.map(n => n.toFixed(2)).join(', ')) }] s | injected ${ injectionCount } (min ${ cyan(injectionFloor) })${ entries ? ` | entries ${ entryCount } (min ${ cyan(entries) })` : '' }`));
+      echo(status(`${ ok ? 'PASS' : 'FAIL' } ${ cyan(name) } (${ size }${ modules.length > 1 ? `, ${ cyan(modules.length) } modules` : '' }) | ${ cyan(mode) } ${ cyan(emitter) }: median ${ time } (limit ${ cyan(`${ bound.toFixed(2) } s`) }) | samples [${ sampleTimes }] s | injected ${ injectionCount } (min ${ cyan(injectionFloor) })${ entries ? ` | entries ${ entryCount } (min ${ cyan(entries) })` : '' }`));
     }
   }
 }
