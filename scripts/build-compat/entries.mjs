@@ -8,7 +8,8 @@ async function getModulesForEntryPoint(path, parent) {
   const match = entry.pathname.match(/[/\\]modules[/\\](?<module>[^/\\]+)$/);
   if (match) return [match.groups.module];
 
-  entry.pathname += await fs.pathExists(entry) ? '/index.js' : '.js';
+  // like `require`, prefer `X.js` to `X/index.js`
+  entry.pathname += await fs.pathExists(new URL(`${ entry.href }.js`)) ? '.js' : '/index.js';
 
   if (!await fs.pathExists(entry)) return [];
 
