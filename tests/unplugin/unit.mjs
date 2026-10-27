@@ -71,6 +71,7 @@ import {
   walkAstNodes,
   isReusableReceiver,
   wrapScopeBindingLookup,
+  bindingNodeType,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
@@ -2166,7 +2167,7 @@ for (const [label, source, expectedKind, expectedType, writes] of [
   check(`property parameter/${ label }/kind`, binding?.kind, expectedKind);
   check(`property parameter/${ label }/declaration`, binding?.declarationPath?.node.type, expectedType);
   check(`property parameter/${ label }/writes`, binding?.constantViolations?.length, writes);
-  check(`property parameter/${ label }/node type`, adapter.getBindingNodeType({ scope: use.scope, name: 'value', path: use }), expectedType);
+  check(`property parameter/${ label }/node type`, bindingNodeType(binding), expectedType);
   check(`property parameter/${ label }/receiver reuse`, isReusableReceiver(use.node.object, { ctx: { scope: use.scope, adapter, path: use } }), true);
 }
 

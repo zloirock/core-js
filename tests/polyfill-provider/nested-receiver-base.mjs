@@ -347,7 +347,6 @@ checkDeep('base/no static resolver, no static answer',
       getStringValue(node) { return node.value; },
       hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
       getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
-      getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
       isMutatedStatic(object, key) { return object === 'globalThis' && key === mutatedProxySlot; },
     };
   }

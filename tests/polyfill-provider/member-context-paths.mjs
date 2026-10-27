@@ -5,6 +5,7 @@ import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 import { createUsageGlobalCallback } from '../../packages/core-js-polyfill-provider/plugin-options/usage-callback.js';
 import {
+  bindingNodeType,
   findNearestVarScopeOwner,
   findTSRuntimeBindingInPath,
   isForXWriteTarget,
@@ -415,7 +416,7 @@ for (const parser of adapters) {
         const binding = adapter.getBinding({ scope, name: 'value', path });
         check(`${ label }/nearest source node`, binding?.node, declaration.node);
         check(`${ label }/nearest declaration path`, binding?.declarationPath?.node, declaration.node);
-        check(`${ label }/node type agrees`, adapter.getBindingNodeType({ scope, name: 'value', path }), declaration.node.type);
+        check(`${ label }/node type agrees`, bindingNodeType(binding), declaration.node.type);
         if (expected === 'property' || expected === 'default' || expected === 'parameter') check(`${ label }/parameter kind`, binding?.kind, 'param');
       });
     }

@@ -350,15 +350,6 @@ export function createBabelAdapter(options = {}) {
         : soleAliasWrite({ binding: { ...b, constantViolations: violations }, assignNode }))
         ? assignNode : null;
     },
-    getBindingNodeType({ scope, name, path = null, read = null }) {
-      // `?.path` defense - virtual bindings (plugin-injected pure imports before scope.crawl)
-      // may have `.path` undefined; without `?.` the inner `.node` access throws TypeError.
-      // unplug-side adapter already had this defense; aligning shape across adapters.
-      // registry-backed memo refs (append-path scope-invisible / param-landed) report their
-      // registered declarator over the scope's misrepresented shape
-      if (scopedMemoDeclarator(scope, name)) return 'VariableDeclarator';
-      return getScopeBinding({ scope, name, path, read })?.path?.node?.type ?? null;
-    },
     isStringLiteral,
     getStringValue: stringLiteralValue,
   }));
