@@ -628,3 +628,19 @@ QUnit.test('class: member reads across definition and parameter frames', assert 
   assert.same(keys, 1);
   assert.same(value, 'outer');
 });
+
+QUnit.test('class: static presence differs between the key and parameter body', assert => {
+  const effects = [];
+  class Box {
+    [(effects.push('key'), Array.from([1])[0])](Array) {
+      effects.push('body');
+      return Array.from((effects.push('argument'), [2]));
+    }
+  }
+  const receiver = {
+    tag: 10,
+    from(xs) { effects.push('user'); return this.tag + xs[0]; },
+  };
+  assert.same(new Box()[1](receiver), 12);
+  assert.deepEqual(effects, ['key', 'body', 'argument', 'user']);
+});
