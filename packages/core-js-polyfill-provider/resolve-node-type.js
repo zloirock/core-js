@@ -1,6 +1,7 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint, hasNarrowEntry } from './index.js';
 import {
+  anchorPathScope,
   peelSkippableWrapperPath,
   allProxySelectingInit,
   argumentOverridesSlot,
@@ -131,25 +132,6 @@ const {
 } = knownBuiltInReturnTypes;
 
 const { hasOwn } = Object;
-
-// one parser attaches a scope only to the paths that OWN one, so a CHILD path handed to the resolver
-// (`assign.get('right')`, an expression inside a statement) carries none, and every scope-dependent
-// route below it silently resolves nothing - a member, a call return, a `new C()` all came back
-// unresolved where the other parser resolved them. a path's scope IS its nearest enclosing one, so
-// anchor it here for resolver entries and followed bindings. paths that
-// already carry a scope (always, on the other parser) pass through untouched
-const scopeAnchoredPaths = new WeakMap();
-function anchorPathScope(path) {
-  if (!path || path.scope) return path;
-  const cached = scopeAnchoredPaths.get(path);
-  if (cached) return cached;
-  let scope = null;
-  for (let cur = path.parentPath; cur && !scope; cur = cur.parentPath) scope = cur.scope ?? null;
-  if (!scope) return path;
-  const anchored = Object.create(path, { scope: { value: scope, enumerable: true } });
-  scopeAnchoredPaths.set(path, anchored);
-  return anchored;
-}
 
 // binding adapter shared with `walkStaticReceiverChain`. `getBindingPolyfillHint` is a
 // side-channel for the post-rewrite alias `_globalThis` -> `globalThis` mapping, kept off
