@@ -15750,10 +15750,9 @@ const STORING_OVER_UNSET_OPERATORS = new Set(['=', '??=', '||=']);
 // the single canonical trust gate for a plain-Identifier alias write (`var _g; _g = g =
 // globalThis`): the adapter surfaces the sole trusted write, the shape gate rejects
 // destructure writes (they bind the name to a PROPERTY of the RHS - following the right side
-// would alias the name to the whole global), and the pure arm accepts ONLY the structural
-// read-after-write proof (read in a branch whose always-evaluated guard slot holds the write -
-// the `?.`-lowering canon; a positional accept would drift the emitters on the AST side's
-// position-less rebuilt re-visits). shared by the detection-side follow
+// would alias the name to the whole global), and the pure arm requires read-after-write proof:
+// a guard holding the write, or a source span validated by the adapter's placement gate.
+// Position-less rebuilt re-visits require the structural guard proof. Shared by the detection-side follow
 // (`resolveVariableBindingToGlobal`) and the class-walk follow - ONE predicate, not mirrors
 export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNode = null }) {
   if (!adapter?.findTrustedAliasWrite) return null;
@@ -15771,7 +15770,7 @@ export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNo
   }
   // ... or the READ's own span proves it - the evidence the PATTERN arm of the same follow already
   // accepts: a source read beginning past the write's end runs after it, which is what a sequence
-  // spells (`(g = globalThis, v = g.window.self)`). a rebuilt node carries no span and declines, so
+  // spells (`(g = globalThis, v = g.window.self)`). an absent or rebuilt read carries no span and declines, so
   // the AST leg's position-less re-visits stay out. the span says ORDER, never dominance, so it
   // rides the adapter's own PLACEMENT gate - a branch-local write (`if (c) { var M = globalThis }`)
   // runs on one path, and a textual accept there would mask the native throw
@@ -15781,7 +15780,7 @@ export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNo
   if (adapter.method === 'usage-pure'
     && (useOutrunsWrite(write, path)
       || (!readsAfterWriteStructurally(path, write)
-        && !(typeof readNode.start === 'number' && readNode.start >= write.end
+        && !(typeof readNode?.start === 'number' && readNode.start >= write.end
           && adapter.findTrustedAliasWrite(scope, name, { readNode }) === write)))) return null;
   return write;
 }

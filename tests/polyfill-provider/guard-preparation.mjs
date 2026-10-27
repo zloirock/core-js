@@ -6,7 +6,7 @@ import {
   planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, storedMemoProvesGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import {
-  markRenderedStoredValue, receiverContainsOptional, unwrapRuntimeExpr,
+  markRenderedStoredValue, receiverContainsOptional, trustedIdentifierAliasWrite, unwrapRuntimeExpr,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { cloneNode, planReceiverMemo, renderKeptSequenceTail } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -63,6 +63,36 @@ for (const [name, expression, undefinable, surface, globalName, prelude = '', op
   check(`${ label }/pathless memo alias`, memoReceiverGlobalName(source, pathless, { constructors: true }), globalName);
   check(`${ label }/read only`, JSON.stringify(program.node), before);
 });
+
+for (const method of ['usage-pure', 'usage-global']) runBoth(`later write/${ method }`,
+  'let realm; realm = globalThis.window; const result = realm;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const write = parser.pickPath(program, 'AssignmentExpression').node;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const ctx = { scope: path.scope, adapter, path: null, resolvePure };
+    const pure = method === 'usage-pure';
+    const before = JSON.stringify(program.node);
+    check(`${ label }/pathless surface`, holdsProxySurface(path.node.init, ctx), !pure);
+    check(`${ label }/pathless memo alias`, memoReceiverGlobalName(path.node.init, ctx), pure ? null : 'window');
+    for (const readNode of [undefined, null, { type: 'Identifier', name: 'realm' }]) {
+      check(`${ label }/no source span/${ readNode?.type ?? readNode }`,
+        trustedIdentifierAliasWrite({ ...ctx, name: 'realm', readNode }), pure ? null : write);
+    }
+    check(`${ label }/source span`,
+      trustedIdentifierAliasWrite({ ...ctx, name: 'realm', readNode: path.node.init }), write);
+    check(`${ label }/path without a guard or read span`,
+      trustedIdentifierAliasWrite({ ...ctx, name: 'realm', path }), pure ? null : write);
+    check(`${ label }/read only`, JSON.stringify(program.node), before);
+  });
+
+runBoth('guarded later write without a read span',
+  'let realm; const result = (realm = globalThis.window) ? realm : undefined;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'Identifier', item => item.node.name === 'realm'
+      && item.parentPath.node.type === 'ConditionalExpression');
+    const write = parser.pickPath(program, 'AssignmentExpression').node;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    check(label, trustedIdentifierAliasWrite({ scope: path.scope, name: 'realm', adapter, path }), write);
+  });
 
 for (const expression of ['read()', 'read?.()']) runBoth(`call provenance/${ expression }`,
   `const read = () => globalThis.window; const result = ${ expression };`, (parser, program, label) => {
