@@ -533,7 +533,7 @@ const CASES = [
   // generated decoder code stresses nested control flow, parameter reads and member analysis
   { name: 'draco_decoder.js, generated decoder',
     source: () => threeFile('examples/jsm/libs/draco/draco_decoder.js'),
-    bounds: { 'usage-global': { babel: 10, unplugin: 10 }, 'usage-pure': { babel: 13, unplugin: 12 } } },
+    bounds: { 'usage-global': { babel: 9, unplugin: 9 }, 'usage-pure': { babel: 12, unplugin: 10 } } },
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
@@ -557,7 +557,7 @@ const CASES = [
   } },
   // keep both Babel codegen paths covered independently of the calibrated source size
   { name: 'synthetic single-scope, 550 reassigned names, compact Babel', source: () => syntheticSingleScope(550), compact: true, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
@@ -578,7 +578,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic namesake writes, 750 functions', source: () => syntheticNamesakeWrites(750), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic namesake methods, 1300 classes', source: () => syntheticNamesakeMethods(1300), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },

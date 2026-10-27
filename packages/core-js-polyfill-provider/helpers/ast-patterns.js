@@ -2051,7 +2051,16 @@ function identifierReferencedIn(node, matches, declared) {
     if (TYPE_SPACE_CHILD_KEYS.has(key)) continue;
     if (Array.isArray(child)) {
       if (isNonReferencePosition(node, child)) continue;
-      for (const grandchild of child) if (identifierReferencedIn(grandchild, matches, inner)) return true;
+      // Existence is independent of statement order. Search ordinary statements before
+      // nested function declarations, whose bodies can dwarf the enclosing block's reads.
+      const deferFunctions = node.type === 'BlockStatement' && key === 'body';
+      for (const grandchild of child) {
+        if ((!deferFunctions || grandchild?.type !== 'FunctionDeclaration')
+          && identifierReferencedIn(grandchild, matches, inner)) return true;
+      }
+      if (deferFunctions) for (const grandchild of child) {
+        if (grandchild?.type === 'FunctionDeclaration' && identifierReferencedIn(grandchild, matches, inner)) return true;
+      }
     } else if (isASTNode(child) && !isNonReferencePosition(node, child) && identifierReferencedIn(child, matches, inner)) return true;
   }
   return false;
