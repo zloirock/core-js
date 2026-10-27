@@ -51,6 +51,7 @@ class [DOMTokenList, NodeList] {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
+core-js(-pure)/stable|actual|full/dom-collections
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
 ```

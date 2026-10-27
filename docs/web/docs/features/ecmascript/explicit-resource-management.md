@@ -2,6 +2,9 @@
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
+> [!WARNING]
+> By default, `core-js` has no access to the real `%AsyncIteratorPrototype%`, so in engines without native support, async generator objects do not get `@@asyncDispose`. To fix it, set the `USE_FUNCTION_CONSTRUCTOR` option of `core-js/configurator` to `true` or pass `%AsyncIteratorPrototype%` to it as the `AsyncIteratorPrototype` option, see [`AsyncIterator` helpers caveats]({docs-version}/docs/features/proposals/async-iterator-helpers#h-caveats).
+
 ## Modules
 [`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-iterator.async-dispose.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js).
 
@@ -55,8 +58,11 @@ class AsyncIterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js(-pure)/es|stable|actual|full/disposable-stack
+core-js(-pure)/es|stable|actual|full/disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
+core-js(-pure)/es|stable|actual|full/async-disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/iterator/dispose
+core-js(-pure)/es|stable|actual|full/async-iterator
 core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
 core-js(-pure)/es|stable|actual|full/suppressed-error
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose

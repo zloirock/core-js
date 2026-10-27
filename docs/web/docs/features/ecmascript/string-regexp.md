@@ -76,6 +76,7 @@ function unescape(string: string): string;
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js(-pure)/es|stable|actual|full/string
+core-js(-pure)/es|stable|actual|full/string/virtual
 core-js(-pure)/es|stable|actual|full/string/from-code-point
 core-js(-pure)/es|stable|actual|full/string/raw
 core-js/es|stable|actual|full/string/match

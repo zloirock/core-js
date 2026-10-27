@@ -52,6 +52,8 @@ import "core-js/proposals/async-iterator-helpers";
 import "core-js/stage/2";
 ```
 
+Proposals are also available by stages, in `core-js(-pure)/stage/3`, `core-js(-pure)/stage/2.7`, `core-js(-pure)/stage/2`, `core-js(-pure)/stage/1`, `core-js(-pure)/stage/0` and `core-js(-pure)/stage/pre` entry points. `core-js/stage/3` entry point contains stage 3 and all higher-stage proposals (including finished ones and obsolete versions kept for compatibility), `core-js/stage/2.7` - stage 2.7 and higher, etc.
+
 > [!TIP]
 > The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.
 
@@ -112,6 +114,7 @@ import 'core-js/modules/es.array.unscopables.flat';
 import 'core-js/modules/es.array.unscopables.flat-map';
 import 'core-js/modules/es.object.from-entries';
 import 'core-js/modules/web.immediate';
+// ...and the rest of the modules not yet supported by Chrome 71
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
 ```ts
@@ -132,6 +135,7 @@ import 'core-js/modules/esnext.set.is-superset-of';
 import 'core-js/modules/esnext.set.map';
 import 'core-js/modules/esnext.set.symmetric-difference';
 import 'core-js/modules/esnext.set.union';
+// ...and the rest of the modules not yet supported by Chrome 71
 ```
 
 - `useBuiltIns: 'usage'` adds to the top of each file imports of polyfills for features used in this file and not supported by target environments, so for:
@@ -166,7 +170,7 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 
 ### `@babel/runtime`
 
-[`@babel/runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+[`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```ts
 import from from 'core-js-pure/stable/array/from';
 import flat from 'core-js-pure/stable/array/flat';
@@ -184,14 +188,14 @@ Array.from(new Set([1, 2, 3, 2, 1]));
 Promise.resolve(32).then(x => console.log(x));
 ```
 
-By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
+By default, `@babel/plugin-transform-runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 > [!WARNING]
-> If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+> If you use `@babel/preset-env` and `@babel/plugin-transform-runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
 
 ### `babel-plugin-polyfill-corejs3`
 
-[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
+[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/plugin-transform-runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
 ```json
 {
   "plugins": [["polyfill-corejs3", { "method": "usage-global", "version": "3.51" }]]

@@ -15,7 +15,7 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-code-points
-core-js(-pure)/full/string/code-points
+core-js(-pure)/full/string(/virtual)/code-points
 ```
 
 ## Examples

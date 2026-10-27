@@ -29,6 +29,7 @@ function parseInt(string: string, radix?: number): number;
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js(-pure)/es|stable|actual|full/number
+core-js(-pure)/es|stable|actual|full/number/virtual
 core-js(-pure)/es|stable|actual|full/number/constructor
 core-js(-pure)/es|stable|actual|full/number/is-finite
 core-js(-pure)/es|stable|actual|full/number/is-nan

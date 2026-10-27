@@ -136,7 +136,7 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
       - [Relative indexing method](#relative-indexing-method)
       - [`Array.prototype.includes`](#arrayprototypeincludes)
       - [`Array.prototype.flat` / `Array.prototype.flatMap`](#arrayprototypeflat--arrayprototypeflatmap)
-      - [`Array` find from last](#array-find-from-last)
+      - [Array find from last](#array-find-from-last)
       - [Change `Array` by copy](#change-array-by-copy)
       - [`Array` grouping](#array-grouping)
       - [`Array.fromAsync`](#arrayfromasync)
@@ -192,8 +192,8 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
       - [New collections methods](#new-collections-methods)
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
-      - [`Array` filtering](#array-filtering)
-      - [`Array` deduplication](#array-deduplication)
+      - [Array filtering](#array-filtering)
+      - [Array deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get--set-uint8clamped-methods)
       - [`Number.fromString`](#numberfromstring)
       - [`String.cooked`](#stringcooked)
@@ -344,6 +344,7 @@ import 'core-js/modules/es.array.unscopables.flat';
 import 'core-js/modules/es.array.unscopables.flat-map';
 import 'core-js/modules/es.object.from-entries';
 import 'core-js/modules/web.immediate';
+// ...and the rest of the modules not yet supported by Chrome 71
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
 ```js
@@ -364,6 +365,7 @@ import 'core-js/modules/esnext.set.is-superset-of';
 import 'core-js/modules/esnext.set.map';
 import 'core-js/modules/esnext.set.symmetric-difference';
 import 'core-js/modules/esnext.set.union';
+// ...and the rest of the modules not yet supported by Chrome 71
 ```
 
 - `useBuiltIns: 'usage'` adds to the top of each file imports of polyfills for features used in this file and not supported by target environments, so for:
@@ -398,7 +400,7 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 
 #### `@babel/runtime`[⬆](#index)
 
-[`@babel/runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+[`@babel/plugin-transform-runtime`](https://babeljs.io/docs/babel-plugin-transform-runtime) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```js
 import from from 'core-js-pure/stable/array/from';
 import flat from 'core-js-pure/stable/array/flat';
@@ -416,14 +418,14 @@ Array.from(new Set([1, 2, 3, 2, 1]));
 Promise.resolve(32).then(x => console.log(x));
 ```
 
-By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
+By default, `@babel/plugin-transform-runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 > [!WARNING]
-> If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+> If you use `@babel/preset-env` and `@babel/plugin-transform-runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
 
 #### `babel-plugin-polyfill-corejs3`[⬆](#index)
 
-[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
+[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/plugin-transform-runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
 ```json
 {
   "plugins": [["polyfill-corejs3", { "method": "usage-global", "version": "3.51" }]]
@@ -632,6 +634,7 @@ class Function {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|actual|full/function
+core-js(-pure)/es|stable|actual|full/function/virtual
 core-js/es|stable|actual|full/function/name
 core-js/es|stable|actual|full/function/has-instance
 core-js(-pure)/es|stable|actual|full/function/bind
@@ -773,6 +776,7 @@ class Arguments {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/array
+core-js(-pure)/es|stable|actual|full/array/virtual
 core-js(-pure)/es|stable|actual|full/array/from
 core-js(-pure)/es|stable|actual|full/array/from-async
 core-js(-pure)/es|stable|actual|full/array/of
@@ -948,7 +952,7 @@ core-js(-pure)/es|stable|actual|full/iterator/windows
 core-js(-pure)/es|stable|actual|full/iterator/zip
 core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
-[Examples](https://core-js.io/playground#code=%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D.values%28%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AIterator.from%28%7B%0A++next%3A+%28%29+%3D%3E+%28%7B+done%3A+Math.random%28%29+%3E+0.9%2C+value%3A+Math.random%28%29+%2A+10+%7C+0+%7D%29%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B7%2C+6%2C+3%2C+0%2C+2%2C+8%5D%0A%0AIterator.concat%28%5B0%2C+1%5D.values%28%29%2C+%5B2%2C+3%5D%2C+function+%2A+%28%29+%7B%0A++yield+4%3B%0A++yield+5%3B%0A%7D%28%29%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%5D%0A%0AIterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F%0A%0Aconst+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0AArray.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D%0A%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%282%29%3B+++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%284%29%3B+++++%2F%2F+%3D%3E+false%0A%5BNaN%5D.values%28%29.includes%28NaN%29%3B+++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%283%2C+2%29%3B++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%281%2C+1%29%3B++%2F%2F+%3D%3E+false%0A%0A%2F%2A+eslint-disable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27%0A%2F%2A+eslint-enable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F):
+[*Examples*](https://core-js.io/playground#code=%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D.values%28%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AIterator.from%28%7B%0A++next%3A+%28%29+%3D%3E+%28%7B+done%3A+Math.random%28%29+%3E+0.9%2C+value%3A+Math.random%28%29+%2A+10+%7C+0+%7D%29%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B7%2C+6%2C+3%2C+0%2C+2%2C+8%5D%0A%0AIterator.concat%28%5B0%2C+1%5D.values%28%29%2C+%5B2%2C+3%5D%2C+function+%2A+%28%29+%7B%0A++yield+4%3B%0A++yield+5%3B%0A%7D%28%29%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%5D%0A%0AIterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F%0A%0Aconst+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0AArray.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D%0A%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%282%29%3B+++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%284%29%3B+++++%2F%2F+%3D%3E+false%0A%5BNaN%5D.values%28%29.includes%28NaN%29%3B+++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%283%2C+2%29%3B++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%281%2C+1%29%3B++%2F%2F+%3D%3E+false%0A%0A%2F%2A+eslint-disable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27%0A%2F%2A+eslint-enable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F):
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -1087,6 +1091,7 @@ function unescape(string: string): string;
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/string
+core-js(-pure)/es|stable|actual|full/string/virtual
 core-js(-pure)/es|stable|actual|full/string/from-code-point
 core-js(-pure)/es|stable|actual|full/string/raw
 core-js/es|stable|actual|full/string/match
@@ -1264,6 +1269,7 @@ function parseInt(string: string, radix?: number): number;
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/number
+core-js(-pure)/es|stable|actual|full/number/virtual
 core-js(-pure)/es|stable|actual|full/number/constructor
 core-js(-pure)/es|stable|actual|full/number/is-finite
 core-js(-pure)/es|stable|actual|full/number/is-nan
@@ -1281,7 +1287,7 @@ core-js(-pure)/es|stable|actual|full/parse-float
 core-js(-pure)/es|stable|actual|full/parse-int
 ```
 #### ECMAScript: Math[⬆](#index)
-Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.fround.js), [`es.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.f16round.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sinh.js), [`es.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sum-precise.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.trunc.js).
+Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.fround.js), [`es.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.f16round.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sinh.js), [`es.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sum-precise.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.trunc.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js).
 ```ts
 namespace Math {
   acosh(number: number): number;
@@ -1303,6 +1309,7 @@ namespace Math {
   sumPrecise(items: Iterable<number>): number;
   tanh(number: number): number;
   trunc(number: number): number;
+  @@toStringTag: 'Math';
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -1327,6 +1334,7 @@ core-js(-pure)/es|stable|actual|full/math/sinh
 core-js(-pure)/es|stable|actual|full/math/sum-precise
 core-js(-pure)/es|stable|actual|full/math/tanh
 core-js(-pure)/es|stable|actual|full/math/trunc
+core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 [*Examples*](https://core-js.io/playground#code=1e20+%2B+0.1+%2B+-1e20%3B+%2F%2F+%3D%3E+0%0AMath.sumPrecise%28%5B1e20%2C+0.1%2C+-1e20%5D%29%3B+%2F%2F+%3D%3E+0.1):
 ```js
@@ -1492,7 +1500,7 @@ const d = Promise.withResolvers();
 d.resolve(42);
 d.promise.then(console.log); // -> 42
 ```
-[Example](https://core-js.io/playground#code=let+delay+%3D+time+%3D%3E+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+-%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+-%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+-%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+-%3E+Error%3A+Error%21%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
+[*Examples*](https://core-js.io/playground#code=let+delay+%3D+time+%3D%3E+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+-%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+-%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+-%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+-%3E+Error%3A+Error%21%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time));
 
@@ -1555,7 +1563,7 @@ setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 ```
 
 #### ECMAScript: Symbol[⬆](#index)
-Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match-all.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js).
+Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match-all.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js).
 ```ts
 class Symbol {
   constructor(description?): symbol;
@@ -1618,7 +1626,6 @@ core-js(-pure)/es|stable|actual|full/symbol/unscopables
 core-js(-pure)/es|stable|actual|full/symbol/for
 core-js(-pure)/es|stable|actual|full/symbol/key-for
 core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
-core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 [*Basic example*](https://core-js.io/playground#code=let+Person+%3D+%28%28%29+%3D%3E+%7B%0A++let+NAME+%3D+Symbol%28%27name%27%29%3B%0A++return+class+%7B%0A++++constructor%28name%29+%7B%0A++++++this%5BNAME%5D+%3D+name%3B%0A++++%7D%0A++++getName%28%29+%7B%0A++++++return+this%5BNAME%5D%3B%0A++++%7D%0A++%7D%3B%0A%7D%29%28%29%3B%0A%0Alet+person+%3D+new+Person%28%27Vasya%27%29%3B%0Aperson.getName%28%29%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27Vasya%27%0Aperson.name%3B++++++++++++++++++++++++++++++%2F%2F+%3D%3E+undefined%0Aperson%5BSymbol%28%27name%27%29%5D%3B+++++++++++++++++++%2F%2F+%3D%3E+undefined%2C+symbols+are+unique%0Afor+%28let+key+in+person%29+console.log%28key%29%3B+%2F%2F+-%3E+nothing%2C+for-in+skips+symbol+keys):
 ```js
@@ -1669,7 +1676,7 @@ Symbol().description;      // => undefined
 - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
 - By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
 
-You can disable defining setters in `Object.prototype`. [Example](https://core-js.io/playground#code=Symbol.useSimple%28%29%3B%0Alet+object1+%3D+%7B+%5BSymbol%28%27symbol1%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object1%29+console.log%28key%29%3B+%2F%2F+-%3E+%27Symbol%28symbol1%29_t.qamkg9f3q%27%2C+without+native+%60Symbol%60%0A%0ASymbol.useSetter%28%29%3B%0Alet+object2+%3D+%7B+%5BSymbol%28%27symbol2%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object2%29+console.log%28key%29%3B+%2F%2F+-%3E+nothing):
+You can disable defining setters in `Object.prototype`. [*Examples*](https://core-js.io/playground#code=Symbol.useSimple%28%29%3B%0Alet+object1+%3D+%7B+%5BSymbol%28%27symbol1%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object1%29+console.log%28key%29%3B+%2F%2F+-%3E+%27Symbol%28symbol1%29_t.qamkg9f3q%27%2C+without+native+%60Symbol%60%0A%0ASymbol.useSetter%28%29%3B%0Alet+object2+%3D+%7B+%5BSymbol%28%27symbol2%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object2%29+console.log%28key%29%3B+%2F%2F+-%3E+nothing):
 ```js
 Symbol.useSimple();
 let object1 = { [Symbol('symbol1')]: true };
@@ -1914,6 +1921,9 @@ weakset.has(b);   // => false
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
 
+> [!WARNING]
+> By default, `core-js` has no access to the real `%AsyncIteratorPrototype%`, so in engines without native support, async generator objects do not get `@@asyncDispose`. To fix it, set the `USE_FUNCTION_CONSTRUCTOR` option of `core-js/configurator` to `true` or pass `%AsyncIteratorPrototype%` to it as the `AsyncIteratorPrototype` option, see [`AsyncIterator` helpers caveats](#caveats).
+
 Modules [`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-iterator.async-dispose.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js).
 ```ts
 class Symbol {
@@ -1963,8 +1973,11 @@ class AsyncIterator {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/disposable-stack
+core-js(-pure)/es|stable|actual|full/disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
+core-js(-pure)/es|stable|actual|full/async-disposable-stack/constructor
 core-js(-pure)/es|stable|actual|full/iterator/dispose
+core-js(-pure)/es|stable|actual|full/async-iterator
 core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
 core-js(-pure)/es|stable|actual|full/suppressed-error
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose
@@ -2366,7 +2379,7 @@ globalThis.Array === Array; // => true
 
 #### Finished proposals[⬆](#index)
 
-Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find them in related sections of the README. However, even for finished proposals, `core-js` provides a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
+Finished (stage 4) proposals are already marked in `core-js` as stable ECMAScript and available in the `core-js/stable` and `core-js/es` namespaces; you can find them in the related sections of the README. However, even for finished proposals, `core-js` provides a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
 
 ##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
 ```ts
@@ -2567,6 +2580,9 @@ core-js/proposals/is-error
 ##### [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
 > [!NOTE]
 > These are only built-ins for Explicit Resource Management; the `using` syntax requires [transpiler support](https://babeljs.io/docs/babel-plugin-transform-explicit-resource-management).
+
+> [!WARNING]
+> By default, `core-js` has no access to the real `%AsyncIteratorPrototype%`, so in engines without native support, async generator objects do not get `@@asyncDispose`. To fix it, set the `USE_FUNCTION_CONSTRUCTOR` option of `core-js/configurator` to `true` or pass `%AsyncIteratorPrototype%` to it as the `AsyncIteratorPrototype` option, see [`AsyncIterator` helpers caveats](#caveats).
 ```ts
 class Symbol {
   static asyncDispose: @@asyncDispose;
@@ -2682,7 +2698,7 @@ core-js/proposals/iterator-chunking-v2
 core-js(-pure)/es|stable|actual|full/iterator/chunks
 core-js(-pure)/es|stable|actual|full/iterator/windows
 ```
-[*Examples*](https://core-js.io/playground#code=const+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0Alet+chunks+%3D+Array.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windows+%3D+Array.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windowsPartial+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0Alet+windowsFull+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D)
+[*Examples*](https://core-js.io/playground#code=const+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0Alet+chunks+%3D+Array.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windows+%3D+Array.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windowsPartial+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0Alet+windowsFull+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D):
 ```js
 const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
 
@@ -2707,6 +2723,7 @@ class Iterator {
 core-js/proposals/iterator-includes
 core-js(-pure)/es|stable|actual|full/iterator/includes
 ```
+[*Examples*](https://core-js.io/playground#code=%5B1%2C+2%2C+3%5D.values%28%29.includes%282%29%3B+++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%284%29%3B+++++%2F%2F+%3D%3E+false%0A%5BNaN%5D.values%28%29.includes%28NaN%29%3B+++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%283%2C+2%29%3B++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%281%2C+1%29%3B++%2F%2F+%3D%3E+false):
 ```js
 [1, 2, 3].values().includes(2);     // => true
 [1, 2, 3].values().includes(4);     // => false
@@ -2727,6 +2744,7 @@ class Iterator {
 core-js/proposals/iterator-join
 core-js(-pure)/es|stable|actual|full/iterator/join
 ```
+[*Examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27%0A%2F%2A+eslint-enable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F):
 ```js
 /* eslint-disable unicorn/require-array-join-separator -- example */
 [1, 2, 3].values().join();     // => '1,2,3'
@@ -2736,7 +2754,7 @@ core-js(-pure)/es|stable|actual|full/iterator/join
 ```
 
 ##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
-Modules [es.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [es.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
+Modules [`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js).
 ```ts
 class Iterator {
   static zip<T extends readonly Iterable<unknown>[]>(
@@ -3094,6 +3112,7 @@ core-js/proposals/await-dictionary
 core-js(-pure)/actual|full/promise/all-keyed
 core-js(-pure)/actual|full/promise/all-settled-keyed
 ```
+[*Examples*](https://core-js.io/playground#code=await+Promise.allKeyed%28%7B%0A++a%3A+Promise.resolve%281%29%2C%0A++b%3A+Promise.resolve%282%29%2C%0A++c%3A+3%2C%0A%7D%29%3B+%2F%2F+%3D%3E+%7B+a%3A+1%2C+b%3A+2%2C+c%3A+3+%7D%0A%0Aawait+Promise.allSettledKeyed%28%7B%0A++a%3A+Promise.resolve%281%29%2C%0A++b%3A+Promise.reject%282%29%2C%0A++c%3A+3%2C%0A%7D%29%3B+%2F%2F+%3D%3E+%7B+a%3A+%7B+status%3A+%22fulfilled%22%2C+value%3A+1+%7D%2C+b%3A+%7B+status%3A+%22rejected%22%2C+reason%3A+2+%7D%2C+c%3A+%7B+status%3A+%22fulfilled%22%2C+value%3A+3+%7D+%7D):
 ```js
 await Promise.allKeyed({
   a: Promise.resolve(1),
@@ -3178,7 +3197,7 @@ core-js(-pure)/actual|full/async-iterator/take
 core-js(-pure)/actual|full/async-iterator/to-array
 core-js(-pure)/actual|full/iterator/to-async
 ```
-[Examples](https://core-js.io/playground#code=await+AsyncIterator.from%28%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0Aawait+%5B1%2C+2%2C+3%5D.values%28%29.toAsync%28%29.map%28async+it+%3D%3E+it+%2A%2A+2%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B1%2C+4%2C+9%5D):
+[*Examples*](https://core-js.io/playground#code=await+AsyncIterator.from%28%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0Aawait+%5B1%2C+2%2C+3%5D.values%28%29.toAsync%28%29.map%28async+it+%3D%3E+it+%2A%2A+2%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B1%2C+4%2C+9%5D):
 ```js
 await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
   .drop(1)
@@ -3249,7 +3268,7 @@ class Number {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/math-clamp-v2
-core-js(-pure)/full/number/clamp
+core-js(-pure)/full/number(/virtual)/clamp
 ```
 [*Examples*](https://core-js.io/playground#code=5.0.clamp%280%2C+10%29%3B+%2F%2F+%3D%3E+5%0A%28-5%29.clamp%280%2C+10%29%3B+%2F%2F+%3D%3E+0%0A15.0.clamp%280%2C+10%29%3B+%2F%2F+%3D%3E+10):
 ```js
@@ -3572,7 +3591,7 @@ core-js/proposals/data-view-get-set-uint8-clamped
 core-js/full/data-view/get-uint8-clamped
 core-js/full/data-view/set-uint8-clamped
 ```
-[Examples](https://core-js.io/playground#code=const+view+%3D+new+DataView%28new+ArrayBuffer%281%29%29%3B%0Aview.setUint8Clamped%280%2C+100500%29%3B%0Aview.getUint8Clamped%280%29%3B+%2F%2F+%3D%3E+255):
+[*Examples*](https://core-js.io/playground#code=const+view+%3D+new+DataView%28new+ArrayBuffer%281%29%29%3B%0Aview.setUint8Clamped%280%2C+100500%29%3B%0Aview.getUint8Clamped%280%29%3B+%2F%2F+%3D%3E+255):
 ```js
 const view = new DataView(new ArrayBuffer(1));
 view.setUint8Clamped(0, 100500);
@@ -3624,7 +3643,7 @@ class String {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/string-code-points
-core-js(-pure)/full/string/code-points
+core-js(-pure)/full/string(/virtual)/code-points
 ```
 [*Examples*](https://core-js.io/playground#code=for+%28let+%7B+codePoint%2C+position+%7D+of+%27qwe%27.codePoints%28%29%29+%7B%0A++console.log%28codePoint%29%3B+%2F%2F+-%3E+113%2C+119%2C+101%0A++console.log%28position%29%3B++%2F%2F+-%3E+0%2C+1%2C+2%0A%7D):
 ```js
@@ -4062,6 +4081,7 @@ class [DOMTokenList, NodeList] {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
+core-js(-pure)/stable|actual|full/dom-collections
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
 ```
