@@ -386,7 +386,7 @@ runBoth('callee aliases reuse their binding records',
         return name === 'first' && !firstAvailable ? null : reader.getBinding({ scope, name, path: readPath });
       },
       hasBinding(...args) { extraLookups++; return reader.hasBinding(...args); },
-      getBindingNodeType(...args) { extraLookups++; return reader.getBindingNodeType(...args); },
+      getBindingNodeType() { extraLookups++; return null; },
     };
     const callHop = { node: path.node, ctx: { adapter: counted, scope: path.scope, path }, seen: new Set() };
     const resolved = resolveInlineCalleeFunction(callHop);

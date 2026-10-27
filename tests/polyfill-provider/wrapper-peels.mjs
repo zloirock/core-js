@@ -274,7 +274,6 @@ function guardAdapter(adapter) {
     getStringValue(node) { return node.value; },
     hasBinding({ scope, name }) { return !!scope?.getBinding?.(name); },
     getBinding({ scope, name }) { return scope?.getBinding?.(name) ?? null; },
-    getBindingNodeType({ scope, name }) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
     isMutatedStatic() { return false; },
   };
 }

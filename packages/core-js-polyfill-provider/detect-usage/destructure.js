@@ -23,6 +23,7 @@ import {
   assignmentValueDiscarded,
   bindingDeclarationPath,
   bindingLoopAnchor,
+  bindingNodeType,
   bindingPolyfillHint,
   cachedContainerPaths,
   canHoldBuiltIn,
@@ -1095,7 +1096,7 @@ function resolveIndirectBranchingReceiver({ node, seen = new Set(), ctx, binding
       // ... the caller may already hold the first name's binding (`nodeBinding`)
       const binding = cur === node && nodeBinding !== undefined ? nodeBinding : adapter.getBinding({ scope, name, path, read: cur });
       if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readSite })) return null;
-      if (adapter.getBindingNodeType({ scope, name, path, read: cur }) !== 'VariableDeclarator' || !binding.node?.init) return null;
+      if (bindingNodeType(binding) !== 'VariableDeclarator' || !binding.node?.init) return null;
       readSite = binding.node.init;
       cur = unwrapTransparentSeq(installedWriteValue(binding.node.init));
       // advance to the followed binding's own scope, like the sibling const-alias walkers - a
@@ -1580,7 +1581,7 @@ export function navigatedChainKeys(node, { scope, adapter, path }) {
     seen.add(cur.name);
     const binding = adapter.getBinding({ scope, name: cur.name, path, read: cur });
     if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readSite })) return null;
-    if (adapter.getBindingNodeType({ scope, name: cur.name, path, read: cur }) !== 'VariableDeclarator' || !binding.node?.init) return null;
+    if (bindingNodeType(binding) !== 'VariableDeclarator' || !binding.node?.init) return null;
     scope = binding.scope ?? scope;
     readSite = binding.node.init;
     cur = readSite;
@@ -5039,7 +5040,7 @@ function walkStaticReceiverStep(hop, {
       readNode = (binding.path?.node ?? binding.node) ?? readNode;
       break;
     }
-    const bindingType = adapter.getBindingNodeType({ scope: currentScope, name: current.name, path, read: current });
+    const bindingType = bindingNodeType(binding);
     // a class binding is REASSIGNABLE (`class Foo {}` then `Foo = X` is legal, unlike const), so a
     // reassignment that dominates the read makes the declared name unreliable - gate the class arms
     // exactly like the VariableDeclarator arm below. absent a dominating reassignment the identifier
