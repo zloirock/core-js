@@ -4,6 +4,7 @@ import { constants } from 'node:fs';
 // eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
 import { cp, access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
 const exec = promisify(childProcess.exec);
@@ -11,6 +12,9 @@ const exec = promisify(childProcess.exec);
 const execFile = promisify(childProcess.execFile);
 
 const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
+// `Build bundles` of a push takes a minute or two
+const BUNDLES_TIMEOUT = 5 * 60e3;
+const BUNDLES_POLL = 5e3;
 
 export async function isExists(target) {
   try {
@@ -100,13 +104,26 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
     }
   }
 
-  // a branch moves with each push, so its cache serves only the commit being built
+  // a branch moves with each push, so its cache waits for the commit being built: `Build bundles` of the same push
+  // uploads it after the bundles, usually later than this build gets here. In a cache that was there, no commit means
+  // a branch not rebased yet or an upload with the bundles in place, so the cache is taken; after the timeout too, as
+  // the server has no room to build the bundles itself
   async function isCached() {
     if (!version.branch) return isExists(targetBundlePath);
-    const commitPath = join(targetBundlePath, 'commit');
-    if (!await isExists(commitPath)) return false;
     const { stdout } = await execFile('git', ['rev-parse', `origin/${ version.branch }`], { cwd: srcDir });
-    return (await readFile(commitPath, 'utf8')).trim() === stdout.trim();
+    const commit = stdout.trim();
+    const hadCache = await isExists(targetBundlePath);
+    for (let waited = 0; waited < BUNDLES_TIMEOUT; waited += BUNDLES_POLL) {
+      let cachedCommit = null;
+      try {
+        cachedCommit = (await readFile(join(targetBundlePath, 'commit'), 'utf8')).trim();
+      } catch { /* no commit */ }
+      if (cachedCommit === commit || (cachedCommit === null && hadCache)) return true;
+      if (!waited) console.log(`Waiting for core-js bundles of ${ commit }...`);
+      await setTimeout(BUNDLES_POLL);
+    }
+    console.log(`Core JS bundles of ${ commit } did not come in time`);
+    return isExists(targetBundlePath);
   }
 
   const target = version.branch ?? version.tag;

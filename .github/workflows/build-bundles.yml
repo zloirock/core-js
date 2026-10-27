@@ -42,7 +42,8 @@ jobs:
       - name: Build esmodules bundle
         run: npm run bundle-package esmodules minified-name core-js-bundle-esmodules
 
-      # the website runner takes the bundles of a branch only for the commit it builds, so the commit goes last
+      # the website runner waits for the bundles of the commit it builds and takes them once the commit is there, so the
+      # commit goes last
       - name: Write commit of bundles
         if: steps.extract_branch.outputs.upload == 'true'
         run: echo "$GITHUB_SHA" > packages/core-js-bundle/commit
