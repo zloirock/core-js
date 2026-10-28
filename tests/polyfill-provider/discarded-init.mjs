@@ -1,6 +1,8 @@
 // A consumed initializer keeps its effects and observable reads exactly once, in source order.
 // The shared plan borrows those nodes; native bindings own their relocation and insertion.
-import { discardedReceiverEffects, planDiscardedInit } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import {
+  discardedReceiverEffects, liveDestructureDefault, planDiscardedInit, planForInitSink,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -111,5 +113,60 @@ runBoth('deferred whole read', 'const result = (before(), globalThis).Array; con
   check(`${ label }/accepted probe owns its read`, planDiscardedInit(live, ctx, probe, sourceFacts).effects.length, 0);
   checkDeep(`${ label }/removed source`, planDiscardedInit(null, ctx, null, sourceFacts), { effects: [], replay: false });
 });
+
+runBoth('deferred dropped receiver', `
+  const result = (() => globalThis)().self.Array;
+  const live = (effect(), _self).Array;
+`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const live = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'live').node.init;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, path, adapter, resolvePure };
+  const facts = planDiscardedInit(path.node.init, ctx);
+  check(`${ label }/source proves the drop`, facts.dropReceiver, true);
+  path.node.init = live;
+  const before = JSON.stringify(program.node);
+  const actual = planDiscardedInit(live, ctx, null, facts);
+  const [effect] = unwrapRuntimeExpr(unwrapRuntimeExpr(live).object).expressions;
+  checkDeep(`${ label }/only live effects`, actual.effects, [effect]);
+  check(`${ label }/no invented read`, actual.replay, false);
+  check(`${ label }/same identity`, actual.effects[0], effect);
+  check(`${ label }/ignored answer is harmless`, planDiscardedInit(live, ctx, null, facts).effects[0], effect);
+  check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  check(`${ label }/unknown receiver still reads whole`, planDiscardedInit(live, ctx).effects[0], unwrapRuntimeExpr(live));
+});
+
+for (const [expression, effects, memo] of [
+  ['Array ?? fallback()', [], null],
+  ['(effect(), Array) || fallback()', ['effect()'], null],
+  ['(() => globalThis)().self.Array', null, 'Array'],
+  ['unknown', null, null],
+]) {
+  const code = `const result = ${ expression };`;
+  runBoth(`loop sink/${ expression }`, code, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(program.node);
+    const actual = planForInitSink(path.node.init, { scope: path.scope, path, adapter, resolvePure });
+    checkDeep(`${ label }/effects`, actual.effects?.map(node => code.slice(node.start, node.end)) ?? null, effects);
+    check(`${ label }/memo`, actual.memo?.pure?.entry ?? null, memo);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+}
+
+for (const kind of ['instance', 'static', 'global']) {
+  runBoth(`leaf default/${ kind }`, 'const { at: result = first(), plain } = receiver; const live = second();', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const [prop, plain] = path.node.id.properties;
+    const actual = liveDestructureDefault(prop.value, kind);
+    check(`${ label }/capture only a reachable default`, actual, kind === 'instance' ? prop.value : null);
+    check(`${ label }/plain has no guard`, liveDestructureDefault(plain.value, kind), null);
+    if (actual) {
+      const live = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'live').node.init;
+      prop.value.right = live;
+      check(`${ label }/read the current default slot`, actual.right, live);
+    }
+  });
+}
 
 finish();

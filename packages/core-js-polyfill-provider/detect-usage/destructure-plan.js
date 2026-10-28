@@ -106,7 +106,9 @@ import {
   reusableArrayCaptureReceiver,
 } from '../destructure-host-shape.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { computedPropKeyHostsMachinery, harvestDiscardedReceiverSE, planProxyReceiver, shouldDropRescueReceiver } from './members.js';
+import {
+  computedPropKeyHostsMachinery, harvestDiscardedReceiverSE, planMemoReadTarget, planProxyReceiver, shouldDropRescueReceiver,
+} from './members.js';
 import { SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
 import {
   chainSealsAShortCircuit,
@@ -167,6 +169,7 @@ import {
   destructurePatternHostPath,
   destructureRightIsReceiver,
   discardRescueNodesWithReads,
+  decidingFallbackLeft,
   observablePrefixElements,
   outerDestructureReceiver,
   fallbackInitWhollyDiscardable,
@@ -193,6 +196,13 @@ export function discardedReceiverEffects(init, ctx) {
   return harvestDiscardedReceiverSE(node, ctx);
 }
 
+// An extracted static/global import is always defined. Only an instance dispatch can
+// return undefined and need a captured read plus the source default. Borrow the pattern,
+// not its right child: a deferred binding must render later rewrites of that live slot.
+export function liveDestructureDefault(value, kind) {
+  return kind === 'instance' && value?.type === 'AssignmentPattern' ? value : null;
+}
+
 // What a fully consumed initializer leaves at its original evaluation position. Both bindings
 // use this order: the running operand, observable reads, an accepted source probe, a dropped
 // navigation, then the remaining live value. A probe already owns its read and carried writes;
@@ -202,8 +212,13 @@ export function discardedReceiverEffects(init, ctx) {
 // are borrowed, never mutated; bindings clone/move them and choose their native insertion slot.
 // A deferred caller can retain a source-proven whole read. Its live spelling may now be a
 // generated guard; analyzing that guard again would discard the read the source still owes.
+// Conversely, a source-proven dropped receiver stays dropped after its root is rewritten;
+// only its live effects survive. Re-proving that drop from a minted alias invents a read.
 export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null) {
   if (init && sourceFacts?.readWhole && !probe) return { effects: [unwrapRuntimeExpr(init)], replay: true };
+  if (init && sourceFacts?.dropReceiver && !probe) {
+    return { effects: harvestDiscardedReceiverSE(unwrapRuntimeExpr(init), ctx), replay: false, dropReceiver: true };
+  }
   const node = unwrapRuntimeExpr(decidedRunningPart(init, ctx));
   if (!node) return { effects: [], replay: false };
   if (!mayHaveSideEffects(node)) {
@@ -213,17 +228,30 @@ export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null) {
     return { effects: directClaimProbeEffects(probe, probe.effects).filter(effect => effect !== probe.node), replay: false };
   }
   const discarded = discardedReceiverEffects(node, ctx);
-  if (discarded?.length === 0) return { effects: [], replay: false };
+  if (discarded?.length === 0) return { effects: [], replay: false, dropReceiver: true };
   const realmNav = liftedRealmNavEffect(node, ctx);
-  if (realmNav) return { effects: realmNav.effects, replay: false };
+  if (realmNav) return { effects: realmNav.effects, replay: false, ...discarded ? { dropReceiver: true } : {} };
   // A getter read owns every effect buried in it; lifting the harvest as well would run them twice.
   if (discardRescueNodesWithReads({ node, ...ctx })[0] === node) return { effects: [node], replay: true };
-  if (discarded) return { effects: discarded, replay: false };
+  if (discarded) return { effects: discarded, replay: false, dropReceiver: true };
   const effects = liftedInitElements(node, ctx);
   // An unchanged sequence keeps its own source span and comments, not just its children.
   const keptWhole = node.type === 'SequenceExpression' && effects.length === node.expressions.length
     && effects.every((effect, index) => effect === node.expressions[index]);
   return { effects: keptWhole ? [node] : effects, replay: true };
+}
+
+// A consumed loop initializer cannot lift statements out of its header. A decided
+// fallback/probe may leave no sink; a dropped navigation keeps its effects alone.
+// Otherwise the sink reads the shared memo target, retaining the source plan when
+// child rewrites have already replaced its root. Null effects mean a value sink.
+export function planForInitSink(init, ctx, { probe = null, dropReceiver = false, memo = null } = {}) {
+  if (probe || decidingFallbackLeft(peelNestedSequenceExpressions(init).tail, ctx)) {
+    return planDiscardedInit(init, ctx, probe);
+  }
+  const effects = dropReceiver ? discardRescueNodesWithReads({ node: init, ...ctx }) : discardedReceiverEffects(init, ctx);
+  if (effects?.length) return { effects, replay: false };
+  return { effects: null, memo: memo ?? planMemoReadTarget(init, { aliasCtx: ctx, resolvePure: ctx.resolvePure }) };
 }
 
 // collapse a fallback init (logical / ternary / chain-assignment / transparent IIFE) to the
