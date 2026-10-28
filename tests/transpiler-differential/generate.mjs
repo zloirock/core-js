@@ -20557,6 +20557,63 @@ function * generateNestedSynthSourceHosts() {
   }
 }
 
+// Branch registration and dead-right removal share one traversal. Observe both
+// selected leaves, a partial call rescue, and the undefined/null parameter boundary.
+function * generateFallbackSynthBranches() {
+  for (const [name, expr] of [
+    ['nested', `(log.push("before"), pick
+      ? nested ? (log.push("array"), Array) || (log.push("dead"), Object)
+        : (() => { log.push("call"); return globalThis.Array; })()
+      : { from: value => value, of: value => [value] })`],
+    ['nullish', '(log.push("before"), pick ? (log.push("array"), Array) ?? (log.push("dead"), Object) : { from: value => value, of: value => [value] })'],
+  ]) for (const [pick, nested] of [[true, true], [true, false], [false, true]]) yield {
+    ...snippet(`fallback-synth-branches/${ name }/${ pick }-${ nested }`, `(() => {
+      function read(pick, nested) {
+        const { from, of, missing = (log.push("default"), 9) } = ${ expr };
+        return [from([7])[0], of(8)[0], missing];
+      }
+      return read(${ pick }, ${ nested });
+    })()`), strip: true,
+  };
+  yield {
+    ...snippet('fallback-synth-branches/default-getter-after-arguments', `(() => {
+      Object.defineProperty(Array, 'missing', { configurable: true, get() { log.push("read"); return 9; } });
+      function read(pick) {
+        return (({ from, missing } = Array, other) => [from([7])[0], missing])(
+          pick ? void 0 : globalThis.Array, log.push("argument")
+        );
+      }
+      return read(true);
+    })()`), strip: true,
+  };
+  for (const operator of ['||', '??', '&&']) yield {
+    ...snippet(`fallback-synth-branches/default-selector/${ operator }`, `
+      (({ from } = Iterator) => typeof from([7]).next)(undefined ${ operator } Array)
+    `), strip: true,
+  };
+  for (const [name, receiver] of [
+    ['nested-left', '(cond ? undefined : Array) && Array'],
+    ['nested-right', 'true && (cond ? undefined : Array)'],
+    ['or-right', 'false || undefined'],
+    ['nullish-right', 'null ?? undefined'],
+    ['and-right', 'true && undefined'],
+  ]) yield {
+    ...snippet(`fallback-synth-branches/default-delivery/${ name }`, `
+      (({ from } = Iterator) => typeof from([7]).next)(${ receiver })
+    `), strip: true,
+  };
+  for (const [name, arm] of [['undefined', 'undefined'], ['void', 'void 0'], ['null', 'null']]) {
+    for (const pick of [true, false]) yield {
+      ...snippet(`fallback-synth-branches/default-${ name }/${ pick }`, `(() => {
+        function read(pick) {
+          return (({ from, missing = 9 } = Array) => [from([7])[0], missing])(pick ? ${ arm } : globalThis.Array);
+        }
+        try { return read(${ pick }); } catch (error) { return error.name; }
+      })()`), strip: true,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20954,4 +21011,5 @@ export function * generate() {
   yield * generateConsumedInitSourceReads();
   yield * generateDestructureDefaultSinkOrder();
   yield * generateNestedSynthSourceHosts();
+  yield * generateFallbackSynthBranches();
 }

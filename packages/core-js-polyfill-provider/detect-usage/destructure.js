@@ -447,10 +447,10 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
 // that doesn't exist on the constructor) while accepting `Array.from` and inherited
 // Function/Object prototype methods like `name`/`toString`.
 export function buildDestructuringInitMeta({
-  initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null,
+  initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null, paramDefault = null,
 }) {
   const meta = importedStaticReadMeta({ node: initNode, scope, adapter, path,
-    meta: buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path, unionSink, resolveStaticKey }) });
+    meta: buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path, unionSink, resolveStaticKey, paramDefault }) });
   // a static the user monkey-patches is NOT a polyfillable destructure source: the prop
   // stays raw and the receiver substitutes through the identifier machinery, so the patch
   // and the extraction read the same object
@@ -479,16 +479,22 @@ export function buildDestructuringInitMeta({
 }
 
 function buildDestructuringInitMetaCore({
-  initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null,
+  initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null, paramDefault = null,
 }) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapTransparentSeq(initNode);
+  // A caller's undefined arm reads the default in the parameter frame. Keep the
+  // selection as a branch claim even when the caller census knows its condition:
+  // emission must serve both the supplied receiver and the default at their own slots.
+  if (paramDefault && undefinedArmEffectiveReceiver({ branch: unwrapped, paramDefaultNode: paramDefault.node, scope, adapter, path })) {
+    return buildDestructuringInitMeta({ initNode: paramDefault.node, key, ...paramDefault, adapter, unionSink, resolveStaticKey });
+  }
   // a ternary or an `&&` the build decides is the operand it always yields (`decidedSelectionValue`): its
   // dead part names no constructor and no guard candidate, and the meta is the live operand's own. a `||` /
   // `??` decides through its own resolver (`deadFallbackRight`), which keeps its left's effect prefix
   const decidable = unwrapped.type === 'ConditionalExpression' || (unwrapped.type === 'LogicalExpression' && unwrapped.operator === '&&');
-  const live = path && decidable ? decidedSelectionValue(unwrapped, { scope, adapter, path }) : unwrapped;
+  const live = path && decidable && !paramDefault ? decidedSelectionValue(unwrapped, { scope, adapter, path }) : unwrapped;
   if (live !== unwrapped) {
     return buildDestructuringInitMeta({ initNode: live, key, scope, adapter, path, unionSink, resolveStaticKey });
   }
@@ -499,12 +505,12 @@ function buildDestructuringInitMetaCore({
   // tracker doesn't register)
   switch (unwrapped.type) {
     case 'LogicalExpression':
-      return resolveLogicalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey });
+      return resolveLogicalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey, paramDefault });
     case 'SequenceExpression':
       // `(0, Array)`: sequence evaluates to its last expression
       return buildDestructuringInitMeta({ initNode: unwrapped.expressions.at(-1), key, scope, adapter, path, unionSink, resolveStaticKey });
     case 'ConditionalExpression':
-      return resolveConditionalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey });
+      return resolveConditionalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey, paramDefault });
     case 'AssignmentExpression':
       // Every plain assignment yields its RHS, including an inner destructure. The
       // retained capture keeps that inner write intact while serving the outer read.
@@ -625,10 +631,10 @@ function buildDestructuringInitMetaCore({
 // whole-init replacement - it does not disable the rewrite. `&&` is always conditional (primary
 // only when left truthy, else falsy left), so always flag; `??`/`||` flag only when the fallback
 // is the resolved side
-function resolveLogicalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
+function resolveLogicalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
   return node.operator === '&&'
-    ? resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey })
-    : resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey });
+    ? resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey, paramDefault })
+    : resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey, paramDefault });
 }
 
 // `&&`: primary is the RIGHT branch. when both branches resolve to the SAME known object
@@ -636,13 +642,13 @@ function resolveLogicalDestructureMeta({ node, key, scope, adapter, path, resolv
 // (`Array && Map` for `entries` -> `Array && _Map`, `Array && Promise` for `from` ->
 // `{from:_Array$from} && _Promise`). `fromFallback` always set when objects differ or left
 // doesn't resolve - runtime value depends on the left's truthiness
-function resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
+function resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
   // a branch that resolves to a monkey-patched static yields a null meta - guard before reading
   // `.object` (null deref -> build crash), leaving the destructure raw exactly as the conditional
   // path does (the per-identifier receiver substitution handles the mutated static elsewhere)
-  const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey });
+  const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
   if (!primaryMeta?.object) return primaryMeta;
-  const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path, resolveStaticKey });
+  const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path, resolveStaticKey, paramDefault });
   if (leftMeta?.object === primaryMeta.object) return primaryMeta;
   return fallbackDestructureMeta(primaryMeta, leftMeta, adapter);
 }
@@ -664,7 +670,7 @@ function branchingProxySurfacePrimary(meta, adapter) {
 // `MyArray || Iterator` for `from` registers `Iterator.from` because `_Iterator`'s
 // constructor binding doesn't carry the static method - unless the build decides the selection for
 // its left (`deadFallbackRight`): the right never runs there, so it carries nothing
-function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
+function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
   // does this build decide the selection for its left (`deadFallbackRight`) - asked lazily, once, by the
   // readers below
   let decided;
@@ -684,12 +690,12 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
   // yields as well, unless this build decides the selection for its left (`deadFallbackRight`)
   const sharedStaticFallback = primaryPure?.kind === 'instance'
     && resolveBuiltIn(buildDestructuringInitMeta({
-      initNode: node.right, key, scope, adapter, path, resolveStaticKey,
+      initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault,
     }) ?? {})?.kind === 'static'
     && !decidesForLeft();
   if (primaryMeta?.object && !sharedStaticFallback && (primaryPure || branchingProxySurfacePrimary(primaryMeta, adapter))) {
     if (node.operator === '||' && !selectionLeftAlwaysTruthy({ node: node.left, scope, adapter, path }) && !decidesForLeft()) {
-      const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey });
+      const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
       return fallbackDestructureMeta(primaryMeta, fallbackMeta, adapter);
     }
     // The left must satisfy the operator's selector: truthy for OR, non-nullish for nullish coalescing.
@@ -709,7 +715,7 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
   // read included (`[1] || {}` reads `map` off the array), and a guard over the left's candidates tests
   // that left as the member read off the selection does (`decidedReceiver`)
   if (decidesForLeft()) return primaryMeta?.guardedAliasHint ? { ...primaryMeta, decidedReceiver: decided.left } : primaryMeta;
-  const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey });
+  const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
   if (!fallbackMeta?.object) return fallbackMeta;
   return fallbackDestructureMeta(fallbackMeta, primaryMeta, adapter);
 }
@@ -840,9 +846,9 @@ function destructureReceiverOwesAThrow(node, aliasCtx) {
 // Join both selected receivers without substituting one arm for the whole expression.
 // Named statics retain per-arm mirroring, even for equal constructor names; a key shared
 // with instance receivers uses the guarded fallback metadata below.
-function resolveConditionalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
-  const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter, path, resolveStaticKey });
-  const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter, path, resolveStaticKey });
+function resolveConditionalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null, paramDefault = null }) {
+  const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter, path, resolveStaticKey, paramDefault });
+  const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter, path, resolveStaticKey, paramDefault });
   // a branch may be null (a monkey-patched static) - the whole conditional stays raw then,
   // matching the single-receiver mutated path (receiver substitution happens per-identifier)
   if (!consequent || !alternate) return null;
@@ -948,20 +954,79 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
   return pure;
 }
 
-// inside a PARAM-DEFAULT host whose winning receiver is the CALL-ARG, an `undefined`-shaped
-// branch of that arg is exactly the branch the runtime default fires on: its effective
-// receiver IS the default node, so the mirror synths the default's receiver into the arm
-// (same branch, same value - the polyfill spelled where the raw arm read `undefined`; the
-// raw arm lost the default's polyfill entirely). only an SE-FREE default may substitute -
-// the arm otherwise changes WHEN the default's effects run. `null` arms stay out:
-// destructuring null throws natively and the runtime default never applies there
-export function undefinedArmEffectiveReceiver({ branch, paramDefaultNode }) {
+// Inside a parameter-default host whose winning receiver is the call argument, an
+// unshadowed undefined/void arm reads the default. The branch walk registers that
+// default at its original parameter slot, leaving the argument and its timing intact.
+// Only effect-free defaults participate in this branch route; other defaults retain
+// their ordinary receiver handling. Null stays out because it never applies a default.
+export function undefinedArmEffectiveReceiver({ branch, paramDefaultNode, scope, adapter, path }) {
   if (!paramDefaultNode) return null;
   const inner = peelFallbackBranchInner(branch);
-  const undefinedShaped = inner && (isBareUndefinedIdentifier(inner)
+  const undefinedShaped = inner && ((isBareUndefinedIdentifier(inner)
+    && !adapter?.hasBinding?.({ scope, name: inner.name, path, read: inner }))
     || (inner.type === 'UnaryExpression' && inner.operator === 'void' && !mayHaveSideEffects(inner.argument)));
   if (!undefinedShaped || mayHaveSideEffects(paramDefaultNode)) return null;
   return paramDefaultNode;
+}
+
+// Only a delivered undefined value applies a parameter default. An AND may deliver
+// its left, while an OR/nullish left selects the right whenever it is undefined.
+function fallbackBranchDefault(node, slot, paramDefault) {
+  return node.type === 'LogicalExpression' && node.operator !== '&&' && slot === 'left' ? null : paramDefault;
+}
+
+// One fallback synth walk owns arm order, selection safety and leaf admission. Native
+// bindings expose live branch slots and register the accepted leaf; their queues remain
+// private. A dead right is removed only AFTER a descendant registered, and never while
+// a pending whole-receiver swap owns the selection. Sequence prefixes stay outside the
+// peeled target. An undefined arm registers its effect-free parameter default; null cannot.
+export function visitFallbackSynthBranches({
+  branch,
+  key,
+  undefinedArmFallback = null,
+  adapter,
+  resolvePure,
+  readBranch,
+  childBranch,
+  contextFor = (node, source) => source,
+  register,
+  ownsReceiver,
+  dropDeadRight,
+}) {
+  function visit(target, defaultNode) {
+    const source = readBranch(target);
+    const inner = source?.node;
+    if (!inner) return false;
+    const { scope, path } = contextFor(inner, source);
+    const ctx = { scope, path, adapter };
+    const walk = fallbackBranchWalk(inner, ctx);
+    if (walk) {
+      let any = false;
+      for (const slot of walk.slots) {
+        const childDefault = fallbackBranchDefault(inner, slot, defaultNode);
+        // A selection container is never mirrored whole here. Visit its leaves
+        // individually: rejecting the container would also hide a delivered default.
+        if (!getFallbackBranchSlots(peelFallbackBranchInner(inner[slot]))
+          && !undefinedArmEffectiveReceiver({ branch: inner[slot], paramDefaultNode: childDefault, ...ctx })
+          && !fallbackBranchSwapKeepsSelection({
+            branchNode: inner[slot], ...ctx, resolvePure: meta => resolvePure(meta, ctx.path),
+          })) continue;
+        if (visit(childBranch(source, slot), childDefault)) any = true;
+      }
+      if (any && walk.deadRight && !ownsReceiver(source)) dropDeadRight(source);
+      return any;
+    }
+    const effective = undefinedArmEffectiveReceiver({ branch: inner, paramDefaultNode: defaultNode, ...ctx }) ?? inner;
+    const effectiveCtx = effective === inner ? ctx : contextFor(effective, source);
+    const pure = isViableBranchForKey({ branch: effective, key, ...effectiveCtx, adapter, resolvePure });
+    if (!pure) return false;
+    // An undefined argument must stay undefined. Register its effective default
+    // at the parameter slot, where native reads its properties AFTER all arguments.
+    // Moving a partial mirror into the argument would run retained getters early.
+    const targetSource = effective === inner ? source : { ...effectiveCtx, node: effective };
+    return register({ source: targetSource, pure, ...classifyCallBranchForSynth({ inner: effective, ...effectiveCtx, adapter }) });
+  }
+  return visit(branch, undefinedArmFallback);
 }
 
 // Injection-only view of a logical assignment: either retained value or installed RHS
@@ -982,7 +1047,9 @@ function peelUnionReceiver(node, staticIsMutated) {
 // Unresolved arms are normally omitted. Global destructure dispatch opts into them so a
 // user receiver beside a constructor keeps its instance-method coverage.
 export function flattenFallbackBranches(options) {
-  const metas = withCanonQuestion(() => flattenFallbackLevel({ ...options, followed: new Set() }));
+  const metas = withCanonQuestion(() => flattenFallbackLevel({
+    ...options, followed: new Set(), defaultMetas: options.paramDefault ? new Set() : null,
+  }));
   // the usage-global union reads its branches as a set: an arm and a write reaching an alias in another arm
   // name one static once (`a ??= Array` reads `a`, which that very write reaches; `let M = c ? Map : Set`
   // holds the arms its declared selection names)
@@ -994,7 +1061,17 @@ export function flattenFallbackBranches(options) {
 // left decides, which a long chain's lower levels answer once. `followed` holds the branching values
 // the walk has already flattened through an alias leaf
 function flattenFallbackLevel({
-  node, key, scope, adapter, path, followAliasLeaves = false, includeUnresolved = false, seen = new Set(), followed,
+  node,
+  key,
+  scope,
+  adapter,
+  path,
+  followAliasLeaves = false,
+  includeUnresolved = false,
+  seen = new Set(),
+  followed,
+  paramDefault = null,
+  defaultMetas = null,
 }) {
   const peeled = adapter.method === 'usage-global'
     ? peelUnionReceiver(node, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic)
@@ -1009,10 +1086,22 @@ function flattenFallbackLevel({
     const liveSlots = dead?.skip ? branchSlots.filter(slot => slot !== dead.skip) : branchSlots;
     return liveSlots.flatMap(s => {
       const metas = flattenFallbackLevel({
-        node: peeled[s], key, scope, adapter, path, followAliasLeaves, includeUnresolved, seen: new Set(seen), followed,
+        node: peeled[s],
+        key,
+        scope,
+        adapter,
+        path,
+        followAliasLeaves,
+        includeUnresolved,
+        seen: new Set(seen),
+        followed,
+        paramDefault: fallbackBranchDefault(peeled, s, paramDefault),
+        defaultMetas,
       });
-      // an `&&` yields its left only where that is falsy, which a static owner never is
-      return s === 'left' && peeled.operator === '&&' ? metas.filter(meta => meta.placement !== 'static') : metas;
+      // An AND yields its left only where it is falsy. A static owner never is,
+      // but a default constructor can be read AFTER that left delivered undefined.
+      return s === 'left' && peeled.operator === '&&'
+        ? metas.filter(meta => meta.placement !== 'static' || defaultMetas?.has(meta)) : metas;
     });
   }
   // leaf branch: paren/TS-wrapped + safe-SE Identifier / MemberExpression, resolve as a single
@@ -1020,6 +1109,13 @@ function flattenFallbackLevel({
   // classification; unresolved leaves are retained only when requested below.
   const inner = peelFallbackBranchInner(peeled);
   if (!inner) return [];
+  if (paramDefault && undefinedArmEffectiveReceiver({ branch: inner, paramDefaultNode: paramDefault.node, scope, adapter, path })) {
+    const metas = flattenFallbackLevel({
+      ...paramDefault, key, adapter, followAliasLeaves, includeUnresolved, seen, followed,
+    });
+    for (const meta of metas) defaultMetas.add(meta);
+    return metas;
+  }
   const branchMeta = buildDestructuringInitMeta({ initNode: inner, key, scope, adapter, path });
   // a name leaf's binding, looked up once for both asks below: the writes reaching it and the alias it follows
   const binding = inner.type === 'Identifier' && (adapter.method === 'usage-global' || followAliasLeaves)
@@ -1043,6 +1139,7 @@ function flattenFallbackLevel({
       // ... an alias chain past the alias-chain ceiling flattening no further (`withinAliasWalkBudget`)
       return [...written, ...withinAliasWalkBudget(flattenFallbackLevel, {
         node: indirect.node, key, scope: indirect.ctx.scope, adapter, path, followAliasLeaves, includeUnresolved, seen, followed,
+        paramDefault, defaultMetas,
       }) ?? []];
     }
   }
@@ -1209,6 +1306,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
   // function's inner scope (a param shadowing the arg's name would swallow the branches)
   let receiverScope = null;
   let receiverPath = null;
+  let paramDefault = null;
   if (wrapperNode?.type === 'AssignmentPattern' && wrapperPath.parentPath?.node
       && FN_NODE_TYPES.has(wrapperPath.parentPath.node.type)) {
     // AssignmentPattern is an IIFE param wrapper - prefer the call-arg over the default when it is a
@@ -1223,6 +1321,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     if (desc?.callPath && receiverNode === desc.rhsNode) {
       receiverScope = desc.callPath.scope;
       receiverPath = desc.callPath;
+      paramDefault = { node: wrapperNode.right, scope: wrapperPath.scope, path: wrapperPath };
     }
   } else if (wrapperNode && objectPattern) {
     // The same receiver canon handles wrapper defaults, loop elements and IIFE arguments.
@@ -1249,8 +1348,14 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     branchingScope = indirect.ctx.scope;
   }
   const out = flattenFallbackBranches({
-    node: branching, key: meta.key, scope: branchingScope, adapter,
-    path: receiverPath ?? path, followAliasLeaves: true, includeUnresolved: adapter.method === 'usage-global',
+    node: branching,
+    key: meta.key,
+    scope: branchingScope,
+    adapter,
+    path: receiverPath ?? path,
+    followAliasLeaves: true,
+    includeUnresolved: adapter.method === 'usage-global',
+    paramDefault,
   });
   return out.length ? out : null;
 }
@@ -10002,6 +10107,7 @@ export function buildDestructureLeafMeta({
         adapter,
         path: argWins ? site.callPath : pattern,
         unionSink,
+        paramDefault: argWins ? { node: pattern.node.right, scope: pattern.scope, path: pattern } : null,
       });
       // An opaque default cannot authorize a rewrite, but a known caller can still supply
       // the static. This claim authorizes only that caller's argument mirror.
