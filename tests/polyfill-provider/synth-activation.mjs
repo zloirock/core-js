@@ -3,7 +3,7 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planSynthReceiverActivation, renderSynthReplacement } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { findNodeSlot } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { identifier, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
+import { identifier, memberFromKeyName, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('synth-activation');
@@ -132,5 +132,29 @@ for (const [name, expression, entries, rescue, effects] of [
     check(`${ label }/declined literal`, renderSynthReplacement(entries, { ...options, renderLiteral: () => null }), null);
   });
 }
+
+for (const nested of [false, true]) runBoth(`source rescue ownership/${ nested }`,
+  `consume((effect(), ${ nested ? 'globalThis.self' : 'globalThis' }).Array);`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'consume');
+    const [receiver] = path.node.arguments;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const aliasCtx = { path, scope: path.scope, adapter };
+    const activation = planSynthReceiverActivation({ receiver, ...aliasCtx, resolvePure: () => null });
+    const root = nested
+      ? parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'self').node
+      : parser.pickPath(program, 'Identifier', item => item.node.name === 'globalThis').node;
+    const slot = findNodeSlot(receiver, root);
+    slot.owner[slot.key] = nested ? identifier('visitedRoot') : memberFromKeyName(identifier('visitedRoot'), 'self');
+    const effect = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'effect').node;
+    effect.callee = identifier('visitedEffect');
+    const rendered = renderSynthReplacement([served], {
+      receiver, rescueSe: receiver, dropRescueReceiver: activation.dropRescueReceiver, aliasCtx,
+      renderLiteral: () => identifier('synth'), cloneHost: node => node,
+    });
+    check(`${ label }/source ownership survives child rewrite`, rendered.expressions[0], nested ? effect : receiver);
+    check(`${ label }/one effect before the literal`, rendered.expressions.length, 2);
+    check(`${ label }/live effect rewrite`, effect.callee.name, 'visitedEffect');
+  });
 
 finish();
