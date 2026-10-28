@@ -15,7 +15,6 @@ import {
   planSynthReceiverActivation, renderSynthLiteral, renderSynthReplacement,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
-  nestedSequenceValueSpelling,
   peelTransparentWrapperPath,
   isMemberWriteHost,
   findIifeArgPath,
@@ -53,13 +52,13 @@ import {
 } from '@core-js/polyfill-provider/render';
 import {
   planMemoReadTarget,
-  dispatchConsumesRun,
   planProxyReceiver,
+  planKeptSequenceReceiver,
   proxyRunLandingPure,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  unbackedProxyHopKey,
+  runSwallowsStoreProbe,
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
@@ -68,43 +67,14 @@ import {
   keptProbeStore,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
-  ownChainOptionalObjects,
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
   proxyReceiverValueCanBeUndefined,
   resolveSynthKeys,
-  peelReceiverSequenceTail,
   directClaimProbePlan,
   directClaimProbeEffects,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { disableDirectiveKind } from '@core-js/polyfill-provider/helpers/source-scan';
-
-// does the run swallow a hop pure cannot back that reads a KEPT WRITE whose value the collapse
-// cannot serve? a store whose value ends on a hop pure cannot back (`v = globalThis.window`) hands
-// on the raw host read - the probe itself - and folding the run over it answers the ponyfill where
-// the source reads the host. a store of the bare root, or of a navigation whose LEAF a pure entry
-// backs (`v = ga.window?.self` - the collapse renders it as the guarded ponyfill), hands on a value
-// the doctrine speaks for, and the hops over it fold like any other - whichever spelling roots the
-// probe. hops BELOW the write live inside its own value and keep their own verdict, which the
-// store canon spells (the unplugin leg's `proxyStoreIsSpellable` is this rule on its renders)
-function runSwallowsStoreProbe(runNode, resolvePure) {
-  for (let hop = runNode; hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression';) {
-    const inner = unwrapRuntimeExpr(hop.object);
-    if (inner?.type !== 'AssignmentExpression') {
-      hop = inner;
-      continue;
-    }
-    if (!unbackedProxyHopKey(hop, resolvePure)) return false;
-    // definedness of a sequence value is decided by its TAIL - the store canon's own peel
-    const value = unwrapRuntimeExpr(peelReceiverSequenceTail(peelChainAssignment(inner).value ?? inner.right));
-    if (value?.type === 'Identifier') return false;
-    if (value?.type === 'MemberExpression' || value?.type === 'OptionalMemberExpression') {
-      return unbackedProxyHopKey(value, resolvePure);
-    }
-    return true;
-  }
-  return false;
-}
 
 export default function createSynthSwapEmitter({
   adapter,
@@ -320,58 +290,6 @@ export default function createSynthSwapEmitter({
     return renderCollapsePlan(plan, { carrySource });
   }
 
-  // the kept-sequence boundary refuses the whole-collapse (a `?.` reading a NESTED sequence
-  // stays live), but a backed all-proxy run in the sequence tail still owes its fold: drop
-  // the plain dotted hops onto the root pure binding in place - an ALIAS root keeps its
-  // identifier, the drive's alias rule - leaving the sequence and its `?.` alone: the
-  // kept-seq spelling of the plain fold, the unplugin leg's shape. through the PATH, so the
-  // replace requeues what survives; claim-consuming shapes never reach this - their outer
-  // claim renders first and detaches the chain
-  function foldKeptSeqHopRun(recPath, aliasCtx) {
-    if (ownChainOptionalObjects(recPath.node).every(object => !nestedSequenceValueSpelling(object))) return false;
-    // a chain still carrying a claim that DISPATCHES off this run is not claim-less residue: that
-    // claim's route renders it - and MEMOIZES the sequence, whose value slot the kept-value canon
-    // then owns (an alias root folds to the leaf there, not to this fold's alias-keep). asked of
-    // the shared canon, which walks the member run up from here and answers in both tenses - the
-    // claim still spelled as a member, and the dispatch a claim already rendered around the run
-    if (dispatchConsumesRun({ path: recPath, resolvePure, aliasCtx })) return false;
-    let runPath = recPath.get('object');
-    for (;;) {
-      const runNode = runPath.node;
-      if (runNode?.type === 'SequenceExpression' && runNode.expressions.length) {
-        runPath = runPath.get(`expressions.${ runNode.expressions.length - 1 }`);
-        continue;
-      }
-      if (runNode && unwrapRuntimeExpr(runNode) !== runNode) {
-        runPath = runPath.get('expression');
-        continue;
-      }
-      break;
-    }
-    if (!runPath.isMemberExpression()) return false;
-    // the single terminal probe reading directly off the root keeps its read - the `?.` is the
-    // environment test the source asked for; every LONGER all-proxy run folds whole under the
-    // navigation, probes included - the deep-nav canon the flat twins of this shape lock
-    if (unwrapRuntimeExpr(runPath.node.object)?.type === 'Identifier'
-      && unbackedProxyHopKey(runPath.node, resolvePure)) return false;
-    let rootNode = runPath.node;
-    while (rootNode?.type === 'MemberExpression') {
-      if (rootNode.computed || rootNode.optional || !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.property?.name)) return false;
-      rootNode = rootNode.object;
-    }
-    if (rootNode?.type !== 'Identifier'
-      || maximalProxyGlobalPrefix(runPath.node, aliasCtx) !== runPath.node
-      || !findProxyGlobal(runPath.node, aliasCtx, true)) return false;
-    // an ALIAS root keeps its identifier (the drive's alias rule), so the deepest-landing canon is
-    // asked only where the root itself spells a realm name pure can back
-    const runPure = POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name)
-      ? proxyRunLandingPure({ navNode: runPath.node, ctx: aliasCtx, resolvePure, rootName: rootNode.name })
-      : resolvePure({ kind: 'global', name: rootNode.name });
-    runPath.replaceWith(runPure
-      ? injectPureImport(runPure.entry, runPure.hintName) : t.cloneNode(rootNode));
-    return true;
-  }
-
   // a kept STORE a run is written through, swapped in place for a fresh copy: the claim standing over
   // the run subsumed the store's own claims (its root, a call's inner global), and they fire on the copy
   // - the copy the swap's own effect slots take
@@ -549,8 +467,13 @@ export default function createSynthSwapEmitter({
     const collapsed = collapseProxyGlobalReceiver(recPath.node,
       { aliasCtx, isWriteTarget, throughChainAssign: true, carrySource: true });
     if (!collapsed) {
-      return keptSeqHopFold && !isWriteTarget && !deleteHost
-        && foldKeptSeqHopRun(recPath, aliasCtx);
+      const tail = keptSeqHopFold && !isWriteTarget && !deleteHost
+        ? planKeptSequenceReceiver(recPath, { aliasCtx, resolvePure }) : null;
+      if (!tail) return false;
+      const tailPath = recPath.get(tail.keys.join('.'));
+      tailPath.replaceWith(tail.pure
+        ? injectPureImport(tail.pure.entry, tail.pure.hintName) : t.cloneNode(tail.root));
+      return true;
     }
     recPath.replaceWith(collapsed);
     // the replacement is a FINISHED render of the outer member (root substituted, hops dropped) -
