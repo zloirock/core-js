@@ -22,6 +22,8 @@
   - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/es/string/virtual/` and `/stable/string/virtual/` namespace entries
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Dropped no longer required context workaround from `/full/map/key-by` entry
+  - Added missed `Object.prototype.toString` to `Reflect[@@toStringTag]` entries dependencies of `/stable/`, `/actual/` and `/full/` namespaces
+  - Added missed `Object.prototype.toString` to `AggregateError` and `SuppressedError` entries dependencies, it classifies their instances in IE10-
 - Compat data improvements:
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)

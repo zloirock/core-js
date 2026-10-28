@@ -1,4 +1,4 @@
 'use strict';
-require('../../modules/es.reflect.to-string-tag');
+var parent = require('../../stable/reflect/to-string-tag');
 
-module.exports = 'Reflect';
+module.exports = parent;
