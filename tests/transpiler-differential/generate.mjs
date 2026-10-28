@@ -20524,6 +20524,39 @@ function * generateDestructureDefaultSinkOrder() {
   }
 }
 
+// A whole mirror keeps nested dispatch and disabled source slots across native hosts.
+function * generateNestedSynthSourceHosts() {
+  for (const selected of [false, true]) for (const host of ['parameter', 'assignment', 'loop']) {
+    const pattern = '{ Array: { prototype: { at }, of } }';
+    const read = 'return [at.call([3, 7], -1), of(5)];';
+    const body = host === 'parameter' ? `function consume(${ pattern } = flag ? globalThis : own) { ${ read } } return consume();`
+      : host === 'assignment' ? `let at, of; (${ pattern } = flag ? globalThis : own); ${ read }`
+        : `for (const ${ pattern } of [flag ? globalThis : own]) { ${ read } }`;
+    yield { ...snippet(`nested-synth-source-host/${ host }/${ selected ? 'realm' : 'own' }`, `(() => {
+      const own = { Array: { prototype: { at() { log.push("at"); return "own"; } },
+        of(value) { log.push("of"); return [value + 1]; } } };
+      function run(flag) { ${ body } }
+      return [run(${ selected }), run(${ !selected })];
+    })()`), strip: true };
+  }
+  for (const selected of [false, true]) for (const host of ['parameter', 'assignment']) {
+    const pattern = `{ Array: {
+      from,
+      // core-js-disable-next-line
+      of,
+    } }`;
+    const read = 'return [from([4]), flag ? "realm" : of];';
+    const body = host === 'parameter' ? `function consume(${ pattern } = flag ? globalThis : own) { ${ read } } return consume();`
+      : `let from, of; (${ pattern } = flag ? globalThis : own); ${ read }`;
+    yield { ...snippet(`nested-synth-opt-out/${ host }/${ selected ? 'realm' : 'own' }`, `(() => {
+      const own = { Array: { from(value) { log.push("from"); return value; },
+        get of() { log.push("of"); return "own"; } } };
+      function run(flag) { ${ body } }
+      return [run(${ selected }), run(${ !selected })];
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20920,4 +20953,5 @@ export function * generate() {
   yield * generateSynthRescueSourceOwnership();
   yield * generateConsumedInitSourceReads();
   yield * generateDestructureDefaultSinkOrder();
+  yield * generateNestedSynthSourceHosts();
 }

@@ -11,7 +11,6 @@ import {
   isSeFreeMemberReceiver,
   liftedPrefixSplit,
   resolveNestedReceiverBase,
-  resolvePassthroughRef,
   staticHopPure,
   provenRealmCallRoot,
   discardRescueNodesWithReads,
@@ -84,8 +83,6 @@ import {
   expressionStatement,
   identifier,
   memberExpression,
-  objectExpression,
-  objectProperty,
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
@@ -617,36 +614,11 @@ export default function createDestructureDrains(ctx) {
     }
   }
 
-  // the RAW passthrough of a whole hop the branch literal keeps as the source read it (a wks leaf
-  // or an instance member below it): the value at the hop chain off the branch root - never
-  // through a ctor's pure binding - and skipped for the later passes
-  // `raw`: a WHOLE-hop passthrough keeps the source's own read (a member target the mirror left as
-  // written), so it never reads through a constructor's pure binding. an instance slot's DISPATCH
-  // receiver is the opposite case - nothing of the ponyfill lands in the user's object - and reads
-  // it the way every other resolved nav does (`_Set`, not `_globalThis.Set`), the babel leg's canon
-  function renderWholeHopPassthrough(tree, receiver, { raw = true } = {}) {
-    if (receiver?.type !== 'Identifier') return null;
-    const ref = resolvePassthroughRef({
-      keyPath: tree.chainKeys,
-      receiverName: receiver.name,
-      receiverIsProxy: POSSIBLE_GLOBAL_OBJECTS.has(receiver.name),
-      resolveGlobalPolyfill,
-      adapter,
-      raw,
-    });
-    let read = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
-    for (const hop of ref.path) read = memberFromKeyName(read, hop);
-    markSubtreeSkipped(skippedNodes, read);
-    return read;
-  }
-
-  // The ledger stores imported names and child bindings; normalize that native record
-  // for the provider's literal and activation consumers.
+  // Bind the ledger's imported names and instance receivers to the common renderer.
   function synthSlot(slots, entry) {
     const slot = slots.get(entry.dedupKey);
-    return typeof slot === 'string' ? { name: slot } : slot?.descended || slot?.descendedHop
-      ? { name: slot.base, children: slot.descended ?? slot.descendedHop }
-      : slot ? { name: slot.helper, instance: true, receiver: slot.receiver, unresolved: slot.instanceHop } : null;
+    return typeof slot === 'string' ? { name: slot }
+      : slot ? { name: slot.helper, instance: true, receiver: slot.receiver } : null;
   }
 
   // The ledger owns imported binding identities and source frames. The common renderer owns
@@ -748,89 +720,6 @@ export default function createDestructureDrains(ctx) {
   function drainSynthLiterals() {
     for (const [, pending] of [...synthLedger, ...pendingBranchSynths]) {
       const { receiver } = pending;
-      // merged nested mirrors: one literal per subtree, wrapped up its own hop chain and
-      // joined at the top level - rendered only when every outer hop prop registered
-      if (pending.nestedTrees) {
-        const [{ outerPattern }] = pending.nestedTrees;
-        // a literal that will not render - a hop the mirror declined after a sibling registered, a
-        // subtree with no spelling, no ponyfill in any subtree - leaves the branch as the source
-        // wrote it, its proxy roots substituted: the registration's skip kept the later passes off
-        // that read, so `globalThis` would otherwise stay raw where every other read is `_globalThis`
-        function restoreBranch() {
-          const restored = substituteProxyRootsInClone(cloneStamped(receiver), pending.metaPath,
-            { adapter, resolveGlobalPolyfill, injectPureImport });
-          if (restored !== receiver && replaceNodeInTree(program, receiver, restored)) markRewrite();
-        }
-        // the arity is counted in OUTER props, not in subtrees: one outer prop may reach several hops
-        // under a shared proxy step, each registering a subtree of its own, and only the step a
-        // subtree enters the pattern by says which outer prop it covers
-        // ... and an INSTANCE slot alone is no reason to mirror: it spells the ponyfill's dispatch on
-        // a read the source already performs, so a tree set with no real polyfill leaf leaves the
-        // branch as written - the shared plan's `hasPolyfill` metric, asked across the merged subtrees
-        // ... and neither is a ctor SLOT: it is a key the literal OWES once some hop has earned that
-        // literal, never the reason to mint one (`{ Set: S, Promise: { customZ } }` keeps the realm
-        // on both legs; the same slot beside a polyfilled hop rides the literal that hop earned)
-        if ((outerPattern && outerPattern.properties.length > 1
-          && new Set(pending.nestedTrees.map(tree => tree.chainKeys[0])).size !== outerPattern.properties.length)
-          || pending.nestedTrees.every(tree => tree.ctorSlot || [...tree.slots ?? []]
-            .every(([, slot]) => slot?.instanceHop || slot?.descendedHop))) {
-          restoreBranch();
-          continue;
-        }
-        const topProps = [];
-        // the object a hop's key path hangs its subtree on, minted once per PATH: two hops sharing a
-        // leading proxy step land in the one object that step spells (`{ self: { Map: {}, Array: {} } }`),
-        // where a second same-named prop would hide the first - the pattern reads the literal by key
-        const hopLevels = new Map();
-        function hopContainer(keys) {
-          if (!keys.length) return null;
-          const path = keys.join('.');
-          const held = hopLevels.get(path);
-          if (held) return held;
-          const level = objectExpression([]);
-          hopLevels.set(path, level);
-          const host = hopContainer(keys.slice(0, -1));
-          (host ?? { properties: topProps }).properties.push(objectProperty(identifier(keys.at(-1)), level));
-          return level;
-        }
-        for (const tree of pending.nestedTrees) {
-          // an instance slot's receiver is the hop's OWN passthrough read, resolved here where the
-          // branch root is known (`_globalThis.Object`) - one fresh node per slot, never shared
-          for (const [slotKey, slot] of tree.slots ?? []) {
-            if (!slot?.instanceHop) continue;
-            const hopRead = renderWholeHopPassthrough(tree, receiver, { raw: false });
-            if (hopRead) tree.slots.set(slotKey, { helper: slot.helper, receiver: hopRead });
-          }
-          // a ctor SLOT is the whole subtree: the constructor's own ponyfill under the key the
-          // pattern reads it by (`Set: _Set` beside `Map: { groupBy: _Map$groupBy }`)
-          const sub = tree.ctorSlot ? identifier(tree.ctorSlot)
-            : tree.wholeHop ? renderWholeHopPassthrough(tree, receiver) : renderPatternLiteral({
-              plan: tree.plan,
-              receiver,
-              slots: tree.slots,
-              rawSlots: tree.rawSlots ?? null,
-              passthroughPrefix: tree.chainKeys,
-              resolvedSpelling: true,
-            });
-          if (!sub) {
-            topProps.length = 0;
-            break;
-          }
-          const host = hopContainer(tree.chainKeys.slice(0, -1));
-          (host ?? { properties: topProps }).properties.push(
-            objectProperty(identifier(tree.chainKeys.at(-1)), sub));
-        }
-        if (!topProps.length) {
-          restoreBranch();
-          continue;
-        }
-        const consumedBranch = receiver;
-        if (replaceNodeInTree(program, receiver, objectExpression(topProps))) {
-          markRewrite();
-          markSubtreeSkipped(skippedNodes, consumedBranch);
-        }
-        continue;
-      }
       const rendered = renderRegisteredSynth(pending);
       if (!rendered) continue;
       if (replaceNodeInTree(program, receiver, rendered)) {

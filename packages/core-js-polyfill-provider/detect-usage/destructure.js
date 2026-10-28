@@ -6575,6 +6575,12 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDe
       // the iterated literal. the mirror hosts on the LOOP and swaps that element in place INSIDE
       // the array, so every pass reads its own mirrored value - where a binding lifted out of the
       // head into the body is only ever right while the head runs once
+      // A native binding may have moved this head pattern into the loop body already.
+      // Recover its original sole element through the same source-slot canon as flat synths.
+      const paired = ownRelocatedHeadElement(parent) && resolveFallbackReceiver(parent, cur.node, staticIsMutated);
+      if (paired?.hostPath) return {
+        host: paired.hostPath, slot: 'right', node: paired.hostPath.node.right, headElements: [paired.rhsNode], relocated: true,
+      };
       if (parent.node.init) return { host: parent, slot: 'init', node: parent.node.init };
       const headElements = forOfHeadIterableElements(parent);
       const loop = headElements ? parent.parentPath?.parentPath : null;
@@ -6940,6 +6946,9 @@ export function buildNestedParamSynthPlan({
   const planHost = callSite ?? mirrorPlanHost(leafPatternPath, !!constructorRestIndex({
     name: meta.object, patternNode: leafPatternPath.node, resolveGlobalPolyfill, isDisabledProp,
   }), allowFlatInstanceDefault && instanceClaim, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
+  // A relocated head's ordinary claims belong to its body extraction. Only a fallback
+  // claim still owes a branch mirror on the original element before that extraction runs.
+  if (planHost?.relocated && !meta.fromFallback) return null;
   const receiverPath = callSite?.host ?? leafPatternPath;
   const headElements = planHost?.headElements ?? null;
   // no host spells the slot the leaf's inner default pairs with - a catch parameter binds the
@@ -7287,11 +7296,11 @@ export function buildNestedParamSynthPlan({
       defaultSeen ||= patternHasAnyDefault(prop.value);
       effectfulKeySeen ||= effectfulKey;
       const eagerNestedInstance = eagerInstance && prop.value?.type !== 'AssignmentPattern';
-      // A whole-level replacement must not supply a ponyfill to a disabled sibling.
-      // Its untouched subtree stays on the ordinary per-property extraction route.
-      if (isDisabledProp?.(prop)) return null;
+      const disabled = isDisabledProp?.(prop);
+      if (disabled && (targetLeaves.length < 2 || ctx.kind !== 'ctor')) return null;
       const key = mirrorAcceptedKey({ prop, ...keyCtx, seenKeys, instance: ctx.kind === 'instance' });
       if (key === null) {
+        if (disabled) return null;
         // A well-known symbol has no string slot, but its stable imported key can carry the
         // receiver's own value beside the mirrored statics. Unknown or effectful keys still bail.
         const symbolName = prop.computed && !computedKeyHasSideEffects(prop, keyCtx)
@@ -7308,6 +7317,12 @@ export function buildNestedParamSynthPlan({
       // one property per SLOT: a key the pattern reads twice is already spelled, and a second
       // property for it would be the duplicate an ES5-strict parser refuses
       if (entries.some(entry => entry.key === key)) continue;
+      // A disabled sibling retains its native read and every claim below it. It can
+      // ride a mirror earned by another slot, but never earns or claims that mirror.
+      if (disabled) {
+        entries.push({ key, child: { kind: 'passthrough', bailed: true } });
+        continue;
+      }
       const inner = patternSlotTarget(prop.value);
       if (ctx.kind === 'instance') {
         const entry = mirrorInstanceEntry(prop, key, ctx.name, !eagerInstance);
@@ -7407,11 +7422,9 @@ export function buildNestedParamSynthPlan({
         const consumable = host?.node.type !== 'AssignmentExpression' || !!propBindingIdentifier(prop.value)
           || isMirrorablePatternValue(prop.value)
           || !!memberTargetTakesExtraction(prop.value, { hostPattern: host.node.left, prop });
-        // ... and a slot whose pattern holds a CLAIM of its own DESCENDS instead of handing the
-        // pattern the ponyfill whole: every key the pattern reads becomes a PASSTHROUGH of its own,
-        // which the passthrough canon resolves THROUGH the static's ponyfill and the leg's own hook
-        // dispatches (`keys: { name: _nameMaybeFunction(_Object$keys) }`). the flat binding left that
-        // claim native, and the leaf's own route cannot reach it either - the slot is consumed
+        // A nested claim renders its resolved instance dispatch through the slot's live value
+        // (`keys: { name: _nameMaybeFunction(_Object$keys) }`). The consumed pattern cannot
+        // rediscover that receiver after relocation, so rendering must keep the source answer.
         // ... and a slot this constructor polyfills NO static for - a plain hop the mirror hands
         // through whole (`Array: { prototype: { at } }`) - descends on the very same terms: the hop's
         // own live value is what each key reads through, so the claim the pattern carries is reached
@@ -7421,14 +7434,17 @@ export function buildNestedParamSynthPlan({
         const slotPattern = pure?.kind === 'static' ? inner : prop.value;
         const slotLeaves = (!pure || pure.kind !== 'instance') && planStaticPatternInstances(
           slotPattern,
-          { resolvePure, assignment: host?.node.type === 'AssignmentExpression', defaults: true },
+          { resolvePure, assignment: host?.node.type === 'AssignmentExpression', defaults: true,
+            receiverObject: !pure && key === 'prototype' ? ctx.name : undefined },
         );
         entries.push(slotLeaves
           ? { key, child: {
             kind: 'descended-pattern',
             prop,
             hop: !pure,
-            entries: slotLeaves.map(({ key: name }) => ({ key: name, child: { kind: 'passthrough' } })),
+            entries: slotLeaves.map(({ key: name, pure: dispatch }) => ({
+              key: name, child: dispatch ? { ...dispatch, kind: 'instance' } : { kind: 'passthrough' },
+            })),
           } }
           : !consumable ? { key, child: { kind: 'passthrough', bailed: true } } : !pure || pure.kind === 'instance'
             ? { key, child: {
@@ -8094,7 +8110,7 @@ function collectTreeInjectionFlags(tree, m) {
       m.real = true;
       m.passthrough = true;
       m.passthroughCount += 1;
-      m.claimedProperties.push(tree.prop);
+      if (tree.prop) m.claimedProperties.push(tree.prop);
       break;
     case 'polyfill':
       m.real = true;
@@ -8108,11 +8124,13 @@ function collectTreeInjectionFlags(tree, m) {
     // ... a descended HOP has no ponyfill of its own - what it reaches is an instance dispatch over
     // the hop's live value - so like a plain instance slot it rides a tree a sibling already keeps
     // alive and never keeps one alive by itself
-    case 'descended-pattern':
+    case 'descended-pattern': {
       m.descended = true;
-      m.real ||= !tree.hop;
+      const real = m.real || !tree.hop;
       for (const { child } of tree.entries) collectTreeInjectionFlags(child, m);
+      m.real = real;
       break;
+    }
     case 'passthrough':
       m.passthrough = true;
       m.passthroughCount += 1;

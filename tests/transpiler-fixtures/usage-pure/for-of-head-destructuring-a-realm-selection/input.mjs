@@ -1,3 +1,3 @@
 // A nested instance read dispatches on the actual iterated receiver.
-// Unplugin also mirrors the realm arm's static; Babel retains the native `of` read.
+// The selected realm arm also supplies its static through the common mirror.
 for (const { Array: { prototype: { at }, of } } of [c ? globalThis : fb]) use(at, of);

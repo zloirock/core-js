@@ -138,7 +138,6 @@ import {
 } from './resolve.js';
 import {
   instanceHopDispatch,
-  renderSynthTree,
   resolvePassthroughRef,
   staticHopPure,
   instanceSynthReceiverPure,
@@ -3352,18 +3351,7 @@ export function renderSynthLiteral(entries, {
       return base;
     }
     let value;
-    if (slot?.children) {
-      const base = slot.name ? imported(slot) : pathRead();
-      value = renderSynthTree(
-        {
-          kind: 'object',
-          entries: slot.children.map(
-            leaf => ({ key: leaf.key, child: leaf.helper ? { kind: 'instance', entry: leaf.helper } : { kind: 'passthrough' } }),
-          ),
-        },
-        { receiverNode: base, injectImport: name => name, renderPassthrough: cloneNode },
-      );
-    } else if (slot?.instance) {
+    if (slot?.instance) {
       const source = slot.receiver;
       const sourcePure = source && aliasCtx && instanceSynthReceiverPure(source, { ...aliasCtx, resolvePure });
       const argument = source ? sourcePure ? imported(sourcePure) : embed(cloneHost(source))
