@@ -76,6 +76,7 @@ import {
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   chainThroughNamedDefaults,
+  discardedReceiverEffects,
   planLiteralResidual,
   planLiteralRoute,
   planSentinelMemo,
@@ -185,7 +186,6 @@ import {
   arrayWrapperDeclarator,
   buildInstanceDefaultGuard,
   bareProxyGlobalPure,
-  buriedKeyClaimInit,
   classifyDeclarationHost,
   climbPatternChain,
   defaultedSoleConsumes,
@@ -199,8 +199,6 @@ import {
   hopChainKeys,
   hostStatementOf,
   initRawKeyOnRoot,
-  initSeqDirectClaim,
-  initSeqRootHasKeptWrite,
   isPlainConsumableProp,
   isPureNavAfterSePrefix,
   isPureNavReceiver,
@@ -229,7 +227,6 @@ import {
   hopDefaultCarriesEffect,
   nestedLeafSelectingReceiver,
   nestedInstanceWithoutSelectingInit,
-  sinkDropsReceiver,
   staticallySelectedLeft,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
@@ -2640,12 +2637,9 @@ export default function createAstDestructureEmitter({
             value: prop.value, resolvePure: m => resolvePure(m, metaPath), isDisabled: null,
             keyNameOf: leafProp => leafProp.key?.name ?? leafProp.key?.value ?? null,
           }) : null,
-        seqRootWrite: initSeqRootHasKeptWrite(declarator.init),
-        // ... and the same timing for a KEY effect buried in the spine: it rides the extraction's
+        // A KEY effect buried in the source spine rides the extraction's
         // own sequence, where the source ran it - inside the read, not ahead of it
         buriedKeyEffect: navSpineHasComputedKeyEffect(declarator.init),
-        keyClaimInit: buriedKeyClaimInit(declarator.init),
-        seqDirectClaimInit: initSeqDirectClaim(declarator.init),
         rawKeyRootInit: initRawKeyOnRoot(declarator.init),
         // ... and the same timing for the guard the discarded read renders through;
         // its source plan owns the effects the drain places around that read
@@ -3490,6 +3484,7 @@ export default function createAstDestructureEmitter({
     // use folds / narrows through it (`{ iterator } = globalThis.Symbol; arr[iterator]` ->
     // `_getIteratorMethod(arr)`); ctor aliases (kind global) registered above
     if (kind !== 'global') registerExtractAliases({ metaPath, kind, entry, hintName, prop, declaration, declarationPath });
+    const sinkDrop = forInit && !!discardedReceiverEffects(declarator.init, { scope: metaPath.scope, adapter, path: metaPath })?.length;
     recordJob({
       hostPath: exported ? declarationPath.parentPath : declarationPath,
       job: {
@@ -3504,7 +3499,7 @@ export default function createAstDestructureEmitter({
         collapseLeafName,
         eagerMemoName: sentinelMemoNames.get(declarator) ?? null,
         metaPath,
-        sinkDrop: forInit && sinkDropsReceiver(declarator.init, metaPath, adapter),
+        sinkDrop,
         // ... less the read the dispatch itself performs: a carried receiver the claim dispatches on is
         // read once, by that dispatch
         sinkKeep: forInit && !receiverConsumesInit && (mayHaveSideEffects(declarator.init)
@@ -3514,7 +3509,7 @@ export default function createAstDestructureEmitter({
         // asked only of a MULTI-HOP nav that survives the sink, the one shape whose root the
         // walk would otherwise respell as its own hop pure (`_self.Array` for `_globalThis.Array`)
         sinkPlan: forInit && peelTransparentExpr(peelTransparentExpr(declarator.init)?.object)?.type === 'MemberExpression'
-          && !sinkDropsReceiver(declarator.init, metaPath, adapter)
+          && !sinkDrop
           && patternBindingCount(declarator.id) === patternBindingCount(prop.value)
           ? planMemoArg(declarator.init, metaPath) : null,
         symbolPattern: isSymbolIteratorPatternClaim(prop, entry),

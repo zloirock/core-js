@@ -27,6 +27,7 @@ import {
   renderDestructureDeclarators,
   renderDestructureKeySegments,
   renderDestructureHeadCapture,
+  renderMemoReadTarget,
 } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { firstSpelledOffset, ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -107,7 +108,6 @@ import {
   descendReceiverPathByKeys,
   destructureAssignmentValueIsCaptured,
   destructureKeyReadPlan,
-  decidingFallbackLeft,
   discardRescueNodesWithReads,
   observablePrefixElements,
   destructurePatternHostPath,
@@ -122,7 +122,6 @@ import {
   isReReadableSurfaceNav,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
-  liftedRealmNavEffect,
   provenRealmCallRoot,
   nestedAssignmentStatementOf,
   overwriteMemberTarget,
@@ -159,6 +158,8 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   discardedReceiverEffects,
+  liveDestructureDefault,
+  planForInitSink,
   planDiscardedInit,
   buildNestedDestructurePlan,
   planDestructureKeySegments,
@@ -177,9 +178,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   harvestDiscardedReceiverSE,
-  planCallRootDiscardedProxySwap,
   planGuardedStaticNarrow,
-  shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   anchoredResidualSymbolKeyName,
@@ -1876,15 +1875,9 @@ export default function createDestructureEmitter({
     return element ? { element, sequencePrefix: [] } : null;
   }
 
-  // what an EMPTIED cascade host still owes, in source-eval order: the right itself where it visibly
-  // runs, collapsed to a realm nav's own effects when the census resolves the call behind its hops
-  // (those hops are dead reads, and a pure call leaves nothing) - else the plan's own HARVEST, which
-  // is how a receiver READ reaches this render at all: `mayHaveSideEffects` calls a plain member read
-  // pure, so a value only an object-literal getter could name is observable nowhere else
-  function emptiedCascadeRemains(plan, assignPath) {
-    if (!mayHaveSideEffects(assignPath.node.right)) return plan.discardSe ?? [];
-    const realmNav = liftedRealmNavEffect(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath });
-    return realmNav ? realmNav.effects : [assignPath.node.right];
+  // Bind the discarded-init decision to this assignment's current source frame.
+  function emptiedCascadeRemains(assignPath) {
+    return planDiscardedInit(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }).effects;
   }
 
   function cascadeAssignmentExpressionDestructure({ assignPath, prop, peeled, requireAnchored = false }) {
@@ -1978,7 +1971,7 @@ export default function createDestructureEmitter({
       // prune empties it, what is left to evaluate is the RIGHT alone - and only where it carries an
       // effect, exactly the statement host's rule. dropping it whole lost a kept WRITE's effect
       if (plan.pattern.properties.length) exprs.push(assignPath.node);
-      else exprs.unshift(...emptiedCascadeRemains(plan, assignPath));
+      else exprs.unshift(...emptiedCascadeRemains(assignPath));
       if (exprs.length) {
         const [replaced] = peeled.element.replaceWith(exprs.length === 1 ? exprs[0] : t.sequenceExpression(exprs));
         // the sentinels are declared from what SURVIVED: an ANCHORED rebuild lifts the pattern this
@@ -2022,7 +2015,7 @@ export default function createDestructureEmitter({
       applyAnchoredAssignmentRebuild(plan, assignPath);
     }
     if (plan.pattern.properties.length === 0 && !plan.restKeepsLevel) {
-      const remains = emptiedCascadeRemains(plan, assignPath);
+      const remains = emptiedCascadeRemains(assignPath);
       if (remains.length) {
         exprStmt.get('expression').replaceWith(remains.length === 1 ? remains[0] : t.sequenceExpression(remains));
       } else exprStmt.remove();
@@ -5110,7 +5103,7 @@ export default function createDestructureEmitter({
     }
     // mark property as handled - rest-rename triggers re-traversal which must be skipped
     skippedNodes.add(prop.node);
-    handleDestructuredProperty(prop, value);
+    handleDestructuredProperty(prop, value, kind);
     skipEmptyPatternInit(prop);
   }
 
@@ -5510,14 +5503,6 @@ export default function createDestructureEmitter({
     rebindLiveDeclarators(declaration, scope);
   }
 
-  // The shared drop plan borrows source effects; this boundary makes native Babel clones.
-  function discardedReceiverSinkInit(initNode, path) {
-    const effects = discardedReceiverEffects(initNode, { scope: path.scope, adapter, path, resolvePure });
-    if (!effects) return null;
-    return { sink: effects.length === 0 ? null
-      : effects.length === 1 ? t.cloneDeep(effects[0]) : t.sequenceExpression(effects.map(node => t.cloneDeep(node))) };
-  }
-
   // for-init with SE: keep SE inline so it doesn't escape the loop.
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
@@ -5525,36 +5510,15 @@ export default function createDestructureEmitter({
   // raw property/array mutations, so fresh bindings are re-registered on the mutated path
   function handleForInitSE({ declaration, parent, localBinding, value, scope, isStatic, probe = null }) {
     if (isStatic) {
-      // a `||` / `??` its LEFT decides never runs its right: the sink keeps what the rescue canon owes of
-      // the init - its prefix and the left's effects - and none stands where that is nothing (the other
-      // leg's slot: `for (var of = _Array$of;;)` for `{ of } = Array ?? (log(), Set)`)
-      // An accepted probe also owns that read, leaving only its explicit residual effects to sink.
-      const decided = !!probe || !!decidingFallbackLeft(peelNestedSequenceExpressions(parent.node.init).tail,
-        { scope: parent.scope, adapter, path: parent });
-      // a verbatim sink of a MULTI-hop proxy receiver reads an undefined intermediate hop off-browser
-      // (`sf()[(c++, 'self')].Map` keeps the raw `.self` - ie:11 / Node throw). the sink value is
-      // discarded (dummy binding), so re-emit ONLY the harvested side effects (shared discard helper).
-      // resolve the drop on the RAW init - foldBuriedProxyHopHosts re-roots the nav to a form the gate misses
-      let sinkInit = decided ? rescuedInitExpression(parent, parent.node.init, probe)
-        : discardedReceiverSinkInit(parent.node.init, parent)?.sink;
+      // Decide before the native child fold changes the source navigation. Rendering
+      // clones effects here; the scope and insertion position still belong to this binding.
+      const sinkPlan = planForInitSink(parent.node.init, { scope: parent.scope, adapter, path: parent, resolvePure }, { probe });
+      const effects = sinkPlan.effects?.map(node => sinkPlan.replay ? cloneReplayedEffect(node, parent) : t.cloneDeep(node));
+      let sinkInit = effects?.length ? effects.length === 1 ? effects[0] : t.sequenceExpression(effects) : null;
       foldBuriedProxyHopHosts(parent.get('init'));
-      // a droppable nav with NO harvestable SE (a provably-pure call root: `(() => globalThis)().self.Array`)
-      // still needs a SAFE sink - the fold leaves the raw `.self` hop the loop init reads undefined off-engine,
-      // and unlike a lifted plain-decl residual the for-init sink never re-enters the natural member detection.
-      // render the DISCARDED value through the shared plans: a pure-ctor leaf whole-swaps (`_Map`), a native-
-      // static leaf re-roots at the pure global (`_globalThis.Array`). plain-decl uses collapseRetainedProxyReceiver
-      if (!sinkInit && !decided) {
-        const initLeaf = unwrapRuntimeExpr(parent.node.init);
-        if (shouldDropRescueReceiver(initLeaf)) {
-          const aliasCtx = aliasCtxFromPath(parent);
-          const discarded = planCallRootDiscardedProxySwap({ receiver: initLeaf, ...aliasCtx, resolvePure });
-          if (discarded) {
-            const pureId = injectPureImport(discarded.leafPure.entry, discarded.leafPure.hintName);
-            sinkInit = discarded.harvestedSE.length
-              ? t.sequenceExpression([...discarded.harvestedSE.map(node => t.cloneDeep(node)), pureId]) : pureId;
-          } else sinkInit = synthSwap.collapseProxyGlobalReceiver(initLeaf, { aliasCtx });
-        }
-      }
+      if (sinkPlan.memo) sinkInit = estreeToBabel(renderMemoReadTarget(sinkPlan.memo, {
+        injectImport: (entry, hint) => injectPureImport(entry, hint).name, embed: hostSlot, cloneHost: node => t.cloneDeep(node),
+      }));
       // static polyfill import - SE needs a dummy binding to stay in for-init. the sink
       // lands BEFORE every extraction of this declaration (SE-first, source-faithful),
       // not at the consumed slot where earlier per-prop inserts would precede it
@@ -5562,7 +5526,7 @@ export default function createDestructureEmitter({
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
       const rendered = renderDestructureDeclarators([{ id: localBinding, init: value }], {
-        capture: decided && !sinkInit ? null
+        capture: effects && !sinkInit ? null
           : { id: generateLocalRef(scope), init: sinkInit ?? cloneReplayedEffect(parent.node.init, parent) },
         embed: hostSlot,
       }).map(node => estreeToBabel(node));
@@ -5702,7 +5666,7 @@ export default function createDestructureEmitter({
   // Handle defaults, then remove the source property or retain its rest exclusion sentinel.
   // Flat statics first try the shared nested-plan renderer. A computed key that runs code takes
   // its own route ahead of this one, which keeps the key in place (`handleSideEffectComputedKey`).
-  function handleDestructuredProperty(prop, value) {
+  function handleDestructuredProperty(prop, value, kind) {
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
     const propValue = prop.node.value;
@@ -5719,30 +5683,20 @@ export default function createDestructureEmitter({
     let catchFoldedRef = null;
     // default value: { from = [] } = Array -> from = _from (the static import is always defined, so
     // the user's default is dead text and drops); instance calls memo the call and keep the guard
-    let localBinding;
-    if (t.isAssignmentPattern(propValue)) {
-      localBinding = cloneWriteTarget(t, propValue.left);
-      const needsTemp = t.isCallExpression(value);
+    const localBinding = cloneWriteTarget(t, patternSlotTarget(propValue));
+    const defaultPattern = liveDestructureDefault(propValue, kind);
+    if (defaultPattern) {
       // prop.node anchors the loop-header escape check: a for-init host needs the memo `var`
       // BEFORE the loop, not in a block-converted bodyless body
-      const ref = needsTemp ? catchBorn ? generateLocalRef(prop.scope) : generateRef(prop.scope, prop.node) : value;
-      if (needsTemp && catchBorn) catchFoldedRef = t.cloneNode(ref);
-      value = estreeToBabel(needsTemp
-        ? renderInstanceDefaultGuard({
-          assignedRef: hostSlot(ref),
-          call: hostSlot(value),
-          defaultValue: hostSlot(t.cloneNode(propValue.right)),
-          defaultName: localBinding.name,
-          reread: hostSlot(t.cloneNode(ref)),
-        })
-        : renderStaticDefaultGuard({
-          read: hostSlot(ref),
-          defaultValue: hostSlot(t.cloneNode(propValue.right)),
-          reread: hostSlot(t.cloneNode(ref)),
-          alwaysDefined: true,
-        }));
-    } else {
-      localBinding = cloneWriteTarget(t, propValue);
+      const ref = catchBorn ? generateLocalRef(prop.scope) : generateRef(prop.scope, prop.node);
+      if (catchBorn) catchFoldedRef = t.cloneNode(ref);
+      value = buildInstanceDefaultGuard(t, {
+        call: value, defaultNode: t.cloneNode(defaultPattern.right), ref, defaultName: localBinding.name,
+      });
+    } else if (propValue.type === 'AssignmentPattern') {
+      // No clone visits the dead default now; retire its writes explicitly so later
+      // claims do not treat an assignment that left with the default as a live write.
+      noteRenderRetiredWrites(propValue.right);
     }
     const parent = objectPattern.parentPath;
 
@@ -5816,11 +5770,11 @@ export default function createDestructureEmitter({
     const effectivelyEmpty = isEmpty || (!hasRest && survivingSiblingsAllConsumed);
     const seqTailDropped = effectivelyEmpty && !hasRest && retainedInit?.type === 'SequenceExpression';
     // a fully-discarded receiver whose nav carries side effects is HARVESTED + dropped whole by the SE-lift
-    // (`plantSideEffect` -> `discardedReceiverSinkInit`) on the RAW init - re-rooting it here would leave a
+    // on the RAW init - re-rooting it here would leave a
     // `(se, _globalThis).member` dead read the drop gate no longer recognizes, diverging from the unplugin drop.
-    // gated on the drop actually firing (SE present), so an effect-free nav still collapses through the path below
+    // An empty harvest still proves the navigation can leave with the consumed value.
     const dropsDiscardedNav = effectivelyEmpty && !hasRest && retainedInit
-      && discardedReceiverSinkInit(retainedInit, parent) !== null;
+      && discardedReceiverEffects(retainedInit, { scope: parent.scope, adapter, path: parent, resolvePure }) !== null;
     if (!dropsDiscardedNav && (hasRest || !effectivelyEmpty
       || (retainedInit && mayHaveSideEffects(retainedInit, { scope: parent.scope, adapter, path: parent }) && !seqTailDropped))) {
       if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init', aliasCtxFromPath(parent));
