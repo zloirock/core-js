@@ -28,6 +28,7 @@ import {
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   renderSynthLiteral,
+  renderSynthReplacement,
   planDiscardedInit,
   hostLevelSurvives,
   planCatchClauseExtraction,
@@ -41,7 +42,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   decidedRunningPart,
-  discardRescueNodes,
   proxyGlobalRootName,
   resolveObjectName,
   realmLevelNamesCtor,
@@ -56,7 +56,6 @@ import {
   invalidateScopeVarIndex,
   isDestructurePattern,
   isPristineProxyGlobal,
-  isReusableReceiver,
   isTopLevelThisContext,
   mayHaveSideEffects,
   noteRelocatedHeadName,
@@ -93,8 +92,6 @@ import {
   variableDeclaration,
   variableDeclarator,
   renderKeyedDestructureRead,
-  renderSynthReceiverGuard,
-  renderSynthActivation,
   renderMemoReadTarget,
   renderStaticDefaultGuard,
   memberFromKeyName,
@@ -127,7 +124,6 @@ import {
   forInitMemoVerdicts,
   guardedPureBinding,
   hopChainKeys,
-  insideParamPosition,
   interleavedSeKeySegments,
   isMintedOrProxyName,
   isPureNavReceiver,
@@ -677,6 +673,15 @@ export default function createDestructureDrains(ctx) {
     return read;
   }
 
+  // The ledger stores imported names and child bindings; normalize that native record
+  // for the provider's literal and activation consumers.
+  function synthSlot(slots, entry) {
+    const slot = slots.get(entry.dedupKey);
+    return typeof slot === 'string' ? { name: slot } : slot?.descended || slot?.descendedHop
+      ? { name: slot.base, children: slot.descended ?? slot.descendedHop }
+      : slot ? { name: slot.helper, instance: true, receiver: slot.receiver, unresolved: slot.instanceHop } : null;
+  }
+
   // The ledger owns imported binding identities and source frames. The common renderer owns
   // flat and nested slot values; only native skip marks and source clones are applied here.
   function renderPatternLiteral({
@@ -689,7 +694,7 @@ export default function createDestructureDrains(ctx) {
     rawSlots = null,
     requireFullCoverage = false,
     resolvedSpelling = requireFullCoverage,
-    memoBaseName = null,
+    memo = null,
     instanceReceiver = null,
     metaPath = null,
     guardedReceiverPlan = null,
@@ -703,7 +708,7 @@ export default function createDestructureDrains(ctx) {
       rawSlots?.size ? plan.map(entry => ({ ...entry, raw: rawSlots.has(entry.dedupKey) })) : plan,
       {
         receiver: instanceReceiver ?? passthroughBase ?? receiver,
-        memo: memoBaseName ? identifier(memoBaseName) : null,
+        memo,
         receiverPath,
         requireCoverage: requireFullCoverage,
         resolvedSpelling,
@@ -713,12 +718,7 @@ export default function createDestructureDrains(ctx) {
         sealedReceiverPlan: sealedProbePlan,
         resolvePure: meta => resolvePure(meta, metaPath),
         injectImport: injectPureImport,
-        slotFor(entry) {
-          const slot = slots.get(entry.dedupKey);
-          return typeof slot === 'string' ? { name: slot } : slot?.descended || slot?.descendedHop
-            ? { name: slot.base, children: slot.descended ?? slot.descendedHop }
-            : slot ? { name: slot.helper, instance: true, receiver: slot.receiver, unresolved: slot.instanceHop } : null;
-        },
+        slotFor: entry => synthSlot(slots, entry),
         cloneHost: source => metaPath ? substituteProxyRootsInClone(
           duplicateReceiver(source, injector),
           metaPath,
@@ -744,99 +744,42 @@ export default function createDestructureDrains(ctx) {
     return rendered && substituteProxyRootsInClone(rendered, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
   }
 
-  // markRewrite fires ONLY on a landed mutation: a registration whose drain drops (partial
-  // coverage, a failed replace) must leave the engine's ABSTAIN untouched - a spurious mark
-  // turns the abstain into a reprint the structural gate then compares strictly
-  // every key resolved: no re-read, so the receiver's observable setup rescues AHEAD of the
-  // plain literal instead of the memo (`(_at(...), { from: _Array$from })`); harvested from
-  // the LIVE tree - the walk's in-place rewrites already landed. true when it rendered
-  function renderFlatRescueLiteral(pending) {
-    const { plan, receiver, slots, metaPath, branchMirror } = pending;
-    const flatLiteral = renderPatternLiteral({
-      plan, receiver, slots, guardedReceiverPlan: pending.guardedReceiverPlan ?? null,
-    });
-    if (!flatLiteral) return false;
-    const { synthGuard } = pending;
-    if (synthGuard) {
-      let guarded = renderSynthReceiverGuard(synthGuard, flatLiteral);
-      guarded = substituteProxyRootsInClone(guarded, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
-      if (replaceNodeInTree(program, receiver, guarded)) {
-        markRewrite();
-        markSubtreeSkipped(skippedNodes, receiver);
-      }
-      return true;
+  // Bind imported names, relocated refs and live source children to the common activation.
+  function renderRegisteredSynth(pending) {
+    const { plan, receiver, slots, metaPath } = pending;
+    function cloneSource(source) {
+      return substituteProxyRootsInClone(duplicateReceiver(source, injector), metaPath,
+        { adapter, resolveGlobalPolyfill, injectPureImport });
     }
-    const rescueSource = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
-    // ... and in a per-BRANCH mirror a hop whose object is not a bare binding drops too: the
-    // literal REPLACES the branch value, so re-emitting the read adds a member access off the
-    // ponyfilled root that nothing consumes (`(e(), globalThis).Array` sinks to `e()` alone).
-    // a PARAM-default host keeps it - babel spells the read there
-    const rescueOverBinding = rescueSource?.type === 'MemberExpression'
-      && peelTransparentExpr(rescueSource.object)?.type === 'Identifier';
-    // The same captured read serves plain receivers, fallback lefts and branch mirrors.
-    // Reconstructing it from the rewritten receiver loses its source ownership and frame.
-    const sealedLeft = renderSealedNavProbe(pending.sealedProbePlan, metaPath, probeRenderCtx);
-    // the multi-hop proxy drop and the per-branch mirror both ERASE the read instead of keeping it
-    const dropRescueReceiver = shouldDropRescueReceiver(rescueSource)
-      || (branchMirror && !insideParamPosition(metaPath)
-        && rescueSource?.type === 'MemberExpression' && !rescueOverBinding);
-    // `rescueSe` is the provider's verdict that the receiver's own READ has to run - re-emitted
-    // WHOLE, the way babel's swap spells it, because a navigation the literal replaces is
-    // observable beyond the effects it buries (it throws off an absent host). everything else asks
-    // the rescue canon, which owns what a DISCARD silently drops
-    const rescue = sealedLeft ? probeEffectNodes(sealedLeft)
-      : pending.rescueSe && !dropRescueReceiver ? [duplicateReceiver(rescueSource, injector)]
-      : discardRescueNodes({ node: rescueSource, ...nodeSite(rescueSource, metaPath), adapter })
-        .map(node => duplicateReceiver(node, injector));
-    // the clone is built at DRAIN time, past the walk: a proxy root the registration
-    // suppressed (its spine was the memo plan's tail) would ship raw, so the clone
-    // substitutes it here (`(() => { eff(); return globalThis; })().self.Array`)
-    rescue.forEach((node, at) => {
-      rescue[at] = substituteProxyRootsInClone(node, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
+    const rendered = renderSynthReplacement(plan, {
+      receiver, callBranch: pending.callBranch, rescueSe: pending.rescueSe, guard: pending.synthGuard,
+      aliasCtx: { ...nodeSite(receiver, metaPath), adapter, injectorState },
+      slotFor: entry => synthSlot(slots, entry),
+      cloneHost: cloneSource,
+      renderLiteral: activation => renderPatternLiteral({
+        ...pending, ...activation, requireFullCoverage: pending.nestedOnly,
+      }),
+      renderMemoArgument: () => {
+        const argument = renderMemoArg(pending.memoArgPlan, metaPath);
+        return argument && duplicateReceiver(argument, injector);
+      },
+      renderProbe: () => {
+        const node = renderSealedNavProbe(pending.sealedProbePlan, metaPath, probeRenderCtx);
+        return node ? { node, effects: probeEffectNodes(node).map(cloneSource) } : null;
+      },
+      // Registration reserves the slot ahead of claims inside the receiver, matching
+      // source order. Branch mirrors without a reservation allocate only if consumed.
+      createMemo: () => identifier(pending.memoName ?? mintRefName()),
     });
-    const resolved = rescue.length ? sequenceExpression([...rescue, flatLiteral]) : flatLiteral;
-    if (replaceNodeInTree(program, receiver, resolved)) {
-      markRewrite();
-      markSubtreeSkipped(skippedNodes, receiver);
-    }
-    return true;
+    // The common guard carries raw source slots; bind its surviving realm roots now.
+    return rendered && pending.synthGuard ? substituteProxyRootsInClone(rendered, metaPath,
+      { adapter, resolveGlobalPolyfill, injectPureImport }) : rendered;
   }
 
-  // eslint-disable-next-line max-statements -- flat and nested mirrors share the receiver rescue and final replacement lifecycle
+  // Mark only landed rewrites; a declined render must leave the engine's abstain intact.
   function drainSynthLiterals() {
-    // both ledgers are Maps - the entry iteration yields [key, pending] pairs
     for (const [, pending] of [...synthLedger, ...pendingBranchSynths]) {
-      const { plan, receiver, baseName, baseIsProxy, leadingEffects, passthroughPrefix, slots, nestedOnly } = pending;
-      // the call-branch memo channel: `function (_ref) { return { g: _G$g, other: _ref.other }; }(<recv>)`
-      // - the receiver (already claimed in place) runs once as the argument
-      if (pending.callBranch) {
-        // every key resolved: no re-read, so the receiver's observable setup rescues AHEAD
-        // of the plain literal instead of the memo (`(_at(...), { from: _Array$from })`);
-        // harvested from the LIVE tree - the walk's in-place rewrites already landed
-        if (plan.every(entry => slots.has(entry.dedupKey)) && renderFlatRescueLiteral(pending)) continue;
-        // the param name MINTS at registration (see `registerSimpleSynthSlot`): the pattern is
-        // visited before its own init, and babel numbers by that order
-        const { synthGuard } = pending;
-        // The moved receiver keeps declarations for the frames it contains. Its old nodes
-        // may already have been replaced while the probe retained their live child claims.
-        const memoArg = duplicateReceiver(synthGuard ? synthGuard.fallback?.left ?? receiver
-          : renderMemoArg(pending.memoArgPlan, pending.metaPath) ?? pending.memoReceiver, injector);
-        const memoTail = !synthGuard && peelNestedSequenceExpressions(memoArg).tail;
-        const reusableMemo = memoTail?.type === 'Identifier' && isReusableReceiver(memoTail, {
-          interveningEffects: true, ctx: { ...nodeSite(memoTail, pending.metaPath), adapter, injectorState },
-        });
-        const memoName = reusableMemo ? memoTail.name : pending.memoName ?? mintRefName();
-        const synthLiteral = renderPatternLiteral({
-          plan, receiver, slots, memoBaseName: memoName,
-          guardedReceiverPlan: pending.guardedReceiverPlan ?? null,
-        });
-        if (!synthLiteral) continue;
-        const iife = renderSynthActivation(synthLiteral, {
-          guard: synthGuard, memo: identifier(memoName), argument: memoArg, reusable: !!reusableMemo,
-        });
-        if (replaceNodeInTree(program, receiver, iife)) markRewrite();
-        continue;
-      }
+      const { receiver } = pending;
       // merged nested mirrors: one literal per subtree, wrapped up its own hop chain and
       // joined at the top level - rendered only when every outer hop prop registered
       if (pending.nestedTrees) {
@@ -920,36 +863,8 @@ export default function createDestructureDrains(ctx) {
         }
         continue;
       }
-      let rendered = renderPatternLiteral({
-        plan,
-        receiver,
-        baseName,
-        baseIsProxy,
-        passthroughPrefix,
-        slots,
-        requireFullCoverage: nestedOnly,
-        instanceReceiver: pending.instanceReceiver ?? null, metaPath: pending.metaPath ?? null,
-        sealedProbePlan: pending.sealedProbePlan ?? null,
-        guardedReceiverPlan: pending.guardedReceiverPlan ?? null,
-        passthroughBase: pending.passthroughBase ?? null,
-      });
+      const rendered = renderRegisteredSynth(pending);
       if (!rendered) continue;
-      const { synthGuard } = pending;
-      if (synthGuard) {
-        rendered = renderSynthReceiverGuard(synthGuard, rendered);
-        rendered = substituteProxyRootsInClone(rendered, pending.metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
-      } else {
-        // a SEALED receiver read is observable - the source paren ends the chain, so the read past
-        // it throws off-engine where the swapped literal just answers. it re-emits as a discarded
-        // throw probe ahead of the literal, which is the source's own spelling of what the swap erases
-        const sealedProbe = renderSealedNavProbe(pending.sealedProbePlan, pending.metaPath, probeRenderCtx);
-        if (sealedProbe) rendered = sequenceExpression([...probeEffectNodes(sealedProbe), rendered]);
-        // a collapsed logical re-runs its left sequence prefix ahead of the literal - what of it runs something,
-        // the shared trim canon's cut (a dead `0,` is a comma the source wrote)
-        const leading = leadingEffects && pending.metaPath ? observablePrefixElements(leadingEffects.expressions.slice(0, -1),
-          { ...nodeSite(receiver, pending.metaPath), adapter }) : leadingEffects?.expressions.slice(0, -1) ?? [];
-        if (!sealedProbe && leading.length) rendered = sequenceExpression([...leading, rendered]);
-      }
       if (replaceNodeInTree(program, receiver, rendered)) {
         markRewrite();
         markSubtreeSkipped(skippedNodes, receiver);

@@ -20386,6 +20386,31 @@ function * generateDiscardedDestructureInitializers() {
   }
 }
 
+// Synth activations share one receiver ownership decision across complete/partial coverage,
+// direct defaults, supplied arguments and selected branches. Keys and defaults run after it.
+function * generateSynthActivationCoverage() {
+  for (const [shape, receiver] of [
+    ['inline-call', '(() => { log.push([1].at(0)); return Array; })()'],
+    ['member-prefix', '(log.push("receiver"), globalThis).Array'],
+    ['collapsed-fallback', '(log.push("receiver"), Array) || (log.push("dead"), Object)'],
+    ['guarded-fallback', 'globalThis.window?.Array || (log.push("fallback"), Array)'],
+  ]) for (const partial of [false, true]) {
+    const pattern = `{ [(log.push("key"), "from")]: from, ${ partial ? 'missing = (log.push("default"), 9)' : 'of' } }`;
+    const value = `[from([7])[0], ${ partial ? 'missing' : 'of(8)[0]' }]`;
+    for (const [host, expression] of [
+      ['default', `(() => { function read(${ pattern } = ${ receiver }) { return ${ value }; } return read(); })()`],
+      ['argument', `((${ pattern }) => ${ value })(${ receiver })`],
+      ['taken-branch', `(() => { function read(pick) { const ${ pattern } = pick ? ${ receiver } : Array; return ${ value }; } return read(true); })()`],
+      ['other-branch', `(() => { function read(pick) { const ${ pattern } = pick ? ${ receiver } : Array; return ${ value }; } return read(false); })()`],
+    ]) yield {
+      ...snippet(`synth-activation-coverage/${ shape }/${ partial ? 'partial' : 'full' }/${ host }`, expression),
+      // Effectful factory defaults stay outside the supported static routes. Keep the
+      // full-environment rewrite oracle, but do not require injection on that source.
+      strip: shape !== 'inline-call' || host !== 'default',
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20777,4 +20802,5 @@ export function * generate() {
   yield * generateMemberBindingDeclarations();
   yield * generateMemberBindingPresence();
   yield * generateDiscardedDestructureInitializers();
+  yield * generateSynthActivationCoverage();
 }
