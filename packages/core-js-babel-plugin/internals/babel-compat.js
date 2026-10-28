@@ -3,6 +3,7 @@
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import {
   prepareMemoReceiver as prepareReceiverValue,
+  prepareStaticReceiver,
   planGuardComposition,
   guardProbeUndefinable,
   memoReceiverOriginName,
@@ -614,6 +615,20 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     });
   }
 
+  // Static preparation applies to a dispatch receiver; an unrelated guard memo
+  // retains the navigation preparation and source capture boundary above.
+  function prepareDispatchReceiver(node, ctx) {
+    const prepared = prepareStaticReceiver(node, ctx && {
+      ...ctx,
+      resolvePure: meta => meta.kind === 'global' ? resolvePureGlobalEntry?.(meta.name, ctx.path)
+        : resolvePureStaticEntry?.(meta.object, meta.key, ctx.path),
+    }, {
+      injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+      embed: source => hostSlot(t.cloneNode(source)),
+    });
+    return prepared === node ? node : estreeToBabel(prepared);
+  }
+
   // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
   // to `node`, but callers memoizing a CLONE or a rendered navigation probe must pass the
   // live source node instead: a range-less useNode fails the param/loop-header escape
@@ -1133,7 +1148,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       injectorState: getInjector(),
     };
     const decision = planMethodCall({
-      receiver: prepareMemoReceiver(object, receiverCtx),
+      receiver: prepareDispatchReceiver(prepareMemoReceiver(object, receiverCtx), receiverCtx),
       sourceReceiver,
       sideEffects,
       receiverEffectCount,
@@ -2628,6 +2643,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   function replaceInstanceLike({ path, id, skipOptional, sideEffects, receiverEffectCount }) {
     inheritConsumedMemberComments(id, path.node, true);
     const receiverSource = path.node.object;
+    // Prepare the value this member tests before capture; optional links below a
+    // plain member retain their own split and are prepared after that extraction.
+    if (path.node.optional) path.node.object = prepareDispatchReceiver(receiverSource, {
+      scope: path.scope, path, adapter: getAdapter?.(), injectorState: getInjector(),
+    });
     const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, extracted] = extractCheck(path, skipOptional,
