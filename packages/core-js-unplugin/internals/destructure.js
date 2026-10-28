@@ -28,7 +28,6 @@ import {
   paramDefaultInstanceSynthAllowed,
   patternComputedKeysSynthSafe,
   planSideEffectKeyStrategy,
-  planSynthReceiverGuard,
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
   planStaticPatternInstances,
@@ -81,6 +80,7 @@ import {
   planLiteralRoute,
   planSentinelMemo,
   synthPlanFullyCovered,
+  planSynthReceiverActivation,
   buildNestedDestructurePlan,
   destructureHostLiteralSurvives,
   hopPatternLeafClaims,
@@ -234,7 +234,7 @@ import {
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
 import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
-import { planGuardedStaticNarrow, planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import createDestructureDrains from './destructure-drain.js';
 
 // an assignment-position sentinel writes an undeclared name: the drain plants its `var _unusedN;`
@@ -560,7 +560,6 @@ export default function createAstDestructureEmitter({
       || !patternComputedKeysSynthSafe({ objectPatternNode: pattern, scope: metaPath.scope, adapter, path: metaPath })) return false;
     const receiver = findSynthSwapReceiver(hostParent, pattern, adapter, resolvePure);
     let baseIdent = receiver;
-    let leadingEffects = null;
     let passthroughPrefix = null;
     // the SE policy decides the channel BEFORE any direct route: an SE-bearing receiver
     // (a call, a rescue-carrying member / logical left) memoizes through the IIFE param -
@@ -578,7 +577,7 @@ export default function createAstDestructureEmitter({
     // a fallback LEFT takes the nav base only when it spells NO effect of its own: an
     // SE-bearing one routes through the callBranch memo, which owns the re-emission order
     if (navBase && !(receiver?.type === 'LogicalExpression' && navBase.leadingEffects)) {
-      ({ baseIdent, passthroughPrefix, leadingEffects } = navBase);
+      ({ baseIdent, passthroughPrefix } = navBase);
       baseIsProxy = true;
     } else if (!sePolicy.callBranch && receiver?.type === 'LogicalExpression') {
       // a fallback-shaped receiver (`(SE, Array) || Set`) collapses LEFT: the literal replaces
@@ -586,9 +585,7 @@ export default function createAstDestructureEmitter({
       // live), the dropped branch dies whole - a left the build decides by the part of it that runs
       let left = peelTransparentExpr(decidedRunningPart(receiver.left, { ...nodeSite(receiver, metaPath), adapter }));
       if (left?.type === 'SequenceExpression') {
-        // capture the LIVE sequence, not its elements: the walker still rewrites the prefix
-        // in place, and the drain reads the current state
-        leadingEffects = left;
+        // The common activation harvests the live receiver's prefix after its claims land.
         left = peelTransparentExpr(left.expressions.at(-1));
       }
       baseIdent = left;
@@ -599,7 +596,6 @@ export default function createAstDestructureEmitter({
     const { callBranch } = sePolicy;
     let memoArgPlan = null;
     if (callBranch) {
-      leadingEffects = null;
       // the canonical re-read target resolves on the PRISTINE tree - at drain time the
       // in-place claims would already have reshaped the spine
       memoArgPlan = planMemoArg(receiver.type === 'LogicalExpression' ? receiver.left : receiver, metaPath);
@@ -608,21 +604,20 @@ export default function createAstDestructureEmitter({
       // ... save a collapsed fallback's LEFT the receiver canon admitted (`findSynthSwapReceiver`: a member or
       // a quiet call), which the passthrough re-spells as the other leg's swap does (`passthroughBase`)
       && receiver?.type !== 'LogicalExpression') return false;
-    const synthGuard = planSynthReceiverGuard({
-      receiver, ...nodeSite(receiver, metaPath), adapter, resolvePure: meta => resolvePure(meta, metaPath),
-    });
     const dedupKey = synthPropDedupKey(metaPath.node, { scope: metaPath.scope, path: metaPath, adapter });
     if (!dedupKey) return false;
     let pending = synthLedger.get(pattern);
     if (!pending) {
       const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter });
       if (!plan) return false;
+      const activation = planSynthReceiverActivation({
+        receiver, ...nodeSite(receiver, metaPath), adapter, resolvePure: meta => resolvePure(meta, metaPath),
+      });
       pending = {
         plan, receiver, baseName: callBranch || baseIdent.type !== 'Identifier' ? null : baseIdent.name,
         passthroughBase: !callBranch && !baseIsProxy && receiver.type === 'LogicalExpression'
           && baseIdent.type !== 'Identifier' && baseIdent.type !== 'ThisExpression' ? baseIdent : null,
         baseIsProxy,
-        leadingEffects,
         passthroughPrefix,
         callBranch,
         // the provider's own verdict on whether the receiver's READ has to run: the same
@@ -637,25 +632,17 @@ export default function createAstDestructureEmitter({
             contextFor: node => ({ ...nodeSite(node, metaPath), adapter }),
             resolvePure: meta => resolvePure(meta, metaPath),
           }) ? mintRefName() : null,
-        // a fallback-logical memoizes its resolved LEFT (the dead right short-circuits);
-        // the node stays LIVE, so the walker's in-place claims reach the memo argument
-        memoReceiver: callBranch ? (receiver.type === 'LogicalExpression' ? receiver.left : receiver) : null,
         memoArgPlan,
-        synthGuard,
+        ...activation,
         // ... and the SHAPE of the sealed read the swap erases, planned on the PRISTINE tree:
         // by drain time the walk has rendered that nav into its guard and the seal is gone
         sealedProbePlan: captureSealedNavProbe(receiver, metaPath, probeRenderCtx),
-        // The guard proves its probe on the alternate branch. Preserve the collapse plan from
-        // the pristine receiver so unresolved literal slots read through that proven branch.
-        guardedReceiverPlan: synthGuard ? planProxyReceiver(synthGuard.fallback?.left ?? receiver, {
-          aliasCtx: { ...nodeSite(receiver, metaPath), adapter }, guardedProbe: synthGuard.probe,
-          resolvePure: meta => resolvePure(meta, metaPath),
-        }) : null,
         metaPath,
         slots: new Map(),
       };
       synthLedger.set(pattern, pending);
     }
+    const { synthGuard } = pending;
     // the replace target must not be swapped out from under the registration by the
     // ordinary arms (the drain would miss the detached node); a collapsed logical keeps its
     // SE prefix LIVE and kills only the tail ident and the dropped branch
@@ -1200,13 +1187,10 @@ export default function createAstDestructureEmitter({
           receiver: inner,
           slots: new Map(),
           callBranch: true,
-          branchMirror: true,
           metaPath,
           rescueSe: sePolicy.rescueSe ?? null,
-          // partial key coverage renders the IIFE, and the branch VALUE is its argument -
-          // the node itself, which the drain moves out of the tree into the call
-          memoReceiver: inner,
-          synthGuard: planSynthReceiverGuard({
+          // Capture the source guard and its proven landing before child claims rewrite the branch.
+          ...planSynthReceiverActivation({
             receiver: inner,
             ...nodeSite(inner, metaPath),
             adapter,
@@ -1256,15 +1240,14 @@ export default function createAstDestructureEmitter({
     if (!pending) {
       const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter });
       if (!plan) return false;
-      // the sealed read this ARM erases, planned on the PRISTINE tree: at drain time the walk
-      // has rendered that nav into its guard and the seal is no longer visible
+      // The branch's guard and sealed read are source facts, captured before either is rewritten.
       pending = {
         plan,
         receiver: inner,
         slots: new Map(),
         metaPath,
         ...branchBase,
-        synthGuard: planSynthReceiverGuard({
+        ...planSynthReceiverActivation({
           receiver: inner,
           ...nodeSite(inner, metaPath),
           adapter,
