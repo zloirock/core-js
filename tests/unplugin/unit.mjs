@@ -47,7 +47,7 @@ import createPlugin, {
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
 import { drainSequenceAssignments, liveTailOf } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
-import { directClaimProbeEffects } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { directClaimProbeEffects, keptWriteRidesValue } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { renderSynthTree } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import createDestructureDrains from '../../packages/core-js-unplugin/internals/destructure-drain.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
@@ -2224,11 +2224,14 @@ async function checkAstInternalsCore() {
   check('emit-shared mintedProxyGlobalName resolves a minted proxy root', es.mintedProxyGlobalName('_self', injectorState), 'self');
   check('emit-shared mintedProxyGlobalName rejects a minted non-proxy', es.mintedProxyGlobalName('_Array$of', injectorState), null);
   check('emit-shared mintedProxyGlobalName rejects an unknown name', es.mintedProxyGlobalName('_ref', injectorState), null);
-  const spellable = es.proxyStoreIsSpellable(
-    b.memberExpression(b.identifier('globalThis'), b.identifier('self')), name => name === 'self' ? { entry: 'self' } : null);
-  check('emit-shared proxyStoreIsSpellable accepts a pure-leaf spine', spellable, true);
-  check('emit-shared proxyStoreIsSpellable rejects a window-terminated spine',
-    es.proxyStoreIsSpellable(b.memberExpression(b.identifier('globalThis'), b.identifier('window')), () => null), false);
+  const spellable = keptWriteRidesValue(b.assignmentExpression('=', b.identifier('held'),
+    b.memberExpression(b.identifier('globalThis'), b.identifier('self'))), {
+    resolvePure: ({ name }) => name === 'self' ? { entry: 'self' } : null,
+  });
+  check('shared kept write accepts a pure-leaf spine', spellable, true);
+  check('shared kept write rejects a window-terminated spine',
+    keptWriteRidesValue(b.assignmentExpression('=', b.identifier('held'),
+      b.memberExpression(b.identifier('globalThis'), b.identifier('window'))), { resolvePure: () => null }), false);
 }
 await checkAstInternalsCore();
 
