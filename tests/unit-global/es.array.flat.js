@@ -9,7 +9,7 @@ QUnit.test('Array#flat', assert => {
   assert.looksNative(flat);
   assert.nonEnumerable(Array.prototype, 'flat');
   assert.deepEqual([].flat(), []);
-  const array = [1, [2, 3], [4, [5, 6]]];
+  let array = [1, [2, 3], [4, [5, 6]]];
   assert.deepEqual(array.flat(0), array);
   // eslint-disable-next-line unicorn/no-unnecessary-array-flat-depth -- testing
   assert.deepEqual(array.flat(1), [1, 2, 3, 4, [5, 6]]);
@@ -31,4 +31,11 @@ QUnit.test('Array#flat', assert => {
     })).length === 0, 'uses ToLength');
   }
   assert.true('flat' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  array = [];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return { foo: 1 };
+  } };
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
+  assert.same(array.flat().foo, 1, '@@species');
 });

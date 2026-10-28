@@ -1,4 +1,5 @@
 'use strict';
+require('../../../modules/es.array.species');
 require('../../../modules/es.array.splice');
 var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 

@@ -13,7 +13,7 @@ QUnit.test('Array#flatMap', assert => {
   assert.deepEqual([1, 2, 3].flatMap(it => [it, it]), [1, 1, 2, 2, 3, 3]);
   assert.deepEqual([1, 2, 3].flatMap(it => [[it], [it]]), [[1], [1], [2], [2], [3], [3]]);
   assert.deepEqual([1, [2, 3]].flatMap(() => 1), [1, 1]);
-  const array = [1];
+  let array = [1];
   const context = {};
   array.flatMap(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
@@ -31,4 +31,11 @@ QUnit.test('Array#flatMap', assert => {
     throw new Error();
   }).length === 0, 'uses ToLength');
   assert.true('flatMap' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  array = [];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return { foo: 1 };
+  } };
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
+  assert.same(array.flatMap(it => it).foo, 1, '@@species');
 });

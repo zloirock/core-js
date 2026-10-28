@@ -1,12 +1,13 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
+import Symbol from 'core-js-pure/es/symbol';
 import flat from 'core-js-pure/es/array/flat';
 import defineProperty from 'core-js-pure/es/object/define-property';
 
 QUnit.test('Array#flat', assert => {
   assert.isFunction(flat);
   assert.deepEqual(flat([]), []);
-  const array = [1, [2, 3], [4, [5, 6]]];
+  let array = [1, [2, 3], [4, [5, 6]]];
   assert.deepEqual(flat(array, 0), array);
   assert.deepEqual(flat(array, 1), [1, 2, 3, 4, [5, 6]]);
   assert.deepEqual(flat(array), [1, 2, 3, 4, [5, 6]]);
@@ -25,4 +26,10 @@ QUnit.test('Array#flat', assert => {
       },
     })).length === 0, 'uses ToLength');
   }
+  array = [];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return { foo: 1 };
+  } };
+  assert.same(flat(array).foo, 1, '@@species');
 });

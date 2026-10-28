@@ -1,5 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
 
+import Symbol from 'core-js-pure/es/symbol';
 import flatMap from 'core-js-pure/es/array/flat-map';
 
 QUnit.test('Array#flatMap', assert => {
@@ -9,7 +10,7 @@ QUnit.test('Array#flatMap', assert => {
   assert.deepEqual(flatMap([1, 2, 3], it => [it, it]), [1, 1, 2, 2, 3, 3]);
   assert.deepEqual(flatMap([1, 2, 3], it => [[it], [it]]), [[1], [1], [2], [2], [3], [3]]);
   assert.deepEqual(flatMap([1, [2, 3]], () => 1), [1, 1]);
-  const array = [1];
+  let array = [1];
   const context = {};
   flatMap(array, function (value, index, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
@@ -26,4 +27,10 @@ QUnit.test('Array#flatMap', assert => {
   assert.notThrows(() => flatMap({ length: -1 }, () => {
     throw new Error();
   }).length === 0, 'uses ToLength');
+  array = [];
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
+    return { foo: 1 };
+  } };
+  assert.same(flatMap(array, it => it).foo, 1, '@@species');
 });

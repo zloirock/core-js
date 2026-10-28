@@ -1,5 +1,6 @@
 'use strict';
 require('../../modules/es.array.concat');
+require('../../modules/es.array.species');
 require('../../modules/es.object.to-string');
 require('../../modules/es.symbol');
 require('../../modules/es.symbol.async-dispose');
