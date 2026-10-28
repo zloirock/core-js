@@ -1,6 +1,5 @@
-// A realm selection destructured beside a key the author opts out of, as a parameter default and assigned:
-// unplugin mirrors the realm arm, serving the other keys and reading the opted-out one off the realm (the
-// sidecar), while babel keeps the whole selection native - its debt.
+// A selected realm mirrors enabled static leaves beside an opted-out sibling.
+// The disabled key retains its raw source read in both parameter defaults and assignments.
 export function opt({
   Array: {
     from: fr,

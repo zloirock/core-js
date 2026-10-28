@@ -48,6 +48,7 @@ import createPlugin, {
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
 import { drainSequenceAssignments, liveTailOf } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
 import { directClaimProbeEffects } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { renderSynthTree } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import createDestructureDrains from '../../packages/core-js-unplugin/internals/destructure-drain.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
@@ -5919,25 +5920,28 @@ for (const [label, source, sentinel, survives] of [
   check(`consumed assignment slot/${ label }: the overwrite stands for it`, live.some(write => write.node === overwrite.expression), true);
 }
 
-// A queued static descent renders each leaf as an own data slot and keeps dispatch
-// on the saved static binding. This late path has no second visitor over its literal.
+// A static descent renders each leaf as an own data slot and keeps dispatch on the
+// saved binding. The common renderer must finish it without a second claim visitor.
 {
-  const render = createDestructureDrains({}).renderPatternLiteral;
-  const literal = render({
-    plan: [{ lookupKey: 'keys', slotKey: 'keys', dedupKey: 'keys' }],
-    receiver: mintIdentifier('globalThis'),
-    slots: new Map([['keys', { base: '_keys', descended: [
-      { key: 'bind', helper: '_bind' }, { key: 'length', helper: null },
-    ] }]]),
+  const literal = renderSynthTree({
+    kind: 'descended-pattern',
+    entries: [
+      { key: 'bind', child: { kind: 'instance', entry: '_bind' } },
+      { key: 'length', child: { kind: 'passthrough' } },
+    ],
+  }, {
+    receiverName: '_keys',
+    receiverIsProxy: false,
+    injectImport: name => name,
+    resolveGlobalPolyfill: () => null,
   });
-  const [slot] = literal.properties;
-  const [bound, length] = slot.value.properties;
-  check('queued static descent: outer data slot', slot.kind, 'init');
-  check('queued static descent: ordered keys', slot.value.properties.map(item => item.key.name).join(','), 'bind,length');
-  check('queued static descent: instance dispatcher', bound.value.callee?.name, '_bind');
-  check('queued static descent: dispatcher receiver', bound.value.arguments[0].name, '_keys');
-  check('queued static descent: native sibling', length.value.object.name, '_keys');
-  check('queued static descent: independent references', bound.value.arguments[0] === length.value.object, false);
+  const [bound, length] = literal.properties;
+  check('static descent: own data slots', literal.properties.every(slot => slot.kind === 'init'), true);
+  check('static descent: ordered keys', literal.properties.map(item => item.key.name).join(','), 'bind,length');
+  check('static descent: instance dispatcher', bound.value.callee?.name, '_bind');
+  check('static descent: dispatcher receiver', bound.value.arguments[0].name, '_keys');
+  check('static descent: native sibling', length.value.object.name, '_keys');
+  check('static descent: independent references', bound.value.arguments[0] === length.value.object, false);
 }
 
 // Call-result stamps are unnecessary at discarded-value positions. A retained call
