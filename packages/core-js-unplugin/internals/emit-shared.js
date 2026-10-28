@@ -1,5 +1,3 @@
-import { unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
-
 import { cloneNode, sequenceExpression } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 
@@ -47,24 +45,6 @@ export function replaceNodeInTree(root, target, next, depth = 0) {
     if (value && typeof value === 'object' && replaceNodeInTree(value, target, next, depth + 1)) return true;
   }
   return false;
-}
-
-// the VALUE a kept write stores: a bare proxy root or a spine whose LEAF hop has a pure
-// entry spells one (`globalThis.self` -> `_self`); a window-terminated spine does not.
-// `isSubstituted` answers for a root the walk ALREADY swapped - a drain-time caller reads the
-// injected binding (`_globalThis`), whose name no longer resolves as a global
-export function proxyStoreIsSpellable(storedNode, resolveGlobalPolyfill, isSubstituted = null) {
-  // the stored VALUE is the sequence's tail - the prefix is effect, not surface. only a MEMBER
-  // tail answers here: a bare IDENTIFIER tail may be an alias this helper cannot resolve, and the
-  // caller's re-read canon owns that shape (`(s = (f++, g), g).WeakRef`)
-  let value = unwrapRuntimeExpr(storedNode);
-  while (value?.type === 'SequenceExpression'
-    && unwrapRuntimeExpr(value.expressions.at(-1))?.type === 'MemberExpression') {
-    value = unwrapRuntimeExpr(value.expressions.at(-1));
-  }
-  if (value?.type === 'Identifier') return !!resolveGlobalPolyfill(value.name) || !!isSubstituted?.(value.name);
-  if (value?.type === 'MemberExpression' && !value.computed) return !!resolveGlobalPolyfill(value.property?.name);
-  return true;
 }
 
 export { mintedProxyGlobalName } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
