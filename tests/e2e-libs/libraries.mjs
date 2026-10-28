@@ -8,7 +8,7 @@ import { HERE } from './paths.mjs';
 const NAMES = [
   'rxjs', 'codemirror', 'three', 'htmlparser2', 'echarts', 'planck', 'tanstack-table', 'es-toolkit', 'ml-matrix',
   'colorjs', 'd3-scale', 'graphql', 'kysely', 'markdown-it', 'zod3', 'liquidjs', 'ical', 'minimatch', 'immutable',
-  'xregexp', 'highlight',
+  'xregexp', 'highlight', 'lodash',
 ];
 
 const PLAIN_SEGMENT = /^[\w\-.]+$/;
@@ -25,6 +25,8 @@ for (const name of NAMES) {
 const BROWSER_DIAGNOSTIC = {
   // IE11's ES5 `match` never calls the `exec` that `_wrapRegExp` builds its groups in
   colorjs: ['usage-pure'],
+  // with no `Symbol`, a pure Map carries no tag lodash reads and is not the native it compares against
+  lodash: ['usage-pure'],
 };
 
 // both halves of an entry: a mistyped library or method would leave the exemption quietly dead

@@ -2518,6 +2518,11 @@ const transpilerPerfPackageJSON = {
   'depend/ban-dependencies': [ERROR, { allowed: ['globalthis'] }],
 };
 
+const e2eLibsCorpus = {
+  // allow a library the e2e-libs corpus exercises: it is chosen for the code it ships, not as a dependency
+  'depend/ban-dependencies': [ERROR, { allowed: ['lodash-es'] }],
+};
+
 const nodeDependencies = {
   // enforce the versions of the engines of the dependencies to be compatible
   'node-dependencies/compat-engines': [ERROR, { devDependencies: true }],
@@ -2925,6 +2930,10 @@ export default [
   {
     files: ['tests/transpiler-perf/package.json'],
     rules: transpilerPerfPackageJSON,
+  },
+  {
+    files: ['tests/e2e-libs/package.json', 'tests/e2e-libs/exercises/*.mjs'],
+    rules: e2eLibsCorpus,
   },
   {
     files: ['**/*.md'],
