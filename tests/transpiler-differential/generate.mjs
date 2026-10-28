@@ -20411,6 +20411,29 @@ function * generateSynthActivationCoverage() {
   }
 }
 
+// Receiver preparation keeps object/key order and captures the value before writes.
+// Realm cases use the existing rig; foreign self properties never inherit that proof.
+function * generateDispatchReceiverPreparation() {
+  for (const [shape, receiver] of [
+    ['static', 'Number.MAX_SAFE_INTEGER'],
+    ['nested-keys', '(log.push("before"), (log.push("object"), globalThis[(log.push("ctor"), "Number")])[(log.push("key"), "MAX_SAFE_INTEGER")])'],
+    ['object-effects', '(log.push("object"), Number).MAX_SAFE_INTEGER'],
+    ['key-effects', 'Number[(log.push("key"), "MAX_SAFE_INTEGER")]'],
+    ['both-effects', '(log.push("object"), Number)[(log.push("key"), "MAX_SAFE_INTEGER")]'],
+  ]) for (const [host, expression] of [
+    ['native-method', `${ receiver }.toString()`],
+    ['call', `${ receiver }.toFixed((log.push("argument"), 0))`],
+    ['optional-member', `${ receiver }?.toFixed((log.push("argument"), 0))`],
+    ['optional-call', `${ receiver }.toFixed?.((log.push("argument"), 0))`],
+  ]) yield { ...snippet(`dispatch-receiver-preparation/${ shape }/${ host }`, expression), strip: true };
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['realm', 'globalThis.window?.self.Array.of(2).includes(2)'],
+    ['stored-realm', '(() => { let held; const value = (held = globalThis.window)?.self.Array.of(2).includes(2); return [value, held === globalThis.window]; })()'],
+    ['foreign', '({ self: { list: [1, 2] } })?.self.list.includes(2)'],
+    ['receiver-write', '(() => { let receiver = [1, 2]; const value = receiver?.[(receiver = [3], "includes")]((receiver = [4], 2)); return [value, receiver]; })()'],
+  ]) yield { ...snippet(`dispatch-receiver-preparation/${ name }/${ rig ? 'window' : 'off-window' }`, expression, { rig }), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20803,4 +20826,5 @@ export function * generate() {
   yield * generateMemberBindingPresence();
   yield * generateDiscardedDestructureInitializers();
   yield * generateSynthActivationCoverage();
+  yield * generateDispatchReceiverPreparation();
 }

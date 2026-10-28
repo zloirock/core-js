@@ -234,7 +234,6 @@ export default function createAstUsagePureCallback({
   const seKeyReadCtx = {
     adapter,
     injectorState,
-    isReusableReceiver,
     injectPureImport,
     injector,
     markRewrite,
