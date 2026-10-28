@@ -36,10 +36,7 @@ import {
   residualPrecedesExtractions,
   sentinelMemoInitShape,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import {
-  planMemoReadTarget,
-  shouldDropRescueReceiver,
-} from '@core-js/polyfill-provider/detect-usage/members';
+import { planMemoReadTarget } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   decidedRunningPart,
   proxyGlobalRootName,
@@ -601,22 +598,9 @@ export default function createDestructureDrains(ctx) {
   // what the shared canons answer of a host's init, asked on the PRISTINE tree when the host records
   // its first job: by drain time the walk has respelled that init (a realm memo, a collapsed call
   // read) into a synthesized shape that no longer shows what it runs. `runs` is the residual canon's
-  // question - does the init RUN code before the pattern binds? - and `readWhole` the rescue canon's:
-  // does a discard keep the WHOLE init, a receiver read only a getter answers?
+  // question - does the init RUN code before the pattern binds? - and `readWhole` records whether
+  // the shared discard plan retains that entire value, including an observable getter read.
   const pristineInitFacts = new WeakMap();
-
-  // babel's discarded-receiver sink rule: a read off an EFFECTFUL sequence spine stays whole unless
-  // the shared drop gate calls it a droppable proxy nav - asked of the raw init, as babel asks it -
-  // or the spine leads to a call the census resolves to a realm, whose nav keeps the call alone
-  function keepsWholeDiscardedRead(init, at) {
-    const leaf = init && unwrapRuntimeExpr(init);
-    if (leaf?.type !== 'MemberExpression' || !mayHaveSideEffects(leaf)) return false;
-    let spine = leaf;
-    while (spine?.type === 'MemberExpression') spine = peelTransparentExpr(spine.object);
-    return spine?.type === 'SequenceExpression'
-      && !shouldDropRescueReceiver(leaf, { ...at, resolvePure: (meta, path) => resolvePure(meta, path) })
-      && !liftedRealmNavEffect(leaf, at);
-  }
 
   function residualRuns(host) {
     return pristineInitFacts.get(host)?.runs ?? false;
@@ -636,10 +620,10 @@ export default function createDestructureDrains(ctx) {
     if (residualHost && !pristineInitFacts.has(residualHost)) {
       const init = residualHost.init ?? residualHost.right;
       const at = { scope: job.metaPath?.scope, adapter, path: job.metaPath };
+      const { effects } = planDiscardedInit(init, { ...at, resolvePure });
       pristineInitFacts.set(residualHost, {
         runs: residualInitRunsEffects({ init, ...at }),
-        readWhole: !!init && discardRescueNodesWithReads({ node: init, ...at })[0] === init,
-        keepsWholeRead: keepsWholeDiscardedRead(init, at),
+        readWhole: !!init && effects.length === 1 && effects[0] === unwrapRuntimeExpr(init),
       });
     }
     // Babel exposes the replacement initializer immediately. Publish the same
@@ -1183,10 +1167,10 @@ export default function createDestructureDrains(ctx) {
       rescues.push(sequenceExpression(spliced));
     } else if (seqWriteRoot || buriedKeyInit || seqClaimInit || keptWriteRootAhead
       || (spineRoot?.type === 'CallExpression' && !erasableCall)
-      || (pristineInitFacts.get(declarator)?.keepsWholeRead && spineRoot !== initSpine && spineRoot?.type === 'SequenceExpression')) {
+      || (pristineInitFacts.get(declarator)?.readWhole && spineRoot !== initSpine && spineRoot?.type === 'SequenceExpression')) {
       // the whole read re-emits verbatim, so every effect harvested out of it rides inside
       // it already - keeping both would run them twice. a read off an effectful sequence SPINE the
-      // pristine init keeps whole (`keepsWholeRead`, babel's sink rule) re-emits the same way
+      // pristine init keeps whole (`readWhole`) re-emits the same way
       rescues.length = 0;
       rescues.push(declarator.init);
     } else if (spineRoot === initSpine && spineRoot?.type === 'SequenceExpression'
@@ -1911,27 +1895,15 @@ export default function createDestructureDrains(ctx) {
     // an extraction that READS the receiver already spells the init inside its own dispatch
     // (`at = _at((sideEffect(), getObj()))`) - rescuing it again would run the effects twice
     if (declJobsHere.some(job => job.readsReceiver)) return;
-    const dropMetaPath = declJobsHere[0].metaPath;
-    // a nav off a call the census resolves to a realm keeps the call alone (the shared rule): its
-    // hops are dead reads, and a pure call leaves nothing - the babel lift's answer
-    const realmNav = dropMetaPath
-      ? liftedRealmNavEffect(declarator.init, { scope: dropMetaPath.scope, adapter, path: dropMetaPath }) : null;
-    // ... and a receiver read the PRISTINE init rescued whole replays whole, in the spelling the walk
-    // left it (a realm memo's selection included) - the babel lift's replay
-    let dropExprs = [];
-    if (realmNav) dropExprs = realmNav.effects;
-    else if (pristineInitFacts.get(declarator)?.readWhole) dropExprs = [declarator.init];
-    else if (dropMetaPath) {
-      // A decided selection owes its running arm's accessor read, like the assignment sink.
-      const frame = patternFrame(dropMetaPath);
-      dropExprs = discardRescueNodesWithReads({ node: decidedRunningPart(declarator.init, frame), ...frame });
-    }
+    const [{ metaPath }] = declJobsHere;
+    const { effects } = planDiscardedInit(declarator.init, { ...patternFrame(metaPath), resolvePure },
+      null, pristineInitFacts.get(declarator));
     // a value-SELECTING init re-emits WHOLE - an effect buried in an operand (a proxy-hop KEY) has
     // no slot of its own, so the rescue canon answers with the selection itself. the POSITION is the
     // separate half: whatever the rescue keeps LEADS the extraction where the caller knows its slot,
     // because the source evaluates the init before it binds anything - a trailing statement would
     // move an observable getter (or a realm memo's write of one) past the binding it fed
-    const rescued = dropExprs.map(expr => expressionStatement(expr));
+    const rescued = effects.map(expr => expressionStatement(expr));
     if (insertAt >= 0) statements.splice(insertAt, 0, ...rescued);
     else statements.push(...rescued);
   }
@@ -2716,11 +2688,11 @@ export default function createDestructureDrains(ctx) {
     // would run it twice (the statement drain's rule)
     if (jobs.some(job => job.readsReceiver)) return { quietRescue: [], wholeReplay: false };
     const quietInit = jobs[0].seqPrefix?.length ? jobs[0].initTail : declarator.init;
-    const readWhole = pristineInitFacts.get(declarator)?.readWhole ?? false;
+    const facts = pristineInitFacts.get(declarator);
     if (!quietInit || mayHaveSideEffects(jobs[0].initTail ?? quietInit)) return { quietRescue: [], wholeReplay: false };
-    const quietRescue = readWhole ? [quietInit]
-      : discardRescueNodesWithReads({ node: quietInit, ...nodeSite(quietInit, jobs[0].metaPath), adapter });
-    return { quietRescue, wholeReplay: !!jobs[0].seqPrefix?.length && quietRescue.length > 0 && readWhole };
+    const { effects } = planDiscardedInit(quietInit,
+      { ...nodeSite(quietInit, jobs[0].metaPath), adapter, resolvePure }, null, facts);
+    return { quietRescue: effects, wholeReplay: !!jobs[0].seqPrefix?.length && effects.length > 0 && !!facts?.readWhole };
   }
 
   // the LIVE prefix behind a recorded one: a claim inside the prefix renders by REPLACING its
@@ -2809,20 +2781,12 @@ export default function createDestructureDrains(ctx) {
         values[0].arguments[0] = sequenceExpression([...livePrefixOf(declarator, seqPrefix, patternFrame(jobs[0].metaPath)),
           values[0].arguments[0]]);
       } else if (discardsInit) {
-        // a DISCARDED init owes what its LIVE spelling still runs: the record ends with the init itself,
-        // which the walk may have respelled past any count the record lines up with (`(arr.flat(),
-        // mk().Map)` -> `(_flat(arr), _Map)`), so the pre-swap copies would ship a raw call. a read off
-        // an effectful sequence spine lifts whole (babel's sink rule, `keepsWholeRead`); otherwise what
-        // the lift canon owes - a realm nav's call, a deciding left's effects - or the live elements
-        // that run something
-        // ... read through its wrappers: a TS wrapper leaves with the value it wraps
-        // ... and of an init the build decides, what runs of it (`decidedRunningPart`): the rest never does
+        // The shared discard decision reads live children while retaining a whole-read proof
+        // made before the walk could replace the source with a generated guard or memo.
         const frame = patternFrame(jobs[0].metaPath);
-        const init = peelTransparentExpr(decidedRunningPart(declarator.init, frame));
-        const { prefix, tail } = peelNestedSequenceExpressions(init);
-        const owed = pristineInitFacts.get(declarator)?.keepsWholeRead ? [init]
-          : liftedRealmNavEffect(declarator.init, frame)?.effects ?? observablePrefixElements([...prefix, tail], frame);
-        statements.push(...owed.map(expr => expressionStatement(expr)));
+        const { effects } = planDiscardedInit(declarator.init, { ...frame, resolvePure },
+          null, pristineInitFacts.get(declarator));
+        statements.push(...effects.map(expr => expressionStatement(expr)));
       } else {
         const lifted = observablePrefixElements(livePrefixOf(declarator, seqPrefix, patternFrame(jobs[0].metaPath)),
           patternFrame(jobs[0].metaPath));

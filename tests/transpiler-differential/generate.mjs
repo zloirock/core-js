@@ -20452,6 +20452,29 @@ function * generateSynthRescueSourceOwnership() {
   };
 }
 
+// A consumed receiver keeps its getter and any already rewritten prefix in source order.
+// The bodyless host exercises deferred rescue; sibling hosts expose a misplaced effect.
+function * generateConsumedInitSourceReads() {
+  for (const [shape, init] of [
+    ['getter', 'Source.realm.Array'],
+    ['prefix', '(log.push(Array.of("prefix")[0]), Source.realm.Array)'],
+    ['stored', '(held = Source.realm.Array)'],
+  ]) {
+    for (const [host, build] of [
+      ['declaration', value => `const before = log.push("before"), { from: read } = ${ value }, after = log.push("after"); return read([before, after]);`],
+      ['assignment', value => `let read; ({ from: read } = ${ value }); return read([1]);`],
+      ['bodyless', value => `if (log.length === 0) var { from: read } = ${ value }; return read([2]);`],
+      ['branch-off', value => `if (log.length !== 0) var { from: read } = ${ value }; return typeof read;`],
+    ]) {
+      yield { ...snippet(`consumed-init-source-reads/${ shape }/${ host }`, `(() => {
+        let held;
+        class Source { static get realm() { log.push("getter"); return globalThis; } }
+        ${ build(init) }
+      })()`), strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20846,4 +20869,5 @@ export function * generate() {
   yield * generateSynthActivationCoverage();
   yield * generateDispatchReceiverPreparation();
   yield * generateSynthRescueSourceOwnership();
+  yield * generateConsumedInitSourceReads();
 }

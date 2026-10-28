@@ -57,3 +57,49 @@ QUnit.test('destructuring: an instance overwrite keeps the other initializer pro
   assert.same(read.call(values, -1), 8);
   assert.deepEqual(events, ['plain-before', 'plain-after', 'branch-before', 'branch-after', 'seq-before', 'seq-after', 'tail']);
 });
+
+QUnit.test('destructuring: a consumed realm getter stays between sibling initializers', assert => {
+  const events = [];
+  // eslint-disable-next-line unicorn/no-static-only-class -- the class getter is the source receiver under test
+  class Source {
+    static get realm() {
+      events.push('getter');
+      return globalThis;
+    }
+  }
+  const before = events.push('before'),
+        { from: read } = (events.push(Array.of('prefix')[0]), Source.realm.Array),
+        after = events.push(read([7])[0]);
+  assert.same(before, 1);
+  assert.same(after, 4);
+  assert.deepEqual(events, ['before', 'prefix', 'getter', 7]);
+});
+
+QUnit.test('destructuring: a bodyless consumed getter keeps its throw and dead default', assert => {
+  const events = [];
+  let fail = false;
+  const sentinel = {};
+  function mark() {
+    events.push('getter');
+    if (fail) throw sentinel;
+  }
+  // Keep the getter's return source-proven; its opaque effect still throws before the read.
+  // eslint-disable-next-line unicorn/no-static-only-class -- the class getter is the source receiver under test
+  class Source {
+    static get realm() {
+      mark();
+      return globalThis;
+    }
+  }
+  // eslint-disable-next-line no-var -- a bodyless declaration must keep its initializer inside the branch
+  if (events.length === 0) var { from: read = (events.push('default'), null) } = (events.push('prefix'), Source.realm.Array);
+  assert.deepEqual(read([7]), [7]);
+  assert.deepEqual(events, ['prefix', 'getter']);
+  fail = true;
+  assert.throws(() => {
+    // eslint-disable-next-line no-var -- the same bodyless host must propagate its getter's throw
+    if (fail) var { of: other } = (events.push('throw-prefix'), Source.realm.Array);
+    return other;
+  }, error => error === sentinel);
+  assert.deepEqual(events, ['prefix', 'getter', 'throw-prefix', 'getter']);
+});
