@@ -31,16 +31,15 @@ import {
   consumableHopSlotName,
   discardRescueNodes,
   findProxyGlobal,
-  navValueCanShortCircuit,
   peelChainRootValue,
   peelRealmLogicalDefault,
   peelReceiverSequenceTail,
+  isPureNavReceiver,
   guardedNavPassthroughPlan,
   realmSelectionCollapseOperand,
   resolveObjectName,
   agreeingTernaryArm,
   resolveSynthKeys,
-  undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   allProxySelectingInit,
@@ -67,7 +66,6 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   propBindingIdentifier,
   proxySurfaceIdentifier,
-  receiverCarriesLiveOptional,
   SINGLE_STATEMENT_SLOTS,
   soleChainToProp,
   statementListOf,
@@ -85,7 +83,7 @@ import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
-import { mintedProxyGlobalName, proxyStoreIsSpellable, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
+import { mintedProxyGlobalName, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression,
   callExpression,
@@ -563,59 +561,6 @@ export function propBindingTarget(prop) {
   return identifier(propLocalName(prop));
 }
 
-// a computed STRING-LITERAL key (`globalThis['self']`) navigates like the dotted spelling
-function plainNavHopKey(node) {
-  if (!node.computed) return node.property?.name ?? null;
-  const key = peelTransparentExpr(node.property);
-  return key?.type === 'Literal' && typeof key.value === 'string' ? key.value : null;
-}
-
-// a chain MARKER whose `?.` the guard canon ERASES guards nothing: the source cannot short-circuit
-// there, so every receiver question below may read the nav it wraps. asked once, at the route's
-// entry - the marker alone otherwise declined the extraction and the claim shipped native, while
-// the babel binding (whose parser spells no marker at all) extracted off the same source
-export function peelDeadChainMarker(node, guardCtx = null) {
-  const cur = peelTransparentExpr(node);
-  if (cur?.type !== 'ChainExpression' || !guardCtx?.resolvePure) return node;
-  const inner = peelTransparentExpr(cur.expression);
-  return undefinableOptionalGuard(inner, guardCtx.resolvePure, guardCtx.aliasCtx ?? null).kind === 'erase'
-    ? inner : node;
-}
-
-// the one hop walk both nav questions ride - "is this a nav?" and "which surface does it name?":
-// they differ in what they READ off the chain, never in what counts as a hop. an ERASED `?.` is
-// transparent to the walk, its own hop carrying the marker's flag, so the guard verdict travels
-// with the node - a resolver that judged the flags alone answered the opposite for a marked twin
-// ... and a `?.` the marker no longer wraps - a canonical resolver peels the wrapper and hands the
-// member on - is dead on the same verdict: the value canon says the chain cannot short-circuit
-export function navHopChain(node, guardCtx = null, opts = null) {
-  const { throughSequenceTails = false } = opts ?? {};
-  const peeled = peelDeadChainMarker(node, guardCtx);
-  const core = peelTransparentExpr(peeled);
-  const deadOptionals = peeled !== node || (!!guardCtx?.resolvePure && receiverCarriesLiveOptional(core)
-    && !navValueCanShortCircuit(core, guardCtx.resolvePure, guardCtx.aliasCtx ?? null));
-  const keys = [];
-  function hopIsNav(hop) {
-    return hop?.type === 'MemberExpression' && (deadOptionals || !hop.optional) && plainNavHopKey(hop) !== null;
-  }
-  let cur = core;
-  while (hopIsNav(cur)) {
-    keys.unshift(plainNavHopKey(cur));
-    cur = peelTransparentExpr(throughSequenceTails ? peelReceiverSequenceTail(cur.object) : cur.object);
-  }
-  return { root: cur, keys };
-}
-
-// the extraction DISCARDS the receiver expression (the init / the assignment RHS): only a
-// pure navigation may fall away silently; anything else is the SE-rescue channel - staged.
-// the check is ALSO the claim's validity proof: an extraction is polyfill-always-wins only
-// over a provable global nav - a conditional / opaque receiver must never extract, rest or
-// not (the other branch's miss semantics would be erased)
-export function isPureNavReceiver(node, guardCtx = null, opts = null) {
-  const { root } = navHopChain(node, guardCtx, opts);
-  return root?.type === 'Identifier' || root?.type === 'ThisExpression';
-}
-
 // The host carries a sequence's effects before its receiver, so only the final
 // value has to be the provable nav, including through nested sequences.
 export function isPureNavAfterSePrefix(node, guardCtx = null, opts = null) {
@@ -629,17 +574,6 @@ export function isPureNavAfterSePrefix(node, guardCtx = null, opts = null) {
 export function spellsSameSource(node, source) {
   return node === source
     || (Number.isInteger(source?.start) && node?.start === source.start && node?.end === source.end);
-}
-
-// a kept WRITE of a SPELLABLE pure nav rides the value it stored: the read beside it is that
-// same value re-spelled, so lifting the write away would leave the read answering nothing.
-// every other harvested effect is the source's own and lands as a statement of its own
-export function keptWriteRidesValue(node, { adapter, injectorState, resolveGlobalPolyfill }) {
-  const write = peelTransparentExpr(node);
-  return write?.type === 'AssignmentExpression' && write.left?.type === 'Identifier'
-    && proxyStoreIsSpellable(write.right, resolveGlobalPolyfill,
-      name => isMintedOrProxyName(name, injectorState))
-    && (isPureNavReceiver(write.right) || allProxySelectingInit(write.right, { adapter, injectorState }));
 }
 
 // the prefix a host lifts ahead of its extraction, and the quiet receiver it leaves behind: a

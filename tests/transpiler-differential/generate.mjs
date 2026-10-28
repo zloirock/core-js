@@ -20614,6 +20614,42 @@ function * generateFallbackSynthBranches() {
   }
 }
 
+// Kept writes are observed beside the extracted static and the sequence carrying them.
+// Each row has one claim, so imports in another spelling cannot mask a missing entry.
+function * generateKeptProxyValues() {
+  for (const [id, source] of [
+    ['root', 'globalThis'], ['hop', 'globalThis.self'], ['prefix', '(log.push("value"), globalThis)'],
+  ]) {
+    for (const [host, declaration] of [
+      ['read', `const { from: read } = (held = ${ source }).Array;`],
+      ['nested', `const { Array: { from: read } } = (held = ${ source });`],
+      ['chained', `const { from: read } = (held = other = ${ source }).Array;`],
+    ]) yield { ...snippet(`kept-proxy-values/${ host }-${ id }`, `(() => {
+      let held, other;
+      ${ declaration }
+      log.push("bound", held === globalThis, other === globalThis);
+      return read([7])[0];
+    })()`), strip: true };
+  }
+  for (const [id, source, unsupported = false] of [
+    ['getter', `const source = { get realm() { log.push("get"); return globalThis; } };
+      let held; const { from: read } = (held = (log.push("value"), source.realm)).Array;
+      log.push("bound", held === globalThis); return read([7])[0];`, true],
+    ['setter', `let stored; const source = { set realm(value) { log.push("set"); stored = value; } };
+      const { of: read } = (source.realm = globalThis).Array;
+      log.push("bound", stored === globalThis); return read(7)[0];`],
+    ['sequence', 'return typeof (log.push("outer"), (log.push("inner"), globalThis.self))?.absentKeptValue;'],
+    ['shadowed-sequence', `const realm = { get self() { log.push("get"); return { keptValue: 7 }; } };
+      return ((globalThis) => (log.push("outer"), (log.push("inner"), globalThis.self))?.keptValue)(realm);`],
+  ]) {
+    // The stored getter result is outside static/global value inference in both methods.
+    // Keep its source enumerable: both emitters miss Array.from on the baseline too.
+    // The fixture holds that native remainder; the shadowed row below locks getter ordering.
+    if (unsupported) continue;
+    yield { ...snippet(`kept-proxy-values/${ id }`, `(() => { ${ source } })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21012,4 +21048,5 @@ export function * generate() {
   yield * generateDestructureDefaultSinkOrder();
   yield * generateNestedSynthSourceHosts();
   yield * generateFallbackSynthBranches();
+  yield * generateKeptProxyValues();
 }

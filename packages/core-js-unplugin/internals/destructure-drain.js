@@ -42,6 +42,8 @@ import {
   resolveObjectName,
   realmLevelNamesCtor,
   isCallShape,
+  isPureNavReceiver,
+  keptWriteRidesValue,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
@@ -75,7 +77,7 @@ import {
   invocationNode,
   proxySurfaceIdentifier,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { replaceNodeInTree } from './emit-shared.js';
+import { mintedProxyGlobalName, replaceNodeInTree } from './emit-shared.js';
 import {
   assignmentExpression,
   callExpression,
@@ -119,12 +121,10 @@ import {
   hopChainKeys,
   interleavedSeKeySegments,
   isMintedOrProxyName,
-  isPureNavReceiver,
   jobHostSiblingDeclarators,
   joinBodylessSiblingExtractions,
   joinSeKeySiblingDeclarator,
   keptSymbolSentinelResidual,
-  keptWriteRidesValue,
   liftableInitPrefix,
   liftAssignInitPrefix,
   liftedPrefixStatements,
@@ -1011,7 +1011,12 @@ export default function createDestructureDrains(ctx) {
       // the source performed, so it lifts WITH the write - which still runs exactly once, inside
       // it (`const { fromEntries } = (u = globalThis).Object` -> `(u = _globalThis).Object;`, the
       // babel leg's shape). riding the value there dropped that read
-      const spellableStore = keptWriteRidesValue(rescueAssign, { adapter, injectorState, resolveGlobalPolyfill });
+      const spellableStore = keptWriteRidesValue(rescueAssign, {
+        adapter,
+        injectorState,
+        resolvePure: ({ name }) => resolveGlobalPolyfill(name),
+        isSubstituted: name => mintedProxyGlobalName(name, injectorState) !== null,
+      });
       // ... and the read standing over a store is the DISCARD PROBE's wherever that channel takes
       // it - respelled from the seal boundary, carrying the holder - so lifting it here too would
       // run the write twice. where the probe DECLINED, this lift carries that read instead
@@ -1655,7 +1660,12 @@ export default function createDestructureDrains(ctx) {
       const initSeq = peelTransparentExpr(lifted.right);
       if (initSeq?.type !== 'SequenceExpression'
         || initSeq.expressions.slice(0, -1)
-          .some(expr => keptWriteRidesValue(expr, { adapter, injectorState, resolveGlobalPolyfill }))) continue;
+          .some(expr => keptWriteRidesValue(expr, {
+            adapter,
+            injectorState,
+            resolvePure: ({ name }) => resolveGlobalPolyfill(name),
+            isSubstituted: name => mintedProxyGlobalName(name, injectorState) !== null,
+          }))) continue;
       lifted.right = initSeq.expressions.at(-1);
       const prefix = initSeq.expressions.slice(0, -1).map(expr => expressionStatement(expr));
       statements.splice(at, 0, ...prefix);

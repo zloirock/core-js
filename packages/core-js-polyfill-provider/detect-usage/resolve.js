@@ -61,6 +61,7 @@ import {
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isNullLiteralNode,
+  receiverCarriesLiveOptional,
   isPristineProxyGlobal,
   isRestProperty,
   isReassignedBeyondDeclarator,
@@ -4265,6 +4266,62 @@ export function storedNavHopClaimSuppressed(path, { scope, adapter, resolvePure 
     { observableRead: true }) ? stored : false;
 }
 
+// a computed STRING-LITERAL key (`globalThis['self']`) navigates like the dotted spelling
+function plainNavHopKey(node) {
+  if (!node.computed) return node.property?.name ?? null;
+  const key = peelTransparentExpr(node.property);
+  return key?.type === 'TemplateLiteral' ? null : extractStaticString(key);
+}
+
+// a chain MARKER whose `?.` the guard canon ERASES guards nothing: the source cannot short-circuit
+// there, so every receiver question below may read the nav it wraps. asked once, at the route's
+// entry - the marker alone otherwise declined the extraction and the claim shipped native, while
+// the babel binding (whose parser spells no marker at all) extracted off the same source
+export function peelDeadChainMarker(node, guardCtx = null) {
+  const cur = peelTransparentExpr(node);
+  if (cur?.type !== 'ChainExpression' || !guardCtx?.resolvePure) return node;
+  const inner = peelTransparentExpr(cur.expression);
+  return undefinableOptionalGuard(inner, guardCtx.resolvePure, guardCtx.aliasCtx ?? null).kind === 'erase'
+    ? inner : node;
+}
+
+// the one hop walk both nav questions ride - "is this a nav?" and "which surface does it name?":
+// they differ in what they READ off the chain, never in what counts as a hop. an ERASED `?.` is
+// transparent to the walk, its own hop carrying the marker's flag, so the guard verdict travels
+// with the node - a resolver that judged the flags alone answered the opposite for a marked twin
+// ... and a `?.` the marker no longer wraps - a canonical resolver peels the wrapper and hands the
+// member on - is dead on the same verdict: the value canon says the chain cannot short-circuit
+export function navHopChain(node, guardCtx = null, opts = null) {
+  const { throughSequenceTails = false } = opts ?? {};
+  const peeled = peelDeadChainMarker(node, guardCtx);
+  const core = peelTransparentExpr(peeled);
+  const deadOptionals = peeled !== node || (!!guardCtx?.resolvePure && receiverCarriesLiveOptional(core)
+    && !navValueCanShortCircuit(core, guardCtx.resolvePure, guardCtx.aliasCtx ?? null));
+  const keys = [];
+  let computed = false;
+  let wrapped = false;
+  function hopIsNav(hop) {
+    return isMemberAccessNode(hop) && (deadOptionals || !hop.optional) && plainNavHopKey(hop) !== null;
+  }
+  let cur = core;
+  while (hopIsNav(cur)) {
+    keys.push(plainNavHopKey(cur));
+    computed ||= !!cur.computed;
+    const object = throughSequenceTails ? peelReceiverSequenceTail(cur.object) : cur.object;
+    cur = peelTransparentExpr(object);
+    wrapped ||= cur !== object;
+  }
+  return { root: cur, keys: keys.toReversed(), computed, wrapped };
+}
+
+// The shape of an already admitted navigation: static member links end at an identifier or this.
+// This is not a realm-identity proof. Callers establish that separately; a selection has its own
+// proof. A caller stepping through sequence tails must preserve their effects in its kept value.
+export function isPureNavReceiver(node, guardCtx = null, opts = null) {
+  const { root } = navHopChain(node, guardCtx, opts);
+  return root?.type === 'Identifier' || root?.type === 'ThisExpression';
+}
+
 // the backed-hop peel a kept sequence's guard test reads through: pristine possible-global hops
 // navigate into the SAME surface, so above a PROBE they drop and the test reads at most the probe
 // hop itself, never dereferencing past it. the ROOT is proved separately (`realmRootKind` below)
@@ -6408,6 +6465,49 @@ export function navHasUnresolvableProxyHop(navNode, resolvePure, aliasCtx = null
     cur = peelReceiverSequenceTail(cur.object);
   }
   return false;
+}
+
+// Classify the value a kept write hands on, independently of where the write lands.
+// A source root and an already substituted binding name the same stored value; only the
+// binding can supply the latter fact. A raw probe must survive a collapse, while spellability
+// asks whether a retained navigation can ride an extraction. Neither is a realm-root proof.
+// Prefix effects and chained writes stay owned by the source node; this query never moves them.
+function keptProxyValueFacts(node, resolvePure, isSubstituted = null) {
+  const value = peelReceiverSequenceTail(node);
+  const identifier = value?.type === 'Identifier';
+  const member = isMemberAccessNode(value);
+  const key = identifier ? value.name : member ? staticMemberKeyName(value) : null;
+  const pure = key && resolvePure({ kind: 'global', name: key });
+  return {
+    rawRead: !identifier && (!member || proxyHopLacksPureEntry(key, resolvePure)),
+    spellable: identifier ? !!pure || POSSIBLE_GLOBAL_OBJECTS.has(value.name) || !!isSubstituted?.(value.name)
+      : !member || value.computed || !!pure,
+  };
+}
+
+// An unbacked hop above a kept store may not replace the raw value that store observed.
+// Hops inside the write belong to its own value plan; a bare root or backed terminal value
+// lets the outer run fold. The caller has already proved the run's realm identity.
+export function runSwallowsStoreProbe(runNode, resolvePure) {
+  for (let hop = runNode; isMemberAccessNode(hop);) {
+    const inner = unwrapRuntimeExpr(hop.object);
+    if (inner?.type === 'AssignmentExpression') {
+      return unbackedProxyHopKey(hop, resolvePure)
+        && keptProxyValueFacts(peelChainAssignment(inner).value ?? inner.right, resolvePure).rawRead;
+    }
+    hop = inner;
+  }
+  return false;
+}
+
+// A spellable retained write stays beside the value re-read from it. Other effects can lift
+// independently. The navigation/selection gate is a shape proof on an already admitted receiver;
+// substituted bindings are supplied explicitly, never inferred from a generated name's spelling.
+export function keptWriteRidesValue(node, { adapter, injectorState, resolvePure, isSubstituted = null }) {
+  const write = peelTransparentExpr(node);
+  return write?.type === 'AssignmentExpression' && write.left?.type === 'Identifier'
+    && keptProxyValueFacts(write.right, resolvePure, isSubstituted).spellable
+    && (isPureNavReceiver(write.right) || allProxySelectingInit(write.right, { adapter, injectorState }));
 }
 
 // the chain-assign a navigation stands on when the value it stores navigates a hop pure cannot

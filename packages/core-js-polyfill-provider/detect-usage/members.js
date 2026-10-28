@@ -124,6 +124,9 @@ import {
   navValueCanShortCircuit,
   sealedLayerBetween,
   ownChainOptionalObjects,
+  navHopChain,
+  unbackedProxyHopKey,
+  receiverSequenceTailKeys,
   proxyReceiverValueCanBeUndefined,
   proxyGlobalMemberCtorPureSwap,
   claimAlreadyRendered,
@@ -432,6 +435,29 @@ export function planProxyReceiver(receiver, {
     property: receiver.property,
     computed: receiver.computed,
   };
+}
+
+// A claim-less read over a nested sequence retains that sequence and its optional guard,
+// but its plain realm tail still folds. A dispatch owns its own memo-tail plan instead.
+// Return the exact source slot: replacing its containing sequence would lose prefix effects.
+// A single terminal probe stays raw; a longer plain run lands on its deepest backed span.
+// An alias keeps the binding whose initializer the normal visitor already substitutes.
+export function planKeptSequenceReceiver(path, { aliasCtx, resolvePure }) {
+  const receiver = path.node;
+  if (ownChainOptionalObjects(receiver).every(object => !nestedSequenceValueSpelling(object))
+    || dispatchConsumesRun({ path, resolvePure, aliasCtx })) return null;
+  const node = peelReceiverSequenceTail(receiver.object);
+  if (!isMemberAccessNode(node)) return null;
+  if (unwrapRuntimeExpr(node.object)?.type === 'Identifier' && unbackedProxyHopKey(node, resolvePure)) return null;
+  const { root, keys, computed, wrapped } = navHopChain(node);
+  // This residual fold owns plain dotted hops only; keys, wrapped roots and optionals keep their own route.
+  if (root?.type !== 'Identifier' || keys.some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))
+    || computed || wrapped
+    || maximalProxyGlobalPrefix(node, aliasCtx) !== node || !findProxyGlobal(node, aliasCtx, true)) return null;
+  const pure = POSSIBLE_GLOBAL_OBJECTS.has(root.name)
+    ? proxyRunLandingPure({ navNode: node, ctx: aliasCtx, resolvePure, rootName: root.name })
+    : resolvePure({ kind: 'global', name: root.name });
+  return { keys: ['object', ...receiverSequenceTailKeys(receiver.object)], root, pure };
 }
 
 // the canonical RE-READ target of a memoized receiver, peeled to its SE tail: a pure-ctor leaf
