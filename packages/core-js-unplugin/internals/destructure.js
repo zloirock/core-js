@@ -5,6 +5,7 @@ import {
   buildPatternRenderPlan,
   carriedInitReceiverNode,
   classifyCallBranchForSynth,
+  visitFallbackSynthBranches,
   consumedAssignmentSlotDropsHost,
   dispatchMayReadNav,
   consumedAssignmentSlotPrunes,
@@ -14,8 +15,6 @@ import {
   destructureKeyReadPlan,
   destructurePatternHostPath,
   destructureRetainsLiteralWrapper,
-  fallbackBranchSwapKeepsSelection,
-  fallbackBranchWalk,
   liftedPrefixSplit,
   flattenArrayWrapperInits,
   isBuiltInSurfaceNav,
@@ -23,7 +22,6 @@ import {
   isReReadableSurfaceNav,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
-  isViableBranchForKey,
   namedDefaultReceiver,
   paramDefaultInstanceSynthAllowed,
   patternComputedKeysSynthSafe,
@@ -39,14 +37,12 @@ import {
   resolveNestedReceiverChain,
   resolveNestedReceiverNode,
   patternClaimOwesMirror,
-  globalReceiverRead,
   resolvePassthroughRef,
   staticHopPure as sharedStaticHopPure,
   synthPropDedupKey,
   typedNavClaimChain,
   computedRootMemoChain,
   typedNavClaimShape,
-  undefinedArmEffectiveReceiver,
   provenRealmCallRoot,
   discardRescueNodesWithReads,
   initRunsCode,
@@ -210,7 +206,6 @@ import {
   captureSealedNavProbe,
   propLocalName,
   proxyNavSynthBase,
-  proxyPassthroughBase,
   registerAssignmentExtractAlias,
   registerHopInstanceSynthSlot,
   registerInstanceSynthSlot,
@@ -713,7 +708,18 @@ export default function createAstDestructureEmitter({
     const wrapperNode = patternPath.parentPath?.node;
     const undefinedArmFallback = wrapperNode?.type === 'AssignmentPattern' && desc.rhsNode !== wrapperNode.right
       ? wrapperNode.right : null;
-    if (!registerBranchTree({ branch: desc.rhsNode, key: lookupKey, dedupKey, pattern, metaPath, undefinedArmFallback })) return;
+    if (!visitFallbackSynthBranches({
+      branch: desc.rhsNode, key: lookupKey, undefinedArmFallback, adapter, resolvePure,
+      readBranch: branch => ({ node: peelFallbackBranchInner(branch) }),
+      childBranch: ({ node }, slot) => node[slot],
+      contextFor: node => nodeSite(node, metaPath),
+      register: leaf => registerBranchSynth({ ...leaf, dedupKey, pattern, metaPath }),
+      ownsReceiver: ({ node }) => synthLedger.get(pattern)?.receiver === node,
+      dropDeadRight({ node }) {
+        markSubtreeSkipped(skippedNodes, node.right);
+        if (replaceNodeInTree(program, node, node.left)) markRewrite();
+      },
+    })) return;
     // SERVED from the literal: the routes that would bind one of this pattern's names a second time
     // - the keyed capture, the param body-extract - ask the marker, and the caller reads the return
     // as "no left-untouched diagnostic owed". every DECLINE above leaves both falsy, and the nested
@@ -722,139 +728,33 @@ export default function createAstDestructureEmitter({
     return true;
   }
 
-  // the realm a branch's member root names through an alias or a call, as the branch's place spells a read
-  // of it (`globalReceiverRead`) - null for a root naming no realm, and for one whose discard keeps a read
-  function branchRealmRoot(cur, metaPath) {
-    const site = nodeSite(cur, metaPath);
-    const resolved = resolveObjectName({ objectNode: cur, ...site, adapter });
-    return resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved) && !discardRescueNodes({ node: cur, ...site, adapter }).length
-      ? globalReceiverRead(resolved, { ...site, adapter }) : null;
-  }
-
-  // the selection a mirrored left decides, replaced by that left - its dead right skipped first
-  function dropDeadFallback(selection) {
-    markSubtreeSkipped(skippedNodes, selection.right);
-    if (replaceNodeInTree(program, selection, selection.left)) markRewrite();
-  }
-
-  function registerBranchTree({ branch, key, dedupKey, pattern, metaPath, undefinedArmFallback = null }) {
-    const inner = peelFallbackBranchInner(branch);
-    if (!inner) return false;
-    const walk = fallbackBranchWalk(inner, { ...nodeSite(inner, metaPath), adapter });
-    if (walk) {
-      let any = false;
-      for (const slot of walk.slots) {
-        // a value-selecting operand that can be nullish must not become an always-defined
-        // literal - the swap would flip which branch runs (the shared predicate's contract).
-        // the undefined-shaped arm under a live PARAM DEFAULT is the one exception: the
-        // shared rule substitutes the default there (same branch, same value)
-        if (!undefinedArmEffectiveReceiver({ branch: inner[slot], paramDefaultNode: undefinedArmFallback })
-          && !fallbackBranchSwapKeepsSelection({
-            hostNode: inner, slot, branchNode: inner[slot], ...nodeSite(inner, metaPath), adapter,
-            resolvePure: meta => resolvePure(meta, nodeSite(inner, metaPath).path),
-          })) continue;
-        if (registerBranchTree({ branch: inner[slot], key, dedupKey, pattern, metaPath, undefinedArmFallback })) any = true;
-      }
-      // a selection whose left this walk mirrored gives way to that left, the dead right with it -
-      // unless a swap owns the selection whole and replaces it later
-      if (any && walk.deadRight && synthLedger.get(pattern)?.receiver !== inner) dropDeadFallback(inner);
-      return any;
-    }
-    const effectiveBranch = undefinedArmEffectiveReceiver({ branch, paramDefaultNode: undefinedArmFallback }) ?? branch;
-    const pure = isViableBranchForKey({
-      branch: effectiveBranch, key, ...nodeSite(effectiveBranch, metaPath), adapter,
-      resolvePure: m => resolvePure(m, nodeSite(effectiveBranch, metaPath).path),
-    });
-    if (!pure || pure.kind === 'instance') return false;
-    // an SE-carrying branch (a buried effect along the spine, a call root) swaps WITH its
-    // rescue through the shared callBranch drain channel - the receiver re-emits ahead of
-    // the literal (`cond ? ((eff2(), _globalThis).Object, { keys: _Object$keys }) : ...`);
-    // partial key coverage takes the IIFE instead, the branch value passed as its memo
-    const sePolicy = inner.type === 'Identifier' ? { callBranch: false }
-      : classifyCallBranchForSynth({ inner, ...nodeSite(inner, metaPath), adapter });
-    if (sePolicy.callBranch) {
-      let pending = pendingBranchSynths.get(inner);
-      if (!pending) {
-        const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter });
-        if (!plan) return false;
-        pending = {
-          plan,
-          receiver: inner,
-          slots: new Map(),
-          callBranch: true,
-          metaPath,
-          rescueSe: sePolicy.rescueSe ?? null,
-          // Capture the source guard and its proven landing before child claims rewrite the branch.
-          ...planSynthReceiverActivation({
-            receiver: inner,
-            ...nodeSite(inner, metaPath),
-            adapter,
-            resolvePure: meta => resolvePure(meta, metaPath),
-          }),
-          // ... and the sealed read this ARM erases, planned on the PRISTINE tree like the
-          // flat swap's (`cond ? ((<guard>).Object, { assign: _Object$assign }) : ...`)
-          sealedProbePlan: captureSealedNavProbe(inner, metaPath, probeRenderCtx),
-        };
-        pendingBranchSynths.set(inner, pending);
-      }
-      // the top node survives to the drain; the spine stays LIVE so its in-place claims
-      // reach the rescue clone
-      skippedNodes.add(inner);
-      pending.slots.set(dedupKey, injectPureImport(pure.entry, pure.hintName));
-      return true;
-    }
-    // a MEMBER branch over a proxy-global nav reads its unresolved keys through the
-    // decomposed root + surviving hop keys (`cond ? globalThis.Array : Set` passes
-    // `other` through `_globalThis.Array.other`); any other member the shared viability
-    // resolved - a static container's slot (`cond ? box.U : Object`) - is re-read as spelled
-    // (`other: box.U.other`), as the other leg reads it: an effect on it took the call route above
-    if (inner.type !== 'Identifier' && inner.type !== 'MemberExpression') return false;
-    let branchBase = null;
-    if (inner.type === 'MemberExpression') {
-      const hopKeys = [];
-      let cur = inner;
-      while (cur?.type === 'MemberExpression' && !cur.computed) {
-        hopKeys.unshift(cur.property?.name);
-        cur = peelTransparentExpr(cur.object);
-      }
-      let rootName = cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name) ? cur.name : null;
-      if (!rootName && cur) {
-        // an inline-resolvable PURE root (`(() => globalThis)().Promise`, an alias): the
-        // root falls away (the canonical discard keeps nothing) and the passthrough reads
-        // through the resolved surface (`_Promise.baz`)
-        const read = branchRealmRoot(cur, metaPath);
-        rootName = read?.name ?? null;
-        hopKeys.unshift(...read?.keys ?? []);
-      }
-      if (rootName && hopKeys.length && hopKeys.every(Boolean)) {
-        const base = proxyPassthroughBase({ rootName, keys: hopKeys, adapter, resolveGlobalPolyfill });
-        branchBase = { baseName: base.baseName, passthroughPrefix: base.keys, baseIsProxy: true };
-      }
-    }
-    let pending = pendingBranchSynths.get(inner);
+  // Native registration keeps the source children live for a call rescue and skips
+  // a plain replacement whole. The shared walk has already chosen the leaf and route;
+  // unresolved properties use the same provider literal renderer as every flat synth.
+  function registerBranchSynth({
+    source: { node: receiver }, pure, callBranch, rescueSe, dedupKey, pattern, metaPath,
+  }) {
+    let pending = pendingBranchSynths.get(receiver);
     if (!pending) {
       const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter });
       if (!plan) return false;
-      // The branch's guard and sealed read are source facts, captured before either is rewritten.
       pending = {
         plan,
-        receiver: inner,
+        receiver,
         slots: new Map(),
+        callBranch,
+        rescueSe,
         metaPath,
-        ...branchBase,
+        // Capture the source guard and sealed read before child claims rewrite either.
         ...planSynthReceiverActivation({
-          receiver: inner,
-          ...nodeSite(inner, metaPath),
-          adapter,
-          resolvePure: meta => resolvePure(meta, metaPath),
+          receiver, ...nodeSite(receiver, metaPath), adapter, resolvePure: meta => resolvePure(meta, metaPath),
         }),
-        sealedProbePlan: captureSealedNavProbe(inner, metaPath, probeRenderCtx),
+        sealedProbePlan: captureSealedNavProbe(receiver, metaPath, probeRenderCtx),
       };
-      pendingBranchSynths.set(inner, pending);
+      pendingBranchSynths.set(receiver, pending);
     }
-    // the literal REPLACES the branch whole - a spine-skip would leave the ctor identifier
-    // arm racing the swap (the same race the simple receiver mark prevents)
-    markSubtreeSkipped(skippedNodes, inner);
+    if (callBranch) skippedNodes.add(receiver);
+    else markSubtreeSkipped(skippedNodes, receiver);
     pending.slots.set(dedupKey, injectPureImport(pure.entry, pure.hintName));
     return true;
   }

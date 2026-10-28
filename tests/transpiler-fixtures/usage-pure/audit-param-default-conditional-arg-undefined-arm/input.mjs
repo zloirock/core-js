@@ -1,6 +1,5 @@
-// a conditional CALL-ARG wins over the param default, but its `undefined`-shaped arm is
-// exactly the branch the runtime default fires on - the mirror synths the DEFAULT's
-// receiver into that arm (same branch, same value), so the default's polyfill survives
+// an undefined-shaped call argument applies the default at the parameter slot;
+// keep that argument unchanged so the default's property reads follow all arguments
 export const viaTernary = (function ({ from } = Array) { return from; })(cond ? undefined : Iterator);
 export const viaVoid = (function ({ of } = Iterator) { return of; })(cond ? void 0 : Array);
 // a `null` arm stays raw: destructuring null throws natively and the default never applies
