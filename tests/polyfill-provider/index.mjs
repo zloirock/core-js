@@ -65,6 +65,7 @@ import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';
 import './synth-wks-keys.mjs';
 import './synth-activation.mjs';
+import './nested-synth-admission.mjs';
 import './destructure-collapse.mjs';
 import './literal-spread-effects.mjs';
 import './mirror-decline-complexity.mjs';
