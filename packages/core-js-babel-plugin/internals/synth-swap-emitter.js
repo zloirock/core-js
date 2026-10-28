@@ -18,7 +18,6 @@ import {
   nestedSequenceValueSpelling,
   peelTransparentWrapperPath,
   isMemberWriteHost,
-  isReceiverShapedNode,
   findIifeArgPath,
   unwrapSafeSequenceTailPath,
   isSynthSimpleObjectPattern,
@@ -674,11 +673,8 @@ export default function createSynthSwapEmitter({
       enter(path) {
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
-        // an INSTANCE param-default registration additionally admits `this` / constant-literal
-        // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
-        const hasInstanceEntry = pending.polyfills.values().some(p => p.instance);
-        if (!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
-          && path.node.type !== 'ThisExpression' && !hasInstanceEntry) return;
+        // Registration already admitted this source receiver. A native move changes
+        // its path, not that decision; removal leaves no node for this walk to find.
         const entries = pending.entries.map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
         const aliasCtx = { scope: path.scope, adapter, path, injectorState: injector };
         function cloneProbeSource(source) {
