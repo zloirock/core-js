@@ -9,9 +9,7 @@ import {
   dispatchMayReadNav,
   isReReferenceableAcrossReads,
   isSeFreeMemberReceiver,
-  liftedInitElements,
   liftedPrefixSplit,
-  liftedRealmNavEffect,
   resolveNestedReceiverBase,
   resolvePassthroughRef,
   staticHopPure,
@@ -30,6 +28,8 @@ import {
   renderSynthLiteral,
   renderSynthReplacement,
   planDiscardedInit,
+  liveDestructureDefault,
+  planForInitSink,
   hostLevelSurvives,
   planCatchClauseExtraction,
   planLoopHeadExtraction,
@@ -57,6 +57,7 @@ import {
   mayHaveSideEffects,
   noteRelocatedHeadName,
   noteRenderRetiredTargets,
+  observableSequenceElements,
   patternBindingCount,
   patternDead,
   patternFullyConsumed,
@@ -90,7 +91,6 @@ import {
   variableDeclarator,
   renderKeyedDestructureRead,
   renderMemoReadTarget,
-  renderStaticDefaultGuard,
   memberFromKeyName,
   exportDeclaration,
   renderDestructureStatements,
@@ -108,7 +108,6 @@ import {
   takeForInitPrefix,
   carryInitPrefix,
   chainAssignOverPureNav,
-  discardedSinkSlot,
   drainBodylessAssignment,
   drainBodylessMultiMemo,
   drainBodylessWrapKinds,
@@ -281,19 +280,15 @@ export default function createDestructureDrains(ctx) {
     guardCtx = null,
     carriesInit = false,
   }) {
-    const defaulted = prop.value.type === 'AssignmentPattern';
+    const defaultPattern = liveDestructureDefault(prop.value, kind);
     const hopDefault = typedHop?.defaultHost;
     if (hopDefault) hopDefault.defaultCommentsAt ??= unwrapParens(hopDefault.right).start;
-    // the STATIC ponyfill an extraction binds is always defined, so a leaf's default is dead text at
-    // runtime and drops at every depth (`{ Array: { from = [] } } = globalThis` -> `_Array$from`);
-    // the guard survives only where the read is a memo of a hop rather than the import itself
-    const withDefault = defaulted;
     // the guard a DEFAULT owes wherever the dispatch spells its own receiver: the pure entry answers
     // `it.method` VERBATIM off a surface that is not the polyfilled one, so it may be undefined and the
     // source's default has to fire (`({ navigator: { flat: c = null } } = globalThis.globalThis)` bound
     // undefined where the source binds null). the flat-depth canon renders exactly this guard
     function guarded(build) {
-      if (!defaulted) return build;
+      if (!defaultPattern) return build;
       // a CATCH-BORN host (`memoJoin`) cannot hoist a `var` past its own binding: the ref is
       // block-scoped and leads the extraction as its own `let` (the drain's lead declaration, the
       // shape the other leg prints); a hoistable host takes the declared ref
@@ -308,13 +303,12 @@ export default function createDestructureDrains(ctx) {
     // the leaf's own default folded around a dispatch through `ref`. `.right` is read LAZILY, like the
     // guard path below: the walker's later in-place rewrites replace the default THROUGH that slot
     function leafDefaultFold(ref) {
-      const valueNode = prop.value;
       return call => buildInstanceDefaultGuard({
         assignedRef: identifier(ref),
         call,
-        defaultValue: valueNode.right,
-        defaultPattern: valueNode,
-        defaultName: valueNode.left?.name,
+        defaultValue: defaultPattern.right,
+        defaultPattern,
+        defaultName: defaultPattern.left?.name,
         reread: identifier(ref),
       });
     }
@@ -368,13 +362,11 @@ export default function createDestructureDrains(ctx) {
         // a STATIC outer step spells an import binding: always defined, so its default is dead text
         // and the leaf dispatches on the binding alone - no memo, and no receiver to dispatch on
         if (typedHop.pure.kind !== 'instance') {
-          return () => callExpression(identifier(leafId), [renderStaticDefaultGuard({
-            read: identifier(hopId), defaultValue: defaultHost.right, reread: identifier(hopId), alwaysDefined: true,
-          })]);
+          return () => callExpression(identifier(leafId), [identifier(hopId)]);
         }
         // the leaf's OWN default folds around the composition: its ref mints first and hoists, the
         // other leg's numbering and declarations
-        const leafFold = defaulted ? leafDefaultFold(injector.generateDeclaredRef(metaPath)) : call => call;
+        const leafFold = defaultPattern ? leafDefaultFold(injector.generateDeclaredRef(metaPath)) : call => call;
         // a CATCH-BORN host cannot hoist a `var` past its own binding: the ref is block-scoped and
         // stands as its own declaration ahead of the extraction, which is what the other leg prints
         const guardRef = memoJoin ? mintRefName() : injector.generateDeclaredRef(metaPath);
@@ -429,7 +421,7 @@ export default function createDestructureDrains(ctx) {
       // passthrough as its dispatch receiver: the guard reads that receiver exactly once, which
       // is what the source's own read does. leaving it in the residual shipped the claim native,
       // and on a target without the method the source's default won over the ponyfill
-      if (proxyNav && (nested || !defaulted)) {
+      if (proxyNav && (nested || !defaultPattern)) {
         return proxyNavPassthroughValue({
           entry, hintName, kind, chainKeys, proxyNav, liveReceiver, receiverNode, guarded, typedNavChain, metaPath,
         });
@@ -439,7 +431,7 @@ export default function createDestructureDrains(ctx) {
       // (!nested: hop chains resolve through the passthrough below, keys intact)
       const barePure = nested ? null : bareProxyGlobalPure(receiver, metaPath, { adapter, resolveGlobalPolyfill });
       if (barePure) {
-        if (withDefault) return null;
+        if (defaultPattern) return null;
         const id1 = injectPureImport(entry, hintName);
         const recvId = injectPureImport(barePure.entry, barePure.hintName);
         return override => callExpression(identifier(id1), [identifier(override ?? recvId)]);
@@ -554,7 +546,7 @@ export default function createDestructureDrains(ctx) {
         navValue.spellsInit = namelessRoot;
         return navValue;
       }
-      if (!withDefault) {
+      if (!defaultPattern) {
         return override => callExpression(identifier(id),
           [override ? identifier(override) : duplicateReceiver(receiverSpelling, injector)]);
       }
@@ -567,30 +559,19 @@ export default function createDestructureDrains(ctx) {
       // the VALUE node is captured (a sentinel rename detaches it from the prop before the
       // drain), but `.right` reads LAZILY: the walker's later in-place rewrites replace the
       // default THROUGH that slot, and the moved node must carry them - never a clone
-      const valueNode = prop.value;
+      const fold = leafDefaultFold(ref);
       function thunk(override) {
         const recv = override ? identifier(override)
           : proxyNav ? proxyNav() : duplicateReceiver(receiverSpelling, injector);
-        return buildInstanceDefaultGuard({
-          assignedRef: identifier(ref),
-          call: callExpression(identifier(id), [recv]),
-          defaultValue: valueNode.right,
-          defaultPattern: valueNode,
-          defaultName: valueNode.left?.name,
-          reread: identifier(ref),
-        });
+        return fold(callExpression(identifier(id), [recv]));
       }
       if (memoJoin) thunk.leadRef = ref;
       return thunk;
     }
     const id = injectPureImport(entry, hintName);
-    const staticValueNode = prop.value;
-    const value = withDefault ? () => renderStaticDefaultGuard({
-      read: identifier(id),
-      defaultValue: staticValueNode.right,
-      reread: identifier(id),
-      alwaysDefined: true,
-    }) : () => identifier(id);
+    function value() {
+      return identifier(id);
+    }
     value.moduleSource = injectorState.getBindingInfo(id)?.source;
     return value;
   }
@@ -600,6 +581,7 @@ export default function createDestructureDrains(ctx) {
   // read) into a synthesized shape that no longer shows what it runs. `runs` is the residual canon's
   // question - does the init RUN code before the pattern binds? - and `readWhole` records whether
   // the shared discard plan retains that entire value, including an observable getter read.
+  // `dropReceiver` retains the opposite proof across a child's proxy-root replacement.
   const pristineInitFacts = new WeakMap();
 
   function residualRuns(host) {
@@ -620,10 +602,11 @@ export default function createDestructureDrains(ctx) {
     if (residualHost && !pristineInitFacts.has(residualHost)) {
       const init = residualHost.init ?? residualHost.right;
       const at = { scope: job.metaPath?.scope, adapter, path: job.metaPath };
-      const { effects } = planDiscardedInit(init, { ...at, resolvePure });
+      const { effects, dropReceiver } = planDiscardedInit(init, { ...at, resolvePure });
       pristineInitFacts.set(residualHost, {
         runs: residualInitRunsEffects({ init, ...at }),
         readWhole: !!init && effects.length === 1 && effects[0] === unwrapRuntimeExpr(init),
+        dropReceiver,
       });
     }
     // Babel exposes the replacement initializer immediately. Publish the same
@@ -1071,24 +1054,17 @@ export default function createDestructureDrains(ctx) {
       value = callExpression(
         identifier(injectPureImport(job.collapseLeaf.instanceEntry, job.collapseLeaf.instanceHint)), [value]);
     }
-    if (job.prop.value?.type !== 'AssignmentPattern') return value;
-    if (job.kind === 'instance') {
-      const guardRef = guardRefs.get(job) ?? mintMemoGuardRef(job);
-      guardRefs.set(job, guardRef);
-      return buildInstanceDefaultGuard({
-        assignedRef: identifier(guardRef),
-        call: value,
-        defaultValue: job.prop.value.right,
-        defaultPattern: job.prop.value,
-        defaultName: job.prop.value.left?.name,
-        reread: identifier(guardRef),
-      });
-    }
-    return renderStaticDefaultGuard({
-      read: identifier(id),
-      defaultValue: job.prop.value.right,
-      reread: identifier(id),
-      alwaysDefined: true,
+    const defaultPattern = liveDestructureDefault(job.prop.value, job.kind);
+    if (!defaultPattern) return value;
+    const guardRef = guardRefs.get(job) ?? mintMemoGuardRef(job);
+    guardRefs.set(job, guardRef);
+    return buildInstanceDefaultGuard({
+      assignedRef: identifier(guardRef),
+      call: value,
+      defaultValue: defaultPattern.right,
+      defaultPattern,
+      defaultName: defaultPattern.left?.name,
+      reread: identifier(guardRef),
     });
   }
 
@@ -1097,100 +1073,9 @@ export default function createDestructureDrains(ctx) {
   // returns 'consumed' when the re-anchor took the declarator whole
   function emitStaticMemoRescues({ hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe }) {
     const [{ metaPath }] = declJobs;
-    // The accepted probe owns its source effects and writes. Without a probe the discarded
-    // receiver still takes the ordinary rescue plan, including an observable whole read.
-    const rescues = consumeProbe ? probeResidualEffects(consumeProbe) : discardRescueNodesWithReads({
-      node: declarator.init,
-      scope: metaPath.scope,
-      adapter,
-      path: metaPath,
-    });
-    // the collapse rewrote the init in place, so what the spine bottoms out on NOW is what
-    // survived it: a call the nav read THROUGH but could not erase (`wrap(g()).Object`), or a
-    // pure binding it folded onto (`mk().self.Array` -> `_self.Array`)
-    const initSpine = peelTransparentExpr(declarator.init);
-    let spineRoot = initSpine;
-    while (spineRoot?.type === 'MemberExpression') spineRoot = peelTransparentExpr(spineRoot.object);
-    // a CALL the collapse left standing stays as a statement: the receiver resolution reads
-    // THROUGH it (an inline fold), so dropping it would drop the call the source performs
-    // (`const { from } = (a => a)(Array)` keeps `(a => a)(Array);`). the one exception is a
-    // BARE call whose argument list is nothing but ERASABLE proxy surfaces - those reads
-    // collapse everywhere else too, and the call goes with them (`(g => g)(globalThis)`); a
-    // nav hop ABOVE the call reads its RESULT, and that read is the source's own
-    // the walk may already have substituted the surface, so the minted spelling counts as
-    // the proxy read it replaced
-    function erasableProxyArgument(argument) {
-      const value = peelTransparentExpr(argument);
-      return value?.type === 'Identifier' && isMintedOrProxyName(value.name, injectorState)
-        && !adapter.getBinding({ scope: metaPath.scope, name: value.name, path: metaPath })?.node;
-    }
-    const erasableCall = spineRoot === initSpine && spineRoot?.type === 'CallExpression'
-      && spineRoot.arguments.length > 0 && spineRoot.arguments.every(erasableProxyArgument);
-    // a SEQUENCE root carrying a kept WRITE keeps its READ too: the write is the source's own
-    // effect and the member above it is the read the source performed
-    // (`const { isInteger } = (a5 = Array.from('ab'), globalThis).Number`)
-    const seqWriteRoot = (spineRoot !== initSpine || declJobs.some(job => job.seqRootWrite))
-      && spineRoot?.type === 'SequenceExpression'
-      && spineRoot.expressions.some(expr => {
-        const stored = peelTransparentExpr(expr);
-        return stored?.type === 'AssignmentExpression' && stored.operator === '=';
-      });
-    // ... and only where the collapse actually FOLDED that key into a claim binding: a key the
-    // claim never resolved is still a raw member read, and re-emitting it spells a read the
-    // source's own effects already carried (`_globalThis[(a = f(), 'Array')]` keeps `a = f()`)
-    // ... or where the key stayed a raw computed read off the ROOT: that read is the one the
-    // source performed, and lifting only its key effect drops it
-    // (`globalThis[(e++, 'Object')]` lifts `_globalThis[(e++, 'Object')]`)
-    const buriedKeyInit = declJobs.some(job => job.keyClaimInit && !job.chain?.length
-      && (spineRoot === initSpine || job.rawKeyRootInit));
-    const seqClaimInit = spineRoot === initSpine && spineRoot?.type === 'SequenceExpression'
-      && declJobs.some(job => job.seqDirectClaimInit && !job.chain?.length);
-    // a KEPT WRITE at the spine ROOT with LATER harvested effects re-emits the read whole
-    // too: the split channels would lift those effects AHEAD of the write that led them in
-    // the source (`{ of } = (r = globalThis)[(se(), 'Array')]` - the write runs first)
-    const keptWriteRootAhead = spineRoot !== initSpine && spineRoot?.type === 'AssignmentExpression'
-      && rescues.length > 1;
-    // ... but a REBUILT spine (the collapse minted the sequence - no source span) is not a
-    // read the source performed: its effect prefix splices as ONE ordered unit, and a
-    // resolvable ctor LEAF leaves its pure binding as the probe (`a6 = ..., _Symbol;` -
-    // the throw-probe canon); a probe-less leaf drops with the read (babel's
-    // `r = _globalThis, c++;`). the source's OWN sequence re-emits whole, read included
-    // (the a5-case right above)
-    if (seqWriteRoot && typeof spineRoot.start !== 'number') {
-      // the collapse folds a resolvable ctor leaf into the seq TAIL (`..., _Symbol`) - that
-      // binding read IS the throw probe and stays; an environment-root tail (`_globalThis`)
-      // reads nothing the claim still needs and drops with the rebuilt read above it
-      const tail = spineRoot.expressions.at(-1);
-      const keepTail = !(tail?.type === 'Identifier' && isMintedOrProxyName(tail.name, injectorState));
-      const spliced = keepTail ? [...spineRoot.expressions] : spineRoot.expressions.slice(0, -1);
-      rescues.length = 0;
-      rescues.push(sequenceExpression(spliced));
-    } else if (seqWriteRoot || buriedKeyInit || seqClaimInit || keptWriteRootAhead
-      || (spineRoot?.type === 'CallExpression' && !erasableCall)
-      || (pristineInitFacts.get(declarator)?.readWhole && spineRoot !== initSpine && spineRoot?.type === 'SequenceExpression')) {
-      // the whole read re-emits verbatim, so every effect harvested out of it rides inside
-      // it already - keeping both would run them twice. a read off an effectful sequence SPINE the
-      // pristine init keeps whole (`readWhole`) re-emits the same way
-      rescues.length = 0;
-      rescues.push(declarator.init);
-    } else if (spineRoot === initSpine && spineRoot?.type === 'SequenceExpression'
-      && isCallShape(peelTransparentExpr(peelNestedSequenceExpressions(spineRoot).tail))) {
-      // ... and so does a SEQUENCE init ending in a call the collapse left standing - less the comma
-      // elements nothing observes (the shared trim babel's lift takes)
-      rescues.length = 0;
-      const flatLift = flattenLift(declarator.init);
-      const observedLift = observablePrefixElements(flatLift, { scope: metaPath.scope, adapter, path: metaPath });
-      rescues.push(...observedLift.length ? observedLift : flatLift.slice(-1));
-    }
-    // ... a nav INTO the built-in namespace off a call the census resolves to a realm keeps the call
-    // alone (the shared rule): its hops are dead reads, and a pure call leaves nothing - the babel
-    // lift's answer, where the whole read printed `realm().Array;` for the value the extraction took
-    const realmNav = spineRoot?.type === 'CallExpression'
-      ? liftedRealmNavEffect(declarator.init, { scope: metaPath.scope, adapter, path: metaPath }) : null;
-    if (realmNav) {
-      rescues.length = 0;
-      rescues.push(...realmNav.effects);
-    }
+    const rescues = consumeProbe ? probeResidualEffects(consumeProbe) : planDiscardedInit(
+      declarator.init, patternFrame(metaPath), null, pristineInitFacts.get(declarator),
+    ).effects;
     // the ctor-pattern re-anchor: a PATTERN-valued sole job reads the pure ctor whole,
     // the harvested rescues riding the init seq (`{ customB } = (eff(), _Set)`)
     const [soleJob] = declJobs;
@@ -1618,11 +1503,13 @@ export default function createDestructureDrains(ctx) {
         carryForInitPrefixIntoFirst(extracted, carried);
         pushChainedSinkSlot({ declarator, extracted, declarations, declJobs });
       } else {
-        const slot = discardedSinkSlot(peelTransparentExpr(declarator.init),
-          {
-            metaPath: declJobs[0]?.metaPath, sinkDrop: declJobs.some(job => job.sinkDrop),
-            sinkPlan: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null, planMemoArg, renderMemoArg, adapter,
-          });
+        const [{ metaPath }] = declJobs;
+        const init = peelTransparentExpr(declarator.init);
+        const sinkPlan = planForInitSink(init, { ...patternFrame(metaPath), resolvePure: meta => resolvePure(meta, metaPath) }, {
+          dropReceiver: declJobs.some(job => job.sinkDrop), memo: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null,
+        });
+        const slot = sinkPlan.effects ? sinkPlan.effects.length ? sequenceExpression(sinkPlan.effects) : null
+          : renderMemoArg(sinkPlan.memo, metaPath) ?? init;
         if (slot && !foldSinkPrefixIntoResidual(extracted, slot)) {
           declarations.push(variableDeclarator(identifier(mintRefName()), sequenceExpression([...carried, slot])));
         } else carryForInitPrefixIntoFirst(extracted, carried);
@@ -2550,12 +2437,10 @@ export default function createDestructureDrains(ctx) {
       : anchorRhsPrefix || carriesPrefix || residualCarriesPrefix || (wholeRhsLift && discardedRead) ? []
       : wholeRhsLift ? (probeLead
         ? liftedPrefixStatements(probeResidualEffects(probeLead), frame)
-        // ... a nav off a call the census resolves to a realm keeps only what the call owes (the
-        // shared rule) - the whole read printed a dead `mk().Array;` where the babel leg lifts nothing -
-        // as ONE expression, the flat consume's shape below (`eff(), mk(); g = _Map$groupBy;`).
-        // the rest lifts through the shared trim canon (`liftedInitElements`, the other leg's lift), a
-        // dead comma element left behind (`(0, f())`) and a decided selection read as what runs of it
-        : liftedPrefixStatements(liftedRealmNavEffect(assignment.right, frame)?.effects ?? liftedInitElements(peeledRhs, frame), frame))
+        // A child may have respelled a dropped realm navigation onto a minted alias.
+        // Preserve that source proof while asking the common plan for its live effects.
+        : liftedPrefixStatements(planDiscardedInit(assignment.right, frame, null,
+          { dropReceiver: pristineInitFacts.get(assignment)?.dropReceiver }).effects, frame))
       // a FULLY consumed FLAT pattern discards its receiver, and what stays of it is ONE expression -
       // the shape the other leg's defer-SE route prints there (`eff(), eff2(); d = _WeakSet;`); a
       // SURVIVING residual and a NESTED claim take the per-element prefix both legs print for the
@@ -2587,40 +2472,26 @@ export default function createDestructureDrains(ctx) {
       if (probeLead && bySource.length) {
         bySource[0].expression.right = sequenceExpression([probeLead, bySource[0].expression.right]);
       }
-      // an SE init NOTHING evaluated (no memo, no lifted prefix, no reader) keeps its own
-      // discarded statement ahead - dropping it would erase the call the source performs;
-      // an ANCHOR job (a pattern-valued hop) and a SEQUENCE slot own their RHS already
-      // ... spelled by its OBSERVABLE elements alone: an anchored residual's right is the rescue
-      // prefix ahead of the ctor pure (`(realm(), _Map)`), and with no residual left to read it the
-      // pure is a dead read - the babel cascade's dead-tail trim, so neither leg prints it. a nav off
-      // a call the census resolves to a realm keeps only what the call owes (the shared rule)
-      const { prefix: keptPrefix, tail: keptTail } = peelNestedSequenceExpressions(peelTransparentExpr(assignment.right));
+      // Captures, lifted prefixes, probes and receiver readers already own their effects.
+      // The remaining live initializer uses the same discard decision as a declaration.
+      // A nested assignment may itself have drained into a sequence by now: its returned
+      // value is discarded here, so this channel queries that live value, not a whole-read
+      // proof captured before the inner assignment was consumed.
       const rhsFrame = patternFrame(jobs[0].metaPath);
-      const keptRealmNav = mayHaveSideEffects(assignment.right, rhsFrame)
-        ? liftedRealmNavEffect(assignment.right, { scope: jobs[0].metaPath.scope, adapter, path: jobs[0].metaPath }) : null;
-      const rhsKept = !inSequence && !memoDecl.length && !stmtSeqPrefix.length && !discardedRead && !probeLead
-        && jobs.every(job => !job.readsReceiver && job.prop?.value?.type !== 'ObjectPattern')
-        && mayHaveSideEffects(assignment.right, rhsFrame)
-        ? keptRealmNav ? keptRealmNav.effects.map(expr => expressionStatement(expr))
-          // ... a SOURCE sequence stays ONE expression, the flat consume's shape; a MINTED one (no span)
-          // keeps its per-element statements, which the orphan-memo drop reads statement by statement
-          : Number.isInteger(peelTransparentExpr(assignment.right)?.start)
-            ? liftedPrefixStatements([...keptPrefix, keptTail], patternFrame(jobs[0].metaPath))
-            : observablePrefixElements([...keptPrefix, keptTail], patternFrame(jobs[0].metaPath))
-              .map(expr => expressionStatement(expr)) : [];
-      // ... and a receiver READ whose value only an object-literal GETTER could name reaches this
-      // host through the rescue channel alone where the kept-right test above could not keep it. the
-      // consume that emptied the pattern owes that read once, ahead of the bindings the source fed
-      // with it - the declaration drain's own rule
-      const rescuedRead = !rhsKept.length && !stmtSeqPrefix.length && !discardedRead && !probeLead && !memoDecl.length
-        && !mayHaveSideEffects(assignment.right, rhsFrame)
-        ? discardRescueNodesWithReads({ node: assignment.right, ...nodeSite(assignment.right, jobs[0].metaPath), adapter })
-        : [];
-      const effects = [
-        ...discardedRead ? [expressionStatement(discardedRead)] : [],
-        ...rescuedRead.map(expr => expressionStatement(expr)),
-        ...rhsKept,
-      ];
+      const owesInit = !memoDecl.length && !stmtSeqPrefix.length && !discardedRead && !probeLead
+        && ((!inSequence && jobs.every(job => !job.readsReceiver && job.prop?.value?.type !== 'ObjectPattern'))
+          || !mayHaveSideEffects(assignment.right, rhsFrame));
+      const owed = owesInit ? planDiscardedInit(assignment.right, rhsFrame, null,
+        { dropReceiver: pristineInitFacts.get(assignment)?.dropReceiver }) : null;
+      // Source comma expressions keep one statement and their span. A sequence minted by
+      // a child drain unfolds into its statements; the retired value needs no new grouping.
+      const rescued = owed?.replay && Number.isInteger(peelTransparentExpr(assignment.right)?.start)
+        ? liftedPrefixStatements(owed.effects, rhsFrame)
+        : (owed?.effects ?? []).flatMap(node => {
+          const { prefix, tail } = peelNestedSequenceExpressions(node);
+          return observableSequenceElements([...prefix, tail], rhsFrame).map(expr => expressionStatement(expr));
+        });
+      const effects = [...discardedRead ? [expressionStatement(discardedRead)] : [], ...rescued];
       spliceAssignmentRewrite([...memoDecl, ...varDecl, ...effects, ...bySource], memoDecl.length || varDecl.length ? [] : effects);
     } else if (seKeyResidualFirst) {
       spliceAssignmentRewrite([...memoDecl, ...varDecl, ...renderDestructureStatements(
