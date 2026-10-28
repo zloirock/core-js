@@ -3147,11 +3147,17 @@ export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure 
 
 // Capture the guarded receiver's landing together with its source guard. Every accepted
 // synth, including a selection arm, must read unresolved slots through that same proof.
+// Rescue ownership is a source fact too: child rewrites can collapse the navigation
+// before the queued render reads its live effects.
 export function planSynthReceiverActivation({ receiver, scope, adapter, path, resolvePure }) {
   const synthGuard = planSynthReceiverGuard({ receiver, scope, adapter, path, resolvePure });
-  return { synthGuard, guardedReceiverPlan: synthGuard ? planProxyReceiver(unwrapRuntimeExpr(synthGuard.fallback?.left ?? receiver), {
-    aliasCtx: { scope, adapter, path }, guardedProbe: synthGuard.probe, resolvePure,
-  }) : null };
+  return {
+    synthGuard,
+    dropRescueReceiver: shouldDropRescueReceiver(receiver.type === 'LogicalExpression' ? receiver.left : receiver),
+    guardedReceiverPlan: synthGuard ? planProxyReceiver(unwrapRuntimeExpr(synthGuard.fallback?.left ?? receiver), {
+      aliasCtx: { scope, adapter, path }, guardedProbe: synthGuard.probe, resolvePure,
+    }) : null,
+  };
 }
 
 // A synth consumes its receiver once. Partial call receivers use a stable tail or an
@@ -3159,9 +3165,19 @@ export function planSynthReceiverActivation({ receiver, scope, adapter, path, re
 // Guards own their effects and leave fallback evaluation outside the activation. Native
 // bindings render saved read/probe plans and bind live slots, but do not select this order.
 export function renderSynthReplacement(entries, {
-  receiver, callBranch = false, rescueSe = null, guard = null, aliasCtx,
-  slotFor = entry => entry.polyfill, renderLiteral, renderMemoArgument, renderProbe,
-  createMemo, cloneHost = cloneNode, embed = node => node,
+  receiver,
+  callBranch = false,
+  rescueSe = null,
+  guard = null,
+  aliasCtx,
+  dropRescueReceiver = shouldDropRescueReceiver(receiver.type === 'LogicalExpression' ? receiver.left : receiver),
+  slotFor = entry => entry.polyfill,
+  renderLiteral,
+  renderMemoArgument,
+  renderProbe,
+  createMemo,
+  cloneHost = cloneNode,
+  embed = node => node,
 }) {
   const source = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
   const partial = callBranch && entries.some(entry => !slotFor(entry));
@@ -3181,7 +3197,7 @@ export function renderSynthReplacement(entries, {
   if (savedProbe) return sequenceExpression([...savedProbe.effects.map(embed), embed(value)]);
   // An instance slot already spells its receiver. A logical collapse discards only
   // its left; the dead right must neither run nor gain imports during re-traversal.
-  const effects = rescueSe && !shouldDropRescueReceiver(source) ? [source]
+  const effects = rescueSe && !dropRescueReceiver ? [source]
     : entries.some(entry => slotFor(entry)?.instance) && receiver.type !== 'LogicalExpression' ? []
     : discardRescueNodes({ node: source, ...aliasCtx });
   return effects.length ? sequenceExpression([...effects.map(node => embed(cloneHost(node))), embed(value)]) : embed(value);
