@@ -85,4 +85,31 @@ runBoth('probe ownership', 'const result = (before(), read(key()), after());', (
   checkDeep(`${ label }/empty input`, planDiscardedInit(null, ctx), { effects: [], replay: false });
 });
 
+// A generated guard no longer proves the getter read it replaced. Keep the source decision,
+// but borrow the current tree rather than the source nodes captured before child rewrites.
+runBoth('deferred whole read', 'const result = (before(), globalThis).Array; const live = (after(), Array) as typeof Array;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const live = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'live').node.init;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, path, adapter, resolvePure };
+  const source = planDiscardedInit(path.node.init, ctx);
+  const sourceFacts = { readWhole: source.effects.length === 1 && source.effects[0] === unwrapRuntimeExpr(path.node.init) };
+  check(`${ label }/source proves the whole read`, sourceFacts.readWhole, true);
+  const first = planDiscardedInit(path.node.init, ctx, null, sourceFacts);
+  check(`${ label }/initial whole source`, first.effects[0], unwrapRuntimeExpr(path.node.init));
+  path.node.init = live;
+  const before = JSON.stringify(program.node);
+  const actual = planDiscardedInit(path.node.init, ctx, null, sourceFacts);
+  check(`${ label }/live whole read`, actual.effects[0], unwrapRuntimeExpr(live));
+  check(`${ label }/one evaluation`, actual.effects.length, 1);
+  check(`${ label }/native relocation`, actual.replay, true);
+  check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  check(`${ label }/negative does not retain dead tail`,
+    planDiscardedInit(live, ctx, null, { readWhole: false }).effects[0], unwrapRuntimeExpr(live).expressions[0]);
+  const [read] = unwrapRuntimeExpr(live).expressions;
+  const probe = { node: read, decision: { consumed: [], retained: [read] }, effects: [read] };
+  check(`${ label }/accepted probe owns its read`, planDiscardedInit(live, ctx, probe, sourceFacts).effects.length, 0);
+  checkDeep(`${ label }/removed source`, planDiscardedInit(null, ctx, null, sourceFacts), { effects: [], replay: false });
+});
+
 finish();

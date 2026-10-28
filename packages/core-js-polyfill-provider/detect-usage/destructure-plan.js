@@ -200,7 +200,10 @@ export function discardedReceiverEffects(init, ctx) {
 // `replay` retains a source value (whole or trimmed), including stores that need the binding's
 // normal relocation treatment. Harvested nodes keep their existing ownership instead. Nodes
 // are borrowed, never mutated; bindings clone/move them and choose their native insertion slot.
-export function planDiscardedInit(init, ctx, probe = null) {
+// A deferred caller can retain a source-proven whole read. Its live spelling may now be a
+// generated guard; analyzing that guard again would discard the read the source still owes.
+export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null) {
+  if (init && sourceFacts?.readWhole && !probe) return { effects: [unwrapRuntimeExpr(init)], replay: true };
   const node = unwrapRuntimeExpr(decidedRunningPart(init, ctx));
   if (!node) return { effects: [], replay: false };
   if (!mayHaveSideEffects(node)) {
