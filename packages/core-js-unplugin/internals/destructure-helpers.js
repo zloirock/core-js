@@ -180,21 +180,18 @@ export function nestedInstanceWithoutSelectingInit({ chain, kind, init }) {
 
 // hand the per-branch mirror every SIBLING of the selecting hop, not just the one the claim arrived
 // on: the branches belong to the host's receiver, so each prop of that pattern reads the same
-// selection and owes its own arm. `claimObject` rides along because the type ladder answered it for
-// THIS claim and the mirror cannot re-derive it from a sibling's key
-export function routeSelectionMirror(metaPath, handlePerBranch, claimObject = null) {
+// selection and owes its own arm. Preserve the original claim and path for the shared
+// nested plan; a sibling key cannot re-derive that source proof.
+export function routeSelectionMirror(metaPath, handlePerBranch, meta = null) {
   const outerProp = outermostHopProp(metaPath);
   const patternPath = outerProp.parentPath;
   const propPaths = patternPath?.node?.type === 'ObjectPattern' ? patternPath.get('properties') : null;
   for (const propPath of Array.isArray(propPaths) && propPaths.length ? propPaths : [outerProp]) {
-    if (propPath.node?.type === 'Property') handlePerBranch({ metaPath: propPath, claimObject });
+    if (propPath.node?.type === 'Property') handlePerBranch({ metaPath: propPath, meta, sourcePath: metaPath });
   }
 }
-// the OUTERMOST hop prop of a nested claim - the per-branch mirror anchors there (its
-// pattern hangs on the receiver wrapper), while a leaf claim's own path sits levels below.
-// the mirror fallbacks route through EVERY hop prop of that pattern: the fromFallback
-// dispatch delivers each prop claim on its own, while a fallback fires ONCE (sibling
-// claims die on the mirror-owned head gate) - a half-registered multi-hop plan emits nothing
+// Find the source pattern whose sibling properties share the selected receiver.
+// The shared nested plan consumes that pattern as a whole; flat claims still register by key.
 function outermostHopProp(metaPath) {
   let prop = metaPath;
   while (prop.parentPath?.node?.type === 'ObjectPattern'
