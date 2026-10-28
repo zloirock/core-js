@@ -40,11 +40,7 @@ import {
   findSynthSwapReceiverPath,
   buildPatternRenderPlan,
   patternComputedKeysSynthSafe,
-  undefinedArmEffectiveReceiver,
-  classifyCallBranchForSynth,
-  fallbackBranchSwapKeepsSelection,
-  fallbackBranchWalk,
-  isViableBranchForKey,
+  visitFallbackSynthBranches,
   instanceSynthSpellsReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import estreeToBabel from './estree-to-babel.js';
@@ -266,59 +262,30 @@ export default function createSynthSwapEmitter({
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
     // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
-    return registerBranchTreeForKey({
-      branchPath: peelTransparentWrapperPath(rhsPath), objectPattern, lookupKey, slotKey, undefinedArmFallback,
+    return visitFallbackSynthBranches({
+      branch: peelTransparentWrapperPath(rhsPath), key: lookupKey, undefinedArmFallback, adapter, resolvePure,
+      readBranch(target) {
+        const path = unwrapSafeSequenceTailPath(target);
+        return path?.node ? { node: path.node, scope: path.scope, path } : null;
+      },
+      childBranch: ({ path }, slot) => path.get(slot),
+      contextFor(node, source) {
+        const path = node === source.node ? source.path : objectPattern.parentPath.get('right');
+        return { scope: path.scope, path };
+      },
+      register({ source, pure, callBranch, rescueSe }) {
+        registerPolyfill({
+          targetPath: source.path, objectPatternPath: objectPattern, key: slotKey,
+          entry: pure.entry, hintName: pure.hintName, callBranch, rescueSe,
+        });
+        return true;
+      },
+      ownsReceiver: ({ node }) => synthSwapByReceiver.has(node),
+      dropDeadRight({ node, path }) {
+        t.traverseFast(node.right, child => { skippedNodes.add(child); });
+        path.replaceWith(node.left);
+      },
     });
-  }
-
-  // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
-  // gets per-branch synth-swap. `unwrapSafeSequenceTailPath` peels paren / TS / chain AND SE tail
-  // so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds the
-  // branches, and recursion registers each leaf. SE prefix stays in the AST around the
-  // substitution target so side-effects run at runtime
-  function registerBranchTreeForKey({ branchPath, objectPattern, lookupKey, slotKey, undefinedArmFallback = null }) {
-    const peeled = unwrapSafeSequenceTailPath(branchPath);
-    if (!peeled?.node) return false;
-    const walk = fallbackBranchWalk(peeled.node, { scope: peeled.scope, adapter, path: peeled });
-    if (walk) {
-      let any = false;
-      for (const slot of walk.slots) {
-        // a value-selecting operand that can be nullish must not become an always-defined
-        // literal - the swap would flip which branch runs (the shared predicate's contract).
-        // the undefined-shaped arm under a live PARAM DEFAULT is the one exception: the
-        // shared rule substitutes the default there (same branch, same value)
-        if (!undefinedArmEffectiveReceiver({ branch: peeled.node[slot], paramDefaultNode: undefinedArmFallback })
-          && !fallbackBranchSwapKeepsSelection({
-            hostNode: peeled.node, slot, branchNode: peeled.node[slot], scope: peeled.scope, adapter, path: peeled, resolvePure,
-          })) continue;
-        if (registerBranchTreeForKey({
-          branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey, undefinedArmFallback,
-        })) any = true;
-      }
-      // a selection whose left this walk mirrored gives way to that left, the dead right with it -
-      // unless a swap owns the selection whole and replaces it later
-      if (any && walk.deadRight && !synthSwapByReceiver.has(peeled.node)) {
-        t.traverseFast(peeled.node.right, node => { skippedNodes.add(node); });
-        peeled.replaceWith(peeled.node.left);
-      }
-      return any;
-    }
-    const branch = undefinedArmEffectiveReceiver({ branch: peeled.node, paramDefaultNode: undefinedArmFallback })
-      ?? peeled.node;
-    // `lookupKey` is the resolved static name (probes the branch for a polyfillable static);
-    // `slotKey` is the shared dedup slot the polyfill is registered + looked up under
-    const pure = isViableBranchForKey({ branch, key: lookupKey, scope: peeled.scope, adapter, resolvePure, path: peeled });
-    if (!pure) return false;
-    // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
-    // `classifyCallBranchForSynth`
-    const callPolicy = classifyCallBranchForSynth({
-      inner: peeled.node, scope: peeled.scope, adapter, path: peeled,
-    });
-    registerPolyfill({
-      targetPath: peeled, objectPatternPath: objectPattern, key: slotKey,
-      entry: pure.entry, hintName: pure.hintName, callBranch: callPolicy.callBranch, rescueSe: callPolicy.rescueSe,
-    });
-    return true;
   }
 
   // `hopsOnly`: take the collapse ONLY when it drops redundant hops off a root that is already

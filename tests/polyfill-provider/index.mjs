@@ -72,6 +72,7 @@ import './mirror-decline-complexity.mjs';
 import './rest-boundary-complexity.mjs';
 import './mirror-ctor-passthrough.mjs';
 import './fallback-branches.mjs';
+import './fallback-synth.mjs';
 import './synth-receiver.mjs';
 import './parameter-call-sites.mjs';
 import './parameter-static-sources.mjs';
