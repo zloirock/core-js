@@ -20434,6 +20434,24 @@ function * generateDispatchReceiverPreparation() {
   ]) yield { ...snippet(`dispatch-receiver-preparation/${ name }/${ rig ? 'window' : 'off-window' }`, expression, { rig }), strip: true };
 }
 
+// A queued synth keeps the source read policy while its live effect claims finish.
+function * generateSynthRescueSourceOwnership() {
+  for (const [shape, receiver] of [
+    ['nested-tail', '(log.push(Array.from([1])[0]), globalThis.self).Array'],
+    ['nested-root', '((log.push(Array.of(2)[0]), globalThis).self).Array'],
+    ['single-hop', '(log.push(Array.from([3])[0]), globalThis).Array'],
+  ]) for (const taken of [false, true]) yield {
+    name: `synth-rescue-source-ownership/${ shape }/${ taken ? 'taken' : 'other' }`,
+    code: `const log = [];
+      let choice = 0;
+      export function changeChoice() { choice++; }
+      const { from } = choice ? ${ taken ? 'Array' : receiver } : ${ taken ? receiver : 'Array' };
+      export const r = from([4]);
+      export const effects = log;`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20827,4 +20845,5 @@ export function * generate() {
   yield * generateDiscardedDestructureInitializers();
   yield * generateSynthActivationCoverage();
   yield * generateDispatchReceiverPreparation();
+  yield * generateSynthRescueSourceOwnership();
 }

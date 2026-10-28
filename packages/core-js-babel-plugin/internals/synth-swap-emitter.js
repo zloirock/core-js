@@ -691,6 +691,7 @@ export default function createSynthSwapEmitter({
         };
         const rendered = renderSynthReplacement(entries, {
           receiver: path.node, callBranch: pending.callBranch, rescueSe: pending.rescueSe,
+          dropRescueReceiver: pending.dropRescueReceiver,
           guard: pending.synthGuard, aliasCtx, ...renderCtx,
           renderLiteral: ({ receiver, memo }) => buildSynthLiteral({
             receiver, entries, memoParam: memo, aliasCtx, guardedReceiverPlan: pending.guardedReceiverPlan,
