@@ -1780,14 +1780,6 @@ export function proxyNavSynthBase(receiver, { scope, adapter, path, resolveGloba
   };
 }
 
-export function insideParamPosition(metaPath) {
-  for (let cur = metaPath; cur; cur = cur.parentPath) {
-    if (cur.listKey === 'params' || cur.key === 'params') return true;
-    if (cur.node?.type === 'VariableDeclarator' || cur.node?.type === 'ExpressionStatement') return false;
-  }
-  return false;
-}
-
 // does a discarded receiver DROP instead of sinking verbatim? asked on the PRISTINE tree - by
 // drain time the collapse has reshaped the spine into a sequence and the shape is gone. the
 // canonical decision needs a confirmed rescue node, so the harvest is asked first
