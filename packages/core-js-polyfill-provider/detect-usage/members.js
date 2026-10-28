@@ -2549,9 +2549,9 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
 // key resolved). even when `meta.object === null` (receiver Identifier didn't match
 // `isStaticPlacement` - bound local variable), marking the receiver is correct: a local binding
 // shouldn't produce a polyfill import via the identifier visitor, so suppression is the right behaviour
-// `collapsesReceiver` narrows `subsumesReceiver` for the LEAF alone: the hops are swallowed by
-// whichever render owns the span, but the proxy global at the bottom only disappears when the
-// chain really collapses - see the leaf-marking arm below and the invariant in AGENTS.md
+// `collapsesReceiver` narrows `subsumesReceiver` for the LEAF alone: realm hops may be
+// reserved for a kept-navigation render, while ordinary member values remain live if no
+// replacement owns them. The proxy leaf disappears only when the chain really collapses.
 function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure = null, subsumesReceiver = true,
   collapsesReceiver = subsumesReceiver, keptProxyHops = null }) {
   let obj = unwrapTransparentSeq(node.object);
@@ -2588,6 +2588,10 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
   let buriedSequence = false;
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
     && (findProxyGlobal(current) || chainRootResolvesToProxyGlobal({ node: current, scope, adapter, path }))) {
+    // A declined outer claim owns no replacement for an ordinary member value.
+    // Leave that value live so its own static claim can run; only realm hops have
+    // a separate kept-navigation render that may still reserve their source slots.
+    if (!subsumesReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(current))) break;
     // FIRST marker owns the hop: a SUBSUMING claim that already marked it (its render carries
     // the whole span) must not have a later DECLINED sibling meta re-record it as still-live -
     // the kept-nav render would race the claim's own receiver spelling

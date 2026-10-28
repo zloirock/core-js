@@ -1,5 +1,7 @@
 import {
   isCallShape,
+  chainSealsAShortCircuit,
+  navValueCanShortCircuit,
   descendToChainRoot,
   callYieldCanBeUndefined,
   inlineCallProxyGlobalRoot,
@@ -19,6 +21,8 @@ import {
 } from './resolve.js';
 import {
   isMemberAccessNode,
+  observableSequenceElements,
+  peelNestedSequenceExpressions,
   peelChainAssignment,
   peelChainAssignmentDeep,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -35,7 +39,7 @@ import {
   receiverContainsOptional,
 } from '../helpers/ast-patterns.js';
 import { instanceSynthReceiverPure } from './destructure.js';
-import { planReceiverMemo } from '../render.js';
+import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
 
 // does a nav (or bare identifier) bottom out on a realm root the binding-aware canon proves -
 // a pristine proxy-global name or an alias of one, shadow bail included
@@ -164,6 +168,37 @@ export function prepareMemoReceiver(node, ctx, bindings) {
     rootNode: node, ...ctx, allowSequenceRoot: true, descendSequenceTail: true,
   });
   return nav && !nav.topAssign ? bindings.renderNav(nav) : node;
+}
+
+// A dispatch can substitute a proven static receiver while keeping the effects of
+// its source object and computed keys in evaluation order. The quiet proof view
+// cannot erase a live optional, a sealed throw or an effectful realm hop. Application
+// owns imports and cloning; a declined preparation returns the source unchanged.
+export function prepareStaticReceiver(node, ctx, { injectImport, embed = source => source }) {
+  if (!ctx?.adapter || !ctx.path || !ctx.resolvePure) return node;
+  const receiverSequence = peelNestedSequenceExpressions(node);
+  const receiver = receiverSequence.tail;
+  const objectSequence = isMemberAccessNode(receiver) ? peelNestedSequenceExpressions(receiver.object) : null;
+  const keySequence = isMemberAccessNode(receiver) && receiver.computed ? peelNestedSequenceExpressions(receiver.property) : null;
+  const objectTail = objectSequence?.tail;
+  const objectKeySequence = isMemberAccessNode(objectTail) && objectTail.computed
+    ? peelNestedSequenceExpressions(objectTail.property) : null;
+  const objectKey = objectKeySequence && staticMemberKeyName({ ...objectTail, property: objectKeySequence.tail });
+  const quietObject = typeof objectKey === 'string' && !POSSIBLE_GLOBAL_OBJECTS.has(objectKey)
+    ? memberFromKeyName(unwrapRuntimeExpr(objectTail.object), objectKey, { optional: objectTail.optional === true }) : objectTail;
+  const staticKey = objectSequence && staticMemberKeyName(keySequence ? { ...receiver, property: keySequence.tail } : receiver);
+  if (keySequence?.prefix.length && POSSIBLE_GLOBAL_OBJECTS.has(staticKey)) return node;
+  const pureView = typeof staticKey === 'string'
+    ? memberFromKeyName(quietObject, staticKey, { optional: receiver.optional === true }) : receiver;
+  const pure = !navValueCanShortCircuit(node, ctx.resolvePure, ctx)
+    && !chainSealsAShortCircuit(node, ctx.resolvePure, ctx)
+    && instanceSynthReceiverPure(pureView, ctx);
+  if (!pure) return node;
+  const effects = observableSequenceElements([
+    ...receiverSequence.prefix, ...objectSequence?.prefix ?? [], ...objectKeySequence?.prefix ?? [], ...keySequence?.prefix ?? [],
+  ], ctx, { preserveSourceReads: true });
+  const value = identifier(injectImport(pure.entry, pure.hintName));
+  return effects.length ? sequenceExpression([...effects.map(effect => embed(effect)), value]) : value;
 }
 
 // A generated realm binding already has a canonical import source. Read that native

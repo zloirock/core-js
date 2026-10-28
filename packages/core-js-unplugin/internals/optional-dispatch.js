@@ -2,7 +2,6 @@
 // optional call, an optional member hop, the receiver splits) and the instance/inherited
 // dispatches with their guard spellings. created per transform over the factory's context
 import {
-  chainSealsAShortCircuit,
   findProxyGlobal,
   inlineCallProxyGlobalRoot,
   navValueCanShortCircuit,
@@ -15,8 +14,9 @@ import {
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  prepareGuardReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
+  prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { storedProxyNavProvesHop } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { decidedReusableReceiver, instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
@@ -24,22 +24,17 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   calleeParenWrapped,
   TS_EXPR_WRAPPERS,
-  isMemberAccessNode,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReusableReceiver,
   nestedSequenceValueSpelling,
-  observableSequenceElements,
   peelNestedSequenceExpressions,
   receiverCarriesLiveOptional,
   singleSequenceTail,
   unwrapRuntimeExpr,
   subtreeContainsNode,
-  bindingPolyfillHint,
   isAliasProxyRoot,
-  computedKeyStaticName,
   peelChainAssignmentDeep,
-  staticMemberKeyName,
   climbTransparentWrapperPath,
   valueIsDroppedAt,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -61,6 +56,8 @@ import {
   renderReceiverMemo,
   renderKeptSequenceTail,
   planMethodCall,
+  planReceiverMemo,
+  renderProxyReceiverPlan,
   planOptionalMethodCall,
   renderNavCollapseValue,
   renderShortCircuitGuard,
@@ -68,7 +65,6 @@ import {
   memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
 import {
-  mintedProxyGlobalName,
   receiverCarriesOptional,
   stampReplacementSpan,
   withSideEffects,
@@ -756,40 +752,10 @@ export default function createOptionalDispatchChannel(ctx) {
     // receiver both read through them (`(arr).at(0)` -> `_at(arr).call(arr, 0)`); TS
     // casts stay (the `satisfies` memo canon)
     while (effObject?.type === 'ParenthesizedExpression') effObject = effObject.expression;
-    const runtimeReceiver = unwrapRuntimeExpr(effObject);
-    const receiverSequence = runtimeReceiver?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(runtimeReceiver) : null;
-    let receiver = receiverSequence?.tail ?? runtimeReceiver;
-    const objectSequence = isMemberAccessNode(receiver) ? peelNestedSequenceExpressions(receiver.object) : null;
-    const keySequence = isMemberAccessNode(receiver) && receiver.computed ? peelNestedSequenceExpressions(receiver.property) : null;
-    // Prove the quiet static value through the same shared handoff. Original object
-    // and key prefixes stay in its first evaluation, ahead of the stable static value.
-    const objectTail = objectSequence?.tail;
-    const objectKeySequence = isMemberAccessNode(objectTail) && objectTail.computed
-      ? peelNestedSequenceExpressions(objectTail.property) : null;
-    const objectKey = objectKeySequence && staticMemberKeyName({ ...objectTail, property: objectKeySequence.tail });
-    // A realm key keeps its effects in the source read; a quiet proof view must not
-    // manufacture the removed collapse. Ordinary static leaf keys still use this slot.
-    const quietObject = typeof objectKey === 'string' && !POSSIBLE_GLOBAL_OBJECTS.has(objectKey)
-      ? memberFromKeyName(unwrapRuntimeExpr(objectTail.object), objectKey, { optional: objectTail.optional === true }) : objectTail;
-    const staticKey = objectSequence && staticMemberKeyName(keySequence ? { ...receiver, property: keySequence.tail } : receiver);
-    const pureView = typeof staticKey === 'string'
-      ? memberFromKeyName(quietObject, staticKey, { optional: receiver.optional === true }) : receiver;
-    // The quiet proof view cannot retire a live optional or a sealed source throw.
-    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
-    const pure = !navValueCanShortCircuit(effObject, meta => resolvePure(meta, metaPath), receiverCtx)
-      && !chainSealsAShortCircuit(effObject, meta => resolvePure(meta, metaPath), receiverCtx)
-      && instanceSynthReceiverPure(pureView, { ...receiverCtx, resolvePure: meta => resolvePure(meta, metaPath) });
-    if (pure) {
-      receiver = identifier(injectPureImport(pure.entry, pure.hintName));
-      const prefix = [
-        ...receiverSequence?.prefix ?? [],
-        ...objectSequence?.prefix ?? [],
-        ...objectKeySequence?.prefix ?? [],
-        ...keySequence?.prefix ?? [],
-      ];
-      const effects = observableSequenceElements(prefix, receiverCtx, { preserveSourceReads: true });
-      effObject = effects.length ? sequenceExpression([...effects.map(effect => cloneNode(effect)), cloneNode(receiver)]) : receiver;
-    } else if (!receiverSequence) receiver = effObject;
+    const receiverCtx = {
+      scope: metaPath.scope, path: metaPath, adapter, injectorState, resolvePure: meta => resolvePure(meta, metaPath),
+    };
+    effObject = prepareStaticReceiver(effObject, receiverCtx, { injectImport: injectPureImport, embed: cloneNode });
     if (!memberOptional && isCall) return {
       callDecision: planMethodCall({
         receiver: effObject, sourceReceiver, sideEffects, receiverEffectCount, args, optional, ctx: receiverCtx,
@@ -797,22 +763,8 @@ export default function createOptionalDispatchChannel(ctx) {
       check: null,
       guardDisjuncts,
     };
-    // A current-pass pure import owns its stable receiver binding. An inherited import
-    // hint alone does not prove that the adjacent reads still name the same value.
-    const mintedImport = receiver.type === 'Identifier' && !!bindingPolyfillHint({
-      binding: adapter.getBinding({ scope: metaPath.scope, name: receiver.name, path: metaPath, read: receiver }),
-      scope: metaPath.scope,
-      name: receiver.name,
-      adapter,
-    });
-    const reusable = isReusableReceiver(receiver, {
-      ctx: {
-        scope: metaPath.scope,
-        path: metaPath,
-        adapter,
-        injectorState,
-      },
-    }) && (!mintedImport || injectorState.isOwnPassPureBinding(receiver.name));
+    const decision = planReceiverMemo(effObject, { ctx: receiverCtx });
+    const reusable = !decision.capture;
     let check = null;
     let lookupArg;
     let callReceiver;
@@ -820,7 +772,7 @@ export default function createOptionalDispatchChannel(ctx) {
       // The extracted receiver keeps its own chain seal; the shared memo owns its first read.
       const peeledMemo = reusable ? effObject : cloneSpinePeeled(effObject);
       const firstReceiver = !reusable && receiverCarriesOptional(effObject) ? chainExpression(peeledMemo) : peeledMemo;
-      const memo = renderReceiverMemo({ firstReceiver, receiver, capture: !reusable }, {
+      const memo = renderReceiverMemo({ ...decision, firstReceiver }, {
         mintRef: () => injector.generateDeclaredRef(metaPath),
         embed: (source, role) => role === 'capture' ? source : cloneStamped(source, typeStampCtx),
       });
@@ -987,54 +939,15 @@ export default function createOptionalDispatchChannel(ctx) {
     if (!liveHops) for (const hop of provable) hop.optional = false;
   }
 
-  // does this memo's value navigate the REALM - a chain bottoming out on a proxy global, minted or
-  // bare? the fold below is `X.self === X`, true of the realm object and of nothing else, so the
-  // proof is what keeps a user object with a `self` slot of its own from losing it
-  function memoHoldsTheRealm(value, metaPath) {
-    // a kept WRITE hands its own value on, so the proof reads through it
-    let root = peelChainAssignmentDeep(unwrapRuntimeExpr(value));
-    while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-      const key = root.computed ? computedKeyStaticName(root) : root.property?.name ?? null;
-      if (key === null || !POSSIBLE_GLOBAL_OBJECTS.has(key)) return false;
-      root = peelChainAssignmentDeep(unwrapRuntimeExpr(root.object));
-    }
-    if (root?.type !== 'Identifier') return false;
-    // either spelling: the walk may or may not have substituted the root by the time a split memo is
-    // built, and a MINTED name carries its realm in the import it was minted from. a bare one is the
-    // realm only while nothing shadows it
-    return !!mintedProxyGlobalName(root.name, injectorState)
-      || (isPristineProxyGlobal(adapter, root.name) && !adapter.getBinding?.({ scope: metaPath.scope, name: root.name, path: metaPath }));
-  }
-
-  // the realm hops a SPLIT receiver reads off its own MEMO. inside the guard's alternate that memo is
-  // provably the realm object the probe yielded, and `X.self` IS `X` there - so the hop folds onto it
-  // when its key is quiet. The fold stops at the first hop that is not a realm self-reference,
-  // and stands down entirely when the leaf names a pure CONSTRUCTOR - that nav whole-swaps to the
-  // ctor's own binding, and folding under it would leave a native read of the ctor off the memo
-  function foldRealmHopsOverSplitMemo(receiverNode, disjuncts, metaPath) {
-    const memoNames = new Set((disjuncts ?? [])
-      .filter(disjunct => disjunct?.type === 'AssignmentExpression' && disjunct.left?.type === 'Identifier'
-        && memoHoldsTheRealm(disjunct.right, metaPath))
-      .map(disjunct => disjunct.left.name));
-    if (!memoNames.size) return receiverNode;
-    const hops = [];
-    let base = unwrapRuntimeExpr(receiverNode);
-    while (base?.type === 'MemberExpression') {
-      hops.unshift(base);
-      base = unwrapRuntimeExpr(base.object);
-    }
-    if (base?.type !== 'Identifier' || !memoNames.has(base.name)) return receiverNode;
-    let folding = true;
-    let rebuilt = base;
-    for (const hop of hops) {
-      const key = hop.computed ? foldSeqKeyLiteralTail(hop.property)?.key ?? null
-        : hop.property?.type === 'Identifier' ? hop.property.name : null;
-      if (folding && proxyHopKey(hop, { metaPath, allowOptional: true })) continue;
-      if (folding && key !== null && resolvePure({ kind: 'global', name: key }, metaPath)) return receiverNode;
-      folding = false;
-      rebuilt = memberExpression(rebuilt, hop.property, { computed: hop.computed, optional: hop.optional });
-    }
-    return rebuilt === base ? receiverNode : rebuilt;
+  // The split already registered its native memo aliases. The same receiver plan
+  // used by Babel owns hop removal; this binding only clones the resulting shell.
+  function collapseSplitReceiver(receiverNode, metaPath) {
+    const plan = planProxyReceiver(unwrapRuntimeExpr(receiverNode), {
+      aliasCtx: { scope: metaPath.scope, path: metaPath, adapter },
+      resolvePure: meta => resolvePure(meta, metaPath),
+    });
+    return plan && !plan.rootBinding?.pure
+      ? renderProxyReceiverPlan(plan, { injectImport: injectPureImport, cloneHost: cloneNode }) : receiverNode;
   }
 
   // eslint-disable-next-line max-statements -- sequential emission steps of one instance claim
@@ -1075,7 +988,7 @@ export default function createOptionalDispatchChannel(ctx) {
       if (split === STAGED_SPLIT) return false;
       if (split) {
         ({ disjuncts: guardDisjuncts } = split);
-        effObject = foldRealmHopsOverSplitMemo(rewrapNonNull(split.receiver), guardDisjuncts, metaPath);
+        effObject = collapseSplitReceiver(rewrapNonNull(split.receiver), metaPath);
       }
     } else if (receiverCarriesOptional(object)) {
       // a receiver whose LAST optional hop is a CALL splits (the dispatch memo guards as its
@@ -1261,7 +1174,7 @@ export default function createOptionalDispatchChannel(ctx) {
           markRewrite,
           composeGuardTest,
           skippedNodes,
-          foldRealmHopsOverSplitMemo,
+          collapseSplitReceiver,
         });
     }
     // a non-call instance READ over a live `?.` guarding a GENUINE probe, every harvested
