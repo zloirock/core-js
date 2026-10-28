@@ -1,4 +1,5 @@
 'use strict';
+require('../../modules/es.object.to-string');
 require('../../modules/es.promise');
 require('../../modules/es.promise.with-resolvers');
 var call = require('../../internals/function-call');

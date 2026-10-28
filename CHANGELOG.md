@@ -9,21 +9,15 @@
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
 - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
 - Entries fixes:
-  - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies of `/es/` and `/stable/` namespaces, the `JSON.parse` source text access proposal entry and the stage 4 entry, a regression since 3.47.0
+  - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
-  - Fixed order of `Array.fromAsync` dependencies loading in `/array/from-async` and `/array/` namespace entries, a regression since 3.43.0
-  - Fixed `Map` dependencies of `/actual/array/` and `/full/array/` namespace entries, a regression since 3.29.1
-  - Fixed `DataView` dependencies of `/array-buffer/constructor` entries, a regression since 3.36.0, of some `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }`, `ArrayBuffer.isView` and `ArrayBuffer.prototype.slice` entries
-  - Fixed legacy `/full/typed-array/from-async` entry dependencies
-  - Fixed iterators dependencies of `Object.groupBy`, `Map.groupBy`, `Map.keyBy`, `Map.prototype.merge` and `AsyncIterator.prototype.flatMap` entries and of `/es/object/` namespace
-  - `/es/iterator/{ concat, zip, zip-keyed }` entries no longer load DOM collections iterators, `/stable/iterator/concat` - the `esnext.` alias module
-  - Fixed order of `/full/promise/all-settled` entry dependencies
-  - Added missed `Array[@@species]` to `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice, filterReject, filterOut }` and `Symbol.isConcatSpreadable` entries dependencies and to `/symbol/` namespace entries
-  - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/es/string/virtual/` and `/stable/string/virtual/` namespace entries
+  - Added missed `Map` to `/actual/array/` namespace entries dependencies, a regression since 3.29.1
+  - Fixed `ArrayBuffer` and `DataView` dependencies of some entries, for `/array-buffer/constructor` entries it's a regression since 3.36.0
+  - Fixed order of dependencies loading in some entries, for `/array/from-async` and `/array/` namespace entries it's a regression since 3.43.0
+  - Added missed `Array[@@species]`, `Object.prototype.toString`, iterators and other dependencies to some entries
+  - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/string/virtual/` and `Number.prototype.clamp` to `/full/number/virtual/` namespace entries
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
-  - Dropped no longer required context workaround from `/full/map/key-by` entry
-  - Added missed `Object.prototype.toString` to `Reflect[@@toStringTag]` entries dependencies of `/stable/`, `/actual/` and `/full/` namespaces
-  - Added missed `Object.prototype.toString` to `AggregateError` and `SuppressedError` entries dependencies, it classifies their instances in IE10-
+  - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
