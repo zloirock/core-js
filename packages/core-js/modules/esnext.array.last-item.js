@@ -6,7 +6,7 @@ var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 
-// `Array.prototype.lastIndex` accessor
+// `Array.prototype.lastItem` accessor
 // https://github.com/tc39/proposal-array-last
 if (DESCRIPTORS) {
   defineBuiltInAccessor(Array.prototype, 'lastItem', {
