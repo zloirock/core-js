@@ -21,13 +21,6 @@ require('../../modules/esnext.map.reduce');
 require('../../modules/esnext.map.some');
 require('../../modules/esnext.map.update');
 require('../../modules/web.dom-collections.iterator');
-var call = require('../../internals/function-call');
-var isCallable = require('../../internals/is-callable');
 var path = require('../../internals/path');
 
-var Map = path.Map;
-var mapKeyBy = Map.keyBy;
-
-module.exports = function keyBy(source, iterable, keyDerivative) {
-  return call(mapKeyBy, isCallable(this) ? this : Map, source, iterable, keyDerivative);
-};
+module.exports = path.Map.keyBy;
