@@ -2,16 +2,15 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-// a conditional CALL-ARG wins over the param default, but its `undefined`-shaped arm is
-// exactly the branch the runtime default fires on - the mirror synths the DEFAULT's
-// receiver into that arm (same branch, same value), so the default's polyfill survives
+// an undefined-shaped call argument applies the default at the parameter slot;
+// keep that argument unchanged so the default's property reads follow all arguments
 export const viaTernary = function ({
   from
-} = Array) {
-  return from;
-}(cond ? {
+} = {
   from: _Array$from
-} : {
+}) {
+  return from;
+}(cond ? undefined : {
   from: _Iterator$from
 });
 export const viaVoid = function ({
