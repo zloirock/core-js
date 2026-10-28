@@ -11,14 +11,14 @@
 // live - independent of whether ancestor paths got orphaned. clones (`t.cloneNode`)
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
-import { renderSynthLiteral } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import {
+  planSynthReceiverActivation, renderSynthLiteral, renderSynthReplacement,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   nestedSequenceValueSpelling,
   peelTransparentWrapperPath,
   isMemberWriteHost,
   isReceiverShapedNode,
-  isReusableReceiver,
-  peelNestedSequenceExpressions,
   findIifeArgPath,
   unwrapSafeSequenceTailPath,
   isSynthSimpleObjectPattern,
@@ -45,7 +45,6 @@ import {
   classifyCallBranchForSynth,
   fallbackBranchSwapKeepsSelection,
   fallbackBranchWalk,
-  planSynthReceiverGuard,
   isViableBranchForKey,
   instanceSynthSpellsReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -53,7 +52,6 @@ import estreeToBabel from './estree-to-babel.js';
 import {
   chainExpression,
   hostSlot,
-  renderSynthActivation,
   renderMemoReadTarget,
   renderProxyReceiverPlan,
   renderClaimProbe,
@@ -156,7 +154,11 @@ export default function createSynthSwapEmitter({
     targetPath, objectPatternPath, key, entry, hintName, callBranch = false, rescueSe = null, instance = false,
   }) {
     const receiver = targetPath.node;
-    const synthGuard = planSynthReceiverGuard({ receiver, scope: targetPath.scope, adapter, path: targetPath, resolvePure });
+    let pending = synthSwapByReceiver.get(receiver);
+    const activation = pending ?? planSynthReceiverActivation({
+      receiver, scope: targetPath.scope, adapter, path: targetPath, resolvePure,
+    });
+    const { synthGuard } = activation;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
     // `_globalThis` etc. into the range that synth-swap will replace.
@@ -196,7 +198,6 @@ export default function createSynthSwapEmitter({
       if (synthGuard) keepSe.push(synthGuard.probe);
       markReplacedReceiverSkipped({ receiver, keepSe, skippedNodes, walkNode: t.traverseFast });
     } else markSynthReceiverSkipped(receiver, skippedNodes);
-    let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
       // Decide once on the source. Native slots keep child claims live until apply, while
       // the source identities decide which effects the read owns before any rewrite.
@@ -218,14 +219,9 @@ export default function createSynthSwapEmitter({
         probePlan,
         probeEffects,
         probeSlots,
-        synthGuard,
+        ...activation,
         memoRead: callBranch ? planMemoReadTarget(probeSource, {
           aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure,
-        }) : null,
-        // the live probe's root rewrites before apply; preserve the source's landing plan
-        // now, while its direct realm root has not become an injector-owned alias.
-        guardedReceiverPlan: synthGuard ? planProxyReceiver(synthGuard.fallback?.left ?? receiver, {
-          aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, guardedProbe: synthGuard.probe, resolvePure,
         }) : null,
       };
       synthSwapByReceiver.set(receiver, pending);
@@ -683,128 +679,38 @@ export default function createSynthSwapEmitter({
         const hasInstanceEntry = pending.polyfills.values().some(p => p.instance);
         if (!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
           && path.node.type !== 'ThisExpression' && !hasInstanceEntry) return;
-        // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
-        // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation
-        // failure inside buildSynthLiteral) leaves the swap permanently locked but with
-        // the imports for its polyfill keys already injected by `buildSynthLiteral` -
-        // dead imports + missing rewrite. ordering after the call leaves `applied: false`
-        // on failure so a subsequent `apply` pass can retry.
-        // an SE-bearing call branch is rescued ahead of the literal: the clone carries the
-        // already-substituted inner references (`return _Promise`), so the taken branch still
-        // runs its setup AND yields polyfilled statics
-        // a call branch with a key left unresolved memoizes the call result through a
-        // function-IIFE param: the call runs exactly once (as the argument) and unresolved
-        // keys read the memo instead of re-running the call per read
-        // the shared render PLAN of the pattern, joined with what each slot resolved to: one entry
-        // per distinct slot, keyed the way both emitters register, so the two renders read one
-        // classification instead of each deriving its own
         const entries = pending.entries.map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
-        const aliasCtx = { scope: path.scope, adapter, path };
-        const { synthGuard } = pending;
-        // An unguarded fallback uses its resolved left as the memo argument. Cloning a dead
-        // right operand could inject its polyfill again on re-traversal.
-        const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
-        const memoCandidate = pending.callBranch && entries.some(entry => !entry.polyfill);
-        const memoArg = memoCandidate && !synthGuard ? estreeToBabel(renderMemoReadTarget(pending.memoRead, {
-          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name, embed: hostSlot,
-          cloneHost: node => t.cloneNode(node, true),
-        }) ?? (pending.probePlan ? renderClaimProbe(pending.probePlan, {
-          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
-          cloneHost: cloneProbeSource, embed: hostSlot,
-        }) : hostSlot(t.cloneNode(memoReceiver, true)))) : null;
-        const memoTail = memoArg && peelNestedSequenceExpressions(memoArg).tail;
-        const reusableMemo = memoTail && isReusableReceiver(memoTail, {
-          interveningEffects: true, ctx: { ...aliasCtx, injectorState: injector },
-        });
-        const needMemo = memoCandidate && !reusableMemo;
-        // the memo param is minted via the injector's raw name generator: it must NOT enter
-        // the DECLARED ref-set (the arrow-param normalize post-pass strips trailing ref-set
-        // params from every function expression - it would relocate this INTENTIONAL IIFE
-        // param to a body `var`, unbinding the memo argument), but it MUST share the one
-        // generated slot space - babel's own scope UID generator numbered independently and
-        // fragmented the print-order canonicalization's universe
-        const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
-        const literal = buildSynthLiteral({
-          receiver: reusableMemo ? memoTail : path.node,
-          entries,
-          memoParam,
-          aliasCtx,
-          guardedReceiverPlan: synthGuard && pending.guardedReceiverPlan,
-        });
-        if (!literal) return;
-        if (synthGuard) {
-          const guarded = estreeToBabel(renderSynthActivation(hostSlot(literal), {
-            guard: synthGuard, memo: memoParam,
-            argument: needMemo ? t.cloneNode(synthGuard.fallback?.left ?? path.node, true) : null,
-          }, { embed: hostSlot }));
-          path.replaceWith(guarded);
-          pending.applied = true;
-          pendingSwapCount--;
-          path.skip();
-          return;
-        }
-        // a multi-hop proxy rescue receiver is DROPPED (re-emit only the harvested SE): keeping it would
-        // collapse `globalThis[(eff(), 'self')].Array` to `_self.Array`, importing a `self` proxy that
-        // is undefined off-browser. shared `shouldDropRescueReceiver` keeps the drop decision
-        // identical across emitters
-        const dropRescueReceiver = pending.rescueSe && shouldDropRescueReceiver(path.node);
-        // The shared source plan supplies root substitution and effect ownership. Bind only
-        // the native child slots here; no generated guard shape is an analysis input.
+        const aliasCtx = { scope: path.scope, adapter, path, injectorState: injector };
         function cloneProbeSource(source) {
           const slot = pending.probeSlots?.get(source);
           return t.cloneNode(slot?.container[slot.key] ?? source, true);
         }
-        const throwProbe = !needMemo && pending.probePlan ? estreeToBabel(renderClaimProbe(pending.probePlan, {
+        const renderCtx = {
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
-          cloneHost: cloneProbeSource,
-          embed: hostSlot,
-        })) : null;
-        // what the literal's discard of this receiver would silently drop (the rescue canon). a
-        // fallback-logical has its own harvest below - the leftSe plan asks the same canon about the
-        // LEFT branch, and asking about the whole `||` here as well would run the effects twice
-        // ... and an INSTANCE slot spells the receiver inside its dispatch: nothing is discarded there
-        const discardedReceiverSe = needMemo || throwProbe || dropRescueReceiver
-          || path.node.type === 'LogicalExpression' || entries.some(entry => entry.polyfill?.instance)
-          ? [] : discardRescueNodes({ node: path.node, scope: path.scope, adapter, path });
-        let replacement = needMemo || reusableMemo
-          ? estreeToBabel(renderSynthActivation(hostSlot(literal), {
-            memo: memoParam ?? memoTail, argument: memoArg, reusable: !!reusableMemo,
-          }, { embed: hostSlot }))
-          // The source decision orders residual effects around the read. Their live slots
-          // carry rewrites made since registration, including nested calls and defaults.
-          : throwProbe
-            ? t.sequenceExpression([...pending.probeEffects.map(node => node ? cloneProbeSource(node) : throwProbe), literal])
-          : dropRescueReceiver
-            ? t.sequenceExpression([
-              ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
-                .map(n => t.cloneNode(n, true)),
-              literal,
-            ])
-            // an EFFECT-bearing receiver the literal replaces still has to run: a call-arg receiver
-            // (`(({ from } = Object) => from)(mk())`) is evaluated by the source, and swapping the
-            // whole argument for the literal would drop that call. what exactly a discard owes is
-            // the rescue canon's question, so the same list rides here - it interleaves a hop-key
-            // effect at its true position instead of re-emitting the whole navigation
-            : pending.rescueSe
-              ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
-              : discardedReceiverSe.length
-                ? t.sequenceExpression([...discardedReceiverSe.map(n => t.cloneNode(n, true)), literal])
-                : literal;
-        // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||` / `??`
-        // default collapses to the synth literal (its left is the always-resolved receiver, its right
-        // short-circuits), but the left's side effects must still run when the default fires. preserve
-        // them ahead of the literal in source order via the shared discarded-receiver rescue plan
-        // (structural prefixes + a call-rooted left's chain-root call). harvested from the LIVE tree
-        // here, AFTER the identifier / instance visitors mutated the left in place, so a polyfillable
-        // left effect (`[1].at(0)`, an IIFE reading `globalThis`) carries its rewrite. a pure left
-        // plans nothing, so the clean collapse is unchanged (no fixture churn). suppressed when
-        // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
-        if (!needMemo && !reusableMemo && !throwProbe && path.node.type === 'LogicalExpression') {
-          // No probe owns this read: harvest the rewritten left through the ordinary rescue
-          // canon. A captured probe already carries its complete source effect order above.
-          const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path });
-          if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
-        }
+          embed: hostSlot, cloneHost: node => t.cloneNode(node, true),
+        };
+        const rendered = renderSynthReplacement(entries, {
+          receiver: path.node, callBranch: pending.callBranch, rescueSe: pending.rescueSe,
+          guard: pending.synthGuard, aliasCtx, ...renderCtx,
+          renderLiteral: ({ receiver, memo }) => buildSynthLiteral({
+            receiver, entries, memoParam: memo, aliasCtx, guardedReceiverPlan: pending.guardedReceiverPlan,
+          }),
+          renderMemoArgument: () => {
+            const argument = renderMemoReadTarget(pending.memoRead, renderCtx);
+            return argument && estreeToBabel(argument);
+          },
+          renderProbe: () => {
+            if (!pending.probePlan) return null;
+            const node = estreeToBabel(renderClaimProbe(pending.probePlan, { ...renderCtx, cloneHost: cloneProbeSource }));
+            return { node, effects: pending.probeEffects.map(effect => effect ? cloneProbeSource(effect) : node) };
+          },
+          // An activation parameter shares injector numbering but must not enter its
+          // declared-ref set: arrow normalization would move it into the function body.
+          createMemo: () => t.identifier(injector.generateRefName(name => path.scope.hasBinding(name))),
+        });
+        if (!rendered) return;
+        const replacement = estreeToBabel(rendered);
+        // Commit ownership only after native replacement succeeds; a failed apply can retry.
         path.replaceWith(replacement);
         pending.applied = true;
         pendingSwapCount--;

@@ -77,6 +77,15 @@ for (const createParenthesizedExpressions of [false, true]) {
     key: synthPropDedupKey(param.node.left.properties[0], { scope: param.scope, path: param, adapter }),
     entry: 'array/of', hintName: 'of',
   });
+  // A failed native replacement must not consume the pending source decision.
+  const target = param.get('right');
+  const replace = target.replaceWith;
+  let rejected = false;
+  target.replaceWith = () => { throw new Error('native replacement rejected'); };
+  try { emitter.apply(program); } catch (error) {
+    rejected = error.message === 'native replacement rejected';
+  } finally { target.replaceWith = replace; }
+  checkTruthy('native replacement failure is propagated', rejected);
   effect.replaceWith(t.callExpression(t.identifier('liveEffect'), []));
   emitter.apply(program);
   const first = JSON.stringify(ast);

@@ -40,6 +40,7 @@ import {
   isMirrorablePatternValue,
   isRestProperty,
   isReassignedBeyondDeclarator,
+  isReusableReceiver,
   leadingDiscardedEffectSlots,
   patternHasAnyDefault,
   patternHasRestReadBeforeNestedBinding,
@@ -91,6 +92,8 @@ import {
   renderSynthEntryKey,
   renderSynthProperty,
   renderSynthSlotRead,
+  renderSynthActivation,
+  sequenceExpression,
 } from '../render.js';
 import { nodeRangeContains } from '../resolve-node-type/base.js';
 import {
@@ -110,6 +113,7 @@ import {
   computedKeyIsWellKnownSymbol,
   decidedRunningPart,
   directClaimProbeEffects,
+  discardRescueNodes,
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
   globalProxyMemberName,
@@ -140,6 +144,7 @@ import {
   isReReferenceableReceiver,
   namedDefaultReceiver,
   planSideEffectKeyStrategy,
+  planSynthReceiverGuard,
   nestedSlotMemoPlan,
   receiverPerformsEveryInitEffect,
   resolveDestructureReceiverPlan,
@@ -3138,6 +3143,48 @@ export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure 
   return !!objectName && plan.every(entry => typeof entry.lookupKey === 'string' && resolvePure({
     kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
   })?.kind === 'static');
+}
+
+// Capture the guarded receiver's landing together with its source guard. Every accepted
+// synth, including a selection arm, must read unresolved slots through that same proof.
+export function planSynthReceiverActivation({ receiver, scope, adapter, path, resolvePure }) {
+  const synthGuard = planSynthReceiverGuard({ receiver, scope, adapter, path, resolvePure });
+  return { synthGuard, guardedReceiverPlan: synthGuard ? planProxyReceiver(unwrapRuntimeExpr(synthGuard.fallback?.left ?? receiver), {
+    aliasCtx: { scope, adapter, path }, guardedProbe: synthGuard.probe, resolvePure,
+  }) : null };
+}
+
+// A synth consumes its receiver once. Partial call receivers use a stable tail or an
+// activation parameter; full coverage keeps only the source probe or discarded effects.
+// Guards own their effects and leave fallback evaluation outside the activation. Native
+// bindings render saved read/probe plans and bind live slots, but do not select this order.
+export function renderSynthReplacement(entries, {
+  receiver, callBranch = false, rescueSe = null, guard = null, aliasCtx,
+  slotFor = entry => entry.polyfill, renderLiteral, renderMemoArgument, renderProbe,
+  createMemo, cloneHost = cloneNode, embed = node => node,
+}) {
+  const source = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
+  const partial = callBranch && entries.some(entry => !slotFor(entry));
+  let probe;
+  function readProbe() { return probe ??= renderProbe?.() ?? false; }
+  const argument = partial ? guard ? cloneHost(guard.fallback?.left ?? receiver)
+    : renderMemoArgument?.() ?? readProbe()?.node ?? cloneHost(source) : null;
+  const tail = argument && !guard ? peelNestedSequenceExpressions(argument).tail : null;
+  const reusable = !!tail && isReusableReceiver(tail, { interveningEffects: true, ctx: aliasCtx });
+  const memo = partial && !reusable ? createMemo() : null;
+  const value = renderLiteral({ receiver: reusable ? tail : receiver, memo });
+  if (!value) return null;
+  if (guard || partial) return renderSynthActivation(embed(value), {
+    guard, memo: memo ?? (reusable ? tail : null), argument, reusable,
+  }, { embed });
+  const savedProbe = readProbe();
+  if (savedProbe) return sequenceExpression([...savedProbe.effects.map(embed), embed(value)]);
+  // An instance slot already spells its receiver. A logical collapse discards only
+  // its left; the dead right must neither run nor gain imports during re-traversal.
+  const effects = rescueSe && !shouldDropRescueReceiver(source) ? [source]
+    : entries.some(entry => slotFor(entry)?.instance) && receiver.type !== 'LogicalExpression' ? []
+    : discardRescueNodes({ node: source, ...aliasCtx });
+  return effects.length ? sequenceExpression([...effects.map(node => embed(cloneHost(node))), embed(value)]) : embed(value);
 }
 
 // A flat synthesized receiver reads statics through its selected constructor, while
