@@ -1,3 +1,5 @@
+import { withRealmSelf } from './window-without-self-host.js';
+
 QUnit.test('synth activation: full coverage rescues the receiver once', assert => {
   const effects = [];
   function read(choose) {
@@ -59,4 +61,26 @@ QUnit.test('synth activation: the fallback stays outside the optional receiver',
   }
   assert.deepEqual(read(), [[6], 10]);
   assert.deepEqual(effects, typeof window === 'undefined' ? ['fallback', 'default'] : ['default']);
+});
+
+QUnit.test('synth activation: discarded navigation retains rewritten effects', assert => {
+  withRealmSelf(() => {
+    const effects = [];
+    function read(choose) {
+      // eslint-disable-next-line @stylistic/no-extra-parens -- Keep the explicit receiver wrapper through deferred insertion.
+      const { of } = choose ? ((effects.push(Array.from([1])), globalThis.self).Array) : Array;
+      return of(2);
+    }
+    assert.deepEqual(read(true), [2]);
+    assert.deepEqual(effects, [[1]], 'the selected rescue and its nested static run once');
+    effects.length = 0;
+    assert.deepEqual(read(false), [2]);
+    assert.deepEqual(effects, [], 'the other branch does not replay the rescue');
+    // eslint-disable-next-line @stylistic/no-extra-parens -- The sequence is nested under a separate navigation wrapper.
+    function parameter({ from } = ((effects.push(Array.of(3)), globalThis).self).Array) {
+      return from([4]);
+    }
+    assert.deepEqual(parameter(), [4]);
+    assert.deepEqual(effects, [[3]], 'the default retains its own effect before binding');
+  });
 });
