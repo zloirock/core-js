@@ -19,6 +19,7 @@
   - `/es/iterator/{ concat, zip, zip-keyed }` entries no longer load DOM collections iterators, `/stable/iterator/concat` - the `esnext.` alias module
   - Fixed order of `/full/promise/all-settled` entry dependencies
   - Added missed `Array[@@species]` to `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice, filterReject, filterOut }` and `Symbol.isConcatSpreadable` entries dependencies and to `/symbol/` namespace entries
+  - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/es/string/virtual/` and `/stable/string/virtual/` namespace entries
 - Compat data improvements:
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
