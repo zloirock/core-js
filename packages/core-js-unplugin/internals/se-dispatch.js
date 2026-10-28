@@ -1,5 +1,6 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
+import { prepareStaticReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -18,6 +19,7 @@ import {
   nullGuardTest,
   composeNullGuardTest,
   planMethodCall,
+  planReceiverMemo,
   renderMethodCall,
   renderReceiverMemo,
   renderGuardedMethodCall,
@@ -91,19 +93,15 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
 export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx) {
   const { injectPureImport, injector, markRewrite, skippedNodes } = ctx;
   const sourceReceiver = unwrapRuntimeExpr(node.object);
-  const receiverSequence = sourceReceiver?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(sourceReceiver) : null;
-  let receiver = receiverSequence?.tail ?? sourceReceiver;
-  const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState };
-  const pure = instanceSynthReceiverPure(receiver, { ...receiverCtx, resolvePure: m => ctx.resolvePure(m, metaPath) });
-  if (pure) receiver = identifier(injectPureImport(pure.entry, pure.hintName));
+  const receiverCtx = {
+    scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState,
+    resolvePure: usage => ctx.resolvePure(usage, metaPath),
+  };
+  const prepared = prepareStaticReceiver(sourceReceiver, receiverCtx, { injectImport: injectPureImport, embed: cloneNode });
   const id = injectPureImport(entry, hintName);
   const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(sourceReceiver, effect)).map(effect => cloneNode(effect));
-  const reusable = ctx.isReusableReceiver(receiver, { interveningEffects: effects.length > 0, ctx: receiverCtx });
-  const firstReceiver = pure
-    ? receiverSequence
-      ? sequenceExpression([...receiverSequence.prefix.map(prefix => cloneNode(prefix)), cloneNode(receiver)])
-      : cloneNode(receiver)
-    : cloneNode(sourceReceiver);
+  const firstReceiver = cloneNode(prepared);
+  const decision = planReceiverMemo(firstReceiver, { interveningEffects: effects.length > 0, ctx: receiverCtx });
   // A sole lookup cannot hand a constant literal to the key before that literal exists.
   // Its one helper argument needs no held identity, unlike the two reads of a method call.
   if (!node.optional && isConstantLiteralReceiver(unwrapRuntimeExpr(firstReceiver))) {
@@ -116,7 +114,7 @@ export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx
     });
     return;
   }
-  const { firstRead, makeBase } = renderReceiverMemo({ firstReceiver, receiver, capture: !reusable }, {
+  const { firstRead, makeBase } = renderReceiverMemo(decision, {
     mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
   });
   markRewrite();
@@ -255,7 +253,7 @@ export function emitSeReadFormOverLiveOptional({ node, metaPath, entry, hintName
   ctx.markRewrite();
   // the rebuilt spelling folds the realm hops it reads off the split's own memo, exactly as the
   // ordinary split's does - one receiver question, asked wherever a split hands its value on
-  const receiver = ctx.foldRealmHopsOverSplitMemo(readSplit.receiver, readSplit.disjuncts, metaPath);
+  const receiver = ctx.collapseSplitReceiver(readSplit.receiver, metaPath);
   replaceGuardedHop({ hopPath: metaPath, test: ctx.composeGuardTest(readSplit.disjuncts, null),
     built: callExpression(identifier(id), [receiver]), skippedNodes: ctx.skippedNodes });
 }
