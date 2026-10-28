@@ -753,6 +753,7 @@ export default function createDestructureDrains(ctx) {
     }
     const rendered = renderSynthReplacement(plan, {
       receiver, callBranch: pending.callBranch, rescueSe: pending.rescueSe, guard: pending.synthGuard,
+      dropRescueReceiver: pending.dropRescueReceiver,
       aliasCtx: { ...nodeSite(receiver, metaPath), adapter, injectorState },
       slotFor: entry => synthSlot(slots, entry),
       cloneHost: cloneSource,
