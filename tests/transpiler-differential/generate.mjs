@@ -20475,6 +20475,55 @@ function * generateConsumedInitSourceReads() {
   }
 }
 
+// Defaults remain between their own read and the next key. Loop sinks, captures and
+// discarded assignments must neither repeat the initializer nor bypass a child rewrite.
+function * generateDestructureDefaultSinkOrder() {
+  const hosts = [
+    ['declaration', (pattern, init = 'source()') => `const ${ pattern } = ${ init };`],
+    ['assignment', (pattern, init = 'source()') => `let read, other; (${ pattern } = ${ init });`],
+    ['for-init', (pattern, init = 'source()') => `for (var ${ pattern } = ${ init };;) { break; }`],
+    ['bodyless', (pattern, init = 'source()') => `if (cond) var ${ pattern } = ${ init };`],
+  ];
+  for (const [host, build] of hosts) yield {
+    name: `destructure-default-sink-order/opaque/${ host }`,
+    code: `const log = []; const cond = true;
+      export function consume(held) {
+        ${ build('{ at: read = (log.push("default"), Array.from) }', '(log.push("init"), held)') }
+        return read([2, 4]);
+      }
+      export const r = consume({ get at() { log.push("get"); return undefined; } });
+      export const effects = log;`,
+    strip: true,
+  };
+  for (const [receiver, value] of [
+    ['array', '[8, 9]'],
+    ['missing', '{ get at() { log.push("get"); return undefined; }, get other() { log.push("other"); return 3; } }'],
+    ['own', '{ get at() { log.push("get"); return function () { return this.tag; }; }, tag: 7, other: 3 }'],
+    ['throw', '{ get at() { log.push("get"); throw new RangeError("read"); }, other: 3 }'],
+  ]) for (const computed of [false, true]) for (const [host, build] of hosts) {
+    const key = computed ? '[(log.push("key"), "at")]' : 'at';
+    yield { ...snippet(`destructure-default-sink-order/${ receiver }/${ computed ? 'key' : 'plain' }/${ host }`, `(() => {
+      const held = ${ value };
+      function source() { log.push("init"); return held; }
+      try {
+        ${ build(`{ ${ key }: read = (log.push("default"), function () { return 5; }), other }`) }
+        return [read.call(held, 0), other];
+      } catch (error) { return error.name; }
+    })()`), strip: true };
+  }
+  for (const [source, value] of [
+    ['prefix', '(log.push("init"), Array)'],
+    ['call', '(() => { log.push("init"); return Array; })()'],
+    ['decided', '(log.push("init"), Array) ?? (log.push("dead"), Set)'],
+    ['realm', '(() => { log.push("init"); return globalThis; })().self.Array'],
+  ]) for (const [host, build] of hosts) {
+    yield { ...snippet(`destructure-static-sink-order/${ source }/${ host }`, `(() => {
+      ${ build('{ from: read = (log.push("dead-default"), null) }', value) }
+      return read([2, 4]);
+    })()`, { rig: source === 'realm' }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -20870,4 +20919,5 @@ export function * generate() {
   yield * generateDispatchReceiverPreparation();
   yield * generateSynthRescueSourceOwnership();
   yield * generateConsumedInitSourceReads();
+  yield * generateDestructureDefaultSinkOrder();
 }

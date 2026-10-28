@@ -15,15 +15,13 @@ import {
   patternHopKeysToHost,
   synthPropDedupKey,
   decidedRunningOperand,
-  decidingFallbackLeft,
-  discardRescueNodesWithReads,
   liftedRealmNavEffect,
   observablePrefixElements,
   liftedPrefixSplit,
   staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
-import { harvestDiscardedReceiverSE, readStandsOverAbsentableStore, shouldDropRescueReceiver } from
+import { harvestDiscardedReceiverSE, readStandsOverAbsentableStore } from
   '@core-js/polyfill-provider/detect-usage/members';
 import {
   discardedInitProbePlan,
@@ -264,43 +262,6 @@ export function initRawKeyOnRoot(initNode) {
   while (init?.type === 'SequenceExpression') init = peelTransparentExpr(init.expressions.at(-1));
   return init?.type === 'MemberExpression' && init.computed && mayHaveSideEffects(init.property)
     && peelTransparentExpr(init.object)?.type === 'Identifier';
-}
-
-// a SEQUENCE root DIRECTLY under the claimed key: the collapse rebuilds the whole read as
-// `(eff, _Ctor)`, so lifting only the prefix would drop the ctor's own import
-// (`(e++, globalThis).Promise` lifts `(e++, _Promise)`). a PROXY HOP between them is the other
-// shape - there the read collapses whole and only the effect survives
-export function initSeqDirectClaim(initNode) {
-  const init = peelTransparentExpr(initNode);
-  if (init?.type !== 'MemberExpression' || init.computed) return false;
-  const base = peelTransparentExpr(init.object);
-  if (base?.type !== 'SequenceExpression'
-    || base.expressions.slice(0, -1).every(expr => !mayHaveSideEffects(expr))) return false;
-  // the tail must be the BARE root: a NAV tail collapses whole with its hops and leaves only
-  // the effect (`(c++, globalThis.self).Map` -> `c++;`)
-  return peelTransparentExpr(base.expressions.at(-1))?.type === 'Identifier';
-}
-
-export function buriedKeyClaimInit(initNode) {
-  // a leading SE sequence is transparent: the buried key sits in its TAIL
-  let init = peelTransparentExpr(initNode);
-  while (init?.type === 'SequenceExpression') init = peelTransparentExpr(init.expressions.at(-1));
-  if (init?.type !== 'MemberExpression' || !init.computed || !mayHaveSideEffects(init.property)) return false;
-  let root = peelTransparentExpr(init.object);
-  while (root?.type === 'MemberExpression') root = peelTransparentExpr(root.object);
-  return root?.type === 'Identifier';
-}
-
-// does the receiver's own SEQUENCE root carry a kept write (`(a = f(), globalThis).Symbol`)?
-// asked on the PRISTINE tree: by drain time the collapse may have eaten the member above it, and
-// only the source shape tells this from an effect buried in a computed KEY
-export function initSeqRootHasKeptWrite(initNode) {
-  const init = peelTransparentExpr(initNode);
-  const base = init?.type === 'MemberExpression' ? peelTransparentExpr(init.object) : null;
-  return base?.type === 'SequenceExpression' && base.expressions.some(expr => {
-    const stored = peelTransparentExpr(expr);
-    return stored?.type === 'AssignmentExpression' && stored.operator === '=';
-  });
 }
 
 // the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
@@ -1538,33 +1499,6 @@ export function anchorAssignmentResidual(assignment, jobs, reanchor, surfaceInit
   return true;
 }
 
-// the SINK slot for a discarded for-init receiver: the pattern consumed the value whole, so only
-// what the source OBSERVABLY does survives. a MULTI-hop receiver cannot sink verbatim - its raw
-// intermediate hop reads undefined off-browser - so its harvested effects sink alone
-// (`sf()[(c++, 'self')].Map` -> `_ref = (sf(), c++)`); every other shape sinks through the shared
-// collapse (`(() => globalThis)().self.Promise` -> `_ref = _Promise`)
-export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemoArg, renderMemoArg, adapter }) {
-  // a `||` / `??` its LEFT decides never runs its right - behind a prefix the carry left too: the slot
-  // keeps what the rescue canon owes of the init, and none stands where that is nothing
-  // (`{ of } = Array ?? (log(), Set)` sinks no slot)
-  if (metaPath && decidingFallbackLeft(peelNestedSequenceExpressions(init).tail, { scope: metaPath.scope, adapter, path: metaPath })) {
-    const owed = discardRescueNodesWithReads({ node: init, scope: metaPath.scope, adapter, path: metaPath });
-    return owed.length ? sequenceExpression(owed) : null;
-  }
-  // the collapse has already reshaped the receiver, so the surviving effects are read off the
-  // CURRENT spelling: a folded hop key still hangs on its member (`(b++, _globalThis).Array`
-  // -> `b++`), and a whole-swapped root replays the discarded effects as its sequence prefix
-  if (sinkDrop && metaPath) {
-    const rescued = discardRescueNodesWithReads({ node: init, scope: metaPath.scope, adapter, path: metaPath });
-    if (rescued.length) return sequenceExpression(rescued);
-  }
-  // the plan is the PRISTINE one the registration made: by drain time the walk has already
-  // substituted the hop's own pure in place (`_self.Array`), where the navigation canon spells
-  // the root binding (`_globalThis.Array`)
-  const memoArgPlan = sinkPlan ?? (metaPath ? planMemoArg(init, metaPath) : null);
-  return renderMemoArg(memoArgPlan, metaPath) ?? init;
-}
-
 // an INSTANCE leaf under hops whose host pattern is a DEFAULT's left - a parameter's, a property's or
 // an element's (`({ w: { at: m } } = { w: [1, 2] })`, `{ A: { B: { at } } = { B: [1, 2] } }`) - or an
 // IIFE parameter: the slot the hops pair with is the receiver, and the mirror lands IN that slot -
@@ -1778,15 +1712,6 @@ export function proxyNavSynthBase(receiver, { scope, adapter, path, resolveGloba
     passthroughPrefix: keys,
     leadingEffects: seqPrefix?.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr)) ? seqPrefix : null,
   };
-}
-
-// does a discarded receiver DROP instead of sinking verbatim? asked on the PRISTINE tree - by
-// drain time the collapse has reshaped the spine into a sequence and the shape is gone. the
-// canonical decision needs a confirmed rescue node, so the harvest is asked first
-export function sinkDropsReceiver(init, metaPath, adapter) {
-  const inner = peelTransparentExpr(init);
-  return discardRescueNodes({ node: inner, ...nodeSite(inner, metaPath), adapter }).length > 0
-    && shouldDropRescueReceiver(inner);
 }
 
 // a DIVERGING selection in a wrapped slot is the per-branch MIRROR's shape: an extraction
