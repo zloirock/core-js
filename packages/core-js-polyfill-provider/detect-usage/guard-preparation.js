@@ -16,7 +16,7 @@ import {
   navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
   resolveObjectName,
-  realmHopKeyName,
+  pristineRealmHopKey,
   unwrapParensCollectingEffects,
 } from './resolve.js';
 import {
@@ -243,8 +243,7 @@ export function holdsProxySurface(objectNode, ctx) {
     } else if (value?.type === 'AssignmentExpression') {
       value = unwrapRuntimeExpr(value.right);
     } else if (isMemberAccessNode(value)) {
-      const key = realmHopKeyName(value, ctx);
-      if (!key || !isPristineProxyGlobal(ctx.adapter, key, ctx.path && { node: value, path: ctx.path })) break;
+      if (!pristineRealmHopKey(value, ctx)) break;
       value = unwrapRuntimeExpr(value.object);
     } else break;
   }

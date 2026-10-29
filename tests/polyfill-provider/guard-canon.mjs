@@ -603,6 +603,7 @@ for (const [source, expected] of [
 for (const [source, expected] of [
   ['realm?.Map.groupBy;', 1],
   ['realm?.Map.groupBy(1);', 2],
+  ['realm?.Map.groupBy?.(1)?.result;', 2],
   ['realm?.Map.prototype.at;', 2],
   ['realm?.Map;', 0],
   ['realm?.Map?.groupBy;', 0],

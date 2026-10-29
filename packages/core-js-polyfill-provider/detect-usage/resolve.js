@@ -4423,7 +4423,7 @@ export function composableNavGuardPlan(navNode, {
     readThrough,
   });
   if (!plan || plan.topAssign || !plan.leafPure) return null;
-  if (plan.kind !== 'nested' && !plan.rootUndefinable) return null;
+  if (!navPlanNeedsGuard(plan)) return null;
   if (plan.hops.length !== plan.collapseIdx + 1) return null;
   // ... spelled through the kept WRITE that stores the root (`null == (a = w)`): the store is the
   // source's own act and the test is where it runs
@@ -4527,8 +4527,8 @@ export function planProvenNavGuardCollapse({
   function takeHop(node) {
     // the dotted key through the canon: a PRIVATE name carries `.name` too, and read raw it passed
     // for the realm self-reference it can never be
-    const name = realmHopKeyName(node, { scope, adapter, path });
-    if (!isPristineProxyGlobal(adapter, name, path && { node, path })) return null;
+    const name = pristineRealmHopKey(node, { scope, adapter, path });
+    if (!name) return null;
     hops.unshift({ name, node, optional: !!node.optional });
     return unwrapTransparentSeq(node.object);
   }
@@ -4729,6 +4729,12 @@ export function planProvenNavGuardCollapse({
       && !navValueCanShortCircuit(topAssignSteps.at(-1).right, resolvePure, { scope, adapter, path },
         { observableRead: true }),
   };
+}
+
+// A nav plan owes a guard for an absent source root or a probe before its backed leaf.
+// The leaf's own definedness never licenses erasing that earlier short-circuit.
+export function navPlanNeedsGuard(plan) {
+  return !!plan && (plan.kind === 'nested' || !!plan.rootUndefinable);
 }
 
 // the expressions a nav plan's ROOT runs before its leaf: sequence prefixes at every nesting
@@ -5310,6 +5316,15 @@ export function realmHopKeyName(node, aliasCtx = null, { allowSideEffectKeys = f
     : null);
 }
 
+// Admit one hop of a realm collapse, independent of traversal direction or AST dialect.
+// The caller supplies the established optional proof; an effectful key is admissible only
+// when its source read survives. Mutation always ends the pristine prefix at that read.
+export function pristineRealmHopKey(node, ctx = null, { allowOptional = true, allowSideEffectKeys = false } = {}) {
+  if (!isMemberAccessNode(node) || (node.optional && !allowOptional)) return null;
+  const key = realmHopKeyName(node, ctx, { allowSideEffectKeys });
+  return key && isPristineProxyGlobal(ctx?.adapter, key, ctx?.path && { node, path: ctx.path }) ? key : null;
+}
+
 // ... and does a DELETED navigation read through a realm hop whose slot the source itself replaced?
 // such a hop holds the user's own object, so the fold may not drop it - nor the hops BELOW it, which
 // drop only together with the read above them - and the run deopts WHOLE, every hop rendering its own
@@ -5356,10 +5371,10 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null, { allowSideEffec
     // through the hop-name canon: a const-alias computed hop (`const k='self'; globalThis[k].X`) names
     // the same slot the dotted and computed-literal forms name, so the collapse drops it too -
     // `_globalThis.X`, not `_globalThis[k].X` which reads an undefined key off-engine.
-    const key = realmHopKeyName(member, aliasCtx, { allowSideEffectKeys });
+    const key = pristineRealmHopKey(member, aliasCtx, { allowSideEffectKeys });
     // a mutated hop slot (`window.self = fake`) is the user's redirection - collapsing the hop
     // away would silently read the pristine global instead of the replacement
-    if (key && isPristineProxyGlobal(aliasCtx?.adapter, key, aliasCtx?.path && { node: member, path: aliasCtx.path })) prefix = member;
+    if (key) prefix = member;
     else break;
   }
   return prefix;
@@ -6112,39 +6127,77 @@ export function callYieldCanBeUndefined(callNode, aliasCtx, resolvePure) {
     || proxyReceiverValueCanBeUndefined(body.node, resolvePure, body.ctx);
 }
 
-// how many TAIL steps above a guard render ride INSIDE its alternate, the one rule every guard
-// channel of both emitters counts with. steps run leaf-outwards, each `{ optional, isCall,
-// foreign }`; `definedAtLeaf` says whether the rendered value is provably defined (a ponyfill
-// leaf with no unresolvable hop of its own). a live `?.` over a value that CAN be absent guards
-// it and stays outside; a CALL only comes along behind a member (an optional call straight on
-// the render owns its own guard); a FOREIGN step is another channel's claim and ends the run.
-// past the first member the value is whatever that unponyfilled name holds - not provably
-// defined - so only plain steps keep pulling
-export function guardTailPullCount(steps, definedAtLeaf) {
-  let defined = definedAtLeaf;
-  // a pulled OPTIONAL CALL keeps its `?.(` inside the alternate, which re-opens the chain there:
-  // every step above it must stay in that chain, or the printer ends it and the source's
-  // short-circuit turns into a read off `undefined`
+// Decide each continuation of a guarded value without editing its source. Native bindings
+// supply the next member/call and its source reader; the planner owns the realm fold,
+// live-optional boundary, optional erasure and the value left after a retained realm hop.
+// A dispatch result is not navigation. A nav collapse additionally stops at the next live
+// guard once a retained hop has made its leaf undefinable. Each planner belongs to one climb.
+export function createGuardTailPlanner({
+  alwaysDefined = false, navAlternate = false, navCollapse = false, preserveOptionalHops = false,
+} = {}) {
+  let absorbed = false;
+  let adjacent = alwaysDefined;
+  let erasedOptional = false;
+  let crossedUnbacked = false;
+  let inRealmRun = alwaysDefined;
+  let defined = alwaysDefined;
+  let allPlain = alwaysDefined;
   let inChain = false;
-  // while every step so far was PLAIN the folded value is a straight continuation of the LEAF,
-  // so the first live `?.` above it still rides inside the alternate; once a step carried its
-  // own `?.` - or the render already ended in a hop of its own - the value can be absent and
-  // the next guard belongs outside
-  let allPlain = definedAtLeaf;
-  let taken = 0;
-  for (const step of steps) {
-    if (step.foreign) break;
-    if (step.isCall) {
-      if (!taken) break;
-    } else if (step.optional && !defined && !inChain && !allPlain) break;
-    taken += 1;
-    inChain ||= step.isCall && step.optional;
-    if (!step.isCall) {
-      defined = false;
-      allPlain &&= !step.optional;
+  let pulled = 0;
+  return function planTailStep({
+    optional, isCall, realmHop = false, computed = false, property = null,
+    reader = null, readsMember = false, readsThrough = false, foreign = false,
+  }) {
+    if (foreign) return null;
+    const sourceReadContinues = preserveOptionalHops && !optional && readsThrough
+      && (!readsMember || reader.optional || !POSSIBLE_GLOBAL_OBJECTS.has(memberKeyName(reader)));
+    const foldRealmHop = realmHop && !sourceReadContinues && (!optional || !preserveOptionalHops)
+      && (!computed || !!property && !mayHaveSideEffects(property)) && (alwaysDefined || navAlternate);
+    const absorbWrappers = alwaysDefined && !absorbed;
+    let folded = false;
+    let keepOptional = optional;
+    if (navCollapse) {
+      inRealmRun &&= !isCall && realmHop;
+      if (inRealmRun) {
+        keepOptional = false;
+        folded = foldRealmHop;
+        if (!folded) {
+          inRealmRun = false;
+          defined = allPlain = false;
+        }
+      } else {
+        if (isCall ? !pulled : optional && !defined && !inChain && !allPlain) return null;
+        keepOptional &&= !(pulled === 0 && defined);
+        pulled += 1;
+        inChain ||= isCall && optional;
+        if (!isCall) {
+          defined = false;
+          allPlain &&= !optional;
+        }
+      }
+    } else {
+      if (optional) {
+        if (isCall) {
+          if (!absorbed) return null;
+        } else {
+          if ((!alwaysDefined && !navAlternate) || crossedUnbacked
+            || (!adjacent && erasedOptional && !navAlternate)) return null;
+          if (adjacent) {
+            keepOptional = false;
+            erasedOptional = true;
+          }
+        }
+      }
+      if (!isCall && realmHop) {
+        folded = foldRealmHop;
+        if (folded) erasedOptional = false;
+        else crossedUnbacked = true;
+      }
     }
-  }
-  return taken;
+    adjacent = folded && alwaysDefined;
+    absorbed = true;
+    return { folded, optional: !!keepOptional, absorbWrappers };
+  };
 }
 
 // THE vestigial-`?.` verdict of a proxy nav, shared by every guard render of both emitters:
