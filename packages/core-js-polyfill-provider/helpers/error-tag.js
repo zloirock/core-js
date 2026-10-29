@@ -1,6 +1,6 @@
 // the ONE owner of the `[core-js]` brand: every diagnostic the packages print or throw is spelled
 // through here, so a message carries the brand exactly once wherever it was raised or re-wrapped
-export const BRAND = '[core-js]';
+const BRAND = '[core-js]';
 
 // `[core-js] <message>`, idempotent: a message already branded is returned as it is
 export function brand(message) {

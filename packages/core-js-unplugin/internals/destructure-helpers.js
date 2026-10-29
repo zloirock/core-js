@@ -262,7 +262,7 @@ export function initRawKeyOnRoot(initNode) {
 // the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
 // gone, so an element with nothing to observe is a comma the source wrote rather than work it did,
 // and a prefix left with no observable at all is not a statement the source ran
-export function liftedPrefixExpression(prefix, ctx = null) {
+function liftedPrefixExpression(prefix, ctx = null) {
   if (!prefix.length) return null;
   const kept = ctx ? observableSequenceElements(prefix, ctx) : dropDeadSequenceElements(prefix);
   if (!kept.length) return null;
@@ -814,16 +814,6 @@ export function duplicateReceiver(node, injector) {
   return clone;
 }
 
-// a nav whose live `?.` sits over an ERASABLE hop renders as the guard the collapse would
-// spell: the hop's object is the probe, the hop's own ponyfill the alternate, and the tail
-// above it hangs back on. null where no such hop carries the short-circuit
-export function guardedNavPassthrough(receiver, metaPath, ctx) {
-  const { adapter, resolveGlobalPolyfill } = ctx;
-  const plan = guardedNavPassthroughPlan(receiver, ({ name }) => resolveGlobalPolyfill(name),
-    { ...nodeSite(receiver, metaPath), adapter });
-  return plan && renderPassthroughProbe(plan, metaPath, ctx);
-}
-
 // A retained native subtree is cloned at drain time. Its free realm names still need the
 // binding's substitution walk; the common renderer owns the guard, tail and sealed read.
 function renderPassthroughProbe(plan, metaPath, ctx) {
@@ -871,7 +861,7 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
 }
 
 // Accept and render one immediate sealed read while its child paths are still available.
-export function sealedNavProbeRead(receiver, metaPath, ctx) {
+function sealedNavProbeRead(receiver, metaPath, ctx) {
   return renderSealedNavProbe(captureSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
 }
 
@@ -1021,7 +1011,7 @@ export function anchorLeadingStatement({ statements, hostNode, statementNode = h
 // them is (`globalThis.self.Array.other` reads `_self.Array.other`, `globalThis.window.Array.other`
 // reads off the root). an ALIAS root keeps its own identifier by the collapse's alias rule, which
 // its caller says with `landsDeep: false`
-export function proxyPassthroughBase({ rootName, keys, adapter, resolveGlobalPolyfill, landsDeep = true }) {
+function proxyPassthroughBase({ rootName, keys, adapter, resolveGlobalPolyfill, landsDeep = true }) {
   let baseName = rootName;
   let rest = keys;
   while (rest.length && isPristineProxyGlobal(adapter, rest[0])) {

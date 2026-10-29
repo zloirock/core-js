@@ -723,7 +723,7 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
 // the slots a per-branch walk visits under a value-selecting node, or null where it selects nothing.
 // a `||` / `??` its LEFT always decides has no live right: the walk skips it, and `deadRight` tells the
 // binding that a selection it mirrored gives way to that left, dropping the right with it
-export function fallbackBranchWalk(node, ctx) {
+function fallbackBranchWalk(node, ctx) {
   const slots = getFallbackBranchSlots(node);
   const deadRight = !!slots && node.type === 'LogicalExpression' && node.operator !== '&&'
     && selectionLeftAlwaysTruthy({ node: node.left, ...ctx, throughChainAssign: true });
@@ -959,7 +959,7 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
 // default at its original parameter slot, leaving the argument and its timing intact.
 // Only effect-free defaults participate in this branch route; other defaults retain
 // their ordinary receiver handling. Null stays out because it never applies a default.
-export function undefinedArmEffectiveReceiver({ branch, paramDefaultNode, scope, adapter, path }) {
+function undefinedArmEffectiveReceiver({ branch, paramDefaultNode, scope, adapter, path }) {
   if (!paramDefaultNode) return null;
   const inner = peelFallbackBranchInner(branch);
   const undefinedShaped = inner && ((isBareUndefinedIdentifier(inner)
@@ -1977,8 +1977,8 @@ function nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure
 // before this). a CALL arg is NOT excluded: when it inline-resolves to a constructor the synth injects the
 // polyfill and the emitter rescues the call's side effect AHEAD of the literal (`(<call>(), { from: _$ })`)
 // - excluding it MISSED the polyfill on a live, statically-known receiver. an opaque (non-resolvable) call
-// yields nothing and keeps the default. shared by the meta layer + both emitters so detect/emit never disagree
-export function resolvableArgSupersedesDeadDefault({
+// yields nothing and keeps the default. detection and synth planning use this same receiver choice
+function resolvableArgSupersedesDeadDefault({
   argNode,
   defaultNode,
   objectPattern,
@@ -2004,7 +2004,7 @@ export function resolvableArgSupersedesDeadDefault({
 // The receiver to enumerate for an IIFE parameter: an argument with classifiable branches wins,
 // then a resolvable argument over a polyfill-dead default, otherwise the default. Branch enumeration
 // accepts unresolved selections; selecting one replacement slot uses findSynthSwapReceiverPath.
-export function chooseFallbackReceiverNode({
+function chooseFallbackReceiverNode({
   argNode,
   defaultNode,
   objectPattern,
@@ -2499,7 +2499,7 @@ export function patternComputedKeysSynthSafe({ objectPatternNode, scope, adapter
 // Can another reader on a hop's level read the slot the hop's key names? One naming the same key, or
 // one whose key nothing proves (the unknown key `patternComputedKeysSynthSafe` refuses). A rest reads
 // no named slot.
-export function hopSlotReadElsewhere({ levelNode, key, scope, adapter, path }) {
+function hopSlotReadElsewhere({ levelNode, key, scope, adapter, path }) {
   let readers = 0;
   for (const prop of levelNode?.properties ?? []) {
     if (!isPropertyNode(prop)) continue;
@@ -6126,19 +6126,6 @@ function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter, u
     ?? (peeled.indices.length === 0 ? arrayInnerDefaultReceiverName(peeled.parent, adapter) : null);
 }
 
-// may a route that DROPS the native read of an array-wrapped leaf trust the claim's receiver? always
-// where the wrappers pair the slot themselves - the claim exists because the pair resolved. a
-// receiver-bearing inner DEFAULT the peel stops at (`[{ from } = Array, tail] = [pick(), 1]`) is the
-// exception: its claim may come from the default alone, and the read it names is right only where
-// the receiver is PROVEN - the pair, or the default over a slot that provably holds `undefined`. a
-// slot nothing proves may hold the user's own value at runtime, and the swap of the default is
-// what answers it - asked by every extraction, rename and overwrite route on both legs
-export function arrayWrappedReceiverProven(leafPattern, adapter) {
-  const peeled = peelDestructureWrappers(leafPattern);
-  return peeled.indices.length > 0 || peeled.parent?.node?.type !== 'AssignmentPattern'
-    || !!arrayWrapProvenReceiver(peeled, leafPattern, adapter);
-}
-
 // the PROVEN receiver of an array-wrapped leaf, or null: the pair the wrappers descend to, or the
 // inner default where its slot provably holds `undefined`. `peeled` is the leaf's wrapper peel
 // (`peelDestructureWrappers`), stopping at a receiver-shaped inner default rather than walking through
@@ -8476,7 +8463,7 @@ function selectionValueCanBeFalsy(node, {
 // nothing and keeps its right (`isOptedOut`, as `decidedSelection` reads it). the left's leaves are
 // walked and classified exactly as the plan's leaf census walks the whole selection: one walk
 // (`selectionValueCanBeFalsy`) over one classification (`mirrorRootContext`), so the per-branch walks
-// outside the plan (`fallbackBranchWalk`, on both legs) answer what the plan answers for every
+// in the shared fallback synth walk (`fallbackBranchWalk`) answer what the plan answers for every
 // spelling of the left
 // without a resolver the definitions alone answer whether a proxy hop is backed, which is what a
 // resolver answers for every hop it has no entry for. `throughChainAssign` takes the value reading
@@ -8913,7 +8900,7 @@ function mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter, { container
 // the spelling a re-read of the global `name` takes where it stands (`ctx`): the global's own name, or - where a
 // binding there SHADOWS it (`function f(Map)` over `{ a: globalThis.Map }`) and holds the user's own value - the
 // realm, the global its first key (`keys`); null where the realm's own name is shadowed as well
-export function globalReceiverRead(name, { scope, adapter, path }) {
+function globalReceiverRead(name, { scope, adapter, path }) {
   if (!adapter.hasBinding({ scope, name, path })) return { name, keys: [] };
   return adapter.hasBinding({ scope, name: 'globalThis', path }) ? null : { name: 'globalThis', keys: [name] };
 }
@@ -9433,7 +9420,7 @@ function isProxyGlobalLeaf(tail) {
 
 // do ALL reachable value branches resolve to a global proxy? a non-proxy branch means a `= _polyfill`
 // default could fire on its legitimate `undefined`, so an un-mirrorable pattern must bail there
-export function destructureValueBranchesAllProxy(node, staticIsMutated = null) {
+function destructureValueBranchesAllProxy(node, staticIsMutated = null) {
   return allDestructureValueBranches(node, isProxyGlobalLeaf, staticIsMutated);
 }
 
