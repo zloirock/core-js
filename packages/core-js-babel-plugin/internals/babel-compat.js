@@ -14,12 +14,13 @@ import {
   directClaimProbePlan,
   destructureProbePlan,
   planProvenNavGuardCollapse,
+  navPlanNeedsGuard,
   claimReceiverEvaluationMayThrow,
   descendToChainRoot,
   keySideEffectsOnly,
   chainReadsThroughSeal,
   collectChainAssignsThroughMemberChain,
-  guardTailPullCount,
+  createGuardTailPlanner,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
   proxyHopLacksPureEntry,
@@ -561,13 +562,15 @@ function cloneWithSubstitutedProxyRoot(node, anchorPath, { t, resolvePureGlobalE
   return cloned;
 }
 
+// A retained probe may fold only a guard-free prefix. The guarded channel owns a
+// prefix that can short-circuit, including one followed by an effectful realm key.
 function collapseHopsBelowProbe({ probePath, anchorPath, adapter, resolvePure, injectPure }) {
   const below = peelTransparentExpr(probePath.node.object);
   if (!isMemberAccessNode(below)) return false;
   const plan = planProvenNavGuardCollapse({
     rootNode: below, scope: anchorPath.scope, adapter, path: anchorPath, resolvePure,
   });
-  if (!plan || plan.topAssign || !plan.valueFormSpells
+  if (!plan || plan.topAssign || !plan.valueFormSpells || navPlanNeedsGuard(plan)
     || plan.hops.length !== plan.collapseIdx + 1) return false;
   const { leafPure: pure } = plan;
   probePath.get('object').replaceWith(injectPure(pure.entry, pure.hintName));
@@ -1795,7 +1798,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath), allowUndefinableRoot: true,
         allowSequenceRoot: true, descendSequenceTail: true,
       });
-      return plan && !plan.topAssign && (plan.kind === 'nested' || plan.rootUndefinable) ? plan : null;
+      return plan && !plan.topAssign && navPlanNeedsGuard(plan) ? plan : null;
     }
 
     // hops the plan does NOT cover (a non-proxy name - `...?.self?.chrome`) read off the value
@@ -1808,7 +1811,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // gated on a nested plan with no tail of its own (a planned tail can be absent - the hop
     // above it genuinely guards) and on chain membership (a SEALED member keeps its throw)
     function pullUnplannedTail(pullFrom, plan, rendered, prefix) {
-      if (plan.kind !== 'nested' && !plan.rootUndefinable) return false;
+      if (!navPlanNeedsGuard(plan)) return false;
       // collect the chain steps leaf-outwards, then let the shared rule say how many ride inside
       const paths = [];
       for (let hop = pullFrom; hop?.node;) {
@@ -1832,17 +1835,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         const up = slot.parentPath;
         hop = up?.node && (up.node.object === slot.node || up.node.callee === slot.node) ? up : null;
       }
-      // no `foreign` step here: this emitter re-queues what it pulls, so a claim inside the
-      // tail still gets its own rewrite
-      const steps = paths.map(path => ({
-        optional: !!path.node.optional,
-        isCall: path.isOptionalCallExpression() || path.isCallExpression(),
-        // no key gate here: a computed key - opaque or effect-bearing - evaluates INSIDE the
-        // alternate exactly where the source evaluates it, and the shared `allPlain` rule
-        // already keeps an optional step over an absent-able value outside the fold
-      }));
-      const definedAtLeaf = plan.hops.length === plan.collapseIdx + 1;
-      let taken = guardTailPullCount(steps, definedAtLeaf);
       // `delete` needs the MEMBER itself, not its value: pulled into the alternate the ternary
       // evaluates and deletes nothing, and a tail left outside reads off the guard's `void 0`.
       // hand the WHOLE chain back, for the operator to take the guard whole (`delete` on a
@@ -1852,7 +1844,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // wrap the chain in, so the same navigation folded its tail under a sequence and kept it
       // outside without one - two spellings of one source, one of them deleting off the alternate
       const tailEnd = paths.at(-1);
-      if (tailEnd && deleteHostAboveChain(tailEnd, tailEnd.node, unwrapRuntimeExpr)) taken = 0;
+      const deletedTail = tailEnd && deleteHostAboveChain(tailEnd, tailEnd.node, unwrapRuntimeExpr);
       // a TAGGED template reads its tag as a REFERENCE (`(w?.self.tag)`x`` binds `this`), so a
       // folded tail hands it a bare value - the receiver is lost exactly as under a
       // parenthesized callee. leave the whole tail outside and PLAIN: the source parens ended
@@ -1861,6 +1853,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         taggedTemplateTails.add(paths[0].node);
         return false;
       }
+      if (deletedTail) return false;
+      // no `foreign` step here: this emitter re-queues what it pulls, so a claim inside the
+      // tail still gets its own rewrite
+      const planStep = createGuardTailPlanner({
+        alwaysDefined: plan.hops.length === plan.collapseIdx + 1, navCollapse: true,
+      });
+      const steps = [];
+      for (const path of paths) {
+        const isCall = path.isOptionalCallExpression() || path.isCallExpression();
+        const realmHop = !isCall && foldableRealmHop(path.node, { adapter, resolvePure: plan.resolvePure });
+        const step = planStep({
+          optional: !!path.node.optional, isCall, realmHop, computed: !!path.node.computed, property: path.node.property,
+        });
+        if (!step) break;
+        steps.push({ ...step, isCall });
+      }
+      const taken = steps.length;
       if (!taken) return false;
       // whatever stays outside reads off the guard value - lift it so the short-circuit holds
       const outside = paths[taken];
@@ -1870,19 +1879,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // there ends the chain (the printer parenthesizes it), so the source's short-circuit
       // would turn into a read off `undefined`
       let inChain = false;
-      // the alternate starts AS the ponyfill leaf when the plan re-hung nothing over it, and a realm
-      // hop read off a ponyfill folds - the canon's verdict, asked here for the tail the plan does
-      // not own (`globalThis.window?.self.window` reads `_self`). the first step that does not fold
-      // ends it: what stands above then reads a value the doctrine says nothing about
-      let overPure = definedAtLeaf;
       for (const [index, path] of paths.slice(0, taken).entries()) {
-        if (overPure && !steps[index].isCall && foldableRealmHop(path.node, { adapter, resolvePure: plan.resolvePure })) {
-          continue;
-        }
-        overPure = false;
-        // the FIRST step reads the always-defined leaf, so its `?.` is the vestigial one the
-        // shared verdict drops; every later optional guards a value that can be absent
-        const optional = !!path.node.optional && !(index === 0 && definedAtLeaf);
+        const { folded, optional } = steps[index];
+        if (folded) continue;
         if (steps[index].isCall) {
           // an OPTIONAL call keeps its `?.(` inside the alternate: hung off the ternary the
           // callee reads as a bare value and `this` binds to undefined where the source binds
