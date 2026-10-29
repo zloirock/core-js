@@ -35,13 +35,11 @@ import {
 import {
   cloneNode,
   identifier,
-  memberExpression,
   sequenceExpression,
   nullFirstGuardTest,
   renderShortCircuitGuard,
   renderKeptSequenceTail,
   renderNavCollapseValue,
-  memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional } from './emit-shared.js';
 
@@ -109,17 +107,6 @@ export function emitNestedGuardNavValue(metaPath, node, {
   markRewrite();
   metaPath.replaceWith(renderShortCircuitGuard(nullFirstGuardTest(prefixNode), built));
   return true;
-}
-
-// A kept-tail hop's respelling: dotted for a plain name, computed for a retained key node.
-// a QUIET computed key the canon could name is kept as the source spelled it: the hop itself
-// survives the collapse, so re-spelling its key dotted rewrites a read the transform does not
-// otherwise touch - and the same source, rooted at a bare proxy global, keeps its brackets on
-// both legs. the guard render's own kept-hop respell above already spells it that way
-export function respellKeptHop(spelling, { keyName, keyNode = null }) {
-  return keyNode
-    ? memberExpression(spelling, cloneNode(keyNode), { computed: true })
-    : memberFromKeyName(spelling, keyName);
 }
 
 // Apply the provider's kept-sequence decision to this host's live slot.
@@ -308,14 +295,12 @@ export function memberIsWriteTarget(hopPath) {
   return false;
 }
 
-// does a kept WRITE sit between the collapsed spine and a further proxy hop? returns the
-// path the extension continues FROM (the write with its wrappers), null otherwise
-export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHopKey, deadOptionalHop = null }) {
+// Locate a write's native reader through wrappers and a sequence tail. The caller asks
+// the shared collapse planner whether that read can be consumed; this only returns slots.
+export function keptWriteReader(up, target) {
   const upNode = up.node;
   if (upNode.type !== 'AssignmentExpression' || upNode.operator !== '='
     || unwrapRuntimeExpr(upNode.right) !== unwrapRuntimeExpr(target.node)) return null;
-  // the member may read the write through an enclosing SEQUENCE tail (`(g = globalThis, v = g.self)
-  // ?.window`): the sequence hands its tail on, so what reads it reads this write's value
   let overPath = peelParenAndTSParentPath(up);
   let readBelow = upNode;
   if (overPath?.node?.type === 'SequenceExpression'
@@ -323,13 +308,9 @@ export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHo
     readBelow = overPath.node;
     overPath = peelParenAndTSParentPath(overPath);
   }
-  const overNode = overPath?.node;
-  if (overNode?.type !== 'MemberExpression' || unwrapRuntimeExpr(overNode.object) !== readBelow) return null;
-  // ... and a `?.` the vestigial verdict calls DEAD reads the store's own always-defined value, so
-  // the run over it is the plain twin (`(v = globalThis)?.window.X`)
-  if (overNode.optional && !allowOptional && !deadOptionalHop?.(overNode)) return null;
-  if (!proxyHopKey(overNode, { allowOptional: true, metaPath })) return null;
-  return peelParenAndTSSlotPath(up);
+  const reader = overPath?.node;
+  if (reader?.type !== 'MemberExpression' || unwrapRuntimeExpr(reader.object) !== readBelow) return null;
+  return { target: peelParenAndTSSlotPath(up), reader };
 }
 
 // the value a probe span yields is INVOKED, not navigated: the source short-circuits the
