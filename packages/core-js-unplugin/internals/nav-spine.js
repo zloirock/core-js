@@ -325,13 +325,6 @@ export function probeValueIsInvoked(path) {
   return (above?.type === 'CallExpression' || above?.type === 'NewExpression') && above.callee === top;
 }
 
-// is the plan's probe hop INSIDE the kept write's value (`(r = globalThis.window)?.self`:
-// the undefinability is the held VALUE, not a nav hop)
-export function probeHopInValue(plan, probeHop) {
-  return !!plan.rootAssign && Number.isInteger(probeHop.node.start)
-    && probeHop.node.start >= plan.rootAssign.start && probeHop.node.end <= plan.rootAssign.end;
-}
-
 // a kept WRITE holding the substituted binding, NAVIGATED further: the read re-reads the
 // binding after the write (`(b = Map).keys()` -> `(b = _Map, _Map).keys()`, babel's
 // kept-write canon). in VALUE position the write stands alone (`b = _Map`)
@@ -479,24 +472,6 @@ export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = f
   return sawHop ? { consumer, child } : null;
 }
 
-// is the PLAIN proxy run above this hop claim read OPTIONALLY by a consumer of its own?
-// that `?.` is the only survivor of the source read, and the run's collapse would answer the
-// always-defined ponyfill where the source throws - the claim's guard render owns the shape.
-// a consumer that is itself a proxy hop is the probe-LEAF shape instead: pure cannot back it,
-// so the whole run stays spelled and nothing here renders
-export function plainRunReadOptionally(metaPath, node, proxyHopKey) {
-  let child = node;
-  let up = metaPath.parentPath;
-  while (up?.node?.type === 'MemberExpression' && up.node.object === child && !up.node.optional
-    && proxyHopKey(up.node, { metaPath })) {
-    child = up.node;
-    up = up.parentPath;
-  }
-  const consumer = up?.node;
-  if (consumer?.type !== 'MemberExpression' || consumer.object !== child || !consumer.optional) return false;
-  return !proxyHopKey(consumer, { metaPath, allowOptional: true });
-}
-
 // the hop-host note travels with a POSSIBLE-GLOBAL hop claim only - the same surface the
 // identifier arm speaks for; any other member read has its own host channels
 export function noteProxyHopClaimHost(metaPath, node, hopNoteCtx) {
@@ -512,30 +487,6 @@ export function spineCarriesComputedHop(objectNode) {
   for (let cur = unwrapRuntimeExpr(objectNode); cur?.type === 'MemberExpression';
     cur = unwrapRuntimeExpr(cur.object)) if (cur.computed) return true;
   return false;
-}
-
-// a KEPT WRITE anywhere down the member spine (`((dw = gw) as any)?.self` - the write
-// anchors the kept-root canon even buried under hops)
-// `throughHops: false` asks the narrower question - is the write the value this spine READS, with
-// only wrappers and sequence tails between? a write buried under a HOP is not: what the read holds
-// is an environment value taken ABOVE the store, and a caller keying on the store's own surface
-// must not answer yes for it
-export function spineHoldsKeptWrite(objectNode, { throughHops = true } = {}) {
-  // ... and through a SEQUENCE tail: the write is the value the spine reads either way
-  // (`(c++, e = globalThis.window)?.[k]` anchors on the same kept write as the bare twin)
-  let value = unwrapRuntimeExpr(objectNode);
-  for (;;) {
-    if (throughHops && value?.type === 'MemberExpression') {
-      value = unwrapRuntimeExpr(value.object);
-      continue;
-    }
-    if (value?.type === 'SequenceExpression') {
-      value = unwrapRuntimeExpr(value.expressions.at(-1));
-      continue;
-    }
-    break;
-  }
-  return value?.type === 'AssignmentExpression';
 }
 
 // an EFFECT-bearing computed key folds to the static name it spells, the effects it carries coming

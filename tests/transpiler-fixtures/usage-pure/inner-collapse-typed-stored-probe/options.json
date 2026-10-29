@@ -1,7 +1,7 @@
 {
   "plugins": [
     [
-      "@core-js/babel-plugin",
+      "@core-js",
       {
         "method": "usage-pure",
         "version": "4.0",
