@@ -357,7 +357,7 @@ QUnit.test('Symbol.iterator: key tested before its read reads the iterator metho
 
 // a write a presence test may skip - an undecided test, or one the build always answers false -
 // leaves the key undefined, an undecided ternary may yield its fallback, and the read stays the
-// native miss a fold would turn into the method
+// native property a fold would turn into the method
 QUnit.test('Symbol.iterator: possibly-unwritten key alias keeps the native read', assert => {
   const flag = false;
   let undecidedKey;
@@ -370,8 +370,13 @@ QUnit.test('Symbol.iterator: possibly-unwritten key alias keeps the native read'
   assert.same([50, 51][undecidedKey], undefined);
   assert.same([52, 53][falseKey], undefined);
   assert.same([54, 55][notFunctionKey], undefined);
+  // Firefox 17-35 has a native iterator under the fallback key.
+  const nativeFallback = Object.getOwnPropertyDescriptor(Array.prototype, '@@iterator')?.value;
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the fallback key IS the case under test
-  assert.same([56, 57][undecidedTernaryKey], undefined);
+  assert.same([56, 57][undecidedTernaryKey], nativeFallback);
+  function ownFallback() { return 'own fallback'; }
+  const receiver = Object.defineProperty([58, 59], '@@iterator', { value: ownFallback });
+  assert.same(receiver[undecidedTernaryKey], ownFallback, 'the fallback key keeps its own property');
 });
 
 // the value an assignment gives a key alias resolves where the assignment stands: a block around the
