@@ -20838,6 +20838,36 @@ function * generateDeletedRealmEnumCarriers() {
   }
 }
 
+// A quiet first receiver read can throw before a key even if its later value is
+// reusable. Effectful receivers must likewise be read once, before key and argument.
+function * generateSymbolFirstReceiverReads() {
+  for (const receiver of ['rows', 'box.rows']) for (const consumer of ['read', 'call', 'argument', 'optional']) {
+    const member = `(log.push("prefix"), ${ receiver })[(log.push("key"), rows = ["swapped"], Symbol.iterator)]`;
+    const call = consumer === 'read' ? `${ member }.call(["held"])` : `${ member }${ consumer === 'optional' ? '?.' : '' }(${ consumer === 'call' ? '' : '(log.push("argument"), 1)' })`;
+    yield {
+      name: `symbol-first-receiver-read/${ receiver }/${ consumer }`,
+      code: `const log = []; let rows = ["held"];
+        const box = { get rows() { log.push("read"); return rows; } };
+        export const r = ${ call }.next().value;
+        export const effects = log;`,
+      strip: true,
+    };
+  }
+  for (const key of ['Symbol.iterator', '"at"']) for (const receiver of ['tdz', 'this']) {
+    const read = `${ receiver === 'tdz' ? 'rows' : 'this' }[(log.push("key"), ${ key })]`;
+    const body = receiver === 'tdz' ? `${ read }; const rows = [];`
+      : `class C extends Object { constructor() { ${ read }; super(); } } new C();`;
+    yield {
+      name: `symbol-first-receiver-read/${ receiver }/${ key }`,
+      code: `const log = []; let r;
+        try { ${ body } } catch (error) { r = error.name; }
+        export { r }; export const effects = log;`,
+      // The first source read throws, before any method needs a polyfill.
+      strip: false,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21244,4 +21274,5 @@ export function * generate() {
   yield * generateProxyNavigationRoutes();
   yield * generateRootDeleteCarriers();
   yield * generateDeletedRealmEnumCarriers();
+  yield * generateSymbolFirstReceiverReads();
 }
