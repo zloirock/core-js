@@ -6,6 +6,7 @@ import {
   bindingPolyfillHint,
   trustedIdentifierAliasWrite,
   callArgumentMayBeObserved,
+  claimDeleteOperand,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   findNodeSlot,
@@ -77,6 +78,7 @@ import {
   staticContainerReceiverName,
   unionKeyedCarrierRides,
   discardRescueNodesWithReads,
+  provenRealmCallName,
 } from './destructure.js';
 import {
   hasStaticDefinitionKey, resolve as resolveBuiltIn,
@@ -105,6 +107,7 @@ import {
   inlineCallReturnExpression,
   interopDefaultProxyName,
   isCallShape,
+  isAliasProxyHopChain,
   isKnownStaticGlobal,
   isStaticPlacement,
   maximalProxyGlobalPrefix,
@@ -348,6 +351,43 @@ export function planInnerProxyCollapse(node, {
   return { entry: pure.entry, hintName: pure.hintName,
     valueEntry: valuePure?.entry ?? pure.entry, valueHintName: valuePure?.hintName ?? pure.hintName,
     effects, keptWrite, writeStoreSpellable };
+}
+
+// A terminal delete claim lands on the run's root, while a claim inside a store
+// still owns that stored value. A read through a retained probe observes its value;
+// a direct delete can use the navigation root without replacing what was written.
+// Resolve the carried value first. Calls need a quiet, defined yield, and aliases
+// retain their binding. No host mutates here.
+export function planDeletedProxyClaim(node, { aliasCtx, resolvePure, deleteFold, claimName }) {
+  if (!deleteFold || !isMemberAccessNode(node) || !POSSIBLE_GLOBAL_OBJECTS.has(claimName)
+    || storedUserAssignmentOf(aliasCtx.path)) return null;
+  // A read THROUGH the stored surface still observes its absence, even when a
+  // later slot is deleted. Direct delete and ordinary navigation share this owner.
+  const keptStore = keptProbeStore(node, resolvePure, aliasCtx);
+  if (keptStore) {
+    const slot = climbTransparentWrapperPath(aliasCtx.path);
+    const host = slot.parentPath;
+    if (proxyCollapseConsumer({
+      node: slot.node, host: host?.node, keptWrite: keptStore, deleteAbove: true,
+      writeTarget: isMemberWriteHost(host), deleted: claimDeleteOperand(host),
+    }, { adapter: aliasCtx.adapter, resolvePure }).navigated) {
+      return { keep: keptStore,
+        effects: collectFoldedReceiverSideEffects(node, { ctx: aliasCtx }).filter(effect => effect !== keptStore) };
+    }
+  }
+  const { root } = descendToChainRoot(node);
+  const stored = root?.type === 'AssignmentExpression' && root.operator === '=';
+  const storedRootName = stored ? asProxyGlobalName(descendToChainRoot(root.right, true).root?.name) : null;
+  const rootName = root?.type === 'Identifier' ? asProxyGlobalName(root.name)
+    : stored ? asProxyGlobalName(resolveObjectName({ objectNode: root, ...aliasCtx })) ?? storedRootName
+      : root?.type === 'CallExpression' && !root.optional && aliasCtx.scope
+        ? asProxyGlobalName(provenRealmCallName(root, aliasCtx, { rejectConditional: true, definedBy: resolvePure })) : null;
+  const pure = rootName && isPristineProxyGlobal(aliasCtx.adapter, rootName)
+    && (proxyRunLandingPure({ ctx: aliasCtx, resolvePure, rootName })
+      ?? (storedRootName && storedRootName !== rootName
+        ? proxyRunLandingPure({ ctx: aliasCtx, resolvePure, rootName: storedRootName }) : null));
+  if (pure) return { pure };
+  return !rootName && root?.type === 'Identifier' && isAliasProxyHopChain(node, aliasCtx) ? { alias: root } : null;
 }
 
 // substrate-neutral proxy-global receiver collapse DECISION. the emitter collapsers (babel

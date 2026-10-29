@@ -23,7 +23,6 @@ import {
   deleteHostAboveChain,
   unwrapRuntimeExpr,
   POSSIBLE_GLOBAL_OBJECTS,
-  peelChainAssignment,
   runtimeChainRoot,
   pathOfNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -49,29 +48,22 @@ import {
 } from '@core-js/polyfill-provider/render';
 import {
   collapseRootHoldsItsGlobal,
-  planInnerProxyCollapse,
   planMemoReadTarget,
   planProxyReceiver,
-  planKeptSequenceReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  runSwallowsStoreProbe,
-  proxyCollapseConsumer,
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
-  maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
-  keptProbeStore,
-  navHasUnresolvableProxyHop,
-  navValueCanShortCircuit,
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
   resolveSynthKeys,
   directClaimProbePlan,
   directClaimProbeEffects,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { proxyRootCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import { disableDirectiveKind } from '@core-js/polyfill-provider/helpers/source-scan';
 
 export default function createSynthSwapEmitter({
@@ -346,21 +338,6 @@ export default function createSynthSwapEmitter({
       recPath = recPath.parentPath;
     }
     if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
-    // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
-    if (!maximalProxyGlobalHop(recPath.node, aliasCtx, { throughChainAssign: true })) return false;
-    // a LIVE `?.` in the collapsed span testing a short-circuitable value (`(globalThis.window
-    // ?.self.window)?.X` - the sealed nav CAN be undefined) may not erase: the render drops the
-    // `?.` with the hops and runs the member where native short-circuits. the guard channels own
-    // the shape. the seal-aware canon keeps a PLAIN read over the same sealed nav collapsing
-    // (`(nav).X` - the locked erase) and an all-plain span deopting as before
-    // a `delete` consumer is the exception: the member it names is never READ, so no `?.` over the nav
-    // is load-bearing and the navigation collapses whole (the unplugin leg's twin gate)
-    // the walk peels transparent wrappers: under `createParenthesizedExpressions` a paren NODE sits
-    // between the chain and the `delete`, and an identity peel read it as an opaque consumer - the rule
-    // then fired in one paren spelling and not the other, which the area allows only cosmetically
-    if (!deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
-      && navValueCanShortCircuit(recPath.node, resolvePure, aliasCtx)) return false;
-    if (runSwallowsStoreProbe(recPath.node, resolvePure)) return false;
     // a destructure SOURCE is a receiver like any other: the hop collapse owns it here, and the
     // pattern's own render - where one fires - replaces the whole source with its synth literal, so
     // the two never spell the same node. a pattern-shaped target was once deferred to that render on
@@ -379,71 +356,32 @@ export default function createSynthSwapEmitter({
     const ctx = ctxPath?.node;
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
-    // Native discovery supplies the consuming pattern and intervening value observers;
-    // the common source plan decides whether the all-proxy source can fold whole.
-    if (allProxyEnd) {
-      const source = planInnerProxyCollapse(recPath.node, {
-        aliasCtx,
-        resolvePure,
-        root: findProxyGlobal(recPath.node, aliasCtx, true),
-        allowOptional: true,
-        valueConsumer: { target, observed: valueObservingCarrier },
-      });
-      if (!source?.entry) return false;
-      recPath.replaceWith(injectPureImport(source.entry, source.hintName));
-      return true;
-    }
-    // a mutation TARGET (`globalThis.{self,window}.Map = fn` / `delete ...` / `...++`, the canonical
-    // `isMemberWriteHost` covers `=` / update / `delete` / destructuring / wrappers) collapses through a pure-ctor
-    // leaf - the leaf is the write slot, not a read whole-swap. unplugin's natural visitor resolves a hop that
-    // HAS a pure entry (`globalThis.self` -> `_self`) but leaves one WITHOUT (`globalThis.window`, no `_window`)
-    // raw; this guard reproduces that per-hop behaviour so babel matches unplugin: keep the natural `_self`
-    // resolution when every hop resolves, force the full root-collapse when ANY hop is raw (`.window` -> a
-    // `_globalThis.window` slot is undefined off-engine -> crash). without it babel would always collapse to
-    // `_globalThis`, diverging from unplugin (whose `_self` resolution is embedded too deep to re-route cheaply)
-    const isWriteTarget = isMemberWriteHost(recPath);
-    // a `delete` host is the exception: its navigation collapses whole, and the natural per-hop rewrite
-    // would land on the LEAF ponyfill (`_self.X`) where the same nav READ collapses to the root
-    // (`_globalThis.X`) - one source, two import sets, decided by the consumer
-    // ... EXCEPT over a kept chain-assign: there the store is the observable (`(d = gw).X` keeps what
-    // the source wrote into `d`), and collapsing through it read the tail off the STORE instead of the
-    // ponyfill - `delete (d = _globalThis.window)?.X`, which deletes nothing off-window
-    function navCarriesChainAssign(node) {
-      for (let cur = unwrapRuntimeExpr(node); cur;) {
-        if (peelChainAssignment(cur).outer) return true;
-        if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression') return false;
-        cur = unwrapRuntimeExpr(cur.object);
+    const routes = proxyRootCollapseRoutes({
+      path: recPath, aliasCtx, resolvePure,
+      writeTarget: isMemberWriteHost(recPath),
+      deleteHosted: !!deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr),
+      valueConsumer: allProxyEnd ? { target, observed: valueObservingCarrier } : null,
+      keptSequence: keptSeqHopFold,
+    });
+    let collapsed;
+    for (const route of routes) {
+      if (route.kind === 'whole') {
+        recPath.replaceWith(injectPureImport(route.source.entry, route.source.hintName));
+        return true;
       }
-      return false;
+      if (route.kind === 'refresh') {
+        refreshKeptStore(recPath, route.store);
+      } else if (route.kind === 'sequence') {
+        const { tail } = route;
+        recPath.get(tail.keys.join('.')).replaceWith(tail.pure
+          ? injectPureImport(tail.pure.entry, tail.pure.hintName) : t.cloneNode(tail.root));
+        return true;
+      } else {
+        collapsed = renderCollapsePlan(route.plan, { carrySource: true });
+        if (collapsed) break;
+      }
     }
-    const deleted = deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr);
-    const deleteHost = deleted && !navCarriesChainAssign(recPath.node);
-    // ... and a write through a kept store of the environment probe takes that store as its base,
-    // the read's own landing: the natural rewrite performs it on the realm where the source throws.
-    // a `delete` names its slot off the run's root whatever the store holds
-    const keptStore = keptProbeStore(recPath.node.object, resolvePure, aliasCtx);
-    if (isWriteTarget && !deleteHost && !proxyCollapseConsumer({
-      node: recPath.node.object, host: recPath.node, writeTarget: true,
-      hasKeptTail: navHasUnresolvableProxyHop(recPath.node.object, resolvePure, aliasCtx),
-      storeHoldsProbe: !deleted && !!keptStore,
-    }, { adapter, resolvePure }).writeThrough) return false;
-    // A retained store keeps its own claims live even when a higher member is the
-    // written slot: the immediate consumer can be a read on the way to that slot.
-    if (keptStore) refreshKeptStore(recPath, keptStore);
-    // this drive REPLACES the receiver subtree, so the render carries the kept user nodes by
-    // identity - a cloned kept write stranded the scope tracker's violation records on the
-    // detached original, and every later placement-gated trust ask about its alias failed
-    const collapsed = collapseProxyGlobalReceiver(recPath.node,
-      { aliasCtx, isWriteTarget, throughChainAssign: true, carrySource: true });
-    if (!collapsed) {
-      const tail = keptSeqHopFold && !isWriteTarget && !deleteHost
-        ? planKeptSequenceReceiver(recPath, { aliasCtx, resolvePure }) : null;
-      if (!tail) return false;
-      const tailPath = recPath.get(tail.keys.join('.'));
-      tailPath.replaceWith(tail.pure
-        ? injectPureImport(tail.pure.entry, tail.pure.hintName) : t.cloneNode(tail.root));
-      return true;
-    }
+    if (!collapsed) return false;
     recPath.replaceWith(collapsed);
     // the replacement is a FINISHED render of the outer member (root substituted, hops dropped) -
     // this drive only fires when the member's own callback declined the nav (a write target, a
