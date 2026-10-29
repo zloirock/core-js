@@ -9,7 +9,6 @@ import {
   navGuardTestPlan,
   terminalNavCollapsePlan,
   directClaimProbeEffects,
-  keptProbeStore,
   writtenRunKeptProbeStore,
   navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
@@ -17,19 +16,13 @@ import {
   navPlanNeedsGuard,
   realmRunSplitBySequencePrefix,
   prependChainAssignmentEffect,
-  proxyReceiverValueCanBeUndefined,
-  resolveObjectName,
   aliasRootedReadMayThrow,
   deleteGuardKeepingHop,
   deletedRunCarriesMutatedRealmHop,
-  callValueCanBeUndefined,
   chainReadsThroughSeal,
-  inlineCallHasObservableEffects,
-  inlineCallProxyGlobalRoot,
   deleteHostAboveCarriedChain,
   mutationGuardKeepingHop,
   probeRunIsTheSourceValue,
-  proxyGlobalRootName,
   pristineRealmHopKey,
   storedUserAssignmentOf,
   unbackedTailRidesAbove,
@@ -45,6 +38,7 @@ import {
   dispatchConsumesRun,
   planClaimlessCallRootedNav,
   proxyRunLandingPure,
+  planInnerProxyCollapse,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { erasedReceiverRescueNodes, renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -59,7 +53,6 @@ import {
   deleteHostAboveChain,
   isMemberWriteHost,
   isPristineProxyGlobal,
-  mayHaveSideEffects,
   peelParenAndTSParentPath,
   peelParenAndTSSlotPath,
   peelParenAndTSSlotChild,
@@ -527,165 +520,14 @@ export default function createProxySpineChannel(ctx) {
     return keyName ? { keyName } : null;
   }
 
-  // walk a proxy-hop member spine down to its root: every hop must be a plain (or
-  // string-literal computed) POSSIBLE-GLOBAL key, the root a POSSIBLE-GLOBAL identifier
-  // with a pure binding. Effectful realm keys keep the original navigation.
-  function collapseProxyHopSpine(node, metaPath, { allowOptional = false, provenCallRoot = false } = {}) {
-    // sequence PREFIXES on the object spine harvest in evaluation order - the root (and
-    // any seq around it) evaluates before every hop key (`(eff(), globalThis).self` ->
-    // `(eff(), _globalThis)`); collected top-down, which IS that order
-    const rootPrefix = [];
-    let cur = node;
-    // a kept WRITE inside the spine re-emits WHOLE as an effect and the walk continues
-    // through its STORED value to find the root (`(q = globalThis).self` -> `(q =
-    // _globalThis, _self)`); only the outermost one is collected - everything below it is
-    // already spelled inside its own text, so effects there would run twice
-    let keptWrite = null;
-    while (cur.type === 'MemberExpression') {
-      const hop = proxyHopKey(cur, { metaPath, allowOptional });
-      if (!hop) return null;
-      cur = unwrapRuntimeExpr(cur.object);
-      for (;;) {
-        if (cur?.type === 'SequenceExpression') {
-          // observable elements only - a dead prefix (`(0, globalThis)`) re-emits nothing,
-          // exactly what the other leg's fold spells
-          if (!keptWrite) {
-            rootPrefix.push(...cur.expressions.slice(0, -1)
-              .filter(expression => mayHaveSideEffects(expression, { scope: metaPath?.scope, adapter, path: metaPath })));
-          }
-          cur = unwrapRuntimeExpr(cur.expressions.at(-1));
-          continue;
-        }
-        if (cur?.type === 'AssignmentExpression' && cur.operator === '=') {
-          keptWrite ??= cur;
-          cur = unwrapRuntimeExpr(cur.right);
-          continue;
-        }
-        break;
-      }
-    }
-    const effects = [...rootPrefix, ...keptWrite ? [keptWrite] : []];
-    const spineCtx = metaPath ? { scope: metaPath.scope, adapter, path: metaPath } : null;
-    // does a `delete` FOLD this run - the operator naming a slot on the run itself? asked once for
-    // every root kind: a dispatch standing between them consumes the run as its receiver, and
-    // spelling the question per branch landed one source shape on two bindings (an identifier root
-    // rode the hop, a call root the ponyfill root)
-    const deleteFoldsThisRun = !!metaPath && !!deleteHostForClaim(metaPath, node, { forFold: true })
-      && !dispatchConsumesRun({ path: metaPath, resolvePure: m => resolvePure(m, metaPath), aliasCtx: spineCtx });
-    // a proven CALL root with a DEFINED yield collapses like the identifier spelling of the
-    // global it yields (DEFINED-yield -> ROOT ponyfill, the claimless-call canon): the value
-    // canon keeps the probe-yield twin out - its value never reached the root - and an
-    // effect-bearing call re-emits ahead of the hop keys, where the source runs it. never
-    // through a kept WRITE (the store canon owns that base), and OPT-IN per consumer: the
-    // plain value-read claims and the `delete` fold take it (a fold that names a slot ON this run
-    // reaches it off the ROOT binding, the base the identifier spelling lands on; with a dispatch
-    // between them the run is an ordinary read and lands like one) - the guard/memo channels
-    // keep their own canons. an optional hop declines unless the consumer already ruled every
-    // `?.` in the spine dead (the delete fold, the vestigial verdict) - the hops were vetted
-    if (cur?.type === 'CallExpression' && metaPath && !keptWrite && provenCallRoot) {
-      // a `?.` in the spine declines unless the consumer ruled it dead (`allowOptional`) AND
-      // the value under it is proven defined: a LIVE short-circuit reaches what stands above,
-      // and the guard channels own that render (the locked `ut()?.window?.self?.x` family)
-      for (let scan = node; scan?.type === 'MemberExpression';
-        scan = unwrapRuntimeExpr(peelReceiverSequenceTail(scan.object))) {
-        if (scan.optional && (!allowOptional || proxyReceiverValueCanBeUndefined(
-          unwrapRuntimeExpr(peelReceiverSequenceTail(scan.object)), m => resolvePure(m, metaPath),
-          { scope: metaPath.scope, adapter, path: metaPath }))) return null;
-      }
-      const callCtx = { scope: metaPath.scope, adapter, path: metaPath };
-      const rootId = inlineCallProxyGlobalRoot({ callNode: cur, ...callCtx, rejectConditional: true });
-      if (!rootId || callValueCanBeUndefined(cur, callCtx, m => resolvePure(m, metaPath))) return null;
-      // an effect-bearing call keeps the leaf collapse both legs already spell - the other
-      // leg's claimless channel has no slot to replay what the call DID on the way
-      if (inlineCallHasObservableEffects({ callNode: cur, ...callCtx })) return null;
-      const rootName = POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name
-        : resolveObjectName({ objectNode: rootId, scope: metaPath.scope, adapter, path: metaPath });
-      const pure = proxyRunLandingPure({
-        navNode: node,
-        ctx: spineCtx,
-        resolvePure: m => resolvePure(m, metaPath),
-        rootName,
-        deleteFold: deleteFoldsThisRun,
-      });
-      if (!pure) return null;
-      return {
-        entry: pure.entry,
-        hintName: pure.hintName,
-        effects: rootPrefix,
-        writeStoreSpellable: true,
-      };
-    }
-    if (cur?.type !== 'Identifier') return null;
-    // what makes a kept WRITE the base of the navigation is an UNRESOLVABLE HOP inside the value it
-    // stored - the shared plan's own question, whatever spells the hop's key: `(q = globalThis.window)`
-    // hands on the environment probe and the run keeps the write, while a store whose value the
-    // build can spell (`q = globalThis.self`) or one holding a plain realm read this build happens
-    // not to spell (`es.global-this` excluded) leaves the run riding its own landing, the store
-    // re-emitting ahead of it
-    const writeStoreSpellable = !keptWrite || !keptProbeStore(node, m => resolvePure(m, metaPath), spineCtx);
-    if (!POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
-      // an ALIAS of the surface (`const g = globalThis; g.self.Array`) collapses the hops
-      // onto the alias itself - the local binding stays spelled, nothing injects (`g.Array`)
-      // a MINTED root (`_globalThis` inside an emitted guard test) is not an alias to
-      // collapse onto - its hops are the emission's own live reads (the probe semantics).
-      if (metaPath && adapter.getBinding({ scope: metaPath.scope, name: cur.name })?.polyfillHint) return null;
-      const aliased = metaPath && resolveObjectName({ objectNode: cur, scope: metaPath.scope, adapter, path: metaPath });
-      if (aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) && isPristineProxyGlobal(adapter, aliased)) {
-        // the kept write travels with the alias arm too: its stored value decides the base
-        // exactly as it does off a pure root (`(t = g.window).self.Array` reads off the write).
-        // a write storing the ALIAS ITSELF spells that name, so the base re-reads it instead
-        // (`(d = g).self.Atomics` -> `(d = g, g).Atomics`)
-        return {
-          aliasRoot: cur,
-          effects,
-          keptWrite,
-          writeStoreSpellable: writeStoreSpellable || unwrapRuntimeExpr(keptWrite?.right) === cur,
-        };
-      }
-      return null;
-    }
-    // ... and only where the NAME still reads the realm: a LOCAL binding wearing it (`function
-    // f(globalThis) { delete globalThis.self.k }`) holds the user's own object, and collapsing onto
-    // the ponyfill acts on core-js instead of on what the source named. through THE canon, which
-    // answers name and alias alike with the shadow bail (and its position discipline) built in -
-    // detection asks it of every claim, and the spine walks this root itself
-    if (metaPath && !proxyGlobalRootName({ node: cur, scope: metaPath.scope, adapter, path: metaPath })) return null;
-    // the run lands where the shared canon says - the deepest hop pure can back, the root only
-    // when nothing above it is backed. the exception the canon names is a `delete` FOLDING this run
-    // (`deleteFoldsThisRun` above): there the operator names a slot rather than reading a value, and
-    // its base is the run's ROOT binding whatever the hops above spell
-    const pure = metaPath
-      ? proxyRunLandingPure({
-        navNode: node,
-        ctx: spineCtx,
-        resolvePure: m => resolvePure(m, metaPath),
-        rootName: cur.name,
-        deleteFold: deleteFoldsThisRun,
-      })
-      : resolveGlobalPolyfill(cur.name);
-    // a root pure cannot back (`window` - there is no `_window`) collapses to nothing: the
-    // shape is still known, so the caller decides by POSITION (a value resolves its own
-    // claim, a navigation stays raw)
-    if (!pure) return { unbackedRoot: cur, effects };
-    // the STORED VALUE of a kept write is not what a `delete` names - the operator's base is the run
-    // it navigates, the store keeps what the source put in it - so its own spelling comes from the
-    // landing asked WITHOUT the fold's root rule (`delete (t = globalThis.self).window.Promise` ->
-    // `delete (t = _self, _globalThis).Promise`)
-    const valuePure = metaPath ? proxyRunLandingPure({
-      navNode: node,
-      ctx: spineCtx,
-      resolvePure: m => resolvePure(m, metaPath),
-      rootName: cur.name,
-    }) : null;
-    return {
-      entry: pure.entry,
-      hintName: pure.hintName,
-      valueEntry: valuePure?.entry ?? pure.entry,
-      valueHintName: valuePure?.hintName ?? pure.hintName,
-      effects,
-      keptWrite,
-      writeStoreSpellable,
-    };
+  // Native claim provenance determines whether this delete names the run itself.
+  // The provider owns inward admission, root/value landing, stores and effects.
+  function collapseProxyHopSpine(node, metaPath, facts = {}) {
+    const aliasCtx = metaPath ? { scope: metaPath.scope, adapter, path: metaPath } : null;
+    function resolve(meta) { return resolvePure(meta, metaPath); }
+    return planInnerProxyCollapse(node, { ...facts, aliasCtx, resolvePure: resolve,
+      deleteFold: !!metaPath && !!deleteHostForClaim(metaPath, node, { forFold: true })
+        && !dispatchConsumesRun({ path: metaPath, resolvePure: resolve, aliasCtx }) });
   }
 
   // does the RECEIVER carry a live probe guard? this leg's locked syntactic half - a `?.` whose

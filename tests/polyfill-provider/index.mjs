@@ -137,5 +137,6 @@ import './guard-preparation.mjs';
 import './guard-tail.mjs';
 import './kept-proxy-values.mjs';
 import './outer-collapse.mjs';
+import './inner-collapse.mjs';
 import './dispatch-receivers.mjs';
 import './discarded-init.mjs';

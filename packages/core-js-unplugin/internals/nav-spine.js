@@ -3,6 +3,7 @@
 import { prepareKeptMemoTail } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   foldableRealmHop,
+  navValueCanShortCircuit,
   planProvenNavGuardCollapse,
   resolveKey,
   resolveObjectName,
@@ -200,9 +201,8 @@ export function optionalHeirAbove(above, node) {
 // an unbacked realm hop reading a CARRIED value - a kept write's store, the sequence handing it
 // on, the wrappers around either: the store hands its value on, so the hop reads through the
 // ponyfill the value collapses to and folds onto it. the hop's OWN `?.` slides one member up
-// (the probe survives: a void store still short-circuits there); a PLAIN hop instead ERASES the
-// `?.` above - a void store then throws on the member above exactly where the source threw on
-// the hop, and over a defined value the erased guard was vestigial either way. only under a
+// (the probe survives: a void store still short-circuits there). An unbacked tail whose
+// value a later optional reader observes stays in place; other plain hops may fold. Only under a
 // member that can host the read: the chain end keeps its shape for the claim routes to answer.
 // only over a KEPT STORE (an assignment carrier on the climb), whichever spelling roots the
 // probe: a storeless sequence prefix hands its value on too, but there the guard renders in
@@ -233,6 +233,9 @@ export function foldRealmHopOverCarriedValue(basePath, ctx) {
       && foldableRealmHop(node, ctx)) {
       const above = up.parentPath?.node;
       if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== node) return;
+      // An optional reader observes this unbacked tail even when a store carries its base.
+      if (above.optional && navValueCanShortCircuit(above, ctx.resolvePure,
+        { scope: up.scope, adapter: ctx.adapter, path: up }, { throughChainAssign: true })) return;
       above.optional = node.optional === true && optionalHeirAbove(above, node) !== null;
       up.replaceWith(node.object);
     }
