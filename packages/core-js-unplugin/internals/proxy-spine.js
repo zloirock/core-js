@@ -1,31 +1,35 @@
 // the proxy-spine channel of the usage-pure emitter: possible-global claims over pristine
 // hop runs - the spine climbs, the fold/keep/stand-down verdicts, the guard renders and the
 // root/hop claim emissions. created per transform over the factory's shared context
+import {
+  proxyHopClaimRoutes,
+  spineHoldsKeptWrite,
+  staticClaimNavigationRoutes,
+  staticClaimNeedsGuard,
+  navGuardKeepsStoredProbe,
+  probeHopInValue,
+} from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import { planOptionalProbe } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
+  canCollapseDeletedNavigation,
   proxyRunValueIsProven,
   navValueCanShortCircuit,
   navGuardTestBase,
   navGuardTestPlan,
   terminalNavCollapsePlan,
   directClaimProbeEffects,
-  writtenRunKeptProbeStore,
-  navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
   planProvenNavGuardCollapse,
   navPlanNeedsGuard,
   realmRunSplitBySequencePrefix,
   prependChainAssignmentEffect,
   aliasRootedReadMayThrow,
-  deleteGuardKeepingHop,
-  deletedRunCarriesMutatedRealmHop,
   chainReadsThroughSeal,
   deleteHostAboveCarriedChain,
   mutationGuardKeepingHop,
   probeRunIsTheSourceValue,
   pristineRealmHopKey,
   storedUserAssignmentOf,
-  unbackedTailRidesAbove,
   vestigialNavOptionals,
   proxyCollapseConsumer,
   createOuterCollapsePlanner,
@@ -37,7 +41,6 @@ import {
   planGuardedStaticNarrow,
   dispatchConsumesRun,
   planClaimlessCallRootedNav,
-  proxyRunLandingPure,
   planInnerProxyCollapse,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { erasedReceiverRescueNodes, renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -57,7 +60,6 @@ import {
   peelParenAndTSSlotPath,
   peelParenAndTSSlotChild,
   POSSIBLE_GLOBAL_OBJECTS,
-  receiverCarriesLiveOptional,
   runStandsInLoweredGuardTest,
   SKIPPABLE_WRAPPER_TYPES,
   singleReturnBodyExpression,
@@ -67,7 +69,6 @@ import {
   typeArgumentHostOf,
   unwrapRuntimeExpr,
   peelChainAssignment,
-  peelChainAssignmentDeep,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentExpression,
@@ -94,7 +95,6 @@ import {
 } from './emit-shared.js';
 import {
   guardProbeUndefinable,
-  optionalMemberStaysGuarded,
   replaceGuardedHop,
   sealedClaimThrowProbe,
   sealedLayerAbove,
@@ -117,13 +117,10 @@ import {
   noteMutatedCtorHopDestructure,
   optionalHeirAbove,
   plainProxyHopRunAbove,
-  plainRunReadOptionally,
-  probeHopInValue,
   probeValueIsInvoked,
   reReadKeptWriteValue,
   sequenceTailRunAbove,
   sourceSpanKey,
-  spineHoldsKeptWrite,
   keptWriteReader,
   swallowDeadSeqWrapper,
 } from './nav-spine.js';
@@ -530,70 +527,19 @@ export default function createProxySpineChannel(ctx) {
         && !dispatchConsumesRun({ path: metaPath, resolvePure: resolve, aliasCtx }) });
   }
 
-  // does the RECEIVER carry a live probe guard? this leg's locked syntactic half - a `?.` whose
-  // OWN key is the unresolvable hop keeps its guard here whatever the value below (the ut-family
-  // locks) - union the canon's LIVE verdict. CALL-root only: off a name root the guarded-nav
-  // route reading this verdict owes no probe. the DELETE fold asks the canon alone: the syntactic
-  // half answers for a `?.` over a PROVEN root that canon calls dead, and one source then landed
-  // its delete on two bindings
-  function probeKeyedOptionalIn(node, metaPath) {
-    let root = unwrapRuntimeExpr(node);
-    while (root?.type === 'MemberExpression') root = unwrapRuntimeExpr(peelReceiverSequenceTail(root.object));
-    if (root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression') return false;
-    for (let cur = unwrapRuntimeExpr(node); cur?.type === 'MemberExpression';
-      cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object))) {
-      if (cur.optional && unbackedProxyHopKey(cur, m => resolvePure(m, metaPath))) return true;
-    }
-    return !!deleteGuardKeepingHop(node, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath });
-  }
-
-  // the delete verdict for THIS claim: the live climb while the chain above is still the
-  // source's, the spine mark once an earlier emit has rebuilt it
-  // `forFold` asks the second half: may that consumer FOLD the navigation's guards? a `delete`
-  // reads nothing, so the canon takes the whole nav - EXCEPT where a live `?.` guards the
-  // ENVIRONMENT PROBE read itself. that guard is not over a read, it is over whether the delete
-  // HAPPENS, and folding it removes a slot off the ponyfill the source never touches
-  // (`delete ut()?.window?.self?.chrome` leaves `globalThis.chrome` alone on a realm with no
-  // `window`; the folded spelling deletes it). a `?.` over a hop pure CAN spell reads an
-  // always-defined ponyfill and folds like its plain twin (`(globalThis.window).self?.Array`)
+  // Source-span and lowered-test provenance belong to the native binding. The
+  // provider judges mutation and the guard over the exact span this fold erases.
   function deleteHostForClaim(metaPath, node, { forFold = false, canonOnly = false } = {}) {
-    // ... asked through the CARRIER as well: a store or a sequence INSIDE the deleted navigation is a
-    // consumer the plain walk stops at, and every arm below reads this one verdict
-    if (!(deleteHostedSpines.has(sourceSpanKey(node))
-      || deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)
-      || deleteHostAboveCarriedChain(metaPath))) return false;
-    // ... and never a run an earlier emit already LOWERED into a guard's own null test: the source's
-    // `?.` is that test now, the walks above cannot read it out of the scaffold, and the spine mark
-    // keeps answering "deleted" for the span it was taken on
-    if (runStandsInLoweredGuardTest(metaPath, unwrapRuntimeExpr)) return false;
-    // a MUTATED realm hop anywhere in the deleted navigation deopts the run WHOLE, exactly as the
-    // read flavor takes it: the hops BELOW such a hop fold only together with the read above them,
-    // so a collapse that drops them leaves the kept hop reading off a base the source never wrote
-    if (deletedRunCarriesMutatedRealmHop(metaPath, { adapter, unwrap: unwrapRuntimeExpr })) return false;
-    if (!forFold) return true;
-    // the FOLD-BASE arms ask the canon at the CLAIM (a syntactic own-key `?.` whose value is proven
-    // defined is dead and must not demote the root fold to the leaf); the arm below asks the same
-    // canon at the run's TOP, which is the anchor a fold reaching past this claim owes
-    if (canonOnly) {
-      return !deleteGuardKeepingHop(node, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath });
-    }
-    // the keeping-guard question spans the WHOLE deleted navigation: a live `?.` ABOVE this
-    // claim still decides whether the delete happens, so the scan anchors at the chain end
-    // under the delete - a per-claim anchor let the window hop fold the spine out from under
-    // the very guard the `?.self` above it keeps
-    // the top is handed on RAW: the climb ends on whatever the source wrote there - a chain
-    // marker, a paren, a TS cast - and BOTH predicates below open on `unwrapRuntimeExpr` and
-    // read the argument through nothing else, so a peel spelled here re-does theirs over a
-    // SUBSET of the wrapper set and can only fall behind it
-    const top = deletedNavTopPath(metaPath);
-    // the canon and NOTHING beside it: the receiver predicate scopes itself to a call root because
-    // the guarded-nav route reads it too, while the delete question is rooted wherever the source
-    // rooted it - a name, or a carrier standing at one - so a union with it answered by the ROOT's
-    // shape for a `?.` both agree is dead
-    return !deleteGuardKeepingHop(top.node, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath });
+    return canCollapseDeletedNavigation({
+      hosted: deleteHostedSpines.has(sourceSpanKey(node))
+        || deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)
+        || deleteHostAboveCarriedChain(metaPath),
+      loweredGuardTest: runStandsInLoweredGuardTest(metaPath, unwrapRuntimeExpr),
+      mutationPath: metaPath,
+      guardNode: forFold ? canonOnly ? node : deletedNavTopPath(metaPath).node : null,
+      aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+      resolvePure: m => resolvePure(m, metaPath),
+    });
   }
 
   // the run a MUTATING consumer keeps WHOLE, asked where the FOLD reaches. a live `?.` in the run
@@ -864,20 +810,10 @@ export default function createProxySpineChannel(ctx) {
       if (!navPlanNeedsGuard(plan) || !plan.leafPure) continue;
       if (plan.seqAroundPrefix?.length
         || plan.topAssignSteps.length > 1 || (plan.topAssign && plan.topAssign !== plan.rootAssign)) continue;
-      // undefinability living in the KEPT VALUE (not in a nav hop): the source `?.` already
-      // guards it - drop the pristine hop in place and transfer the `?.` to the surviving
-      // read (`(r = globalThis.window)?.self.Array...` -> `(r = _globalThis.window)?.Array...`);
-      // the root identifier keeps its own ordinary swap
-      const probeHop = plan.hops[plan.lastUnresolvableIdx];
-      // ... except where that value is INVOKED: the source short-circuits the call away on
-      // a nullish root, so the hop's read must survive as the callee and the guard renders
-      // ... and except where a `delete` names a slot on a run whose hops pure CAN back: the drop
-      // would erase the very ponyfill that slot hangs off, so the guard render below spells it (the
-      // shape the babel leg lands on the same source). a run carrying a hop pure cannot spell has no
-      // such ponyfill to keep and drops as a read does
-      const deletedBackedRun = deleteHostAboveChain(leafPath, leafPath.node, unwrapRuntimeExpr)
-        && !navHasUnresolvableProxyHop(leafPath.node, resolveHere, aliasCtx);
-      if (probeHopInValue(plan, probeHop) && !probeValueIsInvoked(leafPath) && !deletedBackedRun) {
+      if (navGuardKeepsStoredProbe(plan, {
+        path: leafPath, aliasCtx, invoked: probeValueIsInvoked(leafPath),
+        deleteHosted: deleteHostAboveChain(leafPath, leafPath.node, unwrapRuntimeExpr),
+      })) {
         dropValueProbeNavHops(plan, climbed, metaPath);
         return false;
       }
@@ -1200,103 +1136,32 @@ export default function createProxySpineChannel(ctx) {
   // the POSSIBLE-GLOBAL hop claim over a pristine proxy spine: it collapses to the spine's
   // ROOT binding while retaining its root effects and stores. True when this arm rendered.
   function emitProxyHopClaim({ meta, metaPath, node, entry, hintName }) {
-    // a MUTATED possible-global slot read DIRECTLY above keeps this hop's own claim (the
-    // seal: the read observes the user's replacement through the closest surface binding)
-    // through the wrappers a source PAREN (and the chain wrapper its `?.` wears) puts between
-    // the hop and its consumer: every verdict below is about what READS this hop, and
-    // `(g.window?.self)?.Array` reads it exactly like the bare twin
     const above = climbTransparentWrapperPath(metaPath).parentPath?.node;
-    const aboveKey = above?.type === 'MemberExpression' && unwrapRuntimeExpr(above.object) === node
-      && !above.computed ? above.property?.name : null;
-    const sealedAbove = !!aboveKey && POSSIBLE_GLOBAL_OBJECTS.has(aboveKey)
-      && !isPristineProxyGlobal(adapter, aboveKey, { node: above, path: metaPath });
-    // a `delete` consumer performs no READ, so no `?.` over its navigation is load-bearing
-    // (the canon's own verdict): the hops fold with their guards
-    const deleteTail = deleteHostForClaim(metaPath, node);
-    const deleteHost = deleteHostForClaim(metaPath, node, { forFold: true });
-    // a DEAD `?.` on this hop (its probe provably defined) is no barrier to the spine
-    // collapse - the vestigial verdict, so the run folds onto its root exactly like the
-    // plain twin (`globalThis.self.window?.self.Box` -> `_globalThis.Box`)
-    // ... but a probe living BELOW a kept value is the in-place drop's own shape - the write
-    // must survive, and folding the run onto the root would drop it. the write standing AS
-    // the probe is the other shape: its value is what the test reads, and the collapse
-    // re-emits it as the sequence prefix (`(w = globalThis)?.self[0]` -> `(w = _globalThis,
-    // _globalThis)[0]`, exactly the plain twin's render)
-    // a SEAL makes the read observable only where it HIDES a short-circuit: over a nav whose value
-    // cannot take one it hides nothing the value canon does not already answer, and the run folds
-    // like its unsealed twin (`(globalThis.self.window?.self).Array` IS the realm's read)
-    const sealedRead = (sealedLayerAbove(metaPath, node)
-      && navValueCanShortCircuit(node, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath }))
-      || !!storedUserAssignmentOf(metaPath);
-    const probeIsKeptWrite = unwrapRuntimeExpr(node.object)?.type === 'AssignmentExpression';
-    // ... and none of the value verdicts below reaches a `?.` a MUTATING consumer keeps: they answer
-    // for a value, where a write or a delete performs an act instead - the shared exception says so
-    // and the guard channel owns the shape
-    const mutationGuard = !!mutationKeptHopAt(metaPath);
-    const deadOwnOptional = node.optional && !mutationGuard
-            && (probeIsKeptWrite || !spineHoldsKeptWrite(node.object))
-            && !optionalMemberStaysGuarded(node,
-              { metaPath, adapter, resolvePure, observableRead: sealedRead });
-    // a nav rendered INSIDE a guard test is the read that test performs: folding an UNBACKED
-    // hop away there would test a value the source never reads (`(m = globalThis.window.self)
-    // ?.x` stores `null == _globalThis.window ? void 0 : _self`, not a bare `_self`)
-    const probeTestUnbackedHop = insideMemoClone(metaPath, probeTestClones)
-      && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath), { scope: metaPath.scope, adapter, path: metaPath });
-    if (probeTestUnbackedHop
-      && emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName, planNode: node })) return true;
-    // a `?.` among the run's own hops is no barrier when the value canon proves the WHOLE
-    // nav - this hop's own `?.` included - cannot short-circuit (every `?.` reads an
-    // always-defined value: a realm name, a store holding one - `globalThis?.window.self.X`
-    // and `(w = globalThis)?.window.self.X` fold like their plain twins). asked THROUGH a
-    // chain-assign, the explicit value question: a store holding the PROBE keeps its `?.`
-    // live with the guard channels (`(held = globalThis.window)?.self` - the locked
-    // stored-probe canon), a store holding the realm is its plain twin
-    const deadSpineOptionals = !navValueCanShortCircuit(node, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true });
-    let collapsed = sealedAbove || mutationGuard ? null
-      : collapseProxyHopSpine(node, metaPath,
-        { allowOptional: deleteHost || deadOwnOptional || deadSpineOptionals,
-          provenCallRoot: deleteHostForClaim(metaPath, node, { forFold: true, canonOnly: true }) || !deleteTail });
-    // a root the collapse cannot spell (`window` - there is no `_window`; an entry this build does
-    // not inject) leaves the SPINE with nothing to land, but the claim itself still rides the
-    // deepest span pure can back: `window.self.Array` is `_self.Array`, the same value the source
-    // reads, where standing down left a raw realm read in pure output. what stays raw is what
-    // nothing can spell - the bare root, and a run with no backed hop under it (`window.window.X`)
-    if (collapsed?.unbackedRoot) collapsed = null;
-    // an OPTIONAL member above will split and absorb this hop with its own guard - a
-    // standalone render here would nest a second test inside that split's memo
-    // (`(dw = gw)?.self?.[k]...` folds to ONE probe in babel)
-    // ... but only a claim ABOVE can absorb it. with an ENVIRONMENT PROBE below this hop and
-    // no claim above to carry it, standing down here erases the short-circuit outright
-    // (`ut()?.window?.self?.chrome.foo` - nothing claims `chrome`)
-    const probedReceiver = !deleteHost && receiverCarriesLiveOptional(node.object)
-      && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath), { scope: metaPath.scope, adapter, path: metaPath });
-    const optionalAbove = above?.type === 'MemberExpression'
-      && unwrapRuntimeExpr(above.object) === node && above.optional && !probedReceiver;
-    // a `delete` consumer reads nothing over its navigation, so no `?.` in it is load-bearing
-    // and the guarded render owes nothing (`delete dl()?.window?.self.missing` -> `delete
-    // _self.missing`) - the same verdict the spine collapse takes through `allowOptional`
-    // an ERASABLE hop whose own `?.` probes a KEPT-WRITE UNDEFINABLE value - and that no
-    // claim above absorbs - drops in place: the stored surface IS the hop's surface when
-    // present, so the read above keeps the short-circuit and no import lands
-    // (`(se(), t = gw)?.self.Array.prototype.some...` -> `(se(), t = _gw)?.Array...`,
-    // babel's fold)
-    if (!collapsed && !sealedAbove && !optionalAbove && !deleteHost && node.optional
-      && POSSIBLE_GLOBAL_OBJECTS.has(hintName) && resolveGlobalPolyfill(hintName)
-      && above?.type === 'MemberExpression' && unwrapRuntimeExpr(above.object) === node) {
-      let probeStore = unwrapRuntimeExpr(node.object);
-      if (probeStore?.type === 'SequenceExpression') probeStore = unwrapRuntimeExpr(probeStore.expressions.at(-1));
-      const storeValue = unwrapRuntimeExpr(peelChainAssignmentDeep(probeStore));
-      const storeUndefinable = peelChainAssignmentDeep(probeStore) !== probeStore
-        && storeValue?.type === 'MemberExpression' && !storeValue.computed
-        && POSSIBLE_GLOBAL_OBJECTS.has(storeValue.property?.name)
-        && !resolveGlobalPolyfill(storeValue.property?.name);
-      if (storeUndefinable) {
+    const routes = proxyHopClaimRoutes({
+      node, above, hintName,
+      aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+      resolvePure: m => resolvePure(m, metaPath),
+      sealed: sealedLayerAbove(metaPath, node),
+      stored: !!storedUserAssignmentOf(metaPath),
+      probeTest: insideMemoClone(metaPath, probeTestClones),
+      deleteHosted: deleteHostForClaim(metaPath, node),
+      deleteFold: deleteHostForClaim(metaPath, node, { forFold: true }),
+      deleteRunFold: () => deleteHostForClaim(metaPath, node, { forFold: true }),
+      deleteClaimFold: () => deleteHostForClaim(metaPath, node, { forFold: true, canonOnly: true }),
+    });
+    for (const route of routes) {
+      if (route.kind === 'static-guard') {
+        if (emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName,
+          planNode: node, declineValueProbe: route.declineValueProbe, sealedRead: route.sealedRead })) return true;
+        continue;
+      }
+      if (route.kind === 'root-guard') {
+        if (emitRootGuardedNavCollapse(metaPath)) return true;
+        continue;
+      }
+      if (route.kind === 'stored-probe') {
         markRewrite();
-        // the read above inherits the `?.` only where nothing SEALS the hop away from it: a paren
-        // between them ends the short-circuit, so the hop drops INSIDE the seal and the read above
-        // stays plain, throwing on the void exactly where the source does
+        // A source seal ends the short-circuit: only an open continuation inherits it.
         if (optionalHeirAbove(above, node)) {
           above.optional = true;
           replaceNodeInTree(above, above.object, node.object);
@@ -1304,84 +1169,45 @@ export default function createProxySpineChannel(ctx) {
         skippedNodes.add(node);
         return true;
       }
-    }
-    // a `?.` that guards NOTHING asks for no render here: the own optional has the canon's
-    // verdict already (`deadOwnOptional`), and a syntactic one inside the receiver is judged by
-    // the value canon - over an always-defined read it folds with the rest of the run instead of
-    // earning a probe guard (`(v = globalThis.self?.window?.self).X` IS the realm)
-    const guardedReceiver = (node.optional && !deadOwnOptional)
-      || probeKeyedOptionalIn(node.object, metaPath)
-      || (receiverCarriesLiveOptional(node.object)
-        && navValueCanShortCircuit(node.object, m => resolvePure(m, metaPath),
-          { scope: metaPath.scope, adapter, path: metaPath }));
-    if (!collapsed && !sealedAbove && !optionalAbove && !deleteHost && guardedReceiver
-      && unbackedTailRidesAbove(metaPath, m => resolvePure(m, metaPath))
-      && emitRootGuardedNavCollapse(metaPath)) return true;
-    if (!collapsed && !sealedAbove && !optionalAbove && !deleteHost && guardedReceiver
-      && emitStaticOverGuardedNav({
-        meta,
+      const { collapsed, deleteFold: deleteHost } = route;
+      const aboveScope = metaPath.scope;
+      // under a FOLDED `delete` the connector may sit above a CARRIER the fold left in the way (a
+      // re-emitted effect prefix): the member reading the folded value is the one past it, and the
+      // canon has spoken for the whole navigation there. every other position keeps the direct read
+      let connector = above;
+      if (deleteHost && above && above.type !== 'MemberExpression') {
+        let carried = climbTransparentWrapperPath(metaPath);
+        let connectorPath = carried.parentPath;
+        while (connectorPath?.node && chainValueCarrier(connectorPath.node, carried.node)) {
+          carried = climbTransparentWrapperPath(connectorPath);
+          connectorPath = carried.parentPath;
+        }
+        connector = connectorPath?.node ?? above;
+      }
+      if (renderProxySpineCollapse({
         metaPath,
-        node,
+        collapsed,
         entry,
         hintName,
-        planNode: node,
-        declineValueProbe: true,
-        sealedRead,
-      })) {
+        allowOptional: deleteHost,
+        deadOptionalHop: deadOptionalHopAt(metaPath),
+      }) === false) {
+        return false;
+      }
+      // the collapse lands the root's own binding, so a `?.` left standing on the SURVIVING
+      // connector is vestigial - the root rewrite spells the `.` itself (`globalThis?.self
+      // ?.Array` -> `_globalThis.Array`). the canonical judge decides per hop, so a probe
+      // whose value can still be undefined keeps its guard
+      if (connector?.type === 'MemberExpression') {
+        // under a FOLDED `delete` the canon has spoken for the whole navigation: the collapse
+        // landed the root binding, and a `?.` over it guards a read that never happens
+        if (deleteHost && connector.optional) connector.optional = false;
+        for (const hop of vestigialNavOptionals(connector, m => resolvePure(m, metaPath),
+          { scope: aboveScope, adapter, path: metaPath })) hop.optional = false;
+      }
       return true;
     }
-    // ... and the same verdict where the `?.` sits ABOVE a plain run - but only where that `?.`
-    // is LIVE: asked by hop presence the arm guarded a read of a value the collapse assumption
-    // defines (a deeper unbacked hop is a realm self-reference), where the run folds whole
-    if (collapsed && !deleteHost && !sealedAbove
-      && navValueCanShortCircuit(metaPath.parentPath?.node ?? node, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath })
-      && plainRunReadOptionally(metaPath, node, proxyHopKey)
-      && emitStaticOverGuardedNav({
-        meta,
-        metaPath,
-        node,
-        entry,
-        hintName,
-        planNode: node,
-      })) return true;
-    if (!collapsed) return false;
-    const aboveScope = metaPath.scope;
-    // under a FOLDED `delete` the connector may sit above a CARRIER the fold left in the way (a
-    // re-emitted effect prefix): the member reading the folded value is the one past it, and the
-    // canon has spoken for the whole navigation there. every other position keeps the direct read
-    let connector = above;
-    if (deleteHost && above && above.type !== 'MemberExpression') {
-      let carried = climbTransparentWrapperPath(metaPath);
-      let connectorPath = carried.parentPath;
-      while (connectorPath?.node && chainValueCarrier(connectorPath.node, carried.node)) {
-        carried = climbTransparentWrapperPath(connectorPath);
-        connectorPath = carried.parentPath;
-      }
-      connector = connectorPath?.node ?? above;
-    }
-    if (renderProxySpineCollapse({
-      metaPath,
-      collapsed,
-      entry,
-      hintName,
-      allowOptional: deleteHost,
-      deadOptionalHop: deadOptionalHopAt(metaPath),
-    }) === false) {
-      return false;
-    }
-    // the collapse lands the root's own binding, so a `?.` left standing on the SURVIVING
-    // connector is vestigial - the root rewrite spells the `.` itself (`globalThis?.self
-    // ?.Array` -> `_globalThis.Array`). the canonical judge decides per hop, so a probe
-    // whose value can still be undefined keeps its guard
-    if (connector?.type === 'MemberExpression') {
-      // under a FOLDED `delete` the canon has spoken for the whole navigation: the collapse
-      // landed the root binding, and a `?.` over it guards a read that never happens
-      if (deleteHost && connector.optional) connector.optional = false;
-      for (const hop of vestigialNavOptionals(connector, m => resolvePure(m, metaPath),
-        { scope: aboveScope, adapter, path: metaPath })) hop.optional = false;
-    }
-    return true;
+    return false;
   }
 
   // the span a claim SWAP consumes: a TS wrapper (a cast, a non-null, their paren skins) around the
@@ -1469,103 +1295,56 @@ export default function createProxySpineChannel(ctx) {
 
   // the kept-root hop collapse first, then the plain static / global claim swap
   function emitStaticGlobalClaim({ meta, metaPath, node, kind, entry, hintName }) {
-    // a `delete` whose whole navigation folds has no short-circuit for a guard render to
-    // reproduce, and a guard built there hands `delete` a conditional, which deletes nothing
-    const foldsUnderDelete = deleteHostForClaim(metaPath, node, { forFold: true });
-    // a POSSIBLE-GLOBAL hop claim over a pristine proxy spine collapses to the spine's
-    // ROOT binding while retaining its root effects and stores.
-    if (node.type === 'MemberExpression' && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)) {
-      // ... unless an unresolvable hop sits BELOW the collapse point: the spine render spells the
-      // leaf unconditionally, where the source's own read short-circuits
-      if (emitNestedGuardNavValue(metaPath, node, nestedGuardCtx)) return;
-      const hopArm = emitProxyHopClaim({ meta, metaPath, node, entry, hintName });
-      if (hopArm) return;
-      // a run WRITTEN through a kept store of the environment probe lands on that store instead of
-      // the ponyfill, the hops above it dropping: the swap below would perform the write on the realm
-      // where the source throws
-      const writtenStore = writtenRunKeptProbeStore(metaPath, {
-        resolvePure: m => resolvePure(m, metaPath),
-        aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
-        unwrap: unwrapRuntimeExpr,
-      });
-      if (writtenStore) {
-        const effects = erasedReceiverEffects({ meta, metaPath, node });
-        // ... and where an effect runs PAST the store (a hop key's), the hops stay as the source spells them
-        if (effects?.at(-1) === writtenStore) {
-          markRewrite();
-          climbSubstitutedSpan(metaPath).replaceWith(effects.length > 1 ? sequenceExpression(effects) : effects[0]);
+    const routes = staticClaimNavigationRoutes({
+      node,
+      kind,
+      hintName,
+      meta,
+      aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+      resolvePure: m => resolvePure(m, metaPath),
+      deletion: () => deleteHostForClaim(metaPath, node, { forFold: true }),
+      sealedThrow: () => sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx),
+      rootRun(allowOptional) {
+        const deadOptionalHop = deadOptionalHopAt(metaPath);
+        return { run: plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional, deadOptionalHop }), deadOptionalHop };
+      },
+    });
+    for (const route of routes) {
+      switch (route.kind) {
+        case 'nested-guard':
+          if (emitNestedGuardNavValue(metaPath, node, nestedGuardCtx)) return;
+          break;
+        case 'hop':
+          if (emitProxyHopClaim({ meta, metaPath, node, entry, hintName })) return;
+          break;
+        case 'written-store': {
+          const effects = erasedReceiverEffects({ meta, metaPath, node });
+          if (effects?.at(-1) === route.store) {
+            markRewrite();
+            climbSubstitutedSpan(metaPath).replaceWith(effects.length > 1 ? sequenceExpression(effects) : effects[0]);
+          }
+          return;
         }
-        return;
-      }
-    }
-    // absorbing an optional member above is the pre-order SKIP's business, not a shape read here: a
-    // `?.` member that resolved nothing renders nothing, and reading it by shape stood BOTH guard
-    // routes down for one - this arm and the probe-guard arm below - leaving the short-circuit to
-    // nobody (`delete ut()?.window?.self?.chrome` shipped as `delete (ut(), _self).chrome`)
-    if (node.type === 'MemberExpression'
-      && (node.optional || receiverCarriesLiveOptional(node.object))
-      && !sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx)
-      && !foldsUnderDelete
-      && emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName })) return;
-    if (node.type === 'Identifier' && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
-      && !meta.sideEffects?.length) {
-      // a destructure off this surface whose sole hop is a MUTATED ctor has no claim of
-      // its own to drive the flatten - note the host so the drain re-anchors its residual
-      noteMutatedCtorHopDestructure(metaPath, node, { adapter, destructureEmit });
-      // a `delete` reads nothing over its navigation, so the guarded route stands down and
-      // the hops fold with their `?.` (`delete globalThis.window?.self.k` -> `delete
-      // _globalThis.k`) - the canon's erase verdict, spelled here
-      // ... asked through the CARRIER too: a store or a sequence inside the deleted navigation is a
-      // consumer the plain walk stops at, and reading it as "no delete above" left the run spelled
-      // where its carrier-less twin folds onto the root binding
-      // ... and the FOLD half of it: a live `?.` over the environment probe decides whether the
-      // delete happens, and every arm below this binding erases optionality on its word
-      const rootDeleteHost = deleteHostForClaim(metaPath, node, { forFold: true });
-      if (!rootDeleteHost && emitRootGuardedNavCollapse(metaPath)) return;
-      // a bare ROOT navigated through PLAIN hops pure cannot back takes the same spine
-      // render: the hops fold away under navigation and respell in value position
-      // (`globalThis.window.Array` -> `_globalThis.Array`, `globalThis.window` kept). a
-      // LIVE `?.` anywhere in that run keeps every hop - it IS the environment probe the
-      // source asked for, and folding it away would drop the test; a `?.` the vestigial
-      // verdict calls dead guards the substituted binding and leaves the run plain
-      const deadOptionalHop = deadOptionalHopAt(metaPath);
-      const proxyRun = plainProxyHopRunAbove(metaPath, proxyHopKey,
-        { allowOptional: rootDeleteHost, deadOptionalHop });
-      // ... and never under a TERMINAL run the source READS: that value IS the environment probe
-      // (`globalThis.self.window`), so every hop stays spelled - the verdict the hop claim's own
-      // stand-down takes. asked of the RUN, not of the walk's extent: a MUTATED terminal slot ends
-      // the walk early, and reading that as "nothing rides above" folded the hops under a probe the
-      // file happens to delete from elsewhere
-      // where the run lands is the shared canon's question, asked of the RUN this claim navigates:
-      // a backed hop over the root carries it (`globalThis.self.Array` -> `_self.Array`), and a
-      // `delete` keeps the root binding by its own rule
-      const runPure = proxyRun && proxyRunLandingPure({
-        navNode: proxyRun.child,
-        ctx: { scope: metaPath.scope, adapter, path: metaPath },
-        resolvePure: m => resolvePure(m, metaPath),
-        rootName: node.name,
-        deleteFold: !!rootDeleteHost,
-      });
-      if (proxyRun && (rootDeleteHost || !unbackedTailRidesAbove(metaPath, m => resolvePure(m, metaPath)))
-        && renderProxySpineCollapse({
-          metaPath,
-          collapsed: {
-            entry: runPure?.entry ?? entry,
-            hintName: runPure?.hintName ?? hintName,
-            effects: [],
-          },
-          entry,
-          hintName,
-          allowOptional: rootDeleteHost,
-          deadOptionalHop,
-        }) !== false) {
-        // ... and no `?.` on the read ABOVE the run is load-bearing either - but only where the
-        // collapse landed the ROOT BINDING itself. an UNBACKED hop left spelled off it
-        // (`_globalThis.window`, a sealed run's stop) is still the environment probe, and the
-        // read above it keeps its guard
-        if (rootDeleteHost && proxyRun.consumer?.type === 'MemberExpression'
-          && carriedValue(proxyRun.consumer.object)?.type === 'Identifier') proxyRun.consumer.optional = false;
-        return;
+        case 'static-guard':
+          if (emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName })) return;
+          break;
+        case 'root-host':
+          noteMutatedCtorHopDestructure(metaPath, node, { adapter, destructureEmit });
+          break;
+        case 'root-guard':
+          if (emitRootGuardedNavCollapse(metaPath)) return;
+          break;
+        case 'root-collapse':
+          if (renderProxySpineCollapse({
+            metaPath,
+            collapsed: { entry: route.pure?.entry ?? entry, hintName: route.pure?.hintName ?? hintName, effects: [] },
+            entry, hintName, allowOptional: route.deleteFold, deadOptionalHop: route.deadOptionalHop,
+          }) !== false) {
+            // Only a root binding makes the surviving connector's optional vestigial.
+            if (route.deleteFold && route.run.consumer?.type === 'MemberExpression'
+              && carriedValue(route.run.consumer.object)?.type === 'Identifier') route.run.consumer.optional = false;
+            return;
+          }
       }
     }
     // static / global claim: the member (or bare identifier) becomes the import binding;
@@ -1576,9 +1355,7 @@ export default function createProxySpineChannel(ctx) {
     // optional hop's own spelling) becomes the null test, the claim rides the alternate
     // (`condFn?.()?.Array.of(12)` -> `null == condFn?.() ? void 0 : _Array$of(12)`) - a
     // seq rescue would erase the short-circuit
-    if (node.type === 'MemberExpression'
-      && (node.optional || receiverCarriesLiveOptional(node.object))
-      && !sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx)
+    if (staticClaimNeedsGuard(node, () => sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx))
       && emitLiveOptionalProbeGuard({ metaPath, node, entry, hintName, effects, receiverEffectCount: meta.receiverEffectCount })) return;
     if (!effects?.length && sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure, markRewrite })) return;
     if (node.type === 'MemberExpression') effects = erasedReceiverEffects({ meta, metaPath, node });

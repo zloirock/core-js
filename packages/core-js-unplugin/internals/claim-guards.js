@@ -4,7 +4,6 @@ import { guardProbeUndefinable as probeValueCanBeUndefined } from '@core-js/poly
 import {
   directClaimProbePlan,
   deleteHostAboveCarriedChain,
-  descendToChainRoot,
   createGuardTailPlanner,
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
@@ -420,47 +419,6 @@ export function guardProbeUndefinable(probe, { metaPath, adapter, resolvePure, .
   return probeValueCanBeUndefined(probe, {
     path: metaPath, adapter, resolvePure: meta => resolvePure(meta, metaPath), ...options,
   });
-}
-
-// an optional STATIC member keeps its guard routes when its OBJECT can genuinely be undefined -
-// a live `?.` inside it, or a value read THROUGH a kept write
-export function optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePure, observableRead = false }) {
-  // the INSTANCE route reads a VALUE through the sequence, so a nested one leaves it unproven
-  const seqOpts = { metaPath, adapter, resolvePure, nestedSeqUnproven: true };
-  // a `?.` inside the receiver guards only when its PROBE can genuinely be undefined -
-  // a chain of always-defined reads erases whole (`globalThis?.Array?.from` -> `_Array$from`).
-  // the inner probe being defined answers only for the hops BELOW: the hop's own READ can
-  // still be the environment probe, and that value is what OUR `?.` tests
-  // (`globalThis?.window?.self` - `globalThis` is defined, `window` is not backed, the guard stays)
-  let cur = unwrapRuntimeExpr(node.object);
-  while (cur?.type === 'MemberExpression') {
-    if (cur.optional) {
-      if (guardProbeUndefinable(cur.object, seqOpts)) return true;
-      // the extended value question fires only on a SOURCE proxy-global root: a rendered
-      // span roots at a minted always-defined binding, and its vestigial `?.` keeps the
-      // erase the re-emit spelled (the sealed respell owns the probe there)
-      const { root } = descendToChainRoot(cur);
-      if (root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return false;
-      // ... asked of the RECEIVER, which is the value OUR `?.` tests - not of this link. hops
-      // standing between them are realm self-references the collapse assumption defines, so the
-      // link's own verdict guarded a run whose plain twin folds whole
-      // (`globalThis?.window.window?.self` reads the realm exactly like `globalThis.window.window?.self`)
-      break;
-    }
-    cur = unwrapRuntimeExpr(cur.object);
-  }
-  if (cur?.type === 'CallExpression' && cur.optional) return guardProbeUndefinable(cur, seqOpts);
-  let probeObject = unwrapRuntimeExpr(node.object);
-  let sawWrite = false;
-  while (probeObject?.type === 'AssignmentExpression') {
-    sawWrite = true;
-    probeObject = unwrapRuntimeExpr(probeObject.right);
-  }
-  // a BARE call value guards even proven (the strict opaque-root canon: `(() =>
-  // globalThis)()?.self...` keeps its test); a KEPT WRITE of it erases (the write observes)
-  if (!sawWrite && probeObject?.type === 'CallExpression' && !probeObject.optional) return true;
-  return proxyReceiverValueCanBeUndefined(probeObject, m => resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true, observableRead });
 }
 
 // does a LOAD-BEARING seal below the claim own the render? the read it made observable rides

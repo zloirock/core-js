@@ -1,3 +1,4 @@
+import { spineHoldsKeptWrite } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // the optional-dispatch channel of the usage-pure emitter: the `?.` split forms (a doubly
 // optional call, an optional member hop, the receiver splits) and the instance/inherited
 // dispatches with their guard spellings. created per transform over the factory's context
@@ -83,7 +84,6 @@ import {
   navRootIsProxyIdentifier,
   nodeTypeRefinement,
   spineCarriesComputedHop,
-  spineHoldsKeptWrite,
   stampSourceCallType,
 } from './nav-spine.js';
 import {

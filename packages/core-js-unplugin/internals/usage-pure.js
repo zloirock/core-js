@@ -1,3 +1,4 @@
+import { optionalMemberStaysGuarded } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   aliasRootedReadMayThrow,
   discardRescueNodes,
@@ -61,7 +62,6 @@ import {
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
   guardProbeUndefinable,
-  optionalMemberStaysGuarded,
   replaceGuardedHop,
   sealedClaimThrowProbe,
   sealedLayerAbove,
@@ -920,7 +920,7 @@ export default function createAstUsagePureCallback({
     // the claimed binding is always defined, so the `?.` erases with the member; an object
     // that can genuinely be undefined (an environment probe) keeps its guard routes
     if (node.type === 'MemberExpression' && node.optional
-      && optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePure })
+      && optionalMemberStaysGuarded(node, { path: metaPath, adapter, resolvePure: m => resolvePure(m, metaPath) })
       && !sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx)
       && !deleteHostForClaim(metaPath, node, { forFold: true })
       && emitOwnOptionalGuardedClaim({ meta, metaPath, node, parent, kind, entry, hintName })) return;

@@ -97,7 +97,7 @@ import {
   seBearingChainRootCall,
   symbolSourcedFoldedKey,
   ownChainOptionalCount,
-  deleteGuardKeepingHop,
+  canCollapseDeletedNavigation,
   findProxyGlobal,
   foldableRealmHop,
   inlineCallHasObservableEffects,
@@ -405,9 +405,11 @@ export function planProxyReceiver(receiver, {
   // once for every root kind, or one source shape lands on two bindings (an identifier root rode
   // the run's root binding where its call-rooted twin rode the ponyfill)
   const deleteConsumer = !!aliasCtx?.path
-    && deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr)
-    && !dispatchConsumesRun({ path: aliasCtx.path, resolvePure, aliasCtx })
-    && !deleteGuardKeepingHop(receiver, resolvePure, aliasCtx);
+    && canCollapseDeletedNavigation({
+      hosted: deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr)
+        && !dispatchConsumesRun({ path: aliasCtx.path, resolvePure, aliasCtx }),
+      guardNode: receiver, resolvePure, aliasCtx,
+    });
   // ... and the hop a MUTATING consumer keeps stands this collapse down whatever the value canon
   // says about the probe: the guard channel owns that shape, and folding here lands the write or
   // the delete on the ponyfill global in the realms where the source throws
@@ -847,7 +849,8 @@ export function planClaimlessCallRootedNav({
   if (guardedRun && !deleteFold) return { verdict: 'guard', endPath };
   const deleteRunEnd = deleteFold
     ? unwrapRuntimeExpr(memberChainEndPath({ path: endPath, unwrap: unwrapRuntimeExpr })?.node) ?? endNode : endNode;
-  if (deleteFold && deleteGuardKeepingHop(deleteRunEnd, resolvePure, ctx)) return { verdict: 'stand-down', endPath };
+  if (deleteFold && !canCollapseDeletedNavigation({ hosted: deleteFold, guardNode: deleteRunEnd,
+    resolvePure, aliasCtx: ctx })) return { verdict: 'stand-down', endPath };
   if ((root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression') || root.optional) return declined;
   const rootId = inlineCallProxyGlobalRoot({ callNode: root, ...ctx, rejectConditional: true });
   if (!rootId) return declined;
