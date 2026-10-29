@@ -12,6 +12,7 @@ import {
   proxyReceiverValueCanBeUndefined,
   resolveKey,
   resolveObjectName,
+  unbackedProxyHopKey,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -613,7 +614,10 @@ export default function createOptionalDispatchChannel(ctx) {
         // whole in the memo, and the hops fold onto it as before (`(sc++, p = globalThis.window)
         // ?.self?.self.Array`)
         const innerNav = unwrapRuntimeExpr(innerHop?.object);
-        if (innerHop && !(innerNav?.type === 'MemberExpression' && holdsProxySurface(innerNav, metaPath))
+        // An unbacked hop is a separate read: `realm?.window?.self` must test the
+        // window slot even when the earlier assignment already captured the realm.
+        if (innerHop && !unbackedProxyHopKey(innerHop, meta => resolvePure(meta, metaPath))
+          && !(innerNav?.type === 'MemberExpression' && holdsProxySurface(innerNav, metaPath))
           && (innerHop.type !== 'MemberExpression' || !innerHop.optional
             || guardProbeUndefinable(innerHop.object, { metaPath, adapter, resolvePure }))) {
           const surfaced = splitOptionalReceiverInner(node.object, metaPath);
