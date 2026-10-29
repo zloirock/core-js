@@ -139,5 +139,6 @@ import './kept-proxy-values.mjs';
 import './outer-collapse.mjs';
 import './inner-collapse.mjs';
 import './proxy-navigation.mjs';
+import './root-delete-collapse.mjs';
 import './dispatch-receivers.mjs';
 import './discarded-init.mjs';

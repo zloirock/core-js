@@ -1,7 +1,6 @@
 import {
   collectFoldedReceiverSideEffects,
   memberProxyHopName,
-  asProxyGlobalName,
   deleteHostAboveChain,
   claimIsInert,
   detectCommonJS,
@@ -128,7 +127,6 @@ import {
   restoreIdleRelocations,
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
-  provenRealmCallName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   isKnownGlobalName,
@@ -138,15 +136,12 @@ import {
 import {
   aliasHeldClaimProbe,
   aliasRootedReadMayThrow,
-  resolveObjectName,
   isAliasProxyHopChain,
   sealedChainBoundary,
   ownChainOptionalObjects,
   prependChainAssignmentEffect,
-  descendToChainRoot,
   canCollapseDeletedNavigation,
   deleteHostAboveCarriedChain,
-  peelReceiverSequenceTail,
   receiverSequenceTailKeys,
   probeRenderedReceiver,
   probeRunIsTheSourceValue,
@@ -157,7 +152,6 @@ import {
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
-  globalProxyMemberName,
   realmSelectionCollapseOperand,
   writtenRunKeptProbeStore,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -166,6 +160,7 @@ import {
   planGuardedStaticNarrow,
   resolveSymbolIteratorEntry,
   symbolIteratorHint,
+  planDeletedProxyClaim,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -1661,104 +1656,34 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             ? chainRootPath : path;
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null,
             { keptSeqHopFold: true })) return;
-          // a proxy-HOP claim whose navigation a `delete` folds WHOLE reaches its slot off the ROOT
-          // binding, not off the hop's own ponyfill - that is the base every other spelling of this
-          // source lands on, and the drive that spells it cannot fire from the hop itself
-          // asked through the wrappers one parser keeps as NODES (`((w = globalThis)).self...`
-          // under createParenthesizedExpressions) - the raw-path test read only the flag dialect
           const chainRootCore = unwrapRuntimeExpr(chainRootPath.node);
-          // ... and a SEQUENCE at the root is a carrier like the store beside it: what it hands on is
-          // the root the plain twin lands, and its prefix re-emits ahead of that binding with the rest
-          // of the dropped span. a carrier decides what RUNS, never what the delete lands on - so the
-          // tail is peeled FIRST and the store question asked of what it hands on
-          const carriedRootCore = unwrapRuntimeExpr(peelReceiverSequenceTail(chainRootCore));
-          const chainAssignRootValueName = carriedRootCore?.type === 'AssignmentExpression'
-            && carriedRootCore.operator === '='
-            ? asProxyGlobalName(resolveObjectName({
-              objectNode: carriedRootCore, scope: path.scope, adapter, path,
-            })) : null;
-          const seqRootName = carriedRootCore?.type === 'Identifier'
-            ? asProxyGlobalName(carriedRootCore.name) : null;
-          // ... and where the store's VALUE is itself a nav this build cannot spell (`(d = globalThis
-          // .window)?.self.k`), the base is that nav's own ROOT: the delete lands the root binding and
-          // the store keeps what the source put in it - the read channel's kept-store canon answers a
-          // different question (what a READ through the store sees)
-          const storedNavRootName = carriedRootCore?.type === 'AssignmentExpression'
-            && carriedRootCore.operator === '='
-            ? asProxyGlobalName(descendToChainRoot(carriedRootCore.right, true).root?.name) : null;
-          const carriedCallRoot = carriedRootCore?.type === 'CallExpression' ? carriedRootCore : null;
-          // the hop is named STRUCTURALLY first and, for a computed key the structural fold cannot
-          // read (a TS enum member spells one), through the proxy-name canon carrying the claim-safe
-          // resolver - named only one way, this gate let an enum-spelled hop past the `delete` fold
-          // and the run landed on its deepest backed hop instead of the operator's root binding
-          const deleteHopName = memberProxyHopName(path.node) ?? (path.node.computed
-            ? asProxyGlobalName(globalProxyMemberName({
-              node: path.node,
-              scope: path.scope,
-              adapter,
-              path,
-              resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
-            }))
-            : null);
-          // ... and never where a MUTATED realm slot stands BETWEEN this claim and the deleted one:
-          // that hop holds the user's own object and the run keeps every hop, so landing the root
-          // binding under it rewrote what it reads off (`delete globalThis.self.window.k` with the
-          // `window` slot written became `_globalThis.window.k`, one import short of the read twin's
-          // `_self.window.k`). the same question the spine's own fold asks, in its one home
-          if (deleteHopName
-            && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression()
-              || chainAssignRootValueName || seqRootName || storedNavRootName || carriedCallRoot)
-            && canCollapseDeletedNavigation({
+          const deleted = planDeletedProxyClaim(path.node, {
+            aliasCtx: { scope: path.scope, adapter, path },
+            resolvePure: m => resolvePure(m, path),
+            claimName: hintName,
+            deleteFold: canCollapseDeletedNavigation({
               hosted: deleteHostAboveChain(path, path.node, unwrapRuntimeExpr),
               mutationPath: path,
               guardNode: path.scope ? memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node : null,
               aliasCtx: { scope: path.scope, adapter, path },
               resolvePure: m => resolvePure(m, path),
-            })) {
-            // the `?.` the source wrote over the folded nav guards a read that never happens: the
-            // fold landed the root binding, and the canon has spoken for the whole navigation -
-            // the shared dangling-optional rule spells it, carriers and all
-            // ... and it lands in the slot the claim's own swap takes, the TS wrappers on the span
-            // included: the bare binding needs no assertion (`delete (f().window.self as any).k`)
-            function landFoldedRoot(base) {
-              const landing = peelParenAndTSSlotPath(path);
-              landing.replaceWith(base);
-              deoptionalizeDanglingOptionalParent(landing);
-            }
-            // a PROVEN effect-free call yielding a DEFINED global is the identifier spelling's
-            // twin and folds onto the same root ponyfill; a probe yield keeps the per-hop
-            // channels (the leaf canon), an effectful call has no slot to replay what it did
-            function provenCallRootName() {
-              const callNode = carriedCallRoot ?? chainRootPath.node;
-              if (callNode.optional || !path.scope) return null;
-              return provenRealmCallName(callNode, { scope: path.scope, adapter, path },
-                { rejectConditional: true, definedBy: m => resolvePure(m, path) });
-            }
-            const rootName = chainRootPath.isIdentifier() ? asProxyGlobalName(chainRootPath.node.name)
-              : chainAssignRootValueName ?? seqRootName ?? storedNavRootName ?? asProxyGlobalName(provenCallRootName());
-            let rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
-            // ... and where the stored VALUE's own name is one pure cannot back (`window`), the base
-            // falls back to the nav's ROOT: the delete lands the root binding either way, and the
-            // store keeps what the source put in it
-            if (!rootPure && storedNavRootName && storedNavRootName !== rootName) {
-              rootPure = resolvePure({ kind: 'global', name: storedNavRootName }, path);
-            }
-            if (rootPure) {
-              const base = injectPureImport(rootPure.entry, rootPure.hintName);
-              // the fold DROPS the whole receiver span, so what the source ran on the way in
-              // re-emits ahead of the base, where it ran: the user's own chain-assign (`delete
-              // (w = globalThis).self.k` -> `delete (w = _globalThis, _globalThis).k`) and the
-              // effect buried in a hop's computed KEY, which the deleted member's own key does
-              // not carry (`delete globalThis[(eff(), 'self')].k`)
-              const dropped = collectFoldedReceiverSideEffects(path.node, { ctx: { scope: path.scope, adapter, path } });
-              landFoldedRoot(dropped.length ? t.sequenceExpression([...dropped, base]) : base);
+            }),
+          });
+          if (deleted) {
+            if (deleted.keep) {
+              synthSwap?.refreshKeptStore(path, deleted.keep);
+              peelParenAndTSSlotPath(path).replaceWith(deleted.effects.length
+                ? t.sequenceExpression([...deleted.effects, deleted.keep]) : deleted.keep);
               return;
             }
-            if (!rootName && chainRootPath.isIdentifier()
-              && isAliasProxyHopChain(path.node, path.scope ? { scope: path.scope, adapter, path } : null)) {
-              landFoldedRoot(t.cloneNode(chainRootPath.node));
-              return;
-            }
+            const base = deleted.alias ? t.cloneNode(deleted.alias)
+              : injectPureImport(deleted.pure.entry, deleted.pure.hintName);
+            const dropped = deleted.alias ? [] : collectFoldedReceiverSideEffects(path.node,
+              { ctx: { scope: path.scope, adapter, path } });
+            const landing = peelParenAndTSSlotPath(path);
+            landing.replaceWith(dropped.length ? t.sequenceExpression([...dropped, base]) : base);
+            deoptionalizeDanglingOptionalParent(landing);
+            return;
           }
           // the call-rooted twin of the hop-collapse drive: a claim on a proxy HOP whose chain
           // roots in an inline-resolvable call has no root-identifier visit to fold from, so the
