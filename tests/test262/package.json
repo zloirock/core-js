@@ -1,7 +1,7 @@
 {
   "name": "tests/test262",
   "devDependencies": {
-    "test262": "tc39/test262#d5e73fc8d2c663554fb72e2380a8c2bc1a318a33",
+    "test262": "tc39/test262#0b4e0812022b18236b5276d2804948fdd9f71603",
     "test262-harness": "^10.0.0"
   }
 }

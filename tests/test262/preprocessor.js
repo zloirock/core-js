@@ -1,11 +1,19 @@
 'use strict';
+const failures = require('./expected-failures');
+
+const expectedFailures = new Set(failures);
+
 const include = [
   'Array',
   // 'ArrayBuffer',
   'ArrayIteratorPrototype',
+  'AsyncDisposableStack',
   'Boolean',
   // 'DataView',
+  'DataView/prototype/getFloat16',
+  'DataView/prototype/setFloat16',
   // 'Date',
+  'DisposableStack',
   'Error',
   'Function/prototype',
   'Iterator',
@@ -24,9 +32,11 @@ const include = [
   'SetIteratorPrototype',
   'String',
   'StringIteratorPrototype',
+  'SuppressedError',
   'Symbol',
   // 'TypedArray',
   // 'TypedArrayConstructors',
+  'Uint8Array',
   'WeakMap',
   'WeakSet',
   'decodeURI',
@@ -44,8 +54,6 @@ const include = [
 const exclude = [
   '/Function/prototype/toString/',
   '/Object/internals/DefineOwnProperty/',
-  // conflict with iterators helpers proposal
-  '/Object/prototype/toString/symbol-tag-non-str-builtin',
   '/RegExp/property-escapes/',
   'detached-buffer',
   'detach-typedarray',
@@ -55,8 +63,9 @@ const exclude = [
 ];
 
 module.exports = test => {
-  const { file } = test;
+  const file = test.file.replaceAll('\\', '/');
   if (!include.some(namespace => file.includes(`built-ins/${ namespace }/`))) return null;
   if (exclude.some(it => file.includes(it))) return null;
+  if (expectedFailures.has(file.slice(file.indexOf('built-ins/')))) return null;
   return test;
 };

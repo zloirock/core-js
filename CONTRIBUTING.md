@@ -114,6 +114,13 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare bundle-package test262
   ```
+  The runner first checks its filters and failure exit status, then runs the selected built-in tests recursively.
+  Known failures are excluded by exact path in [`tests/test262/expected-failures.js`](tests/test262/expected-failures.js), with reasons; review this list when updating Test262 or the supported Node versions.
+  Any remaining failure makes the command fail. To run just the runner's regression tests:
+  ```sh
+  npm run zxi time cd tests/test262/tests.mjs
+  ```
+  To narrow a run, pass paths relative to `tests/test262`, for example `npm run test262 -- 'node_modules/test262/test/built-ins/Uint8Array/**/*.js'`.
 - [Promises/A+](https://github.com/promises-aplus/promises-tests) and [ES6 `Promise`](https://github.com/promises-es6/promises-es6) test cases:
   ```sh
   npx run-s prepare test-promises
