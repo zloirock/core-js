@@ -1,3 +1,5 @@
+await $`node tests/unit-node/structured-clone.mjs`;
+
 await Promise.all([
   ['packages/core-js/index', 'tests/bundles/unit-global'],
   ['packages/core-js/index', 'packages/core-js-bundle/index', 'tests/bundles/unit-global'],

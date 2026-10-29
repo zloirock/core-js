@@ -7,6 +7,7 @@ import { bufferToArray, fromSource } from '../helpers/helpers.js';
 import structuredClone from 'core-js-pure/stable/structured-clone';
 import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
+import defineProperty from 'core-js-pure/es/object/define-property';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import keys from 'core-js-pure/es/object/keys';
 import Symbol from 'core-js-pure/es/symbol';
@@ -154,7 +155,87 @@ QUnit.module('structuredClone', () => {
       assert.same(new DataView(buffer).byteLength, 0, 'source is attached');
     });
 
-    // TODO SharedArrayBuffer
+    const SharedArrayBuffer = fromSource('SharedArrayBuffer');
+    if (SharedArrayBuffer) QUnit.test('SharedArrayBuffer', assert => {
+      const buffer = new SharedArrayBuffer(8);
+      const view = new Uint8Array(buffer);
+      const copy = structuredClone({ buffer, view });
+      assert.notSame(copy.view, view, 'view copied');
+      assert.same(copy.view.buffer, copy.buffer, 'shared buffer reference');
+      new Uint8Array(copy.buffer)[0] = 73;
+      assert.same(view[0], 73, 'memory stays shared');
+    });
+
+    if (SharedArrayBuffer && 'growable' in SharedArrayBuffer.prototype) {
+      QUnit.test('Growable SharedArrayBuffer views', assert => {
+        for (const C of [Uint8Array, Uint16Array, DataView]) {
+          for (const bufferFirst of [false, true]) {
+            const buffer = new SharedArrayBuffer(8, { maxByteLength: 16 });
+            const tracking = new C(buffer, 2);
+            const fixed = new C(buffer, 2, 6 / (C.BYTES_PER_ELEMENT || 1));
+            const emptyTracking = new C(buffer, 8);
+            const emptyFixed = new C(buffer, 8, 0);
+            const graph = bufferFirst
+              ? { buffer, tracking, fixed, emptyTracking, emptyFixed }
+              : { tracking, fixed, emptyTracking, emptyFixed, buffer };
+            let reads = 0;
+            defineProperty(graph, 'again', {
+              enumerable: true,
+              get() {
+                reads++;
+                return tracking;
+              },
+            });
+            graph.self = graph;
+            graph.error = new AggregateError([tracking], 'shared', { cause: fixed });
+            graph.map = new Map([['first', 1], [tracking, buffer], [buffer, fixed], ['last', tracking]]);
+            graph.set = new Set(['first', tracking, buffer, fixed]);
+            graph.set.add(graph.set);
+
+            const copy = structuredClone(graph);
+            assert.same(buffer.byteLength, 8, 'cloning does not grow the source');
+            assert.true(copy.buffer instanceof SharedArrayBuffer, 'shared buffer type preserved');
+            assert.same(copy.again, copy.tracking, 'repeated view reference');
+            assert.same(reads, 1, 'source getter runs once');
+            assert.same(copy.self, copy, 'circular reference');
+            assert.same(copy.error.errors[0], copy.tracking, 'AggregateError shares the tracking view');
+            assert.same(copy.error.cause, copy.fixed, 'AggregateError shares the fixed view');
+            for (const key of ['tracking', 'fixed', 'emptyTracking', 'emptyFixed']) {
+              assert.same(copy[key].buffer, copy.buffer, `${ key } shares the cloned buffer`);
+              assert.same(copy[key].byteOffset, graph[key].byteOffset, `${ key } offset`);
+            }
+            assert.arrayEqual(from(copy.map.keys()), ['first', copy.tracking, copy.buffer, 'last'], 'Map key order');
+            assert.same(copy.map.get(copy.tracking), copy.buffer, 'Map value reference');
+            assert.same(copy.map.get(copy.buffer), copy.fixed, 'Map buffer key');
+            assert.arrayEqual(from(copy.set), ['first', copy.tracking, copy.buffer, copy.fixed, copy.set], 'Set order and cycle');
+            copy.buffer.grow(16);
+            assert.same(copy.tracking.byteLength, 14, 'tracking view grows');
+            assert.same(copy.fixed.byteLength, 6, 'fixed view keeps its length');
+            assert.same(copy.emptyTracking.byteLength, 8, 'empty tracking view grows');
+            assert.same(copy.emptyFixed.byteLength, 0, 'empty fixed view stays empty');
+            assert.same(buffer.byteLength, 16, 'growth stays shared');
+            new Uint8Array(copy.buffer)[0] = 73;
+            assert.same(new Uint8Array(buffer)[0], 73, 'writes stay shared');
+          }
+        }
+      });
+
+      QUnit.test('Empty growable SharedArrayBuffer views', assert => {
+        for (const C of [Uint8Array, Uint16Array, DataView]) {
+          for (const maxByteLength of [0, 8]) {
+            const buffer = new SharedArrayBuffer(0, { maxByteLength });
+            const tracking = new C(buffer);
+            const fixed = new C(buffer, 0, 0);
+            const copy = structuredClone({ buffer, tracking, fixed });
+            assert.same(copy.tracking.buffer, copy.buffer, 'tracking buffer reference');
+            assert.same(copy.fixed.buffer, copy.buffer, 'fixed buffer reference');
+            copy.buffer.grow(maxByteLength);
+            assert.same(copy.tracking.byteLength, maxByteLength, 'tracking view follows the buffer');
+            assert.same(copy.fixed.byteLength, 0, 'fixed view stays empty');
+          }
+        }
+      });
+    }
 
     // Array Buffer Views
     if (typeof Int8Array != 'undefined') {
@@ -195,6 +276,111 @@ QUnit.module('structuredClone', () => {
     }
 
     if ('resizable' in ArrayBuffer.prototype) {
+      /* eslint-disable es/no-resizable-and-growable-arraybuffers -- guarded by resizable support */
+      QUnit.test('Resizable ArrayBuffer views', assert => {
+        const constructors = [Uint8Array, Uint16Array, DataView];
+        const BigInt64Array = fromSource('BigInt64Array');
+        if (BigInt64Array) constructors.push(BigInt64Array);
+
+        for (const C of constructors) {
+          const bytes = C.BYTES_PER_ELEMENT || 1;
+          for (const bufferFirst of [false, true]) {
+            const buffer = new ArrayBuffer(16, { maxByteLength: 32 });
+            const data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+            new Uint8Array(buffer).set(data);
+            const tracking = new C(buffer, 8);
+            const fixed = new C(buffer, 8, 8 / bytes);
+            const emptyTracking = new C(buffer, 16);
+            const emptyFixed = new C(buffer, 16, 0);
+            const graph = bufferFirst
+              ? { buffer, tracking, fixed, emptyTracking, emptyFixed }
+              : { tracking, fixed, emptyTracking, emptyFixed, buffer };
+            graph.again = tracking;
+            graph.self = graph;
+            graph.error = new AggregateError([tracking], 'message', { cause: fixed });
+
+            const copy = structuredClone(graph);
+            assert.same(copy.again, copy.tracking, 'repeated view reference');
+            assert.same(copy.self, copy, 'circular reference');
+            assert.same(copy.error.errors[0], copy.tracking, 'AggregateError shares the tracking view');
+            assert.same(copy.error.cause, copy.fixed, 'AggregateError shares the fixed view');
+            for (const key of ['tracking', 'fixed', 'emptyTracking', 'emptyFixed']) {
+              assert.same(copy[key].buffer, copy.buffer, `${ key } shares the cloned buffer`);
+              assert.same(copy[key].byteOffset, graph[key].byteOffset, `${ key } offset`);
+            }
+            assert.arrayEqual(bufferToArray(copy.buffer), data, 'cloned bytes');
+            copy.buffer.resize(32);
+            assert.same(copy.tracking.byteLength, 24, 'tracking view grows');
+            assert.same(copy.fixed.byteLength, 8, 'fixed view keeps its length');
+            assert.same(copy.emptyTracking.byteLength, 16, 'empty tracking view grows');
+            assert.same(copy.emptyFixed.byteLength, 0, 'empty fixed view stays empty');
+            copy.buffer.resize(8);
+            assert.same(copy.tracking.byteLength, 0, 'tracking view shrinks to an empty view');
+            copy.buffer.resize(16);
+            assert.same(copy.fixed.byteLength, 8, 'fixed view returns in bounds');
+            assert.same(buffer.byteLength, 16, 'source length is unchanged');
+            assert.arrayEqual(bufferToArray(buffer), data, 'source bytes are unchanged');
+
+            const standalone = structuredClone(tracking);
+            standalone.buffer.resize(32);
+            assert.same(standalone.byteLength, 24, 'standalone tracking view grows');
+          }
+        }
+      });
+
+      QUnit.test('Empty resizable ArrayBuffer views', assert => {
+        for (const C of [Uint8Array, Uint16Array, DataView]) {
+          for (const maxByteLength of [0, 16]) {
+            const buffer = new ArrayBuffer(0, { maxByteLength });
+            const tracking = new C(buffer);
+            const fixed = new C(buffer, 0, 0);
+            const copy = structuredClone({ buffer, tracking, fixed });
+            assert.same(copy.tracking.buffer, copy.buffer, 'tracking view shares the cloned buffer');
+            assert.same(copy.fixed.buffer, copy.buffer, 'fixed view shares the cloned buffer');
+            copy.buffer.resize(maxByteLength);
+            assert.same(copy.tracking.byteLength, maxByteLength, 'tracking view follows the buffer');
+            assert.same(copy.fixed.byteLength, 0, 'fixed view stays empty');
+          }
+        }
+      });
+
+      QUnit.test('Out-of-bounds resizable ArrayBuffer views', assert => {
+        for (const C of [Uint8Array, Uint16Array, DataView]) {
+          const bytes = C.BYTES_PER_ELEMENT || 1;
+          const buffer = new ArrayBuffer(16, { maxByteLength: 32 });
+          const views = [
+            new C(buffer, 0, 16 / bytes),
+            new C(buffer, 8, 8 / bytes),
+            new C(buffer, 8),
+            new C(buffer, 16, 0),
+          ];
+          buffer.resize(4);
+          for (const view of views) {
+            assert.throws(() => structuredClone(view), error => error.name === 'DataCloneError', 'out-of-bounds view');
+            assert.throws(() => structuredClone({ buffer, view }), error => error.name === 'DataCloneError', 'buffer cloned first');
+            assert.throws(() => structuredClone(view, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'out-of-bounds transfer');
+            assert.same(buffer.byteLength, 4, 'failed transfer preserves the source buffer');
+          }
+        }
+      });
+
+      if (fromSource('ArrayBuffer.prototype.transfer')) QUnit.test('Resizable ArrayBuffer views with transfer', assert => {
+        for (const C of [Uint8Array, Uint16Array, DataView]) {
+          const buffer = new ArrayBuffer(8, { maxByteLength: 16 });
+          const tracking = new C(buffer);
+          const fixed = new C(buffer, 0, 8 / (C.BYTES_PER_ELEMENT || 1));
+          const copy = structuredClone({ buffer, tracking, fixed }, { transfer: [buffer] });
+          assert.same(buffer.byteLength, 0, 'source buffer detached');
+          assert.same(copy.tracking.buffer, copy.buffer, 'tracking view shares the transferred buffer');
+          assert.same(copy.fixed.buffer, copy.buffer, 'fixed view shares the transferred buffer');
+          copy.buffer.resize(16);
+          assert.same(copy.tracking.byteLength, 16, 'tracking view grows');
+          assert.same(copy.fixed.byteLength, 8, 'fixed view keeps its length');
+          assert.throws(() => structuredClone(tracking), error => error.name === 'DataCloneError', 'detached tracking view');
+          assert.throws(() => structuredClone(fixed), error => error.name === 'DataCloneError', 'detached fixed view');
+        }
+      });
+      /* eslint-enable es/no-resizable-and-growable-arraybuffers -- restore restrictions */
       QUnit.test('Resizable ArrayBuffer', assert => {
         const array = [1, 2, 3, 4, 5, 6, 7, 8];
 

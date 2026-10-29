@@ -22,6 +22,7 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
+var mapIterate = require('../internals/map-iterate');
 var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
 var isDetached = require('../internals/array-buffer-is-detached');
@@ -39,12 +40,15 @@ var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
 var mapGet = MapHelpers.get;
 var mapSet = MapHelpers.set;
+var mapRemove = MapHelpers.remove;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
+var setRemove = SetHelpers.remove;
 var objectKeys = getBuiltIn('Object', 'keys');
 var push = uncurryThis([].push);
 var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
+var arrayBufferResize = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.resize);
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
@@ -52,6 +56,7 @@ var thisTimeValue = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
+var SHARED_OBJECTS = {};
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
@@ -91,8 +96,10 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // https://github.com/nodejs/node/issues/41038
 // only FF103+ supports new (html/5749) error cloning semantic
 var nativeStructuredClone = globalThis.structuredClone;
+var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone);
 
 var FORCED_REPLACEMENT = IS_PURE
+  || !nativeRestrictedStructuredClone
   || !checkErrorsCloning(nativeStructuredClone, Error)
   || !checkErrorsCloning(nativeStructuredClone, DOMException)
   || !checkNewErrorsCloningSemantic(nativeStructuredClone);
@@ -112,7 +119,7 @@ var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(funct
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 });
 
-var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) || structuredCloneFromMark;
+nativeRestrictedStructuredClone = nativeRestrictedStructuredClone || structuredCloneFromMark;
 
 var throwUncloneable = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
@@ -148,7 +155,7 @@ var cloneBuffer = function (value, map, $type) {
   if (type === 'SharedArrayBuffer') {
     if (nativeRestrictedStructuredClone) clone = nativeRestrictedStructuredClone(value);
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
-    else clone = value;
+    if (!clone || classof(clone) !== 'SharedArrayBuffer') clone = value;
   } else {
     var DataView = globalThis.DataView;
 
@@ -181,21 +188,64 @@ var cloneBuffer = function (value, map, $type) {
   return clone;
 };
 
-var cloneView = function (value, type, offset, length, map) {
+var cloneView = function (value, type, map) {
   var C = globalThis[type];
   // in some old engines like Safari 9, typeof C is 'object'
   // on Uint8ClampedArray or some other constructors
   if (!isObject(C)) throwUnpolyfillable(type);
-  return new C(cloneBuffer(value.buffer, map), offset, length);
+  var buffer = value.buffer;
+  var isDataView = type === 'DataView';
+  var isGrowable = buffer.growable;
+  var offset, length, cloned, clonedBuffer, byteLength, shared, sharedClone;
+
+  if (buffer.resizable || isGrowable) {
+    // native cloning validates the view and preserves its length-tracking mode
+    cloned = tryNativeRestrictedStructuredClone(value, type);
+    // older WebKit clones shared buffers as non-shared buffers
+    sharedClone = isGrowable && cloned.buffer.growable;
+    if (isGrowable && !sharedClone && !cloned.buffer.resizable) throwUnpolyfillable(type);
+    if (sharedClone) {
+      shared = mapGet(map, SHARED_OBJECTS);
+      if (!shared) mapSet(map, SHARED_OBJECTS, shared = []);
+      push(shared, value);
+      push(shared, buffer);
+    }
+    if ((!isGrowable || sharedClone) && !mapHas(map, buffer)) {
+      mapSet(map, buffer, cloned.buffer);
+      return cloned;
+    }
+    if (sharedClone) return cloned;
+    offset = cloned.byteOffset;
+    length = isDataView ? cloned.byteLength : cloned.length;
+    clonedBuffer = cloned.buffer;
+    // probe a temporary copy, never the source or the buffer shared by cloned views
+    // nonempty fixed views become out of bounds; empty tracking views grow by one element
+    byteLength = offset + (length ? 0 : C.BYTES_PER_ELEMENT || 1);
+    if (byteLength <= clonedBuffer.maxByteLength) {
+      arrayBufferResize(clonedBuffer, byteLength);
+      if (!fails(function () {
+        // polyfilled typed array methods may accept out-of-bounds views
+        if (!isDataView) nativeRestrictedStructuredClone(cloned);
+        return cloned.byteLength === 0 && length === 0;
+      })) length = undefined;
+    }
+  } else {
+    try {
+      offset = value.byteOffset;
+      length = isDataView ? value.byteLength : value.length;
+    } catch (error) {
+      throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
+    }
+  }
+
+  return new C(cloneBuffer(buffer, map), offset, length);
 };
 
 var structuredCloneInternal = function (value, map) {
   if (isSymbol(value)) throwUncloneable('Symbol');
   if (!isObject(value)) return value;
   // effectively preserves circular references
-  if (map) {
-    if (mapHas(map, value)) return mapGet(map, value);
-  } else map = new Map();
+  if (mapHas(map, value)) return mapGet(map, value);
 
   var type = classof(value);
   var C, name, cloned, dataTransfer, i, length, keys, key;
@@ -262,8 +312,7 @@ var structuredCloneInternal = function (value, map) {
     case 'Float64Array':
     case 'BigInt64Array':
     case 'BigUint64Array':
-      length = type === 'DataView' ? value.byteLength : value.length;
-      cloned = cloneView(value, type, value.byteOffset, length, map);
+      cloned = cloneView(value, type, map);
       break;
     case 'DOMQuad':
       try {
@@ -432,6 +481,49 @@ var structuredCloneInternal = function (value, map) {
   return cloned;
 };
 
+// shared memory has no byte snapshot to take before visiting later properties
+// only references in our completed clones are updated; source getters are not revisited
+var resolveSharedClones = function (map) {
+  var shared = mapGet(map, SHARED_OBJECTS);
+  var copies = nativeRestrictedStructuredClone(shared);
+  var replacements = new Map();
+  var i;
+  for (i = 0; i < copies.length; i++) mapSet(replacements, mapGet(map, shared[i]), copies[i]);
+  var replace = function (value) {
+    return mapHas(replacements, value) ? mapGet(replacements, value) : value;
+  };
+  mapIterate(map, function (cloned, original) {
+    if (original === SHARED_OBJECTS) return;
+    var type = classof(cloned);
+    var entries, keys, key, value, j;
+    if (type === 'Map') {
+      entries = [];
+      mapIterate(cloned, function (v, k) {
+        push(entries, [replace(k), replace(v)]);
+        mapRemove(cloned, k);
+      });
+      for (j = 0; j < entries.length; j++) mapSet(cloned, entries[j][0], entries[j][1]);
+    } else if (type === 'Set') {
+      entries = [];
+      setIterate(cloned, function (v) {
+        push(entries, replace(v));
+        setRemove(cloned, v);
+      });
+      for (j = 0; j < entries.length; j++) setAdd(cloned, entries[j]);
+    } else {
+      if (type === 'Array' || type === 'Object') keys = objectKeys(cloned);
+      else if (type === 'Error' || type === 'DOMException') keys = ['message', 'cause', 'errors', 'error', 'suppressed', 'stack'];
+      if (keys) for (j = 0; j < keys.length; j++) {
+        key = keys[j];
+        if (hasOwn(cloned, key)) {
+          value = cloned[key];
+          if (mapHas(replacements, value)) cloned[key] = mapGet(replacements, value);
+        }
+      }
+    }
+  });
+};
+
 var tryToTransfer = function (rawTransfer, map) {
   if (!isObject(rawTransfer)) throw new TypeError('Transfer option cannot be converted to a sequence');
 
@@ -522,14 +614,16 @@ $({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, for
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
-    var map, buffers;
+    var map = isObject(value) ? new Map() : undefined;
+    var buffers;
 
     if (transfer !== undefined) {
-      map = new Map();
+      if (!map) map = new Map();
       buffers = tryToTransfer(transfer, map);
     }
 
     var clone = structuredCloneInternal(value, map);
+    if (map && mapHas(map, SHARED_OBJECTS)) resolveSharedClones(map);
 
     // since of an issue with cloning views of transferred buffers, we a forced to detach them later
     // https://github.com/zloirock/core-js/issues/1265
