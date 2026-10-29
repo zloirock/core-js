@@ -22,10 +22,7 @@ import {
   isSynthSimpleObjectPattern,
   deleteHostAboveChain,
   unwrapRuntimeExpr,
-  isDestructurePattern,
   POSSIBLE_GLOBAL_OBJECTS,
-  bindingPolyfillHint,
-  trustedIdentifierAliasWrite,
   peelChainAssignment,
   runtimeChainRoot,
   pathOfNode,
@@ -51,10 +48,11 @@ import {
   renderClaimProbe,
 } from '@core-js/polyfill-provider/render';
 import {
+  collapseRootHoldsItsGlobal,
+  planInnerProxyCollapse,
   planMemoReadTarget,
   planProxyReceiver,
   planKeptSequenceReceiver,
-  proxyRunLandingPure,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
@@ -70,7 +68,6 @@ import {
   navValueCanShortCircuit,
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
-  proxyReceiverValueCanBeUndefined,
   resolveSynthKeys,
   directClaimProbePlan,
   directClaimProbeEffects,
@@ -315,25 +312,11 @@ export default function createSynthSwapEmitter({
   // member that consumes the maximal proxy-hop prefix and collapse it through the shared receiver
   // collapse - `_globalThis.Array`. returns true when it rewrote (the caller skips the bare swap);
   // false for a bare root (`globalThis.Array`, no hop) so the natural identifier swap handles it
-  // eslint-disable-next-line max-statements -- one verdict per consumer the drive may stand under
   function collapseProxyHopRoot(idPath, aliasCtx, { keptSeqHopFold = false } = {}) {
-    // fire for a proxy-global NAME root (`globalThis` / `self` / ...) OR an alias of one (`const g =
-    // globalThis; g.self.X` -> `g.X`): the alias-aware `findProxyGlobal` follows the binding so an
-    // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
-    // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
-    if (!findProxyGlobal(idPath.node, aliasCtx, true)) return false;
-    // a MULTIPLY-written user binding at the chain root authorizes this collapse only through its
-    // TRUSTED write: the weaker resolutions answer "which global the name refers to", never "it holds
-    // that global HERE", and a hop dropped on that answer moved with an unrelated EARLIER statement's
-    // write to the same name - two identical source expressions in one file collapsed differently,
-    // the first keeping the hop its twins below dropped
-    if (!collapseRootHoldsItsGlobal(descendToChainRoot(idPath.node, true).root, aliasCtx)) return false;
-    // the climb's guard compares ROOT to ROOT: the canonical descent always peels to the innermost
-    // identifier, while the anchor may be an Identifier, the chain-assign EXPRESSION, or a member the
-    // assign stores (`(k = globalThis.self)?...` anchors at `globalThis.self`). comparing the descent's
-    // root against the anchor NODE only ever matched the Identifier case - every other anchor shape made
-    // the climb die at its first non-member parent, leaving the redundant hop raw
-    const anchorRoot = descendToChainRoot(idPath.node, true).root ?? idPath.node;
+    // Anchor by the source root, including when the cursor names a stored member or
+    // an assignment. Alias admission and trust are shared with the inward source plan.
+    const anchorRoot = findProxyGlobal(idPath.node, aliasCtx, true);
+    if (!anchorRoot || !collapseRootHoldsItsGlobal(anchorRoot, aliasCtx)) return false;
     let recPath = idPath.parentPath;
     // track the DEEPEST all-proxy member: a chain with a non-proxy leaf breaks AT that leaf (`.self.window
     // .foo` -> collapse `.foo`), but an ALL-proxy chain with no non-proxy leaf (`globalThis.self.window` as a
@@ -396,37 +379,18 @@ export default function createSynthSwapEmitter({
     const ctx = ctxPath?.node;
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
-    // an ALL-proxy chain END (`globalThis.self.window`, no non-proxy leaf) collapses to the bare root ONLY as
-    // a DISCARDED destructure SOURCE whose value the canon calls DEFINED - a deep unresolvable hop is a
-    // realm self-reference, invariant of which global names it, safe to drop (`{Object:OD} = _globalThis`);
-    // an absent-able value is the environment PROBE and declines below. a value-USE (`const x =
-    // globalThis.self.window`) keeps the raw hops: it reads `window`, which throws off-browser exactly as
-    // the source does (finding-e faithful-throw)
-    if (allProxyEnd && !isDestructurePattern(target)) return false;
-    // the all-proxy chain's LAST hop is itself a proxy. only collapse when SOME hop is UNRESOLVABLE
-    // (`.window`, no `_window` - `collapseProxyGlobalReceiver` keeps it as `_globalThis.window`, undefined
-    // off-engine): drop every hop onto the binding the landing canon names - the deepest one pure can
-    // back, the root when none of them is (`{x} = globalThis.window.self` reads `_self`, `{x} =
-    // globalThis.window` reads `_globalThis`). when every hop resolves (`.self` -> `_self`) keep the
-    // natural per-hop resolution (`{x} = globalThis.self` -> `_self`). a computed hop key may carry SE
-    // (`globalThis[(c++,'self')].window`) - out of scope for this bare drop, defer
+    // Native discovery supplies the consuming pattern and intervening value observers;
+    // the common source plan decides whether the all-proxy source can fold whole.
     if (allProxyEnd) {
-      if (valueObservingCarrier) return false;
-      // ... and only where the value canon calls the nav DEFINED (a deep unresolvable hop is a
-      // realm self-reference): a value that can be absent is the environment PROBE, and the
-      // always-defined root would destructure where native throws - decline to the natural
-      // root swap, whose kept raw hop keeps the throw (`= _globalThis.window`)
-      if (!navHasUnresolvableProxyHop(recPath.node, resolvePure, aliasCtx)
-        || proxyReceiverValueCanBeUndefined(recPath.node, resolvePure, aliasCtx)) return false;
-      const rootIdent = findProxyGlobal(recPath.node, aliasCtx, true);
-      const rootPure = rootIdent && proxyRunLandingPure({
-        navNode: recPath.node, ctx: aliasCtx, resolvePure, rootName: rootIdent.name,
+      const source = planInnerProxyCollapse(recPath.node, {
+        aliasCtx,
+        resolvePure,
+        root: findProxyGlobal(recPath.node, aliasCtx, true),
+        allowOptional: true,
+        valueConsumer: { target, observed: valueObservingCarrier },
       });
-      if (!rootPure) return false;
-      for (let n = recPath.node; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = n.object) {
-        if (n.computed) return false;
-      }
-      recPath.replaceWith(injectPureImport(rootPure.entry, rootPure.hintName));
+      if (!source?.entry) return false;
+      recPath.replaceWith(injectPureImport(source.entry, source.hintName));
       return true;
     }
     // a mutation TARGET (`globalThis.{self,window}.Map = fn` / `delete ...` / `...++`, the canonical
@@ -492,33 +456,6 @@ export default function createSynthSwapEmitter({
       skippedNodes.add(collapsedMember);
     }
     return true;
-  }
-
-  // a proxy-global PONYFILL import at the chain root ends the collapse: the hop above it is one a
-  // guard render deliberately kept (a computed key and its effects - the alternate of a probe), and
-  // folding it drops the effects that read owes. asked of the SHAPE, never of a per-pass
-  // registry: re-run over its own output this emitter has no memory of what it rendered, and the fold
-  // then ran once more each pass - a user's own import of the same entry reads the same way
-  function proxyPureImportRoot(root, aliasCtx) {
-    const binding = adapter.getBinding?.({ scope: aliasCtx.scope, name: root.name, path: aliasCtx.path });
-    if (!binding?.importSource) return false;
-    const hint = bindingPolyfillHint({ binding, scope: aliasCtx.scope, name: root.name, adapter });
-    return !!hint && POSSIBLE_GLOBAL_OBJECTS.has(hint);
-  }
-
-  // does a MULTIPLY-written user binding at a chain root actually HOLD its global at this read? only its
-  // TRUSTED write says so: the weaker resolutions answer which global the name refers to, never that it
-  // holds it HERE, and a hop dropped on that answer moved with an unrelated EARLIER statement's write to
-  // the same name - two identical source expressions in one file collapsed differently, the first keeping
-  // the hop its twins below dropped. a single-write binding keeps the ordinary resolution
-  function collapseRootHoldsItsGlobal(root, aliasCtx) {
-    if (root?.type !== 'Identifier' || POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
-    if (proxyPureImportRoot(root, aliasCtx)) return false;
-    const binding = adapter.getBinding?.({ scope: aliasCtx.scope, name: root.name, path: aliasCtx.path });
-    if ((binding?.constantViolations?.length ?? 0) <= 1) return true;
-    return !!trustedIdentifierAliasWrite({
-      scope: aliasCtx.scope, name: root.name, adapter, path: aliasCtx.path, readNode: root,
-    });
   }
 
   // Native source clones retain directive anchors; the provider selects all literal values.
