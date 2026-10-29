@@ -480,14 +480,13 @@ function walkGuardSourceHops(value, aliasCtx, resolvePure) {
       break;
     }
     root = peelReceiverSequenceTail(next);
-    // a chain-assign bottom holding an UNDEFINABLE nav is where the source lives (`(w = globalThis
-    // .window)?.self` - the probe is the stored value): keep walking into it, and remember the write,
-    // which is what the test has to spell so the store still happens. a write storing a DEFINED value
-    // (`(held = (k(9), globalThis))?.window`) contributes no source and keeps the walk's old bottom
+    // Walk the stored value through all carriers, retaining the write's position. A
+    // probe inside the write tests the whole store; one above it keeps its own source.
+    // A backed stored surface is still the root of the environment probe above it.
     const stored = peelChainAssignment(root);
-    if (stored.outer && navHasUnresolvableProxyHop(stored.value, resolvePure, aliasCtx)) {
+    if (stored.outer) {
       crossedAssign ??= { node: stored.outer, hopsAbove: hopsInfo.length };
-      root = peelReceiverSequenceTail(unwrapRuntimeExpr(stored.value));
+      root = peelChainRootValue(stored.value);
     }
   }
   return { hopsInfo, root, depth, sealedAt, crossedAssign };
@@ -5676,7 +5675,7 @@ export function claimProbeSourceSlot(source, resolvePure, ctx) {
       node = node.expression;
     } else if (isMemberAccessNode(node)) {
       if (visitChildren && node.computed) children.push(node.property);
-      served.push(path);
+      if (visitChildren) served.push(path);
       if (dead.has(node)) deopt.push(path);
       path = [...path, 'object'];
       node = node.object;
@@ -6131,7 +6130,11 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   // off `globalThis.self`); a PLAIN multi-hop nav collapses whole and its `?.` deopts instead
   // An unspellable root leaves the navigation raw, so its terminal probe is an observable
   // read too. The effect-bearing spelling of a hop has the same value as its dotted twin.
-  if (observableRead || !realmRootIsSpellable(core, resolvePure)) {
+  // A value query also observes the surface stored BELOW the terminal probe. The
+  // store fixes that base: `(held = globalThis.self).window` still reads window,
+  // including when effects and further assignments wrap the stored surface.
+  if (observableRead || (throughChainAssign && peelChainAssignment(rootRaw).outer)
+    || !realmRootIsSpellable(core, resolvePure)) {
     while (rootObj?.type === 'MemberExpression' || rootObj?.type === 'OptionalMemberExpression') {
       const hopName = realmHopKeyName(rootObj, aliasCtx, { allowSideEffectKeys: true });
       if (!hopName || !POSSIBLE_GLOBAL_OBJECTS.has(hopName)) break;
@@ -6160,7 +6163,7 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
 // verdict and a fold's landing cannot disagree about it
 export function proxyRunValueIsProven(node, resolvePure, aliasCtx = null) {
   return !!findProxyGlobal(node, aliasCtx, true)
-    && !proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx);
+    && !proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx, { throughChainAssign: true });
 }
 
 // can the VALUE of a CALL be undefined? an opaque call is a genuine guard (the opaque-root

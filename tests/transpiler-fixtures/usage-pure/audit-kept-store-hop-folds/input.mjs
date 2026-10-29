@@ -10,8 +10,8 @@ export const storeFoldDeepOptional = (s4 = globalThis.window).self?.window?.cust
 export const storeFoldLongSpine = ((s5 = globalThis.window).self.window)?.customBox;
 export const storeFoldPlainConsumer = (s6 = globalThis.window).self.customBox;
 
-// a spellable store re-reads the ROOT after the write, and the sequence hands that always-
-// defined base on - the `?.` reading it erases with the fold
+// A backed store fixes the surface below the environment probe. The optional reader
+// still tests the unbacked window slot rather than the stored realm itself.
 let s7;
 export const storeFoldSpellableReRead = (s7 = globalThis.self).window?.customBox;
 
