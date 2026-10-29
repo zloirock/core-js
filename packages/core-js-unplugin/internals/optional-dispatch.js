@@ -1318,7 +1318,6 @@ export default function createOptionalDispatchChannel(ctx) {
     emitInheritedStatic,
     emitInstanceWithPeeledSe,
     guardObject,
-    holdsProxySurface,
     replaceInstanceLike,
     splitOptionalReceiver,
   };

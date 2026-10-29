@@ -5,6 +5,7 @@ import { navGuardCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/
 import {
   prepareMemoReceiver as prepareReceiverValue,
   prepareStaticReceiver,
+  planReceiverEffects,
   planGuardComposition,
   planOptionalProbe,
   memoReceiverOriginName,
@@ -16,7 +17,6 @@ import {
   destructureProbePlan,
   planProvenNavGuardCollapse,
   navPlanNeedsGuard,
-  claimReceiverEvaluationMayThrow,
   descendToChainRoot,
   keySideEffectsOnly,
   chainReadsThroughSeal,
@@ -45,7 +45,7 @@ import {
   landRunOnDeepestBackedSpan,
   planClaimlessCallRootedNav,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { decidedReusableReceiver, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { decidedReusableReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   classifyReceiverSE,
   chainValueCarrier,
@@ -57,14 +57,12 @@ import {
   memberChainEndPath,
   isMemberWriteHost,
   isMemberAccessNode,
-  isReusableReceiver,
   mayHaveSideEffects,
   calleeParenWrapped,
   memberKeyName,
   memberProxyHopName,
   migratableClaimSe,
   nodeSpan,
-  observableSequenceElements,
   optionalCallReceiverGuard,
   peelParenAndTSParentPath,
   peelParenAndTSSlotPath,
@@ -72,7 +70,6 @@ import {
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
-  reEvaluationObservable,
   SKIPPABLE_WRAPPER_TYPES,
   subtreeContainsNode,
   staticMemberKeyName,
@@ -98,6 +95,7 @@ import {
   renderGuardedMethodCall,
   renderOptionalMethodCall,
   renderReceiverMemo,
+  renderReceiverEffects,
   planReceiverMemo,
   planMethodCall,
   planOptionalMethodCall,
@@ -630,16 +628,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return prepared === node ? node : estreeToBabel(prepared);
   }
 
-  // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
-  // to `node`, but callers memoizing a CLONE or a rendered navigation probe must pass the
-  // live source node instead: a range-less useNode fails the param/loop-header escape
-  // check and strands the `var` in the
-  // function body, unreachable from a parameter-default use (ReferenceError at call time for
-  // a TS parameter-property default)
-  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
-    node = prepareMemoReceiver(node, ctx);
-    const memo = planReceiverMemo(node, { interveningEffects, directCallee, ctx });
-    const { firstRead, makeBase } = renderReceiverMemo(memo, {
+  // Bind a prepared memo decision to native scope placement and write tracking.
+  function bindReceiverMemo(plan, scope, anchorNode) {
+    return renderReceiverMemo(plan, {
       mintRef: () => generateRef(scope, anchorNode).name,
       embed: (source, role) => hostSlot(role === 'capture' ? source
         : role === 'receiver' ? t.removeComments(t.cloneNode(source)) : t.cloneNode(source)),
@@ -649,6 +640,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         return hostSlot(assign);
       },
     });
+  }
+
+  // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
+  // to `node`, but callers memoizing a CLONE or a rendered navigation probe must pass the
+  // live source node instead: a range-less useNode fails the param/loop-header escape
+  // check and strands the `var` in the
+  // function body, unreachable from a parameter-default use (ReferenceError at call time for
+  // a TS parameter-property default)
+  function memoize(node, scope, anchorNode = node, interveningEffects = false, ctx = null, directCallee = false) {
+    node = prepareMemoReceiver(node, ctx);
+    const memo = planReceiverMemo(node, { interveningEffects, directCallee, ctx });
+    const { firstRead, makeBase } = bindReceiverMemo(memo, scope, anchorNode);
     return [estreeToBabel(firstRead), estreeToBabel(makeBase())];
   }
 
@@ -2457,66 +2460,32 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // reordered SE list. no-op for optional (receiver already memoized in the guard) / SE-free receivers
   function hoistReceiverSE(object, sideEffects, check, scope, seMode,
     receiverEffectCount = 0, anchorHostPath = null, receiverReads = 2, firstReceiver = object) {
-    // optional guard with a side-effecting receiver: the guard's `null == (_ref = receiver) ? ...`
-    // memoize already RAN the receiver-SE, so the body wrap must carry ONLY the key-SE. `suppress`
-    // (optional MEMBER access) already reduced `sideEffects` to key-SE upstream, so pass it through;
-    // otherwise the receiver-SE is still present (a deeper `?.` left `.X` non-optional, so suppress
-    // missed it) and must be dropped here - else a chain-root call `(call)?.self.X` double-runs
-    if (check && receiverEffectCount > 0) {
-      return [object, seMode === 'suppress' ? sideEffects : keySideEffectsOnly(receiverEffectCount, sideEffects)];
-    }
-    // The first evaluation includes quiet prefix reads too: they can throw before a key.
-    // The effect census is only a replay list, not the complete source receiver value.
-    if (!check) object = firstReceiver;
-    if (!sideEffects?.length) return [object, sideEffects];
-    // Without a trailing key effect, the helper argument can own the complete first receiver.
-    if (seMode === 'peel' && sideEffects.length <= receiverEffectCount) {
-      return [object, sideEffects.slice(receiverEffectCount)];
-    }
-    // a sole helper argument already evaluates the receiver once. with no KEY effect to put
-    // after it, a memo contributes no ordering; the intact receiver carries its own effects.
-    if (receiverReads === 1 && seMode !== 'peel' && !keySideEffectsOnly(receiverEffectCount, sideEffects).length) {
-      return [object, sideEffects.filter(effect => !subtreeContainsNode(object, effect))];
-    }
-    // A hidden constant allocation has one helper read, after the computed key. No value
-    // escapes between those slots, so the helper can allocate it directly without a snapshot.
-    if (!check && receiverReads === 1 && isConstantLiteralReceiver(unwrapRuntimeExpr(object))) {
-      return [object, sideEffects.filter(effect => !subtreeContainsNode(object, effect))];
-    }
-    // a receiver whose EVALUATION may throw (its member get reads off a nullish-able probe
-    // value) hoists like a side-effecting one: the plain SE prepend would run the key effect
-    // on the branch where native throws before it (ECMA receiver-before-key). probed only once
-    // the cheap bails are past - it resolves aliases through the provider canon
-    function receiverMayThrow() {
-      const adapter = getAdapter?.();
-      return !!adapter && !!scope && !!resolvePureGlobalEntry && !!anchorHostPath
-        && claimReceiverEvaluationMayThrow(object,
-          ({ name }) => resolvePureGlobalEntry(name, anchorHostPath), { scope, adapter, path: anchorHostPath });
-    }
-    // ECMA evaluates the receiver BEFORE the key, and a member GET runs user code whenever the
-    // property is an accessor - so the plain side-effect answer is not enough to leave the receiver
-    // in place. that is exactly the superset `reEvaluationObservable` already computes
-    const interveningEffects = sideEffects.length > receiverEffectCount;
-    const ctx = anchorHostPath && { scope, path: anchorHostPath, adapter: getAdapter?.(), injectorState: getInjector() };
-    const liftedPrefix = seMode === 'peel' && !check ? [] : sideEffects.slice(0, receiverEffectCount)
-      .filter(effect => !subtreeContainsNode(object, effect));
-    if (!reEvaluationObservable(object) && !receiverMayThrow()
-      && (!interveningEffects || isReusableReceiver(object, { interveningEffects, ctx }))) {
-      // Reuse proves the later value is stable; the first read still precedes the key.
-      // A const in its TDZ or `this` before `super()` can throw on that first evaluation.
-      return [
-        object,
-        interveningEffects && !check
-        ? [...liftedPrefix, ...observableSequenceElements([t.cloneNode(object)], ctx, { preserveSourceReads: true }),
-          ...sideEffects.slice(receiverEffectCount)] : sideEffects,
-      ];
-    }
-    const [memoAssign, ref] = memoize(object, scope, anchorHostPath?.node ?? object, interveningEffects, ctx);
-    // the memo `_ref = object` already evaluates the receiver's OWN side effects (a buried chain-root call
-    // or hop-key SE the resolver also listed lives inside `object`), so re-emitting the receiver-SE prefix
-    // would double-run it. append only the KEY SE (past receiverEffectCount); the memo owns the receiver SE.
-    // The intact first receiver owns the peeled prefix; other lifted effects still precede it.
-    return [ref, [...liftedPrefix, memoAssign, ...sideEffects.slice(receiverEffectCount)]];
+    const ctx = sideEffects?.length && anchorHostPath ? {
+      scope,
+      path: anchorHostPath,
+      adapter: getAdapter?.(),
+      injectorState: getInjector(),
+      resolvePure: resolvePureGlobalEntry && (({ name }) => resolvePureGlobalEntry(name, anchorHostPath)),
+    } : null;
+    const plan = planReceiverEffects({
+      receiver: object,
+      firstReceiver,
+      sideEffects,
+      receiverEffectCount,
+      guarded: !!check,
+      seMode,
+      receiverReads,
+      ctx,
+    });
+    if (!plan.ordered) return [plan.receiver, plan.effects];
+    const receiver = prepareMemoReceiver(plan.firstReceiver, ctx);
+    const memo = receiver === plan.firstReceiver ? plan
+      : planReceiverMemo(receiver, { interveningEffects: plan.interveningEffects, ctx });
+    const result = renderReceiverEffects(plan, {
+      memo: bindReceiverMemo(memo, scope, anchorHostPath?.node ?? object),
+      embed: hostSlot,
+    });
+    return [estreeToBabel(result.receiver), result.effects?.map(estreeToBabel)];
   }
 
   // classify a (possibly TS-wrapped) member path's relationship to its enclosing call:
