@@ -13,6 +13,7 @@ import {
   navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
   planProvenNavGuardCollapse,
+  navPlanNeedsGuard,
   realmRunSplitBySequencePrefix,
   prependChainAssignmentEffect,
   proxyReceiverValueCanBeUndefined,
@@ -30,7 +31,7 @@ import {
   mutationGuardKeepingHop,
   probeRunIsTheSourceValue,
   proxyGlobalRootName,
-  realmHopKeyName,
+  pristineRealmHopKey,
   storedUserAssignmentOf,
   unbackedTailRidesAbove,
   storeReadHopOptional,
@@ -529,10 +530,8 @@ export default function createProxySpineChannel(ctx) {
 
   // Name a pristine realm hop through the shared key canon. Effectful keys stay native.
   function proxyHopKey(node, { allowOptional = false, metaPath = null } = {}) {
-    if (node.type !== 'MemberExpression' || (node.optional && !allowOptional)) return null;
-    const keyName = realmHopKeyName(node, metaPath && { scope: metaPath.scope, adapter, path: metaPath });
-    return keyName && isPristineProxyGlobal(adapter, keyName, metaPath && { node, path: metaPath })
-      ? { keyName } : null;
+    const keyName = pristineRealmHopKey(node, { scope: metaPath?.scope, adapter, path: metaPath }, { allowOptional });
+    return keyName ? { keyName } : null;
   }
 
   // walk a proxy-hop member spine down to its root: every hop must be a plain (or
@@ -876,7 +875,7 @@ export default function createProxySpineChannel(ctx) {
         || navRoot.property?.type !== 'Identifier' || navRoot.optional) return false;
       navRoot = unwrapRuntimeExpr(navRoot.object);
     }
-    if (plan.kind !== 'nested') return false;
+    if (!navPlanNeedsGuard(plan)) return false;
     // undefinability living in the KEPT VALUE belongs to the root route's in-place drop -
     // but only for the claimless HOP entry; a REAL static claim keeps its guard
     if (declineValueProbe && probeHopInValue(plan, plan.hops[plan.lastUnresolvableIdx])) return false;
@@ -1027,7 +1026,7 @@ export default function createProxySpineChannel(ctx) {
         // may own it - the render re-emits the prefix there and nowhere else
         allowSequenceRoot: true,
       });
-      if (!plan || plan.kind !== 'nested' || !plan.leafPure) continue;
+      if (!navPlanNeedsGuard(plan) || !plan.leafPure) continue;
       if (plan.seqAroundPrefix?.length
         || plan.topAssignSteps.length > 1 || (plan.topAssign && plan.topAssign !== plan.rootAssign)) continue;
       // undefinability living in the KEPT VALUE (not in a nav hop): the source `?.` already
