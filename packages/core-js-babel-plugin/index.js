@@ -1,3 +1,4 @@
+import { planSymbolReceiverRoot } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   collectFoldedReceiverSideEffects,
   memberProxyHopName,
@@ -93,6 +94,7 @@ import {
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
   hostSlot,
+  hostSlotNode,
   nullFirstGuardTest,
   renderBoundRawBranch,
   renderCapturedReceiver,
@@ -104,6 +106,7 @@ import {
   planMethodCall,
   renderMethodCall,
   renderShortCircuitGuard,
+  renderSymbolReceiverRoot,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
 import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -651,49 +654,22 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // the resolver peels the callee itself, so a seal or a TS wrapper needs no compensation
         const entry = resolveSymbolIteratorEntry(path.node, callerPath.parent);
         if (!isEntryNeeded(entry)) return;
-        // collapse a proxy-global receiver to its ROOT pure import (provider-resolved): `globalThis.self[
-        // Symbol.iterator]` -> `_getIteratorMethod((droppedSe, _globalThis))`, NOT a leaf `_self` / dead
-        // `_globalThis.self.window` that diverges from unplugin. `_<root>` is always defined; droppedSe is
-        // the SE the dropped hop chain carried (hop keys + chain-root call), re-emitted as a sequence prefix
-        if (symbolReceiverProxyRoot) {
-          // a KEPT root is an expression the provider may not root through (a chain-assign storing a value
-          // that is not provably the global): it becomes the receiver as-is, with the redundant proxy hop
-          // above it dropped (cloning suffices - the re-visit rewrites the raw root inside it). either way
-          // the harvested droppedSe (sequence prefix around the root, dropped-hop key effects) rides ahead
-          const keptClone = symbolReceiverProxyRoot.keepRoot
-            ? t.cloneNode(symbolReceiverProxyRoot.keepRoot, true) : null;
-          const rootResolved = keptClone ? null
-            : resolvePure({ kind: 'global', name: symbolReceiverProxyRoot.rootName }, path);
-          if (keptClone || rootResolved) {
-            const rootBinding = keptClone ?? injectPureImport(rootResolved.entry, rootResolved.hintName);
-            const { droppedSe } = symbolReceiverProxyRoot;
-            // a following computed-key SE makes the NON-optional emit `peel` the receiver (classifyReceiverSE
-            // returns 'peel' for a SequenceExpression receiver), and the peel replays only the prefix recorded
-            // in `sideEffects` - so an inline `(droppedSe, _root)` receiver loses its droppedSe. route droppedSe
-            // through the SE channel (receiver-SE ahead of the key-SE) so the hoist preserves + orders it. the
-            // OPTIONAL access uses 'suppress' (memoizes the whole receiver in the null-guard), which preserves
-            // the inline sequence's droppedSe already - leave it the tighter inline form. with no key-SE there
-            // is no peel either, so keep the inline `_getIterator((droppedSe, _root))`. the optional verdict is
-            // PROVIDER-decided at detection (flag-based, any hop depth) so both emitters agree - a babel-local
-            // node-TYPE probe promotes whole chains where estree flags only the introducing hop
-            const isOptional = symbolReceiverProxyRoot.isOptionalAccess;
-            if (droppedSe.length && sideEffects?.length && !isOptional) {
-              sideEffects = [...droppedSe.map(effect => t.cloneNode(effect)), ...sideEffects];
-              receiverEffectCount += droppedSe.length;
-              path.node.object = rootBinding;
-            } else {
-              path.node.object = droppedSe.length
-                ? t.sequenceExpression([...droppedSe.map(effect => t.cloneNode(effect)), rootBinding])
-                : rootBinding;
-            }
-            // replacing the object dropped the chain's `?.` hop along with the erased hops - a
-            // KEPT root can be absent (unlike a substituted always-defined one), so re-hang the
-            // guard on the symbol member itself: the null test reads the same value the native
-            // chain short-circuits on
-            if (keptClone && symbolReceiverProxyRoot.isOptionalAccess) {
-              path.node.type = 'OptionalMemberExpression';
-              path.node.optional = true;
-            }
+        const rootPlan = planSymbolReceiverRoot(symbolReceiverProxyRoot, {
+          sideEffects,
+          receiverEffectCount,
+          resolvePure: meta => resolvePure(meta, path),
+        });
+        if (rootPlan) {
+          const root = renderSymbolReceiverRoot(rootPlan, {
+            injectImport: (rootEntry, hint) => injectPureImport(rootEntry, hint).name,
+            embed: node => hostSlot(t.cloneNode(node)),
+          });
+          path.node.object = estreeToBabel(root.receiver);
+          sideEffects = root.sideEffects?.map(hostSlotNode);
+          receiverEffectCount = root.receiverEffectCount;
+          if (root.optional) {
+            path.node.type = 'OptionalMemberExpression';
+            path.node.optional = true;
           }
         }
         // a proxy-global receiver DEEPER than the immediate symbol hop (`(c++, globalThis.self).Array.prototype

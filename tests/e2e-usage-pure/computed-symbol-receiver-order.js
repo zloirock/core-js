@@ -2,6 +2,26 @@
 
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
+QUnit.test('symbol optional invocation keeps the first getter value through key and argument effects', assert => {
+  const log = [];
+  const original = {
+    label: 'held',
+    [Symbol.iterator](value) {
+      log.push(this === original ? 'receiver kept' : 'receiver lost');
+      return [this.label, value];
+    },
+  };
+  const box = {
+    get rows() {
+      log.push('read');
+      return original;
+    },
+  };
+  const result = (log.push('prefix'), box.rows)[(log.push('key'), Symbol.iterator)]?.((log.push('argument'), 3));
+  assert.deepEqual(result, ['held', 3]);
+  assert.deepEqual(log, ['prefix', 'read', 'key', 'argument', 'receiver kept']);
+});
+
 QUnit.test('computed symbol key captures a reassigned receiver', assert => {
   let arr = ['held'];
   const iterator = arr[(arr = ['swapped'], Symbol.iterator)]();

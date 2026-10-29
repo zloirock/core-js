@@ -1,17 +1,16 @@
-import { optionalMemberStaysGuarded } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import { optionalMemberStaysGuarded, planSymbolReceiverEffects } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   aliasRootedReadMayThrow,
   discardRescueNodes,
   navValueCanShortCircuit,
   navHasUnresolvableProxyHop,
   probeRenderedReceiver,
-  peelReceiverSequenceTail,
   sealedChainBoundary,
   directClaimProbeEffects,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
-import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   dispatchConsumesRun,
   planClaimlessCallRootedNav,
@@ -26,11 +25,8 @@ import {
   deleteHostAboveChain,
   isDeoptedGlobalSlotRead,
   isFunctionParamDestructureParent,
-  isReusableReceiver,
   isTaggedTemplateTag,
-  mayHaveSideEffects,
   mutatedSlotLeftNativeWarning,
-  observableSequenceElements,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   patternSlotTarget,
@@ -55,6 +51,7 @@ import {
   nullFirstGuardTest,
   renderInExpressionPlan,
   renderMethodCall,
+  renderReceiverEffects,
   renderGuardedMethodCall,
   planMethodCall,
   renderProxyReceiverPlan,
@@ -291,7 +288,6 @@ export default function createAstUsagePureCallback({
     emitInheritedStatic,
     emitInstanceWithPeeledSe,
     guardObject,
-    holdsProxySurface,
     replaceInstanceLike,
     splitOptionalReceiver,
   } = createOptionalDispatchChannel({
@@ -420,108 +416,37 @@ export default function createAstUsagePureCallback({
     state.pendingReceiverOnly = false;
   }
 
-  // SE channel: harvested key / receiver effects re-run as a sequence prefix while the
-  // dispatch runs on the peeled reusable tail - `(a(), recv)[S]()` -> `(a(), _getIterator(recv))`.
-  // returns false when the shape stays staged
+  // Bind native guard preparation and ref allocation to the shared effect order.
+  // The query retains source identity; only the receiver moved into a memo is cloned.
   function routeSymbolReceiverEffects(metaPath, state) {
-    const { pendingEffects, pendingReceiverOnly, proxyPlanFired } = state;
-    // The first value owns every source prefix, including quiet reads absent from the effect list.
-    // A sole helper read needs no separate slot when a constant literal cannot escape through its key.
     const caller = climbToCallerPath(metaPath)?.node;
-    const singleReceiverRead = resolveSymbolIteratorEntry(metaPath.node, caller) === 'get-iterator'
-      || caller?.type !== 'CallExpression' || unwrapRuntimeExpr(caller.callee) !== metaPath.node;
-    if (!state.memberOptional && !state.liveOptionalReceiver && !state.callOptional
-      && (pendingReceiverOnly && pendingEffects.every(effect => subtreeContainsNode(state.object, effect))
-        || singleReceiverRead && isConstantLiteralReceiver(unwrapRuntimeExpr(state.object)))) {
-      state.effects = pendingEffects.filter(effect => !subtreeContainsNode(state.object, effect));
-      return true;
-    }
-    // The optional call product owns receiver capture and key effects together.
-    if (state.callOptional) return true;
-    // the member's own `?.` splits the effects by side: the KEY's run inside the alternate,
-    // where native order puts them, and the RECEIVER's stay spelled in the memo the guard
-    // test builds (`(r(), recv)?.[(k(), S)]()` -> `null == (_ref = (r(), recv)) ? void 0 :
-    // (k(), _getIterator(_ref))`). a receiver effect the spelling does NOT carry has no
-    // slot before the test - staged
-    if (state.memberOptional || (state.liveOptionalReceiver && isSealedDirectSymbolCall(metaPath))) {
-      const peeled = unwrapRuntimeExpr(state.object);
-      const recvSe = pendingEffects.filter(effect => state.receiverSe.has(effect));
-      if (!recvSe.length && isReusableReceiver(peeled, {
-        interveningEffects: pendingEffects.length > 0,
-        ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-      })) state.object = peeled;
-      else if (recvSe.some(effect => !subtreeContainsNode(state.object, effect))) return false;
-      state.effects = pendingEffects.filter(effect => !state.receiverSe.has(effect));
-      return true;
-    }
-    // a live `?.` deeper in the receiver short-circuits the key with everything else, so the receiver
-    // splits there: the guard tests the probe and the alternate reads the receiver past it, memoized
-    // ahead of the key effects (`box?.list[(k(), S)]()` -> `box == null ? void 0 : (_ref = box.list,
-    // k(), _getIterator(_ref))`). the split spells every receiver effect - in the test or in the read
-    if (state.liveOptionalReceiver && !proxyPlanFired && receiverCarriesLiveOptional(state.object)) {
+    const input = {
+      member: metaPath.node,
+      caller,
+      iteratorEntry: resolveSymbolIteratorEntry(metaPath.node, caller),
+      receiver: state.object,
+      sideEffects: state.pendingEffects,
+      receiverEffects: state.receiverSe,
+      memberOptional: state.memberOptional,
+      liveOptionalReceiver: state.liveOptionalReceiver,
+      callOptional: state.callOptional,
+      sealed: isSealedDirectSymbolCall(metaPath),
+      collapsed: state.proxyPlanFired,
+      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState, resolvePure: meta => resolvePure(meta, metaPath) },
+    };
+    let plan = planSymbolReceiverEffects(input);
+    if (plan?.split) {
       const split = splitOptionalReceiver(state.object, metaPath);
-      if (!split || split === STAGED_SPLIT || split.hopKind !== 'member') return false;
-      const keyEffects = pendingEffects.filter(effect => !state.receiverSe.has(effect));
-      if (isReusableReceiver(split.receiver, {
-        interveningEffects: keyEffects.length > 0,
-        ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-      })) {
-        state.effects = keyEffects;
-        state.object = split.receiver;
-      } else {
-        const splitRef = injector.generateDeclaredRef(metaPath);
-        state.effects = [assignmentExpression('=', identifier(splitRef), split.receiver), ...keyEffects];
-        state.object = identifier(splitRef);
-      }
-      state.splitDisjuncts = split.disjuncts;
-      return true;
+      plan = planSymbolReceiverEffects({ ...input, split: split === STAGED_SPLIT ? null : split });
     }
-    let receiver = proxyPlanFired ? state.object : peelReceiverSequenceTail(state.object);
-    const interveningEffects = pendingEffects.some(effect => !state.receiverSe.has(effect));
-    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
-    const receiverPure = instanceSynthReceiverPure(receiver, { ...receiverCtx, resolvePure: m => resolvePure(m, metaPath) });
-    if (receiverPure) receiver = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
-
-    // a reusable / pure tail rides the helper argument behind the hoisted effects
-    if (isReusableReceiver(receiver, { interveningEffects, ctx: receiverCtx })
-      || (!interveningEffects && !mayHaveSideEffects(receiver))) {
-      // A stable binding can still throw on its first read, before the key runs.
-      state.effects = receiverPure || interveningEffects ? [
-        ...pendingEffects.filter(effect => state.receiverSe.has(effect) && !subtreeContainsNode(state.object, effect)),
-        ...observableSequenceElements([state.object], receiverCtx, { preserveSourceReads: true }),
-        ...pendingEffects.filter(effect => !state.receiverSe.has(effect)),
-      ] : pendingEffects;
-      state.object = receiver;
-    } else if (pendingReceiverOnly) {
-      // A receiver-only harvest already carried by its source stays in that first value above.
-      // Effects outside the current spelling still use the existing replay channel.
-      if (!holdsProxySurface(receiver, metaPath)) {
-        state.effects = pendingEffects;
-        state.object = receiver;
-      }
-    } else {
-      // a COLLAPSED spine hands its prefix to the effect channel instead: that prefix IS the
-      // dropped hop's own effect, it runs ahead of the key effects exactly as native ran it, and
-      // the always-defined tail is re-readable, so no memo is owed (`globalThis[(hop(), 'self')]
-      // [(key(), S)]` -> `(hop(), key(), _getIterator(_globalThis))`)
-      const renderedSequence = receiver?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(receiver) : null;
-      if (renderedSequence && isReusableReceiver(renderedSequence.tail, { interveningEffects, ctx: receiverCtx })) {
-        state.effects = [...observableSequenceElements([state.object], receiverCtx, { preserveSourceReads: true }),
-          ...pendingEffects.filter(effect => !subtreeContainsNode(state.object, effect))];
-        state.object = renderedSequence.tail;
-      } else {
-        // The capture owns the complete first receiver; only effects outside it replay separately.
-        const seRef = injector.generateDeclaredRef(metaPath);
-        state.effects = [
-          ...pendingEffects.filter(effect => state.receiverSe.has(effect)
-            && !subtreeContainsNode(state.object, effect)),
-          assignmentExpression('=', identifier(seRef), cloneNode(state.object)),
-          ...pendingEffects.filter(effect => !state.receiverSe.has(effect)),
-        ];
-        state.object = identifier(seRef);
-      }
-    }
-    state.effects = observableSequenceElements(state.effects, receiverCtx, { preserveSourceReads: true });
+    if (!plan) return false;
+    const result = renderReceiverEffects(plan, {
+      mintRef: () => injector.generateDeclaredRef(metaPath),
+      embed: (node, role) => role === 'capture' ? cloneNode(node) : node,
+    });
+    state.object = result.receiver;
+    state.effects = result.effects;
+    state.splitDisjuncts = plan.disjuncts ?? null;
     return true;
   }
 
