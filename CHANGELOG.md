@@ -1,7 +1,7 @@
 # Changelog
 ### Unreleased
 - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
-- Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8 ~ Chrome < 145](https://github.com/simdutf/simdutf/pull/825)
+- Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
 - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
 - Fixed lost error messages in the `structuredClone` polyfill in old Firefox
 - Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer
@@ -38,6 +38,7 @@
     - [Bun 1.4.1](https://bun.com/blog/bun-v1.4.1#upgraded-javascriptcore)
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
+  - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 because of the resizable buffer and `read` count bugs (see above)
   - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0
   - Chromium-based Edge and Opera no longer inherit EdgeHTML and Presto data where Chrome needs a later version: `Array.prototype.{ reduce, reduceRight }` are no longer marked as supported in Edge 79-82, `Object.{ defineProperty, defineProperties }` - in Opera 15-23, `atob` - in Opera 15-20
