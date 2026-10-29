@@ -20762,6 +20762,33 @@ function * generateInnerCollapseRoots() {
   })()`, { rig }), strip: true, ts: name === 'ts-stored-surface' };
 }
 
+// Guard/collapse routing keeps both the optional decision and the effects that
+// reach the consumer. The box and result are local to each row, including deletes.
+function * generateProxyNavigationRoutes() {
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['delete-plain', 'delete globalThis.self.routeSelectionBox.value'],
+    ['delete-guarded', 'delete globalThis.window?.self.routeSelectionBox.value'],
+    ['delete-store', 'delete (held = globalThis).self.routeSelectionBox.value'],
+    ['delete-probe-store', 'delete (held = globalThis.window)?.self.routeSelectionBox.value'],
+    ['delete-stored-effects', 'delete (log.push("before"), held = (log.push("inside"), globalThis.window))?.self.routeSelectionBox.value'],
+    ['delete-hop-effects', 'delete (held = globalThis.window)?.[log.push("hop"), "self"].routeSelectionBox.value'],
+    ['delete-slot-effects', 'delete (held = globalThis.window)?.self.routeSelectionBox[log.push("slot"), "value"]'],
+    ['delete-combined-effects',
+      'delete (log.push("before"), held = (log.push("inside"), globalThis.window))?.[log.push("hop"), "self"].routeSelectionBox[log.push("slot"), "value"]'],
+    ['delete-call', 'delete (() => globalThis)().self.routeSelectionBox.value'],
+    ['delete-call-probe', 'delete (() => globalThis.window)()?.self.routeSelectionBox.value'],
+    ['guarded-static', 'globalThis.window?.self.Array.from((log.push("arg"), [7]))'],
+    ['sealed-static', '(globalThis.window?.self).Array.from((log.push("arg"), [7]))'],
+  ]) yield { ...snippet(`proxy-navigation-routes/${ name }/${ rig ? 'window' : 'off-window' }`, `(() => {
+    const box = { value: 7 };
+    let held, value;
+    globalThis.routeSelectionBox = box;
+    try { value = ${ expression }; } catch (error) { value = error.name; }
+    finally { delete globalThis.routeSelectionBox; }
+    return [value, box.value, held === globalThis];
+  })()`, { rig }), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21165,4 +21192,5 @@ export function * generate() {
   yield * generateLiteralReceiverRouting();
   yield * generateOuterCollapseStores();
   yield * generateInnerCollapseRoots();
+  yield * generateProxyNavigationRoutes();
 }

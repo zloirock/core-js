@@ -144,7 +144,7 @@ import {
   ownChainOptionalObjects,
   prependChainAssignmentEffect,
   descendToChainRoot,
-  deleteGuardKeepingHop,
+  canCollapseDeletedNavigation,
   deleteHostAboveCarriedChain,
   peelReceiverSequenceTail,
   receiverSequenceTailKeys,
@@ -156,7 +156,6 @@ import {
   unbackedRealmHopFoldAbove,
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
-  deletedRunCarriesMutatedRealmHop,
   resolveKey as sharedResolveKey,
   globalProxyMemberName,
   realmSelectionCollapseOperand,
@@ -1709,14 +1708,13 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           if (deleteHopName
             && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression()
               || chainAssignRootValueName || seqRootName || storedNavRootName || carriedCallRoot)
-            && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)
-            // ... and never over the delete-DECIDING guard: a live `?.` on the environment probe
-            // decides whether the delete happens at all, and the fold would delete unconditionally.
-            // hoisted here from the call-root arm below, whose own scan was a second spelling of it
-            && !(path.scope && deleteGuardKeepingHop(
-              memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node,
-              m => resolvePure(m, path), { scope: path.scope, adapter, path }))
-            && !deletedRunCarriesMutatedRealmHop(path, { adapter, unwrap: unwrapRuntimeExpr })) {
+            && canCollapseDeletedNavigation({
+              hosted: deleteHostAboveChain(path, path.node, unwrapRuntimeExpr),
+              mutationPath: path,
+              guardNode: path.scope ? memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node : null,
+              aliasCtx: { scope: path.scope, adapter, path },
+              resolvePure: m => resolvePure(m, path),
+            })) {
             // the `?.` the source wrote over the folded nav guards a read that never happens: the
             // fold landed the root binding, and the canon has spoken for the whole navigation -
             // the shared dangling-optional rule spells it, carriers and all
