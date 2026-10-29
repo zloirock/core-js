@@ -20679,6 +20679,35 @@ function * generateGuardTailExtent() {
   };
 }
 
+// Literal source selection shares one receiver read across residuals and captures.
+// Each row observes the getter as well as the effects surrounding its source slot.
+// Rest deliberately keeps instance slots native; retain its full-runtime/global oracles.
+function * generateLiteralReceiverRouting() {
+  for (const [name, statement] of [
+    ['sole', 'const { w: { at: read } } = { w: source.rows };'],
+    ['sibling', 'const before = (log.push("before"), 1), { w: { at: read } } = { w: source.rows }, after = (log.push("after"), 2);'],
+    ['rest', 'const { w: { at: read, ...rest } } = { w: source.rows }; log.push(rest[0]);'],
+    ['bodyless', 'if (rows.length) var { w: { at: read } } = { w: source.rows };'],
+    ['prefix', 'const { w: { at: read } } = { w: (log.push("prefix"), source.rows) };'],
+    ['prior-effect', 'const { first, w: { at: read } } = { first: (log.push("first"), 1), w: source.rows };'],
+    ['default', 'const { w: { at: read = (log.push("default"), null) } } = { w: source.rows };'],
+    ['assignment', 'let read; ({ w: { at: read } } = { w: source.rows });'],
+  ]) yield { ...snippet(`literal-receiver-routing/${ name }`, `(() => {
+    const rows = [7, 8];
+    const source = { get rows() { log.push("get"); return rows; } };
+    ${ statement }
+    log.push("call");
+    return read.call(rows, -1);
+  })()`), strip: name !== 'rest' };
+  yield { ...snippet('literal-receiver-routing/for-init', `(() => {
+    const rows = [7, 8];
+    const source = { get rows() { log.push("get"); return rows; } };
+    for (const { w: { at: read } } = { w: source.rows };;) {
+      log.push("call"); return read.call(rows, -1);
+    }
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21079,4 +21108,5 @@ export function * generate() {
   yield * generateFallbackSynthBranches();
   yield * generateKeptProxyValues();
   yield * generateGuardTailExtent();
+  yield * generateLiteralReceiverRouting();
 }
