@@ -10,7 +10,6 @@ import {
   dispatchMayReadNav,
   consumedAssignmentSlotPrunes,
   destructureAssignmentValueIsCaptured,
-  destructureHostInitNode,
   receiverPerformsEveryInitEffect,
   destructureKeyReadPlan,
   destructurePatternHostPath,
@@ -73,11 +72,10 @@ import {
   discardedReceiverEffects,
   planLiteralResidual,
   planLiteralRoute,
-  planSentinelMemo,
   synthPlanFullyCovered,
   planSynthReceiverActivation,
   buildNestedDestructurePlan,
-  destructureHostLiteralSurvives,
+  destructureReadKeepsKey,
   hopPatternLeafClaims,
   isSymbolIteratorPatternClaim,
   leafCarriesOwnClaim,
@@ -93,7 +91,6 @@ import {
   inlineCallReturnExpression,
   isKnownStaticGlobal,
   isStaticPlacement,
-  navValueCanShortCircuit,
   peelChainRootValue,
   peelReceiverSequenceTail,
   isPureNavReceiver,
@@ -135,7 +132,6 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   prologueEndIndex,
   propBindingIdentifier,
-  receiverCarriesLiveOptional,
   relocatedCatchPropUnobservable,
   relocatedHostFoldsGuardRefs,
   resolveFallbackReceiver,
@@ -1503,13 +1499,7 @@ export default function createAstDestructureEmitter({
       markRewrite();
       return;
     }
-    let sentinel = hasRestSibling(pattern, keyCtx) || (prop.computed && computedKeyHasSideEffects(prop, keyCtx));
-    if (!sentinel && destructureHostLiteralSurvives(metaPath, adapter)) {
-      // A sole instance read can carry every initializer effect in its dispatch.
-      // Other residuals still need their original key and source slot.
-      const receiver = kind === 'instance' && resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter });
-      sentinel = !receiver || !receiverPerformsEveryInitEffect(destructureHostInitNode(metaPath), receiver, keyCtx);
-    }
+    const sentinel = destructureReadKeepsKey(metaPath, kind, keyCtx);
     // a sentinel-kept DEFAULTED prop retires whole (`[(se, 'at')]: _unused` - the default
     // lives on in the extraction's guard ternary); other pattern-valued props stay. a MEMBER slot the
     // gate above admitted retires the same way on the host's own level: the extraction writes into it.
@@ -2426,22 +2416,14 @@ export default function createAstDestructureEmitter({
     // init is no reason to decline here either (`if (c) var { Map: { groupBy: g }, other } = mk();`)
     const memoBoundsInit = (kind === 'instance' && !chain.length && !soleConsume)
       || (kind !== 'instance' && !soleConsume);
-    // ... and an EFFECT-bearing slot answers through the shared canon here too: the effects only
-    // matter while a residual survives to re-evaluate them, and a receiver that performs every
-    // effect its init would leaves that residual nothing to do - the dispatch is the one read
-    const plainNestedReceiver = kind === 'instance' && chain.length
-      ? resolveNestedReceiverNode(metaPath, { adapter }) : null;
-    // ... and a slot only the SE-free single-read relaxation names (a getter hop) where a residual
-    // survives: the element memo below is then its one read
-    const relaxedNestedReceiver = kind === 'instance' && chain.length && !plainNestedReceiver && !soleConsume && !sentinel
-      ? resolveNestedReceiverNode(metaPath, { allowSeFreeSingleRead: true, adapter }) : null;
-    const carriedReceiver = plainNestedReceiver || kind !== 'instance' || !chain.length || sentinel
-      || patternBindingCount(host.declarator.id) !== patternBindingCount(prop.value)
-      ? null
-      : carriedInitReceiverNode({ path: metaPath, initNode: host.declarator.init, adapter });
-    // ... and a carried receiver performs the init's prefix itself (`_at((log(), arr))`): nothing lifts
+    const literalRoute = planLiteralRoute({
+      metaPath, prop, kind, sentinel, chain, declarator: host.declarator, declaration: host.declaration, adapter,
+    });
+    const nestedReceiver = chain.length ? literalRoute.literalReceiver : null;
+    const carriedReceiver = literalRoute.receiverCarriesInit ? nestedReceiver : null;
+    const relaxedNestedReceiver = literalRoute.relaxedReceiver && !carriedReceiver ? nestedReceiver : null;
+    // The carried receiver owns its prefix inside the dispatch; the block lifts nothing.
     if (carriedReceiver) seqPrefix = null;
-    const nestedReceiver = plainNestedReceiver ?? relaxedNestedReceiver ?? carriedReceiver;
     // ... unless the chain NAMES a built-in surface: there the VALUE BUILDER spells the receiver by
     // NAME (`_globalThis.Array.prototype`), the way the ordinary route does one host down, and this
     // slot only has to host the guard. the leaf is handed over UNDEFAULTED - the slot's own
@@ -2625,18 +2607,6 @@ export default function createAstDestructureEmitter({
     // sentinel residual re-reads the init
     const proxyInitSurface = selectingInitSurface(declarator.init, metaPath);
     const allProxyInit = !!proxyInitSurface;
-    let { sentinelMemoEligible, memoSibling } =
-      planSentinelMemo({ sentinel, declarator, kind, allProxyInit });
-    // a for-init SENTINEL needs a receiver the residual can read a second time: the memo
-    // gives it one, and a bare IDENTIFIER init already is one (`{ at, ...rest } = arr` ->
-    // `at = _at(arr), { at: _unused, ...rest } = arr`)
-    if (forInit && sentinel && !sentinelMemoEligible && kind === 'instance'
-      && peelTransparentExpr(declarator.init)?.type !== 'Identifier') return;
-    // a value-SELECTING conditional init under a sentinel-kept prop: the per-branch mirror
-    // owns the claim - an unconditional extraction would corrupt the non-global branch.
-    // a fallback LOGICAL keeps extracting: its resolved left is the always-truthy receiver
-    if (sentinel && !sentinelMemoEligible && divergingSentinelSelectorDeclines(
-      { declarator, meta, metaPath, chain, kind }, { adapter, injectorState, resolveGlobalPolyfill })) return;
     // an ANCHORED symbol prop keeps its key-swap instead of extracting when the extraction
     // would change what the slot answers: a DEFAULT fires on the raw read's undefined, which
     // the helper result need not be, and an SE KEY has no slot outside the kept key
@@ -2678,90 +2648,44 @@ export default function createAstDestructureEmitter({
     });
     const typedNavChain = typedNavChainFor({ kind, entry, chain, metaPath, allowSurfaceBase: true });
     const literalRoute = planLiteralRoute({
-      metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav: pureNav || !!typedHopPure, forInit, adapter,
+      metaPath,
+      prop,
+      kind,
+      sentinel,
+      chain,
+      declarator,
+      declaration,
+      pureNav: pureNav || !!typedHopPure,
+      forInit,
+      adapter,
+      entry,
+      typedNavChain,
+      allProxyInit,
       patternCtx: { ...nodeSite(prop, metaPath), adapter },
     });
-    const { soleBinding, declaratorConsumedWhole, relaxedReceiver, carriedLive, receiverConsumesInit } = literalRoute;
-    let { literalReceiver } = literalRoute;
-    // a STATIC extraction drops the slot's read, and a slot whose live `?.` can short-circuit is the
-    // probe channel's (the nested plan declines the same pair): no leg carries that probe through a
-    // literal hop, so the leaf stays native, where the source's own read keeps its throw
-    if (kind !== 'instance' && literalReceiver && receiverCarriesLiveOptional(literalReceiver)
-      && navValueCanShortCircuit(unwrapRuntimeExpr(literalReceiver), m => resolvePure(m, metaPath),
-        keyCtx)) return;
-    // ... and where the pairing keeps the LITERAL alive, the prefix it elides runs from that husk:
-    // the receiver may be resolved THROUGH it, so the dispatch spells the value the read yields
-    // (`{ w: (g(), globalThis) }` dispatches on `_globalThis` while the husk still runs `g()`).
-    // a literal the consume DROPS keeps the whole sequence in the dispatch - nothing else runs it
-    if (sentinel && chain.length > 0 && destructureHostLiteralSurvives(metaPath, adapter)) {
-      literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, allowSePeeledFragment: true })
-        ?? (literalReceiver?.type === 'SequenceExpression'
-          ? peelReceiverSequenceTail(literalReceiver) : literalReceiver);
-    }
-    // a SENTINEL-kept flat prop over a single-declarator CONSTANT literal re-reads the
-    // literal directly (`{ [(se, 'flat')]: m } = [1, P]` -> `const m = _flat([1, P]);` +
-    // the `_unused` residual - babel re-emits, no memo); multi-declarator keeps the memo
-    // ... a SOLE prop only: beside a sibling prop the residual is a second reader, and the literal
-    // memoizes into the join like every other sentinel init (`const _ref = [1, 2], { [k]: _unused, z } = _ref, s = _at(_ref)`)
-    if (sentinel && !literalReceiver && !pureNav && chain.length === 0 && !forInit
-      && declaration.declarations.length === 1 && declarator.id?.properties?.length === 1
-      && (declarator.init?.type === 'ArrayExpression' || declarator.init?.type === 'ObjectExpression')
-      && isReReferenceableReceiver(declarator.init)) {
-      literalReceiver = declarator.init;
-      sentinelMemoEligible = false;
-      memoSibling = false;
-    }
-    // an init whose HOPS name a BUILT-IN surface lets the value builder spell the nested dispatch
-    // off it with no literal to descend (`{ Array: { prototype: { flat: m } } } = globalThis`
-    // dispatches on `_globalThis.Array.prototype`) - without this the claim shipped native in the
-    // whole declaration family while the assignment host extracted it. the question is asked of the
-    // nav the pattern NAMES, through the same canon the babel leg asks, so the legs answer alike:
-    // a chain of pristine proxy names peels away entirely (`{ self: { keys } } = globalThis` reads
-    // the root itself, native on both legs), and a computed hop that FOLDS to a static name is that
-    // same nav in its bracket spelling - the climb already refused the hop no member spelling reaches
-    const surfaceInit = kind === 'instance' && chain.length > 0 && entry !== 'get-iterator-method';
-    // ... with the SURFACE base admitted, the assignment host's own opt-in: a chain ending ON a
-    // built-in surface is the anchored machinery's shape, and the anchor re-homes the RESIDUAL
-    // without dispatching - so an INSTANCE leaf reading THROUGH that surface had no route at all
-    // and shipped native beside the anchor (`{ Promise: { name } } = globalThis` bound `_Promise
-    // .name`, the raw read the floor answers undefined, where the other leg dispatches
-    // `_nameMaybeFunction(_Promise)`). the shared plan decides, so the two hosts answer alike
-    // a sentinel KEEPS the declarator (and its init) alive, so the discard-safety proof is
-    // not needed there; the instance value builder still bounds receiver reads on its own
-    if (chain.length > 0 && (kind === 'instance' && entry !== 'get-iterator-method' && !literalReceiver
-      && !typedHopPure && !surfaceInit
-      // an ANCHORED symbol prop keeps its key-swap instead of extracting when the extraction
-      // would change what the slot answers: a DEFAULT off the ANCHOR fires on the raw read's
-      // undefined, which the helper result need not be, and an SE KEY has no slot outside the
-      // kept key. a default off a TYPED USER NAV is the other case - nothing there answers the
-      // key but the dispatch, so the guard the drain renders folds it (a key swap would answer
-      // `undefined` off-engine and fire the user's default where the polyfill should have won)
-      // ... and a SIBLING hop makes the host an anchored residual of its own: the symbol prop
-      // rides it re-keyed rather than leaving (`{ Map: { [S]: a }, Object: { fromEntries } }`)
-      || (entry === 'get-iterator-method'
-        && ((prop.value.type === 'AssignmentPattern' && !typedNavChain) || computedKeyHasSideEffects(prop, keyCtx)
-          // ... and a HOST sibling keeps the pattern only where the leaf would leave a second
-          // reader of its hop behind: with the hop pruned out of the residual there is none, and
-          // the symbol claim extracts beside the sibling like any other (`{ inner: { [S]: it },
-          // keep } = box` -> `const it = _gim(box.inner); const { keep } = box;`)
-          // ... unless a SLOT memo gives the sibling's residual and the claim one ref: the symbol
-          // leaf extracts off it beside the sentinel, like the instance leaf of the same slot
-          || (declarator.id?.properties?.length > 1 && !typedNavChain && !literalRoute.slotMemo && !literalReceiver))))) return;
-    // a for-init CONSTANT-LITERAL init with a dead per-declarator residual extracts
-    // single-read as a sibling declarator (`{ at } = [0]` -> `at = _atMaybeArray([0])`)
-    let forInitLiteral = false;
-    if (!sentinel && !literalReceiver && !pureNav && forInit && chain.length === 0
-      // ... and a MULTI-prop instance pattern: each dispatch is a reader of the one init, and
-      // the drain memoizes it as a sibling declarator once several readers (or a surviving
-      // residual) need it
-      && (patternBindingCount(declarator.id) === patternBindingCount(prop.value) || kind === 'instance')
-      // an INSTANCE claim reads the init exactly once inside the dispatch, so an
-      // SE-bearing call consumes too (`{ at } = getArr()` -> `at = _at(getArr())`);
-      // a receiverless static would silently drop it
-      && (kind === 'instance' || !mayHaveSideEffects(declarator.init))) {
-      literalReceiver = declarator.init;
-      forInitLiteral = true;
-    }
+    if (!literalRoute.admitted) return;
+    const {
+      soleBinding,
+      declaratorConsumedWhole,
+      relaxedReceiver,
+      carriedLive,
+      receiverConsumesInit,
+      sentinelMemoEligible,
+      memoSibling,
+    } = literalRoute;
+    let { literalReceiver, forInitLiteral } = literalRoute;
+    // a for-init SENTINEL needs a receiver the residual can read a second time: the memo
+    // gives it one, and a bare IDENTIFIER init already is one (`{ at, ...rest } = arr` ->
+    // `at = _at(arr), { at: _unused, ...rest } = arr`)
+    if (forInit && sentinel && !sentinelMemoEligible && kind === 'instance'
+      && peelTransparentExpr(declarator.init)?.type !== 'Identifier') return;
+    // a value-SELECTING conditional init under a sentinel-kept prop: the per-branch mirror
+    // owns the claim - an unconditional extraction would corrupt the non-global branch.
+    // a fallback LOGICAL keeps extracting: its resolved left is the always-truthy receiver
+    if (sentinel && !sentinelMemoEligible && divergingSentinelSelectorDeclines(
+      { declarator, meta, metaPath, chain, kind },
+      { adapter, injectorState, resolveGlobalPolyfill },
+    )) return;
     // a for-init FULL consume needs no statement slot: the drain keeps the init in a `_ref`
     // declarator beside the extractions (`for (const _ref = bump(), parse = _JSON$parse;`),
     // so the opaque-memo route - which hoists a STATEMENT - must not claim it

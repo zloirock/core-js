@@ -355,3 +355,21 @@ QUnit.test('destructuring assignment: a sole outer hop preserves a deeper siblin
   assert.same(at, selected, 'the later method reads the same deeper receiver after rebinding');
   assert.deepEqual(events, ['keys', 'wrapper', 'row', 'before', 'data'], 'all source getters run once, in order');
 });
+
+QUnit.test('destructuring: literal receiver keeps its slot and a bodyless single read', assert => {
+  const log = [];
+  const rows = [7, 8];
+  const source = {
+    get rows() { log.push('get'); return rows; },
+  };
+  const { first, w: { at: read } } = { first: (log.push('first'), 1), w: source.rows };
+  log.push('call');
+  assert.same(read.call(rows, -1), 8);
+  assert.same(first, 1);
+  assert.deepEqual(log, ['first', 'get', 'call']);
+  log.length = 0;
+  // eslint-disable-next-line no-var -- the bodyless declaration is the source form under test
+  if (rows.length) var { w: { at: next } } = { w: (log.push('prefix'), source.rows) };
+  assert.same(next.call(rows, 0), 7);
+  assert.deepEqual(log, ['prefix', 'get']);
+});
