@@ -5,6 +5,7 @@ import {
   descendToChainRoot,
   callYieldCanBeUndefined,
   inlineCallProxyGlobalRoot,
+  inlineCallReturnExpression,
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   planKeptSequenceTail,
@@ -18,6 +19,8 @@ import {
   resolveObjectName,
   pristineRealmHopKey,
   unwrapParensCollectingEffects,
+  undefinableOptionalGuard,
+  peelPristineProxyHops,
 } from './resolve.js';
 import {
   isMemberAccessNode,
@@ -37,6 +40,12 @@ import {
   singleSequenceTail,
   unwrapRuntimeExpr,
   receiverContainsOptional,
+  memberProxyHopName,
+  migratableClaimSe,
+  nestedSequenceValueSpelling,
+  mayHaveSideEffects,
+  subtreeContainsNode,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 import { instanceSynthReceiverPure } from './destructure.js';
 import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
@@ -135,6 +144,145 @@ export function guardProbeUndefinable(probe, {
     probeValue, resolvePure,
     { scope, adapter, path },
     { throughChainAssign: true, observableRead: observableRead || storeObserved });
+}
+
+// Locate a decided source, or the deepest raw slot, on this probe's member spine.
+// A sequence owns its prefix and a store owns its whole value. Keep crossed hops
+// so capturing a call can prove that the replaced span drops only realm navigation.
+function optionalProbeSourceSlot(probe, source = null) {
+  const target = unwrapRuntimeExpr(source);
+  const hops = [];
+  let slot = probe;
+  let spine = unwrapRuntimeExpr(slot);
+  for (;;) {
+    if (source && spine === target) return { source: hops.length ? source : probe, hops };
+    const hop = source ? spine : unwrapRuntimeExpr(peelReceiverSequenceTail(spine));
+    if (!isMemberAccessNode(hop)) break;
+    hops.push(hop);
+    slot = hop.object;
+    spine = unwrapRuntimeExpr(slot);
+  }
+  if (!source) return { source: slot, hops };
+  return spine?.type === 'SequenceExpression' && target?.type !== 'AssignmentExpression'
+    && unwrapRuntimeExpr(peelReceiverSequenceTail(spine)) === target ? { source: spine, hops } : null;
+}
+
+// A sealed or sequence-held navigation renders its own guard. The outer test reads
+// that guard's source, with its prefix kept ahead of the guard rather than replayed.
+function ownOptionalProbe(probe, ctx) {
+  const sealed = TRANSPARENT_EXPR_WRAPPER_TYPES.has(probe?.type);
+  let inner = sealed ? unwrapRuntimeExpr(probe) : null;
+  for (let seq = inner ?? unwrapRuntimeExpr(probe); seq?.type === 'SequenceExpression';) {
+    inner = unwrapRuntimeExpr(seq.expressions.at(-1));
+    seq = inner;
+  }
+  if (!sealed && inner === null) return null;
+  for (let hop = inner; isMemberAccessNode(hop); hop = unwrapRuntimeExpr(hop.object)) {
+    if (hop.optional) return guardProbeUndefinable(hop.object, ctx) ? hop.object : null;
+  }
+  return null;
+}
+
+// A call below a constructor hop can be the guard's source. Strict local containers
+// prove their intervening slots; a conditional inline yield retains its own void arm.
+// Member reads keep the whole-chain guard verdict instead of being guessed from a key.
+function callIsOptionalProbe(node, claimCtor, readNode, ctx) {
+  const call = unwrapRuntimeExpr(node);
+  if (!isCallShape(call) || call.optional) return false;
+  const returned = claimCtor && inlineCallReturnExpression({ node: call, readNode, seen: new Set(), ctx },
+    { rejectConditional: true });
+  if (returned && unwrapRuntimeExpr(returned.node)?.type === 'ObjectExpression'
+    && !inlineCallProxyGlobalRoot({ callNode: call, ...ctx, rejectConditional: true })) return true;
+  const callee = unwrapRuntimeExpr(call.callee);
+  const body = callee?.type === 'ArrowFunctionExpression' ? unwrapRuntimeExpr(callee.body) : null;
+  if (body?.type === 'ConditionalExpression' && body.consequent?.type === 'UnaryExpression'
+    && body.consequent.operator === 'void') return true;
+  return proxyReceiverValueCanBeUndefined(call, ctx.resolvePure, ctx, { throughChainAssign: true });
+}
+
+// Choose the live optional's source and evaluation slots before either binding edits
+// them. A claim reads its ponyfill past the probe; an instance reader still observes
+// the call/sequence value. Effects are partitioned against the FINAL source, after
+// constructor and seal descent. A memo captures a realm-only call span, including its
+// sequence prefix. It tests the CALL yield even if the enclosing realm hop is backed:
+// a claim's guard can erase there without proving that the captured call is defined.
+// A memo request declines non-realm/computed hops before asking the value resolver.
+export function planOptionalProbe(node, ctx, {
+  hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false,
+} = {}) {
+  if (!ctx?.adapter || !ctx.resolvePure || !isMemberAccessNode(node)) return null;
+  if (memoize) {
+    if (!node.optional || node.computed || !memberProxyHopName(node)) return null;
+    const { source, hops } = optionalProbeSourceSlot(node.object);
+    const call = unwrapRuntimeExpr(peelReceiverSequenceTail(source));
+    if (!isCallShape(call) || call.optional || hops.some(hop => hop.computed || !memberProxyHopName(hop))
+      || !inlineCallProxyGlobalRoot({ callNode: call, ...ctx, rejectConditional: true })
+      || !guardProbeUndefinable(call, ctx)) return null;
+    return { probe: source, source, prefix: [], keySe: null, keepSequence: unwrapRuntimeExpr(source).type === 'SequenceExpression' };
+  }
+  function resolveGlobal(name) {
+    return ctx.resolvePure({ kind: 'global', name });
+  }
+  let probe = node.optional ? node.object : null;
+  let cur = unwrapRuntimeExpr(node.object);
+  let plainHops = true;
+  while (!probe && isMemberAccessNode(cur)) {
+    if (cur.optional) {
+      probe = cur.object;
+      break;
+    }
+    if (cur.computed ? !ctx.adapter.isStringLiteral(unwrapRuntimeExpr(cur.property)) : cur.property?.type !== 'Identifier') {
+      plainHops = false;
+    }
+    cur = unwrapRuntimeExpr(cur.object);
+  }
+  if (!probe && isCallShape(cur) && cur.optional) probe = cur;
+  if (!probe) return null;
+  const navigated = isMemberAccessNode(reader) && unwrapRuntimeExpr(reader.object) === node;
+  const call = unwrapRuntimeExpr(probe);
+  const instanceRead = navigated && isCallShape(call) && !call.optional
+    && ctx.resolvePure({ kind: 'property', object: 'function', placement: 'prototype',
+      key: reader.computed ? null : reader.property?.name })?.kind === 'instance';
+  const undefinable = instanceRead || guardProbeUndefinable(probe, { ...ctx, nestedSeqUnproven: navigated });
+  const claimCtor = hintName?.includes('$') ? hintName.split('$', 1)[0] : null;
+  for (let inner = unwrapRuntimeExpr(probe); isMemberAccessNode(inner) && inner.optional && !inner.computed
+    && (resolveGlobal(inner.property?.name) || inner.property?.name === claimCtor
+      || callIsOptionalProbe(inner.object, claimCtor, node, ctx)); inner = unwrapRuntimeExpr(probe)) probe = inner.object;
+  const verdict = undefinableOptionalGuard(node, ctx.resolvePure, ctx);
+  const sourceSlot = verdict.kind === 'guard' && optionalProbeSourceSlot(probe, verdict.object);
+  if (sourceSlot) probe = sourceSlot.source;
+  const descended = ownOptionalProbe(probe, ctx);
+  if (descended) probe = descended;
+  if (!undefinable || !plainHops) return null;
+
+  const migration = migratableClaimSe({ sideEffects: effects, receiverEffectCount, rootNode: probe, end: node.end });
+  if (!migration && effects?.length) return null;
+  const keySe = migration?.migrated?.length ? migration.migrated : null;
+  const navSe = migration ? migration.leading : effects;
+  let source = unwrapRuntimeExpr(probe);
+  const tail = source?.type === 'SequenceExpression' ? unwrapRuntimeExpr(source.expressions.at(-1)) : null;
+  const keepSequence = !descended && (tail?.type === 'AssignmentExpression' || nestedSequenceValueSpelling(source));
+  const dropped = [];
+  for (;;) {
+    if (source?.type === 'SequenceExpression' && !keepSequence) {
+      dropped.push(...source.expressions.slice(0, -1));
+      source = unwrapRuntimeExpr(source.expressions.at(-1));
+      continue;
+    }
+    const peeled = peelPristineProxyHops(source, { adapter: ctx.adapter, resolveGlobalPolyfill: resolveGlobal });
+    if (peeled === source) break;
+    source = peeled;
+  }
+  const effectsAreProbe = !navSe?.length || (navSe.length === 1
+    && (navSe[0] === probe || unwrapRuntimeExpr(navSe[0]) === unwrapRuntimeExpr(probe)));
+  return {
+    probe, source,
+    prefix: [
+      ...!effectsAreProbe && navSe?.some(effect => !subtreeContainsNode(source, effect)) ? navSe : [],
+      ...dropped.filter(effect => mayHaveSideEffects(effect) && !(navSe ?? []).includes(effect)),
+    ],
+    keySe, keepSequence,
+  };
 }
 
 // Apply a kept-value decision to its native slot. The binding substitutes/embeds a

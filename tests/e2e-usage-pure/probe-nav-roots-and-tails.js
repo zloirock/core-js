@@ -1,9 +1,29 @@
 import { withWindowPresence } from './unbacked-window-host.cjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
+/* eslint-disable no-sequences -- computed-key effects are the fallback boundary under test */
+// The call-yield probe captures its sequence prefix once. The computed static key and
+// call argument belong to the live branch, including when the probe value is stored.
+QUnit.test('probe navigation: call-yield source partitions prefix and guarded effects', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    function read() {
+      return globalThis.window;
+    }
+    const value = (log.push('prefix'), read())?.self?.Array[log.push('key'), 'from']((log.push('argument'), [7]));
+    assert.deepEqual(value, live ? [7] : undefined, 'the call yield decides the guard');
+    assert.deepEqual(log, live ? ['prefix', 'key', 'argument'] : ['prefix'], 'effects run once in their source slots');
+    log.length = 0;
+    let held;
+    const stored = (log.push('prefix'), held = read())?.self.Array[log.push('key'), 'from']((log.push('argument'), [8]));
+    assert.deepEqual(stored, live ? [8] : undefined, 'the stored probe decides the guard');
+    assert.same(held, live ? globalThis : undefined, 'the binding holds the source value');
+    assert.deepEqual(log, live ? ['prefix', 'key', 'argument'] : ['prefix'], 'the store does not replay or hoist effects');
+  });
+});
+
 // Effectful realm keys stay in the source access. Their nested instance claims remain live,
 // including before an optional test and inside a branch that may never run.
-/* eslint-disable no-sequences -- computed-key effects are the fallback boundary under test */
 QUnit.test('probe navigation: effectful realm keys preserve the native fallback', assert => {
   for (const present of [false, true]) withWindowPresence(present, live => {
     withTemporaryProperty(globalThis, 'e2eFallbackValue', 17, () => {
