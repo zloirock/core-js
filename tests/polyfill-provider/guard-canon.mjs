@@ -35,6 +35,7 @@ import {
   wrapScopeBindingLookup,
   peelParenAndTSSlotPath,
   paramReboundInBody,
+  trustedIdentifierAliasWrite,
   calleeYieldedContainer,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
@@ -43,6 +44,17 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('guard-canon');
+
+runBoth('alias write read anchors', 'let realm; realm = globalThis; const value = realm;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const write = parser.pickPath(program, 'AssignmentExpression').node;
+  const options = { scope: path.scope, name: 'realm', adapter, path: null };
+  check(`${ label }/absent anchor`, trustedIdentifierAliasWrite(options), null);
+  check(`${ label }/positionless anchor`, trustedIdentifierAliasWrite({ ...options, readNode: { type: 'Identifier', name: 'realm' } }), null);
+  check(`${ label }/earlier anchor`, trustedIdentifierAliasWrite({ ...options, readNode: { ...path.node.init, start: write.start } }), null);
+  check(`${ label }/later anchor`, trustedIdentifierAliasWrite({ ...options, readNode: path.node.init }), write);
+});
 
 for (const [source, collapses] of [
   ['const value = globalThis.window?.self;', true],
