@@ -2518,6 +2518,11 @@ const transpilerPerfPackageJSON = {
   'depend/ban-dependencies': [ERROR, { allowed: ['globalthis'] }],
 };
 
+const e2eLibsCorpus = {
+  // allow a library the e2e-libs corpus exercises: it is chosen for the code it ships, not as a dependency
+  'depend/ban-dependencies': [ERROR, { allowed: ['lodash-es'] }],
+};
+
 const nodeDependencies = {
   // enforce the versions of the engines of the dependencies to be compatible
   'node-dependencies/compat-engines': [ERROR, { devDependencies: true }],
@@ -2626,6 +2631,7 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
+      'tests/e2e-libs/artifacts/**',
       'tests/transpiler-differential/tmp/**',
       'tests/type-definitions/tmp/**',
       'website/dist/**',
@@ -2780,7 +2786,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|karma|promises|unit-node)/**',
+      'tests/@(compat-@(data|tools)|e2e-libs|eslint|entries|karma|promises|unit-node)/**',
       'website/scripts/runner.mjs',
       'website/scripts/helpers.mjs',
     ],
@@ -2825,6 +2831,37 @@ export default [
       'no-console': OFF,
       // import used for tasks
       'import/first': OFF,
+    },
+  },
+  {
+    // the page programs of tests/e2e-libs and the helper they share: hand-written ES5, loaded
+    // into a browser by a `<script>`, and nothing at run time checks either property. `es5` alone as
+    // the built-in set, so `no-undef` answers for a name the floor does not have as well as for one
+    // nothing declares - the suite's own globals are the two below
+    files: [
+      'tests/e2e-libs/harness/*.js',
+    ],
+    languageOptions: {
+      ecmaVersion: 5,
+      sourceType: 'script',
+      globals: {
+        ...globals.es5,
+        ...globals.browser,
+        E2E: READONLY,
+        QUnit: READONLY,
+      },
+    },
+    rules: {
+      ...disable(nodeDev),
+      ...useES5Syntax,
+      ...forbidModernBuiltIns,
+      // the three the shared ES2015 set omits, and `no-undef` cannot stand in for them: flat config
+      // MERGES `languageOptions.globals` across every matching block, so an earlier one goes on
+      // declaring the modern globals whatever this one lists. Named here rather than added to the
+      // shared set, which core-js's own `Map`/`Set` sources are held to
+      'es/no-map': ERROR,
+      'es/no-set': ERROR,
+      'es/no-weak-map': ERROR,
     },
   },
   {
@@ -2893,6 +2930,10 @@ export default [
   {
     files: ['tests/transpiler-perf/package.json'],
     rules: transpilerPerfPackageJSON,
+  },
+  {
+    files: ['tests/e2e-libs/package.json', 'tests/e2e-libs/exercises/*.mjs'],
+    rules: e2eLibsCorpus,
   },
   {
     files: ['**/*.md'],

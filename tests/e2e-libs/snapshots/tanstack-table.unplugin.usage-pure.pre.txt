@@ -1,0 +1,6 @@
+-@core-js/pure/full/function/instance/name
+-@core-js/pure/full/get-iterator-method
+-@core-js/pure/full/object/get-own-property-descriptor
+-@core-js/pure/full/symbol/constructor
+-@core-js/pure/full/symbol/iterator
+-@core-js/pure/full/symbol/to-primitive

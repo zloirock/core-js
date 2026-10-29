@@ -1,0 +1,3 @@
++core-js/modules/es.iterator.for-each
++core-js/modules/web.dom-collections.for-each
++core-js/modules/web.self
