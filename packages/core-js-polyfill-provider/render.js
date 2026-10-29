@@ -191,6 +191,42 @@ export function renderMethodCall(plan, {
   return effects.length ? sequenceExpression([...effects, result]) : result;
 }
 
+// Apply a symbol-root decision without losing source effect identities in the
+// existing harvest. Only newly embedded slots are cloned by the host; nested
+// claims in the kept receiver remain available to its native traversal.
+export function renderSymbolReceiverRoot(plan, { injectImport, embed = node => node }) {
+  const root = plan.pure ? identifier(injectImport(plan.pure.entry, plan.pure.hintName)) : embed(plan.receiver);
+  return {
+    receiver: plan.receiverEffects.length
+      ? sequenceExpression([...plan.receiverEffects.map(embed), root]) : root,
+    sideEffects: plan.prefixEffects.length
+      ? [...plan.prefixEffects.map(embed), ...plan.sideEffects] : plan.sideEffects,
+    receiverEffectCount: plan.receiverEffectCount,
+    optional: plan.optional,
+  };
+}
+
+// Apply an effect-order decision. A native preparation may already supply the
+// receiver memo; otherwise the shared capture renderer allocates it here. Effects
+// outside the captured source precede it, and key effects always follow that read.
+export function renderReceiverEffects(plan, { memo = null, ...hooks } = {}) {
+  const embed = hooks.embed ?? (node => node);
+  if (!plan.ordered && !plan.capture) {
+    return { receiver: embed(plan.receiver, 'receiver'), effects: plan.effects?.map(node => embed(node, 'effect')) };
+  }
+  memo ??= renderReceiverMemo(plan, hooks);
+  const { prefix, tail } = peelNestedSequenceExpressions(hostSlotNode(memo.firstRead));
+  const firstRead = prefix.length ? [...prefix, tail].map(node => embed(node, 'effect')) : [memo.firstRead];
+  return {
+    receiver: memo.makeBase(),
+    effects: [
+      ...plan.prefixEffects.map(node => embed(node, 'effect')),
+      ...firstRead,
+      ...plan.keyEffects.map(node => embed(node, 'effect')),
+    ],
+  };
+}
+
 // The first receiver read owns its prefix and optional capture; later reads use only
 // the captured value or the proven stable tail. The host registers a capture before
 // any subsequent scope query; embedding gives repeated base reads distinct identities.
@@ -514,7 +550,7 @@ export function hostSlot(node) {
 }
 
 // ... and the host node a slot carries, for a render that asks about its shape
-function hostSlotNode(node) {
+export function hostSlotNode(node) {
   return node?.type === HOST_SLOT ? node.node : node;
 }
 

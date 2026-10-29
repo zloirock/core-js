@@ -1,6 +1,6 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
-import { prepareStaticReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import { planSymbolReceiverRoot, prepareStaticReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -23,6 +23,7 @@ import {
   renderMethodCall,
   renderReceiverMemo,
   renderGuardedMethodCall,
+  renderSymbolReceiverRoot,
 } from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop, sealedLayerAbove } from './claim-guards.js';
@@ -157,36 +158,21 @@ export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPa
   markSubtreeSkipped(ctx.skippedNodes, consumed);
 }
 
-// will this receiver COLLAPSE into a spelling the source never wrote? a hop over a sequence
-// always does, and a hop over a call does when the call yields a proxy global (an opaque one
-// stays spelled and needs no memo). babel memoizes exactly that minted spelling
-// the provider's `symbolReceiverProxyRoot`: a proxy-global receiver directly under the symbol hop
-// resolves to its ROOT pure import ONCE, shared, so all three emitters render the same
-// `_getIteratorMethod((droppedSe, _root))` instead of a dead leaf hop. a SUBSTITUTED root is always
-// defined, so the erased span's `?.` dies with it; a KEPT root can be absent, so its guard re-hangs
-// on the symbol member itself
+// Apply the shared symbol root and effect decision, retiring only the erased
+// receiver span. Kept source slots are cloned and remain available for traversal.
 export function collapseSymbolProxyRoot(meta, metaPath, { resolvePure, injectPureImport, skippedNodes }) {
-  const proxyRoot = meta.symbolReceiverProxyRoot;
-  if (!proxyRoot) return false;
-  const keptClone = proxyRoot.keepRoot ? cloneNode(proxyRoot.keepRoot) : null;
-  const rootPure = keptClone ? null : resolvePure({ kind: 'global', name: proxyRoot.rootName }, metaPath);
-  if (!keptClone && !rootPure) return false;
-  const { node } = metaPath;
-  const rootBinding = keptClone ?? identifier(injectPureImport(rootPure.entry, rootPure.hintName));
-  const droppedSe = proxyRoot.droppedSe.map(effect => cloneNode(effect));
-  const isOptional = !!proxyRoot.isOptionalAccess;
-  // the collapse replaces the WHOLE receiver span with the root plus the harvested effects: every
-  // other claim queued inside it composes against source that is gone
-  markSubtreeSkipped(skippedNodes, node.object);
-  // a following key SE would make the emit PEEL a sequence receiver and replay only the recorded
-  // prefix, losing droppedSe - route it through the SE channel instead. the optional access
-  // memoizes the whole receiver in its guard, so it keeps the tighter inline form
-  if (droppedSe.length && meta.sideEffects?.length && !isOptional) {
-    meta.sideEffects = [...droppedSe, ...meta.sideEffects];
-    meta.receiverEffectCount = (meta.receiverEffectCount ?? 0) + droppedSe.length;
-    node.object = rootBinding;
-  } else node.object = droppedSe.length ? sequenceExpression([...droppedSe, rootBinding]) : rootBinding;
-  if (keptClone && isOptional) node.optional = true;
+  const plan = planSymbolReceiverRoot(meta.symbolReceiverProxyRoot, {
+    sideEffects: meta.sideEffects,
+    receiverEffectCount: meta.receiverEffectCount,
+    resolvePure: entry => resolvePure(entry, metaPath),
+  });
+  if (!plan) return false;
+  const root = renderSymbolReceiverRoot(plan, { injectImport: injectPureImport, embed: cloneNode });
+  markSubtreeSkipped(skippedNodes, metaPath.node.object);
+  meta.sideEffects = root.sideEffects;
+  meta.receiverEffectCount = root.receiverEffectCount;
+  metaPath.node.object = root.receiver;
+  if (root.optional) metaPath.node.optional = true;
   return true;
 }
 

@@ -21,6 +21,8 @@ import {
   unwrapParensCollectingEffects,
   undefinableOptionalGuard,
   peelPristineProxyHops,
+  claimReceiverEvaluationMayThrow,
+  keySideEffectsOnly,
 } from './resolve.js';
 import {
   isMemberAccessNode,
@@ -46,9 +48,136 @@ import {
   mayHaveSideEffects,
   subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  classifyReceiverSE,
+  reEvaluationObservable,
 } from '../helpers/ast-patterns.js';
-import { instanceSynthReceiverPure } from './destructure.js';
+import { instanceSynthReceiverPure, isConstantLiteralReceiver } from './destructure.js';
 import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
+
+// A symbol receiver's collapsed root owns its dropped prefix. A later key effect
+// takes that prefix through the replay channel; an optional access keeps it inside
+// the receiver tested by the guard. A kept root can still be absent. This query
+// retains source slots and resolves an import only when no kept value supplies them.
+export function planSymbolReceiverRoot(proxyRoot, { sideEffects, receiverEffectCount = 0, resolvePure }) {
+  if (!proxyRoot) return null;
+  const pure = proxyRoot.keepRoot ? null : resolvePure({ kind: 'global', name: proxyRoot.rootName });
+  if (!proxyRoot.keepRoot && !pure) return null;
+  const lift = proxyRoot.droppedSe.length && sideEffects?.length && !proxyRoot.isOptionalAccess;
+  return {
+    receiver: proxyRoot.keepRoot,
+    pure,
+    prefixEffects: lift ? proxyRoot.droppedSe : [],
+    receiverEffects: lift ? [] : proxyRoot.droppedSe,
+    sideEffects,
+    receiverEffectCount: receiverEffectCount + (lift ? proxyRoot.droppedSe.length : 0),
+    optional: !!proxyRoot.keepRoot && !!proxyRoot.isOptionalAccess,
+  };
+}
+
+// Order the first receiver evaluation before key effects, retaining quiet reads
+// that can throw. A prepared guard already owns that first evaluation; otherwise
+// a whole receiver can carry its own prefix, and only a stable value may be read
+// again after a key. Capture is an application request, never an allocation here.
+// All slots belong to this synchronous question and remain in their source frame.
+export function planReceiverEffects({
+  receiver,
+  firstReceiver = receiver,
+  sideEffects,
+  receiverEffectCount = 0,
+  guarded = false,
+  seMode = null,
+  receiverReads = 2,
+  ctx = null,
+}) {
+  if (guarded && receiverEffectCount > 0) {
+    return { receiver, effects: seMode === 'suppress' ? sideEffects : keySideEffectsOnly(receiverEffectCount, sideEffects) };
+  }
+  if (!guarded) receiver = firstReceiver;
+  if (!sideEffects?.length) return { receiver, effects: sideEffects };
+  const keyEffects = keySideEffectsOnly(receiverEffectCount, sideEffects);
+  if (seMode === 'peel' && !keyEffects.length) return { receiver, effects: keyEffects };
+  if (receiverReads === 1 && (seMode !== 'peel' && !keyEffects.length
+    || !guarded && isConstantLiteralReceiver(unwrapRuntimeExpr(receiver)))) {
+    return { receiver, effects: sideEffects.filter(effect => !subtreeContainsNode(receiver, effect)) };
+  }
+  const interveningEffects = keyEffects.length > 0;
+  const prefixEffects = seMode === 'peel' && !guarded ? [] : sideEffects.slice(0, receiverEffectCount)
+    .filter(effect => !subtreeContainsNode(receiver, effect));
+  if (!reEvaluationObservable(receiver)
+    && !(ctx?.adapter && ctx.scope && ctx.path && ctx.resolvePure
+      && claimReceiverEvaluationMayThrow(receiver, ctx.resolvePure, ctx))
+    && (!interveningEffects || isReusableReceiver(receiver, { interveningEffects, ctx }))) {
+    return {
+      receiver,
+      effects: interveningEffects && !guarded ? [
+        ...prefixEffects,
+        ...observableSequenceElements([receiver], ctx, { preserveSourceReads: true }),
+        ...keyEffects,
+      ] : sideEffects,
+    };
+  }
+  return {
+    ...planReceiverMemo(receiver, { interveningEffects, ctx }),
+    ordered: true,
+    prefixEffects,
+    keyEffects,
+    interveningEffects,
+  };
+}
+
+// Before a symbol guard is applied, receiver effects must fit inside its tested
+// value. A live inner link instead requests native split preparation, then uses
+// the same receiver-memo decision. Optional invocation owns its capture elsewhere.
+// `split` contains prepared native slots, not a callback deciding this route.
+export function planSymbolReceiverEffects({
+  member,
+  caller,
+  iteratorEntry,
+  receiver,
+  sideEffects,
+  receiverEffects,
+  memberOptional,
+  liveOptionalReceiver,
+  callOptional,
+  sealed,
+  collapsed,
+  ctx,
+  split,
+}) {
+  if (callOptional) return { receiver, effects: null };
+  const keyEffects = sideEffects.filter(effect => !receiverEffects.has(effect));
+  const receiverSE = sideEffects.filter(effect => receiverEffects.has(effect));
+  if (memberOptional || liveOptionalReceiver && sealed) {
+    const peeled = unwrapRuntimeExpr(receiver);
+    const reusable = !receiverSE.length && isReusableReceiver(peeled, { interveningEffects: sideEffects.length > 0, ctx });
+    if (!reusable && receiverSE.some(effect => !subtreeContainsNode(receiver, effect))) return null;
+    return { receiver: reusable ? peeled : receiver, effects: keyEffects };
+  }
+  if (liveOptionalReceiver && !collapsed && receiverCarriesLiveOptional(receiver)) {
+    if (split === undefined) return { split: true };
+    if (split?.hopKind !== 'member') return null;
+    const memo = planReceiverMemo(split.receiver, { interveningEffects: keyEffects.length > 0, ctx });
+    return {
+      ...memo,
+      // A prepared sequence still owns its first read when its stable tail needs no capture.
+      ordered: memo.firstReceiver !== memo.receiver,
+      prefixEffects: [],
+      keyEffects,
+      effects: keyEffects,
+      disjuncts: split.disjuncts,
+    };
+  }
+  const receiverReads = iteratorEntry === 'get-iterator' || !isCallShape(caller)
+    || unwrapRuntimeExpr(caller.callee) !== member ? 1 : 2;
+  return planReceiverEffects({
+    receiver,
+    sideEffects: [...receiverSE, ...keyEffects],
+    receiverEffectCount: receiverSE.length,
+    seMode: classifyReceiverSE(receiver, false, sideEffects),
+    receiverReads,
+    ctx,
+  });
+}
 
 // does a nav (or bare identifier) bottom out on a realm root the binding-aware canon proves -
 // a pristine proxy-global name or an alias of one, shadow bail included
