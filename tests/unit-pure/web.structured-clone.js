@@ -145,6 +145,15 @@ QUnit.module('structuredClone', () => {
       });
     });
 
+    if (GLOBAL.WebAssembly?.Memory) QUnit.test('empty WebAssembly memory', assert => {
+      const { buffer } = new GLOBAL.WebAssembly.Memory({ initial: 0 });
+      const clone = structuredClone(buffer);
+      assert.notSame(clone, buffer, 'buffer copied');
+      assert.same(clone.byteLength, 0, 'empty buffer');
+      assert.same(structuredClone(new Uint8Array(buffer)).length, 0, 'empty view');
+      assert.same(new DataView(buffer).byteLength, 0, 'source is attached');
+    });
+
     // TODO SharedArrayBuffer
 
     // Array Buffer Views
@@ -237,37 +246,40 @@ QUnit.module('structuredClone', () => {
 
   // Error
   QUnit.test('Error', assert => {
+    // IE's native Error treats the second argument as the message.
+    const errorMessage = new Error('msg', { cause: 42 }).message;
     const errors = [
-      ['Error', new Error()],
-      ['Error', new Error('msg', { cause: 42 })],
-      ['EvalError', new EvalError()],
-      ['EvalError', new EvalError('msg', { cause: 42 })],
-      ['RangeError', new RangeError()],
-      ['RangeError', new RangeError('msg', { cause: 42 })],
-      ['ReferenceError', new ReferenceError()],
-      ['ReferenceError', new ReferenceError('msg', { cause: 42 })],
-      ['SyntaxError', new SyntaxError()],
-      ['SyntaxError', new SyntaxError('msg', { cause: 42 })],
-      ['TypeError', new TypeError()],
-      ['TypeError', new TypeError('msg', { cause: 42 })],
-      ['URIError', new URIError()],
-      ['URIError', new URIError('msg', { cause: 42 })],
-      ['AggregateError', new AggregateError([1, 2])],
-      ['AggregateError', new AggregateError([1, 2], 'msg', { cause: 42 })],
+      ['Error', new Error(), ''],
+      ['Error', new Error('msg', { cause: 42 }), errorMessage],
+      ['EvalError', new EvalError(), ''],
+      ['EvalError', new EvalError('msg', { cause: 42 }), 'msg'],
+      ['RangeError', new RangeError(), ''],
+      ['RangeError', new RangeError('msg', { cause: 42 }), 'msg'],
+      ['ReferenceError', new ReferenceError(), ''],
+      ['ReferenceError', new ReferenceError('msg', { cause: 42 }), 'msg'],
+      ['SyntaxError', new SyntaxError(), ''],
+      ['SyntaxError', new SyntaxError('msg', { cause: 42 }), 'msg'],
+      ['TypeError', new TypeError(), ''],
+      ['TypeError', new TypeError('msg', { cause: 42 }), 'msg'],
+      ['URIError', new URIError(), ''],
+      ['URIError', new URIError('msg', { cause: 42 }), 'msg'],
+      ['AggregateError', new AggregateError([1, 2]), ''],
+      ['AggregateError', new AggregateError([1, 2], 'msg', { cause: 42 }), 'msg'],
     ];
 
     const compile = fromSource('WebAssembly.CompileError()');
     const link = fromSource('WebAssembly.LinkError()');
     const runtime = fromSource('WebAssembly.RuntimeError()');
 
-    if (compile && compile.name === 'CompileError') errors.push(['CompileError', compile]);
-    if (link && link.name === 'LinkError') errors.push(['LinkError', link]);
-    if (runtime && runtime.name === 'RuntimeError') errors.push(['RuntimeError', runtime]);
+    if (compile && compile.name === 'CompileError') errors.push(['CompileError', compile, '']);
+    if (link && link.name === 'LinkError') errors.push(['LinkError', link, '']);
+    if (runtime && runtime.name === 'RuntimeError') errors.push(['RuntimeError', runtime, '']);
 
-    for (const [name, error] of errors) cloneObjectTest(assert, error, (orig, clone) => {
+    for (const [name, error, message] of errors) cloneObjectTest(assert, error, (orig, clone) => {
       assert.same(orig.constructor, clone.constructor, `${ name }#constructor`);
       assert.same(orig.name, clone.name, `${ name }#name`);
-      assert.same(orig.message, clone.message, `${ name }#message`);
+      assert.same(orig.message, message, `${ name }#source message`);
+      assert.same(clone.message, message, `${ name }#message`);
       assert.same(orig.stack, clone.stack, `${ name }#stack`);
       assert.same(orig.cause, clone.cause, `${ name }#cause`);
       assert.deepEqual(orig.errors, clone.errors, `${ name }#errors`);
@@ -500,6 +512,18 @@ QUnit.module('structuredClone', () => {
     assert.arrayEqual(new Uint8Array(clone), [1, 2, 3, 4], 'transferred data preserved');
     assert.same(buffer.byteLength, 0, 'source buffer detached');
     assert.same(clone.byteLength, 4, 'clone buffer has correct length');
+    assert.throws(() => structuredClone(buffer), 'a detached buffer is not cloneable');
+    assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'detached transfer list entry');
+    const other = new ArrayBuffer(4);
+    // eslint-disable-next-line es/no-object-defineproperty -- native buffers support descriptors
+    Object.defineProperty(other, 'transfer', { get() { throw new Error('transfer must not be read'); } });
+    assert.same(structuredClone(1, { transfer: [other] }), 1, 'does not call an own transfer method');
+    assert.same(other.byteLength, 0, 'unreferenced buffer detached');
+  });
+  else if (typeof Uint8Array == 'function') QUnit.test('unsupported transfer', assert => {
+    const buffer = new ArrayBuffer(4);
+    assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'unavailable transfer');
+    assert.same(buffer.byteLength, 4, 'source is preserved');
   });
 
   // Non-serializable types

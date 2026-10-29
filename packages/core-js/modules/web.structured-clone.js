@@ -3,7 +3,7 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
-var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
 var isCallable = require('../internals/is-callable');
@@ -24,6 +24,7 @@ var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
 var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
+var isDetached = require('../internals/array-buffer-is-detached');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
@@ -43,6 +44,7 @@ var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
 var objectKeys = getBuiltIn('Object', 'keys');
 var push = uncurryThis([].push);
+var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
@@ -153,7 +155,8 @@ var cloneBuffer = function (value, map, $type) {
     // `ArrayBuffer#slice` is not available in IE10
     // `ArrayBuffer#slice` and `DataView` are not available in old FF
     if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
-    // detached buffers throws in `DataView` and `.slice`
+    // detached buffers throw in `DataView` and `.slice`, but not in every engine
+    if (isDetached(value)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     try {
       if (isCallable(value.slice) && !value.resizable) {
         clone = value.slice(0);
@@ -408,6 +411,8 @@ var structuredCloneInternal = function (value, map) {
       });
       break;
     case 'Error':
+      // in old FF, an own property check is needed to resolve a lazy Error#message
+      hasOwn(value, 'message');
       createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, map));
       if (hasOwn(value, 'cause')) {
         createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map));
@@ -499,15 +504,15 @@ var tryToTransfer = function (rawTransfer, map) {
 
 var detachBuffers = function (buffers) {
   setIterate(buffers, function (buffer) {
-    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
-      nativeStructuredClone(buffer, { transfer: [buffer] });
-    } else if (isCallable(buffer.transfer)) {
-      buffer.transfer();
-    } else if (detachTransferable) {
+    if (isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
+    if (detachTransferable) {
       detachTransferable(buffer);
+    } else if (arrayBufferTransfer) {
+      arrayBufferTransfer(buffer);
     } else {
       throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
     }
+    if (!isDetached(buffer)) throw new DOMException('ArrayBuffer is not detachable', DATA_CLONE_ERROR);
   });
 };
 

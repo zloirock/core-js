@@ -1,17 +1,52 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
+var call = require('../internals/function-call');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
+var getNativePrototype = require('../internals/array-buffer-native-prototype');
+var getInternalState = require('../internals/internal-state').get;
+var classof = require('../internals/classof-raw');
+var fails = require('../internals/fails');
+var postMessage = require('../internals/message-channel-post');
+var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var DataView = globalThis.DataView;
+var Uint8Array = globalThis.Uint8Array;
+var NATIVE_UINT8_ARRAY = Uint8Array && !Uint8Array.sham;
+var CHECK_BY_CLONING = PROPER_STRUCTURED_CLONE_TRANSFER ? false : undefined;
+var STOP = { valueOf: function () { throw STOP; } };
 
-module.exports = function (O) {
-  if (!NATIVE_ARRAY_BUFFER || arrayBufferByteLength(O) !== 0) return false;
+var throwsOnDetached = function (O, slice) {
   try {
-    // eslint-disable-next-line no-new -- thrower
-    new DataView(O);
+    if (NATIVE_UINT8_ARRAY) {
+      // A buffer can be larger than the maximum typed array length.
+      // eslint-disable-next-line no-new -- thrower
+      new Uint8Array(O, 0, 0);
+    } else if (slice) {
+      // Stop slice before species lookup and allocation.
+      call(slice, O, STOP);
+    }
     return false;
   } catch (error) {
-    return true;
+    return error !== STOP;
   }
+};
+
+module.exports = function (O) {
+  // A full polyfill never has a detachable backing store.
+  if (getInternalState(O).type === 'ArrayBuffer') return false;
+  if (NATIVE_UINT8_ARRAY && CHECK_BY_CLONING === false) return throwsOnDetached(O);
+  var prototype = getNativePrototype(O, true);
+  if (prototype && classof(prototype) === 'SharedArrayBuffer') return false;
+  var slice = prototype && prototype.slice;
+  if (CHECK_BY_CLONING === undefined && postMessage) {
+    // Old WebKit accepts detached buffers in both view constructors and slice.
+    CHECK_BY_CLONING = fails(function () {
+      var Constructor = prototype && prototype.constructor;
+      var buffer = NATIVE_UINT8_ARRAY ? new Uint8Array(1).buffer : new Constructor(1);
+      postMessage(null, [buffer]);
+      return !throwsOnDetached(buffer, slice);
+    });
+  }
+  return throwsOnDetached(O, slice) || !!CHECK_BY_CLONING && arrayBufferByteLength(O) === 0 && fails(function () {
+    postMessage(O);
+  });
 };

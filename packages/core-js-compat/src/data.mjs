@@ -562,6 +562,7 @@ export const data = {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    node: '22.4', // https://github.com/nodejs/node/pull/52910
     rhino: '1.9.0',
     safari: '17.4',
   },
@@ -569,6 +570,7 @@ export const data = {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    node: '22.4', // https://github.com/nodejs/node/pull/52910
     rhino: '1.9.0',
     safari: '17.4',
   },

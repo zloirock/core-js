@@ -1,5 +1,13 @@
 # Changelog
 ### Unreleased
+- Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
+- Fixed lost error messages in the `structuredClone` polyfill in old Firefox
+- Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer
+- Fixed `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills losing the source on allocation failure, using species, ignoring changes during length coercion, and accepting non-detachable buffers; `transfer` preserves the original maximum length
+- Fixed native `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` crashing on allocation failure in NodeJS 21 and 22.0-22.3
+- Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
+- Fixed `MessageChannel` and native `DOMException` detection in old NodeJS
+- Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
 - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
 - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
@@ -25,6 +33,7 @@
     - [Bun 1.4.1](https://bun.com/blog/bun-v1.4.1#upgraded-javascriptcore)
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
+  - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0
   - Chromium-based Edge and Opera no longer inherit EdgeHTML and Presto data where Chrome needs a later version: `Array.prototype.{ reduce, reduceRight }` are no longer marked as supported in Edge 79-82, `Object.{ defineProperty, defineProperties }` - in Opera 15-23, `atob` - in Opera 15-20
   - Fixed Opera 120 compat data mapping: `RegExp.escape`, `SuppressedError`, `DisposableStack`, `AsyncDisposableStack` and `Iterator.prototype[@@dispose]` are no longer marked as supported

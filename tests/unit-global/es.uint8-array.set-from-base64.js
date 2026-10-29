@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   const { setFromBase64 } = Uint8Array.prototype;
@@ -6,6 +6,17 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   assert.arity(setFromBase64, 1);
   assert.name(setFromBase64, 'setFromBase64');
   assert.looksNative(setFromBase64);
+  if (GLOBAL.WebAssembly?.Memory) {
+    const view = new Uint8Array(new GLOBAL.WebAssembly.Memory({ initial: 0 }).buffer);
+    assert.deepEqual(view.setFromBase64(''), { read: 0, written: 0 }, 'empty WebAssembly memory');
+  }
+  if (GLOBAL.SharedArrayBuffer) {
+    const shared = new Uint8Array(new GLOBAL.SharedArrayBuffer(2));
+    assert.deepEqual(shared.setFromBase64('QUI='), { read: 4, written: 2 }, 'shared buffer');
+    assert.arrayEqual(shared, [65, 66], 'shared data');
+    const empty = new Uint8Array(new GLOBAL.SharedArrayBuffer(0));
+    assert.deepEqual(empty.setFromBase64(''), { read: 0, written: 0 }, 'empty shared buffer');
+  }
 
   const template = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0, 0, 0, 0, 0]);
 

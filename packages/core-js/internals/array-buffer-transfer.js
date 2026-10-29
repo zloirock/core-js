@@ -1,9 +1,11 @@
 'use strict';
 var globalThis = require('../internals/global-this');
+var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var toIndex = require('../internals/to-index');
 var notDetached = require('../internals/array-buffer-not-detached');
+var isDetached = require('../internals/array-buffer-is-detached');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
@@ -11,15 +13,17 @@ var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-pr
 var structuredClone = globalThis.structuredClone;
 var ArrayBuffer = globalThis.ArrayBuffer;
 var DataView = globalThis.DataView;
-var max = Math.max;
+var Uint8Array = globalThis.Uint8Array;
+var TypeError = globalThis.TypeError;
+var RangeError = globalThis.RangeError;
 var min = Math.min;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var DataViewPrototype = DataView.prototype;
-var slice = uncurryThis(ArrayBufferPrototype.slice);
 var isResizable = uncurryThisAccessor(ArrayBufferPrototype, 'resizable', 'get');
 var maxByteLength = uncurryThisAccessor(ArrayBufferPrototype, 'maxByteLength', 'get');
 var getInt8 = uncurryThis(DataViewPrototype.getInt8);
 var setInt8 = uncurryThis(DataViewPrototype.setInt8);
+var set = Uint8Array && uncurryThis(Uint8Array.prototype.set);
 
 module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && function (arrayBuffer, newLength, preserveResizability) {
   var byteLength = arrayBufferByteLength(arrayBuffer);
@@ -27,22 +31,39 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
   var fixedLength = !isResizable || !isResizable(arrayBuffer);
   var newBuffer;
   notDetached(arrayBuffer);
-  if (PROPER_STRUCTURED_CLONE_TRANSFER) {
-    arrayBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
-    if (byteLength === newByteLength && (preserveResizability || fixedLength)) return arrayBuffer;
-  }
-  if (byteLength >= newByteLength && (!preserveResizability || fixedLength)) {
-    newBuffer = slice(arrayBuffer, 0, newByteLength);
-  } else {
+  // coercing `newLength` can resize the source
+  byteLength = arrayBufferByteLength(arrayBuffer);
+  var transferWithoutCopy = PROPER_STRUCTURED_CLONE_TRANSFER && byteLength === newByteLength && (preserveResizability || fixedLength);
+  if (!transferWithoutCopy) {
     var options = preserveResizability && !fixedLength && maxByteLength
-      ? { maxByteLength: max(newByteLength, maxByteLength(arrayBuffer)) }
+      ? { maxByteLength: maxByteLength(arrayBuffer) }
       : undefined;
-    newBuffer = new ArrayBuffer(newByteLength, options);
-    var a = new DataView(arrayBuffer);
-    var b = new DataView(newBuffer);
+    // allocation must succeed before the source is detached; species is not used
+    try {
+      newBuffer = new ArrayBuffer(newByteLength, options);
+    } catch (error) {
+      // IE11 throws a TypeError when the requested allocation is too large.
+      if (error instanceof TypeError) throw new RangeError('Wrong length');
+      throw error;
+    }
     var copyLength = min(newByteLength, byteLength);
-    for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
+    // typed array views have stricter size limits than buffers on some hosts.
+    if (copyLength && (!set || fails(function () {
+      set(new Uint8Array(newBuffer, 0, copyLength), new Uint8Array(arrayBuffer, 0, copyLength));
+    }))) {
+      var a = new DataView(arrayBuffer);
+      var b = new DataView(newBuffer);
+      for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
+    }
   }
-  if (!PROPER_STRUCTURED_CLONE_TRANSFER) detachTransferable(arrayBuffer);
+  try {
+    if (transferWithoutCopy) newBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
+    else detachTransferable(arrayBuffer);
+  } catch (error) {
+    if (error.name === 'DataCloneError') throw new TypeError('ArrayBuffer is not detachable');
+    throw error;
+  }
+  // some hosts silently copy non-detachable buffers, such as WebAssembly memory
+  if (!isDetached(arrayBuffer)) throw new TypeError('ArrayBuffer is not detachable');
   return newBuffer;
 };

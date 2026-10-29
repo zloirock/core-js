@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toHex', assert => {
   const { toHex } = Uint8Array.prototype;
@@ -9,6 +9,15 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toHex', assert => {
 
   assert.same(new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]).toHex(), '48656c6c6f20576f726c64', 'proper result #1');
   assert.same(new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]).toHex(), 'ffffffffffffffff', 'proper result #2');
+  if (GLOBAL.WebAssembly?.Memory) {
+    assert.same(new Uint8Array(new GLOBAL.WebAssembly.Memory({ initial: 0 }).buffer).toHex(), '', 'empty WebAssembly memory');
+  }
+  if (GLOBAL.SharedArrayBuffer) {
+    const shared = new Uint8Array(new GLOBAL.SharedArrayBuffer(2));
+    shared.set([65, 66]);
+    assert.same(shared.toHex(), '4142', 'shared buffer');
+    assert.same(new Uint8Array(new GLOBAL.SharedArrayBuffer(0)).toHex(), '', 'empty shared buffer');
+  }
 
   if (ArrayBuffer.prototype.transfer) {
     const array = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
