@@ -2,7 +2,7 @@
 // preserve source identity; applying a preparation only changes explicitly owned slots.
 import {
   guardProbeUndefinable, holdsProxySurface, memoReceiverGlobalName, memoReceiverOriginName, mintedProxyGlobalName,
-  planGuardComposition,
+  planGuardComposition, planOptionalProbe,
   planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, storedMemoProvesGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import {
@@ -23,6 +23,89 @@ check('unknown generated name', mintedProxyGlobalName('_missing', injectorState)
 function resolvePure({ kind, name }) {
   return kind === 'global' && ['globalThis', 'self', 'Array'].includes(name) ? { entry: name, hintName: name } : null;
 }
+
+// A guard and a memo share the selected source, but capture different evaluation slots:
+// a memo retains a call's sequence prefix, while a guard can run it before its test.
+for (const [expression, source, prefix = [], memo = null, keepSequence = false, prelude = ''] of [
+  ['globalThis?.Array.from', null],
+  ['globalThis.window?.Array.from', 'globalThis.window'],
+  ['globalThis.window?.self.Array', 'globalThis.window'],
+  ['(effect(), globalThis.window)?.Array.from', 'globalThis.window', ['effect()']],
+  ['(held = globalThis.window)?.Array.from', 'held = globalThis.window'],
+  ['(effect(), held = globalThis.window)?.Array.from', 'effect(), held = globalThis.window', [], null, true],
+  ['(globalThis.window?.self)?.Array.from', 'globalThis.window'],
+  ['read()?.self', 'read()', [], 'read()', false, 'const read = () => globalThis.window;'],
+  ['(effect(), read())?.self', 'read()', ['effect()'], 'effect(), read()', false,
+    'const read = () => globalThis.window;'],
+  ['read()?.["self"]', 'read()', [], null, false, 'const read = () => globalThis.window;'],
+  ['read()?.self', null, [], null, false, 'const read = () => globalThis;'],
+  ['read().self?.self', null, [], 'read()', false, 'const read = () => globalThis.window;'],
+  ['(effect(), read().self)?.self', null, [], 'read()', false, 'const read = () => globalThis.window;'],
+  ['(effect(), read()).self?.self', null, [], 'effect(), read()', false, 'const read = () => globalThis.window;'],
+  ['unknown?.self', null],
+  ['globalThis?.Array.from', null, [], null, false, 'const globalThis = {};'],
+]) {
+  const code = `${ prelude } let held; const result = ${ expression };`;
+  runBoth(`optional probe/${ expression }/${ prelude }`, code, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, path, adapter, resolvePure };
+    const before = JSON.stringify(program.node);
+    function spelling(value) {
+      const inner = unwrapRuntimeExpr(value);
+      return inner ? code.slice(inner.start, inner.end) : null;
+    }
+    const plan = planOptionalProbe(node, ctx);
+    const capture = planOptionalProbe(node, ctx, { memoize: true });
+    check(`${ label }/source`, spelling(plan?.source), source);
+    check(`${ label }/memo request`, spelling(capture?.source), memo);
+    if (memo !== null) check(`${ label }/memo identity`, planOptionalProbe(node, ctx, { memoize: true })?.source, capture?.source);
+    if (source !== null) {
+      checkDeep(`${ label }/prefix`, plan?.prefix.map(spelling), prefix);
+      check(`${ label }/kept sequence`, plan?.keepSequence, keepSequence);
+      check(`${ label }/repeat identity`, planOptionalProbe(node, ctx)?.source, plan?.source);
+    }
+    check(`${ label }/read only`, JSON.stringify(program.node), before);
+  });
+}
+
+runBoth('optional probe/memo rejects before resolution', 'const read = () => globalThis.window; const result = read()?.Array;',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    let queries = 0;
+    const ctx = { scope: path.scope, path, adapter, resolvePure() {
+      queries++;
+      return null;
+    } };
+    check(`${ label }/decline`, planOptionalProbe(unwrapRuntimeExpr(path.node.init), ctx, { memoize: true }), null);
+    check(`${ label }/no value queries`, queries, 0);
+  });
+
+for (const located of [false, true]) runBoth(`optional probe/effect slots/${ located }`,
+  'const result = (head(), globalThis.window)?.Array[(tail(), "from")];', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, path, adapter, resolvePure };
+    const head = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'head').node;
+    const tail = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'tail').node;
+    if (!located) {
+      delete tail.start;
+      delete tail.end;
+      delete tail.loc;
+    }
+    const before = JSON.stringify(program.node);
+    const plan = planOptionalProbe(node, ctx, { effects: [head, tail], receiverEffectCount: 1 });
+    if (located) {
+      check(`${ label }/prefix identity`, plan?.prefix[0], head);
+      check(`${ label }/one prefix`, plan?.prefix.length, 1);
+      check(`${ label }/key identity`, plan?.keySe?.[0], tail);
+      check(`${ label }/one key`, plan?.keySe?.length, 1);
+    } else check(`${ label }/unknown position declines`, plan, null);
+    check(`${ label }/read only`, JSON.stringify(program.node), before);
+  });
 
 for (const [name, expression, undefinable, surface, globalName, prelude = '', options = {}] of [
   ['backed root', 'globalThis', false, true, 'globalThis'],
