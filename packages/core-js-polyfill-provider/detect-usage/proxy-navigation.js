@@ -1,16 +1,74 @@
 import {
-  isMemberAccessNode, isPristineProxyGlobal, POSSIBLE_GLOBAL_OBJECTS,
-  receiverCarriesLiveOptional, unwrapRuntimeExpr, peelChainAssignmentDeep,
-  climbTransparentWrapperPath, claimDeleteOperand, isMemberWriteHost,
+  isMemberAccessNode,
+  isPristineProxyGlobal,
+  POSSIBLE_GLOBAL_OBJECTS,
+  receiverCarriesLiveOptional,
+  unwrapRuntimeExpr,
+  peelChainAssignmentDeep,
+  climbTransparentWrapperPath,
+  claimDeleteOperand,
+  isMemberWriteHost,
 } from '../helpers/ast-patterns.js';
 import {
-  deleteGuardKeepingHop, canCollapseDeletedNavigation, navValueCanShortCircuit,
-  navHasUnresolvableProxyHop, peelReceiverSequenceTail, peelChainRootValue, mutationGuardKeepingHop,
-  unbackedProxyHopKey, pristineRealmHopKey, callValueCanBeUndefined,
-  unbackedTailRidesAbove, writtenRunKeptProbeStore, proxyCollapseConsumer,
+  deleteGuardKeepingHop,
+  canCollapseDeletedNavigation,
+  navValueCanShortCircuit,
+  navHasUnresolvableProxyHop,
+  peelReceiverSequenceTail,
+  peelChainRootValue,
+  mutationGuardKeepingHop,
+  unbackedProxyHopKey,
+  pristineRealmHopKey,
+  callValueCanBeUndefined,
+  unbackedTailRidesAbove,
+  writtenRunKeptProbeStore,
+  proxyCollapseConsumer,
+  maximalProxyGlobalHop,
+  runSwallowsStoreProbe,
+  findProxyGlobal,
+  keptProbeStore,
+  collectChainAssignsThroughMemberChain,
 } from './resolve.js';
-import { dispatchConsumesRun, planInnerProxyCollapse, proxyRunLandingPure } from './members.js';
+import {
+  dispatchConsumesRun, planInnerProxyCollapse, proxyRunLandingPure, planProxyReceiver, planKeptSequenceReceiver,
+} from './members.js';
 import { optionalMemberStaysGuarded } from './guard-preparation.js';
+
+// A root-driven fold has found its receiving slot, but has no claim owning that slot.
+// Source consumers decide whether it folds whole or reads through a retained store.
+// A refresh keeps the store's identity while native bookkeeping renews its children;
+// ask the receiver plan only after that step, and the sequence fallback after a refusal.
+export function * proxyRootCollapseRoutes({
+  path, aliasCtx, resolvePure, writeTarget, deleteHosted, valueConsumer = null, keptSequence = false,
+}) {
+  const { node } = path;
+  if (!maximalProxyGlobalHop(node, aliasCtx, { throughChainAssign: true })
+    || (!deleteHosted && navValueCanShortCircuit(node, resolvePure, aliasCtx))
+    || runSwallowsStoreProbe(node, resolvePure)) return;
+  if (valueConsumer) {
+    const source = planInnerProxyCollapse(node, {
+      aliasCtx, resolvePure, root: findProxyGlobal(node, aliasCtx, true), allowOptional: true, valueConsumer,
+    });
+    if (source?.entry) yield { kind: 'whole', source };
+    return;
+  }
+  const deleteRoot = deleteHosted && !collectChainAssignsThroughMemberChain(node, { throughEffects: false }).length;
+  const keptStore = keptProbeStore(node.object, resolvePure, aliasCtx);
+  if (writeTarget && !deleteRoot && !proxyCollapseConsumer({
+    node: node.object, host: node, writeTarget: true,
+    hasKeptTail: navHasUnresolvableProxyHop(node.object, resolvePure, aliasCtx),
+    storeHoldsProbe: !deleteHosted && !!keptStore,
+  }, { adapter: aliasCtx?.adapter, resolvePure }).writeThrough) return;
+  if (keptStore) yield { kind: 'refresh', store: keptStore };
+  const plan = planProxyReceiver(path.node, {
+    aliasCtx, isWriteTarget: writeTarget, throughChainAssign: true, resolvePure,
+  });
+  if (plan) yield { kind: 'receiver', plan };
+  if (keptSequence && !writeTarget && !deleteRoot) {
+    const tail = planKeptSequenceReceiver(path, { aliasCtx, resolvePure });
+    if (tail) yield { kind: 'sequence', tail };
+  }
+}
 
 // a KEPT WRITE anywhere down the member spine (`((dw = gw) as any)?.self` - the write
 // anchors the kept-root canon even buried under hops)

@@ -18,7 +18,6 @@ import {
   navGuardTestPlan,
   terminalNavCollapsePlan,
   directClaimProbeEffects,
-  peelReceiverSequenceTail,
   planProvenNavGuardCollapse,
   navPlanNeedsGuard,
   realmRunSplitBySequencePrefix,
@@ -40,8 +39,8 @@ import {
   planGuardedDestructureNarrow,
   planGuardedStaticNarrow,
   dispatchConsumesRun,
-  planClaimlessCallRootedNav,
   planInnerProxyCollapse,
+  planDeletedProxyClaim,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { erasedReceiverRescueNodes, renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -49,7 +48,6 @@ import {
   renderNestedKeyedPatternCapture,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
-  asProxyGlobalName,
   chainValueCarrier,
   CHAIN_HOP_WRAPPER_TYPES,
   climbTransparentWrapperPath,
@@ -68,7 +66,6 @@ import {
   TS_EXPR_WRAPPERS,
   typeArgumentHostOf,
   unwrapRuntimeExpr,
-  peelChainAssignment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentExpression,
@@ -1240,49 +1237,6 @@ export default function createProxySpineChannel(ctx) {
     return target;
   }
 
-  // THE question for a claim standing inside a DELETED realm run: what base does the delete land on?
-  // one answer, because three channels used to reach it apart - a stand-down that hoped the root's own
-  // claim would render, this redirect, and the spine render - and a form only one of them knew then
-  // got two different answers (`delete (0, globalThis).self?.window` landed the claim's pure while its
-  // prefix-less twin landed the root). the rule itself is the owner's: the delete names a SLOT, so the
-  // run under it folds onto its ROOT binding and the carrier at that root - a sequence prefix, the
-  // user's own store - re-emits ahead of it, deciding what RUNS and never what the delete lands on.
-  // null where this claim is not part of such a run, or where the fold is refused (a live `?.` that
-  // decides whether the delete happens, a store whose own value this claim spells)
-  function deletedRunBase(metaPath, node, kind, hintName) {
-    if (node.type !== 'MemberExpression' || kind !== 'global' || !POSSIBLE_GLOBAL_OBJECTS.has(hintName)) return null;
-    if (!deleteHostForClaim(metaPath, node, { forFold: true })) return null;
-    // a claim spelling a kept STORE's value keeps that value's own spelling: what the source stored
-    // is the store's act, not the delete's (`delete (ntm = globalThis.self.window)?.X` stores the
-    // probe run, and the differential's kept-value rows are what say so)
-    if (storedUserAssignmentOf(metaPath)) return null;
-    let root = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
-    for (;;) {
-      if (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-        root = unwrapRuntimeExpr(peelReceiverSequenceTail(root.object));
-        continue;
-      }
-      const stored = peelChainAssignment(root).value;
-      if (!stored || stored === root) break;
-      root = unwrapRuntimeExpr(peelReceiverSequenceTail(stored));
-    }
-    // a CALL root yields its realm through the shared plan - that verdict is the core's, read here
-    // rather than re-derived; a name root answers by its own binding
-    if (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression') {
-      const callPlan = planClaimlessCallRootedNav({
-        deleteFold: true,
-        scope: metaPath.scope,
-        adapter,
-        path: metaPath,
-        resolvePure: m => resolvePure(m, metaPath),
-      });
-      return callPlan?.verdict === 'fold-whole' ? callPlan.rootPure : null;
-    }
-    const rootName = root?.type === 'Identifier' ? asProxyGlobalName(root.name) : null;
-    if (!rootName || rootName === hintName || !isPristineProxyGlobal(adapter, rootName)) return null;
-    return resolveGlobalPolyfill(rootName) ?? null;
-  }
-
   // what still runs once a swap erases a member claim's receiver spelling: the harvested SE with the
   // receiver's chain-assignments spliced in at the recorded receiver/key boundary (ECMA receiver-before-key),
   // or - nothing harvested - the canonical discard rescue of what the erasure would observably drop (a
@@ -1367,10 +1321,26 @@ export default function createProxySpineChannel(ctx) {
     // while the spine still stands - the tail fold below reads it
     const probeRunIsTheValue = probeRunIsTheSourceValue(metaPath,
       { resolvePure: m => resolvePure(m, metaPath), effects });
-    // a `delete` reaches its slot off the run's ROOT binding - the one base the landing canon
-    // leaves to a rule of its own; every other run stands where this claim already does, on the
-    // deepest hop pure can back (`globalThis['se' + 'lf'].Array` IS `_self.Array`)
-    const redirected = deletedRunBase(metaPath, node, kind, hintName);
+    // A direct delete lands on the run's root; reading through a retained probe on
+    // the way to that slot still observes the stored value. The shared plan owns both.
+    const deleted = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+      ? planDeletedProxyClaim(node, {
+        aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+        resolvePure: m => resolvePure(m, metaPath),
+        claimName: hintName,
+        deleteFold: !!deleteHostForClaim(metaPath, node, { forFold: true }),
+      }) : null;
+    const redirected = deleted?.pure;
+    if (deleted?.keep) {
+      const target = climbSubstitutedSpan(metaPath);
+      const consumed = target.node;
+      const replacement = withSideEffects(deleted.keep, deleted.effects);
+      markRewrite();
+      target.replaceWith(replacement);
+      markSubtreeSkipped(skippedNodes, consumed, new Set([deleted.keep, ...deleted.effects]));
+      skippedNodes.add(replacement);
+      return;
+    }
     // the read a load-bearing SEAL made observable is the source's own - the swap erases it,
     // so it rides back as a throw probe ahead of the ponyfill
     const throwProbe = node.type === 'MemberExpression'
@@ -1380,7 +1350,7 @@ export default function createProxySpineChannel(ctx) {
     if (!throwProbe && node.type === 'MemberExpression' && !node.optional
       && aliasRootedReadMayThrow(node.object, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath })) return;
-    const id = injectPureImport(redirected?.entry ?? entry, redirected?.hintName ?? hintName);
+    const id = deleted?.alias?.name ?? injectPureImport(redirected?.entry ?? entry, redirected?.hintName ?? hintName);
     markRewrite();
     const target = climbSubstitutedSpan(metaPath);
     const consumed = target.node;

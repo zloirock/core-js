@@ -20789,6 +20789,55 @@ function * generateProxyNavigationRoutes() {
   })()`, { rig }), strip: true };
 }
 
+// The root carrier changes evaluation and retained values, not the base on which
+// a later slot is read, written or deleted. Both realms check each emitted body.
+function * generateRootDeleteCarriers() {
+  for (const rig of [false, true]) for (const [name, root] of [
+    ['plain', 'globalThis'],
+    ['alias', 'alias'],
+    ['sequence', '(log.push("prefix"), globalThis)'],
+    ['store', '(held = globalThis)'],
+    ['stored-surface', '(held = globalThis.self)'],
+    ['call', '(() => globalThis)()'],
+    ['effectful-call', 'read()'],
+  ]) for (const operation of ['write', 'delete']) {
+    const slot = `${ root }.self.rootDeleteBox[log.push("key"), "value"]`;
+    const expression = operation === 'delete' ? `delete ${ slot }` : `${ slot } = Array.from((log.push("argument"), [9]))[0]`;
+    yield { ...snippet(`root-delete-carriers/${ name }/${ operation }/${ rig ? 'window' : 'off-window' }`, `(() => {
+      const alias = globalThis;
+      const box = { value: 7 };
+      let held, value;
+      function read() { log.push("call"); return globalThis; }
+      globalThis.rootDeleteBox = box;
+      try { value = ${ expression }; } catch (error) { value = error.name; }
+      finally { delete globalThis.rootDeleteBox; }
+      return [value, box.value, held === globalThis];
+    })()`, { rig }), strip: true };
+  }
+}
+
+// Resolved enum claims agree across hosts, and reading through a stored probe
+// still throws off-window before evaluating the deleted member's key.
+function * generateDeletedRealmEnumCarriers() {
+  for (const rig of [false, true]) for (const [name, root] of [
+    ['stored-probe', '(held = globalThis.window)'],
+    ['probe-effects', '(log.push("before"), held = (log.push("inside"), globalThis.window))'],
+    ['stored-effects', '(log.push("before"), held = (log.push("inside"), globalThis.self))'],
+    ['call', '(() => globalThis)()'],
+  ]) {
+    yield { ...snippet(`deleted-realm-enum-carriers/${ name }/${ rig ? 'window' : 'off-window' }`, `(() => {
+      enum RealmHop { SELF = 'self' }
+      const box = { value: 7 };
+      let held, value;
+      globalThis.enumDeleteBox = box;
+      try { value = delete ${ root }[RealmHop.SELF].enumDeleteBox[log.push("key"), "value"]; }
+      catch (error) { value = error.name; }
+      finally { delete globalThis.enumDeleteBox; }
+      return [value, box.value, held === globalThis];
+    })()`, { rig }), ts: true, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21193,4 +21242,6 @@ export function * generate() {
   yield * generateOuterCollapseStores();
   yield * generateInnerCollapseRoots();
   yield * generateProxyNavigationRoutes();
+  yield * generateRootDeleteCarriers();
+  yield * generateDeletedRealmEnumCarriers();
 }
