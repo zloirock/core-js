@@ -20731,6 +20731,37 @@ function * generateOuterCollapseStores() {
   })()`, { rig }), strip: true };
 }
 
+// Inner collapse keeps the source root, the outermost write and call rescue in
+// evaluation order. The native rig supplies the realm aliases outside the census.
+function * generateInnerCollapseRoots() {
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['name', 'globalThis.self.Math.PI'],
+    ['alias', 'realm.self.Math.PI'],
+    ['call', '(log.push("prefix"), read()).self.Math.PI'],
+    ['quiet-call', '(() => globalThis)().self.Array.from([7])'],
+    ['nested-store', '(log.push("before"), holder.value = (log.push("between"), inner = (log.push("inside"), globalThis.self))).window?.Array.from((log.push("argument"), [7]))'],
+    ['ts-stored-surface', '((inner = globalThis.self) as any).window?.Array.from((log.push("argument"), [7]))'],
+    ['stored-probe', '(log.push("before"), inner = (log.push("inside"), globalThis.window))?.self.Array.from((log.push("argument"), [7]))'],
+    ['double-optional', '(log.push("before"), holder.value = (log.push("between"), inner = (log.push("inside"), globalThis.self)))'
+      + '.window?.Array?.from?.((log.push("argument"), [7]))'],
+    ['sealed-throw', '((log.push("before"), holder.value = (log.push("between"), inner = (log.push("inside"), globalThis.self)))'
+      + '.window?.self).Array.from((log.push("argument"), [7]))'],
+    ['sealed-hop', '((log.push("before"), holder.value = (log.push("between"), inner = (log.push("inside"), globalThis.self)))'
+      + '.window?.self).self.Array.from((log.push("argument"), [7]))'],
+    ['destructure-probe', '(({ PI }) => PI)((log.push("before"), holder.value = (log.push("between"), inner = (log.push("inside"), globalThis.self))).window?.Math)'],
+    ['unclaimed-probe', '(inner = globalThis.self).window?.missingInnerMethod((log.push("argument"), 7))'],
+    ['guarded-store', '(inner = globalThis.window?.self).window?.Math.PI'],
+  ]) yield { ...snippet(`inner-collapse-roots/${ name }/${ rig ? 'window' : 'off-window' }`, `(() => {
+    const realm = globalThis;
+    let inner, stored;
+    const holder = { set value(value) { log.push("set"); stored = value; } };
+    function read() { log.push("call"); return globalThis; }
+    let value;
+    try { value = ${ expression }; } catch (error) { value = error.name; }
+    return [value, inner === globalThis, stored === globalThis];
+  })()`, { rig }), strip: true, ts: name === 'ts-stored-surface' };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21133,4 +21164,5 @@ export function * generate() {
   yield * generateGuardTailExtent();
   yield * generateLiteralReceiverRouting();
   yield * generateOuterCollapseStores();
+  yield * generateInnerCollapseRoots();
 }

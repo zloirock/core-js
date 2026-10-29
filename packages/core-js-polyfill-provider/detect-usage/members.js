@@ -3,6 +3,8 @@
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
   asProxyGlobalName,
+  bindingPolyfillHint,
+  trustedIdentifierAliasWrite,
   callArgumentMayBeObserved,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
@@ -11,6 +13,7 @@ import {
   deleteHostAboveChain,
   getFallbackBranchSlots,
   isMemberAccessNode,
+  isDestructurePattern,
   isAliasProxyRoot,
   isForXWriteTarget,
   isMemberMutationContext,
@@ -82,6 +85,7 @@ import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-no
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   pristineRealmHopKey,
+  callValueCanBeUndefined,
   proxyCollapseConsumer,
   proxyCollapseBase,
   asSymbolRef,
@@ -201,9 +205,9 @@ function hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }) {
 // (ie:11 / Node throw), and `maximalProxyGlobalPrefix` / `findProxyGlobal` validate only bare-Identifier
 // roots, so those roots never collapse and the hop survives verbatim. an Identifier root reached through
 // a sequence prefix or a value-bare chain-assignment is IN scope here - what this plan adds over the
-// standard collapse is the SE harvest for the prefix the collapse drops. returns the root global NAME
-// the emitter substitutes for the dropped hop (resolved by inlining a call root) plus that harvest, so
-// the rewrite is `(callSe, _root).leaf`. null unless the receiver is `<root>.<proxy-hop>.<leaf>` - a
+// standard collapse is the call proof and rescue for the prefix the collapse drops. Returns the
+// resolved root name and source rescue set; the common inner plan collects effects and selects the
+// landing. Null unless the receiver is `<root>.<proxy-hop>.<leaf>` - a
 // single hop (`(() => globalThis)().Array`) has no undefined intermediate to drop
 function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
@@ -246,7 +250,104 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   if (!rootName) return null;
   // Preserve the root call and sequence prefixes when the quiet navigation collapses.
   const rescue = seedChainRootCallRescue({ node: receiver, scope, adapter, path });
-  return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, { rescue, ctx: { scope, adapter, path } }) };
+  return { rootName, rescue };
+}
+
+// A collapse must read the source alias at its trusted write. A ponyfill import is
+// already a rendered root: its remaining hops belong to a probe, not another fold.
+export function collapseRootHoldsItsGlobal(root, aliasCtx) {
+  if (root?.type !== 'Identifier' || POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
+  const { scope, adapter, path } = aliasCtx;
+  const binding = adapter.getBinding?.({ scope, name: root.name, path });
+  if (binding?.importSource && POSSIBLE_GLOBAL_OBJECTS.has(bindingPolyfillHint({ binding, scope, name: root.name, adapter }))) {
+    return false;
+  }
+  return (binding?.constantViolations?.length ?? 0) <= 1
+    || !!trustedIdentifierAliasWrite({ scope, name: root.name, adapter, path, readNode: root });
+}
+
+// Source product of an inward realm collapse. The root, outermost store and effects
+// retain source identity; nothing is injected or mutated. `root` and `keptStore` can
+// carry proofs already obtained by the receiver's prefix/guard admission. Otherwise
+// every erased hop must be pristine and quiet, and a call needs explicit defined-yield
+// permission. A bare hop fold cannot replay an observable call; receiver plans own
+// that separate rescue channel: `rootName` supplies its resolved value and `rescue`
+// its retained call. `valueConsumer` describes a whole destructuring source: a live
+// fallback or absentable probe must keep that value; ordinary navigation keeps an
+// alias instead. Delete can land navigation on the root while a retained write still
+// stores the ordinary, deepest backed value. Without a scope context the root is
+// classified by name and only its own entry can supply the landing.
+export function planInnerProxyCollapse(node, {
+  aliasCtx = null,
+  resolvePure,
+  root = null,
+  rootName = null,
+  keptStore,
+  rescue = null,
+  allowOptional = false,
+  provenCallRoot = false,
+  deleteFold = false,
+  valueConsumer = null,
+}) {
+  if (valueConsumer) {
+    if (!isDestructurePattern(valueConsumer.target) || valueConsumer.observed
+      || !navHasUnresolvableProxyHop(node, resolvePure, aliasCtx)
+      || proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx)) return null;
+    // A whole source fold has no retained member at which to replay a computed key.
+    for (let hop = node; isMemberAccessNode(hop); hop = hop.object) if (hop.computed) return null;
+  }
+  const admittedRoot = !!root;
+  let resolvedValue = !!rootName;
+  if (!root && !rootName) {
+    let cur = node;
+    while (isMemberAccessNode(cur)) {
+      if (!pristineRealmHopKey(cur, aliasCtx, { allowOptional })) return null;
+      cur = peelChainRootValue(cur.object);
+    }
+    root = cur;
+  }
+  const keptWrite = peelChainAssignment(descendToChainRoot(node).root).outer;
+  const effects = collectFoldedReceiverSideEffects(node, { rescue: rescue && new Set(rescue), ctx: aliasCtx });
+  if (root?.type === 'CallExpression' && aliasCtx && !keptWrite && provenCallRoot) {
+    for (let scan = node; isMemberAccessNode(scan); scan = peelReceiverSequenceTail(scan.object)) {
+      if (scan.optional && (!allowOptional
+        || proxyReceiverValueCanBeUndefined(peelReceiverSequenceTail(scan.object), resolvePure, aliasCtx))) return null;
+    }
+    const rootId = inlineCallProxyGlobalRoot({ callNode: root, ...aliasCtx, rejectConditional: true });
+    if (!rootId || callValueCanBeUndefined(root, aliasCtx, resolvePure)
+      || inlineCallHasObservableEffects({ callNode: root, ...aliasCtx })) return null;
+    rootName = POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name
+      : resolveObjectName({ objectNode: rootId, ...aliasCtx });
+    resolvedValue = true;
+  }
+  if (!resolvedValue && root?.type !== 'Identifier') return null;
+  keptStore ??= keptWrite && keptProbeStore(node, resolvePure, aliasCtx);
+  const writeStoreSpellable = !keptStore;
+  if (!resolvedValue && isAliasProxyRoot(root, aliasCtx) && !valueConsumer) {
+    if (!admittedRoot) {
+      const { scope, adapter, path } = aliasCtx;
+      if (adapter.getBinding({ scope, name: root.name })?.polyfillHint
+        || !collapseRootHoldsItsGlobal(root, aliasCtx)) return null;
+      const name = resolveObjectName({ objectNode: root, scope, adapter, path });
+      if (!name || !isPristineProxyGlobal(adapter, name)) return null;
+    }
+    return { aliasRoot: root, effects, keptWrite,
+      writeStoreSpellable: writeStoreSpellable || unwrapRuntimeExpr(keptWrite?.right) === root };
+  }
+  if (!resolvedValue) {
+    if ((!valueConsumer && !POSSIBLE_GLOBAL_OBJECTS.has(root.name))
+      || (aliasCtx && !proxyGlobalRootName({ node: root, ...aliasCtx }))) return null;
+    rootName = root.name;
+  }
+  const pure = aliasCtx ? proxyRunLandingPure({ navNode: node, ctx: aliasCtx, resolvePure, rootName, deleteFold })
+    : resolvePure({ kind: 'global', name: rootName });
+  if (!pure) return resolvedValue ? null : { unbackedRoot: root, effects };
+  if (resolvedValue) return { entry: pure.entry, hintName: pure.hintName, effects, writeStoreSpellable: true };
+  const valuePure = aliasCtx && deleteFold
+    ? proxyRunLandingPure({ navNode: node, ctx: aliasCtx, resolvePure, rootName }) : pure;
+  return { entry: pure.entry, hintName: pure.hintName,
+    valueEntry: valuePure?.entry ?? pure.entry, valueHintName: valuePure?.hintName ?? pure.hintName,
+    effects, keptWrite, writeStoreSpellable };
 }
 
 // substrate-neutral proxy-global receiver collapse DECISION. the emitter collapsers (babel
@@ -319,7 +420,7 @@ export function planProxyReceiver(receiver, {
       // an enclosing synth guard can establish ONE exact probe; a further optional
       // object or a seal still owes its own check and cannot borrow that proof
       .some(object => unwrapRuntimeExpr(object) !== guardedProbe
-        && (proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx)
+        && (proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx, { throughChainAssign })
           || nestedSequenceValueSpelling(object)))
       // a SEALED SHORT-CIRCUIT under the chain (`((c++, globalThis.window)?.self).X` - the paren'd
       // sequence hides the `?.` from the own-chain walk) may not collapse either: the read/write host
@@ -376,33 +477,19 @@ export function planProxyReceiver(receiver, {
   // the leaf is itself a redundant proxy hop reached via a SE-bearing key (`globalThis[(e++, 'self')]`) - the
   // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
   if (leafKey && POSSIBLE_GLOBAL_OBJECTS.has(leafKey)) return null;
-  const rootPure = throughRoot && resolvePure({ kind: 'global', name: throughRoot.name });
-  // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
-  // root swaps to its pure ctor
-  const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(throughRoot, aliasCtx);
-  // WHERE the collapse lands is the shared canon's answer, not this plan's: the deepest hop pure can
-  // back, the root only when nothing above it is (`globalThis.window.self.box` is `_self.box`, and a
-  // root this build cannot spell - excluded, or a target needing no entry - still leaves the run that
-  // span to ride, where standing down left a raw realm read in pure output). a `delete` folding this
-  // run is the exception the canon takes as a flag, and the consumer above answered it already
-  const landingPure = !isAliasRoot && aliasCtx
-    ? proxyRunLandingPure({
-      navNode: receiver.object,
-      ctx: aliasCtx,
-      resolvePure,
-      rootName: throughRoot?.name,
-      deleteFold: deleteConsumer,
-    }) : rootPure;
-  if (!isAliasRoot && !landingPure) return null;
+  const source = planInnerProxyCollapse(receiver.object, {
+    aliasCtx, resolvePure, root: throughRoot, keptStore: keptAssignRoot, allowOptional: true, deleteFold: deleteConsumer,
+  });
+  if (!source || source.unbackedRoot) return null;
   return {
     kind: 'collapse',
-    rootBinding: proxyCollapseBase({ keptStore: keptAssignRoot, aliasRoot: isAliasRoot ? throughRoot : null,
-      rootPure: landingPure && { entry: landingPure.entry, hintName: landingPure.hintName } }),
-    // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
-    // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
-    // assignment and still have to ride ahead, in source order.
-    harvestedSE: collectFoldedReceiverSideEffects(receiver.object, { ctx: aliasCtx })
-      .filter(effect => effect !== keptAssignRoot),
+    rootBinding: proxyCollapseBase({
+      keptStore: keptAssignRoot,
+      aliasRoot: source.aliasRoot,
+      rootPure: source.entry && { entry: source.entry, hintName: source.hintName },
+    }),
+    // The retained base already replays its own children; only outer effects precede it.
+    harvestedSE: source.effects.filter(effect => effect !== keptAssignRoot),
     // the `?.` of the hop READING the kept root slides onto the leaf that now reads off it - the
     // store-fold verdict: only that hop can see the store's void, a deeper `?.` guards a realm
     // object the first read already proved and never travels. UNLESS a seal stands between them
@@ -665,14 +752,14 @@ function planCallRootedProxyReceiver({ receiver, aliasCtx, resolvePure, deleteFo
   // the landing canon answers WHERE such a run rides, but only for a run the SOURCE wrote: a
   // receiver rooted in a ref THIS PASS minted is our own render read back, and folding it a second
   // time rewrites a guard that already spelled the value (`_ref[(c++, 'self')].Array`)
-  const landingPure = mintedRefRoot(receiver, aliasCtx) ? null : proxyRunLandingPure({
-    navNode: receiver.object, ctx: aliasCtx, resolvePure, rootName: plan.rootName, deleteFold,
+  const source = mintedRefRoot(receiver, aliasCtx) ? null : planInnerProxyCollapse(receiver.object, {
+    aliasCtx, resolvePure, rootName: plan.rootName, rescue: plan.rescue, deleteFold,
   });
-  if (!landingPure) return null;
+  if (!source) return null;
   return {
     kind: 'collapse',
-    rootBinding: { pure: { entry: landingPure.entry, hintName: landingPure.hintName } },
-    harvestedSE: plan.droppedSe,
+    rootBinding: { pure: { entry: source.entry, hintName: source.hintName } },
+    harvestedSE: source.effects,
     property: receiver.property,
     computed: receiver.computed,
   };

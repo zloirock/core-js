@@ -132,6 +132,55 @@ QUnit.test('outer collapse: stored probe keeps sealed write and delete behavior'
   });
 });
 
+// Nested stores are one retained expression: their effects and setter run once,
+// before the window probe decides whether the argument is evaluated.
+QUnit.test('inner collapse: nested stores retain their value and evaluation order', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let inner, stored;
+    const holder = { set value(value) {
+      log.push('set');
+      stored = value;
+    } };
+    const result = (log.push('before'), holder.value = (log.push('between'),
+    inner = (log.push('inside'), globalThis.self))).window?.Array.from((log.push('argument'), [7]));
+    assert.deepEqual(result, live ? [7] : undefined, 'the retained value feeds the probe');
+    assert.same(inner, globalThis, 'the inner store keeps the realm');
+    assert.same(stored, inner, 'the outer store receives the same value');
+    assert.deepEqual(log, live ? ['before', 'between', 'inside', 'set', 'argument']
+      : ['before', 'between', 'inside', 'set'], 'both stores and conditional arguments preserve their slots');
+  });
+});
+
+QUnit.test('inner collapse: stored surfaces keep guards and throwing reads', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let held, stored;
+    let effects = 0;
+    const holder = { set value(value) { stored = value; } };
+    const optional = (holder.value = (effects++, held = (effects++, globalThis.self)))
+      .window?.Array?.from?.((effects++, [7]));
+    assert.deepEqual(optional, live ? [7] : undefined, 'one probe guards the optional static');
+    assert.same(held, globalThis, 'the inner store keeps the served surface');
+    assert.same(stored, globalThis, 'the setter receives the served surface');
+    assert.same(effects, live ? 3 : 2, 'only the present branch evaluates the argument');
+    let sealed;
+    try {
+      // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed read must throw when absent
+      sealed = ((holder.value = (effects++, held = (effects++, globalThis.self))).window?.self).Array.from([8]);
+    } catch (error) {
+      sealed = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.deepEqual(sealed, live ? [8] : 'TypeError', 'the seal retains its read');
+    assert.same(held, globalThis, 'the throwing read does not change the stored value');
+    assert.same(stored, held, 'the retained RHS still serves its own claims');
+    assert.same(effects, live ? 5 : 4, 'the stored effects run once before either outcome');
+    withTemporaryProperty(globalThis, 'e2eInnerMark', 7, () => {
+      assert.same((held = globalThis.self).window?.e2eInnerMark, live ? 7 : undefined,
+        'a non-polyfillable reader still observes the stored surface probe');
+    });
+  });
+});
+
 /* eslint-enable no-sequences -- the computed-key cases end here */
 
 // A sequence the probe navigation is rooted in runs its prefix first and exactly once, whatever the
