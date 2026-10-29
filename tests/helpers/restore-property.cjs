@@ -2,6 +2,15 @@
 // Foreign cleanup cannot contribute a mutation to the caller's per-file analysis.
 // This helper is also imported directly by native differential workers.
 function restoreProperty(receiver, key, descriptor) {
+  // Firefox 15 rejects defineProperty on an array's length. Assignment restores the value
+  // when the writable, non-enumerable, non-configurable descriptor already matches.
+  if (descriptor && key === 'length' && Array.isArray(receiver) && 'value' in descriptor &&
+    descriptor.writable && descriptor.enumerable === false && descriptor.configurable === false &&
+    Object.getOwnPropertyDescriptor(receiver, key).writable
+  ) {
+    receiver.length = descriptor.value;
+    return;
+  }
   if (descriptor) Object.defineProperty(receiver, key, descriptor);
   else delete receiver[key];
 }

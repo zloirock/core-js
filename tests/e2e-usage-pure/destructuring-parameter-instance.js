@@ -188,6 +188,7 @@ QUnit.test('destructuring parameter: a native sibling reads after its preceding 
   } finally {
     restoreProperty(Array.prototype, 'length', prior);
   }
+  assert.deepEqual(Object.getOwnPropertyDescriptor(Array.prototype, 'length'), prior, 'the native sibling descriptor is restored');
 });
 
 QUnit.test('destructuring parameter: deferred native getters retain each default activation', assert => {
