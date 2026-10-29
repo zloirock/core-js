@@ -14,6 +14,8 @@ const webpack = require('webpack');
 const baseConfig = require('./webpack.config.js');
 const babelConfig = require('../../babel.config.js');
 
+const legacyDeletePlugin = require.resolve('./babel-plugin-legacy-delete.js');
+
 const e2eUsagePure = resolve(import.meta.dirname, '../../tests/e2e-usage-pure');
 
 export default function buildConfig(phase) {
@@ -64,6 +66,8 @@ export default function buildConfig(phase) {
             overrides: [{ test: /\.cjs$/, sourceType: 'script' }],
             plugins: [
               ['@babel/plugin-transform-typescript'],
+              ['@babel/plugin-transform-function-name'],
+              [legacyDeletePlugin],
               ...babelConfig.plugins,
             ],
             assumptions: {

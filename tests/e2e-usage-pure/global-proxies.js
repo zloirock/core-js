@@ -2145,14 +2145,16 @@ testUnlessDetectLowered('global-proxy: a sealed nav feeding an instance dispatch
 // input carries no `?.` for the rule to reach and keeps its own `== null ||` short-circuit
 testUnlessDetectLowered('global-proxy: an invoked claim under a delete keeps its polyfill', assert => {
   let n = 0;
+  let calls = 0;
   /* eslint-disable @stylistic/no-extra-parens, sonarjs/no-redundant-parentheses -- the `?.` under
      the delete IS the form under test, and so are the parens that carry it */
-  const invoked = delete ((globalThis.window).self?.Array?.of(5));
+  const invoked = delete ((globalThis.window).self?.Array?.of(++calls));
   assert.true(invoked, 'an invoked claim under the delete answers true');
-  const invokedSeq = delete (((n++, globalThis.window)).self?.Array?.of(6));
+  const invokedSeq = delete (((n++, globalThis.window)).self?.Array?.of(++calls));
   assert.true(invokedSeq, 'and so does its sequence-rooted twin');
   /* eslint-enable @stylistic/no-extra-parens, sonarjs/no-redundant-parentheses -- end of the forms */
   assert.same(n, 1, 'the sequence prefix ran exactly once');
+  assert.same(calls, 2, 'both calls evaluated their arguments once');
 });
 
 // an INSTANCE dispatch memoizes its receiver: when that receiver is a proxy nav carrying the probe,
