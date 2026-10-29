@@ -113,6 +113,7 @@
     "@babel/plugin-transform-explicit-resource-management": "^8.0.5",
     "@babel/plugin-transform-exponentiation-operator": "^8.0.1",
     "@babel/plugin-transform-for-of": "^8.0.7",
+    "@babel/plugin-transform-function-name": "^8.0.1",
     "@babel/plugin-transform-literals": "^8.0.1",
     "@babel/plugin-transform-logical-assignment-operators": "^8.0.1",
     "@babel/plugin-transform-modules-commonjs": "^8.0.1",
