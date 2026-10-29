@@ -516,16 +516,13 @@ function seKeyFoldHasSurvivingKey(memberNode, aliasCtx) {
   return false;
 }
 
-// the `delete` fold's one exception, spelled once for every channel that folds a deleted
-// navigation: on a CALL-rooted run a LIVE `?.` decides whether the delete HAPPENS - it stays
-// on every emitter, the deleted member outside the ternary behind a `?.` of its own. LIVE
-// means the value under the `?.` can actually SHORT-CIRCUIT (the value canon's question): a
-// plain read off an absent-able base THROWS instead - dead-by-throw, folds with the run - and
-// a below-value proven defined folds too. a run rooted in a NAME - bare, or handed on by a carrier
-// standing there - folds whole regardless (its own root claim drives the fold; the split is between
-// and a seal over the below-value stays with the seal canon. asked of every ROOT: a name root
-// proves the root, never the probe hop above it, and gating this on a call root let
-// `delete globalThis.window?.self.chrome` drop a guard that decides whether the delete happens
+// A LIVE `?.` that decides whether a delete happens stays on every emitter: the deleted
+// member remains outside the ternary behind its own `?.`. The value under the probe must
+// actually be able to short-circuit; a plain read off an absent-able base throws instead,
+// so its later optional is dead-by-throw. Seals keep their own throw through the seal canon.
+// This asks every root, including names, calls, aliases and kept writes. A proven name root
+// never proves the probe hop above it: `delete globalThis.window?.self.chrome` still needs
+// the guard that decides whether the delete happens.
 export function deleteGuardKeepingHop(node, resolvePure, aliasCtx) {
   // nullish-WITHOUT-throw, composed: the below-value short-circuits, or its LEAF is an
   // unbacked probe read over a proven-defined base (reached, and absent exactly off-env) -
@@ -552,7 +549,7 @@ export function deleteGuardKeepingHop(node, resolvePure, aliasCtx) {
     // its value navigates (`(d = globalThis.window?.self)?.X` stores the short-circuit's own
     // `undefined`), the same peel the hop walk and the guard count already take. read raw, the
     // question met an AssignmentExpression where it wanted a nav and answered `false` for every store
-    const below = unwrapRuntimeExpr(peelChainAssignment(peelReceiverSequenceTail(cur.object)).value);
+    const below = peelChainRootValue(cur.object);
     if (cur.optional
       && !chainSealsAShortCircuit(cur.object, resolvePure, aliasCtx)
       && belowCanBeNullish(below)) return cur;
@@ -560,7 +557,22 @@ export function deleteGuardKeepingHop(node, resolvePure, aliasCtx) {
   return null;
 }
 
-// ... and WHO that exception speaks for: every host that MUTATES through the run. `delete` was its
+// A delete folds only the navigation it actually consumes. Native provenance can
+// identify a rebuilt span; a lowered test is a read even if it carries that span.
+// `mutationPath` names an unplanned run whose pristine hops still need checking.
+// `guardNode` is the exact erased extent: the claim, or the consumer's whole run.
+// Omitting it asks only ownership; it does not authorize erasing an optional guard.
+// A previously proven nav plan supplies pristine hops and needs only its guard.
+export function canCollapseDeletedNavigation({
+  hosted, loweredGuardTest = false, mutationPath = null, guardNode = null, aliasCtx, resolvePure,
+}) {
+  return !!hosted && !loweredGuardTest
+    && !(mutationPath && deletedRunCarriesMutatedRealmHop(mutationPath,
+      { adapter: aliasCtx.adapter, unwrap: unwrapRuntimeExpr }))
+    && !(guardNode && deleteGuardKeepingHop(guardNode, resolvePure, aliasCtx));
+}
+
+// The delete-guard exception also serves every host that MUTATES through the run. `delete` was its
 // first consumer and is one slot of the write-host enumeration; an assignment target, an update, a
 // destructuring slot and a for-x head fold the same `?.` for the same reason, and there the fold
 // answers no value at all - it performs the write on the ponyfill global in exactly the realms
@@ -600,8 +612,10 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
   // differently - the second-pass class the area's AGENTS.md records
   // ... except the delete-DECIDING guard itself (`deleteGuardKeepingHop`): that `?.` stays,
   // so the verdict falls through to the guard flavors below
-  if (aliasCtx?.path && deleteHostAboveChain(aliasCtx.path, memberNode, unwrapRuntimeExpr)
-    && !deleteGuardKeepingHop(memberNode, resolvePure, aliasCtx)) return { kind: 'erase' };
+  if (aliasCtx?.path && canCollapseDeletedNavigation({
+    hosted: deleteHostAboveChain(aliasCtx.path, memberNode, unwrapRuntimeExpr),
+    guardNode: memberNode, resolvePure, aliasCtx,
+  })) return { kind: 'erase' };
   const objects = ownChainOptionalObjects(memberNode);
   // the member's OWN live `?.` counts only when its key is SE-free: an SE-computed key rides the
   // fold's harvest canon (the key-SE migration IS the locked emit), while an SE-free leaf claim has

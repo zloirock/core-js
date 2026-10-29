@@ -1,3 +1,4 @@
+import { navGuardCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // babel-specific AST primitives + optional-chain handling. covers ref memoization,
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
@@ -25,8 +26,6 @@ import {
   navValueCanShortCircuit,
   proxyHopLacksPureEntry,
   peelReceiverSequenceTail,
-  callValueCanBeUndefined,
-  deleteGuardKeepingHop,
   inlineCallProxyGlobalRoot,
   receiverSequenceTailKeys,
   navRootPrefixNodes,
@@ -45,7 +44,6 @@ import {
   dispatchConsumesRun,
   landRunOnDeepestBackedSpan,
   planClaimlessCallRootedNav,
-  proxyRunLandingPure,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { decidedReusableReceiver, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -1742,7 +1740,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return true;
   }
 
-  // eslint-disable-next-line max-statements -- the plan, its declines and the render of one nav are one sequence
   function collapseShortCircuitNavInPlace(memberPath) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return false;
@@ -1943,60 +1940,32 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       }
       plan = planFor(navSlotPath(target).node);
     }
-    // a nav with NO live `?.` has no short-circuit for a guard to reproduce, so it collapses - what
-    // the bare-root spelling of the same source already does through the earlier hop-collapse drive.
-    // that drive declines a proven-CALL root, and this render was answering for it with a guard
-    const plainNav = plan.hops.every(hop => !hop.optional && !hop.liveOptional);
-    // a call-rooted plan carries the buried identifier as its rootId, so gating on `!plan.rootId`
-    // left every proven-call plain nav to the leaf render, against the DEFINED-yield -> ROOT
-    // ponyfill canon; `plan.call` alone names the call-rooted shape, and the value canon keeps
-    // the probe-yield twin out (its value never reached the root the collapse would spell)
-    const definedCallRoot = plainNav && plan.call
-      && !callValueCanBeUndefined(plan.call, { scope: memberPath.scope, adapter, path: memberPath }, plan.resolvePure);
-    if (definedCallRoot && collapseReceiverHops) {
-      const collapsed = collapseReceiverHops(memberPath.node.object, memberPath);
-      if (collapsed) {
-        memberPath.get('object').replaceWith(collapsed);
-        return true;
-      }
-    }
-    // a PLAIN navigation on a proven-CALL root that the hop drive could not take (an all-proxy
-    // receiver under a non-global key): nothing short-circuits, so the doctrine collapses it - onto
-    // the ROOT ponyfill, the same answer the bare-root spelling of this source gives
-    if (definedCallRoot && plan.rootName && !plan.topAssign
-      && !plan.seqAroundPrefix?.length && !plan.rootEffectCall) {
-      const rootPure = proxyRunLandingPure({
-        navNode: navSlotPath(target).node,
-        ctx: { scope: memberPath.scope, adapter, path: memberPath },
-        resolvePure: plan.resolvePure,
-        rootName: plan.rootName,
-      });
-      if (rootPure) {
-        navSlotPath(target).replaceWith(injectPureGlobal(rootPure.entry, rootPure.hintName));
-        return true;
-      }
-    }
+    const routes = navGuardCollapseRoutes(plan, {
+      source: () => navSlotPath(target).node,
+      aliasCtx: { scope: memberPath.scope, adapter, path: memberPath },
+      deleteHosted: () => deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr),
+    });
     const { leafPure: pure } = plan;
-    // a `delete` hosting the chain collapses the navigation WHOLE: the probe guard would make the
-    // deletion conditional on the host environment where the source deletes unconditionally, and
-    // the member `delete` needs is the one the guard's `void 0` branch never has. the unplugin leg
-    // spells it the same way
-    // ... EXCEPT the delete-DECIDING guard (`deleteGuardKeepingHop`, the one canon every fold
-    // asks): a LIVE `?.` there decides whether the delete happens at all and the render below
-    // keeps it - this site's own hop-name rule was a third spelling of that question
-    const deleteFolds = deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr)
-      && !deleteGuardKeepingHop(memberPath.node, plan.resolvePure,
-        { scope: memberPath.scope, adapter: getAdapter?.(), path: memberPath });
-    if (deleteFolds) {
-      // a plan whose value the fold cannot spell DECLINES: falling through would build the very
-      // guard the erase verdict just refused
-      if (!plan.valueFormSpells) return false;
-      navSlotPath(target).replaceWith(navPlanValueAst(t, plan,
-        injectPureGlobal(pure.entry, pure.hintName), renderedPlanTails));
-      // the fold lands an always-defined binding, so the `?.` the source wrote over it guards a
-      // value that can no longer be absent - the shared vestigial verdict, spelled here
-      if (target.node.optional) target.node.optional = false;
-      return true;
+    for (const route of routes) {
+      switch (route.kind) {
+        case 'receiver-collapse': {
+          const collapsed = collapseReceiverHops?.(memberPath.node.object, memberPath);
+          if (collapsed) {
+            memberPath.get('object').replaceWith(collapsed);
+            return true;
+          }
+          break;
+        }
+        case 'root-collapse':
+          navSlotPath(target).replaceWith(injectPureGlobal(route.pure.entry, route.pure.hintName));
+          return true;
+        case 'stand-down': return false;
+        case 'delete-collapse':
+          navSlotPath(target).replaceWith(navPlanValueAst(t, plan,
+            injectPureGlobal(pure.entry, pure.hintName), renderedPlanTails));
+          if (target.node.optional) target.node.optional = false;
+          return true;
+      }
     }
     let rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName), { prefixOutside: true });
     // the ROOT can be absent: the leaf the hops fold to rides a test on the root itself (`null == A
