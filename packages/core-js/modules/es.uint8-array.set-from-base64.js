@@ -7,6 +7,16 @@ var anUint8Array = require('../internals/an-uint8-array');
 var Uint8Array = globalThis.Uint8Array;
 
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.setFromBase64 || !function () {
+  // https://issues.chromium.org/issues/454630441
+  // https://github.com/simdutf/simdutf/pull/825
+  try {
+    // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- required for testing
+    var rab = new ArrayBuffer(4, { maxByteLength: 8 });
+    var result = new Uint8Array(rab).setFromBase64('Zm9v\n');
+    if (result.read !== 5 || result.written !== 3) return;
+  } catch (error) {
+    return;
+  }
   var target = new Uint8Array([255, 255, 255, 255, 255]);
   try {
     target.setFromBase64('', null);

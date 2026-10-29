@@ -42,3 +42,18 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toHex', assert => {
   assert.same(new Uint8Array([102, 111, 111, 98, 97]).toHex(), '666f6f6261');
   assert.same(new Uint8Array([102, 111, 111, 98, 97, 114]).toHex(), '666f6f626172');
 });
+
+if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.toHex, resizable buffers', assert => {
+  // https://issues.chromium.org/issues/454630441
+  const rab = new ArrayBuffer(6, { maxByteLength: 12 });
+  const tracking = new Uint8Array(rab);
+  const fixed = new Uint8Array(rab, 1, 4);
+  tracking.set([102, 111, 111, 98, 97, 114]);
+  assert.same(tracking.toHex(), '666f6f626172', 'length-tracking RAB');
+  assert.same(fixed.toHex(), '6f6f6261', 'fixed-length RAB with an offset');
+  rab.resize(3);
+  assert.same(tracking.toHex(), '666f6f', 'shrunk RAB');
+  rab.resize(6);
+  assert.same(tracking.toHex(), '666f6f000000', 'grown RAB');
+  assert.same(fixed.toHex(), '6f6f0000', 'fixed-length view after growth');
+});

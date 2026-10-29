@@ -21,6 +21,14 @@ var $Array = globalThis.Array;
 var join = uncurryThis([].join);
 
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toBase64 || !function () {
+  // https://issues.chromium.org/issues/454630441
+  try {
+    // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- required for testing
+    var rab = new ArrayBuffer(1, { maxByteLength: 2 });
+    if (new Uint8Array(rab).toBase64() !== 'AA==') return;
+  } catch (error) {
+    return;
+  }
   try {
     var target = new Uint8Array();
     target.toBase64(null);

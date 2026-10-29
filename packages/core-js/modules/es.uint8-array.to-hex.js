@@ -13,8 +13,11 @@ var Uint8Array = globalThis.Uint8Array;
 
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toHex || !(function () {
   try {
+    // https://issues.chromium.org/issues/454630441
+    // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- required for testing
+    var rab = new ArrayBuffer(1, { maxByteLength: 2 });
     var target = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]);
-    return target.toHex() === 'ffffffffffffffff';
+    return target.toHex() === 'ffffffffffffffff' && new Uint8Array(rab).toHex() === '00';
   } catch (error) {
     return false;
   }

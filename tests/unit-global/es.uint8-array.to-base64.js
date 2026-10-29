@@ -72,3 +72,18 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   assert.same(new Uint8Array([255]).toBase64({ omitPadding: 0 }), '/w==');
   assert.same(new Uint8Array([255]).toBase64({ omitPadding: 1 }), '/w');
 });
+
+if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.toBase64, resizable buffers', assert => {
+  // https://issues.chromium.org/issues/454630441
+  const rab = new ArrayBuffer(6, { maxByteLength: 12 });
+  const tracking = new Uint8Array(rab);
+  const fixed = new Uint8Array(rab, 1, 4);
+  tracking.set([102, 111, 111, 98, 97, 114]);
+  assert.same(tracking.toBase64(), 'Zm9vYmFy', 'length-tracking RAB');
+  assert.same(fixed.toBase64(), 'b29iYQ==', 'fixed-length RAB with an offset');
+  rab.resize(3);
+  assert.same(tracking.toBase64(), 'Zm9v', 'shrunk RAB');
+  rab.resize(6);
+  assert.same(tracking.toBase64(), 'Zm9vAAAA', 'grown RAB');
+  assert.same(fixed.toBase64(), 'b28AAA==', 'fixed-length view after growth');
+});

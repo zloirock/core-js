@@ -301,3 +301,28 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   target = new Uint8Array([255, 255, 255, 255, 255]);
   assert.throws(() => target.setFromBase64('a'), SyntaxError, 'throws error on incorrect length of base64 string');
 });
+
+if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64, trailing whitespace', assert => {
+  assert.deepEqual(new Uint8Array(4).setFromBase64('Zm9v\n'), { read: 5, written: 3 }, 'after a full chunk');
+  assert.deepEqual(new Uint8Array(4).setFromBase64('\n'), { read: 1, written: 0 }, 'whitespace only');
+  assert.deepEqual(new Uint8Array(8).setFromBase64('Zm9vYg==\n'), { read: 9, written: 4 }, 'after padding');
+});
+
+if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.setFromBase64, resizable buffers', assert => {
+  // https://issues.chromium.org/issues/454630441
+  const rab = new ArrayBuffer(6, { maxByteLength: 12 });
+  const tracking = new Uint8Array(rab);
+  const fixed = new Uint8Array(rab, 0, 6);
+  for (const array of [tracking, fixed]) {
+    array.fill(0);
+    assert.deepEqual(array.setFromBase64('Zm9vYmFy'), { read: 8, written: 6 }, 'RAB result');
+    assert.arrayEqual(array, [102, 111, 111, 98, 97, 114], 'RAB bytes');
+  }
+  rab.resize(3);
+  assert.deepEqual(tracking.setFromBase64('Zm9vYmFy'), { read: 4, written: 3 }, 'shrunk RAB result');
+  assert.arrayEqual(tracking, [102, 111, 111], 'shrunk RAB bytes');
+  rab.resize(12);
+  assert.deepEqual(tracking.setFromBase64('Zm9vYmFyZm9vYmFy'), { read: 16, written: 12 }, 'grown RAB result');
+  assert.arrayEqual(tracking, [102, 111, 111, 98, 97, 114, 102, 111, 111, 98, 97, 114], 'grown RAB bytes');
+  assert.deepEqual(fixed.setFromBase64('Zm9vYmFyZm9vYmFy'), { read: 8, written: 6 }, 'fixed-length view after growth');
+});

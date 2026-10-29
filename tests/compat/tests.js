@@ -1854,6 +1854,15 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Uint8Array.fromHex;
   },
   'es.uint8-array.set-from-base64': function () {
+    // https://issues.chromium.org/issues/454630441
+    // https://github.com/simdutf/simdutf/pull/825
+    try {
+      var rab = new ArrayBuffer(4, { maxByteLength: 8 });
+      var result = new Uint8Array(rab).setFromBase64('Zm9v\n');
+      if (result.read !== 5 || result.written !== 3) return false;
+    } catch (error) {
+      return false;
+    }
     var target = new Uint8Array([255, 255, 255, 255, 255]);
     try {
       target.setFromBase64('', null);
@@ -1880,6 +1889,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'es.uint8-array.to-base64': function () {
     if (!Uint8Array.prototype.toBase64) return false;
+    // https://issues.chromium.org/issues/454630441
+    try {
+      var rab = new ArrayBuffer(1, { maxByteLength: 2 });
+      if (new Uint8Array(rab).toBase64() !== 'AA==') return false;
+    } catch (error) {
+      return false;
+    }
     try {
       var target = new Uint8Array();
       target.toBase64(null);
@@ -1890,8 +1906,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.uint8-array.to-hex': function () {
     if (!Uint8Array.prototype.toHex) return false;
     try {
+      // https://issues.chromium.org/issues/454630441
+      var rab = new ArrayBuffer(1, { maxByteLength: 2 });
       var target = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]);
-      return target.toHex() === 'ffffffffffffffff';
+      return target.toHex() === 'ffffffffffffffff' && new Uint8Array(rab).toHex() === '00';
     } catch (error) {
       return false;
     }
