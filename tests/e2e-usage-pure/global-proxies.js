@@ -4353,6 +4353,34 @@ QUnit.test('proxy guard: an optional inside the stored run keeps its branch', as
 
 /* eslint-disable unicorn/prefer-global-this -- A bare unbacked window is the regression's root. */
 
+QUnit.test('unbacked window: assigned aliases keep the second probe before instance calls', assert => {
+  withChangingWindow(synthetic => {
+    let realm;
+    // eslint-disable-next-line prefer-const -- the later assignment is the source form under test
+    realm = globalThis.window;
+    const events = [];
+    withRealmSlot('aliasNavBox', {
+      get list() { events.push('receiver'); return [4, 5]; },
+    }, () => {
+      const value = realm?.window?.self.aliasNavBox.list.at((events.push('argument'), -1));
+      assert.same(value, synthetic ? undefined : 5, 'the second window read owns its guard');
+      assert.arrayEqual(events, synthetic ? [] : ['receiver', 'argument'], 'receiver and arguments stay guarded');
+    });
+  });
+  withChangingWindow(synthetic => {
+    let realm;
+    // eslint-disable-next-line prefer-const -- the later assignment is the source form under test
+    realm = globalThis.window;
+    let calls = 0;
+    withRealmSlot('aliasNavBox', [4, 5], () => {
+      // eslint-disable-next-line dot-notation -- the static computed hop shares the probe boundary
+      const value = realm?.['window']?.self.aliasNavBox.at((calls++, -1));
+      assert.same(value, synthetic ? undefined : 5, 'a computed window read keeps the same guard');
+      assert.same(calls, synthetic ? 0 : 1, 'the computed probe guards its arguments');
+    });
+  });
+});
+
 QUnit.test('unbacked window: stored tails preserve the second environment read', assert => {
   withChangingWindow(synthetic => {
     let held;
