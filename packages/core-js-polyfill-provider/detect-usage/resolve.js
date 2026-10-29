@@ -332,10 +332,12 @@ export function peelChainRootValue(node) {
 // .Array).from(x)`) cases - top-level walks one iteration; mid-chain walks down through
 // the .object levels until a non-member root surfaces. SE-prefix wrapping the chain-assign
 // (`(prefix(), (a = Array)).from(x)`) is peeled to the tail at each hop - prefix effects
-// are captured separately upstream by `unwrapParensCollectingEffects` in `buildMemberMeta`
-export function collectChainAssignsThroughMemberChain(receiverNode) {
+// are captured separately upstream by `unwrapParensCollectingEffects` in `buildMemberMeta`.
+// A root drive that cannot consume an effectful sequence asks only inside that boundary.
+export function collectChainAssignsThroughMemberChain(receiverNode, { throughEffects = true } = {}) {
   const collected = [];
-  let cur = peelReceiverSequenceTail(receiverNode);
+  const peel = throughEffects ? peelReceiverSequenceTail : unwrapRuntimeExpr;
+  let cur = peel(receiverNode);
   while (cur) {
     const { outer } = peelChainAssignment(cur);
     if (outer) {
@@ -347,7 +349,7 @@ export function collectChainAssignsThroughMemberChain(receiverNode) {
       return collected;
     }
     if (cur?.type !== 'MemberExpression' && cur?.type !== 'OptionalMemberExpression') break;
-    cur = peelReceiverSequenceTail(cur.object);
+    cur = peel(cur.object);
   }
   return collected;
 }
@@ -5449,7 +5451,7 @@ export function pristineRealmHopKey(node, ctx = null, { allowOptional = true, al
 // alone, and the fold lands under the ones above it. the hop reads through the name canon above, keys
 // with effects included: the gate only ever KEEPS a hop, so the widest name is its safe pole - off the
 // node alone a key-spelled hop walked past the mutated slot its literal twin stopped at
-export function deletedRunCarriesMutatedRealmHop(path, { adapter, unwrap = node => node }) {
+function deletedRunCarriesMutatedRealmHop(path, { adapter, unwrap = node => node }) {
   const end = unwrap(memberChainEndPath({ path, unwrap }).node);
   const aliasCtx = path?.scope ? { scope: path.scope, adapter, path } : null;
   for (let cur = isMemberAccessNode(end) ? unwrap(end.object) : null;
