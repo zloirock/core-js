@@ -5296,8 +5296,109 @@ export function findProxyGlobal(node, aliasCtx = null, throughChainAssign = fals
 // binding (`globalThis[(c++, 'self')]` -> `(c++, _self)`). weighing the effects here answered a
 // DIFFERENT global for the noisy spelling than for every quiet twin, which is the one thing a proxy
 // alias may never do - the two ponyfills are separate modules
-export function proxyNavSpellsClaimPure({ navigated }) {
+function proxyNavSpellsClaimPure({ navigated }) {
   return !navigated;
+}
+
+// Decide how the source consumes a collapsed surface. A read through it navigates;
+// a write normally keeps its value, but an unbacked tail or a retained probe store
+// must remain the write's base. A patched polyfillable slot reads the nearest surface.
+// Delete reads no slot: only deleting a patched proxy hop itself can fold past that
+// patch, whereas an ordinary patched global can also stand below the deleted leaf.
+// Native bindings supply write/delete facts for their live cursor, never a fold verdict.
+export function proxyCollapseConsumer({
+  node, source = node, host, writeTarget = false, deleted = false, deleteAbove = false,
+  keptWrite = null, hasKeptTail = false, deadOptional = false, storeHoldsProbe = false,
+  keyName = isMemberAccessNode(host) && !host.computed ? host.property?.name : null,
+}, { adapter, resolvePure }) {
+  const member = isMemberAccessNode(host) && host.object === node;
+  const pattern = (host?.type === 'VariableDeclarator' && host.init === node && isDestructurePattern(host.id))
+    || (host?.type === 'AssignmentExpression' && host.right === node && isDestructurePattern(host.left));
+  const mutatedSlot = member && !writeTarget && !!keyName && isMutatedGlobalSlot(adapter, keyName)
+    && !!resolvePure({ kind: 'global', name: keyName });
+  const deleteFoldsRead = POSSIBLE_GLOBAL_OBJECTS.has(keyName) ? deleted : deleteAbove;
+  const mutatedAbove = mutatedSlot && !deleteFoldsRead && !writeTarget;
+  const writeThrough = writeTarget && (hasKeptTail || storeHoldsProbe);
+  if (keptWrite && deleted && !hasKeptTail
+    && unwrapRuntimeExpr(keptWrite.right)?.type !== 'Identifier') {
+    return { navigated: false, mutatedAbove: false, mutatedSlot, writeThrough };
+  }
+  const optionalOverTail = !deadOptional && hasKeptTail && member && host.optional;
+  const navigated = (member && !writeTarget && !mutatedAbove && !optionalOverTail)
+    || (hasKeptTail && pattern && deadOptional) || writeThrough
+    || (writeTarget && !hasKeptTail && !mutatedAbove && deadOptional
+      && isMemberAccessNode(unwrapRuntimeExpr(unwrapRuntimeExpr(source)?.object)));
+  return { navigated, mutatedAbove, mutatedSlot, writeThrough };
+}
+
+// Select the value a decided collapse hands to its reader. A retained probe store wins;
+// an alias stays in navigation or a memo, but a source value takes the claim's own pure.
+// Forced folds (a deleted slot or an unbacked prefix below a patch) use the run's root.
+export function proxyCollapseBase({
+  keptStore = null, aliasRoot = null, sourceValue = false, claimPure = null, rootPure,
+  keepClaim = false,
+}) {
+  if (keptStore) return { keep: keptStore };
+  if (aliasRoot && !sourceValue) return { alias: aliasRoot };
+  return { pure: keepClaim ? claimPure : rootPure };
+}
+
+// Finish an outward collapse without rendering or mutating it. Consumer facts describe
+// live native slots; memo membership and a delete's owning run come from the binding.
+// A live memo keeps its terminal probe, and a source store keeps effects inside its value.
+// The returned route names the replacement and the optional handoff, never a host API.
+export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
+  const { target, keptTail, writeStep, innerKeptTail, seqPrefixEffects, valueEffects, outerHopName, outerBacked } = outer;
+  const { resolvePure } = ctx;
+  const deadOptional = facts.allowOptional
+    || (!facts.mutatedGuards && proxyRunValueIsProven(target.node, resolvePure, ctx));
+  const source = { ...facts.consumer, keptWrite: collapsed.keptWrite ?? writeStep, hasKeptTail: !!keptTail.length };
+  const navigation = proxyCollapseConsumer({ ...source, deadOptional,
+    storeHoldsProbe: !!collapsed.keptWrite && !collapsed.writeStoreSpellable }, ctx);
+  const sealedDeleteValue = facts.sealed && facts.deletedAbove && !facts.deleteFold;
+  const navigated = navigation.navigated && !sealedDeleteValue;
+  const { mutatedAbove } = navigation;
+  const valuePosition = proxyNavSpellsClaimPure({ navigated });
+  if (!proxyCollapseConsumer(source, ctx).navigated
+    && keptTail.some(kept => !resolvePure({ kind: 'global', name: kept.name })) && facts.inProbe) return null;
+  if (!writeStep && !collapsed.keptWrite && !navigated && keptTail.length
+    && (storedUserAssignmentOf(ctx.path) || !unbackedTailRidesAbove(ctx.path, resolvePure))) return null;
+  if (writeStep) {
+    const tail = keptProxyTailPlan(writeStep, keptTail, resolvePure, { navigated, backed: outerBacked });
+    if (tail.decline) return { kind: 'decline' };
+    const inPlace = navigated && collapsed.aliasRoot && !!collapsed.effects?.length;
+    if (inPlace && !facts.directReader) return { kind: 'decline' };
+    const outerPure = resolvePure({ kind: 'global', name: navigated || !outerHopName ? collapsed.hintName : outerHopName });
+    const base = proxyCollapseBase({ aliasRoot: !collapsed.effects?.length && collapsed.aliasRoot, rootPure: outerPure });
+    if (!inPlace && !base.alias && !base.pure) return { kind: 'decline' };
+    return {
+      kind: inPlace ? 'write-in-place' : 'write', base, write: writeStep, tail: keptTail,
+      innerTail: innerKeptTail, prefix: seqPrefixEffects,
+      innerPure: { entry: collapsed.valueEntry ?? collapsed.entry ?? claim.entry,
+        hintName: collapsed.valueHintName ?? collapsed.hintName ?? claim.hintName },
+      storedEffects: [...valueEffects, ...collapsed.effects ?? []],
+      readsOffWrite: tail.readsOffWrite, valuePosition, optional: !!target.node.optional,
+    };
+  }
+  if (navigated && collapsed.keptWrite && !collapsed.writeStoreSpellable) {
+    return {
+      kind: 'store', base: proxyCollapseBase({ keptStore: collapsed.keptWrite }),
+      prefix: collapsed.effects.slice(0, collapsed.effects.indexOf(collapsed.keptWrite)),
+      optional: storeReadHopOptional(target.node),
+    };
+  }
+  const carriedStore = !!storedUserAssignmentOf(ctx.path, { throughReads: false }) && facts.parentInMemo;
+  const sourceValue = valuePosition && !mutatedAbove && (carriedStore || !facts.inMemo);
+  const forced = mutatedAbove && navHasUnresolvableProxyHop(ctx.path.node.object, resolvePure, ctx);
+  const deleted = !!collapsed.entry && !storedUserAssignmentOf(ctx.path) && facts.deleteFold;
+  const effects = [...seqPrefixEffects, ...collapsed.effects];
+  return {
+    kind: 'value', base: proxyCollapseBase({ aliasRoot: collapsed.aliasRoot, sourceValue,
+      claimPure: claim, rootPure: collapsed, keepClaim: (valuePosition || mutatedAbove) && !forced && !deleted }),
+    prefix: navigated ? effects.filter(effect => mayHaveSideEffects(effect)) : effects,
+    tail: valuePosition ? keptTail : [], valuePosition, deadOptional,
+    swallowDeadSequence: navigated && !collapsed.aliasRoot,
+  };
 }
 
 // the ONE name a realm HOP has, whatever spells its key: the forms the node itself carries
@@ -6538,6 +6639,68 @@ function keptProxyValueFacts(node, resolvePure, isSubstituted = null) {
   };
 }
 
+// A retained store and the realm tail reading it have one value contract. A backed hop
+// supplies the surface through which later unbacked hops can fold; without one a raw
+// stored probe must remain the base. In value position a surviving tail reads the write
+// itself, never a fresh root. The caller proves the realm run before asking this question.
+export function keptProxyTailPlan(write, tail, resolvePure, { navigated = true, backed = false } = {}) {
+  const value = peelChainAssignment(write).value ?? write?.right;
+  const { rawRead } = keptProxyValueFacts(value, resolvePure);
+  return {
+    decline: rawRead && !!tail.length && !backed,
+    readsOffWrite: !navigated && !!tail.length,
+  };
+}
+
+// Decide one outward continuation of an admitted proxy collapse. Native cursors report
+// the next source carrier and its reader; this planner owns whether it can be consumed
+// and where its effects belong. Prefixes outside a write lead the whole render; prefixes
+// inside its value stay there. A backed hop resets the retained tail, including after a
+// write. The source nodes are retained by identity and nothing in the source is mutated.
+export function createOuterCollapsePlanner({ allowOptional = false, resolvePure }) {
+  const plan = {
+    seqPrefixEffects: [], valueEffects: [], keptTail: [], writeStep: null,
+    innerKeptTail: null, outerHopName: null, outerBacked: false,
+  };
+  function canCrossWrite({ optional = false, deadOptional = false, readerHop = false }) {
+    return !plan.writeStep && readerHop && (!optional || allowOptional || deadOptional);
+  }
+  function step({ kind, node, keyName, optional = false, deadOptional = false, readerHop = false,
+    stored = false, prefixes = [], writeTarget = false }) {
+    switch (kind) {
+      case 'write':
+        if (!canCrossWrite({ optional, deadOptional, readerHop })) return false;
+        plan.writeStep = node;
+        plan.innerKeptTail = plan.keptTail;
+        plan.keptTail = [];
+        return true;
+      case 'chain': return allowOptional;
+      case 'wrapper':
+        return (!plan.keptTail.length || readerHop) && (!stored || node.type === 'ParenthesizedExpression');
+      case 'sequence':
+        if (readerHop) plan.seqPrefixEffects.unshift(...prefixes);
+        else if (!plan.writeStep && stored) plan.valueEffects.push(...prefixes);
+        else return false;
+        return true;
+      case 'member':
+        if (writeTarget || !keyName
+          || (node.optional && !allowOptional && plan.keptTail.length && !deadOptional)) return false;
+        if (!resolvePure({ kind: 'global', name: keyName })) {
+          plan.keptTail.push({ name: keyName, node, liveOptional: false });
+        } else {
+          plan.keptTail = [];
+          if (plan.writeStep) {
+            plan.outerHopName = keyName;
+            plan.outerBacked = true;
+          }
+        }
+        return true;
+      default: return false;
+    }
+  }
+  return { plan, step, canCrossWrite };
+}
+
 // An unbacked hop above a kept store may not replace the raw value that store observed.
 // Hops inside the write belong to its own value plan; a bare root or backed terminal value
 // lets the outer run fold. The caller has already proved the run's realm identity.
@@ -6545,8 +6708,8 @@ export function runSwallowsStoreProbe(runNode, resolvePure) {
   for (let hop = runNode; isMemberAccessNode(hop);) {
     const inner = unwrapRuntimeExpr(hop.object);
     if (inner?.type === 'AssignmentExpression') {
-      return unbackedProxyHopKey(hop, resolvePure)
-        && keptProxyValueFacts(peelChainAssignment(inner).value ?? inner.right, resolvePure).rawRead;
+      const tail = unbackedProxyHopKey(hop, resolvePure) ? [hop] : [];
+      return keptProxyTailPlan(inner, tail, resolvePure).decline;
     }
     hop = inner;
   }

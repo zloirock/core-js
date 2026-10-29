@@ -83,6 +83,55 @@ QUnit.test('probe navigation: alias fallback keeps a throwing realm read', asser
   });
 });
 
+// A write separates the effects in its value from those surrounding it. Reading the
+// retained tail must use the stored value, including when a setter observes the store.
+QUnit.test('outer collapse: value effects run before the store, outer effects before both', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let stored;
+    const holder = { set value(value) {
+      log.push('set');
+      stored = value;
+    } };
+    const value = (log.push('outer'), holder.value = (log.push('inner'), globalThis.self)).window;
+    assert.same(stored, globalThis, 'the setter stores the realm');
+    assert.same(value, live ? globalThis : undefined, 'the unbacked tail reads the stored realm');
+    assert.deepEqual(log, ['outer', 'inner', 'set'], 'the store keeps both effect slots');
+  });
+});
+
+// A sealed optional result may throw before the write RHS or delete runs. The raw
+// probe stored by the source cannot be replaced by the always-defined pure realm.
+QUnit.test('outer collapse: stored probe keeps sealed write and delete behavior', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let held, result;
+    const box = { value: 4 };
+    withTemporaryProperty(globalThis, 'e2eOuterCollapseBox', box, () => {
+      try {
+        // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed write must throw off-window
+        result = ((log.push('outer'), held = (log.push('inner'), globalThis.window))?.self).e2eOuterCollapseBox.value = (log.push('rhs'), 9);
+      } catch (error) {
+        result = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      assert.same(result, live ? 9 : 'TypeError', 'the write retains its sealed exception');
+      assert.same(held, live ? globalThis : undefined, 'the stored probe is unchanged');
+      assert.same(box.value, live ? 9 : 4, 'only the live branch writes');
+      assert.deepEqual(log, live ? ['outer', 'inner', 'rhs'] : ['outer', 'inner'], 'the RHS follows the receiver read');
+      log.length = 0;
+      try {
+        // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed delete must throw off-window
+        result = delete ((log.push('outer'), held = (log.push('inner'), globalThis.window))?.self).e2eOuterCollapseBox.value;
+      } catch (error) {
+        result = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      assert.same(result, live ? true : 'TypeError', 'the delete retains its sealed exception');
+      assert.same(Object.hasOwn(box, 'value'), !live, 'only the live branch deletes');
+      assert.deepEqual(log, ['outer', 'inner'], 'the delete retains both effect slots');
+    });
+  });
+});
+
 /* eslint-enable no-sequences -- the computed-key cases end here */
 
 // A sequence the probe navigation is rooted in runs its prefix first and exactly once, whatever the
