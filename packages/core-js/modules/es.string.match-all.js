@@ -8,6 +8,7 @@ var createIterResultObject = require('../internals/create-iter-result-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
+var normalizeStringArgument = require('../internals/normalize-string-argument');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');
@@ -93,7 +94,7 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
       if (matcher) return call(matcher, regexp, O);
     } else if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll(O, regexp);
     S = toString(O);
-    rx = new RegExp(regexp, 'g');
+    rx = new RegExp(normalizeStringArgument(regexp), 'g');
     return IS_PURE ? call($matchAll, rx, S) : rx[MATCH_ALL](S);
   }
 });

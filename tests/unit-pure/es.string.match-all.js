@@ -1,6 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
+import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
 import matchAll from 'core-js-pure/es/string/match-all';
 
@@ -125,6 +126,11 @@ QUnit.test('String#matchAll', assert => {
   for (const target of data) {
     assert.notThrows(() => matchAll('', target), `Not throws on ${ target } as the first argument`);
   }
+
+  // a regex-like argument without `@@matchAll` is converted to a string, not read as a regex
+  const regExpLike = { flags: 'g', source: 'b', toString() { return 'a'; } };
+  regExpLike[Symbol.match] = true;
+  assert.deepEqual(from(matchAll('ab', regExpLike), match => match[0]), ['a'], 'regex-like argument');
 
   assert.throws(() => matchAll(Symbol('matchAll test'), /./), 'throws on symbol context');
 

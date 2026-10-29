@@ -6,6 +6,7 @@ var isObject = require('../internals/is-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var sameValue = require('../internals/same-value');
 var toString = require('../internals/to-string');
+var normalizeStringArgument = require('../internals/normalize-string-argument');
 var getMethod = require('../internals/get-method');
 var regExpExec = require('../internals/regexp-exec-abstract');
 
@@ -19,7 +20,7 @@ fixRegExpWellKnownSymbolLogic('search', function (SEARCH, nativeSearch, maybeCal
       var searcher = isObject(regexp) ? getMethod(regexp, SEARCH) : undefined;
       if (searcher) return call(searcher, regexp, O);
       var S = toString(O);
-      return new RegExp(regexp)[SEARCH](S);
+      return new RegExp(normalizeStringArgument(regexp))[SEARCH](S);
     },
     // `RegExp.prototype[@@search]` method
     // https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.search%

@@ -6,6 +6,7 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
+var normalizeStringArgument = require('../internals/normalize-string-argument');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var getMethod = require('../internals/get-method');
 var advanceStringIndex = require('../internals/advance-string-index');
@@ -24,7 +25,7 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
       var matcher = isObject(regexp) ? getMethod(regexp, MATCH) : undefined;
       if (matcher) return call(matcher, regexp, O);
       var S = toString(O);
-      return new RegExp(regexp)[MATCH](S);
+      return new RegExp(normalizeStringArgument(regexp))[MATCH](S);
     },
     // `RegExp.prototype[@@match]` method
     // https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.match%
