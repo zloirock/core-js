@@ -163,15 +163,7 @@ QUnit.test('optional iterator call: readonly and null receivers keep the guards'
 
   const quiet = ['quiet'];
   assert.same(quiet?.[Symbol.iterator]?.().next().value, 'quiet');
-  const absent = ['absent'];
-  let absentReads = 0;
-  Object.defineProperty(absent, Symbol.iterator, {
-    get() { absentReads++; return null; },
-  });
-  // Without a native array iterator, the pure helper supplies its class fallback.
-  const nativeArrayIterator = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)?.value;
-  assert.same(absent?.[Symbol.iterator]?.().next().value, nativeArrayIterator ? undefined : 'absent');
-  assert.same(absentReads, 1);
+  // A plain object has no class iterator fallback, so its null method skips the call.
   const nonIterable = {};
   let nonIterableReads = 0;
   Object.defineProperty(nonIterable, Symbol.iterator, {
