@@ -3,6 +3,8 @@ const { resolve } = require('node:path');
 const baseConfig = require('./webpack.config');
 const babelConfig = require('../../babel.config');
 
+const legacyDeletePlugin = require.resolve('./babel-plugin-legacy-delete');
+
 const e2eUsagePure = resolve(__dirname, '../../tests/e2e-usage-pure');
 
 module.exports = {
@@ -31,6 +33,8 @@ module.exports = {
               targets: 'IE 11, Chrome>=38, Safari>=7.1, FF>=15',
             }],
             ['@babel/plugin-transform-typescript'],
+            ['@babel/plugin-transform-function-name'],
+            [legacyDeletePlugin],
             ...babelConfig.plugins,
           ],
           assumptions: {

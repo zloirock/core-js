@@ -16,6 +16,7 @@
     "@babel/plugin-transform-explicit-resource-management": "^7.29.7",
     "@babel/plugin-transform-exponentiation-operator": "^7.29.7",
     "@babel/plugin-transform-for-of": "^7.29.7",
+    "@babel/plugin-transform-function-name": "^7.29.7",
     "@babel/plugin-transform-literals": "^7.29.7",
     "@babel/plugin-transform-logical-assignment-operators": "^7.29.7",
     "@babel/plugin-transform-modules-commonjs": "^7.29.7",
