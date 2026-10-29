@@ -1,6 +1,7 @@
 // the proxy-spine channel of the usage-pure emitter: possible-global claims over pristine
 // hop runs - the spine climbs, the fold/keep/stand-down verdicts, the guard renders and the
 // root/hop claim emissions. created per transform over the factory's shared context
+import { planOptionalProbe } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   proxyRunValueIsProven,
   navValueCanShortCircuit,
@@ -17,7 +18,6 @@ import {
   realmRunSplitBySequencePrefix,
   prependChainAssignmentEffect,
   proxyReceiverValueCanBeUndefined,
-  undefinableOptionalGuard,
   resolveObjectName,
   aliasRootedReadMayThrow,
   deleteGuardKeepingHop,
@@ -26,7 +26,6 @@ import {
   chainReadsThroughSeal,
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
-  inlineCallReturnExpression,
   deleteHostAboveCarriedChain,
   mutationGuardKeepingHop,
   probeRunIsTheSourceValue,
@@ -37,7 +36,6 @@ import {
   storeReadHopOptional,
   vestigialNavOptionals,
   proxyNavSpellsClaimPure,
-  peelPristineProxyHops,
   unbackedProxyHopKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -63,8 +61,6 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
-  nestedSequenceValueSpelling,
-  migratableClaimSe,
   peelParenAndTSParentPath,
   peelParenAndTSSlotPath,
   peelParenAndTSSlotChild,
@@ -78,7 +74,6 @@ import {
   TS_EXPR_WRAPPERS,
   typeArgumentHostOf,
   unwrapRuntimeExpr,
-  subtreeContainsNode,
   peelChainAssignment,
   peelChainAssignmentDeep,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -105,7 +100,6 @@ import {
   withSideEffects,
 } from './emit-shared.js';
 import {
-  descendIntoOwnGuard,
   guardProbeUndefinable,
   optionalMemberStaysGuarded,
   replaceGuardedHop,
@@ -1148,239 +1142,74 @@ export default function createProxySpineChannel(ctx) {
 
   // the live-`?.` probe guard of the generic static claim, extracted for its size; true
   // when the guard rendered (the caller returns)
-  // eslint-disable-next-line max-statements -- sequential emission steps of one probe guard
   function emitLiveOptionalProbeGuard({ metaPath, node, entry, hintName, effects, receiverEffectCount }) {
     // the collapse owns the shape wherever a `delete` may still fold it
     if (deleteHostForClaim(metaPath, node, { forFold: true })) return false;
-    let cur = unwrapRuntimeExpr(node.object);
-    let plainHops = true;
-    // the claim's OWN `?.` probes its object directly (`(w = gw)?.Map` -> the write is
-    // the probe); otherwise the deepest optional hop inside the receiver carries it
-    let probe = node.optional ? node.object : null;
-    while (!probe && cur?.type === 'MemberExpression') {
-      if (cur.optional) {
-        probe = cur.object;
-        break;
-      }
-      // a LITERAL STRING key is the same plain read in its computed spelling
-      // (`...?.self['Array'].from` folds like `.Array` - the guard survives either)
-      const literalKey = cur.computed && unwrapRuntimeExpr(cur.property)?.type === 'Literal'
-        && typeof unwrapRuntimeExpr(cur.property).value === 'string';
-      if (!literalKey && (cur.computed || cur.property?.type !== 'Identifier')) plainHops = false;
-      cur = unwrapRuntimeExpr(cur.object);
-    }
-    if (!probe && cur?.type === 'CallExpression' && cur.optional) probe = cur;
-    // a claim NAVIGATED further reads a value THROUGH the probe, and a nested sequence
-    // leaves that value unproven (`(d++, (c++, globalThis))?.Map.name` keeps its guard);
-    // a whole-swap leaf reads nothing through it (`....Array.of` erases)
-    const navigatedAbove = metaPath.parentPath?.node?.type === 'MemberExpression'
-            && unwrapRuntimeExpr(metaPath.parentPath.node.object) === node;
-    // ... and a BARE call value stays unproven for an INSTANCE dispatch reading it: that
-    // dispatch takes the value THROUGH its receiver, so babel memoizes the call into the
-    // guard test (`(call)?.self.Map.name` keeps `null == (_ref = call())`)
-    const instanceReadAbove = navigatedAbove && unwrapRuntimeExpr(probe)?.type === 'CallExpression'
-            && !unwrapRuntimeExpr(probe).optional
-            && resolvePure({
-              kind: 'property', object: 'function', placement: 'prototype',
-              key: metaPath.parentPath.node.computed ? null : metaPath.parentPath.node.property?.name,
-            }, metaPath)?.kind === 'instance';
-    const probeUndefinable = !!probe && (instanceReadAbove || guardProbeUndefinable(probe,
-      { metaPath, adapter, resolvePure, nestedSeqUnproven: navigatedAbove }));
-    // a deeper `?.` under a CTOR-keyed hop is the real source - the ctor key is not a
-    // probe (`(globalThis.window.self)?.Promise?.resolve(1)` tests the seal's own read);
-    // the claim's OWN ctor key descends too (`...self?.Array?.of` - `Array` has no pure
-    // ctor entry but IS the claim's object)
-    const claimCtor = hintName?.includes('$') ? hintName.split('$', 1)[0] : null;
-    // a hop whose OBJECT is an undefinable CALL descends - there the call is the source and
-    // the test reads it alone (`<short-circuit call>?.window?...`). a MEMBER object stays here:
-    // which read of that spine the test spells is the shared guard canon's answer, asked below
-    function deeperSourceUndefinable(objNode) {
-      const objValue = unwrapRuntimeExpr(objNode);
-      if (objValue?.type !== 'CallExpression' || objValue.optional) return false;
-      // A strict inline call returning a local container can prove every slot between the
-      // call and this constructor. Its first `?.` is therefore the remaining guard boundary;
-      // keep the call test instead of re-reading an already-proven container property.
-      const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-      const returned = claimCtor && inlineCallReturnExpression({
-        node: objValue, readNode: node, seen: new Set(), ctx: aliasCtx,
-      }, { rejectConditional: true });
-      if (returned && unwrapRuntimeExpr(returned.node)?.type === 'ObjectExpression'
-        && !inlineCallProxyGlobalRoot({ callNode: objValue, ...aliasCtx, rejectConditional: true })) return true;
-      const fnCallee = unwrapRuntimeExpr(objValue.callee);
-      const fnBody = (fnCallee?.type === 'ArrowFunctionExpression' && fnCallee.expression)
-        ? unwrapRuntimeExpr(fnCallee.body) : null;
-      if (fnBody?.type === 'ConditionalExpression'
-        && fnBody.consequent?.type === 'UnaryExpression' && fnBody.consequent.operator === 'void') return true;
-      return proxyReceiverValueCanBeUndefined(objValue, m => resolvePure(m, metaPath),
-        aliasCtx, { throughChainAssign: true });
-    }
-    for (let inner = probe && unwrapRuntimeExpr(probe);
-      inner?.type === 'MemberExpression' && inner.optional && !inner.computed
-        && (resolveGlobalPolyfill(inner.property?.name) || inner.property?.name === claimCtor
-          || deeperSourceUndefinable(inner.object));
-      inner = unwrapRuntimeExpr(probe)) {
-      probe = inner.object;
-    }
-    // ... and the shared guard canon names the SOURCE of undefined for the whole chain, deduping
-    // the hops that share one name onto the SHORTEST prefix - under the realm-self-reference
-    // assumption `globalThis.window?.window?.window` reads one value, and the test reads
-    // `_globalThis.window` for all of it (the babel leg's spelling). the descent above stops at
-    // the first unresolvable hop it meets from the leaf; where the canon's object stands deeper
-    // inside that same prefix, the test reads it instead
-    // ... reached along the probe's own member spine alone: a sequence wrapped around the probe
-    // is a kept boundary of its own, and the test reads the sequence (`(d++, (c++,
-    // globalThis.window))?.Map.length` keeps `null == (d++, c++, _globalThis.window)`)
-    if (probe) {
-      const verdict = undefinableOptionalGuard(node, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath });
-      const canonObject = verdict.kind === 'guard' ? unwrapRuntimeExpr(verdict.object) : null;
-      if (canonObject && canonObject !== unwrapRuntimeExpr(probe)) {
-        let spine = unwrapRuntimeExpr(probe);
-        while (spine?.type === 'MemberExpression' && spine !== canonObject) spine = unwrapRuntimeExpr(spine.object);
-        if (spine === canonObject) probe = verdict.object;
-        // ... and where that object is the TAIL of the sequence the spine stands on, the test reads
-        // the sequence: the realm hop read off it is no probe of its own (`(e++, globalThis.window)
-        // ?.window?.self` tests the sequence's value, never `.window`). a kept WRITE there is the
-        // store canon's own boundary and keeps the spelling that canon gives it
-        else if (spine?.type === 'SequenceExpression' && canonObject.type !== 'AssignmentExpression'
-          && unwrapRuntimeExpr(peelReceiverSequenceTail(spine)) === canonObject) probe = spine;
-      }
-    }
-    // a PAREN-SEALED probe renders as a guard of its OWN, and the test reads that guard's
-    // source - the inner `?.`'s object - not the whole rendered value
-    // (`(globalThis.window?.self.window)?.Array.of(9)` tests `_globalThis.window`)
-    const descended = descendIntoOwnGuard(probe, { metaPath, adapter, resolvePure });
-    const sealedDescent = !!descended;
-    if (descended) probe = descended;
-    // the harvested receiver effect may BE the probe (the chain-root call detection
-    // collected) - it moves into the test, not a seq prefix
-    // the claim-SE migration canon positions every harvested effect against the FINAL probe
-    // (post-descent: an inner `?.` hop or a seal moves it, and the outer wrapper's prefix must
-    // not swallow a leading effect): one BEFORE it (a receiver prefix) runs ahead of the whole
-    // ternary, one BETWEEN the probe and the claim - a dropped hop's computed key
-    // (`W?.[(n++, 'Array')].from`) as much as the claim's own key - runs INSIDE the alternate,
-    // where native reaches it only past the short-circuit. the local split by the claim's own
-    // key was blind to the dropped-hop key and ran it on the nullish path; an effect INSIDE the
-    // probe stays with the cloned test spelling. a position-less input (a rebuilt subtree)
-    // cannot be placed - stand down to the raw claim
-    const migration = probe
-      ? migratableClaimSe({ sideEffects: effects ?? [], receiverEffectCount, rootNode: probe, end: node.end })
-      : { leading: effects ?? [], migrated: [] };
-    if (!migration && effects?.length) return false;
-    const keySe = migration?.migrated?.length ? migration.migrated : null;
-    const navSe = migration ? migration.leading : effects;
-    const effectsAreProbe = !navSe?.length
-            || (navSe.length === 1
-              && (navSe[0] === probe || unwrapRuntimeExpr(navSe[0]) === unwrapRuntimeExpr(probe ?? {})));
-    if (probe && probeUndefinable && plainHops && (!keySe || keySe.length)) {
-      const id = injectPureImport(entry, hintName);
-      markRewrite();
-      // the memoized probe respells bare: parens and TS wrappers around the write drop
-      // (`((a = gw) as any)?.self...` -> `null == (_ref = a = _globalThis.window)`);
-      // trailing ERASABLE hops drop too - the test reads at most the probe hop itself
-      let probeSource = unwrapRuntimeExpr(probe);
-      // a KEPT WRITE anchors the prefix: the sequence stays whole inside the test beside it
-      // (`null == (eff(), t = _self.window) ? void 0 : ...`, the kept-root canon). without
-      // one the harvested prefix was lifted and the clone reads the quiet tail
-      const probeSeqTail = probeSource?.type === 'SequenceExpression'
-        ? unwrapRuntimeExpr(probeSource.expressions.at(-1)) : null;
-      // ... except where the probe was reached by descending INTO a SEAL: the seal renders its
-      // own value, and the prefix it carried runs ahead of the whole guard there
-      // ... and a NESTED sequence keeps its whole spelling too: the value canon stopped there,
-      // so the test reads what the source wrote (`(d++, (c++, globalThis))?.Map.name`)
-      const keepSeqInTest = !sealedDescent
-              && (probeSeqTail?.type === 'AssignmentExpression' || nestedSequenceValueSpelling(probeSource));
-      const droppedSeqPrefix = [];
-      for (;;) {
-        if (probeSource?.type === 'SequenceExpression' && !keepSeqInTest) {
-          droppedSeqPrefix.push(...probeSource.expressions.slice(0, -1));
-          probeSource = unwrapRuntimeExpr(probeSource.expressions.at(-1));
-          continue;
-        }
-        const peeled = peelPristineProxyHops(probeSource, hopPeelCtx);
-        if (peeled !== probeSource) {
-          probeSource = peeled;
-          continue;
-        }
-        break;
-      }
-      // the un-memoized probe respells its DEAD `?.` plain - a proven root subsumes the
-      // hop's own nullish check into the test (`null == ignores(1).window`, babel's
-      // spelling); the split's memoized probe keeps the source `?.` instead
-      // effects that are NOT the probe still have a slot: they prefix the WHOLE ternary
-      // (`(n++, null == _globalThis.window ? void 0 : _Promise$resolve(1))`, babel's
-      // wrap) - unless the probe's own spelling CARRIES them (a root call with an
-      // effectful argument reads once in the test; a prefix would run it twice)
-      // effects the probe's FINAL spelling carries stay with it - a prefix would run them
-      // twice (a root call with an effectful argument reads once in the test)
-      const prefixSe = [
-        ...!effectsAreProbe && navSe?.length
-          && navSe.some(effect => !subtreeContainsNode(probeSource, effect)) ? navSe : [],
-        // a sequence prefix the test peeled away has no other slot: it runs ahead of the guard,
-        // where the source ran it - before the probe read. a QUIET one observes nothing and
-        // dies with the spelling it prefixed (`(1, globalThis.window)`)
-        ...droppedSeqPrefix.filter(effect => mayHaveSideEffects(effect) && !(navSe ?? []).includes(effect)),
-      ];
-      const probeInner = cloneNode(probeSource);
-      // a sequence KEPT whole still navigates: a tail the peel erases whole folds onto its
-      // outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` - the realm-fold
-      // canon, the spelling the babel leg's plan lands too), a probe stopping the peel takes
-      // the guarded value render the fold owns
-      if (keepSeqInTest) {
-        foldTailPristineProxyHops(probeInner, {
-          ...hopPeelCtx,
-          injectPureImport,
-          aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
-          // the clone IS the guard test - a VALUE position, where an alias root's kept value
-          // folds to the leaf ponyfill like the direct twin
-        });
-      }
-      // the clone IS the guard test: a claim re-visited inside it renders the read the test
-      // performs, so an unbacked hop in it stays load-bearing instead of folding away
-      probeTestClones.add(probeInner);
-      for (const hop of vestigialNavOptionals(probeInner, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
-      const probeClone = receiverCarriesOptional(probeInner) || probeInner.optional === true
-        ? chainExpression(probeInner) : probeInner;
-      const test = nullFirstGuardTest(instanceTailMemoTest(probeClone, metaPath, node, seKeyReadCtx));
-      const tailAbove = climbTransparentWrapperPath(metaPath).parentPath?.node;
-      // a tail a `delete` runs on into is the operand the render hands the guard whole, kept as the
-      // source spelled it - `?.` and all, as every other guard render keeps it
-      const tailDeleted = deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr) || deleteHostAboveCarriedChain(metaPath);
-      // a REALM claim's alternate is the always-defined ponyfill the nav collapses onto, so its tail
-      // takes the leaf pull the direct root's collapse takes: the `?.` reading the ponyfill folds in,
-      // the next one stays outside (`(null == window ? void 0 : _self.box)?.k`). any other claim's
-      // alternate is its own pure over the collapsed spine, read THROUGH by the source, so an optional
-      // tail rides the branch with its `?.` kept (`p()?.window?.Promise.resolve(4)?.then?.(f)`)
-      const realmLeaf = POSSIBLE_GLOBAL_OBJECTS.has(hintName);
-      replaceGuardedHop({
-        hopPath: metaPath,
-        test,
-        built: identifier(id),
-        skippedNodes,
-        alwaysDefined: realmLeaf,
-        navAlternate: !realmLeaf,
-        navCollapse: realmLeaf,
-        preserveOptionalHops: !!unbackedProxyHopKey(probeSource, m => resolvePure(m, metaPath)),
-        resolveHere: m => resolvePure(m, metaPath),
-        prefixSe: prefixSe.length ? prefixSe.map(effect => cloneNode(effect)) : null,
-        leafKeySe: keySe?.length ? keySe.map(effect => cloneNode(effect)) : null,
+    const plan = planOptionalProbe(node, {
+      scope: metaPath.scope, path: metaPath, adapter, resolvePure: meta => resolvePure(meta, metaPath),
+    }, { hintName, reader: metaPath.parentPath?.node, effects, receiverEffectCount });
+    if (!plan) return false;
+    const { source: probeSource, prefix: prefixSe, keySe, keepSequence: keepSeqInTest } = plan;
+    const id = injectPureImport(entry, hintName);
+    markRewrite();
+    const probeInner = cloneNode(probeSource);
+    // a sequence KEPT whole still navigates: a tail the peel erases whole folds onto its
+    // outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` - the realm-fold
+    // canon, the spelling the babel leg's plan lands too), a probe stopping the peel takes
+    // the guarded value render the fold owns
+    if (keepSeqInTest) {
+      foldTailPristineProxyHops(probeInner, {
+        ...hopPeelCtx,
+        injectPureImport,
+        aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+        // the clone IS the guard test - a VALUE position, where an alias root's kept value
+        // folds to the leaf ponyfill like the direct twin
       });
-      // ... and a READ tail answers the shared vestigial verdict like every other read off an
-      // always-defined leaf: the source's `?.` over the ponyfill the alternate landed is dead text
-      if (tailAbove?.type === 'MemberExpression' && !tailDeleted) {
-        for (const hop of vestigialNavOptionals(tailAbove, m => resolvePure(m, metaPath),
-          { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
-      }
-      // a realm hop reading the guarded value THROUGH a store keeps the probe but not the hop:
-      // the defined branch is the ponyfill the hop folds onto, and the void branch still
-      // short-circuits on the `?.` that slides one member up, whichever spelling roots the probe
-      // (`(v = ga.window?.self)?.window.X` -> `(v = <guard>)?.X`); the fold's own climb gates on
-      // the kept store
-      foldRealmHopOverCarriedValue(metaPath, { adapter, resolvePure: m => resolvePure(m, metaPath) });
-      return true;
     }
-    return false;
+    // the clone IS the guard test: a claim re-visited inside it renders the read the test
+    // performs, so an unbacked hop in it stays load-bearing instead of folding away
+    probeTestClones.add(probeInner);
+    for (const hop of vestigialNavOptionals(probeInner, m => resolvePure(m, metaPath),
+      { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
+    const probeClone = receiverCarriesOptional(probeInner) || probeInner.optional === true
+      ? chainExpression(probeInner) : probeInner;
+    const test = nullFirstGuardTest(instanceTailMemoTest(probeClone, metaPath, node, seKeyReadCtx));
+    const tailAbove = climbTransparentWrapperPath(metaPath).parentPath?.node;
+    // a tail a `delete` runs on into is the operand the render hands the guard whole, kept as the
+    // source spelled it - `?.` and all, as every other guard render keeps it
+    const tailDeleted = deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr) || deleteHostAboveCarriedChain(metaPath);
+    // a REALM claim's alternate is the always-defined ponyfill the nav collapses onto, so its tail
+    // takes the leaf pull the direct root's collapse takes: the `?.` reading the ponyfill folds in,
+    // the next one stays outside (`(null == window ? void 0 : _self.box)?.k`). any other claim's
+    // alternate is its own pure over the collapsed spine, read THROUGH by the source, so an optional
+    // tail rides the branch with its `?.` kept (`p()?.window?.Promise.resolve(4)?.then?.(f)`)
+    const realmLeaf = POSSIBLE_GLOBAL_OBJECTS.has(hintName);
+    replaceGuardedHop({
+      hopPath: metaPath,
+      test,
+      built: identifier(id),
+      skippedNodes,
+      alwaysDefined: realmLeaf,
+      navAlternate: !realmLeaf,
+      navCollapse: realmLeaf,
+      preserveOptionalHops: !!unbackedProxyHopKey(probeSource, m => resolvePure(m, metaPath)),
+      resolveHere: m => resolvePure(m, metaPath),
+      prefixSe: prefixSe.length ? prefixSe.map(effect => cloneNode(effect)) : null,
+      leafKeySe: keySe?.length ? keySe.map(effect => cloneNode(effect)) : null,
+    });
+    // ... and a READ tail answers the shared vestigial verdict like every other read off an
+    // always-defined leaf: the source's `?.` over the ponyfill the alternate landed is dead text
+    if (tailAbove?.type === 'MemberExpression' && !tailDeleted) {
+      for (const hop of vestigialNavOptionals(tailAbove, m => resolvePure(m, metaPath),
+        { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
+    }
+    // a realm hop reading the guarded value THROUGH a store keeps the probe but not the hop:
+    // the defined branch is the ponyfill the hop folds onto, and the void branch still
+    // short-circuits on the `?.` that slides one member up, whichever spelling roots the probe
+    // (`(v = ga.window?.self)?.window.X` -> `(v = <guard>)?.X`); the fold's own climb gates on
+    // the kept store
+    foldRealmHopOverCarriedValue(metaPath, { adapter, resolvePure: m => resolvePure(m, metaPath) });
+    return true;
   }
 
   // is a proxy spine NAVIGATED further (a claim key above - `globalThis.self.Array` - or a
