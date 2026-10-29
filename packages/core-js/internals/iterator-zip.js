@@ -11,7 +11,6 @@ var push = uncurryThis([].push);
 var ITERATOR_IS_EXHAUSTED = 'Iterator is exhausted';
 var THROW = 'throw';
 
-// eslint-disable-next-line max-statements -- specification case
 var IteratorProxy = createIteratorProxy(function () {
   var iterCount = this.iterCount;
   if (!iterCount) {
@@ -34,7 +33,7 @@ var IteratorProxy = createIteratorProxy(function () {
       try {
         result = anObject(call(iter.next, iter.iterator));
         done = result.done;
-        result = result.value;
+        if (!done) result = result.value;
       } catch (error) {
         openIters[i] = undefined;
         return iteratorCloseAll(openIters, THROW, error);
@@ -57,7 +56,6 @@ var IteratorProxy = createIteratorProxy(function () {
             try {
               open = anObject(call(iters[k].next, iters[k].iterator));
               openDone = open.done;
-              open = open.value;
             } catch (error) {
               openIters[k] = undefined;
               return iteratorCloseAll(openIters, THROW, error);
