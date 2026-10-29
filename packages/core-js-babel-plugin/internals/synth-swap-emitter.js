@@ -59,6 +59,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   runSwallowsStoreProbe,
+  proxyCollapseConsumer,
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
@@ -290,9 +291,9 @@ export default function createSynthSwapEmitter({
     return renderCollapsePlan(plan, { carrySource });
   }
 
-  // a kept STORE a run is written through, swapped in place for a fresh copy: the claim standing over
-  // the run subsumed the store's own claims (its root, a call's inner global), and they fire on the copy
-  // - the copy the swap's own effect slots take
+  // A collapse can retain a store after subsuming its children. Fresh child nodes let
+  // their claims fire again. Keep the assignment itself: binding-write records still
+  // point at it, including when the retained value is read or deleted through.
   function refreshKeptStore(runPath, store) {
     let storePath = runPath.get('object');
     while (storePath.node !== store) {
@@ -302,7 +303,9 @@ export default function createSynthSwapEmitter({
       else if (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') storePath = storePath.get('object');
       else return;
     }
-    storePath.replaceWith(t.cloneWithoutRetiring(store));
+    const copy = t.cloneWithoutRetiring(store);
+    storePath.get('left').replaceWith(copy.left);
+    storePath.get('right').replaceWith(copy.right);
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
@@ -454,12 +457,14 @@ export default function createSynthSwapEmitter({
     // ... and a write through a kept store of the environment probe takes that store as its base,
     // the read's own landing: the natural rewrite performs it on the realm where the source throws.
     // a `delete` names its slot off the run's root whatever the store holds
-    const keptStore = isWriteTarget && !deleted ? keptProbeStore(recPath.node.object, resolvePure, aliasCtx) : null;
-    if (isWriteTarget && !deleteHost
-      && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure, aliasCtx) && !keptStore) return false;
-    // a WRITTEN run lands on its kept store, whose own claims the claim driving this subsumed where
-    // the source wraps the store (`(eff(), w = globalThis.window).self.k = v`): the store travels as a
-    // fresh copy, the swap's own effect-slot copy, and its claims fire on that
+    const keptStore = keptProbeStore(recPath.node.object, resolvePure, aliasCtx);
+    if (isWriteTarget && !deleteHost && !proxyCollapseConsumer({
+      node: recPath.node.object, host: recPath.node, writeTarget: true,
+      hasKeptTail: navHasUnresolvableProxyHop(recPath.node.object, resolvePure, aliasCtx),
+      storeHoldsProbe: !deleted && !!keptStore,
+    }, { adapter, resolvePure }).writeThrough) return false;
+    // A retained store keeps its own claims live even when a higher member is the
+    // written slot: the immediate consumer can be a read on the way to that slot.
     if (keptStore) refreshKeptStore(recPath, keptStore);
     // this drive REPLACES the receiver subtree, so the render carries the kept user nodes by
     // identity - a cloned kept write stranded the scope tracker's violation records on the
