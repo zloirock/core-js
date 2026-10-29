@@ -18,6 +18,12 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  ['later assignment before a guarded instance read',
+    'let realm; realm = globalThis.window; export const value = realm?.window?.self.items.at(-1);'],
+  ['guarded assignment before a receiver capture',
+    'let realm; export const value = (realm = globalThis) ? realm.window?.items.at(0) : null;'],
+  ['later assignment before an optional method receiver',
+    'let realm; realm = globalThis; export const value = realm.window.read?.().at(0);'],
   ['several extracted keys share an unread sentinel', 'let from, of, rest; const held = ({ from, of, ...rest } = Array); use(held, from, of, rest);'],
   // Guarded scalar defaults retain the foreign read and its live fallback across passes.
   ['guarded static scalar default', 'export function read(source) { let M = source; if (!M) M = Array; const { of: value = [9].at(0) } = M; return value; }'],

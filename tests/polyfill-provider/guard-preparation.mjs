@@ -140,7 +140,7 @@ for (const [name, expression, undefinable, surface, globalName, prelude = '', op
   check(`${ label }/nullish`, guardProbeUndefinable(source, { ...ctx, ...options }), undefinable);
   check(`${ label }/surface`, holdsProxySurface(source, ctx), surface);
   check(`${ label }/memo alias`, memoReceiverGlobalName(source, ctx, { constructors: true }), globalName);
-  // Generated memo tagging keeps its lexical scope without a source NodePath.
+  // Pathless queries retain lexical scope, but cannot prove a later alias write.
   const pathless = { ...ctx, path: null };
   check(`${ label }/pathless surface`, holdsProxySurface(source, pathless), surface);
   check(`${ label }/pathless memo alias`, memoReceiverGlobalName(source, pathless, { constructors: true }), globalName);
