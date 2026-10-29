@@ -564,6 +564,13 @@ export function renderSynthEntryKey(entry, {
   return { ...spelled, key: spelled.fromSource ? embed(cloneHost(spelled.key)) : spelled.key };
 }
 
+// Bind a decided surface once: preserved source values keep their host dialect, while
+// an imported surface uses the canonical identifier builder.
+function renderProxyCollapseBase(base, { injectImport, embed, carry }) {
+  const source = base.alias ?? base.keep;
+  return source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
+}
+
 // the collapsed spelling of a proxy-receiver plan (`planProxyReceiver` holds the decision -
 // which hops drop, whether the root is swapped, kept or aliased, where harvested effects
 // ride, whether an erased hop's guard re-hangs). `embed` wraps the plan's carried nodes,
@@ -584,13 +591,42 @@ export function renderProxyReceiverPlan(plan, { injectImport, embed = node => no
   }
   // a `keep` root is carried like an alias - the substrate re-visits it, so its own
   // proxy root still earns the pure rewrite there
-  const keepOrAlias = plan.rootBinding.alias ?? plan.rootBinding.keep;
-  const rootBinding = keepOrAlias ? embed(carry(keepOrAlias))
-    : identifier(injectImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName));
+  const rootBinding = renderProxyCollapseBase(plan.rootBinding, { injectImport, embed, carry });
   const rootNode = plan.harvestedSE.length
     ? sequenceExpression([...plan.harvestedSE.map(expr => embed(carry(expr))), rootBinding])
     : rootBinding;
   return memberExpression(rootNode, embed(carry(plan.property)), { computed: plan.computed, optional: !!plan.optional });
+}
+
+// Spell a decided outer collapse with the same base and retained-tail renderers as a
+// receiver collapse. A store's value effects stay inside its RHS. Only an in-place write
+// carries its outer prefix by identity: it replaces that source span, whose write-origin
+// records must still point at the retained writes. Other source occurrences are cloned.
+export function renderOuterCollapseValue(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
+  function bind(base) {
+    return renderProxyCollapseBase(base, { injectImport, embed, carry: cloneHost });
+  }
+  function clone(node) {
+    return embed(cloneHost(node));
+  }
+  function sequence(prefix, value) {
+    return prefix.length ? sequenceExpression([...prefix.map(clone), value]) : value;
+  }
+  function tail(hops, base) {
+    return renderNavCollapseTail({ hops, collapseIdx: -1 }, base, { cloneHost: clone });
+  }
+  if (plan.kind === 'write' || plan.kind === 'write-in-place') {
+    const inner = tail(plan.innerTail, bind({ pure: plan.innerPure }));
+    const write = assignmentExpression('=', clone(plan.write.left), sequence(plan.storedEffects, inner));
+    if (plan.kind === 'write-in-place') return sequenceExpression([...plan.prefix.map(node => embed(node)), write]);
+    // Resolve the outer base even when the retained tail reads the write: the caller's
+    // import collector subsequently prunes an unused binding, as for ordinary collapses.
+    const base = tail(plan.valuePosition ? plan.tail : [], bind(plan.base));
+    return plan.readsOffWrite ? tail(plan.tail, sequence(plan.prefix, write))
+      : sequenceExpression([...plan.prefix.map(clone), write, base]);
+  }
+  const base = sequence(plan.prefix, bind(plan.base));
+  return plan.kind === 'store' ? base : tail(plan.tail, base);
 }
 
 // Render the saved memo landing through its live source slots. Prefixes and erased

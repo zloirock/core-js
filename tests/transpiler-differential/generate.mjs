@@ -20708,6 +20708,29 @@ function * generateLiteralReceiverRouting() {
   })()`), strip: true };
 }
 
+// Saved realm values cross the outer consumer with independent inner and outer effects.
+// The window rig supplies both probe outcomes outside the snippet's mutation census.
+function * generateOuterCollapseStores() {
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['value-tail', '(log.push("outer"), held = (log.push("inner"), globalThis.self)).window'],
+    ['setter-tail', '(log.push("outer"), holder.value = (log.push("inner"), globalThis.self)).window'],
+    ['probe-tail', '(log.push("outer"), held = (log.push("inner"), globalThis.window)).window.outerCollapseBox.value'],
+    ['sealed-write', '((log.push("outer"), held = (log.push("inner"), globalThis.window))?.self).outerCollapseBox.value = (log.push("rhs"), 9)'],
+    ['sealed-delete', 'delete ((log.push("outer"), held = (log.push("inner"), globalThis.window))?.self).outerCollapseBox.value'],
+    ['effectful-hop', '(log.push("outer"), held = (log.push("inner"), globalThis.window))?.[log.push("key"), "self"].outerCollapseBox.value'],
+  ]) yield { ...snippet(`outer-collapse-stores/${ name }/${ rig ? 'window' : 'off-window' }`, `(() => {
+    let held, stored;
+    const holder = { set value(value) { log.push("set"); stored = value; } };
+    const box = { value: 4 };
+    globalThis.outerCollapseBox = box;
+    let result;
+    try { result = ${ expression }; result = result === globalThis ? "realm" : result; }
+    catch (error) { result = error.name; }
+    finally { delete globalThis.outerCollapseBox; }
+    return [result, held === globalThis, stored === globalThis, box.value];
+  })()`, { rig }), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21109,4 +21132,5 @@ export function * generate() {
   yield * generateKeptProxyValues();
   yield * generateGuardTailExtent();
   yield * generateLiteralReceiverRouting();
+  yield * generateOuterCollapseStores();
 }
