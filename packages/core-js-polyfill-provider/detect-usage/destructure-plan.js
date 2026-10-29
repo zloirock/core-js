@@ -362,7 +362,7 @@ function anchoredSeAccounting(declarator, peeledInit, ctx) {
 // the answer, and a slot over a surviving literal stays NAMED: it leaves a sentinel instead of
 // dropping, so the husk keeps the key the residual still reads and every effect the literal owes
 // `adapter` lets the pairing walk fold a BOUND or effectful hop key the way the plan's own walk does
-export function destructureHostLiteralSurvives(leafPath, adapter = null) {
+function destructureHostLiteralSurvives(leafPath, adapter = null) {
   const host = destructurePatternHostPath(leafPath);
   // a DECLARATION host only: an assignment keeps its literal as a statement of its own
   // (`({ v: (se(), arr) });` - the pattern goes, the read stays), which is its own channel

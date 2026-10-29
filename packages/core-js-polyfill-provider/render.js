@@ -494,7 +494,7 @@ export function renderInjectedImportNodes({
 // synth literal mirroring a `__proto__` pattern key must spell it COMPUTED
 // (`['__proto__']:`) so the destructured read gets an OWN property and the literal keeps
 // its own prototype; both legs' synth renders ask this one rule
-export function synthKeyMustBeComputed(keyNode) {
+function synthKeyMustBeComputed(keyNode) {
   if (keyNode?.type === 'Identifier') return keyNode.name === '__proto__';
   const literalish = keyNode?.type === 'Literal' || keyNode?.type === 'StringLiteral';
   return literalish && keyNode.value === '__proto__';
@@ -691,7 +691,7 @@ export function renderDeleteShortCircuitGuard(test, operand) {
 
 // the synth value keeps its probe, each side of that probe's effects, and the source fallback.
 // a memo spells only its parameter probe inside the body and carries the fallback around the call.
-export function renderSynthReceiverGuard({ probe = null, ahead = [], after = [], fallback = null }, value,
+function renderSynthReceiverGuard({ probe = null, ahead = [], after = [], fallback = null }, value,
   { embed = node => node } = {}) {
   let rendered = after.length ? sequenceExpression([...after.map(node => embed(cloneNode(node))), value]) : value;
   if (probe) rendered = renderShortCircuitGuard(nullFirstGuardTest(probe, { embed: node => embed(cloneNode(node)) }), rendered);

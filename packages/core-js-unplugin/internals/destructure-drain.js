@@ -2700,18 +2700,10 @@ export default function createDestructureDrains(ctx) {
   return {
     buildValue,
     drain,
-    drainAssignment,
-    drainBodylessDeclaration,
-    drainDeclaration,
-    drainForInit,
-    drainSynthLiterals,
     extractCatchClause,
     extractLoopLeft,
-    memoJobValue,
     planMemoArg,
     recordJob,
     removeConsumedProps,
-    renderPatternLiteral,
-    surfaceInitInfo,
   };
 }

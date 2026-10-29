@@ -8081,7 +8081,7 @@ function isRealmMemberInstall(write) {
 // only a GLOBAL's slot is read ahead of its writes: a static install (`if (!Array.from) Array.from = shim`) keeps
 // every read of the pair on its receiver, the accepted boundary. false where the set carries a key with a write it
 // cannot place
-export function slotReadPrecedesItsWrites({ object, key, read = null, mutatedSet, adapter = null }) {
+function slotReadPrecedesItsWrites({ object, key, read = null, mutatedSet, adapter = null }) {
   const sites = MUTATION_WRITE_SITES.get(mutatedSet);
   if (!sites) return false;
   const realmPair = POSSIBLE_GLOBAL_OBJECTS.has(object);

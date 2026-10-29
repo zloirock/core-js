@@ -645,33 +645,10 @@ export function markSubtreeSkipped(skippedNodes, node, keepLive = null) {
   }
 }
 
-// the `delete` verdict travels DOWN the spine. this emitter rewrites as it visits, so a claim
-// deeper in the chain climbs into a scaffold an earlier emit already built (a guard test, a
-// receiver memo) and can no longer reach the `delete` above it. the OUTERMOST claim marks
-// the spine it owns and the deeper visits read
-// the verdict off the mark; only the spine is marked, so a computed KEY or a call ARGUMENT -
-// which the delete does not navigate - keeps its own answer
+// source identity for a node and clones that retain its offsets; absent offsets yield no key
 export function sourceSpanKey(node) {
   return Number.isInteger(node?.start) && Number.isInteger(node?.end) ? `${ node.start }:${ node.end }` : null;
 }
-
-// the SOURCE spans a rendered subtree holds: a clone carries the span of what it copied, so a
-// harvested effect the render already spells is found by its own span
-export function collectSourceSpans(root) {
-  const spans = new Set();
-  walkAstNodes({
-    root,
-    visit(node) {
-      const key = sourceSpanKey(node);
-      if (key) spans.add(key);
-    },
-  });
-  return spans;
-}
-
-// receivers whose evaluation CONSTRUCTS rather than reads: nothing observes their order
-// against a computed key's effects
-export const LITERAL_RECEIVER_TYPES = new Set(['ArrayExpression', 'ObjectExpression', 'Literal', 'TemplateLiteral']);
 
 // does this claim render INSIDE a guard memo's cloned value?
 export function insideMemoClone(metaPath, memoValueClones) {

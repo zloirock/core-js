@@ -81,12 +81,11 @@ import createProxySpineChannel from './proxy-spine.js';
 import createOptionalDispatchChannel from './optional-dispatch.js';
 import { isSourcedSymbolIteratorMeta, SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
-// the AST engine's usage-pure emission - a STAGED port of the babel leg's
-// `usagePureCallback` (the design's blueprint): the mainstream classes land first and every
-// shape the port does not carry yet BAILS to the raw source, where the structural gate
-// counts it against the babel baseline. the bail is the honest state: raw source plus a
-// missing import is a visible divergence, never a silently wrong rewrite
-
+// the `delete` verdict travels DOWN the spine. this emitter rewrites as it visits, so a claim
+// deeper in the chain climbs into a scaffold an earlier emit already built (a guard test, a
+// receiver memo) and can no longer reach the `delete` above it. the OUTERMOST claim marks
+// the spine it owns and the deeper visits read the verdict off the mark; only the spine is
+// marked, so a computed KEY or a call ARGUMENT keeps its own answer
 function markDeleteHostedSpine(node, marks, storeKeepsShortCircuit) {
   for (let cur = unwrapRuntimeExpr(node); cur;) {
     const key = sourceSpanKey(cur);

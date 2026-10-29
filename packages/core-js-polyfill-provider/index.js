@@ -84,7 +84,7 @@ function stripLeadingPrefix(p) {
 // pipeline split between query/backslash normalisation (pre-strip), prefix strip, and the
 // remaining UNC/slash-collapse/lowercase pass: slash-collapse must run AFTER stripLeadingPrefix
 // because `file://` would otherwise collapse to `file:/` and miss the prefix matcher
-export function normalizeImportPath(path) {
+function normalizeImportPath(path) {
   if (typeof path != 'string') return null;
   const queryless = stripQueryHash(path).replaceAll('\\', '/');
   const stripped = stripLeadingPrefix(queryless);
