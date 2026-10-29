@@ -5,12 +5,12 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import {
   buildNestedDestructurePlan,
   chainThroughNamedDefaults,
+  destructureReadKeepsKey,
   forInitNeedsReceiverMemo,
   planDestructureKeySegments,
   planLiteralResidual,
   planLiteralRoute,
   planLoopHeadExtraction,
-  planSentinelMemo,
   planSynthLiteralReceiver,
   residualPrecedesExtractions,
   synthPlanFullyCovered,
@@ -106,10 +106,13 @@ for (const [receiver, kind, allProxyInit, expected] of [
   ['[1, 2]', 'instance', false, true],
 ]) runBoth(`sentinel receiver/${ receiver }/${ kind }`, `const { at: method, other } = ${ receiver };`, (parser, program, label) => {
   const host = hostOf(parser, program);
-  const options = { declarator: host.node, sentinel: true, kind, allProxyInit };
-  planSentinelMemo(options);
-  check(`${ label }/shared capture`, !!planSentinelMemo(options).sentinelMemoEligible, expected);
-  check(`${ label }/no second reader`, !!planSentinelMemo({ ...options, sentinel: false }).sentinelMemoEligible, false);
+  const [prop] = host.get('id').get('properties');
+  const ctx = context(parser, prop);
+  const options = { metaPath: prop, prop: prop.node, declarator: host.node, declaration: host.parentPath.node,
+    sentinel: true, kind, allProxyInit, adapter: ctx.adapter };
+  planLiteralRoute(options);
+  check(`${ label }/shared capture`, !!planLiteralRoute(options).sentinelMemoEligible, expected);
+  check(`${ label }/no second reader`, !!planLiteralRoute({ ...options, sentinel: false }).sentinelMemoEligible, false);
 });
 
 for (const [receiver, readers, residual, expected] of [
@@ -177,6 +180,51 @@ for (const [source, expectedReceiver, extra = {}] of [
     check(`${ label }/deferred read uses live slot`, plan.carriedLive(), changed);
   }
 });
+
+// The same source decision serves immediate edits and a queued/bodyless consumer.
+// Capture placement is separate from the residual's later reference allocation.
+for (const [source, options, expected] of [
+  ['const { w: { at: method } } = { w: rows };', {}, ['rows', false, true, false]],
+  ['if (ready) var { w: { at: method } } = { w: holder.rows };', {}, ['MemberExpression', false, true, false]],
+  ['const { w: { at: method }, other } = { w: holder.rows, other: 1 };', {}, ['MemberExpression', true, false, false]],
+  ['const { other, w: { at: method } } = { other: effect(), w: holder.rows };', {}, ['MemberExpression', true, false, false]],
+  ['const { w: { at: method } } = { w: (effect(), rows) };', {}, ['SequenceExpression', false, true, false]],
+  ['const { w: { at: method } } = { w: (effect(), rows), extra: effect() };', {}, ['rows', false, false, false]],
+  ['const { [(effect(), "at")]: method } = [1, 2];', {}, ['ArrayExpression', false, false, false]],
+  ['const { [(effect(), "at")]: method, other } = [1, 2];', {}, [null, false, false, true]],
+  ['for (const { at: method } = [1, 2];;) break;', { forInit: true }, ['ArrayExpression', false, false, false]],
+]) runBoth(`literal routing/${ source }`, source, (parser, program, label) => {
+  const host = hostOf(parser, program);
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    item => item.node.value?.name === 'method');
+  const ctx = context(parser, prop);
+  const sentinel = destructureReadKeepsKey(prop, 'instance', ctx);
+  const args = { metaPath: prop, prop: prop.node, kind: 'instance', sentinel, entry: 'instance/at',
+    declarator: host.node, declaration: host.parentPath.node, adapter: ctx.adapter, ...options };
+  const before = JSON.stringify(host.node);
+  planLiteralRoute(args);
+  const plan = planLiteralRoute(args);
+  const receiver = unwrapRuntimeExpr(plan.literalReceiver);
+  checkDeep(label, [receiver?.name ?? receiver?.type ?? null, !!plan.capture,
+    !!plan.receiverCarriesInit, !!plan.sentinelMemoEligible], expected);
+  checkTruthy(`${ label }/admitted`, plan.admitted);
+  check(`${ label }/query leaves source`, JSON.stringify(host.node), before);
+  check(`${ label }/loop owns its initializer`, !!plan.forInitLiteral, !!options.forInit);
+});
+
+for (const [tail, options, expected] of [
+  ['', {}, true],
+  [' = fallback', { typedNavChain: false }, false],
+  [' = fallback', { typedNavChain: true }, true],
+]) runBoth(`iterator literal admission/${ tail }/${ expected }`,
+  `const { w: { [Symbol.iterator]: method${ tail } } } = { w: rows };`, (parser, program, label) => {
+    const host = hostOf(parser, program);
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.computed);
+    const ctx = context(parser, prop);
+    const plan = planLiteralRoute({ metaPath: prop, prop: prop.node, kind: 'instance', entry: 'get-iterator-method',
+      declarator: host.node, declaration: host.parentPath.node, adapter: ctx.adapter, ...options });
+    check(label, plan.admitted, expected);
+  });
 
 for (const [receiver, sentinel, whole, expected] of [
   ['holder.rows', false, true, [false, false]],
