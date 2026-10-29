@@ -5,7 +5,7 @@ import {
   prepareMemoReceiver as prepareReceiverValue,
   prepareStaticReceiver,
   planGuardComposition,
-  guardProbeUndefinable,
+  planOptionalProbe,
   memoReceiverOriginName,
   planGuardRootMemo,
   storedMemoProvesGuard,
@@ -2205,45 +2205,20 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // land the ref in the member above the folded run; null when the shape declines and the
   // ordinary memo owns the check
   function probeYieldMemoRetarget(chainStart, key, path, aboveChainStart) {
-    const probeCall = key === 'object' ? probeYieldRealmChainRoot(chainStart, key, path) : null;
+    const adapter = getAdapter?.();
+    const probeCall = key === 'object' && adapter && resolvePureGlobalEntry
+      ? planOptionalProbe(chainStart.node, {
+        scope: path.scope,
+        path,
+        adapter,
+        resolvePure: ({ name }) => resolvePureGlobalEntry(name, path),
+      }, { memoize: true })?.source : null;
     if (!probeCall || !(aboveChainStart === path || aboveChainStart.isOptionalMemberExpression())
       || unwrapRuntimeExpr(aboveChainStart.node.object) !== chainStart.node) return null;
     const [check, ref] = memoize(probeCall, path.scope, chainStart.node);
     aboveChainStart.node.object = seededRefClone(ref, pathType(aboveChainStart.get('object')));
     tagProxyGlobalMemoRef(ref, probeCall, path.scope);
     return check;
-  }
-
-  // a PROBE-YIELD call below pristine dotted realm hops, with the asking hop itself one of
-  // them: the plan declines every render that reads THROUGH the yield, so the memo takes the
-  // CALL itself - its `null ==` test is the source's own guard - and the realm hops fold onto
-  // the tested value (the vestigial erase the ident twin gets from the plan). a sequence or a
-  // wrapper between the hops keeps the guard channels' own spellings
-  function probeYieldRealmChainRoot(chainStart, key, path) {
-    const adapter = getAdapter?.();
-    if (!adapter || !resolvePureGlobalEntry) return null;
-    if (!chainStart.isOptionalMemberExpression() || chainStart.node.computed
-      || !memberProxyHopName(chainStart.node)) return null;
-    let cur = chainStart.node[key];
-    let memoTarget = cur;
-    for (;;) {
-      const peeled = unwrapRuntimeExpr(peelReceiverSequenceTail(cur));
-      if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
-        if (peeled.computed || !memberProxyHopName(peeled)) return null;
-        cur = peeled.object;
-        memoTarget = cur;
-        continue;
-      }
-      cur = peeled;
-      break;
-    }
-    if (cur?.type !== 'CallExpression' || cur.optional) return null;
-    const ctx = { scope: path.scope, adapter, path };
-    if (!inlineCallProxyGlobalRoot({ callNode: cur, ...ctx, rejectConditional: true })) return null;
-    // the MEMO target is the raw span below the DEEPEST realm hop, sequence spellings included:
-    // the memo runs their prefixes exactly once, in source order, and the test reads the ref
-    return guardProbeUndefinable(cur, { ...ctx, resolvePure: ({ name }) => resolvePureGlobalEntry(name, path) })
-      ? memoTarget : null;
   }
 
   // Land the shared root-memo decision in native slots, then re-enter the held hops.

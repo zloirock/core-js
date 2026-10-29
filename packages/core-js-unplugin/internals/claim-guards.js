@@ -53,26 +53,6 @@ export function optionalCallSegmentBelow(node) {
   return false;
 }
 
-// a probe that renders its OWN guard - a paren SEAL, or a SEQUENCE whose tail carries a live
-// `?.` - hands the test that guard's source instead: the inner `?.`'s object. the prefix a
-// sequence carried runs ahead of the whole render, where the source ran it. null when the probe
-// spells no guard of its own
-export function descendIntoOwnGuard(probe, ctx) {
-  const sealed = TRANSPARENT_EXPR_WRAPPER_TYPES.has(probe?.type);
-  let inner = sealed ? unwrapRuntimeExpr(probe) : null;
-  // a SEQUENCE - sealed or bare - hands its TAIL on
-  for (let seqProbe = inner ?? unwrapRuntimeExpr(probe); seqProbe?.type === 'SequenceExpression';) {
-    inner = unwrapRuntimeExpr(seqProbe.expressions.at(-1));
-    seqProbe = inner;
-  }
-  if (!sealed && inner === null) return null;
-  for (let hop = inner; hop?.type === 'MemberExpression'; hop = unwrapRuntimeExpr(hop.object)) {
-    if (!hop.optional) continue;
-    return guardProbeUndefinable(hop.object, ctx) ? hop.object : null;
-  }
-  return null;
-}
-
 function parenSealedCalleeTail(hopPath) {
   if (!parenSealedCalleeAbove(hopPath, hopPath.node, unwrapRuntimeExpr)) return null;
   // the tail the seal keeps outside starts at the FIRST plain member above the hop
