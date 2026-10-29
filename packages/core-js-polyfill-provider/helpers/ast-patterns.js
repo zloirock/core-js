@@ -856,7 +856,7 @@ export function isMemberAccessNode(node) {
   return isMemberAccessType(node?.type);
 }
 // ... by the node type alone, for a walk holding it read
-export function isMemberAccessType(type) {
+function isMemberAccessType(type) {
   return type === 'MemberExpression' || type === 'OptionalMemberExpression';
 }
 
@@ -1016,15 +1016,13 @@ export function subtreeContainsNode(root, target) {
   return false;
 }
 
-// does this node destructure? the predicate over `DESTRUCTURE_PATTERN_TYPES`, re-exported here
-// because this file is what both bindings import - the set itself lives with the type primitives
+// does this node destructure? the predicate both bindings import over `DESTRUCTURE_PATTERN_TYPES`,
+// whose set lives with the type primitives
 // (same coverage note as the peels: a seed widening this set to `ArrayExpression` moves neither
 // emitter over either corpus - the provider rows are its only guard)
 export function isDestructurePattern(node) {
   return DESTRUCTURE_PATTERN_TYPES.has(node?.type);
 }
-
-export { DESTRUCTURE_PATTERN_TYPES };
 
 // the scope an alias's init / next hop is canonical in: the binding's OWN declaration scope, not the
 // use site - a later hop reading an outer-declared name must not bind to an inner shadow of it. the
@@ -8862,7 +8860,7 @@ export function findIifeCallSite(fnParentPath, paramNode) {
 // an absent / `undefined` / `void` slot runs the default, which is then the receiver the pattern
 // reads (`(({ Array: { of } } = globalThis) => ...)(undefined)` reads `globalThis.Array.of`) - the
 // shared slot rule, so every lifter of the argument answers as the call-site scans do
-export function findIifeArgForParam(fnParentPath, paramNode, staticIsMutated = null) {
+function findIifeArgForParam(fnParentPath, paramNode, staticIsMutated = null) {
   const site = findIifeCallSite(fnParentPath, paramNode);
   if (!site) return null;
   const args = site.callPath.node.arguments ?? [];
@@ -9005,48 +9003,6 @@ export function isTransparentDestructureWrapper(parentNode, childNode) {
     return parentNode.elements.length === 1 && parentNode.elements[0] === childNode;
   }
   return false;
-}
-
-// walk up from an ObjectPattern path through Property / transparent (AssignmentPattern default,
-// single-element ArrayPattern) / multi-element ArrayPattern wrappers to the host VariableDeclarator.
-// returns { declarator, needsResidualExtraction } or null when the chain doesn't bottom out at a
-// declarator. parser-agnostic (reads `.parentPath` / `.node`, tolerates babel `ObjectProperty` +
-// estree `Property`). residual extraction is REQUIRED exactly when the cascade flatten cannot
-// take the declarator AND no other route exists: a multi-element ArrayPattern (sibling / hole
-// bindings would be lost) OR a rest sibling under an ArrayPattern wrapper of ANY arity (the
-// cascade bails on rest, and the unwrapped-rest route never sees array-wrapped shapes - bailing
-// here left the static native). unwrapped rest-free / single-element rest-free shapes flatten
-// via the cascade instead - the leaner emission
-export function findArrayWrappedDestructureHost(objectPatternPath) {
-  let cur = objectPatternPath;
-  const hasRestSibling = !!objectPatternPath?.node?.properties?.some(
-    prop => prop.type === 'RestElement' || prop.type === 'SpreadElement');
-  let needsResidualExtraction = false;
-  for (;;) {
-    const parent = cur?.parentPath;
-    const node = parent?.node;
-    if (!node) return null;
-    if (node.type === 'ArrayPattern') {
-      if (node.elements.length > 1 || hasRestSibling) needsResidualExtraction = true;
-      cur = parent;
-    } else if (node.type === 'AssignmentPattern' && node.left === cur.node) {
-      cur = parent;
-    } else if (node.type === 'Property' || node.type === 'ObjectProperty') {
-      cur = parent.parentPath;
-    } else if (node.type === 'VariableDeclarator') {
-      // loop-head hosts cannot take a preceding extraction statement (the header forbids it:
-      // babel's insert crashed on scope re-registration, unplugin's produced two `const`
-      // statements inside the parens) - a for-INIT slot routes to the cascade flatten, whose
-      // sibling-sink machinery already handles loop headers, and a for-x LEFT to the head mirror
-      // (`forOfHeadIterableElements`), which rewrites the iterated literal's elements in place
-      const declarationNode = parent.parentPath?.node;
-      const loop = parent.parentPath.parentPath?.node;
-      const isLoopHead = declarationNode?.type === 'VariableDeclaration'
-        && ((loop?.type === 'ForStatement' && loop.init === declarationNode)
-          || ((loop?.type === 'ForOfStatement' || loop?.type === 'ForInStatement') && loop.left === declarationNode));
-      return { declarator: parent, needsResidualExtraction: needsResidualExtraction && !isLoopHead };
-    } else return null;
-  }
 }
 
 // receiver-shaped expression node: a bare Identifier or a (possibly optional) member chain -
@@ -12145,7 +12101,7 @@ export function relocatedHostFoldsGuardRefs(declaratorPath) {
 // own param, so a declaration off any other value is not mistaken for one. returns the body to scan
 // and the declaration to EXCLUDE from it - the relocated declaration's own binding occurrence would
 // otherwise read as a reference and make every prop look observable
-export function relocatedHostPattern(declaratorPath) {
+function relocatedHostPattern(declaratorPath) {
   if (declaratorPath?.node?.type !== 'VariableDeclarator') return null;
   const declaration = declaratorPath.parentPath;
   const host = declaration?.parentPath?.parentPath;

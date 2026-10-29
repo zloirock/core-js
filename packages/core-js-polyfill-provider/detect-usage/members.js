@@ -247,31 +247,6 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, { rescue, ctx: { scope, adapter, path } }) };
 }
 
-// whole-swap plan for a DISCARDED call/IIFE-rooted proxy receiver whose LEAF is a pure global
-// ctor (`(f()).self.Symbol` consumed by a fully-extracted destructure): the value is discarded,
-// so the leaf swaps to its pure ctor and every side effect the dropped navigation carried (an
-// SE-bearing chain-root call, a computed leaf-key effect) re-emits ahead - `(f(), c++, _Symbol)`.
-// the root-collapse twin (`planCallRootedProxyReceiver` below) BAILS on a pure-ctor leaf because
-// a LIVE receiver's leaf is whole-swapped elsewhere; a discarded receiver has no elsewhere, so
-// this plan IS that swap. babel needs no explicit call site - its lifted residual re-enters the
-// natural member detection, which routes through the same shared pieces; the unplugin emitter
-// substitutes enter-time and renders this plan
-export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path, resolvePure }) {
-  if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
-  // the leaf key resolves through the full canonical fold (SE-sequence tail / concat / template),
-  // NOT the bare static extractor: a bare check bails on `<call>.self[(c++, 'Map')]` and strands
-  // the raw `.self` hop (off-engine throw). the swap discards the key too, so a computed key's own
-  // effects join the harvest AFTER the navigation's (object evaluates before its key)
-  const leafName = resolveKey({ node: receiver.property, computed: receiver.computed, scope, adapter, path });
-  const leafPure = leafName ? resolvePure({ kind: 'global', name: leafName }) : null;
-  if (!leafPure) return null;
-  const nav = resolveCallRootedProxyCollapse({ receiver, scope, adapter, path });
-  if (!nav) return null;
-  const harvestedSE = nav.droppedSe;
-  if (receiver.computed) collectFoldedReceiverSideEffects(receiver.property, { out: harvestedSE, ctx: { scope, adapter, path } });
-  return { leafPure, harvestedSE };
-}
-
 // substrate-neutral proxy-global receiver collapse DECISION. the emitter collapsers (babel
 // `collapseProxyGlobalReceiver`, unplugin `renderProxyReceiverPlan`)
 // once re-implemented this same decision (drop redundant `.self`/`.window` hops, swap the root to its pure
