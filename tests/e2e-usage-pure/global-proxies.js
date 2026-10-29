@@ -19,6 +19,17 @@ QUnit.test('optional static calls keep an earlier environment guard over instanc
     assert.same(held, globalThis.window, 'the root write runs on either branch');
     assert.same(globalThis.window?.Array.of?.(2).at(0), live ? 2 : undefined);
     assert.same(globalThis.window?.Array?.from?.([3]).at?.(0), live ? 3 : undefined);
+    let realm;
+    // eslint-disable-next-line prefer-const -- a declaration without an initializer is the regression shape
+    realm = globalThis.window;
+    const aliasEvents = [];
+    withRealmSlot('aliasNavBox', {
+      get list() { aliasEvents.push('receiver'); return [4, 5]; },
+    }, () => {
+      assert.same(realm?.window?.self.aliasNavBox.list.at((aliasEvents.push('argument'), -1)), live ? 5 : undefined,
+        'an alias assigned after its declaration keeps the instance receiver guard');
+      assert.arrayEqual(aliasEvents, live ? ['receiver', 'argument'] : [], 'capture and arguments run once behind the guard');
+    });
     function undefinedValue() {
       return globalThis.window?.Array.of?.().at(0).at?.(0);
     }

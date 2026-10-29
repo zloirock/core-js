@@ -1249,7 +1249,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       checks: guardChecks(linkCheck).map(hostSlot),
       mintRef(role) {
         const ref = generateRef(scope, chainStart.node);
-        if (role === 'receiver') tagProxyGlobalMemoRef(ref, receiverNode, scope);
+        if (role === 'receiver') tagProxyGlobalMemoRef(ref, receiverNode, ctx);
         return ref.name;
       },
       embed(node, role) {
@@ -1288,13 +1288,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   // Re-entry knows native identifiers already. A captured expression loses that
-  // provenance, so bind the shared value classification to the generated native ref.
-  function tagProxyGlobalMemoRef(ref, rootNode, scope) {
-    const adapter = getAdapter?.();
-    const injectorState = getInjector();
-    if (!adapter || !scope || !ref?.name) return;
-    const name = memoReceiverOriginName(rootNode, { scope, adapter, path: null, injectorState });
-    if (name) injectorState.registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
+  // provenance, so bind the shared value classification to the generated native ref
+  // while the source path still anchors the read's scope and execution order.
+  function tagProxyGlobalMemoRef(ref, rootNode, ctx) {
+    if (!ctx.adapter || !ctx.scope || !ref?.name) return;
+    const name = memoReceiverOriginName(rootNode, ctx);
+    if (name) ctx.injectorState.registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
   }
 
   // THE guard-test spelling, shared by every channel that builds a `null == <test>` guard: the
@@ -2185,8 +2184,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!probeCall || !(aboveChainStart === path || aboveChainStart.isOptionalMemberExpression())
       || unwrapRuntimeExpr(aboveChainStart.node.object) !== chainStart.node) return null;
     const [check, ref] = memoize(probeCall, path.scope, chainStart.node);
+    tagProxyGlobalMemoRef(ref, probeCall, { scope: path.scope, path: chainStart, adapter, injectorState: getInjector() });
     aboveChainStart.node.object = seededRefClone(ref, pathType(aboveChainStart.get('object')));
-    tagProxyGlobalMemoRef(ref, probeCall, path.scope);
     return check;
   }
 
@@ -2322,8 +2321,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
           const decided = key === 'object' && decidedReusableReceiver(memoNode, memoCtx);
           [check, ref] = decided ? [t.cloneNode(memoNode), t.cloneNode(decided)]
             : memoize(memoNode, path.scope, chainStart.node, false, memoCtx, key === 'callee');
+          tagProxyGlobalMemoRef(ref, memoNode, memoCtx);
           chainStart.node[key] = seededRefClone(ref, memoType);
-          tagProxyGlobalMemoRef(ref, memoNode, path.scope);
           // proven-nav memo RHS: render the nested test via the shared kept-nav plan (see the
           // optional-node arm above) instead of keeping the raw `.self`-reading spelling; an
           // own-chain-assign nav is owned by the entry call's plan
