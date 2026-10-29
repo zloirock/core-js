@@ -52,6 +52,14 @@ var DESCRIPTORS_SUPPORT = function () {
   }).a === 7;
 };
 
+var DESCRIPTORS = function () {
+  try {
+    return DESCRIPTORS_SUPPORT();
+  } catch (error) {
+    return false;
+  }
+}();
+
 var V8_PROTOTYPE_DEFINE_BUG = function () {
   return Object.defineProperty(function () { /* empty */ }, 'prototype', {
     value: 42,
@@ -437,7 +445,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       !Error.isError(Object.create(Error.prototype));
   },
   'es.error.to-string': function () {
-    if (DESCRIPTORS_SUPPORT) {
+    if (DESCRIPTORS) {
       // Chrome 32- incorrectly call accessor
       var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
         return this === object;
@@ -1110,7 +1118,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   'es.object.assign': function () {
-    if (DESCRIPTORS_SUPPORT && Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
+    if (DESCRIPTORS && Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
       enumerable: true,
       get: function () {
         Object.defineProperty(this, 'b', {
@@ -2282,7 +2290,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'web.self': function () {
     // eslint-disable-next-line no-restricted-globals -- safe
     if (self !== GLOBAL) return false;
-    if (!DESCRIPTORS_SUPPORT) return true;
+    if (!DESCRIPTORS) return true;
     var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, 'self');
     return descriptor.get && descriptor.enumerable;
   },
