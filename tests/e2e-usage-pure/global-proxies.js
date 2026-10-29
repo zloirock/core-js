@@ -2217,11 +2217,11 @@ testUnlessDetectLowered('global-proxy: a nav whose leaf is the probe collapses i
 // CALL (`delete _nameMaybeFunction(...)`) and the delete stopped deleting anything. the members BELOW
 // it are read on the way there and keep their claims
 testUnlessDetectLowered('global-proxy: a deleted member is not polyfilled, the ones below it are', assert => {
-  const box = { fn() { return 1; } };
-  Object.defineProperty(box.fn, 'name', { value: 'named', configurable: true });
+  const box = { fn: { name: 'named' } };
   assert.same(box.fn.name, 'named', 'the own name is there to start with');
-  assert.true(delete globalThis.self.Object.getOwnPropertyDescriptor(box, 'fn').enumerable,
+  assert.true(delete globalThis.self.Object.getOwnPropertyDescriptor(box, 'fn').value.name,
     'a delete through a collapsed nav answers true');
+  assert.false(Object.hasOwn(box.fn, 'name'), 'the polyfillable leaf was actually deleted');
   // the claim BELOW the deleted member still runs through its ponyfill
   assert.same(typeof globalThis.self.Array.prototype.flat, 'function', 'the read below it keeps its polyfill');
 });
@@ -2261,11 +2261,24 @@ testUnlessDetectLowered('global-proxy: a write below the probe hops runs where t
 // _ref ? ...` parses as `(delete null) == _ref ? ...` - a comparison, not a deletion, and the operand
 // the source names is never touched
 testUnlessDetectLowered('global-proxy: a delete over a rendered guard keeps its parens', assert => {
-  globalThis.deleteGuardBox = { list: [[1]] };
-  const dropped = delete globalThis.window?.self.deleteGuardBox.list.at.name;
-  assert.same(typeof dropped, 'boolean', 'the operand is a delete, not a comparison');
-  assert.same(globalThis.deleteGuardBox.list.at(0)[0], 1, 'and the object below it survives');
-  delete globalThis.deleteGuardBox;
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let reads = 0;
+    // Keep the polyfillable leaf without mutating a builtin function's legacy locked name.
+    const method = Object.defineProperty({}, 'name', {
+      configurable: true,
+      get() { throw new Error('delete must not read its leaf'); },
+    });
+    const list = Object.defineProperty([[1]], 'at', {
+      get() { reads++; return method; },
+    });
+    withRealmSlot('deleteGuardBox', { list }, () => {
+      const dropped = delete globalThis.window?.self.deleteGuardBox.list.at.name;
+      assert.same(dropped, true, 'the operand is a delete, not a comparison');
+      assert.same(Object.hasOwn(method, 'name'), !live, 'only the live guard deletes the leaf');
+      assert.same(reads, live ? 1 : 0, 'the guard evaluates its receiver once or short-circuits');
+      assert.same(list[0][0], 1, 'and the object below it survives');
+    });
+  });
 });
 
 // every hop RESOLVES (no probe in the nav): the whole navigation collapses onto the root ponyfill, so
