@@ -1,6 +1,15 @@
 import { fileURLToPath } from 'node:url';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 
+const UNC_PREFIXES = ['\\\\?\\', '\\\\.\\', '//?/', '//./'];
+
+// chars to skip before scanning a module id for `?` / `#` separators: the length of the
+// Windows UNC prefix when one leads the id. the query scan skips it rather than mistaking
+// its `?` for a query start (`\\?\C:\x.js?t=1` truncating to `\\`)
+function uncPrefixOffset(id) {
+  return UNC_PREFIXES.some(p => id.startsWith(p)) ? 4 : 0;
+}
+
 // strip Vite-style `?import` / `?t=123` / `#hash` suffixes from a module id.
 // Windows UNC prefixes `\\?\` (long-path) and `\\.\` (device) embed `?`/`.` at index 2 -
 // skip the 4-char prefix so the search doesn't mistake them for a query separator.
@@ -9,15 +18,6 @@ import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 // the path silently truncated to `//`.
 // lives in path-namespace despite being consumed by AST plugins because the operation is
 // purely string normalization on a module-id string - no AST awareness needed
-const UNC_PREFIXES = ['\\\\?\\', '\\\\.\\', '//?/', '//./'];
-
-// chars to skip before scanning a module id for `?` / `#` separators: the length of the
-// Windows UNC prefix when one leads the id. shared by every hand-rolled query scan so no
-// caller can mistake the in-prefix `?` for a query start (`\\?\C:\x.js?t=1` truncating to `\\`)
-export function uncPrefixOffset(id) {
-  return UNC_PREFIXES.some(p => id.startsWith(p)) ? 4 : 0;
-}
-
 export function stripQueryHash(id) {
   const offset = uncPrefixOffset(id);
   const at = id.slice(offset).search(/[#?]/);
