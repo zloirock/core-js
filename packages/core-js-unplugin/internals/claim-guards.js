@@ -5,7 +5,7 @@ import {
   directClaimProbePlan,
   deleteHostAboveCarriedChain,
   descendToChainRoot,
-  guardTailPullCount,
+  createGuardTailPlanner,
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
   sealedChainBoundary,
@@ -114,35 +114,6 @@ function realmHopReader(hopPath) {
   };
 }
 
-// one step of a NAV COLLAPSE's tail: the run of realm hops standing right over the always-defined leaf
-// folds onto it where the climb's fold verdict says so, and a hop that stays spelled leaves the value
-// no longer provably defined. every step past the run takes the shared pull rule (`guardTailPullCount`)
-// in turn - the count babel's nav render takes - and the first one the rule leaves outside ends the
-// alternate. a realm-named key past that run is a plain read, never a fold (`_self.box.window`)
-function navCollapseTailStepper(alwaysDefined, { unbackedHopKey, realmHopFolds }) {
-  const pulled = [];
-  let inRealmRun = alwaysDefined;
-  let definedAtLeaf = alwaysDefined;
-  return function navTailStep(up, { memberCont, callCont }) {
-    const upNode = up.node;
-    inRealmRun &&= memberCont && !!unbackedHopKey?.(upNode);
-    if (inRealmRun) {
-      const folds = realmHopFolds(up, !!upNode.optional);
-      // a realm hop right over the leaf reads that leaf, so its own `?.` is dead text either way
-      upNode.optional = false;
-      if (folds) return 'fold';
-      inRealmRun = false;
-      definedAtLeaf = false;
-      return 'take';
-    }
-    pulled.push({ optional: !!upNode.optional, isCall: callCont });
-    if (guardTailPullCount(pulled, definedAtLeaf) < pulled.length) return 'stop';
-    // the first step reads the always-defined leaf, so its `?.` is the vestigial one
-    if (upNode.optional && memberCont && definedAtLeaf && pulled.length === 1) upNode.optional = false;
-    return 'take';
-  };
-}
-
 // the guard climb: how far above the replaced hop the alternate reaches, and which TS wrappers
 // it swallowed on the way. extracted from `replaceGuardedHop` for its size. `preserveOptionalHops`
 // (a probe the source reads on past the replaced hop) keeps a `?.` the climb would otherwise fold
@@ -151,20 +122,7 @@ function climbAbsorbedTail(hopPath, {
   alwaysDefined, navAlternate, navCollapse, unbackedHopKey = null, preserveOptionalHops,
 }) {
   const absorbedWrappers = [];
-  // does the climb fold this unbacked realm hop onto the always-defined value below it? a folded hop
-  // leaves the alternate on the ponyfill it started from, so what reads next still reads an
-  // always-defined value - and its own `?.` folds with it, since the only realm where that
-  // short-circuit fires is the one the collapse already answers for. the read whose `?.` was just
-  // erased stays where the source reads on past it, and a COMPUTED key stays: folding it would fold
-  // its key effect away with it
-  function realmHopFolds(up, sourceOptional) {
-    const { reader, readsMember, readsThrough } = realmHopReader(up);
-    const sourceReadContinues = preserveOptionalHops && !sourceOptional && readsThrough
-      && (!readsMember || reader.optional || !POSSIBLE_GLOBAL_OBJECTS.has(memberKeyName(reader)));
-    return !sourceReadContinues && (!sourceOptional || !preserveOptionalHops)
-      && !up.node.computed && (alwaysDefined || navAlternate);
-  }
-  const navStep = navCollapse ? navCollapseTailStepper(alwaysDefined, { unbackedHopKey, realmHopFolds }) : null;
+  const planStep = createGuardTailPlanner({ alwaysDefined, navAlternate, navCollapse, preserveOptionalHops });
   // the realm hops the alternate reads THROUGH: over an always-defined ponyfill each of them names
   // that same ponyfill (the plan folds them for the same reason), so the alternate drops them
   // instead of spelling a slot the ponyfill carries only in a browser
@@ -174,17 +132,8 @@ function climbAbsorbedTail(hopPath, {
   // a TERMINAL wrapper stays outside the guard (`a?.b.at(0)! + 5` wraps the ternary)
   let cursor = hopPath;
   let target = hopPath;
-  // an ALWAYS-DEFINED emission absorbs one leaf-adjacent `?.` hop too - the vestigial
-  // rule (`...?.self?.['window']` reads `_self['window']` inside the alternate)
   let pendingWrappers = [];
-  let mayAbsorbOptional = alwaysDefined;
-  // whether the leaf-adjacent slot already spent its erase: after that the NEXT live `?.`
-  // is a step the ternary cannot answer for and stays outside
-  let erasedOptional = false;
   let absorbedHop = false;
-  // has the absorbed tail crossed a proxy hop pure cannot back? past one the alternate is no
-  // longer the always-defined ponyfill and a live `?.` above it stays outside the ternary
-  let crossedUnbacked = false;
   for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
     const upNode = up.node;
     // no canon set answers this: each layer is peeled under a rule of its own - a TS assertion
@@ -207,58 +156,20 @@ function climbAbsorbedTail(hopPath, {
     const memberCont = upNode.type === 'MemberExpression' && upNode.object === cursor.node;
     const callCont = upNode.type === 'CallExpression' && upNode.callee === cursor.node;
     if (!memberCont && !callCont) break;
-    // an optional hop whose `?.` attaches DIRECTLY to the guard's result stays outside
-    // (`(ternary)?.valueOf()`, `(ternary)?.([3])`); the always-defined leaf-adjacent
-    // MEMBER absorbs with its `?.` ERASED (the vestigial rule), and an optional CALL of
-    // an already-absorbed callee cannot split from it - it rides the alternate with its
-    // `?.` kept (`.reduce?.(...)` inside the branch)
-    const sourceOptional = !!upNode.optional;
-    const navVerdict = navStep?.(up, { memberCont, callCont });
-    if (navVerdict === 'stop') break;
-    if (!navStep && upNode.optional) {
-      // an optional MEMBER continuation rides the alternate whatever its base: only its
-      // `?.` depends on the base, and the always-defined leaf erases it (the vestigial
-      // rule - `...?.self?.['window']` reads `_self['window']`); a live base keeps it
-      // (`...?.self.hostBox?.run()` -> `... : _self.hostBox?.run()`)
-      if (memberCont) {
-        // only the NAV route absorbs: its alternate is a plain spelling the source read
-        // through. a DISPATCH result is the guard's own value, and a `?.` on it reads
-        // past the guard - it stays outside (`(arr == null ? void 0 : _at(arr)...)?.x`)
-        // `navAlternate` is that same route where the leaf is NOT provably defined (an
-        // unresolved static off a pure ctor): the tail rides the branch with its `?.` KEPT
-        if (!alwaysDefined && !navAlternate) break;
-        // ... and an absorbed hop pure CANNOT BACK ends the alternate: the ternary's value is
-        // that probe read, and the `?.` above it is the source's own short-circuit on it
-        // (`(null == _globalThis.window ? void 0 : _self.window)?.BigInt`)
-        if (crossedUnbacked) break;
-        // an optional BEHIND an already-erased one is a second short-circuit the ternary
-        // cannot answer for and stays OUTSIDE (`(null == p ? void 0 : _self.chrome)?.foo`);
-        // reached over PLAIN steps only, it rides the branch with its `?.` kept
-        // (`_self.hostBox?.run?.()`), and the nav-alternate route always keeps it
-        if (!mayAbsorbOptional && erasedOptional && !navAlternate) break;
-        if (mayAbsorbOptional) {
-          upNode.optional = false;
-          erasedOptional = true;
-        }
-      } else if (!absorbedHop) break;
-    }
-    let folded = navVerdict === 'fold';
-    if (folded) foldedHops.push(upNode);
-    else if (!navStep && memberCont && unbackedHopKey?.(upNode)) {
-      if (realmHopFolds(up, sourceOptional)) {
-        foldedHops.push(upNode);
-        folded = true;
-        // the `?.` goes with the hop, so the erase it just spent is RETURNED: the step above is
-        // leaf-adjacent again, reading the same always-defined ponyfill
-        erasedOptional = false;
-      } else crossedUnbacked = true;
-    }
-    // only on the NAV route, and only directly over the replaced hop: everywhere else the
-    // wrapper asserts about a value the emission still produces - a dispatch RESULT keeps it
-    // (`arr?.at(-1)!.toString()`), a plain nav spelling does not (`...?.self!.window`)
-    if (alwaysDefined && !absorbedHop) absorbedWrappers.push(...pendingWrappers);
+    const realmHop = memberCont && !!unbackedHopKey?.(upNode);
+    const step = planStep({
+      optional: !!upNode.optional,
+      isCall: callCont,
+      realmHop,
+      computed: !!upNode.computed,
+      property: upNode.property,
+      ...realmHop ? realmHopReader(up) : null,
+    });
+    if (!step) break;
+    upNode.optional = step.optional;
+    if (step.folded) foldedHops.push(upNode);
+    if (step.absorbWrappers) absorbedWrappers.push(...pendingWrappers);
     pendingWrappers = [];
-    mayAbsorbOptional = folded && alwaysDefined;
     absorbedHop = true;
     cursor = up;
     target = up;

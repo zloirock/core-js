@@ -20650,6 +20650,35 @@ function * generateKeptProxyValues() {
   }
 }
 
+// Guard extent crosses member/call, store and seal boundaries without moving key or
+// argument effects. The window rig exercises both outcomes; the nested claim arms strip.
+function * generateGuardTailExtent() {
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['member-call', 'globalThis.window?.self.guardTailBox.read?.((log.push("arg"), Array.of(3)[0])).value'],
+    ['optional-result', 'globalThis.window?.self.guardTailBox.empty?.((log.push("arg"), Array.of(3)[0]))?.value'],
+    ['computed-key', 'globalThis.window?.self[(log.push("key"), "guardTailBox")].read((log.push("arg"), Array.of(3)[0])).value'],
+    ['realm-key-effect', 'globalThis.window?.self[(log.push("key"), "window")].guardTailBox.read(Array.of(3)[0]).value'],
+    ['sealed-call', '(globalThis.window?.self.guardTailBox.read)((log.push("arg"), Array.of(3)[0])).value'],
+    ['stored-root', '(held = globalThis.window)?.self.guardTailBox.read?.(Array.of(3)[0]).value'],
+    ['stored-prefix', '(held = (log.push("prefix"), globalThis.window))?.self.guardTailBox.read(Array.of(3)[0]).value'],
+    ['delete', 'delete globalThis.window?.self.guardTailBox[(log.push("key"), "kept")]'],
+    ['write', '(globalThis.window?.self.guardTailBox).kept = (log.push("rhs"), Array.of(3)[0])'],
+    ['fallback', '(globalThis.window?.self.guardTailBox || { read: () => ({ value: 8 }) }).read(Array.of(3)[0]).value'],
+  ]) yield {
+    ...snippet(`guard-tail-extent/${ name }/${ rig ? 'window' : 'off-window' }`, `(() => {
+      let held;
+      const box = { kept: 1, get read() { log.push("get"); return function (value) {
+        log.push(this === box ? "this" : "lost"); return { value };
+      }; } };
+      globalThis.guardTailBox = box;
+      try { const value = ${ expression }; return [value, held === globalThis.window, box.kept]; }
+      catch (error) { return error.name; }
+      finally { delete globalThis.guardTailBox; }
+    })()`, { rig }),
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21049,4 +21078,5 @@ export function * generate() {
   yield * generateNestedSynthSourceHosts();
   yield * generateFallbackSynthBranches();
   yield * generateKeptProxyValues();
+  yield * generateGuardTailExtent();
 }

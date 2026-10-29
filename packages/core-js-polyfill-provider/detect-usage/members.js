@@ -81,6 +81,7 @@ import {
 import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-node-type/value-ops.js';
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
+  pristineRealmHopKey,
   asSymbolRef,
   decidedReceiverSpelling,
   descendToChainRoot,
@@ -706,15 +707,14 @@ function planCallRootedProxyReceiver({ receiver, aliasCtx, resolvePure, deleteFo
 // MUTATED slot holds the user's own object (`globalThis.self = ...`), so the run stops below it and
 // its read stays spelled. the plan below is the only caller: written out at each binding instead,
 // the same climb asked the hop through a canon of its own and stopped a hop apart
-function claimlessRunEndPath(path, adapter, ctx) {
+function claimlessRunEndPath(path, ctx) {
   let end = path;
   for (;;) {
     const [inner, up] = stepOverChainWrappers(end.node, end.parentPath, end === path);
     const above = up?.node;
     if (above?.type !== 'MemberExpression' && above?.type !== 'OptionalMemberExpression') return end;
     const core = unwrapRuntimeExpr(inner);
-    if (unwrapRuntimeExpr(above.object) !== core
-      || !isPristineProxyGlobal(adapter, realmHopKeyName(core, ctx), { node: core, path })) return end;
+    if (unwrapRuntimeExpr(above.object) !== core || !pristineRealmHopKey(core, ctx)) return end;
     end = up;
   }
 }
@@ -748,7 +748,7 @@ export function planClaimlessCallRootedNav({
   deleteFold = false, loweredGuardTest = false, scope, adapter, path, resolvePure,
 }) {
   const ctx = { scope, adapter, path };
-  const endPath = claimlessRunEndPath(path, adapter, ctx);
+  const endPath = claimlessRunEndPath(path, ctx);
   const endNode = unwrapRuntimeExpr(endPath.node);
   // a verdict-less plan is still the run's END: the caller that names the dropped span asks for it
   // whatever this one answers
@@ -764,8 +764,7 @@ export function planClaimlessCallRootedNav({
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
     // by the hop's NAME, whatever spells its key: a shape-blind refusal of computed keys left this
     // channel declining runs the identifier twin folds, and the fallback claim then stopped mid-run
-    const hopName = realmHopKeyName(root, ctx);
-    if (!hopName || !isPristineProxyGlobal(adapter, hopName, { node: root, path })) return declined;
+    if (!pristineRealmHopKey(root, ctx)) return declined;
     guardedRun ||= !!root.optional;
     root = unwrapRuntimeExpr(peelReceiverSequenceTail(root.object));
   }
