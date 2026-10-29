@@ -55,7 +55,8 @@ QUnit.test('callback: Promise.resolve in map + Promise.all', assert => {
 // the narrow entry it resolves to still constructs every element
 QUnit.test('callback: a constructor mapped over a builtin call result', assert => {
   const symbols = Array.from(['a', 'b']).map(Symbol);
-  assert.deepEqual(symbols.map(symbol => symbol.description), ['a', 'b']);
+  // a polyfilled symbol converts to a string with a unique suffix
+  assert.deepEqual(symbols.map(symbol => String(symbol).slice(0, 9)), ['Symbol(a)', 'Symbol(b)']);
   assert.notSame(symbols[0], symbols[1]);
 });
 

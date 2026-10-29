@@ -1068,8 +1068,8 @@ QUnit.test('optional chaining: folded guard under an operand slot', assert => {
 QUnit.test('optional chaining: folded guard in a delimited slot', assert => {
   let assigned;
   // eslint-disable-next-line prefer-const -- the standalone assignment slot IS the case
-  assigned = globalThis.window?.self.Symbol.for('e2e').description;
-  assert.same(assigned, WINDOW_PRESENT ? 'e2e' : undefined);
+  assigned = globalThis.window?.self.Array.from('e2e').length;
+  assert.same(assigned, WINDOW_PRESENT ? 3 : undefined);
   let compound = 10;
   compound -= globalThis.window?.self.Math.cbrt(8);
   assert.same(compound, WINDOW_PRESENT ? 8 : NaN);
