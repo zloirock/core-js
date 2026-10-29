@@ -9,4 +9,5 @@ globalThis.Symbol = require(`../../packages/${ pkg }/full/symbol`);
 globalThis.Promise = require(`../../packages/${ pkg }/full/promise`);
 const Observable = require(`../../packages/${ pkg }/full/observable`);
 
-runTests(Observable);
+const runner = await runTests(Observable);
+if (runner.logger.failed) throw new Error(`${ runner.logger.failed } Observable conformance assertions failed`);
