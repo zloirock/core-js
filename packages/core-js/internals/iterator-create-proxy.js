@@ -12,11 +12,13 @@ var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var cleanupState = require('../internals/iterator-cleanup-state');
 
+var $TypeError = TypeError;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
 var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
 var NORMAL = 'normal';
 var THROW = 'throw';
+var GENERATOR_IS_RUNNING = 'Generator is already running';
 var setInternalState = InternalStateModule.set;
 
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
@@ -29,7 +31,9 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       //   for `%WrapForValidIteratorPrototype%.next` or with `state.returnHandlerResult` our `nextHandler` returns `IterResultObject`
       //   for `%IteratorHelperPrototype%.next` - just a value
       if (IS_ITERATOR) return state.nextHandler();
+      if (state.running) throw new $TypeError(GENERATOR_IS_RUNNING);
       if (state.done) return createIterResultObject(undefined, true);
+      state.running = state.started = true;
       try {
         var result = state.nextHandler();
         if (state.done) cleanupState(state);
@@ -38,10 +42,13 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         state.done = true;
         cleanupState(state);
         throw error;
+      } finally {
+        state.running = false;
       }
     },
     'return': function () {
       var state = getInternalState(this);
+      if (!IS_ITERATOR && state.running) throw new $TypeError(GENERATOR_IS_RUNNING);
       var iterator = state.iterator;
       var inner = state.inner;
       var openIters = state.openIters;
@@ -53,18 +60,24 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       }
       cleanupState(state);
       if (done) return createIterResultObject(undefined, true);
-      if (inner) try {
-        iteratorClose(inner.iterator, NORMAL);
-      } catch (error) {
-        return iteratorClose(iterator, THROW, error);
+      // closing a started helper resumes it, so it can't be re-entered meanwhile
+      state.running = !!state.started;
+      try {
+        if (inner) try {
+          iteratorClose(inner.iterator, NORMAL);
+        } catch (error) {
+          return iteratorClose(iterator, THROW, error);
+        }
+        if (openIters) try {
+          iteratorCloseAll(openIters, NORMAL);
+        } catch (error) {
+          if (iterator) return iteratorClose(iterator, THROW, error);
+          throw error;
+        }
+        if (iterator) iteratorClose(iterator, NORMAL);
+      } finally {
+        state.running = false;
       }
-      if (openIters) try {
-        iteratorCloseAll(openIters, NORMAL);
-      } catch (error) {
-        if (iterator) return iteratorClose(iterator, THROW, error);
-        throw error;
-      }
-      if (iterator) iteratorClose(iterator, NORMAL);
       return createIterResultObject(undefined, true);
     }
   });

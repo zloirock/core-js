@@ -186,4 +186,9 @@ QUnit.test('Iterator.zip', assert => {
     const zipped = zip([primitiveNextIter, normalIter]);
     assert.throws(() => zipped.next(), TypeError, 'throws on non-object .next() result');
   }
+  {
+    const zipped = zip([{ next: () => ({ done: false, value: 1 }), return: () => zipped.next() }]);
+    zipped.next();
+    assert.throws(() => zipped.return(), TypeError, 'throws on re-entering a helper while it closes the iterators');
+  }
 });
