@@ -172,6 +172,7 @@ import {
   hopNamesMissingAbleCtor,
   planCatchClauseExtraction,
   planLoopHeadExtraction,
+  planLiteralRoute,
   probedNavProbeKey,
   resolvePolyfillableStaticProp,
   symbolIteratorInstanceLeaf,
@@ -4345,19 +4346,23 @@ export default function createDestructureEmitter({
     // ... and never under a hop whose key carries an effect: that level keeps the hop as a sentinel
     const residualDies = bindingCount === patternBindingCount(prop.node.value)
       && !effectfulHopAbove(prop);
+    const literalRoute = kind === 'instance' && prop.parentPath.node !== declarator?.id ? planLiteralRoute({
+      metaPath: prop,
+      prop: prop.node,
+      kind, entry,
+      declarator,
+      declaration: declaration.node,
+      sourceBindingCount: bindingCount,
+      forInit: isForInit,
+      adapter,
+    }) : null;
+    const literalReceiverPlan = literalRoute && (literalRoute.capture
+      ? { channel: 'object-slot-memo', ...literalRoute.capture }
+      : { channel: 'resolved', node: literalRoute.literalReceiver });
     let objectNode = kind === 'instance'
-      ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true) : null;
+      ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true, null, literalReceiverPlan) : null;
     // a memo hoisted ahead of a BODYLESS host braced its slot, and the held path now names the block
     if (declaration.isBlockStatement()) declaration = declaration.get('body').at(-1);
-    // A sole reader may carry the initializer's effects; a surviving residual may not repeat them.
-    if (kind === 'instance' && !objectNode) {
-      const carried = resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true, null, true);
-      if (carried && receiverPerformsEveryInitEffect(declarator?.init, carried, {
-        scope: prop.scope,
-        adapter,
-        path: prop,
-      })) objectNode = carried;
-    }
     let slotDropsAlone = kind === 'instance' && isSymbolIteratorPatternClaim(prop.node, entry) && residualDies;
     // set by the typed-nav branch below: that receiver is spelled by the extraction itself, so a
     // kept residual would read it a SECOND time
@@ -4660,6 +4665,7 @@ export default function createDestructureEmitter({
       && bindingCount === patternBindingCount(prop.node.value)) {
       slotDropsAlone = true;
     }
+    if (literalRoute && !literalRoute.admitted) return true;
     // The sole-key renderer owns the receiver's one evaluation. A residual-only
     // placement question must not decline it before that shared plan is asked.
     if (kind === 'instance' && keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan: null, objectNode,
@@ -5331,9 +5337,8 @@ export default function createDestructureEmitter({
     return memoPath;
   }
 
-  // resolve the destructure receiver: the DECISION is the shared provider plan (one procedure
-  // for both emitters); this function only RENDERS the whole-init-memo channel on the AST
-  // substrate - every other channel returns the plan's node as-is
+  // Apply the shared receiver plan: insert whole-init or object-slot captures on the Babel
+  // AST, or return its resolved node. A literal route may supply the plan before host edits.
   // `ctorName` - the constructor the receiver DENOTES, as the dispatching prop's own meta named it.
   // this emitter mutates the host in place, so the memo REPLACES the init and every prop after the
   // memoizing one resolves against a bare `_ref` instead of the original receiver; the unplugin emitter
@@ -5344,14 +5349,13 @@ export default function createDestructureEmitter({
     typeOfReceiver,
     allowSeFreeSingleRead = false,
     ctorName = null,
-    allowInitCarriedEffects = false,
+    sourcePlan = null,
   ) {
     // a STATIC's ponyfill binding read by several leaves memoizes once (`memoizedName`): the binding
     // re-reads for free, but the other leg spells one memo, and so does this leg under a proxy hop
     const pureNames = new Set(injector.pureImports.values());
-    const plan = resolveDestructureReceiverPlan(path, {
+    const plan = sourcePlan ?? resolveDestructureReceiverPlan(path, {
       allowSeFreeSingleRead,
-      allowInitCarriedEffects,
       adapter,
       injectorState: injector,
       resolvePureGlobal: resolveGlobalPure,

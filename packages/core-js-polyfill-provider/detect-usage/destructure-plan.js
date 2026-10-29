@@ -73,6 +73,8 @@ import {
   statementListOf,
   walkPatternIdentifiers,
   hostsExportList,
+  hasRestSiblingExcept,
+  patternLevelKeepsEffectfulHop,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -125,6 +127,7 @@ import {
   guaranteedRealmObjectName,
   isStaticPlacement,
   navValueCanShortCircuit,
+  peelReceiverSequenceTail,
   peelRealmLogicalDefault,
   realmSelectionCollapseOperand,
   realmSelectionLeafKind,
@@ -148,7 +151,10 @@ import {
   planSynthReceiverGuard,
   nestedSlotMemoPlan,
   receiverPerformsEveryInitEffect,
+  carriedInitReceiverNode,
+  typedNavClaimChain,
   resolveDestructureReceiverPlan,
+  destructureHostThroughWrappers,
   STATIC_WALK_DEPTH,
   claimUnderSharedHopSlot,
   mirrorAcceptedKey,
@@ -366,6 +372,15 @@ export function destructureHostLiteralSurvives(leafPath, adapter = null) {
   // routes that own that shape already read it off the plan - re-deciding it here would move them
   return !!pattern && init?.type === 'ObjectExpression'
     && peelArrayWrapperPair({ pattern, init, scope: leafPath.scope, adapter, path: leafPath, liftTrailing: true }).wrapperSurvives;
+}
+
+// A kept key owns rest exclusion or a key effect. A surviving literal also owns its
+// source slot unless the instance dispatch can carry every initializer effect itself.
+export function destructureReadKeepsKey(path, kind, ctx) {
+  if (hasRestSiblingExcept(path.parentPath.node.properties, null)
+    || patternLevelKeepsEffectfulHop(path.parentPath.node, ctx) || computedKeyHasSideEffects(path.node, ctx)) return true;
+  return destructureHostLiteralSurvives(path, ctx.adapter)
+    && !(kind === 'instance' && carriedInitReceiverNode({ path, initNode: destructureHostInitNode(path), adapter: ctx.adapter }));
 }
 
 // Peel a single-element array pattern or sole nested object hop with its paired literal value.
@@ -2919,19 +2934,27 @@ function patternKeysMirrorable({ paramNode, scope, adapter, path }) {
 // outer chain names the receiver, so the default is dead and the pair the descent reaches is what the
 // leaf reads (`{ k: { from } = Array } = { k: Array }`)
 export function chainThroughNamedDefaults(chain) {
-  return chain.some(level => level.hopProp.value?.type === 'AssignmentPattern' && namedDefaultReceiver(level.hopProp.value.right));
+  return chain.some(level => {
+    const value = level.hopProp?.value;
+    return namedDefaultReceiver(value?.type === 'AssignmentPattern' ? value.right : level.defaultNode);
+  });
 }
 
-// Instance receiver resolution through a literal: the strict walk first, the SE-free
-// single-read relaxation second - direct when the residual dies with the extraction, else
-// through the `_ref` memo (the memo is the single source read - getter fires once)
-// the residual is DEAD when this extraction takes every binding of a single-declarator
-// declaration - the shared plan's `soleBindingInDeclaration`
+// Choose the literal source, readers and capture before native insertion changes the host.
+// A sole consumer may carry every initializer effect; a surviving literal owns its
+// prefix, and a second reader shares one capture. Immediate insertion may apply that
+// capture now; deferred insertion uses slotMemo only when the slot must be rewritten,
+// and otherwise allocates the same capture through the residual plan.
+// sourceBindingCount preserves the original readers when earlier edits shrank the pattern.
 export function planLiteralRoute({
   metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null,
+  entry = null, typedNavChain, allProxyInit = false, sourceBindingCount = patternBindingCount(declarator.id),
   patternCtx = { scope: metaPath.scope, adapter, path: metaPath },
 }) {
-  const declaratorConsumedWhole = patternBindingCount(declarator.id) === patternBindingCount(prop.value);
+  chain ??= destructureHostThroughWrappers(metaPath.parentPath, adapter, true)?.hops ?? [];
+  sentinel ??= destructureReadKeepsKey(metaPath, kind, patternCtx);
+  typedNavChain ??= entry === 'get-iterator-method' ? typedNavClaimChain(metaPath, { adapter }) : null;
+  const declaratorConsumedWhole = sourceBindingCount === patternBindingCount(prop.value);
   const soleBinding = declaration.declarations.length === 1 && declaratorConsumedWhole;
   let literalReceiver = null;
   let relaxedReceiver = false;
@@ -2968,9 +2991,9 @@ export function planLiteralRoute({
       // ... and only where the residual DIES: a level an effectful hop key keeps would run the
       // carried effect a second time beside the dispatch
       if (!literalReceiver && declaratorConsumedWhole && !sentinel) {
-        const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
-        if (carried && receiverPerformsEveryInitEffect(declarator.init, carried,
-          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null)) {
+        const carried = carriedInitReceiverNode({ path: metaPath, initNode: declarator.init,
+          resolveOptions: { throughNamedDefaults }, adapter });
+        if (carried) {
           literalReceiver = carried;
           relaxedReceiver = true;
           // the slot is re-resolved at DRAIN: a claim INSIDE it renders by replacing its node, and
@@ -2996,22 +3019,50 @@ export function planLiteralRoute({
     literalReceiver = slotMemo.node;
     relaxedReceiver = true;
   }
-  const receiverConsumesInit = forInit && declaratorConsumedWhole && !sentinel && !!literalReceiver
+  const receiverCarriesInit = declaratorConsumedWhole && !sentinel && !!literalReceiver
     && receiverPerformsEveryInitEffect(declarator.init, literalReceiver,
       adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null);
-  return { soleBinding, declaratorConsumedWhole, literalReceiver, relaxedReceiver, carriedLive,
-    receiverConsumesInit, slotMemo };
-}
-
-// which sentinel-kept inits take a shared memo (`sentinelMemoEligible`), and whether that memo joins
-// the declaration as its leading declarator (`memoSibling`) - the drain's sentinel join reads both
-export function planSentinelMemo({ sentinel, declarator, kind, allProxyInit }) {
-  const sentinelMemoEligible = sentinel && sentinelMemoInitShape(unwrapRuntimeExpr(declarator.init),
-    allProxyInit || kind !== 'instance');
-  // whatever the init's shape, the memo joins the declaration as its leading declarator (`const
-  // _ref = eff(), { [k]: _unused, z } = _ref, s = _at(_ref)` - the other leg's shape for a call,
-  // a selection, a member and a built-in surface alike)
-  return { sentinelMemoEligible, memoSibling: sentinelMemoEligible };
+  let sentinelMemoEligible = sentinel && sentinelMemoInitShape(unwrapRuntimeExpr(declarator.init), allProxyInit || kind !== 'instance');
+  // A surviving literal owns its prefix; the dispatch reads only the value it yields.
+  // A consumed literal instead carries the whole sequence through the single read above.
+  if (sentinel && chain.length > 0 && destructureHostLiteralSurvives(metaPath, adapter)) {
+    literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, allowSePeeledFragment: true })
+      ?? (literalReceiver?.type === 'SequenceExpression' ? peelReceiverSequenceTail(literalReceiver) : literalReceiver);
+  }
+  // A sole constant literal has no second binding reader. A sibling keeps the shared capture.
+  if (sentinel && !literalReceiver && !pureNav && !chain.length && !forInit
+    && declaration.declarations.length === 1 && declarator.id.properties?.length === 1
+    && (declarator.init?.type === 'ArrayExpression' || declarator.init?.type === 'ObjectExpression')
+    && isReReferenceableReceiver(declarator.init)) {
+    literalReceiver = declarator.init;
+    sentinelMemoEligible = false;
+  }
+  // An anchored iterator read retains its raw default/key; a typed user navigation or
+  // captured literal owns the slot instead. A host sibling cannot add a second hop read.
+  const admitted = !chain.length || entry !== 'get-iterator-method'
+    || !((prop.value.type === 'AssignmentPattern' && !typedNavChain) || computedKeyHasSideEffects(prop, patternCtx)
+      || (declarator.id?.properties?.length > 1 && !typedNavChain && !slotMemo && !literalReceiver));
+  // A loop header can carry the initializer in its dispatch; its other readers are
+  // captured by forInitNeedsReceiverMemo. A receiverless claim may not discard effects.
+  const forInitLiteral = !sentinel && !literalReceiver && !pureNav && forInit && !chain.length
+    && (declaratorConsumedWhole || kind === 'instance')
+    && (kind === 'instance' || !mayHaveSideEffects(declarator.init));
+  if (forInitLiteral) literalReceiver = declarator.init;
+  return {
+    soleBinding,
+    declaratorConsumedWhole,
+    literalReceiver,
+    relaxedReceiver,
+    carriedLive,
+    receiverCarriesInit,
+    receiverConsumesInit: forInit && receiverCarriesInit,
+    slotMemo,
+    capture: memoCandidate,
+    sentinelMemoEligible,
+    memoSibling: sentinelMemoEligible,
+    admitted,
+    forInitLiteral,
+  };
 }
 
 // A sentinel's residual and its extraction share one evaluation of a member, call,
