@@ -82,6 +82,8 @@ import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-no
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   pristineRealmHopKey,
+  proxyCollapseConsumer,
+  proxyCollapseBase,
   asSymbolRef,
   decidedReceiverSpelling,
   descendToChainRoot,
@@ -363,7 +365,8 @@ export function planProxyReceiver(receiver, {
   // optional must first pass the guard-building rewrite - its guarded REBUILD comes back here optional-free
   const leafKey = realmHopKeyName(receiver, aliasCtx, { allowSideEffectKeys: true });
   if (!isWriteTarget && leafKey && resolvePure({ kind: 'global', name: leafKey })
-    && !(isMutatedGlobalSlot(aliasCtx?.adapter, leafKey)
+    && !(proxyCollapseConsumer({ node: receiver.object, host: receiver, keyName: leafKey },
+      { adapter: aliasCtx?.adapter, resolvePure }).mutatedSlot
       // ... and the `?.` a `delete` folds is not live either: the guard-building rewrite this
       // waits for never runs there, so the bail would strand the prefix the mutation just took
       // the leaf swap away from
@@ -393,9 +396,8 @@ export function planProxyReceiver(receiver, {
   if (!isAliasRoot && !landingPure) return null;
   return {
     kind: 'collapse',
-    rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
-      : isAliasRoot ? { alias: throughRoot }
-        : { pure: { entry: landingPure.entry, hintName: landingPure.hintName } },
+    rootBinding: proxyCollapseBase({ keptStore: keptAssignRoot, aliasRoot: isAliasRoot ? throughRoot : null,
+      rootPure: landingPure && { entry: landingPure.entry, hintName: landingPure.hintName } }),
     // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
     // assignment and still have to ride ahead, in source order.
