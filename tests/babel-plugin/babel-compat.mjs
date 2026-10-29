@@ -507,6 +507,33 @@ for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
 
 // --- extractCheck (via replaceInstanceLike) ---
 
+// Capturing a realm expression must preserve the source read's alias proof for re-entry.
+// Source order alone cannot admit a conditional write or a class key evaluated early.
+for (const [label, source, origin, probeYield = false] of [
+  ['later write', 'let realm; realm = globalThis; realm.window?.items.at(0);', 'window'],
+  ['guarded write', 'let realm; (realm = globalThis) ? realm.window?.items.at(0) : null;', 'window'],
+  ['optional method receiver', 'let realm; realm = globalThis; realm.window.read?.().at(0);', 'window'],
+  ['probe yield', 'const read = () => globalThis.window; read()?.self.items.at(0);', 'globalThis', true],
+  ['conditional write', 'let realm; if (flag) realm = globalThis; realm.window?.items.at(0);', null],
+  ['earlier read', 'var realm; realm.window?.items.at(0); realm = globalThis;', null],
+  ['shadowed alias', 'const realm = globalThis; function take(realm) { realm.window?.items.at(0); }', null],
+  ['early class key', 'let realm; class Box { static value = realm = globalThis; [realm.window?.items.at(0)]() {} }', null],
+]) {
+  const ast = parseCode(source);
+  const program = getProgramPath(ast);
+  const aliases = [];
+  const injector = { ...freshStubInjector(), registerGlobalAlias(ref, name) { aliases.push(name); } };
+  const adapter = createBabelAdapter({ method: 'usage-pure' });
+  const helpers = createASTHelpers(rangePreservingTypes(t), {
+    getInjector: () => injector,
+    getAdapter: () => adapter,
+    resolvePureGlobalEntry: probeYield ? name => name === 'globalThis' || name === 'self' ? { entry: name, hintName: name } : null : null,
+    injectPureGlobal: (entry, name) => t.identifier(`_${ name }`),
+  });
+  runOptional(helpers, program, '_at', { predicate: p => p.node.property?.name === 'at' });
+  checkDeep(`guard memo origin/${ label }`, aliases, origin ? [origin] : []);
+}
+
 // A type-only receiver wrapper preserves the adjacent-read identifier contract.
 {
   const { helpers, program } = setup('(arr as any)?.at(0);');
