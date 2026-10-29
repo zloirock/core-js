@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
   const { setFromHex } = Uint8Array.prototype;
@@ -6,6 +6,17 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
   assert.arity(setFromHex, 1);
   assert.name(setFromHex, 'setFromHex');
   assert.looksNative(setFromHex);
+  if (GLOBAL.WebAssembly?.Memory) {
+    const view = new Uint8Array(new GLOBAL.WebAssembly.Memory({ initial: 0 }).buffer);
+    assert.deepEqual(view.setFromHex(''), { read: 0, written: 0 }, 'empty WebAssembly memory');
+  }
+  if (GLOBAL.SharedArrayBuffer) {
+    const shared = new Uint8Array(new GLOBAL.SharedArrayBuffer(2));
+    assert.deepEqual(shared.setFromHex('4142'), { read: 4, written: 2 }, 'shared buffer');
+    assert.arrayEqual(shared, [65, 66], 'shared data');
+    const empty = new Uint8Array(new GLOBAL.SharedArrayBuffer(0));
+    assert.deepEqual(empty.setFromHex(''), { read: 0, written: 0 }, 'empty shared buffer');
+  }
 
   const array1 = new Uint8Array(11);
   const result1 = array1.setFromHex('48656c6c6f20576f726c64');

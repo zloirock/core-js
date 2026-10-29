@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   const { toBase64 } = Uint8Array.prototype;
@@ -10,6 +10,15 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   const array = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
 
   assert.same(array.toBase64(), 'SGVsbG8gV29ybGQ=', 'proper result');
+  if (GLOBAL.WebAssembly?.Memory) {
+    assert.same(new Uint8Array(new GLOBAL.WebAssembly.Memory({ initial: 0 }).buffer).toBase64(), '', 'empty WebAssembly memory');
+  }
+  if (GLOBAL.SharedArrayBuffer) {
+    const shared = new Uint8Array(new GLOBAL.SharedArrayBuffer(2));
+    shared.set([65, 66]);
+    assert.same(shared.toBase64(), 'QUI=', 'shared buffer');
+    assert.same(new Uint8Array(new GLOBAL.SharedArrayBuffer(0)).toBase64(), '', 'empty shared buffer');
+  }
   assert.same(array.toBase64({ alphabet: 'base64' }), 'SGVsbG8gV29ybGQ=', 'proper result, base64');
   assert.same(array.toBase64({ alphabet: 'base64url' }), 'SGVsbG8gV29ybGQ=', 'proper result, base64url');
   assert.same(array.toBase64({ omitPadding: true }), 'SGVsbG8gV29ybGQ', 'proper result');

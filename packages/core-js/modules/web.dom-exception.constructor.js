@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
-var getBuiltInNodeModule = require('../internals/get-built-in-node-module');
+var postMessage = require('../internals/message-channel-post');
 var fails = require('../internals/fails');
 var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
@@ -21,16 +21,15 @@ var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
 var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
+var DATA_CLONE_ERROR = 'DataCloneError';
 var Error = getBuiltIn('Error');
 // NodeJS < 17.0 does not expose `DOMException` to global
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
   try {
-    // NodeJS < 15.0 does not expose `MessageChannel` to global
-    var MessageChannel = getBuiltIn('MessageChannel') || getBuiltInNodeModule('worker_threads').MessageChannel;
-    // eslint-disable-next-line es/no-weak-map, unicorn/require-post-message-target-origin -- safe
-    new MessageChannel().port1.postMessage(new WeakMap());
+    // eslint-disable-next-line es/no-weak-map -- safe
+    postMessage(new WeakMap());
   } catch (error) {
-    if (error.name === DATA_CLONE_ERR && error.code === 25) return error.constructor;
+    if (error.name === DATA_CLONE_ERROR && error.code === 25) return error.constructor;
   }
 })();
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
@@ -102,7 +101,7 @@ var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
 
 // Deno 1.6.3- DOMException.prototype.code just missed
 var INCORRECT_CODE = INCORRECT_CONSTRUCTOR || fails(function () {
-  return new NativeDOMException(1, 'DataCloneError').code !== 25;
+  return new NativeDOMException(1, DATA_CLONE_ERROR).code !== 25;
 });
 
 // Deno 1.6.3- DOMException constants just missed

@@ -20,8 +20,7 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.notSame(transferred, buffer, 'returns new buffer 1');
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 1');
   assert.same(buffer.byteLength, 0, 'original array length 1');
-  // works incorrectly in ancient WebKit
-  if (DETACHED) assert.skip.true(buffer.detached, 'original array detached 1');
+  if (DETACHED) assert.true(buffer.detached, 'original array detached 1');
   assert.same(transferred.byteLength, 8, 'proper transferred byteLength 1');
   assert.arrayEqual(bufferToArray(transferred), array, 'properly copied 1');
 
@@ -30,8 +29,7 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.notSame(transferred, buffer, 'returns new buffer 2');
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 2');
   assert.same(buffer.byteLength, 0, 'original array length 2');
-  // works incorrectly in ancient WebKit
-  if (DETACHED) assert.skip.true(buffer.detached, 'original array detached 2');
+  if (DETACHED) assert.true(buffer.detached, 'original array detached 2');
   assert.same(transferred.byteLength, 5, 'proper transferred byteLength 2');
   assert.arrayEqual(bufferToArray(transferred), array.slice(0, 5), 'properly copied 2');
 
@@ -40,8 +38,7 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.notSame(transferred, buffer, 'returns new buffer 3');
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 3');
   assert.same(buffer.byteLength, 0, 'original array length 3');
-  // works incorrectly in ancient WebKit
-  if (DETACHED) assert.skip.true(buffer.detached, 'original array detached 3');
+  if (DETACHED) assert.true(buffer.detached, 'original array detached 3');
   assert.same(transferred.byteLength, 16, 'proper transferred byteLength 3');
   assert.arrayEqual(bufferToArray(transferred), [...array, 0, 0, 0, 0, 0, 0, 0, 0], 'properly copied 3');
 
@@ -66,5 +63,40 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
     transferred = buffer.transferToFixedLength(5);
     assert.arrayEqual(bufferToArray(transferred), array.slice(0, 5), 'resizable-3');
     assert.false(transferred.resizable, 'resizable-4');
+  }
+});
+
+if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength, transfer invariants', assert => {
+  let buffer = arrayToBuffer([1, 2, 3, 4]);
+  assert.throws(() => buffer.transferToFixedLength(Number.MAX_SAFE_INTEGER), RangeError, 'allocation fails');
+  assert.same(buffer.byteLength, 4, 'failed allocation preserves the source');
+  assert.arrayEqual(bufferToArray(buffer), [1, 2, 3, 4], 'failed allocation preserves data');
+
+  Object.defineProperty(buffer, 'constructor', { get() { throw new Error('species must not be read'); } });
+  const clone = buffer.transferToFixedLength(2);
+  assert.same(Object.getPrototypeOf(clone), ArrayBuffer.prototype, 'plain ArrayBuffer');
+  assert.arrayEqual(bufferToArray(clone), [1, 2], 'truncated data');
+  assert.throws(() => buffer.transferToFixedLength(), TypeError, 'already detached');
+  assert.same(new ArrayBuffer(0).transferToFixedLength().byteLength, 0, 'empty buffer');
+
+  if (GLOBAL.WebAssembly?.Memory) {
+    for (const initial of [0, 1]) {
+      const memory = new GLOBAL.WebAssembly.Memory({ initial });
+      assert.throws(() => memory.buffer.transferToFixedLength(), TypeError, 'WebAssembly memory cannot be detached');
+      assert.same(memory.buffer.byteLength, initial * 65536, 'WebAssembly memory preserved');
+    }
+  }
+
+  if ('resizable' in ArrayBuffer.prototype) {
+    buffer = new ArrayBuffer(8, { maxByteLength: 16 });
+    new Uint8Array(buffer).set([1, 2, 3, 4]);
+    const resized = buffer.transferToFixedLength({ valueOf() {
+      buffer.resize(2);
+      return 8;
+    } });
+    assert.same(resized.byteLength, 8, 'requested length after coercion resizes the source');
+    assert.arrayEqual(bufferToArray(resized), [1, 2, 0, 0, 0, 0, 0, 0], 'only current source bytes copied');
+    buffer = new ArrayBuffer(4, { maxByteLength: 8 });
+    assert.same(buffer.transferToFixedLength(9).byteLength, 9, 'fixed transfer can exceed the old maximum');
   }
 });

@@ -39,7 +39,10 @@ var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
 var IS_BUN = typeof Bun == 'function' && Bun && typeof Bun.version == 'string';
 var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object';
 
-// var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
+var IS_NODE = !IS_BUN && !IS_DENO && Object.prototype.toString.call(process) === '[object process]';
+
+// do not probe the allocation failure: these NodeJS versions crash instead of throwing
+var ARRAY_BUFFER_TRANSFER_BUG = IS_NODE && /^(?:21\.|22\.[0-3]\.)/.test(versions.node);
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
@@ -729,10 +732,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return 'detached' in ArrayBuffer.prototype;
   },
   'es.array-buffer.transfer': function () {
-    return ArrayBuffer.prototype.transfer;
+    return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transfer;
   },
   'es.array-buffer.transfer-to-fixed-length': function () {
-    return ArrayBuffer.prototype.transferToFixedLength;
+    return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
   },
   'es.data-view.constructor': ARRAY_BUFFER_SUPPORT,
   'es.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {

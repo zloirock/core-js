@@ -3,7 +3,7 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
-var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
 var isCallable = require('../internals/is-callable');
@@ -44,6 +44,7 @@ var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
 var objectKeys = getBuiltIn('Object', 'keys');
 var push = uncurryThis([].push);
+var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
@@ -410,6 +411,8 @@ var structuredCloneInternal = function (value, map) {
       });
       break;
     case 'Error':
+      // in old FF, an own property check is needed to resolve a lazy Error#message
+      hasOwn(value, 'message');
       createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, map));
       if (hasOwn(value, 'cause')) {
         createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map));
@@ -501,15 +504,15 @@ var tryToTransfer = function (rawTransfer, map) {
 
 var detachBuffers = function (buffers) {
   setIterate(buffers, function (buffer) {
-    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
-      nativeStructuredClone(buffer, { transfer: [buffer] });
-    } else if (isCallable(buffer.transfer)) {
-      buffer.transfer();
-    } else if (detachTransferable) {
+    if (isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
+    if (detachTransferable) {
       detachTransferable(buffer);
+    } else if (arrayBufferTransfer) {
+      arrayBufferTransfer(buffer);
     } else {
       throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
     }
+    if (!isDetached(buffer)) throw new DOMException('ArrayBuffer is not detachable', DATA_CLONE_ERROR);
   });
 };
 

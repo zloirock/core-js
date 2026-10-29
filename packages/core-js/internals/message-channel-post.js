@@ -11,11 +11,6 @@ if (!$MessageChannel) {
   if (WorkerThreads) $MessageChannel = WorkerThreads.MessageChannel;
 }
 
-var close = function (channel) {
-  channel.port1.close();
-  channel.port2.close();
-};
-
 // a message nobody receives is held with its channel until the ports are closed,
 // so each message goes through a fresh channel, closed right after it
 module.exports = $MessageChannel && function (message, transfer) {
@@ -24,9 +19,8 @@ module.exports = $MessageChannel && function (message, transfer) {
     if (transfer) channel.port1.postMessage(message, transfer);
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- safe
     else channel.port1.postMessage(message);
-  } catch (error) {
-    close(channel);
-    throw error;
+  } finally {
+    channel.port1.close();
+    channel.port2.close();
   }
-  close(channel);
 };
