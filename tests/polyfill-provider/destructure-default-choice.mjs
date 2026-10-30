@@ -87,18 +87,33 @@ for (const [name, source, expected, substituted = false] of [
   const before = JSON.stringify(program.node);
   const result = planNestedDefaultHop(options, ctx);
   check(`${ label }/outer entry`, result.pure?.entry ?? null, expected);
+  check(`${ label }/sole binding can consume`, result.consumesPattern, !!expected);
   check(`${ label }/live default slot`, result.defaultHost, path.parentPath.parentPath.node);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
   checkDeep(`${ label }/repeat`, planNestedDefaultHop(options, ctx), result);
   checkDeep(`${ label }/static leaf has no live fallback`, planNestedDefaultHop({ ...options, kind: 'static' }, ctx),
-    { pure: null, defaultHost: null });
+    { pure: null, defaultHost: null, consumesPattern: false });
   checkDeep(`${ label }/iterator keeps its existing route`, planNestedDefaultHop({ ...options, entry: 'get-iterator-method' }, ctx),
-    { pure: null, defaultHost: null });
-  checkDeep(`${ label }/flat path has no hop`, planNestedDefaultHop({ ...options, chain: [] }, ctx), { pure: null, defaultHost: null });
+    { pure: null, defaultHost: null, consumesPattern: false });
+  checkDeep(`${ label }/flat path has no hop`, planNestedDefaultHop({ ...options, chain: [] }, ctx), { pure: null, defaultHost: null, consumesPattern: false });
   const replacement = identifier('rewrittenDefault');
   path.parentPath.parentPath.node.right = replacement;
   check(`${ label }/late child rewrite`, result.defaultHost.right, replacement);
 });
+
+for (const [name, pattern, consumes] of [
+  ['sole', '{ name: method }', true],
+  ['sibling', '{ name: method, length: size }', false],
+  ['rest', '{ name: method, ...rest }', false],
+  ['leaf default', '{ name: method = fallback }', false],
+]) runBoth(`hop consumption/${ name }`, `let method, size, rest; ({ at: ${ pattern } = fallback } = [4, 9]);`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', p => p.node.key.name === 'name');
+    const receiverPath = parser.pickPath(program, 'AssignmentExpression').get('right');
+    const result = planNestedDefaultHop({ chain: [{}], kind: 'instance', entry: 'instance/name', path, receiverPath }, context(parser));
+    check(`${ label }/outer entry remains available`, result.pure?.entry, 'array/instance/at');
+    check(`${ label }/consume admission`, result.consumesPattern, consumes);
+  });
 
 for (const [name, source, carries, mirror] of [
   ['live literal', 'const { k: { at } = [1, 2] } = {};', false, true],
