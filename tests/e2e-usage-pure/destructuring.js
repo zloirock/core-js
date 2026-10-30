@@ -9324,3 +9324,32 @@ QUnit.test('destructuring: a decided optional slot keeps its nested binding reje
     assert.same(result, live ? 'bound' : 'TypeError');
   });
 });
+
+QUnit.test('destructuring: nested default child and live slot stay independent', assert => {
+  const events = [];
+  function read(source, receiver) {
+    const { k: { at: method } = (events.push('default'), Array.from([4, 9])) } = source;
+    return method.call(receiver, -1);
+  }
+  assert.same(read({ get k() { events.push('get empty'); } }, [4, 9]), 9);
+  const string = { get k() {
+    events.push('get string');
+    return 'ab';
+  } };
+  assert.same(read(string, 'ab'), 'b');
+  assert.deepEqual(events, ['get empty', 'default', 'get string']);
+});
+
+QUnit.test('destructuring: instance mirrors preserve child rewrites and supplied values', assert => {
+  const events = [];
+  function flat({ at } = (events.push('flat'), Array.from([4, 9]))) { return at; }
+  function nested({ k: { at } } = (events.push('nested'), { k: Array.from([4, 9]) })) { return at; }
+  assert.same(flat().call([4, 9], -1), 9);
+  assert.same(nested().call([4, 9], -1), 9);
+  const supplied = { at() { return this === supplied ? 17 : 0; } };
+  assert.same(flat(supplied).call(supplied), 17);
+  assert.same(nested({ k: supplied }).call(supplied), 17);
+  assert.same((({ at }) => at.call('ab', -1))(String.fromCharCode(97, 98)), 'b');
+  assert.same((({ k: { at } }) => at.call('ab', -1))({ k: String.fromCharCode(97, 98) }), 'b');
+  assert.deepEqual(events, ['flat', 'nested']);
+});
