@@ -50,10 +50,14 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
     return !execCalled;
   });
 
+  FORCED = !DELEGATES_TO_SYMBOL || !DELEGATES_TO_EXEC || FORCED;
+
   if (
-    !DELEGATES_TO_SYMBOL ||
-    !DELEGATES_TO_EXEC ||
-    FORCED
+    FORCED ||
+    // Firefox 49-52 accepts Symbols in the RegExpCreate fallback
+    (KEY === 'match' || KEY === 'search') && typeof SYMBOL == 'symbol' && !fails(function () {
+      ''[KEY](SYMBOL);
+    })
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
     var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2, forceStringMethod) {
@@ -71,7 +75,8 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
     });
 
     defineBuiltIn(String.prototype, KEY, methods[0]);
-    defineBuiltIn(RegExpPrototype, SYMBOL, methods[1]);
+    // a broken String fallback does not require replacing a working RegExp method
+    if (FORCED) defineBuiltIn(RegExpPrototype, SYMBOL, methods[1]);
   }
 
   if (SHAM) createNonEnumerableProperty(RegExpPrototype[SYMBOL], 'sham', true);
