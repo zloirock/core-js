@@ -21031,6 +21031,49 @@ function * generateNestedDefaultReceiverChoices() {
   };
 }
 
+// A retained residual and several extractions share one live receiver. Host shape may
+// change where the capture is planted, never the number or order of receiver evaluations.
+function * generateDestructureResidualOrder() {
+  for (const host of ['statement', 'bodyless', 'sequence', 'value']) {
+    for (const source of ['literal', 'call', 'getter']) for (const multiple of [false, true]) {
+      const pattern = `{ at: method, ${ multiple ? 'includes: contains' : 'length: size' } }`;
+      const receiver = source === 'literal' ? '[4, 9]' : source === 'call' ? 'getRows()' : 'holder.rows';
+      const assignment = `(${ pattern } = (log.push("prefix"), ${ receiver }))`;
+      const read = host === 'bodyless' ? `if (true) ${ assignment };`
+        : host === 'sequence' ? `(log.push("before"), ${ assignment }, log.push("after"));`
+        : host === 'value' ? `const returned = ${ assignment }; log.push(returned.length);`
+        : `${ assignment };`;
+      yield { ...snippet(`destructure-residual-order/${ host }/${ source }/${ multiple ? 'two' : 'residual' }`, `(() => {
+        let method, contains, size;
+        function getRows() { log.push("call"); return [4, 9]; }
+        const holder = { get rows() { log.push("get"); return [4, 9]; } };
+        ${ read }
+        return [method.call([4, 9], -1), ${ multiple ? 'contains.call([4, 9], 4)' : 'size' }];
+      })()`), strip: true };
+    }
+  }
+  for (const host of ['statement', 'bodyless', 'sequence']) {
+    const assignment = '({ Set: { customSet: target.left }, [Symbol.iterator]: target.middle, Map: { customMap: target.right } } = globalThis)';
+    const read = host === 'bodyless' ? `if (true) ${ assignment };`
+      : host === 'sequence' ? `(log.push("before"), ${ assignment }, log.push("after"));` : `${ assignment };`;
+    yield { ...snippet(`destructure-residual-order/anchored/${ host }`, `(() => {
+      const target = {
+        set left(value) { log.push(["left", typeof value]); },
+        set middle(value) { log.push(["middle", typeof value]); },
+        set right(value) { log.push(["right", typeof value]); },
+      };
+      ${ read }
+      return log.length;
+    })()`), strip: true };
+  }
+  for (const active of [false, true]) yield { ...snippet(`destructure-residual-order/kept-key/${ active }`, `(() => {
+    let method, size;
+    const row = [4, 9];
+    if (${ active }) ({ [(log.push("key"), "at")]: method, length: size } = row);
+    return [typeof method === "function" ? method.call(row, -1) : "skipped", size];
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21442,4 +21485,5 @@ export function * generate() {
   yield * generateVestigialReceiverProofs();
   yield * generateDestructureProductPrefixes();
   yield * generateNestedDefaultReceiverChoices();
+  yield * generateDestructureResidualOrder();
 }

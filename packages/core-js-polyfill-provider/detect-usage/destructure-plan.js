@@ -59,6 +59,7 @@ import {
   soleChainToProp,
   stmtRebindNames,
   peelNestedSequenceExpressions,
+  peelTransparentExpr,
   peelZeroArgIifeReturn,
   peelToExpressionStatement,
   plainSynthKeyName,
@@ -312,6 +313,77 @@ export function planNestedDefaultHop({ chain, kind, entry, path, receiverPath },
     && entry !== 'get-iterator-method' && liveDestructureDefault(defaultPath.node, kind);
   return defaultHost ? { pure: nestedDefaultHopPure({ defaultPath, receiverPath, path }, ctx), defaultHost }
     : { pure: null, defaultHost: null };
+}
+
+// Classify reads before consuming their source properties. A detached guard, nested hop or
+// effectful kept key needs the residual first; unrelated flat reads retain their own slot.
+// The returned lists borrow the caller's records and carry no rendered nodes or native edits.
+export function partitionDestructureReads(reads, frameOf) {
+  const before = [];
+  const after = [];
+  let keyFirst = false;
+  for (const read of reads) {
+    const keyed = read.sentinel && read.prop?.computed && computedKeyHasSideEffects(read.prop, frameOf(read));
+    if (keyed) keyFirst = true;
+    (read.guardDetach === 'after' || read.chain?.length || keyed ? after : before).push(read);
+  }
+  return { before, after, keyFirst };
+}
+
+// Order the live residual and its extractions. A retained initializer runs before any
+// binding write unless a leading capture already evaluated it. Anchored residuals are
+// independent source slots and join the extractions in source order, as does a full consume.
+// A kept key still precedes its lookup; synthetic slots follow known source slots.
+// Records keep their native payload; source/sourceProps describe only their original slot.
+export function orderDestructureParts(partition, residuals, {
+  sourceProps = null, captured = false, initRuns = false,
+} = {}) {
+  const { before, after, keyFirst } = partition;
+  const reads = [...before, ...after];
+  if (keyFirst && residuals.length) return [...residuals, ...reads];
+  if (!residuals.length || residuals.every(part => part.anchored)) {
+    const positions = new Map(sourceProps?.map((prop, index) => [prop, index]));
+    function at(part) {
+      if (part.sourceProps) return Math.min(...part.sourceProps.map(prop => positions.get(prop) ?? Infinity));
+      return positions.get(part.source ?? part.chain?.at(-1)?.hopProp ?? part.prop) ?? Infinity;
+    }
+    return [...reads, ...residuals].sort((left, right) => at(left) - at(right));
+  }
+  return !captured && initRuns ? [...residuals, ...reads] : [...before, ...residuals, ...after];
+}
+
+// A name can be read by several destructure claims only where intervening getters
+// cannot rebind it. A realm selection must yield the same namespace on every live arm.
+// This does not release an acquired navigation: its source capture has a separate owner.
+function canRepeatDestructureReceiver(node, ctx) {
+  if (node?.type === 'Identifier' || node?.type === 'ThisExpression') return isReReferenceableAcrossReads(node, ctx);
+  return !!(ctx && realmSelectionCollapseOperand(node, ctx));
+}
+
+// A whole-init capture whose residual has died may release its sequence prefix and let
+// every remaining extraction read the stable tail. Only this completed capture can also
+// release a pristine built-in navigation; a newly acquired receiver keeps its native memo.
+// Return the borrowed tail, leaving prefix relocation and reference replacement to the binding.
+export function releasedDestructureCaptureTail(init, ctx) {
+  if (init?.type !== 'SequenceExpression') return null;
+  const tail = init.expressions.at(-1);
+  return canRepeatDestructureReceiver(tail, ctx)
+    || isReReadableSurfaceNav(tail, name => !!ctx?.injectorState?.getBindingInfo?.(name), { ctx }) ? tail : null;
+}
+
+// A live assignment residual and every extraction share one receiver evaluation. A lifted
+// prefix leaves the tail to these readers. Stable names/this, a proven realm selection, or
+// literal overwrites which keep their own native read require no shared capture. This query
+// runs after consumption and never allocates the ref the binding may need for its answer.
+export function assignmentNeedsReceiverMemo(assignment, reads, ctx = null) {
+  if (reads.every(read => !read.readsReceiver)) return false;
+  const whole = peelTransparentExpr(assignment.right);
+  const right = reads.some(read => read.seqPrefix?.length) ? peelNestedSequenceExpressions(whole).tail : whole;
+  const [{ metaPath }] = reads;
+  if (canRepeatDestructureReceiver(right, { ...ctx, scope: metaPath?.scope, path: metaPath })) return false;
+  if (reads.every(read => read.keepSentinelBinding) && isConstantLiteralReceiver(right)) return false;
+  const residualSurvives = assignment.left?.type !== 'ObjectPattern' || assignment.left.properties.length !== 0;
+  return reads.length + (residualSurvives ? 1 : 0) > 1;
 }
 
 // What a fully consumed initializer leaves at its original evaluation position. Both bindings
@@ -833,6 +905,14 @@ function isSymbolIteratorComputedKey(outerProp, ctx) {
 function symbolIteratorLocalName(outerProp, ctx) {
   if (!isSymbolIteratorComputedKey(outerProp, ctx)) return null;
   return outerProp.value?.type === 'Identifier' ? outerProp.value.name : null;
+}
+
+// A member write of the iterator result joins the same ordered extraction as a named
+// binding. Defaults and effectful keys retain their raw-read slot; computed targets require a sole chain,
+// so moving the write cannot overtake another key or receiver read.
+export function symbolIteratorMemberTarget(prop, entry, { ctx = null, ...options } = {}) {
+  return entry === 'get-iterator-method' && prop.value?.type !== 'AssignmentPattern' && !computedKeyHasSideEffects(prop, ctx)
+    ? memberTargetTakesExtraction(prop.value, { ...options, prop }) : null;
 }
 
 // pattern-valued `[Symbol.iterator]` prop - the shape both emitters extract by destructuring
@@ -2230,6 +2310,12 @@ export function buildNestedDestructurePlan({
     if (localName !== null) {
       return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
     }
+    // An assignment to a member observes write order through its setter. It belongs
+    // in this ordered plan, not in an independent extraction ahead of the residual.
+    const targetNode = symbolIteratorMemberTarget(prop, 'get-iterator-method', {
+      hostPattern: declarator.id, ctx: { scope, adapter, path },
+    });
+    if (targetNode) return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', targetNode }] };
     if (isSymbolIteratorPatternProp(prop, { scope, adapter, path })) {
       // The ordinary capture retains the live declarator for a relocated rest binding.
       if (declarator.id.properties?.length === 1 && prop.value.properties.some(isRestProperty)) {

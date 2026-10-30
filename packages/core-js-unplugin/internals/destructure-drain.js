@@ -32,6 +32,9 @@ import {
   hostLevelSurvives,
   planCatchClauseExtraction,
   planLoopHeadExtraction,
+  assignmentNeedsReceiverMemo,
+  orderDestructureParts,
+  partitionDestructureReads,
   residualPrecedesExtractions,
   sentinelMemoInitShape,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
@@ -101,7 +104,6 @@ import {
 import {
   anchorAssignmentResidual,
   anchorLeadingStatement,
-  assignmentMemoRef,
   buildInstanceDefaultGuard,
   bareProxyGlobalPure,
   carriedInitPrefix,
@@ -1893,8 +1895,7 @@ export default function createDestructureDrains(ctx) {
         // receiverless statics still need their own binding beside those reads.
         const otherJobs = orderDeclaratorJobs(jobsByDeclarator.get(declarator) ?? []);
         const readers = otherJobs.filter(job => !job.sentinel);
-        const routeJobs = [...declMemoJobs, ...readers]
-          .sort((left, right) => sourceOrder.indexOf(jobOuterProp(left)) - sourceOrder.indexOf(jobOuterProp(right)));
+        const routeJobs = orderDestructureParts({ before: [...declMemoJobs, ...readers], after: [] }, [], { sourceProps: sourceOrder });
         const emitted = emitMemoDeclarator({ hostNode, declarator, declJobs: routeJobs, statements, exported });
         touched ||= emitted;
         // the route's readers are every other claim the declarator carries: an SE-key or rest sentinel
@@ -2218,20 +2219,9 @@ export default function createDestructureDrains(ctx) {
     // global proxy (`({ Set: { intersection }, WeakSet: { customW } } = _globalThis)`)
     // (a SOLE hop keeps its own re-anchor - that shape is the sole-ctor-hop residual's)
     if (jobs.length > 1 && jobs.every(job => job.prop?.value?.type === 'ObjectPattern')) return;
-    // babel's cascade order: FLAT extractions run before the residual, NESTED-hop
-    // extractions after it; a detached guard keeps its side of the residual. A SE-keyed sentinel
-    // keeps the residual FIRST (its key effect must precede the lookup). The seKey view reads the
-    // prop's key before any rename.
-    // the demotion is asked PER JOB: a rest-forced hop follows the residual, but a FLAT
-    // sibling beside it keeps its place ahead (its own slot read owes the hop nothing)
-    function demotedBehindResidual(job) {
-      return job.guardDetach === 'after' || !!job.chain?.length
-        || (job.sentinel && job.prop.computed && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)));
-    }
-    const seKeyResidualFirst = jobs.some(job => job.sentinel
-      && job.prop.computed && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)));
-    const flatJobs = jobs.filter(job => !demotedBehindResidual(job));
-    const nestedJobs = jobs.filter(job => demotedBehindResidual(job));
+    // The common order reads keys before consumption renames their source slots.
+    const { before: flatJobs, after: nestedJobs, keyFirst: seKeyResidualFirst }
+      = partitionDestructureReads(jobs, job => patternFrame(job.metaPath));
     const product = jobs.length === 1 && flatJobs.length && jobs[0].seqPrefix?.length ? {} : null;
     const flatExtracted = renderDestructureStatements(flatJobs.map(job => ({
       id: propBindingTarget(job.prop), init: job.value(null, product),
@@ -2244,9 +2234,7 @@ export default function createDestructureDrains(ctx) {
     removeConsumedProps(jobs);
     const [{ assignment }] = jobs;
     // the source slot of what SURVIVES, read before the re-anchor swaps the pattern for its hop's inner one
-    const residualSourceAt = assignment.left?.type === 'ObjectPattern' && assignSourceProps
-      ? Math.min(...assignment.left.properties.map(item => assignSourceProps.indexOf(item)).filter(index => index >= 0), Infinity)
-      : Infinity;
+    const residualSourceProps = assignment.left?.type === 'ObjectPattern' ? [...assignment.left.properties] : [];
     // an effectful read the consume DISCARDS still runs: the whole read lifts as its own
     // statement ahead of the extractions (`({ any } = globalThis[(e++, 'Promise')])`) - unless an
     // extraction READS it: that dispatch performs the read, once, where the source did
@@ -2259,7 +2247,8 @@ export default function createDestructureDrains(ctx) {
     // verdict needs the residual as it survives, so the values re-render onto the ref here
     const holder = jobs[0].receiverHolder;
     const [{ receiverExpression }] = jobs;
-    const memoRef = receiverExpression ? holder.left.name : assignmentMemoRef(assignment, jobs, mintRefName, { adapter, injectorState });
+    const memoRef = receiverExpression ? holder.left.name
+      : assignmentNeedsReceiverMemo(assignment, jobs, { adapter, injectorState }) ? mintRefName() : null;
     const memoDecl = renderDestructureStatements([], {
       capture: memoRef ? { name: memoRef, value: holder?.right ?? assignment.right } : null,
     });
@@ -2382,10 +2371,7 @@ export default function createDestructureDrains(ctx) {
     if (assignment.left.properties.length === 0) {
       // with no residual left there is nothing for the cascade to order against: the extractions
       // run in the order the SOURCE wrote their hops (`from = _Array$from; ({ union } = _Set);`)
-      const bySource = [...flatJobs, ...nestedJobs].map((job, index) => ({
-        stmt: [...flatExtracted, ...nestedExtracted][index],
-        at: assignSourceProps?.indexOf(jobOuterProp(job)) ?? -1,
-      })).sort((left, right) => left.at - right.at).map(entry => entry.stmt);
+      const bySource = orderedAssignmentParts();
       if (anchorRhsPrefix?.length && bySource.length) {
         bySource[0].expression.right = sequenceExpression([...anchorRhsPrefix, bySource[0].expression.right]);
       }
@@ -2416,49 +2402,28 @@ export default function createDestructureDrains(ctx) {
         });
       const effects = [...discardedRead ? [expressionStatement(discardedRead)] : [], ...rescued];
       spliceAssignmentRewrite([...memoDecl, ...varDecl, ...effects, ...bySource], memoDecl.length || varDecl.length ? [] : effects);
-    } else if (seKeyResidualFirst) {
-      spliceAssignmentRewrite([...memoDecl, ...varDecl, ...renderDestructureStatements(
-        [...flatExtracted, ...nestedExtracted].map(statement => ({ statement })), { residual: body[at], residualAt: 0 },
-      )]);
-    } else if (anchoredResidual?.split) {
-      // SEVERAL anchored hops: each takes an assignment of its own, and every piece - extraction or
-      // anchored hop - lands where the source wrote its hop, the babel cascade's order
-      // (`S = _Set; ({ customZ } = _Promise); ({ customY } = _Iterator);`)
-      const pieces = [...flatJobs, ...nestedJobs].map((job, index) => ({
-        stmt: [...flatExtracted, ...nestedExtracted][index],
-        at: assignSourceProps?.indexOf(jobOuterProp(job)) ?? -1,
-      }));
-      pieces.push(...anchoredResidual.split.map(({ hop, view }) => ({
-        stmt: expressionStatement(assignmentExpression('=', view.id, view.init)),
-        at: assignSourceProps?.indexOf(hop) ?? -1,
-      })));
-      pieces.sort((left, right) => left.at - right.at);
-      spliceAssignmentRewrite([...memoDecl, ...varDecl, ...pieces.map(piece => piece.stmt)]);
-    } else if (anchoredResidual) {
-      // an ANCHORED residual is one hop among the others: it and every extraction land in the
-      // order the SOURCE wrote their hops - the babel cascade's order
-      // (`from = _Array$from; ({ union } = _Set); ({ keys } = _Map);`)
-      const pieces = [...flatJobs, ...nestedJobs].map((job, index) => ({
-        stmt: [...flatExtracted, ...nestedExtracted][index],
-        at: assignSourceProps?.indexOf(jobOuterProp(job)) ?? -1,
-      }));
-      pieces.push({ stmt: body[at], at: residualSourceAt });
-      pieces.sort((left, right) => left.at - right.at);
-      spliceAssignmentRewrite([...memoDecl, ...varDecl, ...pieces.map(piece => piece.stmt)]);
     } else {
-      const residualFirst = !memoDecl.length && residualRuns(assignment);
+      const residuals = anchoredResidual?.split ? anchoredResidual.split.map(({ hop, view }) => ({
+        source: hop, anchored: true, statement: expressionStatement(assignmentExpression('=', view.id, view.init)),
+      })) : [{ sourceProps: residualSourceProps, anchored: !!anchoredResidual, statement: body[at] }];
+      const ordered = orderedAssignmentParts(residuals);
+      const residualFirst = ordered[0] === body[at];
       // ... and a prefix no lift plan took (a quiet CALL tail is no pure nav) ran before the pattern
       // bound anything all the same: it lands ahead of the extractions, the declaration drain's lift
-      const survivingPrefix = residualFirst || inSequence || rhsExprs || memoDecl.length || !flatExtracted.length
+      const survivingPrefix = residualFirst || anchoredResidual || seKeyResidualFirst
+        || inSequence || rhsExprs || memoDecl.length || !flatExtracted.length
         || peelTransparentExpr(body[at]?.expression) !== assignment ? [] : liftSurvivingInitPrefix(assignment, jobs, frame, 'right');
-      spliceAssignmentRewrite([
-        ...memoDecl,
-        ...varDecl,
-        ...renderDestructureStatements(flatExtracted.map(statement => ({ statement })), {
-          residual: body[at], residualAt: residualFirst ? 0 : flatExtracted.length,
-        }),
-        ...nestedExtracted,
-      ], survivingPrefix);
+      spliceAssignmentRewrite([...memoDecl, ...varDecl, ...ordered], survivingPrefix);
+    }
+
+    // Attach native statements to the shared source-order product after the live residual settled.
+    function orderedAssignmentParts(residuals = []) {
+      return orderDestructureParts({
+        before: flatJobs.map((job, index) => ({ source: jobOuterProp(job), statement: flatExtracted[index] })),
+        after: nestedJobs.map((job, index) => ({ source: jobOuterProp(job), statement: nestedExtracted[index] })),
+        keyFirst: seKeyResidualFirst,
+      }, residuals, { sourceProps: assignSourceProps, captured: !!memoRef, initRuns: residualRuns(assignment) })
+        .map(part => part.statement);
     }
 
     // the rewrite replaces the host statement, the effects lifted out of its right first (`stmtSeqPrefix`
