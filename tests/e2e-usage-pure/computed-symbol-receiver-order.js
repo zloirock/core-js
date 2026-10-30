@@ -139,6 +139,36 @@ QUnit.test('computed symbol key retains a sealed proxy receiver prefix and hop e
   });
 });
 
+QUnit.test('symbol receiver proof keeps live window guards and sealed argument order', assert => {
+  const realm = Function('return this')();
+  const log = [];
+  withTemporaryProperty(realm, 'self', realm, () => {
+    withTemporaryProperty(realm, Symbol.iterator, function () {
+      assert.same(this, realm);
+      return { next: () => ({ value: 'held' }) };
+    }, () => {
+      for (const present of [false, true]) withTemporaryProperty(realm, 'window', present ? realm : null, () => {
+        log.length = 0;
+        const iterator = globalThis.window?.[(log.push('hop'), 'self')][(log.push('key'), Symbol.iterator)]();
+        assert.same(iterator?.next().value, present ? 'held' : undefined);
+        assert.deepEqual(log, present ? ['hop', 'key'] : []);
+        log.length = 0;
+        let result;
+        try {
+          // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed null case must evaluate its argument and throw
+          result = (globalThis.window?.[(log.push('hop'), 'self')][(log.push('key'), Symbol.iterator)])(
+            (log.push('argument'), 1),
+          ).next().value;
+        } catch (error) {
+          result = error.name;
+        }
+        assert.same(result, present ? 'held' : 'TypeError');
+        assert.deepEqual(log, present ? ['hop', 'key', 'argument'] : ['argument']);
+      });
+    });
+  });
+});
+
 QUnit.test('aliased symbol consumption keeps native receiver effects once', assert => {
   const realm = Function('return this')();
   const iteratorKey = Symbol.iterator;
@@ -228,4 +258,31 @@ QUnit.test('sealed aliased symbol argument call evaluates its receiver before ke
   const iterator = ((log.push('prefix'), box.list)?.[(log.push('key'), iteratorKey)])(0);
   assert.same(iterator.next().value, 'held');
   assert.deepEqual(log, ['prefix', 'receiver', 'key']);
+});
+
+QUnit.test('sealed symbol call keeps a captured inner optional receiver through key and argument', assert => {
+  const log = [];
+  function read(box) {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed nullish case must still evaluate the argument and throw
+    return (box?.rows[(log.push('key'), Symbol.iterator)])((log.push('argument'), 1));
+  }
+  const box = {
+    get rows() {
+      log.push('receiver');
+      return ['held'];
+    },
+  };
+  assert.same(read(box).next().value, 'held');
+  assert.deepEqual(log, ['receiver', 'key', 'argument']);
+  log.length = 0;
+  assert.throws(() => read(null), TypeError);
+  assert.deepEqual(log, ['argument']);
+  log.length = 0;
+  assert.throws(() => read({
+    get rows() {
+      log.push('receiver');
+      return null;
+    },
+  }), TypeError);
+  assert.deepEqual(log, ['receiver', 'key']);
 });

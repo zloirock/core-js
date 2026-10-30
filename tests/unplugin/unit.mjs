@@ -6821,6 +6821,11 @@ for (const [source, typed] of [
         const receiverDeclarations = programOf(code).body.flatMap(statement => statement.type === 'VariableDeclaration' ? statement.declarations : []);
         // The native R1 receiver is captured before the symbol key and consumed once.
         check(`rendered sequence receiver/${ label }/native receiver memo`, receiverDeclarations.filter(declarator => !declarator.init).length, 1);
+        let guards = 0;
+        walkAstNodes({ root: programOf(code), visit(node) {
+          if (node.type === 'ConditionalExpression' || node.optional === true) guards++;
+        } });
+        check(`rendered sequence receiver/${ label }/defined realm needs no guard`, guards, 0);
       }
     });
   }));

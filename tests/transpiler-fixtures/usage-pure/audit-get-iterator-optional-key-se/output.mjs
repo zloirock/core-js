@@ -7,10 +7,10 @@ var _ref, _ref2;
 // into void 0). so the key SE is guarded behind the receiver's nullishness, the call is not
 
 // Quiet unbound receiver: test it before the guarded key effect without a capture.
-const a = (arr == null ? void 0 : (log(), void 0), _getIterator(arr));
+const a = _getIterator(arr == null ? void 0 : (log(), arr));
 
 // member receiver: re-read by both the guard test and the call, so memoized once into a _ref
-const b = (null == (_ref = obj.list) ? void 0 : (probe(), void 0), _getIterator(_ref));
+const b = _getIterator(null == (_ref = obj.list) ? void 0 : (probe(), _ref));
 
 // side-effecting call receiver: memoized ahead of the key SE so the receiver evaluates first, like native
-const c = (null == (_ref2 = getList()) ? void 0 : (spy(), void 0), _getIterator(_ref2));
+const c = _getIterator(null == (_ref2 = getList()) ? void 0 : (spy(), _ref2));

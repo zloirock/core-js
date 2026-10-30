@@ -20841,6 +20841,53 @@ function * generateDeletedRealmEnumCarriers() {
 // A quiet first receiver read can throw before a key even if its later value is
 // reusable. Effectful receivers must likewise be read once, before key and argument.
 function * generateSymbolFirstReceiverReads() {
+  for (const rig of [false, true]) for (const [label, receiver] of [
+    ['defined', 'globalThis?.[(log.push("hop"), "self")].window.iteratorRows'],
+    ['live', 'globalThis.window?.[(log.push("hop"), "self")].iteratorRows'],
+    ['sealed-root', '(globalThis?.[(log.push("hop"), "self")]).window.iteratorRows'],
+  ]) for (const sealed of [false, true]) for (const args of [false, true]) {
+    const member = `${ receiver }[(log.push("key"), Symbol.iterator)]`;
+    const row = snippet(`symbol-first-receiver-read/realm-proof/${ label }/${ rig }/${ sealed }/${ args }`, `(() => {
+      const realm = Function("return this")();
+      const descriptor = Object.getOwnPropertyDescriptor(realm, "iteratorRows");
+      realm.iteratorRows = [7];
+      try { return ${ sealed ? `(${ member })` : member }(${ args ? '(log.push("argument"), 1)' : '' }).next().value; }
+      catch (error) { return error.name; }
+      finally { restoreProperty(realm, "iteratorRows", descriptor); }
+    })()`, { rig });
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: rig };
+  }
+  for (const args of [false, true]) yield {
+    name: `symbol-first-receiver-read/sealed-guard-reuse/${ args }`,
+    code: `const log = [];
+      export function read(boxes) {
+        const values = [];
+        for (const box of boxes) {
+          try { values.push((box?.rows[(log.push("key"), Symbol.iterator)])(${ args ? '(log.push("argument"), 1)' : '' }).next().value); }
+          catch (error) { values.push(error.name); }
+        }
+        return values;
+      }
+      export const r = read([{ rows: [7] }, null, { rows: null }]);
+      export const effects = log;`,
+    strip: true,
+  };
+  for (const receiver of ['box', 'getBox(box)']) for (const property of ['rows', '[(log.push("receiver-key"), "rows")]']) {
+    for (const present of ['root-null', 'rows-null', 'rows']) for (const args of [false, true]) yield {
+      name: `symbol-first-receiver-read/sealed-inner/${ receiver }/${ property }/${ present }/${ args }`,
+      code: `const log = [];
+      const input = ${ present === 'root-null' ? 'null' : `{ get rows() { log.push("receiver"); return ${ present === 'rows-null' ? 'null' : '[7, 8]' }; } }` };
+      function getBox(value) { log.push("root"); return value; }
+      export function read(box) {
+        return (${ receiver }?.${ property }[(log.push("key"), Symbol.iterator)])(${ args ? '(log.push("argument"), 1)' : '' }).next().value;
+      }
+      let r;
+      try { r = read(input); }
+      catch (error) { r = error.name; }
+      export { r }; export const effects = log;`,
+      strip: true,
+    };
+  }
   for (const receiver of ['rows', 'box.rows']) for (const consumer of ['read', 'call', 'argument', 'optional']) {
     const member = `(log.push("prefix"), ${ receiver })[(log.push("key"), rows = ["swapped"], Symbol.iterator)]`;
     const call = consumer === 'read' ? `${ member }.call(["held"])` : `${ member }${ consumer === 'optional' ? '?.' : '' }(${ consumer === 'call' ? '' : '(log.push("argument"), 1)' })`;
