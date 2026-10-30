@@ -34,6 +34,11 @@ QUnit.module('structuredClone', () => {
     verifyFunc(value, structuredClone(value));
   }
 
+  function isTransferError(error) {
+    // Node.js 17-20 uses TypeError for invalid transfer-list entries.
+    return error.name === 'DataCloneError' || NODE && error.name === 'TypeError' && error.code === 'ERR_INVALID_TRANSFER_OBJECT';
+  }
+
   // Specialization of cloneTest() for objects, with common asserts.
   function cloneObjectTest(assert, value, verifyFunc) {
     cloneTest(value, (orig, clone) => {
@@ -824,7 +829,7 @@ QUnit.module('structuredClone', () => {
   });
 
   QUnit.test('transfer list validation', assert => {
-    assert.throws(() => structuredClone(1, { transfer: [{}] }), error => error.name === 'DataCloneError', 'non-transferable object');
+    assert.throws(() => structuredClone(1, { transfer: [{}] }), isTransferError, 'non-transferable object');
     if (typeof ArrayBuffer == 'function') {
       const buffer = new ArrayBuffer(8);
       assert.throws(() => structuredClone(buffer, { transfer: [buffer, buffer] }), error => error.name === 'DataCloneError', 'duplicate transferable');
@@ -902,6 +907,7 @@ QUnit.module('structuredClone', () => {
           return scenario === 'shared' ? 1 : function () { /* uncloneable */ };
         } });
         const transfer = scenario === 'detached buffer' ? [buffer, port1] : [port1];
+        if (scenario === 'uncloneable' || scenario === 'getter') transfer.push(buffer);
         if (scenario === 'invalid') transfer.push({});
         if (scenario === 'duplicate') transfer.push(port1);
         if (scenario === 'duplicate buffer') transfer.push(buffer, buffer);
@@ -910,8 +916,9 @@ QUnit.module('structuredClone', () => {
         let copy;
         try {
           assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter'
-            ? error === marker : error.name === 'DataCloneError', scenario);
+            ? error === marker : isTransferError(error), scenario);
           assert.same(reads, scenario === 'uncloneable' || scenario === 'getter' || scenario === 'detached buffer' ? 1 : 0, `${ scenario }: validation precedes serialization`);
+          if (scenario === 'uncloneable' || scenario === 'getter') assert.same(buffer.byteLength, 1, 'failed transfer preserves the buffer');
           copy = structuredClone(port1, { transfer: [port1] });
           assert.same(typeof copy.postMessage, 'function', 'port remains transferable');
         } finally {
@@ -1001,7 +1008,8 @@ QUnit.module('structuredClone', () => {
       } else assert.false(stream.locked, 'stream stays unlocked');
     });
   }
-  if (NODE && !structuredClone.sham) QUnit.test('ReadableStream transfer follows serialization', assert => {
+  // Older Deno releases expose process but do not support stream transfer.
+  if (NODE && typeof Deno == 'undefined' && typeof ReadableStream == 'function' && !structuredClone.sham) QUnit.test('ReadableStream transfer follows serialization', assert => {
     const stream = new ReadableStream({ start(controller) { controller.close(); } });
     let reads = 0;
     const value = { stream };

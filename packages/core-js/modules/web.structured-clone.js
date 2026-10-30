@@ -103,6 +103,20 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // only FF103+ supports new (html/5749) error cloning semantic
 var nativeStructuredClone = globalThis.structuredClone;
 var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone);
+// Native preflight relies on transfer-list validation preceding serialization.
+// Deno validates non-buffer entries after serialization, so the sentinel getter
+// hides invalid entries; newer Deno also detaches ArrayBuffers before the getter.
+// Deno 1.13 additionally wraps getter exceptions in DataCloneError, losing the sentinel.
+// Probe with a harmless invalid entry and record getter access without throwing.
+// If serialization starts, skip native preflight and use the type checks below.
+var PROPER_TRANSFER_VALIDATION = PROPER_STRUCTURED_CLONE_TRANSFER && !fails(function () {
+  var serialized = false;
+  var value = defineProperty({}, 'value', { enumerable: true, get: function () { serialized = true; } });
+  try {
+    nativeStructuredClone(value, { transfer: [{}] });
+  } catch (error) { /* empty */ }
+  return serialized;
+});
 
 var FORCED_REPLACEMENT = IS_PURE
   || !nativeRestrictedStructuredClone
@@ -564,15 +578,16 @@ var prepareTransfer = function (rawTransfer, map) {
 
     if (type === 'ArrayBuffer') {
       setAdd(buffers, value);
-      if (PROPER_STRUCTURED_CLONE_TRANSFER) push(nativeTransfer, value);
+      if (PROPER_TRANSFER_VALIDATION) push(nativeTransfer, value);
       continue;
     }
 
     // Native buffer transfer does not imply support for AudioData / VideoFrame transfer.
     isMedia = type === 'AudioData' || type === 'VideoFrame';
-    // WebKit rejects shared buffers only after serialization.
-    if (isMedia || !PROPER_STRUCTURED_CLONE_TRANSFER || type === 'SharedArrayBuffer') switch (type) {
+    // Deno validates transferables after serialization; WebKit does so for shared buffers.
+    if (isMedia || !PROPER_TRANSFER_VALIDATION || type === 'SharedArrayBuffer') switch (type) {
       case 'ImageBitmap':
+        if (PROPER_STRUCTURED_CLONE_TRANSFER) break;
         if (!isConstructor(globalThis.OffscreenCanvas)) throwUnpolyfillable(type, TRANSFERRING);
         break;
       case 'AudioData':
@@ -589,18 +604,19 @@ var prepareTransfer = function (rawTransfer, map) {
       case 'WebTransportReceiveStream':
       case 'WebTransportSendStream':
       case 'WritableStream':
+        if (PROPER_STRUCTURED_CLONE_TRANSFER) break;
         throwUnpolyfillable(type, TRANSFERRING);
         // break omitted
       default:
         throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
     }
 
-    if (PROPER_STRUCTURED_CLONE_TRANSFER && !isMedia) push(nativeTransfer, value);
+    if (PROPER_TRANSFER_VALIDATION && !isMedia) push(nativeTransfer, value);
     hasObjects = true;
     mapSet(map, value, { type: type });
   }
 
-  if (PROPER_STRUCTURED_CLONE_TRANSFER && hasObjects) {
+  if (PROPER_TRANSFER_VALIDATION && hasObjects) {
     try {
       nativeStructuredClone(transferCheck, { transfer: nativeTransfer });
     } catch (error) {
