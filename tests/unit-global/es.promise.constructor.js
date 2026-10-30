@@ -243,3 +243,28 @@ if (promise) QUnit.test('Native Promise, maybe patched', assert => {
   assert.true(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
   assert.true(new $Promise(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
 });
+
+if (typeof ReadableStream == 'function' && typeof WritableStream == 'function' && typeof TransformStream == 'function') {
+  QUnit.test('Promise, native stream interoperability', assert => {
+    const values = [];
+    const readable = new ReadableStream({
+      start(controller) {
+        controller.enqueue(1);
+        controller.close();
+      },
+    });
+    const transform = new TransformStream({
+      transform(value, controller) {
+        controller.enqueue(value + 1);
+      },
+    });
+    const writable = new WritableStream({
+      write(value) {
+        values.push(value);
+      },
+    });
+    return Promise.resolve(readable.pipeThrough(transform).pipeTo(writable)).then(() => {
+      assert.arrayEqual(values, [2], 'native stream pipeline completes after loading Promise');
+    });
+  });
+}

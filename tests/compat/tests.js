@@ -76,7 +76,8 @@ var PROMISES_SUPPORT = function () {
 
   return promise.then(empty) instanceof FakePromise
     && V8_VERSION !== 66
-    && (!(IS_BROWSER || IS_DENO) || typeof PromiseRejectionEvent == 'function');
+    // Replacing Deno's native Promise for rejection tracking breaks host APIs.
+    && (!IS_BROWSER || typeof PromiseRejectionEvent == 'function');
 };
 
 var PROMISE_STATICS_ITERATION = function () {

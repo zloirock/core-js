@@ -36,8 +36,11 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
     constructor[SPECIES] = FakePromise;
     SUBCLASSING = promise.then(function () { /* empty */ }) instanceof FakePromise;
     if (!SUBCLASSING) return true;
-  // Unhandled rejections tracking support, NodeJS Promise without it fails @@species test
-  } return !GLOBAL_CORE_JS_PROMISE && (ENVIRONMENT === 'BROWSER' || ENVIRONMENT === 'DENO') && !NATIVE_PROMISE_REJECTION_EVENT;
+  }
+  // Unhandled rejections tracking support, NodeJS Promise without it fails @@species test.
+  // Old Deno host APIs mix the global Promise with captured native methods.
+  // Replacing the constructor breaks Web Streams; only the pure version is safe.
+  return !GLOBAL_CORE_JS_PROMISE && (ENVIRONMENT === 'BROWSER' || IS_PURE && ENVIRONMENT === 'DENO') && !NATIVE_PROMISE_REJECTION_EVENT;
 });
 
 module.exports = {

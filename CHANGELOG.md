@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Stopped replacing the native `Promise` in Deno < 1.24 solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
 - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
 - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
 - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
@@ -36,6 +37,8 @@
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
+  - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
+  - Fixed Deno 1.1.1 compat data mapping: `AggregateError`, `Promise.any` and `String.prototype.replaceAll` are available from this version
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
     - [FF156](https://bugzilla.mozilla.org/show_bug.cgi?id=2062293)
