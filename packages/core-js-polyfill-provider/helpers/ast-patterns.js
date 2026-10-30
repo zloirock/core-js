@@ -807,35 +807,6 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
   'ParenthesizedExpression',
 ]);
 
-// is this chain the CALLEE of a call (or the TAG of a tagged template), behind a SEAL - source
-// parens or a TS cast? `(w?.self.fn)()` keeps the reference (so `this` still binds) while the seal
-// ends the short-circuit; folding the tail into a guarded alternate hands the callee a bare value.
-// `unwrap` is the caller's transparent-wrapper peel (the two adapters spell parens differently)
-export function parenSealedCalleeAbove(metaPath, node, unwrap) {
-  let step = metaPath;
-  while (step?.node && unwrap(step.node) !== node) step = step.parentPath;
-  let wrapped = false;
-  // the climb has to know WHICH slot it came up through: only the callee / tag position binds the
-  // reference. an ARGUMENT reaching the same call is not a sealed callee, and answering as if it
-  // were hands the argument a `?.` tail the source never wrote
-  let child = step?.node;
-  for (let up = step?.parentPath; up?.node; child = up.node, up = up.parentPath) {
-    const { type } = up.node;
-    // a TS cast seals the chain exactly as parens do (the canon set is the two together), and it is
-    // transparent to this climb: stopping on it read `(nav?.hop as any)(1)` as an unsealed callee
-    // and folded the call into the guarded branch, which answers undefined where the source throws
-    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) {
-      wrapped = true;
-      continue;
-    }
-    // a tagged template binds `this` from its tag reference just like a call
-    if (type === 'TaggedTemplateExpression') return up.node.tag === child;
-    if (type === 'CallExpression' || type === 'OptionalCallExpression') return wrapped && up.node.callee === child;
-    if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression' && type !== 'ChainExpression') return false;
-  }
-  return false;
-}
-
 // extended set including `ChainExpression` for callers that need to skip / mark optional-
 // chain wrappers too. used by skip-mark walkers (`markSynthReceiverSkipped` /
 // destructure-emitter's per-branch peel) and by `unwrapRuntimeExpr`. ChainExpression
@@ -15619,6 +15590,15 @@ export function bindingPolyfillHint({ binding, scope, name, adapter }) {
 // at registration time; this is the read-time half, and the only place the rule is spelled
 export function usableAliasInfo(info) {
   return info && !info.aliasGuarded ? info : null;
+}
+
+// The static hint of a live scope binding: a proven alias, a real import/require or an
+// allocator-owned memo may carry it, but neither a refused registration nor a use before its
+// write may narrow. Hosts supply binding provenance after native lookup and shadow checks.
+// Binding-less and synthetic views have separate provenance guarantees and do not ask this gate.
+export function trustedBindingHint({ info, isAliasBindingShape, isImportBinding, isRequireBinding, useStart, usagePath }) {
+  return usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || isRequireBinding || info.minted)
+    && aliasSpanDominatesUse({ info, useStart, usagePath }) ? info.hint : null;
 }
 
 // the names written on this subtree's always-evaluated spine, collected ONCE per root. the proof
