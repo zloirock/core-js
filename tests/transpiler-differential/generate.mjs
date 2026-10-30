@@ -20983,6 +20983,54 @@ function * generateDestructureProductPrefixes() {
   }
 }
 
+// A nested default and the present slot are separate receiver arms. Child rewrites of
+// the default remain live, and every host owes the same key/get/default order.
+function * generateNestedDefaultReceiverChoices() {
+  for (const host of ['declaration', 'assignment', 'parameter', 'bodyless']) {
+    for (const shape of ['sole', 'sibling', 'rest', 'effect-key']) for (const present of [false, true]) {
+      const key = shape === 'effect-key' ? '[(log.push("key"), "at")]' : 'at';
+      const extra = shape === 'sibling' ? ', length: size' : shape === 'rest' ? ', ...remaining' : '';
+      const pattern = `{ k: { ${ key }: method${ extra } } = (log.push("default"), Array.from([4, 9])) }`;
+      const result = `[method.call(${ present ? '"ab"' : '[4, 9]' }, -1), ${
+        shape === 'sibling' ? 'size' : shape === 'rest' ? 'Object.keys(remaining).join(",")' : '0'
+      }]`;
+      const read = host === 'declaration' ? `const ${ pattern } = source; return ${ result };`
+        : host === 'assignment' ? `let method, size, remaining; (${ pattern } = source); return ${ result };`
+        : host === 'parameter' ? `function read(${ pattern }) { return ${ result }; } return read(source);`
+        : `if (true) var ${ pattern } = source; return ${ result };`;
+      yield { ...snippet(`nested-default-receiver-choice/${ host }/${ shape }/${ present ? 'present' : 'default' }`, `(() => {
+        const source = { get k() { log.push("get"); return ${ present ? '"ab"' : 'undefined' }; } };
+        ${ read }
+      })()`),
+      // These exotic getter/default reads already stay native in pure: rest on every
+      // host, the parameter, and the assignment's supplied or sibling-bearing slot.
+      // Keep their full-environment/order oracle; usage-global still arms every row.
+      strip: shape !== 'rest' && host !== 'parameter'
+        && (host !== 'assignment' || shape === 'effect-key' || (shape === 'sole' && !present)) };
+    }
+  }
+  // Direct defaults and paired literal arguments exercise all synth registrations with
+  // an injected child in the receiver, separately from the native getter boundaries above.
+  for (const host of ['default', 'argument', 'nested-default', 'nested-argument']) {
+    for (const [family, receiver, actual] of [['array', 'Array.from([4, 9])', '[4, 9]'], ['string', 'String.fromCharCode(97, 98)', '"ab"']]) {
+      const paired = host.startsWith('nested');
+      const pattern = paired ? '{ k: { at: method } }' : '{ at: method }';
+      const value = paired ? `{ k: ${ receiver } }` : receiver;
+      const fallback = host.endsWith('default');
+      yield { ...snippet(`nested-default-receiver-choice/synth/${ host }/${ family }`,
+        `((${ pattern }${ fallback ? ` = (log.push("default"), ${ value })` : '' }) => method.call(${ actual }, -1))(${
+          fallback ? '' : `(log.push("argument"), ${ value })`
+        })`), strip: true };
+    }
+  }
+  for (const active of [false, true]) yield {
+    ...snippet(`nested-default-receiver-choice/typed-bodyless/${ active }`, `(() => {
+      if (${ active }) var { at: { name } = (log.push("default"), { name: "fallback" }) } = [4, 9];
+      return typeof name;
+    })()`), strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21393,4 +21441,5 @@ export function * generate() {
   yield * generateGuardedClaimBoundaries();
   yield * generateVestigialReceiverProofs();
   yield * generateDestructureProductPrefixes();
+  yield * generateNestedDefaultReceiverChoices();
 }

@@ -126,7 +126,6 @@ import {
   nestedAssignmentStatementOf,
   overwriteMemberTarget,
   outerDestructureReceiver,
-  paramDefaultInstanceSynthAllowed,
   patternComputedKeysSynthSafe,
   patternHopKeysToHost,
   planSideEffectKeyStrategy,
@@ -134,7 +133,6 @@ import {
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
   receiverPerformsEveryInitEffect,
-  refineInstanceEntryByReceiver,
   renderSynthTree,
   destructureHostThroughWrappers,
   resolveDestructureReceiverPlan,
@@ -159,6 +157,7 @@ import {
 import {
   discardedReceiverEffects,
   liveDestructureDefault,
+  planDestructureInstanceSynth,
   planForInitSink,
   planDiscardedInit,
   buildNestedDestructurePlan,
@@ -195,7 +194,6 @@ import {
   realmSelectingHostCollapses,
   realmSelectionCollapseOperand,
   resolveObjectName,
-  resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   maybeRegisterAssignmentAliasWrite,
@@ -1263,19 +1261,12 @@ export default function createDestructureEmitter({
     // ... the default's operand that runs where the build decides it, a sequence's tail with the prefix
     // left where it runs (`decidedRunningOperandPath`)
     const rightPath = decidedRunningOperandPath(wrapper.get('right'), adapter);
-    if (!paramDefaultInstanceSynthAllowed({
-      objectPatternNode: objectPattern.node, receiverNode: rightPath.node,
-      scope: prop.scope, adapter, path: prop, resolvePure,
-    })) return false;
-    const use = refineInstanceEntryByReceiver({
-      pureResult: { entry, hintName }, key: resolveSynthKeys({ node: prop.node, scope: prop.scope, adapter, path: prop }).lookupKey,
-      receiverPath: rightPath, resolveNodeType, toHint, resolvePure, path: prop,
+    const plan = planDestructureInstanceSynth({
+      path: prop, receiverPath: rightPath, pureResult: { entry, hintName }, adapter, resolvePure, resolveNodeType, toHint,
     });
-    const slotKey = synthPropDedupKey(prop.node, { scope: prop.scope, path: prop, adapter });
-    if (!slotKey) return false;
+    if (!plan) return false;
     synthSwap.registerPolyfill({
-      targetPath: rightPath, objectPatternPath: objectPattern, key: slotKey,
-      entry: use.entry, hintName: use.hintName, instance: true,
+      targetPath: rightPath, objectPatternPath: objectPattern, ...plan, instance: true,
     });
     return true;
   }
@@ -1293,19 +1284,12 @@ export default function createDestructureEmitter({
     // ... the argument's operand that runs where the build decides it, as the default's above
     const rawArgPath = synthSwap.detectIifeArgPath(wrapper, objectPattern);
     const argPath = rawArgPath && decidedRunningOperandPath(rawArgPath, adapter);
-    if (!argPath || !paramDefaultInstanceSynthAllowed({
-      objectPatternNode: objectPattern.node, receiverNode: argPath.node,
-      scope: prop.scope, adapter, path: prop, resolvePure,
-    })) return false;
-    const use = refineInstanceEntryByReceiver({
-      pureResult: { entry, hintName }, key: resolveSynthKeys({ node: prop.node, scope: prop.scope, adapter, path: prop }).lookupKey,
-      receiverPath: argPath, resolveNodeType, toHint, resolvePure, path: prop,
+    const plan = planDestructureInstanceSynth({
+      path: prop, receiverPath: argPath, pureResult: { entry, hintName }, adapter, resolvePure, resolveNodeType, toHint,
     });
-    const slotKey = synthPropDedupKey(prop.node, { scope: prop.scope, path: prop, adapter });
-    if (!slotKey) return false;
+    if (!plan) return false;
     synthSwap.registerPolyfill({
-      targetPath: argPath, objectPatternPath: objectPattern, key: slotKey,
-      entry: use.entry, hintName: use.hintName, instance: true,
+      targetPath: argPath, objectPatternPath: objectPattern, ...plan, instance: true,
     });
     return true;
   }
@@ -1322,22 +1306,19 @@ export default function createDestructureEmitter({
     const basePath = host.isAssignmentPattern() ? peelTransparentWrapperPath(host.get('right'))
       : synthSwap.detectIifeArgPath(host, climbed.hostPattern);
     const slotPath = basePath ? descendReceiverPathByKeys(basePath, climbed.hops, adapter) : null;
-    // never over a slot THIS pass minted (`of: _Array$of` inside a rendered mirror): the static
-    // mirror hands the leaf below it the ponyfill VALUE, and a second mirror there would dispatch on it
-    if (!slotPath || (slotPath.node.type === 'Identifier' && ownOutputTests(injector).isOwnPassBinding(slotPath.node.name))
-      || !paramDefaultInstanceSynthAllowed({
-        objectPatternNode: objectPattern.node, receiverNode: slotPath.node,
-        scope: prop.scope, adapter, path: prop, resolvePure,
-      })) return false;
-    const use = refineInstanceEntryByReceiver({
-      pureResult: { entry, hintName }, key: resolveSynthKeys({ node: prop.node, scope: prop.scope, adapter, path: prop }).lookupKey,
-      receiverPath: slotPath, resolveNodeType, toHint, resolvePure, path: prop,
+    const plan = planDestructureInstanceSynth({
+      path: prop,
+      receiverPath: slotPath,
+      pureResult: { entry, hintName },
+      adapter,
+      resolvePure,
+      resolveNodeType,
+      toHint,
+      isOwnPassBinding: ownOutputTests(injector).isOwnPassBinding,
     });
-    const slotKey = synthPropDedupKey(prop.node, { scope: prop.scope, path: prop, adapter });
-    if (!slotKey) return false;
+    if (!plan) return false;
     synthSwap.registerPolyfill({
-      targetPath: slotPath, objectPatternPath: objectPattern, key: slotKey,
-      entry: use.entry, hintName: use.hintName, instance: true,
+      targetPath: slotPath, objectPatternPath: objectPattern, ...plan, instance: true,
     });
     return true;
   }
