@@ -64,6 +64,7 @@ import './key-effects.mjs';
 import './method-call.mjs';
 import './receiver-effects.mjs';
 import './nested-receiver-base.mjs';
+import './nested-extraction-receiver.mjs';
 import './prototype-hop-receiver.mjs';
 import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';

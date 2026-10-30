@@ -68,6 +68,12 @@ export function memberExpression(object, property, { computed = false, optional 
   return { type: 'MemberExpression', object, property, computed, optional };
 }
 
+// A selected extraction receiver has one root (source or pure binding) followed by named keys.
+// Source embedding and import allocation belong to the binding; neither chooses a different read.
+export function renderNestedExtractionReceiver({ node, pure, keys }, { embed, importPure }) {
+  return keys.reduce(memberFromKeyName, pure ? importPure(pure) : embed(node));
+}
+
 // One ordinary method invocation, after entry selection and any enclosing guard. The first
 // receiver owns its source prefix; harvested effects outside it precede that read, and key
 // effects follow it. Only a stable tail can be read again for lookup / this. A capture with

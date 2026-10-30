@@ -75,6 +75,7 @@ import {
   walkPatternIdentifiers,
   hostsExportList,
   hasRestSiblingExcept,
+  seKeyKeepsReceiverRead,
   patternLevelKeepsEffectfulHop,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
@@ -160,6 +161,11 @@ import {
   nestedSlotMemoPlan,
   receiverPerformsEveryInitEffect,
   carriedInitReceiverNode,
+  consumedAssignmentSlotDropsHost,
+  consumedAssignmentSlotDropsNav,
+  dispatchMayReadNav,
+  resolveNestedNavDispatch,
+  resolveNestedReceiverBase,
   typedNavClaimChain,
   resolveDestructureReceiverPlan,
   destructureHostThroughWrappers,
@@ -306,13 +312,122 @@ export function shouldMirrorNestedDestructureDefault({ path, receiverPath, kind 
 
 // The composed outer-read/leaf-dispatch product keeps the source DEFAULT SLOT, not its
 // current right child. Deferred rendering must observe child rewrites made after this decision.
+// Consuming the pattern also needs a sole plain binding: rest and effectful hops retain reads.
 export function planNestedDefaultHop({ chain, kind, entry, path, receiverPath }, ctx) {
   const patternPath = path.parentPath;
   const defaultPath = patternPath?.parentPath;
   const defaultHost = chain.length && defaultPath?.node?.left === patternPath.node
     && entry !== 'get-iterator-method' && liveDestructureDefault(defaultPath.node, kind);
-  return defaultHost ? { pure: nestedDefaultHopPure({ defaultPath, receiverPath, path }, ctx), defaultHost }
-    : { pure: null, defaultHost: null };
+  const pure = defaultHost ? nestedDefaultHopPure({ defaultPath, receiverPath, path }, ctx) : null;
+  return {
+    pure,
+    defaultHost: defaultHost || null,
+    consumesPattern: !!pure && patternPath.node.properties.length === 1 && path.node.value.type === 'Identifier'
+      && !hasRestSiblingExcept(patternPath.node.properties, null)
+      && !patternLevelKeepsEffectfulHop(patternPath.node, { scope: path.scope, path, adapter: ctx.adapter }),
+  };
+}
+
+// Choose the receiver of a nested assignment extraction, without importing or editing nodes.
+// A pending host still has source children: it can capture them and anchor a kept surface,
+// but must not save navigation across a root that will be replaced before drain. A rendered
+// host instead reads its current navigation; its anchors/defaults have already had first refusal.
+// These are source lifetimes, independent of parser dialect. The result owns the read policy;
+// the binding only applies a capture or renders the selected root and keys at that lifetime.
+export function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pending = false }, ctx) {
+  const { adapter, isOwnAlias, resolvePure, resolveGlobalPolyfill, resolveStaticPolyfill, injectorState } = ctx;
+  const prop = path.node;
+  const resolveOptions = { allowSePeeledFragment: true, allowNavSegments: !pending };
+  const copy = resolveNestedReceiverNode(path, { ...resolveOptions, adapter });
+  const plain = pending && !isReReferenceableReceiver(copy) ? null : copy;
+  const carried = !plain && consumedAssignmentSlotDropsHost(path) ? carriedInitReceiverNode({
+    path,
+    initNode: assignment.right,
+    resolveOptions,
+    adapter,
+  }) : null;
+  const node = plain ?? carried;
+  const surfaceOptions = { allowOptionalHops: true, ctx, isOwnAlias };
+  if (!pending) {
+    if (seKeyKeepsReceiverRead({
+      prop,
+      ctx,
+      receiver: assignment.right,
+      nested: isPropertyNode(path.parentPath?.parentPath?.node),
+      restSibling: hasRestSiblingExcept(path.parentPath.node.properties, prop),
+    }) || (node && isBuiltInSurfaceNav(node, surfaceOptions) && !isInstanceSurfaceNav(node, surfaceOptions))) return null;
+    // Positional destructuring pulls an iterator; spelling its index as a property is not equivalent.
+    for (let hop = node; hop?.type === 'MemberExpression'; hop = hop.object) {
+      if (hop.property?.type === 'Literal') return null;
+    }
+  }
+  // A carried slot is read once because its host dies. Pending children are borrowed and
+  // refreshed at drain; a copied bare token has no navigation whose root rewrite can be missed.
+  const direct = node && { kind: 'receiver', node, keys: [], carriesInit: !!carried, refresh: pending && !!carried, rebind: pending };
+  if (pending && direct) return direct;
+  if (pending && !copy) {
+    const singleRead = resolveNestedReceiverNode(path, { allowSeFreeSingleRead: true, allowSePeeledFragment: true, adapter });
+    if (singleRead && !isReReferenceableAcrossReads(singleRead, ctx)) {
+      const capture = planNestedKeyedPatternCapture({
+        pattern: assignment.left,
+        init: assignment.right,
+        force: true,
+        plansLeaf: true,
+        prop,
+        kind: 'instance',
+        entry,
+        ctx,
+        ancestors: chain.toReversed().map(level => ({ pattern: level.outerPattern, prop: level.hopProp })),
+      });
+      if (capture) return { kind: 'capture', capture };
+    }
+  }
+  const surface = pending && peelTransparentExpr(assignment.right)?.type === 'ObjectExpression'
+    ? resolveNestedNavDispatch(path, { adapter, resolvePure }).dispatch : null;
+  if (surface?.kind === 'surface' && surface.root && dispatchMayReadNav(path, surface.node,
+    { isOwnAlias, adapter, allowOptionalHops: surface.allowOptionalHops })) {
+    return { kind: 'receiver', node: surface.root, keys: surface.keys, rebind: true };
+  }
+  // Pending residual anchors can serve leaf siblings and built-in surfaces. A slot default
+  // still belongs to their consume route. Once rendered, a static ponyfill is already defined.
+  const typed = typedNavClaimChain(path, { adapter, allowAssignmentHost: true, allowLeafSiblings: pending, allowSurfaceBase: pending });
+  const base = typed && resolveNestedReceiverBase({
+    rootName: typed.root.name,
+    keys: typed.keys,
+    binding: adapter.getBinding({ scope: path.scope, name: typed.root.name, path, read: typed.root }),
+    adapter,
+    resolveGlobalPolyfill,
+    resolveStaticPolyfill,
+    read: pending ? { node: typed.root, path } : null,
+  });
+  if (base?.static && (!pending || !typed.slotDefault)) {
+    return { kind: 'receiver', pure: base.pure, keys: [] };
+  }
+  const nav = typed && typed.keys.reduce(memberFromKeyName, typed.root);
+  const surfaceRead = pending && base?.pure && !typed.slotDefault
+    && !(entry === 'get-iterator-method' && prop.value?.type === 'AssignmentPattern')
+    && dispatchMayReadNav(path, nav, { isOwnAlias, adapter });
+  const ownedRead = base && !base.ctor && !typed.slotDefault && consumedAssignmentSlotDropsHost(path)
+    && (!pending || !isBuiltInSurfaceNav(nav, { ctx, isOwnAlias }));
+  if (surfaceRead || ownedRead) {
+    return {
+      kind: 'receiver',
+      pure: base.pure,
+      node: pending && typeof base.name === 'string' ? identifier(base.name) : typed.rootSpelling,
+      keys: base.path,
+      carriesInit: !!ownedRead,
+    };
+  }
+  // Only a generated alias may be saved across pending root rewrites. A rendered nav may
+  // also read a proven surface, or a surface whose residual the extraction consumes whole.
+  const fallback = pending ? resolveNestedReceiverNode(path, { ...resolveOptions, allowNavSegments: true, adapter }) : node;
+  if (fallback && (carried || (!pending && isReReferenceableReceiver(fallback))
+    || isReReadableSurfaceNav(fallback, name => !!injectorState?.getBindingInfo?.(name),
+      { ownAliasRoot: pending, allowOptionalHops: !pending, ctx })
+    || (!pending && consumedAssignmentSlotDropsNav(path, isOwnAlias, ctx) && isInstanceSurfaceNav(fallback, surfaceOptions)))) {
+    return pending ? { kind: 'receiver', node: fallback, keys: [], rebind: true } : direct;
+  }
+  return null;
 }
 
 // Classify reads before consuming their source properties. A detached guard, nested hop or
