@@ -35,6 +35,7 @@ import {
   assignmentNeedsReceiverMemo,
   orderDestructureParts,
   partitionDestructureReads,
+  destructureResidualFirst,
   residualPrecedesExtractions,
   sentinelMemoInitShape,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
@@ -1239,7 +1240,7 @@ export default function createDestructureDrains(ctx) {
       }
       // ... and a residual whose init RUNS code leads its extractions: natively that init evaluates
       // before the pattern binds anything (the shared residual canon)
-      if (residualRuns(declarator)) {
+      if (destructureResidualFirst([], { initRuns: residualRuns(declarator) })) {
         statements.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported), ...extracted);
         return 'consumed';
       }
@@ -1366,16 +1367,15 @@ export default function createDestructureDrains(ctx) {
           { ...patternFrame(declJobs[0].metaPath), injectorState, path: declJobs[0].metaPath?.parentPath?.parentPath }))
           && declJobs.every(job => job.sentinel && job.seKey)) {
           declarations.push(...seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(declJobs), null, adapter));
-        } else if (declJobs.some(job => (job.sentinel && job.seKey) || (job.chain?.length && job.readsReceiver))
-          || residualRuns(declarator)) {
-          // ... and a residual whose init RUNS code leads too: that code could read a binding written ahead
-          declarations.push(...renderDestructureDeclarators(extracted, { residual: declarator, residualAt: 0 }));
         } else {
-          carryForInitPrefixIntoFirst(extracted, takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)));
-          const ahead = extracted.filter((item, index) => declJobs[index].guardDetach !== 'after');
-          declarations.push(...renderDestructureDeclarators([
-            ...ahead, ...extracted.filter((item, index) => declJobs[index].guardDetach === 'after'),
-          ], { residual: declarator, residualAt: ahead.length }));
+          const partition = partitionDestructureReads(declJobs, job => patternFrame(job.metaPath), { grouped: true });
+          const initRuns = residualRuns(declarator);
+          if (!destructureResidualFirst(declJobs, { keyFirst: partition.keyFirst, initRuns })) {
+            carryForInitPrefixIntoFirst(extracted, takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)));
+          }
+          const parts = new Map(declJobs.map((job, index) => [job, extracted[index]]));
+          parts.set(declarator, declarator);
+          declarations.push(...orderDestructureParts(partition, [declarator], { initRuns }).map(part => parts.get(part)));
         }
         continue;
       }
@@ -1985,9 +1985,9 @@ export default function createDestructureDrains(ctx) {
         // the re-anchor serves a residual the extraction LEFT BEHIND; an untouched
         // sibling declarator keeps its raw pattern (babel anchors only what it consumed)
         // ... and it keeps its own SOURCE slot: a hop written before every consumed one is
-        // emitted first (`{ [S]: kept } = _Map; const fe = _Object$fromEntries;`). asked
-        // BEFORE the re-anchor, which swaps the pattern for the hop's own inner one
-        const residualFirst = residualPrecedesExtractions(declarator.id, declJobsHere.map(jobOuterProp), sourceProps.get(declarator));
+        // emitted first (`{ [S]: kept } = _Map; const fe = _Object$fromEntries;`). Keep the source
+        // pattern BEFORE re-anchoring swaps it for the hop's inner pattern; ask the order below.
+        const residualPattern = declarator.id;
         const anchored = declJobsHere.length > 0
           && reanchorSoleCtorHopResidual(declarator, { metaPath: declJobsHere[0]?.metaPath ?? null });
         if (anchored) touched = true;
@@ -2016,11 +2016,14 @@ export default function createDestructureDrains(ctx) {
           extractedHere[index] = null;
         }
         const standalone = extractedHere.filter(Boolean);
-        // only an ANCHORED residual re-homes: a raw one stays where the extraction left it
-        // ... and a residual that WRITES a slot memo stands ahead of the extraction reading it, as does
-        // one whose init RUNS code that could read a binding the extraction writes
-        const before = (residualFirst && anchored) || declJobsHere.some(job => job.extractAfterResidual)
-          || (declJobsHere.length && residualRuns(declarator));
+        // The grouped guards are applied; order the remaining statements from the source
+        // slots and the live residual's capture and initializer obligations.
+        const before = destructureResidualFirst(declJobsHere, {
+          anchored,
+          pattern: residualPattern,
+          sourceProps: sourceProps.get(declarator),
+          initRuns: declJobsHere.length > 0 && residualRuns(declarator),
+        });
         statements.push(...renderDestructureStatements(standalone.map(statement => ({ statement })), {
           residual, residualAt: before ? 0 : standalone.length,
         }));
@@ -2519,12 +2522,13 @@ export default function createDestructureDrains(ctx) {
     // so its prefix must lift and the slot becomes a block. Only the declared BARE dispatch
     // qualifies here; a default-wrapped value retains this channel's separate prefix placement.
     const ridesArgument = !!product?.receiver && product.receiver === values[0];
-    // a residual SURVIVING over an init that RUNS code leads its extractions and keeps its prefix (the
-    // shared residual canon): the init evaluates before the pattern binds anything
+    // A slot capture leaves the enclosing initializer live; only a whole capture spends it.
     const capturedLeaf = jobs.some(job => job.consumeResidualRead);
-    const residualFirst = (!memoRef || capturedLeaf) && residualRuns(declarator)
-      && (capturedLeaf
-        || patternBindingCount(declarator.id) !== jobs.reduce((count, job) => count + patternBindingCount(job.prop.value), 0));
+    const residualFirst = destructureResidualFirst([], {
+      captured: !!memoRef && !capturedLeaf,
+      initRuns: residualRuns(declarator),
+    }) && (capturedLeaf
+      || patternBindingCount(declarator.id) !== jobs.reduce((count, job) => count + patternBindingCount(job.prop.value), 0));
     // the init is DISCARDED whole where the claims empty the pattern and none reads the receiver: a
     // sole consume's registration records it as the prefix's last element, and several claims that
     // empty the pattern together discard it alike (`if (c) var { from, of } = mk().Array`)
