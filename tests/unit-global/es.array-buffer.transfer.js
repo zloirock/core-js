@@ -1,4 +1,5 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
+import V8_VERSION from 'core-js-pure/internals/environment-v8-version';
 import { GLOBAL } from '../helpers/constants.js';
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
@@ -81,6 +82,8 @@ if (transfer) QUnit.test('ArrayBuffer#transfer, transfer invariants', assert => 
 
   if (GLOBAL.WebAssembly?.Memory) {
     for (const initial of [0, 1]) {
+      // Empty WebAssembly memory transfers can crash V8 6.7-6.8.
+      if (initial === 0 && (V8_VERSION === 67 || V8_VERSION === 68)) continue;
       const memory = new GLOBAL.WebAssembly.Memory({ initial });
       assert.throws(() => memory.buffer.transfer(), TypeError, 'WebAssembly memory cannot be detached');
       assert.same(memory.buffer.byteLength, initial * 65536, 'WebAssembly memory preserved');
