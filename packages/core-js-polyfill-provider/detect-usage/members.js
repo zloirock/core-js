@@ -20,6 +20,7 @@ import {
   isMemberMutationContext,
   peelTransparentExprAncestorPath,
   isMemberWriteHost,
+  logicalSlotPatchHost,
   isDeoptedStaticRead,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
@@ -144,6 +145,23 @@ import {
   claimAlreadyRendered,
   readKeepingAdapter,
 } from './resolve.js';
+import { ownEmittedLogicalPatch } from './own-output.js';
+import { planReceiverMemo } from '../render.js';
+
+// A logical patch's implicit read takes an instance dispatcher before its conditional write.
+// Source and prior-output refusals precede resolution; the query never imports or edits.
+// The target read and key can change the receiver before the fallback. Reuse the common
+// snapshot decision; the live RHS is read only by the renderer.
+export function planLogicalSlotPatch(meta, path, { tests, skippedNodes, resolvePure, ctx = null }) {
+  const patch = logicalSlotPatchHost(path);
+  if (!patch || ownEmittedLogicalPatch(path, patch, tests)) return null;
+  const pure = resolvePure(meta, path);
+  if (pure?.kind !== 'instance' || skippedNodes.has(patch.host)) return null;
+  return {
+    ...patch, pure, key: meta.key, computed: !!path.node.computed, keyNode: path.node.property,
+    receiverMemo: planReceiverMemo(patch.receiverNode, { interveningEffects: true, ctx }),
+  };
+}
 
 // is this read the RAW branch of a ctor-identity guard this plugin already emitted (`M === _Map ?
 // _Map$groupBy : M.groupBy`)? a second pass over its own output sees the alternate as an ordinary
