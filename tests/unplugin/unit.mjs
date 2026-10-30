@@ -3,6 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
 import './probe-planning.mjs';
+import './destructure-products.mjs';
 import './fixture-output-normalization.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { Traverser } from 'estree-toolkit/dist-es/traverse';
