@@ -39,6 +39,7 @@ QUnit.test('DataView', assert => {
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If offset > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+    // Known Node 6 failure: native DataView accepts a negative byteLength.
     assert.throws(() => new DataView(new ArrayBuffer(8), 0, -1), 'negative byteLength throws');
   }
   dataview = new DataView(new ArrayBuffer(8));

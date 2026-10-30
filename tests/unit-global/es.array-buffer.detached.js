@@ -9,9 +9,12 @@ QUnit.test('ArrayBuffer#detached', assert => {
     const memory = new GLOBAL.WebAssembly.Memory({ initial: 0 });
     const { buffer } = memory;
     assert.false(buffer.detached, 'empty WebAssembly memory is attached');
-    // V8 in Node 10.24 and Chrome 67 still accepts an empty buffer after WebAssembly memory growth.
+    // Node 10.24 and Chrome 67-73 keep the old empty buffer usable after growth.
+    // Check detachment after growing non-empty memory instead.
     memory.grow(1);
-    assert.true(buffer.detached, 'growing WebAssembly memory detaches the old buffer');
+    const nonEmptyBuffer = memory.buffer;
+    memory.grow(1);
+    assert.true(nonEmptyBuffer.detached, 'growing WebAssembly memory detaches the old buffer');
   }
 
   const detached = new ArrayBuffer(8);

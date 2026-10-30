@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NODE } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, NODE, DENO_VERSION } from '../helpers/constants.js';
 
 const errors = {
   IndexSizeError: { s: 'INDEX_SIZE_ERR', c: 1, m: 1 },
@@ -34,7 +34,8 @@ const HAS_STACK = 'stack' in new Error('1');
 QUnit.test('DOMException', assert => {
   assert.isFunction(DOMException);
   assert.arity(DOMException, 0);
-  assert.name(DOMException, 'DOMException');
+  // Deno 1.0 exposes the constructor under an internal name.
+  if (DENO_VERSION !== 100) assert.name(DOMException, 'DOMException');
   // assert.looksNative(DOMException); // FF43- bug
 
   let error = new DOMException({}, 'Foo');
@@ -70,7 +71,8 @@ QUnit.test('DOMException', assert => {
   assert.throws(() => DOMException(42, 'DataCloneError'), "DOMException(42, 'DataCloneError')");
   const symbol = Symbol('DOMException constructor test');
   assert.throws(() => new DOMException(symbol, 'DataCloneError'), "new DOMException(Symbol(), 'DataCloneError')");
-  assert.throws(() => new DOMException(42, symbol), 'new DOMException(42, Symbol())');
+  // Deno 1.0 accepts a Symbol as the exception name.
+  if (DENO_VERSION !== 100) assert.throws(() => new DOMException(42, symbol), 'new DOMException(42, Symbol())');
   if (DESCRIPTORS) {
     // assert.throws(() => DOMException.prototype.message, 'DOMException.prototype.message'); // FF55- , Safari 10.1 bug
     // assert.throws(() => DOMException.prototype.name, 'DOMException.prototype.name'); // FF55-, Safari 10.1 bug bug

@@ -81,6 +81,7 @@ if (GLOBAL.JSON?.stringify) {
     const inheritedFromBoxed = new Inherited();
     inheritedFromBoxed.b = 1;
     // Firefox 4 throws here through the inherited native String.prototype.toJSON.
+    // Known Node 0.12 failure: the inherited boxed-string index is omitted.
     assert.same(stringify(inheritedFromBoxed, ['0', 'b']), '{"0":"s","b":1}', 'replacer-array-inherits-boxed-primitive-1');
     function InheritedNumber() { /* empty */ }
     InheritedNumber.prototype = Number.prototype;

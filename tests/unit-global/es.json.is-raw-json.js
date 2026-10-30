@@ -1,4 +1,7 @@
-QUnit.test('JSON.isRawJSON', assert => {
+import { BUN, GLOBAL } from '../helpers/constants.js';
+
+// Bun 1.1.45 corrupts native RawJSON objects after GC and can crash during stringify.
+QUnit[BUN && GLOBAL.Bun.version === '1.1.45' ? 'skip' : 'test']('JSON.isRawJSON', assert => {
   const { isRawJSON, rawJSON } = JSON;
   const { freeze } = Object;
 

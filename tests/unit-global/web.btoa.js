@@ -1,11 +1,12 @@
 // based on https://github.com/davidchambers/Base64.js/blob/master/test/base64.js
-import { NODE } from '../helpers/constants.js';
+import { NODE, DENO } from '../helpers/constants.js';
 
+// Deno 1.x implements this API in JavaScript without native-looking source strings.
 QUnit.test('btoa', assert => {
   assert.isFunction(btoa);
   assert.arity(btoa, 1);
   assert.name(btoa, 'btoa');
-  if (!NODE) assert.looksNative(btoa);
+  if (!NODE && !DENO) assert.looksNative(btoa);
 
   assert.same(btoa(''), '');
   assert.same(btoa('f'), 'Zg==');

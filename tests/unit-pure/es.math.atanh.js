@@ -22,6 +22,7 @@ QUnit.test('Math.atanh', assert => {
   assert.closeTo(atanh(-0.5), -0.5493061443340549, 1e-11);
   assert.closeTo(atanh(0.444), 0.47720201260109457, 1e-11);
 
+  // Known Node 0.12, 4 and 6 failures: native atanh loses precision for small inputs.
   assert.closeTo(atanh(1e-10), 1e-10, 1e-25, 'small value 1e-10');
   assert.closeTo(atanh(1e-17), 1e-17, 1e-32, 'small value 1e-17');
   assert.notSame(atanh(1e-20), 0, 'atanh(1e-20) should not be 0');

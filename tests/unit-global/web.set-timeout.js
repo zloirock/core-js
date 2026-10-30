@@ -3,6 +3,7 @@ import { timeLimitedPromise } from '../helpers/helpers.js';
 QUnit.test('setTimeout / clearTimeout', assert => {
   assert.isFunction(setTimeout, 'setTimeout is function');
   assert.isFunction(clearTimeout, 'clearTimeout is function');
+  // Known Node 0.12-8 failures: some native timer functions have empty names.
   assert.name(setTimeout, 'setTimeout');
   assert.name(clearTimeout, 'clearTimeout');
 

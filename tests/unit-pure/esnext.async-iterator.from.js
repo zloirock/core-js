@@ -50,6 +50,7 @@ QUnit.test('AsyncIterator.from', assert => {
   });
 });
 
+// Known Node 0.12 failure: sync-generator values are not forwarded in the bundled test.
 QUnit.test('AsyncIterator.from, sync iterator value forwarding', assert => {
   assert.expect(5);
   const async = assert.async();
@@ -78,6 +79,7 @@ QUnit.test('AsyncIterator.from, sync iterator value forwarding', assert => {
   });
 });
 
+// Known Node 0.12 failure: sync-generator throw forwarding rejects in the bundled test.
 QUnit.test('AsyncIterator.from, sync iterator throw forwarding', assert => {
   assert.expect(2);
   const async = assert.async();

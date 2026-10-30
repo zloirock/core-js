@@ -3,6 +3,7 @@ import { timeLimitedPromise } from '../helpers/helpers.js';
 QUnit.test('setImmediate / clearImmediate', assert => {
   assert.isFunction(setImmediate, 'setImmediate is function');
   assert.isFunction(clearImmediate, 'clearImmediate is function');
+  // Known Node 0.12-8 failures: some native timer functions have empty names.
   assert.name(setImmediate, 'setImmediate');
   assert.name(clearImmediate, 'clearImmediate');
   let called = false;

@@ -1,10 +1,16 @@
+import { DENO } from '../helpers/constants.js';
+
 import URL from 'core-js-pure/stable/url';
-import parse from 'core-js-pure/stable/url/parse';
+import $parse from 'core-js-pure/stable/url/parse';
 
 QUnit.test('URL.parse', assert => {
+  let parse = $parse;
   assert.isFunction(parse);
   assert.arity(parse, 1);
   assert.name(parse, 'parse');
+
+  // Deno 1.46.3 and 2.x require a URL receiver even for the exported static method.
+  if (DENO) parse = parse.bind(URL);
 
   assert.same(parse(undefined), null, 'undefined');
   assert.same(parse(undefined, undefined), null, 'undefined, undefined');

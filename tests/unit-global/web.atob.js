@@ -1,11 +1,12 @@
 // based on https://github.com/davidchambers/Base64.js/blob/master/test/base64.js
-import { NODE } from '../helpers/constants.js';
+import { NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
 
+// Deno 1.x implements this API in JavaScript without native-looking source strings.
 QUnit.test('atob', assert => {
   assert.isFunction(atob);
   assert.arity(atob, 1);
   assert.name(atob, 'atob');
-  if (!NODE) assert.looksNative(atob);
+  if (!NODE && !DENO) assert.looksNative(atob);
 
   assert.same(atob(''), '');
   assert.same(atob('Zg=='), 'f');
@@ -27,7 +28,8 @@ QUnit.test('atob', assert => {
   assert.same(atob(42), atob('42'));
   assert.same(atob(null), atob('null'));
 
-  assert.throws(() => atob(), TypeError, 'no args');
+  // Deno 1.0-1.14 throws InvalidCharacterError instead of TypeError without arguments.
+  if (!DENO || DENO_VERSION >= 115) assert.throws(() => atob(), TypeError, 'no args');
   assert.throws(() => atob('a'), 'invalid #1');
   assert.throws(() => atob('a '), 'invalid #2');
   assert.throws(() => atob('aaaaa'), 'invalid #3');

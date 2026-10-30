@@ -1,3 +1,5 @@
+import { DENO, DENO_VERSION } from '../helpers/constants.js';
+
 // based on https://github.com/davidchambers/Base64.js/blob/master/test/base64.js
 import atob from 'core-js-pure/stable/atob';
 
@@ -25,7 +27,8 @@ QUnit.test('atob', assert => {
   assert.same(atob(42), atob('42'));
   assert.same(atob(null), atob('null'));
 
-  assert.throws(() => atob(), TypeError, 'no args');
+  // Deno 1.0-1.14 throws InvalidCharacterError instead of TypeError without arguments.
+  if (!DENO || DENO_VERSION >= 115) assert.throws(() => atob(), TypeError, 'no args');
   assert.throws(() => atob('a'), 'invalid #1');
   assert.throws(() => atob('a '), 'invalid #2');
   assert.throws(() => atob('aaaaa'), 'invalid #3');

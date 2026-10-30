@@ -1,6 +1,6 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-import { DESCRIPTORS, GLOBAL, NODE, BUN } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
 const { from } = Array;
@@ -85,7 +85,9 @@ QUnit.module('structuredClone', () => {
 
   // "Primitive" Objects (Boolean, Number, BigInt, String)
   QUnit.test('primitive objects', assert => {
-    const primitives = [...booleans, ...numbers, ...bigints, ...strings];
+    // Deno 1.11-1.12 PerformanceMark cannot clone boxed strings.
+    const boxedStrings = DENO_VERSION === 111 || DENO_VERSION === 112 ? [] : strings;
+    const primitives = [...booleans, ...numbers, ...bigints, ...boxedStrings];
 
     for (const value of primitives) cloneObjectTest(assert, Object(value), (orig, clone) => {
       assert.same(orig.valueOf(), clone.valueOf(), 'primitive wrappers should have same value');
@@ -151,14 +153,19 @@ QUnit.module('structuredClone', () => {
       assert.same(clone.byteLength, 0, 'empty buffer');
       assert.same(structuredClone(view).length, 0, 'empty view');
       assert.same(new DataView(buffer).byteLength, 0, 'source is attached');
-      // V8 in Node 10.24 and Chrome 67 still accepts an empty buffer after WebAssembly memory growth.
+      // Node 10.24 and Chrome 67-73 keep the old empty buffer usable after growth.
+      // Check detachment after growing non-empty memory instead.
       memory.grow(1);
-      assert.throws(() => structuredClone(buffer), error => error.name === 'DataCloneError', 'old buffer is detached');
-      assert.throws(() => structuredClone(view), error => error.name === 'DataCloneError', 'old view is detached');
+      const nonEmptyBuffer = memory.buffer;
+      const nonEmptyView = new Uint8Array(nonEmptyBuffer);
+      memory.grow(1);
+      assert.throws(() => structuredClone(nonEmptyBuffer), error => error.name === 'DataCloneError', 'old buffer is detached');
+      assert.throws(() => structuredClone(nonEmptyView), error => error.name === 'DataCloneError', 'old view is detached');
     });
 
     const SharedArrayBuffer = fromSource('SharedArrayBuffer');
-    if (SharedArrayBuffer) QUnit.test('SharedArrayBuffer', assert => {
+    // Deno 1.11 PerformanceMark rejects SharedArrayBuffer.
+    if (SharedArrayBuffer && DENO_VERSION !== 111) QUnit.test('SharedArrayBuffer', assert => {
       const buffer = new SharedArrayBuffer(8);
       const view = new Uint8Array(buffer);
       const copy = structuredClone({ buffer, view });
@@ -640,7 +647,8 @@ QUnit.module('structuredClone', () => {
   // [Serializable] Platform objects
 
   // Geometry types
-  if (typeof DOMMatrix == 'function') {
+  // Deno 2.8-2.9 clones DOMMatrix as a plain object.
+  if (!DENO && typeof DOMMatrix == 'function') {
     QUnit.test('Geometry types, DOMMatrix', assert => {
       cloneObjectTest(assert, new DOMMatrix(), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -650,7 +658,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMMatrixReadOnly == 'function' && typeof DOMMatrixReadOnly.fromMatrix == 'function') {
+  // Deno 2.8-2.9 clones DOMMatrixReadOnly as a plain object.
+  if (!DENO && typeof DOMMatrixReadOnly == 'function' && typeof DOMMatrixReadOnly.fromMatrix == 'function') {
     QUnit.test('Geometry types, DOMMatrixReadOnly', assert => {
       cloneObjectTest(assert, new DOMMatrixReadOnly(), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -660,7 +669,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMPoint == 'function') {
+  // Deno 2.8-2.9 clones DOMPoint as a plain object.
+  if (!DENO && typeof DOMPoint == 'function') {
     QUnit.test('Geometry types, DOMPoint', assert => {
       cloneObjectTest(assert, new DOMPoint(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -670,7 +680,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMPointReadOnly == 'function' && typeof DOMPointReadOnly.fromPoint == 'function') {
+  // Deno 2.8-2.9 clones DOMPointReadOnly as a plain object.
+  if (!DENO && typeof DOMPointReadOnly == 'function' && typeof DOMPointReadOnly.fromPoint == 'function') {
     QUnit.test('Geometry types, DOMPointReadOnly', assert => {
       cloneObjectTest(assert, new DOMPointReadOnly(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -680,7 +691,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMQuad == 'function' && typeof DOMPoint == 'function') {
+  // Deno 2.8-2.9 clones DOMQuad as a plain object.
+  if (!DENO && typeof DOMQuad == 'function' && typeof DOMPoint == 'function') {
     QUnit.test('Geometry types, DOMQuad', assert => {
       cloneObjectTest(assert, new DOMQuad(
         new DOMPoint(1, 2, 3, 4),
@@ -695,7 +707,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (fromSource('new DOMRect(1, 2, 3, 4)')) {
+  // Deno 2.8-2.9 clones DOMRect as a plain object.
+  if (!DENO && fromSource('new DOMRect(1, 2, 3, 4)')) {
     QUnit.test('Geometry types, DOMRect', assert => {
       cloneObjectTest(assert, new DOMRect(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -705,7 +718,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMRectReadOnly == 'function' && typeof DOMRectReadOnly.fromRect == 'function') {
+  // Deno 2.8-2.9 clones DOMRectReadOnly as a plain object.
+  if (!DENO && typeof DOMRectReadOnly == 'function' && typeof DOMRectReadOnly.fromRect == 'function') {
     QUnit.test('Geometry types, DOMRectReadOnly', assert => {
       cloneObjectTest(assert, new DOMRectReadOnly(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -715,8 +729,9 @@ QUnit.module('structuredClone', () => {
     });
   }
 
+  // Deno through 2.7 clones ImageData as a plain object.
   // Safari 8- does not support `{ colorSpace }` option
-  if (fromSource('new ImageData(new ImageData(8, 8).data, 8, 8, { colorSpace: new ImageData(8, 8).colorSpace })')) {
+  if ((!DENO || DENO_VERSION >= 208) && fromSource('new ImageData(new ImageData(8, 8).data, 8, 8, { colorSpace: new ImageData(8, 8).colorSpace })')) {
     QUnit.test('ImageData', assert => {
       const imageData = new ImageData(8, 8);
       for (let i = 0; i < 256; ++i) {
@@ -731,7 +746,8 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (fromSource('new Blob(["test"])')) QUnit.test('Blob', assert => {
+  // Deno 1.x (except 1.10) and 2.0-2.7 lose Blob data or its prototype when cloning.
+  if ((!DENO || DENO_VERSION === 110 || DENO_VERSION >= 208) && fromSource('new Blob(["test"])')) QUnit.test('Blob', assert => {
     cloneObjectTest(
       assert,
       new Blob(['This is a test.'], { type: 'a/b' }),
@@ -758,15 +774,17 @@ QUnit.module('structuredClone', () => {
   });
 
   // https://github.com/oven-sh/bun/issues/11696
-  if (!BUN && fromSource('new File(["test"], "foo.txt")')) QUnit.test('File', assert => {
+  // Deno 1.0 loses the File prototype; 1.10 ignores inherited type / lastModified options.
+  if (!BUN && (!DENO || DENO_VERSION >= 111) && fromSource('new File(["test"], "foo.txt")')) QUnit.test('File', assert => {
     cloneObjectTest(
       assert,
-      new File(['This is a test.'], 'foo.txt', { type: 'c/d' }),
+      new File(['This is a test.'], 'foo.txt', { type: 'c/d', lastModified: 123 }),
       (orig, clone) => {
         assert.same(orig.size, clone.size);
         assert.same(orig.type, clone.type);
         assert.same(orig.name, clone.name);
-        assert.same(orig.lastModified, clone.lastModified);
+        // Old Firefox versions ignore the lastModified option.
+        if (orig.lastModified === 123) assert.same(orig.lastModified, clone.lastModified);
         // TODO: async
         // assert.same(await orig.text(), await clone.text());
       });
@@ -1055,7 +1073,8 @@ QUnit.module('structuredClone', () => {
   if (typeof VideoFrame == 'function') media.push(['VideoFrame', () => new VideoFrame(new Uint8Array([0, 0, 0, 255]), {
     format: 'RGBA', codedWidth: 1, codedHeight: 1, timestamp: 0,
   }), 'codedWidth']);
-  if (typeof createImageBitmap == 'function' && (!structuredClone.sham || fromSource("new OffscreenCanvas(1, 1).getContext('bitmaprenderer')"))) {
+  // Deno exposes ImageBitmap without native transfer support.
+  if (!DENO && typeof createImageBitmap == 'function' && (!structuredClone.sham || fromSource("new OffscreenCanvas(1, 1).getContext('bitmaprenderer')"))) {
     media.push(['ImageBitmap', () => createImageBitmap(new ImageData(1, 1)), 'width']);
   }
   for (const [type, create, size] of media) QUnit.test(`${ type } transfer`, assert => {
@@ -1179,8 +1198,8 @@ QUnit.module('structuredClone', () => {
 
     const event = fromSource('new Event("")');
 
-    // NodeJS events are simple objects
-    if (event && !NODE) nons.push(['Event', event]);
+    // NodeJS and Deno 1.x events are cloned as ordinary objects.
+    if (event && !NODE && (!DENO || DENO_VERSION >= 200)) nons.push(['Event', event]);
 
     for (const [name, it] of nons) {
       assert.throws(() => structuredClone(it), error => error.name === 'DataCloneError', name);

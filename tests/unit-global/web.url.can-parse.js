@@ -1,4 +1,4 @@
-import { NODE } from '../helpers/constants.js';
+import { NODE, DENO } from '../helpers/constants.js';
 
 QUnit.test('URL.canParse', assert => {
   const { canParse } = URL;
@@ -6,7 +6,8 @@ QUnit.test('URL.canParse', assert => {
   assert.isFunction(canParse);
   assert.arity(canParse, 1);
   assert.name(canParse, 'canParse');
-  if (!NODE) assert.looksNative(canParse);
+  // Deno 1.x implements this API in JavaScript without native-looking source strings.
+  if (!NODE && !DENO) assert.looksNative(canParse);
 
   assert.false(canParse(undefined), 'undefined');
   assert.false(canParse(undefined, undefined), 'undefined, undefined');

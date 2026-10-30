@@ -1,5 +1,5 @@
 /* eslint-disable unicorn/relative-url-style -- required for testing */
-import { DESCRIPTORS, NODE } from '../helpers/constants.js';
+import { DESCRIPTORS, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
 import urlTestData from '../wpt-url-resources/urltestdata.js';
 import settersTestData from '../wpt-url-resources/setters.js';
 import toASCIITestData from '../wpt-url-resources/toascii.js';
@@ -8,9 +8,11 @@ const { hasOwnProperty } = Object.prototype;
 
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
-  if (!NODE) assert.arity(URL, 1);
+  // Deno 1.10 exposes arity 2.
+  if (!NODE && DENO_VERSION !== 110) assert.arity(URL, 1);
   assert.name(URL, 'URL');
-  if (!NODE) assert.looksNative(URL);
+  // Deno 1.x implements this API in JavaScript without native-looking source strings.
+  if (!NODE && !DENO) assert.looksNative(URL);
 
   assert.same(String(new URL('http://www.domain.com/a/b')), 'http://www.domain.com/a/b');
   assert.same(String(new URL('/c/d', 'http://www.domain.com/a/b')), 'http://www.domain.com/c/d');
@@ -71,6 +73,7 @@ QUnit.test('URL constructor', assert => {
   // assert.throws(() => new URL('http://a\u00A0b.example.com/'), 'no-break space in a domain'); // 'a%20b.example.com' in Chromium
   // assert.throws(() => new URL('http://a\u3000b.example.com/'), 'ideographic space in a domain'); // 'a%20b.example.com' in Chromium
   // assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point'); // no error in Chrome 67 and 109
+  // Known Node 10-14 failure: native URL accepts a domain mapped to an empty string.
   assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
 
   // the forbidden host code point set is smaller - an opaque host keeps them percent-encoded
@@ -109,6 +112,7 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('http://%D0%B1.com/').hostname, 'xn--90a.com', 'percent-decoded non-ASCII domain');
   // assert.throws(() => new URL('http://%01.example.com/'), 'percent-decoded forbidden domain code point'); // no error in Safari 14
   // assert.throws(() => new URL('http://a%b'), 'invalid percent sequence in a domain'); // accepted by native Firefox 57-66
+  // Known Node 20.0.0 failures: percent-decoded IPv4 yields an empty hostname.
   assert.same(new URL('http://%31%32%37.0.0.1/').hostname, '127.0.0.1', 'percent-decoded domain parsed as IPv4');
   assert.same(new URL('http://127.0.0.%31/').hostname, '127.0.0.1', 'percent-decoded IPv4 last part');
   assert.same(new URL('http://%30x7f.0.0.1/').hostname, '127.0.0.1', 'percent-decoded hexadecimal IPv4 part');
@@ -177,7 +181,8 @@ QUnit.test('URL#href', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'href'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'href');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -260,7 +265,8 @@ QUnit.test('URL#origin', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'origin'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'origin');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
   }
@@ -279,7 +285,8 @@ QUnit.test('URL#protocol', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'protocol'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'protocol');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -319,7 +326,8 @@ QUnit.test('URL#username', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'username'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'username');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -350,7 +358,8 @@ QUnit.test('URL#password', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'password'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'password');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -384,7 +393,8 @@ QUnit.test('URL#host', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'host'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'host');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -468,7 +478,8 @@ QUnit.test('URL#hostname', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'hostname'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hostname');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -540,7 +551,8 @@ QUnit.test('URL#port', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'port'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'port');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -583,7 +595,8 @@ QUnit.test('URL#pathname', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'pathname'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'pathname');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -609,7 +622,8 @@ QUnit.test('URL#search', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'search'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'search');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -665,7 +679,8 @@ QUnit.test('URL#searchParams', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'searchParams'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'searchParams');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
   }
@@ -695,7 +710,8 @@ QUnit.test('URL#hash', assert => {
   if (DESCRIPTORS) {
     assert.false(hasOwnProperty.call(url, 'hash'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hash');
-    assert.true(descriptor.enumerable);
+    // Deno 1.10 URL accessors are not enumerable.
+    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -743,8 +759,10 @@ QUnit.test('URL#toJSON', assert => {
   assert.isFunction(toJSON);
   assert.arity(toJSON, 0);
   assert.name(toJSON, 'toJSON');
-  assert.enumerable(URL.prototype, 'toJSON');
-  if (!NODE) assert.looksNative(toJSON);
+  // Deno 1.10 URL methods are not enumerable.
+  if (DENO_VERSION !== 110) assert.enumerable(URL.prototype, 'toJSON');
+  // Deno 1.x implements this API in JavaScript without native-looking source strings.
+  if (!NODE && !DENO) assert.looksNative(toJSON);
 
   const url = new URL('http://zloirock.ru/');
   assert.same(url.toJSON(), 'http://zloirock.ru/');
@@ -760,8 +778,10 @@ QUnit.test('URL#toString', assert => {
   assert.isFunction(toString);
   assert.arity(toString, 0);
   assert.name(toString, 'toString');
-  assert.enumerable(URL.prototype, 'toString');
-  if (!NODE) assert.looksNative(toString);
+  // Deno 1.10 URL methods are not enumerable.
+  if (DENO_VERSION !== 110) assert.enumerable(URL.prototype, 'toString');
+  // Deno 1.x implements this API in JavaScript without native-looking source strings.
+  if (!NODE && !DENO) assert.looksNative(toString);
 
   const url = new URL('http://zloirock.ru/');
   assert.same(url.toString(), 'http://zloirock.ru/');
@@ -772,7 +792,8 @@ QUnit.test('URL#toString', assert => {
   }
 });
 
-QUnit.test('URL#@@toStringTag', assert => {
+// Deno 1.10 uses the Object tag for URL.
+QUnit[DENO_VERSION === 110 ? 'skip' : 'test']('URL#@@toStringTag', assert => {
   const url = new URL('http://zloirock.ru/');
   assert.same({}.toString.call(url), '[object URL]');
 });

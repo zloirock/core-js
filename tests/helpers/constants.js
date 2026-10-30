@@ -14,6 +14,12 @@ export const GLOBAL = Function('return this')();
 
 export const NATIVE = GLOBAL.NATIVE || false;
 
+export const DENO = !!GLOBAL.Deno?.version?.deno;
+
+const denoVersion = DENO ? GLOBAL.Deno.version.deno.split('.') : [];
+// Major and minor versions: Deno 1.10 -> 110, Deno 2.9 -> 209.
+export const DENO_VERSION = DENO ? denoVersion[0] * 100 + +denoVersion[1] : 0;
+
 export const NODE = typeof Bun == 'undefined' && Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
 
 export const BUN = typeof Bun != 'undefined' && Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';

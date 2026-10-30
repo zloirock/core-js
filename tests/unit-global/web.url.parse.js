@@ -1,12 +1,16 @@
-import { NODE } from '../helpers/constants.js';
+import { NODE, DENO } from '../helpers/constants.js';
 
 QUnit.test('URL.parse', assert => {
-  const { parse } = URL;
+  let { parse } = URL;
 
   assert.isFunction(parse);
   assert.arity(parse, 1);
   assert.name(parse, 'parse');
-  if (!NODE) assert.looksNative(parse);
+  // Deno 1.x implements this API in JavaScript without native-looking source strings.
+  if (!NODE && !DENO) assert.looksNative(parse);
+
+  // Deno 1.46.3 and 2.x require a URL receiver even for the exported static method.
+  if (DENO) parse = parse.bind(URL);
 
   assert.same(parse(undefined), null, 'undefined');
   assert.same(parse(undefined, undefined), null, 'undefined, undefined');
