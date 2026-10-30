@@ -9,6 +9,7 @@ QUnit.test('Math.log1p', assert => {
   assert.nonEnumerable(Math, 'log1p');
   assert.same(log1p(''), log1p(0));
   assert.same(log1p(NaN), NaN);
+  // Known Firefox 4-5 failure for this NaN result.
   assert.same(log1p(-2), NaN);
   assert.same(log1p(-1), -Infinity);
   assert.same(log1p(0), 0);

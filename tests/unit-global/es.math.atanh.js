@@ -8,6 +8,7 @@ QUnit.test('Math.atanh', assert => {
   assert.looksNative(atanh);
   assert.nonEnumerable(Math, 'atanh');
   assert.same(atanh(NaN), NaN);
+  // Known Firefox 4-5 failures for NaN results from out-of-domain inputs.
   assert.same(atanh(-2), NaN);
   assert.same(atanh(-1.5), NaN);
   assert.same(atanh(2), NaN);

@@ -17,6 +17,7 @@ QUnit.test('Math.fround', assert => {
   assert.same(fround(-0), -0);
   assert.same(fround(MIN_VALUE), 0);
   assert.same(fround(-MIN_VALUE), -0);
+  // Known Firefox 4-5 failures: infinities and +/-MAX_VALUE produce NaN.
   assert.same(fround(Infinity), Infinity);
   assert.same(fround(-Infinity), -Infinity);
   assert.same(fround(MAX_VALUE), Infinity);

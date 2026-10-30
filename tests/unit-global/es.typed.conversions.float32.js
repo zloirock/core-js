@@ -55,6 +55,7 @@ if (DESCRIPTORS) QUnit.test('Float32 conversions', assert => {
     [MIN_SAFE_INTEGER - 1, MIN_SAFE_INTEGER - 1, [0, 0, 0, 218]],
     [MAX_SAFE_INTEGER + 3, MAX_SAFE_INTEGER + 1, [0, 0, 0, 90]],
     [MIN_SAFE_INTEGER - 3, MIN_SAFE_INTEGER - 1, [0, 0, 0, 218]],
+    // Known Firefox 4-5 failures: these infinities and overflows are stored as NaN.
     [Infinity, Infinity, [0, 0, 128, 127]],
     [-Infinity, -Infinity, [0, 0, 128, 255]],
     [Number.MAX_VALUE, Infinity, [0, 0, 128, 127]],

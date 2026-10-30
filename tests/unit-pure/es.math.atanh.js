@@ -7,6 +7,7 @@ QUnit.test('Math.atanh', assert => {
   assert.name(atanh, 'atanh');
   assert.arity(atanh, 1);
   assert.same(atanh(NaN), NaN);
+  // Known Firefox 4-5 failures for NaN results from out-of-domain inputs.
   assert.same(atanh(-2), NaN);
   assert.same(atanh(-1.5), NaN);
   assert.same(atanh(2), NaN);

@@ -43,6 +43,7 @@ if (GLOBAL.JSON?.stringify) {
       NaN,
     ]), stringify(obj1), 'replacer-array-number');
 
+    // Firefox 4-6 ignore this boxed String's toString override.
     const str1 = new String('str');
     str1.toString = () => 'toString';
     str1.valueOf = () => { throw new EvalError('should not be called'); };
@@ -64,6 +65,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify({ a: { d: 1, c: 2 }, b: 3 }, ['b', 'a', 'c', 'd']), '{"b":3,"a":{"c":2,"d":1}}', 'replacer-array-order-3');
     assert.same(stringify({ b: 1, a: 2 }, ['a', 'b'], 1), '{\n "a": 2,\n "b": 1\n}', 'replacer-array-order-4');
     assert.same(stringify([{ b: 1, a: 2 }], ['a', 'b']), '[{"a":2,"b":1}]', 'replacer-array-order-5');
+    // Firefox 4-5 use a Unicode escape for the newline instead of the short escape.
     assert.same(stringify({ 'a"b\n': 1, 0: 2 }, ['0', 'a"b\n']), '{"0":2,"a\\"b\\n":1}', 'replacer-array-key-escaping');
     assert.same(stringify({ a: [2, 1] }, ['a']), '{"a":[2,1]}', 'replacer-array-not-applied-to-arrays');
 
@@ -77,6 +79,7 @@ if (GLOBAL.JSON?.stringify) {
     Inherited.prototype = new String('str');
     const inheritedFromBoxed = new Inherited();
     inheritedFromBoxed.b = 1;
+    // Firefox 4 throws here through the inherited native String.prototype.toJSON.
     assert.same(stringify(inheritedFromBoxed, ['0', 'b']), '{"0":"s","b":1}', 'replacer-array-inherits-boxed-primitive-1');
     function InheritedNumber() { /* empty */ }
     InheritedNumber.prototype = Number.prototype;
@@ -251,6 +254,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(obj5, null, 6.99999), stringify(obj5, null, 6), 'space-number-float-3');
 
     assert.same(stringify(obj5, null, new Number(1)), stringify(obj5, null, 1), 'space-number-object-1');
+    // Firefox 5-6 ignore coercion overrides on boxed Number and String space values.
     const num2 = new Number(1);
     num2.toString = () => { throw new EvalError('should not be called'); };
     num2.valueOf = () => 3;
@@ -337,6 +341,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify([NaN]), '[null]', 'value-number-non-finite-3');
 
     assert.same(stringify(new Number(8.5)), '8.5', 'value-number-object-1');
+    // Firefox 5-6 ignore coercion overrides when unboxing Number values.
     assert.same(stringify(['str'], (key, value) => {
       if (value === 'str') {
         const num = new Number(42);
@@ -370,6 +375,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(123), '123', '123');
     assert.same(stringify(undefined), undefined, 'undefined');
 
+    // Firefox 4-5 use Unicode escapes instead of short escapes for control characters.
     const charToJson = {
       '"': '\\"',
       '\\': '\\\\',
@@ -434,6 +440,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify('\uDF06\uDF06\uD834\uD834'), '"\\udf06\\udf06\\ud834\\ud834"', 'JSON.stringify("\\uDF06\\uDF06\\uD834\\uD834")');
     assert.same(stringify('\uDF06\uDF06\uD834\uDF06'), '"\\udf06\\udf06𝌆"', 'JSON.stringify("\\uDF06\\uDF06\\uD834\\uDF06")');
 
+    // Firefox 5-6 ignore toString overrides when unboxing String values.
     assert.same(stringify(new String('str')), '"str"', 'value-string-object-1');
     assert.same(stringify({
       key: {
