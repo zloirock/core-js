@@ -918,21 +918,18 @@ export function runStandsInLoweredGuardTest(startPath, unwrap) {
   return false;
 }
 
-// the DETECT a logical-assignment patch never spells. `X.prototype.m ||= patch` writes only where the
-// slot is EMPTY, and what it tests is the OPERATOR's own read rather than a node - so no read carries
-// the polyfill, and the third-party patch installs in exactly the realms core-js supplies the method
-// for. The explicit twin needs no channel of its own (`X.m = X.m || patch` - the member visitor
-// polyfills the read the source wrote), which is why this shape had none. Answering it keeps the
-// conditional write and puts core-js's own dispatch ahead of the patch (`||= _mMaybeX(X.prototype) ||
-// patch`): where the slot is empty it takes OURS and the patch never runs, and where the slot is
-// filled nothing is written, exactly as the source says. `&&=` is not this shape - it writes only
-// where the slot is ALREADY filled, so prepending ours would install where native does not
+// The operator's implicit read in a fallback patch needs the same instance dispatch as
+// an explicit read. Serve that read once; only a missing served method runs the source
+// fallback and writes it back. A supplied polyfill does not get installed in the raw slot.
+// `&&=` writes on the opposite condition and is not a fallback patch. A super reference
+// is not an expression value for instance dispatch; keep its native lookup and write.
 export function logicalSlotPatchHost(memberPath) {
+  if (memberPath?.node?.object?.type === 'Super') return null;
   const target = climbTransparentWrapperPath(memberPath);
   const host = target?.parentPath?.node;
   if (host?.type !== 'AssignmentExpression' || host.left !== target.node) return null;
   const operator = host.operator === '||=' ? '||' : host.operator === '??=' ? '??' : null;
-  return operator ? { host, operator, receiverNode: target.node.object } : null;
+  return operator ? { host, hostPath: target.parentPath, operator, receiverNode: memberPath.node.object } : null;
 }
 
 // canonical write-host enumeration: is the member-access at `memberPath` the WRITE TARGET of its

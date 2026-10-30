@@ -1,6 +1,6 @@
 // Prototype writes retain the target and route constructors where needed. Instance reads
 // use the polyfill, including a self-guard before its own write. A compound ||= or ??=
-// receives that detect explicitly; &&= keeps its native filled-slot condition.
+// serves that implicit read once; &&= keeps its native filled-slot condition.
 Iterator.prototype.customDrop = patch1;
 Map.prototype.getOrUpsert ||= patch2;
 export const m = new Map();
