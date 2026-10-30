@@ -15,6 +15,7 @@ import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usa
 import {
   dispatchConsumesRun,
   planClaimlessCallRootedNav,
+  planLogicalSlotPatch,
   planProxyReceiver,
   resolveSymbolIteratorEntry,
   symbolIteratorHint,
@@ -35,22 +36,21 @@ import {
   unwrapRuntimeExpr,
   staticFallbackSwapRedundant,
   subtreeContainsNode,
-  logicalSlotPatchHost,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
-import { ownEmittedLogicalPatch, ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   assignmentExpression,
   callExpression,
   chainExpression,
   cloneNode,
   identifier,
-  logicalExpression,
   memberExpression,
   sequenceExpression,
   nullGuardTest,
   nullFirstGuardTest,
   renderInExpressionPlan,
+  renderLogicalSlotPatch,
   renderMethodCall,
   renderReceiverEffects,
   renderGuardedMethodCall,
@@ -637,20 +637,22 @@ export default function createAstUsagePureCallback({
     replaceGuardedHop({ hopPath, test: nullGuardTest(check), built, skippedNodes });
   }
 
-  // a logical-assignment PATCH bails the write position like any other, but its DETECT is the
-  // operator's own read and no node spells it - so this binding spells it, putting core-js's own
-  // dispatch ahead of the third-party value and leaving the write as conditional as the source wrote it
+  // Apply the shared patch product and register the new subtree with the native traversal.
   function spellLogicalPatchDetect(meta, metaPath) {
-    if (ownEmittedLogicalPatch(metaPath, ownOutputTests(injectorState))) return;
-    const patch = logicalSlotPatchHost(metaPath);
-    const pure = patch && resolvePure(meta, metaPath);
-    if (!patch || pure?.kind !== 'instance' || skippedNodes.has(patch.host)) return;
-    patch.host.right = logicalExpression(patch.operator, callExpression(
-      identifier(injectPureImport(pure.entry, pure.hintName)),
-      [cloneNode(patch.receiverNode)],
-    ), patch.host.right);
-    markSubtreeSkipped(skippedNodes, patch.host.right);
-    skippedNodes.add(patch.host);
+    const patch = planLogicalSlotPatch(meta, metaPath, {
+      tests: ownOutputTests(injectorState), skippedNodes, resolvePure,
+      ctx: { path: metaPath, scope: metaPath.scope, adapter, injectorState },
+    });
+    if (!patch) return;
+    const sourceRhs = patch.host.right;
+    const product = renderLogicalSlotPatch(patch, {
+      injectImport: injectPureImport, cloneReceiver: cloneNode, mintRef: () => injector.generateDeclaredRef(metaPath),
+    });
+    metaPath.node.object = product.receiver;
+    metaPath.node.property = product.property;
+    // Only the new structure is synthetic; moved source claims remain visitable.
+    markSubtreeSkipped(skippedNodes, product.expression, new Set([patch.receiverNode, patch.keyNode, sourceRhs]));
+    patch.hostPath.replaceWith(product.expression);
     markRewrite();
   }
 

@@ -21230,6 +21230,124 @@ function * generateTrustedBindingReads() {
   }
 }
 
+// Logical patches read the served method once and only write an executed source fallback.
+function * generateLogicalSlotPatches() {
+  const fallback = snippet('logical-slot-patch/fallback', `(() => {
+    const receiver = {};
+    install(receiver);
+    install(receiver);
+    return Object.getOwnPropertyDescriptor(receiver, "at").value.call(receiver);
+  })()`);
+  yield { ...fallback, code: `export function install(receiver) {
+    receiver.at ||= (log.push("rhs"), () => [7].includes(7));
+  }\n${ fallback.code }`, strip: true };
+  for (const [name, setup, target] of [
+    ['call', 'function read() { log.push("receiver"); return []; }', 'read().at'],
+    ['getter', 'const holder = { get rows() { log.push("receiver"); return []; } };', 'holder.rows.at'],
+    ['key-write', 'let rows = []; const other = { at: () => "other" };', 'rows[(log.push("key"), rows = other, "at")]'],
+  ]) for (const operator of ['||=', '??=']) yield { ...snippet(`logical-slot-patch/receiver-${ name }/${ operator }`, `(() => {
+    ${ setup }
+    const method = (${ target } ${ operator } () => "fallback");
+    return method.call([7], 0);
+  })()`), strip: true };
+  for (const [name, body] of [
+    ['parameter', 'function read() { log.push("receiver"); return []; } function pick(method = (read().at ||= () => "fallback")) { return method.call([7], 0); } return pick();'],
+    ['field', 'function read() { log.push("receiver"); return []; } class Box { method = (read().at ??= () => "fallback"); } return new Box().method.call([7], 0);'],
+    ['super', `class Base {
+      get at() { log.push("get"); return undefined; }
+      set at(value) { log.push("set"); this.method = value; }
+    }
+    class Box extends Base { install() { return super.at ||= () => "fallback"; } }
+    const box = new Box(); return box.install()();`],
+  ]) yield { ...snippet(`logical-slot-patch/context-${ name }`, `(() => { ${ body } })()`), strip: true };
+  for (const operator of ['||=', '??=']) for (const [name, target, ts] of [
+    ['plain', 'Array.prototype.flatMap', false],
+    ['cast', '(Array.prototype.flatMap as any)', true],
+    ['key-non-null', 'Array.prototype[(log.push("key"), "flatMap")]!', true],
+  ]) yield { ...mutationSnippet(`logical-slot-patch/${ name }/${ operator }`, `(() => {
+    const descriptor = _nativeObject.getOwnPropertyDescriptor(Array.prototype, "flatMap");
+    try {
+      const selected = (${ target } ${ operator } (log.push("rhs"), () => ["fallback"]));
+      return selected.call([1, 2], value => [value, value + 1]);
+    } finally { restoreProperty(Array.prototype, "flatMap", descriptor); }
+  })()`), ts };
+
+  for (const operator of ['||=', '??=']) yield { ...snippet(`logical-slot-patch/served-read/${ operator }`, `(() => {
+    const receiver = [];
+    const selected = (receiver.at ${ operator } () => "fallback");
+    return [selected.call([7], 0), Object.getOwnPropertyDescriptor(receiver, "at") === undefined];
+  })()`), strip: true };
+  for (const operator of ['||=', '??=']) for (const value of ['undefined', 'null', 'false', '0', '""', '() => "own"']) {
+    yield { ...snippet(`logical-slot-patch/getter/${ operator }/${ value }`, `(() => {
+      const receiver = [];
+      Object.defineProperty(receiver, "at", {
+        get() { log.push("get"); return ${ value }; },
+        set(value) { log.push("set:" + typeof value); }
+      });
+      const selected = (receiver[(log.push("key"), "at")] ${ operator } (log.push("rhs"), "fallback"));
+      return typeof selected === "function" ? selected() : selected;
+    })()`), strip: true };
+  }
+  for (const operator of ['||=', '??=']) yield { ...snippet(`logical-slot-patch/changing-getter/${ operator }`, `(() => {
+    let reads = 0;
+    const receiver = [];
+    Object.defineProperty(receiver, "at", {
+      get() { log.push("get"); return reads++ ? () => "late" : undefined; },
+      set(value) { log.push("set"); }
+    });
+    const selected = (receiver.at ${ operator } (log.push("rhs"), () => "fallback"));
+    return selected();
+  })()`), strip: true };
+  for (const operator of ['||=', '??=']) for (const [name, setup] of [
+    ['key-throw', 'function key() { log.push("key"); throw new Error("key"); } const receiver = [];'],
+    ['read-throw', `const receiver = [];
+      Object.defineProperty(receiver, "at", { get() { log.push("get"); throw new Error("read"); } });
+      function key() { log.push("key"); }`],
+    ['write-throw', `const receiver = [];
+      Object.defineProperty(receiver, "at", {
+        get() { log.push("get"); }, set(value) { log.push("set"); throw new Error("write"); }
+      });
+      function key() { log.push("key"); }`],
+  ]) yield { ...snippet(`logical-slot-patch/throw/${ name }/${ operator }`, `(() => {
+    ${ setup }
+    try { receiver[(key(), "at")] ${ operator } (log.push("rhs"), "fallback"); }
+    catch (error) { return error.message; }
+  })()`), strip: true };
+  for (const operator of ['||=', '??=']) yield { ...snippet(`logical-slot-patch/read-rebind/${ operator }`, `(() => {
+    let receiver = [];
+    const first = receiver;
+    Object.defineProperty(first, "at", {
+      get() { log.push("get"); receiver = {}; },
+      set(value) { log.push("first-set"); }
+    });
+    receiver.at ${ operator } (log.push("rhs"), "fallback");
+    return Object.getOwnPropertyDescriptor(receiver, "at") === undefined;
+  })()`), strip: true };
+  for (const operator of ['||=', '??=']) yield { ...snippet(`logical-slot-patch/nested-fallback/${ operator }`, `(() => {
+    const outer = [];
+    const inner = {};
+    Object.defineProperty(outer, "at", { value: undefined, writable: true });
+    const method = (outer.at ${ operator } () => {
+      log.push("outer");
+      return (inner.includes ${ operator } () => [7].includes(7))();
+    });
+    return [method(), method()];
+  })()`), strip: true };
+  for (const [name, setup, expression] of [
+    ['own-method', 'const rows = { at() { return "own"; } };', 'rows.at ||= fallback'],
+    ['shadowed-global', 'const Array = { prototype: { flatMap: null } };', 'Array.prototype.flatMap ??= fallback'],
+    ['receiver-key', 'const rows = { at: null }; function read() { log.push("receiver"); return rows; }', 'read()[(log.push("key"), "at")] ||= fallback'],
+    ['and-empty', 'const rows = { at: null };', 'rows.at &&= fallback'],
+    ['and-filled', 'const rows = { at() { return "own"; } };', 'rows.at &&= fallback'],
+    ['throwing-key', 'const rows = {}; function key() { log.push("key"); throw new Error("key"); }', 'rows[key()] ||= fallback'],
+  ]) yield { ...snippet(`logical-slot-patch/${ name }`, `(() => {
+    ${ setup }
+    function fallback() { log.push("call"); return "fallback"; }
+    try { const selected = (${ expression }); return selected == null ? "empty" : selected(); }
+    catch (error) { return error.message; }
+  })()`), strip: false };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21644,4 +21762,5 @@ export function * generate() {
   yield * generateDestructureResidualOrder();
   yield * generateNestedExtractionReceivers();
   yield * generateTrustedBindingReads();
+  yield * generateLogicalSlotPatches();
 }

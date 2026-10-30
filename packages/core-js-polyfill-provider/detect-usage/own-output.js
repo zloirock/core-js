@@ -788,16 +788,12 @@ function ownRenderedGuardAlternateClaim(path, tests) {
   return false;
 }
 
-// the LOGICAL-ASSIGNMENT PATCH's own render read back. The binding puts our dispatch ahead of the
-// third-party value and leaves the `||=` host exactly as the source wrote it, so a later pass finds
-// the same shape and prepends a second copy - one dispatch more per pass, converging on nothing. No
-// fixture can see it: a fixture compares ONE pass, and the growth needs two. `path` is the member the
-// operator writes, and the leading operand being a call of a PRIOR-pass pure binding is the tell
-export function ownEmittedLogicalPatch(path, tests) {
-  const host = path.parentPath?.node;
-  if (host?.type !== 'AssignmentExpression' || host.left !== path.node) return false;
-  const operator = host.operator === '||=' ? '||' : host.operator === '??=' ? '??' : null;
-  if (!operator) return false;
+// Recognize the legacy logical-patch render before adding another dispatch. Its RHS
+// already starts with a prior-pass pure read; the retained source operator alone cannot
+// distinguish it from a fresh patch. New output has an ordinary conditional assignment.
+// The source finder supplies the host through target wrappers; import provenance, not
+// the callee's spelling, identifies a prior pass.
+export function ownEmittedLogicalPatch(path, { host, operator }, tests) {
   const right = unwrapRuntimeExpr(host.right);
   if (right?.type !== 'LogicalExpression' || right.operator !== operator) return false;
   const call = unwrapRuntimeExpr(right.left);
