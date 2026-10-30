@@ -67,7 +67,6 @@ jobs:
           - 24
           - 25
           - 26
-          - 27
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -93,7 +92,6 @@ jobs:
           - 24
           - 25
           - 26
-          - 27
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
