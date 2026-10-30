@@ -1,3 +1,4 @@
+import { sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import { optionalMemberStaysGuarded, planSymbolReceiverEffects } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   aliasRootedReadMayThrow,
@@ -62,7 +63,6 @@ import {
   replaceGuardedHop,
   sealedClaimThrowProbe,
   sealedLayerAbove,
-  sealedThrowRidesTheClaim,
 } from './claim-guards.js';
 import {
   climbToCallerPath,
@@ -846,7 +846,7 @@ export default function createAstUsagePureCallback({
     // that can genuinely be undefined (an environment probe) keeps its guard routes
     if (node.type === 'MemberExpression' && node.optional
       && optionalMemberStaysGuarded(node, { path: metaPath, adapter, resolvePure: m => resolvePure(m, metaPath) })
-      && !sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx)
+      && sealedClaimDisposition(node, m => resolvePure(m, metaPath), { scope: metaPath.scope, adapter, path: metaPath })?.kind !== 'throw'
       && !deleteHostForClaim(metaPath, node, { forFold: true })
       && emitOwnOptionalGuardedClaim({ meta, metaPath, node, parent, kind, entry, hintName })) return;
     // a guarded-nav static under an OPTIONAL call: the `?.()` rides the ternary outside

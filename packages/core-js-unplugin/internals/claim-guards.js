@@ -1,25 +1,15 @@
 // guard rendering for claims over undefinable receivers: the null-probe tests, seals,
 // absorbed tails and the guarded-hop replacement every channel spells through
-import { guardProbeUndefinable as probeValueCanBeUndefined } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
-  directClaimProbePlan,
-  deleteHostAboveCarriedChain,
-  createGuardTailPlanner,
-  proxyReceiverValueCanBeUndefined,
-  realmRootIsSpellable,
-  sealedChainBoundary,
-  unbackedProxyHopKey,
-} from '@core-js/polyfill-provider/detect-usage/resolve';
+  guardProbeUndefinable as probeValueCanBeUndefined,
+  planGuardedClaimTail,
+} from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import { directClaimProbePlan, createGuardTailPlanner, unbackedProxyHopKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   CHAIN_HOP_WRAPPER_TYPES,
   claimDeleteOperand,
-  deleteHostAboveChain,
   deleteOverOpenContinuation,
   invocationCalleeOf,
-  isPristineProxyGlobal,
-  memberKeyName,
-  parenSealedCalleeAbove,
-  POSSIBLE_GLOBAL_OBJECTS,
   stepOverChainWrappers,
   subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -50,27 +40,6 @@ export function optionalCallSegmentBelow(node) {
     cur = unwrapRuntimeExpr(cur.object);
   }
   return false;
-}
-
-function parenSealedCalleeTail(hopPath) {
-  if (!parenSealedCalleeAbove(hopPath, hopPath.node, unwrapRuntimeExpr)) return null;
-  // the tail the seal keeps outside starts at the FIRST plain member above the hop
-  let first = null;
-  for (let cur = hopPath, up = hopPath.parentPath; up?.node; up = cur.parentPath) {
-    const upNode = up.node;
-    if (CHAIN_HOP_WRAPPER_TYPES.has(upNode.type)) {
-      cur = up;
-      continue;
-    }
-    if (upNode.type === 'MemberExpression' && upNode.object === cur.node && !upNode.optional) {
-      first ??= upNode;
-      cur = up;
-      continue;
-    }
-    // only SOURCE PARENS keep the tail outside: a TS cast erases at emit, so the fold stands
-    return upNode.type === 'ParenthesizedExpression' && upNode.expression === cur.node ? first : null;
-  }
-  return null;
 }
 
 // what reads a realm hop the climb stands on, through the chain wrappers between - and whether that
@@ -230,27 +199,17 @@ export function replaceGuardedHop({
   // [(eff(), 'flat')].name` - the split render detaches the caller the SE-key claim holds):
   // a stale path is a no-op, never a throw
   if (hopPath.removed) return;
-  // TS wrappers the climb steps over end up INSIDE the absorbed tail: what they asserted about is
-  // the substitution, so they go with the source spelling they wrapped
-  // (`globalThis.window?.self!.window` -> `... : _self.window`)
-  let sealedTail = test ? parenSealedCalleeTail(hopPath) : null;
-  // ... and a sealed tail that is itself a realm hop FOLDS like any other read through this
-  // emission: the ponyfill is what it names, and the read OUTSIDE the seal keeps the source's own
-  // throw on the short-circuit (`(g?.window?.self.window).Array` -> `(<guard>).Array`)
-  if (sealedTail && alwaysDefined && !sealedTail.computed && hopIsUnbacked?.(sealedTail)) sealedTail = null;
-  // a `delete` consumer needs the MEMBER itself: pulled into the alternate the ternary
-  // deletes nothing, so the tail stays outside the climb and the operator takes the guard whole
-  // (`delete dl()?.window?.self.missing` -> `null == dl().window ? true : delete _self.missing`).
-  // ONE home for that question - asked of the hop the render replaces, carriers included, instead
-  // of each NAV channel that renders here remembering to hand it in: the ones that forgot absorbed
-  // the member and the delete then deleted nothing. a DISPATCH alternate asks it too: the value
-  // below the member is this render's to mint, but the member itself is one the source names to delete
-  const deleteHostTail = deleteHostAboveChain(hopPath, hopPath.node, unwrapRuntimeExpr)
-    || deleteHostAboveCarriedChain(hopPath);
-  const climbed = test && !sealedTail && !deleteHostTail
-          ? climbAbsorbedTail(hopPath, {
-            alwaysDefined, navAlternate, navCollapse, unbackedHopKey: hopIsUnbacked, preserveOptionalHops,
-          }) : null;
+  const continuation = test ? planGuardedClaimTail(hopPath, { alwaysDefined, resolvePure: resolveHere }) : null;
+  const sealedTail = continuation?.sealedTail;
+  const deleteHostTail = continuation?.deleteHost;
+  const climbed = continuation?.absorb
+    ? climbAbsorbedTail(hopPath, {
+      alwaysDefined,
+      navAlternate,
+      navCollapse,
+      unbackedHopKey: hopIsUnbacked,
+      preserveOptionalHops,
+    }) : null;
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
   const foldedHops = climbed?.foldedHops ?? [];
   if (sealedTail) sealedTail.optional = true;
@@ -419,49 +378,6 @@ export function guardProbeUndefinable(probe, { metaPath, adapter, resolvePure, .
   return probeValueCanBeUndefined(probe, {
     path: metaPath, adapter, resolvePure: meta => resolvePure(meta, metaPath), ...options,
   });
-}
-
-// does a LOAD-BEARING seal below the claim own the render? the read it made observable rides
-// back as a throw probe and the claim's own `?.` erases with the substitution - the guard
-// routes would answer `void 0` where the source THROWS. the probe's own precondition, asked
-// without building (or injecting) anything
-export function sealedThrowRidesTheClaim(node, metaPath, ctx) {
-  const boundary = sealedChainBoundary(node);
-  const key = boundary ? memberKeyName(boundary.member) : null;
-  // a PRISTINE PROXY hop read through the seal is the same surface one level down: it
-  // collapses with the nav and observes nothing the guard does not, so the guard route keeps
-  // it (`((globalThis.window)).self?.Promise?.resolve` - babel spells only the test)
-  if (key === null || (POSSIBLE_GLOBAL_OBJECTS.has(key) && isPristineProxyGlobal(ctx.adapter, key))) return false;
-  return proxyReceiverValueCanBeUndefined(boundary.inner, m => ctx.resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, { throughChainAssign: true });
-}
-
-// a PRISTINE proxy hop read through a SEAL names the same surface the seal produced: the hop
-// DROPS and the read above it lands on the guard, where the source's own throw lives
-// (`(g.window?.self).self.box.at(0)` -> `(null == _g.window ? void 0 : _self).box`). swapping the
-// ponyfill in instead hands the read a never-nullish binding and the throw is lost
-export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure, markRewrite }) {
-  if (node?.type !== 'MemberExpression' || node.computed || node.optional) return false;
-  const key = node.property?.name;
-  if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || !isPristineProxyGlobal(adapter, key)) return false;
-  const boundary = sealedChainBoundary(node);
-  if (boundary?.member !== node) return false;
-  // ... and only where the seal holds a value that can genuinely be ABSENT: that is what makes
-  // the read above it throw, and what the guard render reproduces. a seal over a proven value
-  // has no throw to keep and the ponyfill swap stands (`(bf()).self.Array` -> `_self.Array`)
-  if (!proxyReceiverValueCanBeUndefined(boundary.inner, m => resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true })) return false;
-  // ... and never onto a RAW realm read this build cannot spell: with the root's entry out of the
-  // build nothing substitutes what the drop lands on, and the hop's own ponyfill was the one
-  // spelling available (`(globalThis).self.window` without the global-this entry is `_self.window`)
-  if (!realmRootIsSpellable(node, m => resolvePure(m, metaPath))) return false;
-  // ... only where something READS through it: in value position the drop would hand back the
-  // seal instead of the surface the hop named
-  const above = metaPath.parentPath?.node;
-  if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== node) return false;
-  markRewrite();
-  metaPath.replaceWith(node.object);
-  return true;
 }
 
 // Bind the shared erased-read decision to this source site and injector. Consumers retain

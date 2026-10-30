@@ -23,6 +23,9 @@ import {
   peelPristineProxyHops,
   claimReceiverEvaluationMayThrow,
   keySideEffectsOnly,
+  deleteHostAboveCarriedChain,
+  unbackedProxyHopKey,
+  sealedLayerBetween,
 } from './resolve.js';
 import {
   isMemberAccessNode,
@@ -50,9 +53,53 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   classifyReceiverSE,
   reEvaluationObservable,
+  CHAIN_HOP_WRAPPER_TYPES,
+  deleteHostAboveChain,
 } from '../helpers/ast-patterns.js';
 import { instanceSynthReceiverPure, isConstantLiteralReceiver } from './destructure.js';
 import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
+
+// A guard may absorb the source continuation only while it owns its reads. A
+// sealed callee keeps its reference outside, and delete keeps the member operand.
+// A realm hop can fold onto a defined alternate without changing that
+// reference. Paths are live slots, read synchronously; all edits remain with the binding.
+export function planGuardedClaimTail(path, { alwaysDefined = false, resolvePure = null } = {}) {
+  let sealedTail = null;
+  let first = null;
+  let sealed = false;
+  for (let cur = path, up = path.parentPath; up?.node; up = cur.parentPath) {
+    const { node } = up;
+    sealed ||= !!cur.node.extra?.parenthesized;
+    if (CHAIN_HOP_WRAPPER_TYPES.has(node.type) && node.expression === cur.node) {
+      cur = up;
+      continue;
+    }
+    if (node.type === 'ParenthesizedExpression' && node.expression === cur.node) {
+      sealed = true;
+      cur = up;
+      continue;
+    }
+    if (isMemberAccessNode(node) && node.object === cur.node) {
+      if (!sealed) {
+        if (node.optional) break;
+        first ??= node;
+      }
+      cur = up;
+      continue;
+    }
+    if (sealed && (isCallShape(node) && node.callee === cur.node
+      || node.type === 'TaggedTemplateExpression' && node.tag === cur.node)) sealedTail = first;
+    break;
+  }
+  if (sealedTail && alwaysDefined && !sealedTail.computed && resolvePure && unbackedProxyHopKey(sealedTail, resolvePure)) {
+    sealedTail = null;
+  }
+  const deleteHost = deleteHostAboveChain(path, path.node, unwrapRuntimeExpr) || deleteHostAboveCarriedChain(path);
+  const parent = path.parentPath;
+  const call = isCallShape(parent?.node) && parent.node.callee === path.node && !parent.node.optional
+    && !sealedLayerBetween(path.node, unwrapRuntimeExpr(path.node)) ? parent : null;
+  return { sealedTail, deleteHost, call, absorb: !sealedTail && !deleteHost };
+}
 
 // A symbol receiver's collapsed root owns its dropped prefix. A later key effect
 // takes that prefix through the replay channel; an optional access keeps it inside

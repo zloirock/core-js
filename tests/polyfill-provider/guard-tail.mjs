@@ -1,3 +1,4 @@
+import { planGuardedClaimTail } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 // Guard continuations share one decision across AST hosts. These facts describe the
 // source read and its owned realm fold; planning must not edit either record.
 import {
@@ -89,12 +90,14 @@ for (const [name, source, options, expected] of [
   check(`${ label }/no mutation`, JSON.stringify(program.node), before);
 });
 
-for (const [name, expression, guarded, prelude = ''] of [
+for (const [name, expression, guarded, prelude = '', tail = []] of [
   ['defined leaf', 'globalThis.self', false],
   ['probe below leaf', 'globalThis.window?.self', true],
   ['defined root optional', 'globalThis?.self', false],
   ['sequence guard', '(effect(), globalThis.window)?.self', true],
   ['alias guard', 'realm?.self', true, 'const realm = globalThis.window;'],
+  ['root guard folds its continuation', 'realm?.self.window', true, 'const realm = globalThis.window?.self;'],
+  ['hop guard retains its terminal probe', 'globalThis.window?.self.window', true, '', ['window']],
 ]) runBoth(name, `${ prelude } const value = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
@@ -107,6 +110,7 @@ for (const [name, expression, guarded, prelude = ''] of [
   });
   check(`${ label }/plan exists`, !!plan, true);
   check(`${ label }/guard`, navPlanNeedsGuard(plan), guarded);
+  checkDeep(`${ label }/retained tail`, plan.hops.slice(plan.collapseIdx + 1).map(hop => hop.name), tail);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
 check('no plan owes no guard', navPlanNeedsGuard(null), false);
@@ -143,5 +147,27 @@ for (let index = 0; index < 64; index++) {
 }
 check('folded prefix leaves the next receiver defined', longClimb(steps.optional).optional, false);
 check('long prefix still stops at the second guard', longClimb(steps.optional), null);
+
+for (const [expression, seal, deleted, called] of [
+  ['globalThis.window?.self.box', null, false, false],
+  ['globalThis.window?.self(1)', null, false, true],
+  ['(globalThis.window?.self)(1)', null, false, false],
+  ['(globalThis.window?.self.box)()', 'box', false, false],
+  ['(globalThis.window?.self.box)`tag`', 'box', false, false],
+  ['consume(globalThis.window?.self.box)', null, false, false],
+  ['delete globalThis.window?.self.box', null, true, false],
+  ['delete (globalThis.window?.self).box', null, true, false],
+]) runBoth(`claim continuation/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+  const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+  const path = parser.pickPath(program, type, item => item.node.property.name === 'self');
+  const before = JSON.stringify(program.node);
+  const plan = planGuardedClaimTail(path);
+  check(`${ label }/sealed reference`, plan.sealedTail?.property.name ?? null, seal);
+  check(`${ label }/delete operand`, !!plan.deleteHost, deleted);
+  check(`${ label }/plain invocation`, !!plan.call, called);
+  check(`${ label }/absorption`, plan.absorb, !seal && !deleted);
+  if (called) check(`${ label }/call slot identity`, plan.call, path.parentPath);
+  check(`${ label }/source intact`, JSON.stringify(program.node), before);
+});
 
 finish();

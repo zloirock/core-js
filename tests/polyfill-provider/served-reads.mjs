@@ -9,6 +9,7 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { servedRead } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { markRenderedStoredValue } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
 const { checkDeep, finish } = createChecker('served-reads');
@@ -49,6 +50,23 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
     const program = parser.parseAndScope(`${ source };`);
     const path = parser.pickPath(program, 'ExpressionStatement').get('expression');
     checkDeep(`${ parser.name }/${ method }/${ source }`, servedRead(path.node, { scope: path.scope, adapter, path }), expected);
+  }
+}
+
+// A rendered guard stores a real undefined branch; only its defined arm is served.
+for (const parser of adapters) {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  adapter.served = () => ({ substituted: true });
+  for (const [init, expected] of [
+    ['globalThis', { global: 'globalThis', type: 'object', substituted: true }],
+    ['globalThis.window?.self', null],
+    ['globalThis.window == null ? void 0 : globalThis.self', null],
+  ]) {
+    const program = parser.parseAndScope(`const alias = ${ init }; alias;`);
+    const stored = parser.pickPath(program, 'VariableDeclarator');
+    markRenderedStoredValue(stored.node.init);
+    const path = parser.pickPath(program, 'ExpressionStatement').get('expression');
+    checkDeep(`${ parser.name }/stored guard/${ init }`, servedRead(path.node, { scope: path.scope, adapter, path }), expected);
   }
 }
 

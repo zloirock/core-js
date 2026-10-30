@@ -8,6 +8,8 @@ import {
   climbTransparentWrapperPath,
   claimDeleteOperand,
   isMemberWriteHost,
+  memberKeyName,
+  memberKeepsReceiverThrow,
 } from '../helpers/ast-patterns.js';
 import {
   deleteGuardKeepingHop,
@@ -28,6 +30,11 @@ import {
   findProxyGlobal,
   keptProbeStore,
   collectChainAssignsThroughMemberChain,
+  sealedChainBoundary,
+  proxyReceiverValueCanBeUndefined,
+  realmRootIsSpellable,
+  directClaimProbePlan,
+  aliasRootedReadMayThrow,
 } from './resolve.js';
 import {
   dispatchConsumesRun, planInnerProxyCollapse, proxyRunLandingPure, planProxyReceiver, planKeptSequenceReceiver,
@@ -44,7 +51,8 @@ export function * proxyRootCollapseRoutes({
   const { node } = path;
   if (!maximalProxyGlobalHop(node, aliasCtx, { throughChainAssign: true })
     || (!deleteHosted && navValueCanShortCircuit(node, resolvePure, aliasCtx))
-    || runSwallowsStoreProbe(node, resolvePure)) return;
+    || runSwallowsStoreProbe(node, resolvePure)
+    || sealedClaimDisposition(node, resolvePure, aliasCtx, node)?.kind === 'throw') return;
   if (valueConsumer) {
     const source = planInnerProxyCollapse(node, {
       aliasCtx, resolvePure, root: findProxyGlobal(node, aliasCtx, true), allowOptional: true, valueConsumer,
@@ -150,6 +158,7 @@ export function * proxyHopClaimRoutes({
   const deadSpineOptionals = !navValueCanShortCircuit(node, resolvePure, aliasCtx, { throughChainAssign: true });
   let collapsed = sealedAbove || mutationGuard ? null : planInnerProxyCollapse(node, {
     aliasCtx, resolvePure, allowOptional: deleteFold || deadOwnOptional || deadSpineOptionals,
+    reader: above,
     provenCallRoot: deleteClaimFold() || !deleteHosted,
     deleteFold: deleteRunFold() && !dispatchConsumesRun({ path, resolvePure, aliasCtx }),
   });
@@ -181,10 +190,23 @@ export function * proxyHopClaimRoutes({
   if (collapsed) yield { kind: 'collapse', collapsed, deleteFold };
 }
 
-// An admitted guard plan first offers its proven plain-call collapse, then the
-// root landing. A delete that can erase its guards must either spell the value
+// A sealed source read owns its throw before any outer key or optional reader.
+// Otherwise an admitted guard plan offers its plain-call collapse and root landing.
+// A delete that can erase its guards must either spell the value
 // or stand down; it must never fall back to constructing a conditional delete.
-export function * navGuardCollapseRoutes(plan, { source, aliasCtx, deleteHosted }) {
+export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx, deleteHosted }) {
+  if (sealedChainBoundary(aliasCtx.path.node)
+    && sealedClaimDisposition(source(), plan.resolvePure, aliasCtx, reader?.())?.kind === 'throw') {
+    const probe = directClaimProbePlan(source(), plan.resolvePure, aliasCtx);
+    const tail = plan.hops[plan.collapseIdx + 1];
+    // A retained plain tail can own the read, but must stay OUTSIDE the guard.
+    // A live optional or effectful key instead needs the earlier throw probe.
+    if (probe && tail && !tail.liveOptional
+      && sealedClaimDisposition(source(), plan.resolvePure, aliasCtx, tail.node)?.kind !== 'throw') {
+      yield { kind: 'sealed-tail', probe: { ...probe, boundary: { ...probe.boundary, member: null } } };
+    } else yield probe ? { kind: 'sealed-probe', probe, defined: !tail } : { kind: 'stand-down' };
+    return;
+  }
   const definedCallRoot = plan.hops.every(hop => !hop.optional && !hop.liveOptional)
     && plan.call && !callValueCanBeUndefined(plan.call, aliasCtx, plan.resolvePure);
   if (definedCallRoot) {
@@ -200,29 +222,63 @@ export function * navGuardCollapseRoutes(plan, { source, aliasCtx, deleteHosted 
   } else yield { kind: 'guard' };
 }
 
+// A plain read through an absent sealed value owns the throw, unless it names the
+// same pristine realm surface. That hop may disappear only under a plain reader
+// with a quiet static key and onto a spellable root: that reader owns the same throw.
+// A whole-run replacement supplies its retained reader, since inner readers disappear.
+// A boundary retained by that caller still performs its own read and needs no probe.
+// Source slots belong to this query only; it never edits the tree or allocates host state.
+export function sealedClaimDisposition(node, resolvePure, aliasCtx, retainedReader = null) {
+  const boundary = sealedChainBoundary(node);
+  const key = boundary && memberKeyName(boundary.member);
+  if (key === null || retainedReader === boundary.member) return null;
+  const realmHop = POSSIBLE_GLOBAL_OBJECTS.has(key) && isPristineProxyGlobal(aliasCtx?.adapter, key);
+  const above = retainedReader ?? boundary.reader ?? aliasCtx?.path?.parentPath?.node;
+  const dropsHop = realmHop && boundary.member === node && !node.computed && !node.optional
+    && isMemberAccessNode(above) && unwrapRuntimeExpr(above.object) === node;
+  const heldRead = realmHop && aliasRootedReadMayThrow(boundary.inner, resolvePure, aliasCtx);
+  // Plain realm navigation keeps its established pure collapse. A live short
+  // circuit or an absent value held by an alias makes the erased read mandatory.
+  const unsafeReader = (boundary.member === node || retainedReader !== null) && isMemberAccessNode(above)
+    && !memberKeepsReceiverThrow(above)
+    && (heldRead || navValueCanShortCircuit(boundary.inner, resolvePure, aliasCtx, { throughChainAssign: true }));
+  // A pristine hop with no surviving reader needs neither a throw nor a collapse.
+  // Keep that cheap refusal ahead of the value proof on every speculative query.
+  if (realmHop && !dropsHop && !unsafeReader
+    || !proxyReceiverValueCanBeUndefined(boundary.inner, resolvePure, aliasCtx, { throughChainAssign: true })) {
+    return null;
+  }
+  // An optional reader can skip the throw, and an unknown computed key runs before
+  // its read. Neither can inherit the sealed member's earlier exception.
+  if (!realmHop || unsafeReader) return { kind: 'throw' };
+  return realmRootIsSpellable(node, resolvePure) ? { kind: 'collapse', node: node.object } : null;
+}
+
 // The claim guard owns a live optional unless a sealed read already owns the throw.
 // Delete admission is separate: the last probe fallback may still have work after
 // a structural guard declined, even when the navigation itself can fold.
-export function staticClaimNeedsGuard(node, sealedThrow) {
-  return isMemberAccessNode(node) && (node.optional || receiverCarriesLiveOptional(node.object)) && !sealedThrow();
+export function staticClaimNeedsGuard(node, resolvePure, aliasCtx) {
+  return isMemberAccessNode(node) && (node.optional || receiverCarriesLiveOptional(node.object))
+    && sealedClaimDisposition(node, resolvePure, aliasCtx)?.kind !== 'throw';
 }
 
 // Source-claim priorities shared by the root and hop entry points. Native callbacks
 // expose current span facts after each attempt, since a failed attempt may settle
 // the AST. A kept write is a terminal decision even when its effects forbid erasure.
-export function * staticClaimNavigationRoutes({ node, kind, hintName, meta, aliasCtx, resolvePure,
-  deletion, sealedThrow, rootRun }) {
+export function * staticClaimNavigationRoutes({ node, kind, hintName, meta, aliasCtx, resolvePure, deletion, rootRun }) {
   const deleteFold = deletion();
   if (isMemberAccessNode(node) && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)) {
-    yield { kind: 'nested-guard' };
-    yield { kind: 'hop' };
+    if (sealedClaimDisposition(node, resolvePure, aliasCtx)?.kind !== 'throw') {
+      yield { kind: 'nested-guard' };
+      yield { kind: 'hop' };
+    }
     const store = writtenRunKeptProbeStore(aliasCtx.path, { resolvePure, aliasCtx, unwrap: unwrapRuntimeExpr });
     if (store) {
       yield { kind: 'written-store', store };
       return;
     }
   }
-  if (staticClaimNeedsGuard(node, sealedThrow) && !deleteFold) yield { kind: 'static-guard' };
+  if (staticClaimNeedsGuard(node, resolvePure, aliasCtx) && !deleteFold) yield { kind: 'static-guard' };
   if (node.type === 'Identifier' && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
     && !meta.sideEffects?.length) {
     yield { kind: 'root-host' };

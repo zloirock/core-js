@@ -1,3 +1,4 @@
+import { sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import { planSymbolReceiverRoot } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   collectFoldedReceiverSideEffects,
@@ -1853,6 +1854,12 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
                 return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
               },
             })) return;
+            const sealed = proxyHopClaim && !meta.sideEffects?.length
+              && sealedClaimDisposition(path.node, m => resolvePure(m, path), { scope: path.scope, adapter, path });
+            if (sealed?.kind === 'collapse') {
+              replacePath.replaceWith(t.cloneNode(sealed.node));
+              return;
+            }
             // the KEPT chain-assign value beside the claim collapses through the same canon the
             // guarded twin reads (`(q = globalThis.self.window).Map` stores `_self.window`, a
             // nested unresolvable prefix keeps its guard) - a kept raw `.self` hop reads an
