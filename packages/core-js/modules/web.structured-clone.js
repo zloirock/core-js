@@ -17,6 +17,7 @@ var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var defineProperty = require('../internals/object-define-property').f;
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
@@ -57,6 +58,11 @@ var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
 var SHARED_OBJECTS = {};
+// Native validation finishes before serialization reaches this getter, without transferring anything.
+var transferCheck = PROPER_STRUCTURED_CLONE_TRANSFER && defineProperty({}, 'value', {
+  enumerable: true,
+  get: function () { throw transferCheck; }
+});
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
@@ -481,14 +487,8 @@ var structuredCloneInternal = function (value, map) {
   return cloned;
 };
 
-// shared memory has no byte snapshot to take before visiting later properties
 // only references in our completed clones are updated; source getters are not revisited
-var resolveSharedClones = function (map) {
-  var shared = mapGet(map, SHARED_OBJECTS);
-  var copies = nativeRestrictedStructuredClone(shared);
-  var replacements = new Map();
-  var i;
-  for (i = 0; i < copies.length; i++) mapSet(replacements, mapGet(map, shared[i]), copies[i]);
+var replaceReferences = function (map, replacements, clone) {
   var replace = function (value) {
     return mapHas(replacements, value) ? mapGet(replacements, value) : value;
   };
@@ -522,9 +522,17 @@ var resolveSharedClones = function (map) {
       }
     }
   });
+  return replace(clone);
 };
 
-var tryToTransfer = function (rawTransfer, map) {
+// shared memory has no byte snapshot to take before visiting later properties
+var resolveSharedClones = function (map, replacements) {
+  var shared = mapGet(map, SHARED_OBJECTS);
+  var copies = nativeRestrictedStructuredClone(shared);
+  for (var i = 0; i < copies.length; i++) mapSet(replacements, mapGet(map, shared[i]), copies[i]);
+};
+
+var prepareTransfer = function (rawTransfer, map) {
   if (!isObject(rawTransfer)) throw new TypeError('Transfer option cannot be converted to a sequence');
 
   var transfer = [];
@@ -536,12 +544,12 @@ var tryToTransfer = function (rawTransfer, map) {
   var i = 0;
   var length = lengthOfArrayLike(transfer);
   var buffers = new Set();
-  var value, type, C, transferred, canvas, context;
+  var hasObjects = false;
+  var value, type;
 
   while (i < length) {
     value = transfer[i++];
     type = classof(value);
-    transferred = undefined;
 
     if (type === 'ArrayBuffer' ? setHas(buffers, value) : mapHas(map, value)) {
       throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
@@ -552,26 +560,14 @@ var tryToTransfer = function (rawTransfer, map) {
       continue;
     }
 
-    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
-      transferred = nativeStructuredClone(value, { transfer: [value] });
-    } else switch (type) {
+    // WebKit rejects shared buffers only after serialization.
+    if (!PROPER_STRUCTURED_CLONE_TRANSFER || type === 'SharedArrayBuffer') switch (type) {
       case 'ImageBitmap':
-        C = globalThis.OffscreenCanvas;
-        if (!isConstructor(C)) throwUnpolyfillable(type, TRANSFERRING);
-        try {
-          canvas = new C(value.width, value.height);
-          context = canvas.getContext('bitmaprenderer');
-          context.transferFromImageBitmap(value);
-          transferred = canvas.transferToImageBitmap();
-        } catch (error) { /* empty */ }
+        if (!isConstructor(globalThis.OffscreenCanvas)) throwUnpolyfillable(type, TRANSFERRING);
         break;
       case 'AudioData':
       case 'VideoFrame':
         if (!isCallable(value.clone) || !isCallable(value.close)) throwUnpolyfillable(type, TRANSFERRING);
-        try {
-          transferred = value.clone();
-          value.close();
-        } catch (error) { /* empty */ }
         break;
       case 'MediaSourceHandle':
       case 'MessagePort':
@@ -584,28 +580,75 @@ var tryToTransfer = function (rawTransfer, map) {
       case 'WebTransportSendStream':
       case 'WritableStream':
         throwUnpolyfillable(type, TRANSFERRING);
+        // break omitted
+      default:
+        throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
     }
 
-    if (transferred === undefined) throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
-
-    mapSet(map, value, transferred);
+    hasObjects = true;
+    mapSet(map, value, { type: type });
   }
 
-  return buffers;
+  if (PROPER_STRUCTURED_CLONE_TRANSFER && hasObjects) {
+    try {
+      nativeStructuredClone(transferCheck, { transfer: transfer });
+    } catch (error) {
+      if (error !== transferCheck) throw error;
+    }
+  }
+
+  return { list: transfer, buffers: buffers, hasObjects: hasObjects };
 };
 
-var detachBuffers = function (buffers) {
-  setIterate(buffers, function (buffer) {
-    if (isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
-    if (detachTransferable) {
-      detachTransferable(buffer);
-    } else if (arrayBufferTransfer) {
-      arrayBufferTransfer(buffer);
-    } else {
-      throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+// Keep the transfer-list order, including buffers, if a later transfer fails.
+var performTransfer = function (transfer, map, replacements) {
+  var list = transfer.list;
+  var value, placeholder, type, transferred, C, canvas, context;
+  for (var i = 0; i < list.length; i++) {
+    value = list[i];
+    if (setHas(transfer.buffers, value)) {
+      detachBuffer(value);
+      continue;
     }
-    if (!isDetached(buffer)) throw new DOMException('ArrayBuffer is not detachable', DATA_CLONE_ERROR);
-  });
+    placeholder = mapGet(map, value);
+    type = placeholder.type;
+    transferred = undefined;
+    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
+      transferred = nativeStructuredClone(value, { transfer: [value] });
+    } else {
+      switch (type) {
+        case 'ImageBitmap':
+          C = globalThis.OffscreenCanvas;
+          try {
+            canvas = new C(value.width, value.height);
+            context = canvas.getContext('bitmaprenderer');
+            context.transferFromImageBitmap(value);
+            transferred = canvas.transferToImageBitmap();
+          } catch (error) { /* empty */ }
+          break;
+        case 'AudioData':
+        case 'VideoFrame':
+          try {
+            transferred = value.clone();
+            value.close();
+          } catch (error) { /* empty */ }
+      }
+    }
+    if (transferred === undefined) throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
+    mapSet(replacements, placeholder, transferred);
+  }
+};
+
+var detachBuffer = function (buffer) {
+  if (isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
+  if (detachTransferable) {
+    detachTransferable(buffer);
+  } else if (arrayBufferTransfer) {
+    arrayBufferTransfer(buffer);
+  } else {
+    throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+  }
+  if (!isDetached(buffer)) throw new DOMException('ArrayBuffer is not detachable', DATA_CLONE_ERROR);
 };
 
 // `structuredClone` method
@@ -615,20 +658,26 @@ $({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, for
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
     var map = isObject(value) ? new Map() : undefined;
-    var buffers;
+    var transfers, replacements;
 
     if (transfer !== undefined) {
       if (!map) map = new Map();
-      buffers = tryToTransfer(transfer, map);
+      transfers = prepareTransfer(transfer, map);
     }
 
     var clone = structuredCloneInternal(value, map);
-    if (map && mapHas(map, SHARED_OBJECTS)) resolveSharedClones(map);
+    if (map && mapHas(map, SHARED_OBJECTS)) {
+      replacements = new Map();
+      resolveSharedClones(map, replacements);
+    }
 
-    // since of an issue with cloning views of transferred buffers, we a forced to detach them later
+    // Transfer after cloning so views of transferred buffers can be cloned.
     // https://github.com/zloirock/core-js/issues/1265
-    if (buffers) detachBuffers(buffers);
+    if (transfers) {
+      if (transfers.hasObjects && !replacements) replacements = new Map();
+      performTransfer(transfers, map, replacements);
+    }
 
-    return clone;
+    return replacements ? replaceReferences(map, replacements, clone) : clone;
   }
 });

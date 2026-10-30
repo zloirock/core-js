@@ -12,6 +12,7 @@ import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import keys from 'core-js-pure/es/object/keys';
 import Symbol from 'core-js-pure/es/symbol';
 import Map from 'core-js-pure/es/map';
+import Promise from 'core-js-pure/es/promise';
 import Set from 'core-js-pure/es/set';
 import AggregateError from 'core-js-pure/es/aggregate-error';
 import DOMException from 'core-js-pure/stable/dom-exception';
@@ -710,6 +711,233 @@ QUnit.module('structuredClone', () => {
     const buffer = new ArrayBuffer(4);
     assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'unavailable transfer');
     assert.same(buffer.byteLength, 4, 'source is preserved');
+  });
+
+  if (typeof MessageChannel == 'function' && !structuredClone.sham) {
+    QUnit.test('failed transfer preserves MessagePort', assert => {
+      for (const scenario of ['uncloneable', 'getter', 'invalid', 'duplicate', 'duplicate buffer', 'view', 'shared', 'detached buffer']) {
+        const shared = scenario === 'shared' && fromSource('new SharedArrayBuffer(1)');
+        if (scenario === 'shared' && !shared) continue;
+        const { port1, port2 } = new MessageChannel();
+        const marker = new Error('getter failure');
+        let reads = 0;
+        const value = { port: port1 };
+        const buffer = new ArrayBuffer(1);
+        defineProperty(value, 'failure', { enumerable: true, get() {
+          reads++;
+          if (scenario === 'getter') throw marker;
+          if (scenario === 'detached buffer') return structuredClone(1, { transfer: [buffer] });
+          return scenario === 'shared' ? 1 : function () { /* uncloneable */ };
+        } });
+        const transfer = scenario === 'detached buffer' ? [buffer, port1] : [port1];
+        if (scenario === 'invalid') transfer.push({});
+        if (scenario === 'duplicate') transfer.push(port1);
+        if (scenario === 'duplicate buffer') transfer.push(buffer, buffer);
+        if (scenario === 'view') transfer.push(new Uint8Array(1));
+        if (scenario === 'shared') transfer.push(shared);
+        let copy;
+        try {
+          assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter'
+            ? error === marker : error.name === 'DataCloneError', scenario);
+          assert.same(reads, scenario === 'uncloneable' || scenario === 'getter' || scenario === 'detached buffer' ? 1 : 0, `${ scenario }: validation precedes serialization`);
+          copy = structuredClone(port1, { transfer: [port1] });
+          assert.same(typeof copy.postMessage, 'function', 'port remains transferable');
+        } finally {
+          if (copy) copy.close();
+          port1.close();
+          port2.close();
+        }
+      }
+    });
+
+    QUnit.test('transferred references', assert => {
+      // Bun 1.4.4: native structuredClone returns the original MessagePort without detaching it.
+      const portTransferAssert = BUN ? assert.skip : assert;
+      const { port1, port2 } = new MessageChannel();
+      const buffer = new ArrayBuffer(4);
+      const error = new AggregateError([port1], 'transfer', { cause: port1 });
+      let reads = 0;
+      const value = {
+        port: port1,
+        array: [port1],
+        map: new Map([[port1, port1], ['port', port1]]),
+        set: new Set([port1]),
+        error,
+        buffer,
+        view: new Uint8Array(buffer),
+      };
+      defineProperty(value, 'repeated', { enumerable: true, get() {
+        reads++;
+        return port1;
+      } });
+      value.self = value;
+      value.map.set(value.map, port1);
+      value.set.add(value.set);
+      defineProperty(value, '__proto__', { enumerable: true, value: port1 });
+      const shared = fromSource('new SharedArrayBuffer(4, { maxByteLength: 8 })');
+      if (shared?.growable) {
+        value.shared = shared;
+        value.sharedView = new Uint8Array(shared);
+        value.map.set(value.sharedView, port1);
+      }
+      let copy;
+      try {
+        copy = structuredClone(value, { transfer: [port1, buffer] });
+        portTransferAssert.notSame(copy.port, port1, 'port transferred');
+        assert.same(copy.array[0], copy.port, 'array');
+        assert.same(copy.map.get(copy.port), copy.port, 'map key and value');
+        assert.same(copy.map.get('port'), copy.port, 'map value');
+        assert.same(copy.map.get(copy.map), copy.port, 'map cycle');
+        const mapKeys = [copy.port, 'port', copy.map];
+        if (shared?.growable) mapKeys.push(copy.sharedView);
+        assert.arrayEqual(from(copy.map.keys()), mapKeys, 'map order');
+        assert.arrayEqual(from(copy.set), [copy.port, copy.set], 'set order and cycle');
+        assert.same(copy.error.cause, copy.port, 'error cause');
+        assert.same(copy.error.errors[0], copy.port, 'aggregate errors');
+        assert.same(copy.repeated, copy.port, 'getter result');
+        assert.same(reads, 1, 'getter read once');
+        assert.same(copy.self, copy, 'object cycle');
+        // eslint-disable-next-line no-proto -- own data property, not the legacy accessor
+        assert.same(copy.__proto__, copy.port, 'own __proto__');
+        assert.same(getPrototypeOf(copy), Object.prototype, 'prototype preserved');
+        assert.same(copy.view.buffer, copy.buffer, 'buffer and view identity');
+        assert.same(buffer.byteLength, 0, 'buffer detached');
+        if (shared?.growable) {
+          assert.same(copy.sharedView.buffer, copy.shared, 'shared view buffer identity');
+          assert.same(copy.map.get(copy.sharedView), copy.port, 'shared view and port replacements');
+          shared.grow(8);
+          assert.same(copy.sharedView.length, 8, 'shared tracking view');
+          new Uint8Array(shared)[0] = 42;
+          assert.same(copy.sharedView[0], 42, 'shared memory preserved');
+        }
+        portTransferAssert.throws(() => structuredClone(port1, { transfer: [port1] }), 'original port detached');
+      } finally {
+        if (copy) copy.port.close();
+        port1.close();
+        port2.close();
+      }
+    });
+  }
+
+  for (const type of ['ReadableStream', 'WritableStream', 'TransformStream']) if (typeof GLOBAL[type] == 'function') {
+    QUnit.test(`failed transfer preserves ${ type }`, assert => {
+      const stream = new GLOBAL[type]();
+      assert.throws(() => structuredClone({ stream, uncloneable() { /* empty */ } }, { transfer: [stream] }), error => error.name === 'DataCloneError');
+      if (type === 'TransformStream') {
+        assert.false(stream.readable.locked, 'readable side stays unlocked');
+        assert.false(stream.writable.locked, 'writable side stays unlocked');
+      } else assert.false(stream.locked, 'stream stays unlocked');
+    });
+  }
+  if (NODE && !structuredClone.sham) QUnit.test('ReadableStream transfer follows serialization', assert => {
+    const stream = new ReadableStream({ start(controller) { controller.close(); } });
+    let reads = 0;
+    const value = { stream };
+    defineProperty(value, 'again', { enumerable: true, get() {
+      reads++;
+      assert.false(stream.locked, 'stream is unlocked during serialization');
+      return stream;
+    } });
+    const copy = structuredClone(value, { transfer: [stream] });
+    assert.same(reads, 1, 'getter runs once');
+    assert.same(copy.stream, copy.again, 'stream reference');
+    assert.true(stream.locked, 'source transferred');
+    assert.false(copy.stream.locked, 'copy is unlocked');
+    return copy.stream.getReader().read().then(result => {
+      assert.deepEqual(result, { value: undefined, done: true }, 'closed stream preserved');
+    });
+  });
+
+  const media = [];
+  if (typeof AudioData == 'function') media.push(['AudioData', () => new AudioData({
+    format: 'u8', sampleRate: 8000, numberOfFrames: 1, numberOfChannels: 1, timestamp: 0, data: new Uint8Array([128]),
+  }), 'numberOfFrames']);
+  if (typeof VideoFrame == 'function') media.push(['VideoFrame', () => new VideoFrame(new Uint8Array([0, 0, 0, 255]), {
+    format: 'RGBA', codedWidth: 1, codedHeight: 1, timestamp: 0,
+  }), 'codedWidth']);
+  if (typeof createImageBitmap == 'function' && (!structuredClone.sham || fromSource("new OffscreenCanvas(1, 1).getContext('bitmaprenderer')"))) {
+    media.push(['ImageBitmap', () => createImageBitmap(new ImageData(1, 1)), 'width']);
+  }
+  for (const [type, create, size] of media) QUnit.test(`${ type } transfer`, assert => {
+    const tasks = [];
+    const scenarios = ['uncloneable', 'getter', 'invalid', 'duplicate', 'graph', 'root', 'unused', 'detached-first'];
+    // Native engines can reject detached resources before the transfer phase; test partial order in the fallback.
+    if (structuredClone.sham) scenarios.push('detached-last', 'closed-first', 'closed-last');
+    for (const scenario of scenarios) tasks.push(Promise.resolve().then(create).then(source => {
+      let copy;
+      try {
+        switch (scenario) {
+          case 'uncloneable':
+          case 'getter':
+          case 'invalid':
+          case 'duplicate': {
+            const marker = new Error('getter failure');
+            let reads = 0;
+            let clones = 0;
+            const { clone } = source;
+            if (clone) source.clone = function () {
+              clones++;
+              return clone.call(this);
+            };
+            const value = { source };
+            defineProperty(value, 'failure', { enumerable: true, get() {
+              reads++;
+              if (scenario === 'getter') throw marker;
+              return function () { /* uncloneable */ };
+            } });
+            const transfer = scenario === 'invalid' ? [source, {}] : scenario === 'duplicate' ? [source, source] : [source];
+            assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter' ? error === marker : error.name === 'DataCloneError', scenario);
+            assert.same(reads, scenario === 'uncloneable' || scenario === 'getter' ? 1 : 0, `${ scenario }: validation precedes serialization`);
+            assert.same(source[size], 1, 'failed clone preserves the source');
+            assert.same(clones, 0, 'failed clone does not allocate a media copy');
+
+            break;
+          }
+          case 'root':
+          case 'unused':
+            copy = structuredClone(scenario === 'root' ? source : 1, { transfer: [source] });
+            assert.same(scenario === 'root' ? copy[size] : copy, 1, 'root result');
+            assert.same(source[size], 0, 'source transferred');
+
+            break;
+          case 'graph': {
+            let reads = 0;
+            const value = { source, map: new Map([[source, source]]), set: new Set([source]) };
+            defineProperty(value, 'again', { enumerable: true, get() {
+              reads++;
+              assert.same(source[size], 1, 'source is open during serialization');
+              return source;
+            } });
+            const graph = structuredClone(value, { transfer: [source] });
+            copy = graph.source;
+            assert.same(reads, 1, 'getter runs once');
+            assert.notSame(copy, source, 'new media object');
+            assert.same(copy[size], 1, 'media data preserved');
+            assert.same(graph.again, copy, 'repeated reference');
+            assert.same(graph.map.get(copy), copy, 'map key and value');
+            assert.true(graph.set.has(copy), 'set entry');
+            assert.same(source[size], 0, 'source transferred');
+
+            break;
+          }
+          default: {
+            const buffer = new ArrayBuffer(4);
+            const detached = scenario === 'detached-first' || scenario === 'detached-last';
+            const bufferFirst = scenario === 'detached-first' || scenario === 'closed-last';
+            if (detached) structuredClone(1, { transfer: [buffer] });
+            else source.close();
+            const transfer = bufferFirst ? [buffer, source] : [source, buffer];
+            assert.throws(() => structuredClone(1, { transfer }), error => error.name === 'DataCloneError', scenario);
+            if (detached) assert.same(source[size], bufferFirst ? 1 : 0, 'transfer-list order preserves later media');
+            else assert.same(buffer.byteLength, bufferFirst ? 0 : 4, 'transfer-list order preserves later buffers');
+          }
+        }
+      } finally {
+        if (copy && copy.close) copy.close();
+        source.close();
+      }
+    }));
+    return Promise.all(tasks);
   });
 
   // Non-serializable types
