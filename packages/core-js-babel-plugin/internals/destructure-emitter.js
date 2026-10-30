@@ -120,7 +120,6 @@ import {
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   isReReadableSurfaceNav,
-  isReReferenceableAcrossReads,
   isReReferenceableReceiver,
   provenRealmCallRoot,
   nestedAssignmentStatementOf,
@@ -172,9 +171,12 @@ import {
   planCatchClauseExtraction,
   planLoopHeadExtraction,
   planLiteralRoute,
+  orderDestructureParts,
+  releasedDestructureCaptureTail,
   probedNavProbeKey,
   resolvePolyfillableStaticProp,
   symbolIteratorInstanceLeaf,
+  symbolIteratorMemberTarget,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   harvestDiscardedReceiverSE,
@@ -1887,7 +1889,7 @@ export default function createDestructureEmitter({
     // its effects have left
     if (!plan.evaluation.consumesAll) plan.discardSe = null;
     cascadedAssignments.add(assignPath.node);
-    const assigns = [];
+    const parts = { before: [], after: [], residuals: [] };
     plan.outerProps.forEach((outer, i) => {
       // a prop an earlier per-prop channel already CLAIMED (its real extraction is emitted, its
       // value renamed to a sentinel) re-enters this render as a stale plan row whose localName
@@ -1897,9 +1899,11 @@ export default function createDestructureEmitter({
       if (srcProp && (skippedNodes.has(srcProp) || (srcProp.value && skippedNodes.has(srcProp.value)))) return;
       for (const e of outer.extractions ?? []) {
         // pattern-valued symbol extraction: the printer parenthesizes the pattern-LHS assignment
-        assigns.push(buildPolyfillAssignmentStatement(
-          extractionTargetNode(e),
-          extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope), assignPath.node));
+        parts.before.push({
+          source: srcProp,
+          statement: buildPolyfillAssignmentStatement(extractionTargetNode(e),
+            extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope), assignPath.node),
+        });
       }
       // anchored residual on an assignment host: `({ union } = _Set)` (the printer parenthesizes the
       // pattern-LHS assignment)
@@ -1913,9 +1917,12 @@ export default function createDestructureEmitter({
         inheritSpan(assign.expression, assignPath.node);
         inheritSpan(assign, assignPath.node);
         seedAnchoredResidualSkip(assign, pattern);
-        assigns.push(assign);
+        parts.residuals.push({ source: srcProp, anchored: true, statement: assign });
       }
     });
+    const assigns = orderDestructureParts(parts, parts.residuals, {
+      sourceProps: plan.pattern.properties,
+    }).map(part => part.statement);
     // a render reducing to exactly ONE statement on an unbraced control slot keeps the
     // slot bodyless - block-wrapping a single statement would churn the guard shape for
     // nothing. two single-statement shapes exist: a FULL consume with one assignment
@@ -4922,7 +4929,12 @@ export default function createDestructureEmitter({
     // the per-branch mirror
     // the flatten render may declare THIS prop a key-swap survivor (a defaulted value) -
     // the rebuilt residual keeps it, the instance routes below must not steal it
-    if (meta && isSourcedSymbolIteratorMeta(meta) && flattenPlanConsumesProp(prop)
+    // A member write on an assignment must enter the ordered cascade before a flat
+    // extraction can move its setter ahead of the surrounding residual writes.
+    if (meta && isSourcedSymbolIteratorMeta(meta)
+      && (sourceHost?.isAssignmentExpression() && symbolIteratorMemberTarget(prop.node, entry, {
+        hostPattern: sourceHost.node.left, ctx: aliasCtxFromPath(prop),
+      }) || flattenPlanConsumesProp(prop))
       && (tryFlattenNestedProxyDestructure(prop) || keySwapOwnedProps.has(prop.node))) return;
     // a RELOCATED catch pattern reaches here as an ordinary declarator - written that way by a
     // sibling, by the unplugin emitter's earlier phase, or by hand. its bindings are block-scoped to the
@@ -6285,14 +6297,9 @@ export default function createDestructureEmitter({
       if (body.some(statement => declarationsOf(statement)?.includes(residual))) continue;
       const at = body.findIndex(statement => declarationsOf(statement)?.includes(memo));
       const { init } = memo;
-      if (at === -1 || init?.type !== 'SequenceExpression') continue;
-      // a bare identifier or `this` re-reads for free like a built-in surface (the other leg's own
-      // reusable-init test); anything else the memo held for a reason
-      const tail = init.expressions.at(-1);
-      // ... where no getter of the claims can rebind a NAME tail between the reads (the one predicate)
-      if (tail.type === 'Identifier' || tail.type === 'ThisExpression'
-        ? !isReReferenceableAcrossReads(tail, { scope, adapter, path })
-        : !isReReadableSurfaceNav(tail, name => !!injector?.getBindingInfo?.(name), { ctx: { scope, adapter, path } })) continue;
+      if (at === -1) continue;
+      const tail = releasedDestructureCaptureTail(init, { scope, adapter, path, injectorState: injector });
+      if (!tail) continue;
       const ref = memo.id.name;
       const statement = body[at];
       const decls = declarationsOf(statement).filter(item => item !== memo);

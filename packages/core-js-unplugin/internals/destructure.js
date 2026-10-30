@@ -76,6 +76,7 @@ import {
   destructureReadKeepsKey,
   hopPatternLeafClaims,
   isSymbolIteratorPatternClaim,
+  symbolIteratorMemberTarget,
   leafCarriesOwnClaim,
   leafPatternHoldsClaimedHop,
   resolvePolyfillableStaticProp,
@@ -1347,12 +1348,15 @@ export default function createAstDestructureEmitter({
     // admits the target (a computed one only as the host's sole chain): an INSTANCE claim has its own route,
     // and the gate is what keeps a PROTOTYPE member (`Set.union`) from being written into the slot as though
     // it were a static
-    // ... save the one a NESTED instance claim's overwrite writes in place of a binding
+    // An iterator result joins the ordered assignment plan; other instance targets
+    // still need the nested overwrite to own their whole host.
     const memberHost = destructurePatternHostPath(metaPath);
     const memberSlot = kind === 'static' || kind === 'global'
       ? !!memberTargetTakesExtraction(prop.value,
         { hostPattern: memberHost?.node?.left, prop, gone: item => propLeftByQueuedJob(memberHost, item) })
-      : kind === 'instance' && !!overwriteMemberTarget(metaPath, keyCtx);
+      : !!symbolIteratorMemberTarget(prop, entry,
+        { hostPattern: memberHost?.node?.left, gone: item => propLeftByQueuedJob(memberHost, item), ctx: keyCtx })
+        || kind === 'instance' && !!overwriteMemberTarget(metaPath, keyCtx);
     if (!isPlainConsumableProp(prop, { symbolProp, ctorPattern, patternLeft, memberSlot })) return;
     const keyReadPlan = kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(prop, keyCtx))
       ? destructureKeyReadPlan(metaPath, keyCtx) : null;
