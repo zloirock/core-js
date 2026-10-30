@@ -605,6 +605,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Array properties changed during cloning', assert => {
       const array = [0, 1];
       let reads = 0;
+      // Old Firefox enumerates data indices before accessor indices, so keep both as accessors.
       defineProperty(array, '0', {
         enumerable: true,
         get() {
@@ -614,6 +615,7 @@ QUnit.module('structuredClone', () => {
           return 1;
         },
       });
+      defineProperty(array, '1', { get: () => assert.avoid('deleted index is not read') });
 
       const copy = structuredClone(array);
       assert.same(copy.length, 2, 'original length preserved');
