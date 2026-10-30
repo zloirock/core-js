@@ -46,6 +46,7 @@ import './assignment-scan-complexity.mjs';
 import './array-index-complexity.mjs';
 import './binding-reference-index.mjs';
 import './binding-query-cache.mjs';
+import './trusted-binding-hint.mjs';
 import './binding-node-type.mjs';
 import './owner-write-paths.mjs';
 import './for-x-head-lookups.mjs';
