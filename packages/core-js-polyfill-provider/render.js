@@ -209,10 +209,18 @@ export function renderSymbolReceiverRoot(plan, { injectImport, embed = node => n
 // Apply an effect-order decision. A native preparation may already supply the
 // receiver memo; otherwise the shared capture renderer allocates it here. Effects
 // outside the captured source precede it, and key effects always follow that read.
+// `leadingCapture` borrows the first effect when that minted write can move into a
+// guard. Prepared checks own the guard instead; the write stays in their live branch.
+// The role is valid for this synchronous apply only; moving it removes that effect,
+// while cloning the product must clone the role and its effect as the same node.
 export function renderReceiverEffects(plan, { memo = null, ...hooks } = {}) {
   const embed = hooks.embed ?? (node => node);
   if (!plan.ordered && !plan.capture) {
-    return { receiver: embed(plan.receiver, 'receiver'), effects: plan.effects?.map(node => embed(node, 'effect')) };
+    return {
+      receiver: embed(plan.receiver, 'receiver'),
+      effects: plan.effects?.map(node => embed(node, 'effect')),
+      leadingCapture: null,
+    };
   }
   memo ??= renderReceiverMemo(plan, hooks);
   const { prefix, tail } = peelNestedSequenceExpressions(hostSlotNode(memo.firstRead));
@@ -224,20 +232,24 @@ export function renderReceiverEffects(plan, { memo = null, ...hooks } = {}) {
       ...firstRead,
       ...plan.keyEffects.map(node => embed(node, 'effect')),
     ],
+    leadingCapture: plan.prefixEffects.length || plan.disjuncts ? null : memo.capture ?? null,
   };
 }
 
 // The first receiver read owns its prefix and optional capture; later reads use only
 // the captured value or the proven stable tail. The host registers a capture before
 // any subsequent scope query; embedding gives repeated base reads distinct identities.
+// `capture` names the allocated write itself, or null; it borrows `firstRead` identity.
 export function renderReceiverMemo({ firstReceiver, receiver = firstReceiver, capture }, {
   mintRef, embed = node => node, recordCapture = node => node,
 }) {
   const name = capture ? mintRef() : null;
+  const firstRead = name
+    ? recordCapture(assignmentExpression('=', identifier(name), embed(firstReceiver, 'capture')))
+    : embed(firstReceiver, 'lookup');
   return {
-    firstRead: name
-      ? recordCapture(assignmentExpression('=', identifier(name), embed(firstReceiver, 'capture')))
-      : embed(firstReceiver, 'lookup'),
+    firstRead,
+    capture: name ? firstRead : null,
     makeBase: () => embed(name ? identifier(name) : receiver, 'receiver'),
   };
 }
@@ -254,7 +266,7 @@ export function planReceiverMemo(receiver, { interveningEffects = false, directC
 
 // A receiver guard owns the first read and leaves key effects in its live branch. A sealed
 // method lookup leaves invocation arguments outside that branch; a whole-call helper instead
-// keeps its own nullish rejection and only guards the key effects. Prepared navigation supplies
+// receives the guarded value and keeps its own nullish rejection. Prepared navigation supplies
 // its existing checks and receiver. All choices are shared; hooks only bind live source slots.
 export function renderGuardedMethodCall(plan, {
   helper, guard = null, invoke = true, sealed = false, chain = true,
@@ -266,18 +278,16 @@ export function renderGuardedMethodCall(plan, {
   const makeBase = guard ? () => embed(guard.receiver, 'receiver') : memo.makeBase;
   const effects = plan.keyEffects.map(node => embed(node, 'effect'));
   const test = sealed ? composeNullGuardTest(checks) : null;
-  const lookup = callExpression(helper, [makeBase()]);
-  const lookupEffects = sealed || invoke && plan.continues;
+  const value = sealed && !invoke && test ? sequenceExpression([...effects, makeBase()]) : makeBase();
+  const lookup = callExpression(helper, [sealed && !invoke && test ? renderShortCircuitGuard(test, value) : value]);
+  const lookupEffects = sealed && (invoke || test) || invoke && plan.continues;
   const built = invoke ? renderMethodCall({
     ...plan, receiver: makeBase(), prefixEffects: [], firstReadEffects: [],
     keyEffects: lookupEffects ? effects : [], args: plan.args.map(node => embed(node, 'argument')),
   }, { lookup, lookupGuard: sealed ? test : null, chain }) : lookup;
-  if (sealed) {
-    return { checks: [], built: invoke ? built : sequenceExpression([
-      renderShortCircuitGuard(test, sequenceExpression([...effects, voidZero()])), built,
-    ]) };
-  }
-  return { checks, built: !lookupEffects && effects.length ? sequenceExpression([...effects, built]) : built };
+  // A proved-empty guard uses the ordinary effect prefix; only a live sealed guard
+  // keeps a consumed lookup's effects inside the helper's receiver argument.
+  return { checks: sealed ? [] : checks, built: !lookupEffects && effects.length ? sequenceExpression([...effects, built]) : built };
 }
 
 // Split an optional method invocation into ordered null checks and its live continuation.

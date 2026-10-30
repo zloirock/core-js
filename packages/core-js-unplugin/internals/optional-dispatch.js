@@ -85,7 +85,6 @@ import {
 import {
   emitBareOptionalSeDispatch,
   emitOptionalCallWithLiftedSe,
-  emitSeCarryingReceiverRead,
   emitSeKeyReadMemo,
   emitSeReadFormOverLiveOptional,
   inheritedStaticCalleeSplit,
@@ -937,9 +936,9 @@ export default function createOptionalDispatchChannel(ctx) {
     return true;
   }
 
-  // `(fn(), arr).at(0)` / `arr[(k(), 'at')](0)`: the harvested SE PEELS off - the dispatch
-  // runs on the bare receiver tail and the effects re-run as a sequence prefix around it,
-  // in source order. optional / memo-worthy shapes under SE are staged
+  // Bind an instance claim carrying harvested effects. Ordinary reads ask the shared
+  // receiver/effect plan; method calls and live optional receivers retain native
+  // preparation, so each source guard still owns its continuation and effect order.
   // eslint-disable-next-line max-statements -- sequential emission steps of one instance claim
   function emitInstanceWithPeeledSe(meta, metaPath, entry, hintName) {
     // an OPTIONAL SE-keyed member combines with its split receiver below - the memo joins
@@ -959,18 +958,10 @@ export default function createOptionalDispatchChannel(ctx) {
     // own call) reads like the plain form, and rewriting the call would consume a span this
     // claim does not own
     const methodCall = parent?.type === 'CallExpression' && unwrapRuntimeExpr(parent.callee) === node;
-    // the READ form (an SE computed key folding to a member read - the split's memo, a bare
-    // read): `arr[(eff(), 'flat')]` -> `(eff(), _flatMaybeArray(arr))`
-    // effects the receiver spelling ALREADY carries (a rescued chain-assign the earlier
-    // claim spliced in) ride with it whole - `((v = g))?.Map.name` reads the rewritten
-    // `(v = _globalThis, _Map)` once: `_nameMaybeFunction((v = _globalThis, _Map))`.
-    // a receiver still carrying a live `?.` goes to the SPLIT below - its guard owns
-    // the render and the write rides the memo test
-    if (!memberOptional && !methodCall && meta.sideEffects?.length
-      && !receiverCarriesLiveOptional(node.object)
-      && meta.sideEffects.every(effect => subtreeContainsNode(node.object, effect))) {
-      return emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
-        { injectPureImport, markRewrite, skippedNodes });
+    // A live inner optional still needs native split preparation below. Ordinary
+    // reads use the same first-read/capture decision as the other binding.
+    if (!methodCall && !receiverCarriesLiveOptional(node.object)) {
+      return emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, seKeyReadCtx);
     }
     // The ordinary handoff owns the complete first receiver and only re-reads its stable tail.
     // A receiver-only harvest needs no separate prefix replay before that lookup argument.
@@ -984,28 +975,9 @@ export default function createOptionalDispatchChannel(ctx) {
         sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
       });
     }
-    const interveningEffects = (meta.sideEffects?.length ?? 0) > (meta.receiverEffectCount ?? 0);
     const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
     const receiverPure = instanceSynthReceiverPure(node.object, { ...receiverCtx, resolvePure: m => resolvePure(m, metaPath) });
     if (receiverPure) node.object = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
-    if (!memberOptional && !methodCall && isReusableReceiver(unwrapRuntimeExpr(node.object), { interveningEffects, ctx: receiverCtx })) {
-      const receiver = unwrapRuntimeExpr(node.object);
-      const id = injectPureImport(entry, hintName);
-      markRewrite();
-      replaceGuardedHop({
-        hopPath: metaPath,
-        test: null,
-        built: withSideEffects(callExpression(identifier(id), [cloneNode(receiver)]),
-          receiverPure || interveningEffects ? [cloneNode(receiver), ...meta.sideEffects] : meta.sideEffects),
-        skippedNodes,
-      });
-      return;
-    }
-    if (!methodCall && meta.sideEffects?.length
-      && !receiverCarriesOptional(node.object)) {
-      emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, seKeyReadCtx);
-      return;
-    }
     // an OPTIONAL method call lifts its harvested effects - and a SOURCE sequence prefix on
     // the receiver - ahead of the plain `?.call` dispatch, babel's shape:
     // `(a(), arr)[(k(), 'flat')]?.()` -> `(a(), k(), _flatMaybeArray(arr)?.call(arr))`
@@ -1173,6 +1145,7 @@ export default function createOptionalDispatchChannel(ctx) {
     composeGuardTest,
     emitInheritedStatic,
     emitInstanceWithPeeledSe,
+    eraseVestigialReceiverOptionals,
     guardObject,
     replaceInstanceLike,
     splitOptionalReceiver,
