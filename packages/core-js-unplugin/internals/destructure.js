@@ -160,6 +160,7 @@ import {
   memberFromKeyName,
   nullGuardTest,
   callExpression,
+  renderDestructureDispatch,
   cloneNode,
   identifier,
   sequenceExpression,
@@ -1467,7 +1468,7 @@ export default function createAstDestructureEmitter({
       if (keyedLeaf) {
         const helperRead = value;
         const leafId = injectPureImport(keyedLeaf.instanceEntry, keyedLeaf.instanceHint);
-        value = ref => callExpression(identifier(leafId), [helperRead(ref)]);
+        value = (ref, product) => renderDestructureDispatch(identifier(leafId), helperRead(ref), product);
       }
       // the pattern's leaves read off the helper result and claim nothing of their own; their values stay live
       if (keyedPattern) walkAstNodes({ root: keyedPattern, visit: node => { if (node.type === 'Property') skippedNodes.add(node); } });
@@ -2563,13 +2564,18 @@ export default function createAstDestructureEmitter({
         value: kind !== 'instance'
           ? () => guardedSlotValue(identifier(injectPureImport(entry, hintName)), defaultNode, guardRef)
           : surfaceLeafValue
-            ? () => guardedSlotValue(surfaceLeafValue(), defaultNode, guardRef)
+            ? (ref, product) => guardedSlotValue(surfaceLeafValue(null, product), defaultNode, guardRef)
             : needsMemo
-            ? ref => guardedSlotValue(
-              callExpression(identifier(injectPureImport(entry, hintName)), [identifier(ref)]), defaultNode, guardRef)
-            : () => guardedSlotValue(
-              callExpression(identifier(injectPureImport(entry, hintName)),
-                [cloneNode(liveDispatchReceiver())]), defaultNode, guardRef),
+            ? (ref, product) => guardedSlotValue(
+              renderDestructureDispatch(identifier(injectPureImport(entry, hintName)), identifier(ref), product),
+              defaultNode,
+              guardRef,
+            )
+            : (ref, product) => guardedSlotValue(
+              renderDestructureDispatch(identifier(injectPureImport(entry, hintName)), cloneNode(liveDispatchReceiver()), product),
+              defaultNode,
+              guardRef,
+            ),
       },
     });
   }
@@ -2852,7 +2858,7 @@ export default function createAstDestructureEmitter({
         const inner = value;
         const leafId = injectPureImport(leaf.instanceEntry, leaf.instanceHint);
         collapseLeafName = leaf.localName;
-        value = ref => callExpression(identifier(leafId), [inner(ref)]);
+        value = (ref, product) => renderDestructureDispatch(identifier(leafId), inner(ref), product);
       }
     }
     // a symbol-PATTERN sibling leaves a residual that must still SPELL the key: over a
