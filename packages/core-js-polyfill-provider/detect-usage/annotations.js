@@ -16,6 +16,8 @@ import {
   isTypeAnnotationNodeType,
   isTSTypeOnlyIdentifierPath,
   memberKeyName,
+  isMemberAccessNode,
+  nestedSequenceValueSpelling,
   POSSIBLE_GLOBAL_OBJECTS,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TYPE_REFERENCE_SLOTS,
@@ -27,6 +29,8 @@ import {
 import {
   decidedSelectionValue,
   globalProxyMemberName,
+  isCallShape,
+  isVestigialOptionalHop,
   proxyGlobalRootName,
   maximalProxyGlobalPrefix,
   peelChainRootValue,
@@ -307,8 +311,8 @@ function proxyNavRootCanBeUndefined(navNode, resolve, aliasCtx) {
 // hold when the value ends on an environment probe (`(w = globalThis.self.window)?.x`) or
 // short-circuits through one. A plain middle hop still collapses onto its backed leaf.
 // A terminal probe can be undefined off-browser, so its guard has to fire. ONE verdict for both emitters: the
-// babel skip-check's chain-assign arm and the unplugin dispatch's provability walk ask it alike
-export function storedProxyNavProvesHop(storeNode, { scope, adapter, path, resolve }) {
+// shared optional-admission check owns it for both emitters
+function storedProxyNavProvesHop(storeNode, { scope, adapter, path, resolve }) {
   const { value, outer } = peelChainAssignment(storeNode);
   if (!outer) return false;
   // definedness of a sequence value is decided by its TAIL (`(e++, globalThis.self)` is exactly as
@@ -520,6 +524,36 @@ export function isPolyfillableOptional({
     path,
     read: path && { node: member, path },
   });
+}
+
+// Optional hops in a source receiver erase together, before its guard split. Each needs
+// BOTH a defined value and a replacement claim; one live hop keeps the memo's source
+// whole. The claim proof is also the Babel chain descent's isPolyfillableOptional.
+// This query never edits its nodes: bindings apply the returned slots in their dialect.
+export function vestigialReceiverOptionals({ object, memberOptional, scope, adapter, path, resolve }) {
+  if (memberOptional) return [];
+  // A nested sequence remains a value boundary even when its tail will be substituted.
+  for (let cur = unwrapRuntimeExpr(object); isMemberAccessNode(cur); cur = unwrapRuntimeExpr(cur.object)) {
+    if (cur.optional && nestedSequenceValueSpelling(cur.object)) return [];
+  }
+  // The receiver can be the result of a call whose callee still carries the navigation.
+  let navNode = object;
+  for (let peeled = unwrapRuntimeExpr(navNode); isCallShape(peeled) && !peeled.optional;
+    peeled = unwrapRuntimeExpr(navNode)) {
+    navNode = peeled.callee;
+    const callee = unwrapRuntimeExpr(navNode);
+    if (isMemberAccessNode(callee) && !callee.optional
+      && isCallShape(unwrapRuntimeExpr(callee.object))) navNode = callee.object;
+  }
+  const dead = [];
+  const ctx = { scope, adapter, path };
+  for (let cur = unwrapRuntimeExpr(navNode); isMemberAccessNode(cur); cur = unwrapRuntimeExpr(cur.object)) {
+    if (!cur.optional) continue;
+    if (!isVestigialOptionalHop(cur, resolve, ctx)
+      || !isPolyfillableOptional({ node: cur, ...ctx, resolve, mutatedSet: adapter?.mutatedStatics })) return [];
+    dead.push(cur);
+  }
+  return dead;
 }
 
 // open the walk on a class / function node: every annotation slot such a node carries - its own

@@ -31,6 +31,7 @@ import {
   pristineRealmHopKey,
   storedUserAssignmentOf,
   vestigialNavOptionals,
+  isVestigialOptionalHop,
   proxyCollapseConsumer,
   createOuterCollapsePlanner,
   planOuterCollapseValue,
@@ -1017,8 +1018,11 @@ export default function createProxySpineChannel(ctx) {
   // substitutes, so the run over it is the plain twin. ONE reading for every collapse route - the
   // root claim's own run and the hop claim's spine ask it the same way
   function deadOptionalHopAt(metaPath) {
-    return hop => vestigialNavOptionals(hop, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath }).includes(hop);
+    return hop => isVestigialOptionalHop(
+      hop,
+      m => resolvePure(m, metaPath),
+      { scope: metaPath.scope, adapter, path: metaPath },
+    );
   }
 
   // Bind the common outward plan to native source cursors. The planner owns admission,

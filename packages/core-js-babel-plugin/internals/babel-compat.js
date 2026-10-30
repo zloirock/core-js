@@ -40,6 +40,7 @@ import {
   handsValueOn,
   mutationGuardKeepingHop,
   vestigialNavOptionals,
+  isVestigialOptionalHop,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   dispatchConsumesRun,
@@ -2158,12 +2159,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return chainStart || !skippedHop ? { chainStart, aboveChainStart } : skippedHop;
   }
 
-  // is this optional hop's `?.` dead text - its object provably defined (the shared vestigial verdict)?
+  // An earlier skipped claim supplies substitution; ask only whether this hop can still be undefined.
   function vestigialOptionalHop(hopPath) {
     const adapter = getAdapter?.();
     if (!adapter || !resolvePureGlobalEntry || !hopPath.isOptionalMemberExpression()) return false;
-    return vestigialNavOptionals(hopPath.node, ({ name }) => resolvePureGlobalEntry(name, hopPath),
-      { scope: hopPath.scope, adapter, path: hopPath }).includes(hopPath.node);
+    return isVestigialOptionalHop(
+      hopPath.node,
+      ({ name }) => resolvePureGlobalEntry(name, hopPath),
+      { scope: hopPath.scope, adapter, path: hopPath },
+    );
   }
 
   // the APPLICATION half of the probe-yield memo re-target: memoize the recognized span and
