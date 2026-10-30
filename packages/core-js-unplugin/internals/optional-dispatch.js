@@ -4,7 +4,6 @@ import { spineHoldsKeptWrite } from '@core-js/polyfill-provider/detect-usage/pro
 // dispatches with their guard spellings. created per transform over the factory's context
 import {
   findProxyGlobal,
-  inlineCallProxyGlobalRoot,
   navValueCanShortCircuit,
   navRootPrefixNodes,
   peelReceiverSequenceTail,
@@ -13,13 +12,12 @@ import {
   resolveKey,
   resolveObjectName,
   unbackedProxyHopKey,
-  vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
-import { storedProxyNavProvesHop } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { vestigialReceiverOptionals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { decidedReusableReceiver, instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
 import {
@@ -29,10 +27,8 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReusableReceiver,
-  nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
   receiverCarriesLiveOptional,
-  singleSequenceTail,
   unwrapRuntimeExpr,
   subtreeContainsNode,
   isAliasProxyRoot,
@@ -73,7 +69,6 @@ import {
 } from './emit-shared.js';
 import { guardProbeUndefinable, optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
 import {
-  chainContainsMutatedStatic,
   climbToCallerPath,
   cloneSpinePeeled,
   cloneStamped,
@@ -793,154 +788,15 @@ export default function createOptionalDispatchChannel(ctx) {
     return { check, lookupArg, callReceiver, guardDisjuncts };
   }
 
-  // dead `?.` hops erase before the split (the shared vestigial verdict), inside three
-  // boundaries: the hop's OBJECT spine is pristine proxy down to a resolvable root, no
-  // MUTATED static sits in the chain, and only a LITERAL IIFE proves through a call
   function eraseVestigialReceiverOptionals({ memberOptional, object, metaPath }) {
-    if (memberOptional || !receiverCarriesOptional(object)) return;
-    // A nested sequence is the established value boundary for optional receivers.  Keep the
-    // guard even when its tail is a write that will later collapse to a realm ponyfill; the
-    // outer read still owns the nested evaluation shape.
-    for (let cur = unwrapRuntimeExpr(object); cur?.type === 'MemberExpression';
-      cur = unwrapRuntimeExpr(cur.object)) {
-      if (cur.optional && nestedSequenceValueSpelling(cur.object)) return;
-    }
-    function surfaceObject(node) {
-      // a KEPT WRITE is transparent to the verdict: what flows is its VALUE
-      // (`(w = globalThis)?.Array` - the erased `?.` reads the always-defined global)
-      // a SEQUENCE root hands its TAIL value on, and the prefix effects fold into the
-      // substituted spine (`(e++, globalThis)?.Set` erases, `e++` rides the collapsed read).
-      // a tail that is itself a WRITE stays wrapped: the guard then answers over the write's
-      // own subject, which is the non-sequence shape below (`(c++, p = globalThis.window)`)
-      const seqTail = singleSequenceTail(node);
-      const peeled = seqTail && peelChainAssignmentDeep(seqTail) === seqTail
-        ? seqTail : unwrapRuntimeExpr(node);
-      let cur = peelChainAssignmentDeep(peeled);
-      const throughWrite = cur !== peeled;
-      // a SEQUENCE stored BY the write hands its tail on the same way a bare one does - the
-      // value the write keeps is that tail (`(s = (e++, globalThis.self))?.self`)
-      if (throughWrite) cur = singleSequenceTail(cur, { nested: true }) ?? cur;
-      while (cur?.type === 'MemberExpression') {
-        if (!proxyHopKey(cur, { allowOptional: true, metaPath })) return false;
-        // a kept write UNDER the hops is as transparent as one above them
-        // (`((r = globalThis).self)?.Array` - the erased `?.` reads the pure root), and so is a
-        // sequence handing its tail on (`(e++, globalThis.self).window?.Array`)
-        cur = peelChainAssignmentDeep(unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object)));
-      }
-      if (cur?.type === 'Identifier') {
-        // binding-aware like the ctor arm below: a SHADOWED realm name holds the user's object
-        if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
-          return isPristineProxyGlobal(adapter, cur.name) && !adapter.getBinding?.({
-            scope: metaPath.scope,
-            name: cur.name,
-            path: metaPath,
-          });
-        }
-        // an ALIAS binding answers the same as the direct spelling, the realm hops above it
-        // included - but never through a kept write, which is where babel's own erase stops
-        // (`(e++, g.self)?.` erases, `(a = gw)?.` keeps)
-        if (!throughWrite) {
-          const aliased = resolveObjectName({ objectNode: cur, scope: metaPath.scope, adapter, path: metaPath });
-          if (aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) && isPristineProxyGlobal(adapter, aliased)) return true;
-        }
-        // a RESOLVABLE global ctor substitutes to its always-defined pure - the `?.`
-        // over it is dead (`Promise?.X.flat?.()` reads `_Promise.X`)
-        return !adapter.getBinding?.({ scope: metaPath.scope, name: cur.name })
-          && !isMutatedGlobalSlot(adapter, cur.name) && !!resolveGlobalPolyfill(cur.name);
-      }
-      if (cur?.type === 'CallExpression' && !cur.optional) {
-        // a LITERAL IIFE proves through the call; a NAMED callee proves only inside a
-        // kept write (`(u = g())?.Array` erases, bare `dh().self?.` keeps its guard -
-        // babel's erase stops at named bindings outside the write shape), and its yield
-        // must be a defined proxy global (const-arrow followed by the call canon)
-        const callee = unwrapRuntimeExpr(cur.callee);
-        const literalCallee = callee?.type === 'ArrowFunctionExpression' || callee?.type === 'FunctionExpression';
-        if (literalCallee) {
-          const rootName = resolveObjectName({ objectNode: cur, scope: metaPath.scope, adapter, path: metaPath });
-          return !!rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName) && isPristineProxyGlobal(adapter, rootName);
-        }
-        return throughWrite
-          && !!inlineCallProxyGlobalRoot({
-            callNode: cur,
-            scope: metaPath.scope,
-            adapter,
-            path: metaPath,
-            rejectConditional: true,
-          })
-          && !guardProbeUndefinable(cur, { metaPath, adapter, resolvePure });
-      }
-      return false;
-    }
-    // the walk stops at a call; the `?.` under its CALLEE is the same navigation
-    // (`(w = globalThis)?.Array.of(5)` - the hop sits below `.of`), so descend there - and on
-    // through a plain member reading such a call's result, which continues that same chain
-    // (`globalThis.self?.window?.Array.from(x).map(f)` - the hops sit below `.from`)
-    let navNode = object;
-    for (let peeled = unwrapRuntimeExpr(navNode); peeled?.type === 'CallExpression' && !peeled.optional;
-      peeled = unwrapRuntimeExpr(navNode)) {
-      navNode = peeled.callee;
-      const callee = unwrapRuntimeExpr(navNode);
-      if (callee?.type === 'MemberExpression' && !callee.optional
-        && unwrapRuntimeExpr(callee.object)?.type === 'CallExpression') navNode = callee.object;
-    }
-    const deadHops = vestigialNavOptionals(navNode, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath });
-    // a dead hop erases only when PROVABLE (its object collapses to a defined surface or
-    // the hop itself is a resolvable claim); any optional hop that is not both dead and
-    // provable is LIVE, and a live hop keeps the memo's source spelling whole - the dead
-    // `?.` rides it un-erased (`(Promise?.foo)?.bar` memoizes `_ref = _Promise?.foo`)
-    function hopProvable(hop) {
-      const written = unwrapRuntimeExpr(hop.object);
-      // a kept WRITE proves through the shared store verdict - the value the store hands on is
-      // always defined once substituted (`(g = globalThis, v = g.self)?.X` erases); a SEQUENCE
-      // hands its tail on, so the store may sit under one and the verdict peels it the same way
-      const storeCore = unwrapRuntimeExpr(peelReceiverSequenceTail(written));
-      if (storeCore?.type === 'AssignmentExpression' && storedProxyNavProvesHop(storeCore,
-        { scope: metaPath.scope, adapter, path: metaPath, resolve: m => resolvePure(m, metaPath) })) return true;
-      // ... and a store the verdict did NOT prove declines on a BINDING value outright
-      // (`(n = gw)?.self` keeps its guard): what an unproven alias holds is the write's business,
-      // and the arms below must not re-derive it from the name
-      if (written?.type === 'AssignmentExpression') {
-        const stored = unwrapRuntimeExpr(peelChainAssignmentDeep(written));
-        if (stored?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(stored.name)) return false;
-      }
-      // a `?.` whose probe IS a bare call keeps its guard - proving WHICH global a call
-      // yields is not proving it yields a DEFINED one (the strict opaque-root canon);
-      // only a KEPT WRITE of the call value erases (`(u = g())?.` - the write observes)
-      if (unwrapRuntimeExpr(hop.object)?.type === 'CallExpression') return false;
-      const hopKeyName = !hop.computed && hop.property?.name;
-      if (hopKeyName && POSSIBLE_GLOBAL_OBJECTS.has(hopKeyName)
-        && !isPristineProxyGlobal(adapter, hopKeyName, { node: hop, path: metaPath })) return false;
-      if (chainContainsMutatedStatic(hop.object, { metaPath, adapter })) return false;
-      // a hop that ITSELF resolves as a static claim substitutes to an always-defined
-      // import - its `?.` is as dead as the call-twin's (`Array?.from(x).at(0)` erases), the claim
-      // asked of the hop it reads (a read ahead of every write of the global's slot is served).
-      // named by its sequence TAIL, as the surface arm below reads one: the claim keeps the
-      // prefix, and a selection the build decides behind it names its operand
-      // (`(n++, Map || Set)?.groupBy` reads `Map.groupBy`, as its unprefixed twin does)
-      if (hopKeyName && hop.property?.type === 'Identifier') {
-        const hopObjName = resolveObjectName({
-          objectNode: peelReceiverSequenceTail(hop.object),
-          scope: metaPath.scope,
-          adapter,
-          path: metaPath,
-        });
-        if (hopObjName && !adapter.isMutatedStatic?.(hopObjName, hopKeyName, { node: hop, path: metaPath })) {
-          const hopClaim = resolvePure({
-            kind: 'property', object: hopObjName, key: hopKeyName, placement: 'static',
-          }, metaPath);
-          if (hopClaim && hopClaim.kind !== 'instance') return true;
-        }
-      }
-      return surfaceObject(hop.object);
-    }
-    const provable = new Set(deadHops.filter(hop => hopProvable(hop)));
-    let liveHops = false;
-    for (let cur = unwrapRuntimeExpr(navNode); cur?.type === 'MemberExpression';
-      cur = unwrapRuntimeExpr(cur.object)) {
-      if (cur.optional && !provable.has(cur)) liveHops = true;
-    }
-    if (!liveHops) for (const hop of provable) hop.optional = false;
+    for (const hop of vestigialReceiverOptionals({
+      object,
+      memberOptional,
+      scope: metaPath.scope,
+      adapter,
+      path: metaPath,
+      resolve: meta => resolvePure(meta, metaPath),
+    })) hop.optional = false;
   }
 
   // The split already registered its native memo aliases. The same receiver plan
