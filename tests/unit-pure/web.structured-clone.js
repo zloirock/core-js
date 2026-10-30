@@ -699,13 +699,28 @@ QUnit.module('structuredClone', () => {
     assert.arrayEqual(new Uint8Array(clone), [1, 2, 3, 4], 'transferred data preserved');
     assert.same(buffer.byteLength, 0, 'source buffer detached');
     assert.same(clone.byteLength, 4, 'clone buffer has correct length');
-    assert.throws(() => structuredClone(buffer), 'a detached buffer is not cloneable');
+    assert.throws(() => structuredClone(buffer), error => error.name === 'DataCloneError', 'a detached buffer is not cloneable');
     assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'detached transfer list entry');
     const other = new ArrayBuffer(4);
     // eslint-disable-next-line es/no-object-defineproperty -- native buffers support descriptors
     Object.defineProperty(other, 'transfer', { get() { throw new Error('transfer must not be read'); } });
     assert.same(structuredClone(1, { transfer: [other] }), 1, 'does not call an own transfer method');
     assert.same(other.byteLength, 0, 'unreferenced buffer detached');
+    for (const C of [Uint8Array, fromSource('({}).toString.call(new DataView(new ArrayBuffer(0))) === "[object DataView]" && DataView')]) {
+      if (!C) continue;
+      const source = new ArrayBuffer(4);
+      const view = new C(source);
+      const input = { buffer: source };
+      defineProperty(input, 'view', {
+        enumerable: true,
+        get() {
+          structuredClone(null, { transfer: [source] });
+          return view;
+        },
+      });
+      assert.throws(() => structuredClone(input), error => error.name === 'DataCloneError', 'detached view after its buffer was cloned');
+      assert.throws(() => structuredClone(view), error => error.name === 'DataCloneError', 'a detached view is not cloneable');
+    }
   });
   else if (typeof Uint8Array == 'function') QUnit.test('unsupported transfer', assert => {
     const buffer = new ArrayBuffer(4);

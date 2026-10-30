@@ -9,7 +9,7 @@ const [flavor, mode] = process.argv.slice(2);
 
 if (!flavor) {
   for (const variant of ['core-js', 'core-js-pure']) {
-    for (const scenario of ['missing', 'broken', 'identity', 'shared', 'shared-copy']) {
+    for (const scenario of ['missing', 'broken', 'identity', 'shared', 'shared-copy', 'buffer-errors']) {
       const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.url), variant, scenario]);
       console.log(stdout.trim());
     }
@@ -19,6 +19,12 @@ if (!flavor) {
   const prototype = Object.getPrototypeOf(Uint8Array.prototype);
   const nativeClone = globalThis.structuredClone;
   const lengths = new Map();
+  if (mode === 'buffer-errors') {
+    const configure = flavor === 'core-js'
+      ? require('../../packages/core-js/configurator')
+      : require('../../packages/core-js-pure/configurator');
+    configure({ usePolyfill: ['structuredClone'] });
+  }
   if (mode === 'identity') {
     globalThis.structuredClone = function (value) { return value; };
   } else if (mode === 'shared-copy') {
@@ -34,7 +40,7 @@ if (!flavor) {
       }
       return nativeClone(value, options);
     };
-  } else if (mode !== 'shared') {
+  } else if (mode !== 'shared' && mode !== 'buffer-errors') {
     if (mode === 'missing') delete prototype.set;
     else prototype.set = function () { throw new Error('Broken native set'); };
     const previous = prototype.set;
@@ -75,5 +81,63 @@ if (!flavor) {
     assert.equal(copy.tracking.length, 16);
   }
   assert.equal(buffer.byteLength, shared ? 16 : 8);
+
+  if (mode === 'buffer-errors') {
+    assert.notEqual(clone, nativeClone);
+    const marker = new RangeError('Buffer copy failed');
+    for (const [object, key, target] of [
+      [ArrayBuffer.prototype, 'slice'],
+      [globalThis, 'ArrayBuffer'],
+      [globalThis, 'DataView'],
+      [globalThis, 'DataView', true],
+      [DataView.prototype, 'getUint8'],
+      [DataView.prototype, 'setUint8'],
+    ]) {
+      for (const resizable of [false, true]) {
+        if (key === 'slice' && resizable) continue;
+        const source = new ArrayBuffer(4, resizable ? { maxByteLength: 8 } : undefined);
+        new Uint8Array(source).set([0, 1, 254, 255]);
+        // Exercise the fallback for fixed buffers in engines without ArrayBuffer#slice.
+        if (key !== 'slice' && !resizable) source.slice = undefined;
+        const previous = object[key];
+        let calls = 0;
+        object[key] = function (data) {
+          if (target && !calls++) return Reflect.construct(previous, [data]);
+          throw marker;
+        };
+        try {
+          assert.throws(() => clone(source), error => error === marker, `${ key }, resizable: ${ resizable }, target: ${ !!target }`);
+        } finally {
+          object[key] = previous;
+        }
+        assert.deepEqual([...new Uint8Array(source)], [0, 1, 254, 255]);
+      }
+    }
+    for (const C of [ArrayBuffer, DataView, Uint8Array]) {
+      const properties = C === ArrayBuffer ? ['slice', 'resizable', 'byteLength', 'maxByteLength']
+        : ['byteOffset', C === DataView ? 'byteLength' : 'length'];
+      for (const key of properties) {
+        const source = new ArrayBuffer(4);
+        const view = C === ArrayBuffer ? source : new C(source);
+        if (key === 'byteLength' || key === 'maxByteLength') source.slice = undefined;
+        Object.defineProperty(view, key, { get() { throw marker; } });
+        assert.throws(() => clone(view), error => error === marker, `${ C.name }.${ key }`);
+        assert.equal(new Uint8Array(source).length, 4);
+      }
+    }
+    for (const resizable of [false, true]) {
+      for (const length of [0, 4]) {
+        const source = new ArrayBuffer(length, resizable ? { maxByteLength: 8 } : undefined);
+        const copy = clone(source);
+        assert.notEqual(copy, source);
+        assert.equal(copy.byteLength, length);
+        assert.equal(copy.resizable, resizable);
+        const views = [new DataView(source), new Uint8Array(source)];
+        nativeClone(source, { transfer: [source] });
+        assert.throws(() => clone(source), { name: 'DataCloneError' });
+        for (const view of views) assert.throws(() => clone(view), { name: 'DataCloneError' });
+      }
+    }
+  }
   console.log(`${ flavor }: structuredClone with ${ mode } built-in: passed`);
 }

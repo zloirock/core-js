@@ -170,22 +170,18 @@ var cloneBuffer = function (value, map, $type) {
     if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
     // detached buffers throw in `DataView` and `.slice`, but not in every engine
     if (isDetached(value)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
-    try {
-      if (isCallable(value.slice) && !value.resizable) {
-        clone = value.slice(0);
-      } else {
-        length = value.byteLength;
-        options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
-        // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
-        clone = new ArrayBuffer(length, options);
-        source = new DataView(value);
-        target = new DataView(clone);
-        for (i = 0; i < length; i++) {
-          target.setUint8(i, source.getUint8(i));
-        }
+    if (isCallable(value.slice) && !value.resizable) {
+      clone = value.slice(0);
+    } else {
+      length = value.byteLength;
+      options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
+      // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+      clone = new ArrayBuffer(length, options);
+      source = new DataView(value);
+      target = new DataView(clone);
+      for (i = 0; i < length; i++) {
+        target.setUint8(i, source.getUint8(i));
       }
-    } catch (error) {
-      throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     }
   }
 
@@ -200,6 +196,9 @@ var cloneView = function (value, type, map) {
   // on Uint8ClampedArray or some other constructors
   if (!isObject(C)) throwUnpolyfillable(type);
   var buffer = value.buffer;
+  // Old WebKit can return null for the buffer of a detached view.
+  // Validate the view even if its buffer has already been cloned.
+  if (!buffer || isDetached(buffer)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
   var isDataView = type === 'DataView';
   var isGrowable = buffer.growable;
   var offset, length, cloned, clonedBuffer, byteLength, shared, sharedClone;
@@ -236,12 +235,8 @@ var cloneView = function (value, type, map) {
       })) length = undefined;
     }
   } else {
-    try {
-      offset = value.byteOffset;
-      length = isDataView ? value.byteLength : value.length;
-    } catch (error) {
-      throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
-    }
+    offset = value.byteOffset;
+    length = isDataView ? value.byteLength : value.length;
   }
 
   return new C(cloneBuffer(buffer, map), offset, length);
