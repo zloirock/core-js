@@ -21072,6 +21072,30 @@ function * generateDestructureResidualOrder() {
     if (${ active }) ({ [(log.push("key"), "at")]: method, length: size } = row);
     return [typeof method === "function" ? method.call(row, -1) : "skipped", size];
   })()`), strip: true };
+  // Opaque instance receivers with rest retain their native pattern (rest-instance-literal above).
+  // Their full-realm order and global stripped injection remain observable.
+  for (const host of ['declaration', 'bodyless', 'for-init']) for (const tail of ['length: size', 'includes: contains', '...rest']) {
+    const pattern = `{ at: method, ${ tail } }`;
+    const init = '(log.push(["init", typeof method]), rows())';
+    const observe = 'log.push(["bound", typeof method]);';
+    const read = host === 'for-init' ? `for (var before = (log.push("before"), 0), ${ pattern } = ${ init }; before < 1; before++) { ${ observe } }`
+      : host === 'bodyless' ? `if (true) var ${ pattern } = ${ init }; ${ observe }` : `var ${ pattern } = ${ init }; ${ observe }`;
+    yield { ...snippet(`destructure-declaration-order/${ host }/${ tail }`, `(() => {
+      function rows() { log.push("rows"); return [4, 9]; }
+      ${ read }
+      return [method.call([4, 9], -1), ${ tail.startsWith('length') ? 'size' : tail.startsWith('includes') ? 'contains.call([4, 9], 9)' : '[rest[0], rest[1], Object.prototype.hasOwnProperty.call(rest, "at")]' }];
+    })()`), strip: tail !== '...rest' };
+  }
+  for (const host of ['declaration', 'bodyless', 'for-init']) {
+    const binding = '{ Array: { from }, ...rest } = (observe(), globalThis)';
+    const read = host === 'for-init' ? `for (var ${ binding }, once = true; once; once = false) log.push(from([4, 9]));`
+      : host === 'bodyless' ? `if (true) var ${ binding }; log.push(from([4, 9]));` : `var ${ binding }; log.push(from([4, 9]));`;
+    yield { ...snippet(`destructure-declaration-order/static-rest/${ host }`, `(() => {
+      function observe() { log.push(typeof from); }
+      ${ read }
+      return Object.prototype.hasOwnProperty.call(rest, "Array");
+    })()`), strip: true };
+  }
 }
 
 export function * generate() {
