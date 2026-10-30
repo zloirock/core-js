@@ -1,5 +1,6 @@
 import { run } from './helpers.mjs';
 import platforms from './platforms.mjs';
+import allPlatforms from './all-platforms.mjs';
 
 const { cyan } = chalk;
 
@@ -33,7 +34,8 @@ await run({
     'unit-browser/usage-pure-babel.html',
     'unit-browser/usage-pure-unplugin-pre-post.html',
   ],
-  platforms,
+  platforms: argv.all ? await allPlatforms(process.env.SAUCE_REGION || 'us-west-1') : platforms,
+  concurrency: argv.all ? 10 : platforms.length,
   reporter: 'qunitResults',
   evaluate,
 });

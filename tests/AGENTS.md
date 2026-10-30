@@ -10,7 +10,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 |---|---|---|
 | `unit-global/`, `unit-pure/` | `npm run test-unit-node`, `test-unit-karma`, `test-unit-bun` | QUnit tests, one file per polyfill module |
 | `unit-node/`, `karma/`, `unit-bun/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, and static HTML pages for manual runs and for Sauce Labs |
-| `saucelabs/` | `npm run test-saucelabs -- <url> [commit]` | the `unit-browser/` pages deployed to GitHub Pages, in the Sauce Labs browsers the CI runners lack; the Pages workflow runs it after the deploy |
+| `saucelabs/` | `npm run test-saucelabs -- <url> [commit]`, `npm run test-saucelabs-matrix` | the `unit-browser/` pages deployed to GitHub Pages in Sauce Labs browsers after deploy; local tests of the full-matrix catalog selection |
 | `e2e-usage-pure/` | `npm run test-e2e-usage-pure`, `test-e2e-usage-pure-karma` | runtime behavior of polyfilled code after transformation |
 | `transpiler-fixtures/` | the two plugin runners below | shared input/output fixtures for both emitters |
 | `babel-plugin/`, `babel-plugin-v7/` | `npm run test-babel-plugin`, `-unit`, `-v7`, `-unit-v7` | `@core-js/babel-plugin` against `@babel/core` 8 and 7 |

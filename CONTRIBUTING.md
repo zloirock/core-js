@@ -152,6 +152,7 @@ You can run parts of the test case separately:
   ```sh
   npm run test-saucelabs -- <URL of a branch directory on GitHub Pages>
   ```
+  To test one configuration per browser version in the Sauce Labs catalog, add `--all` after the URL (or after an optional commit SHA). The account dashboard showed a total concurrency limit of 10 sessions, Mac/iOS (x86) concurrency of 15, and real device concurrency of 0 on October 30, 2026. The full run limits itself to 10 concurrent sessions and uses simulators, not real devices.
 - [Test262](https://github.com/tc39/test262) test case (it's not included in the default tests):
   ```sh
   npx run-s prepare bundle-package test262
