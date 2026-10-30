@@ -21145,6 +21145,66 @@ function * generateDestructureResidualOrder() {
   }
 }
 
+// The chosen receiver must survive both immediate insertion and delayed child rewrites.
+// Cross the same read with native host placement; getters and writes expose duplicated reads.
+function * generateNestedExtractionReceivers() {
+  for (const host of ['declaration', 'statement', 'bodyless', 'sequence']) {
+    for (const shape of [
+      'token',
+      'carried',
+      'rewritten',
+      'rewritten-call',
+      'getter',
+      'member',
+      'default',
+      'effect-key',
+      'positional',
+      'surface',
+      'symbol-default',
+      'inner-reader',
+      'outer-reader',
+      'rest',
+    ]) {
+      const leaf = shape === 'effect-key' ? '[(log.push("key"), "at")]' : 'at';
+      const target = shape === 'member' ? 'sink.method' : 'method';
+      const inner = `${ leaf }: ${ target }${ shape === 'default' ? ' = (log.push("default"), fallback)' : '' }`;
+      const pattern = shape === 'positional' ? `[{ ${ inner } }]`
+        : shape === 'surface' ? `{ Array: { prototype: { ${ inner } } } }`
+        : shape === 'symbol-default' ? '{ Array: { [Symbol.iterator]: method = (log.push("default"), fallback) } }'
+        : shape === 'inner-reader' ? '{ y: { at: method, length: kept } }'
+        : shape === 'outer-reader' ? '{ y: { at: method }, kept }'
+        : shape === 'rest' ? '{ y: { at: method, ...kept } }'
+        : `{ y: { ${ inner } } }`;
+      const init = shape === 'carried' ? '{ y: (log.push("receiver"), make()) }'
+        : shape === 'rewritten' ? '{ y: (log.push("receiver"), Array.from(rows)) }'
+        : shape === 'rewritten-call' ? '{ y: (log.push("receiver"), rows.flat()) }'
+        : shape === 'getter' ? 'holder'
+        : shape === 'outer-reader' ? '{ y: holder.y, kept: (log.push("sibling"), 1) }'
+        : shape === 'inner-reader' || shape === 'rest' ? '{ y: holder.y }'
+        : shape === 'positional' ? '[rows]'
+        : shape === 'surface' || shape === 'symbol-default' ? 'globalThis' : '{ y: rows }';
+      // A member target is an assignment position; the declaration twin uses a local binding.
+      if (host === 'declaration' && shape === 'member') continue;
+      const read = host === 'declaration' ? `var ${ pattern } = ${ init };`
+        : host === 'bodyless' ? `if (true) (${ pattern } = ${ init });`
+        : host === 'sequence' ? `(log.push("before"), (${ pattern } = ${ init }), log.push("after"));`
+        : `(${ pattern } = ${ init });`;
+      yield { ...snippet(`nested-extraction-receiver/${ host }/${ shape }`, `(() => {
+        var method, kept;
+        const rows = [4, 9];
+        const holder = { get y() { log.push("get"); return rows; } };
+        const sink = { set method(value) { log.push("set"); method = value; } };
+        function make() { log.push("call"); return rows; }
+        function fallback() { return "fallback"; }
+        ${ read }
+        return [method.call(rows, -1), ${ shape === 'rest' ? 'kept[0]' : 'kept' }];
+      })()`),
+      // A getter-backed rest retains native extraction in pure; global still arms it.
+      strip: shape !== 'rest' };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21557,4 +21617,5 @@ export function * generate() {
   yield * generateDestructureProductPrefixes();
   yield * generateNestedDefaultReceiverChoices();
   yield * generateDestructureResidualOrder();
+  yield * generateNestedExtractionReceivers();
 }
