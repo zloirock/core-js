@@ -800,6 +800,20 @@ QUnit.module('structuredClone', () => {
     assert.same(multiClone.a, multiClone.b, 'multiple references deduplicated');
   });
 
+  QUnit.test('transfer list validation', assert => {
+    assert.throws(() => structuredClone(1, { transfer: [{}] }), error => error.name === 'DataCloneError', 'non-transferable object');
+    if (typeof ArrayBuffer == 'function') {
+      const buffer = new ArrayBuffer(8);
+      assert.throws(() => structuredClone(buffer, { transfer: [buffer, buffer] }), error => error.name === 'DataCloneError', 'duplicate transferable');
+      assert.same(buffer.byteLength, 8, 'duplicate transfer preserves the buffer');
+    }
+    const shared = fromSource('new SharedArrayBuffer(8)');
+    if (shared) {
+      assert.throws(() => structuredClone(1, { transfer: [shared] }), error => error.name === 'DataCloneError', 'SharedArrayBuffer is not transferable');
+      assert.same(shared.byteLength, 8, 'invalid transfer preserves the shared buffer');
+    }
+  });
+
   // Transfer
   // `ArrayBuffer#transfer` is installed only where the polyfill has a way to detach a buffer, the same one `structuredClone` uses
   if (typeof Uint8Array == 'function' && ArrayBuffer.prototype.transfer) QUnit.test('transfer', assert => {
@@ -984,6 +998,7 @@ QUnit.module('structuredClone', () => {
   for (const [type, create, size] of media) QUnit.test(`${ type } transfer`, assert => {
     const tasks = [];
     const scenarios = ['uncloneable', 'getter', 'invalid', 'duplicate', 'graph', 'root', 'unused', 'detached-first'];
+    if (!structuredClone.sham && typeof MessageChannel == 'function') scenarios.push('mixed-first', 'mixed-last');
     // Native engines can reject detached resources before the transfer phase; test partial order in the fallback.
     if (structuredClone.sham) scenarios.push('detached-last', 'closed-first', 'closed-last');
     for (const scenario of scenarios) tasks.push(Promise.resolve().then(create).then(source => {
@@ -1023,6 +1038,32 @@ QUnit.module('structuredClone', () => {
             assert.same(source[size], 0, 'source transferred');
 
             break;
+          case 'mixed-first':
+          case 'mixed-last': {
+            const buffer = new ArrayBuffer(4);
+            new Uint8Array(buffer)[0] = 42;
+            const { port1, port2 } = new MessageChannel();
+            let port;
+            try {
+              const transfer = scenario === 'mixed-first' ? [source, buffer, port1] : [buffer, port1, source];
+              const result = structuredClone({ source, buffer, port: port1 }, { transfer });
+              copy = result.source;
+              port = result.port;
+              assert.notSame(copy, source, 'mixed transfer creates a media copy');
+              assert.same(copy[size], 1, 'mixed transfer preserves media data');
+              assert.same(source[size], 0, 'mixed transfer closes the source');
+              assert.same(buffer.byteLength, 0, 'mixed transfer detaches the buffer');
+              assert.same(new Uint8Array(result.buffer)[0], 42, 'mixed transfer preserves buffer data');
+              assert.notSame(port, port1, 'mixed transfer creates a new port');
+              assert.same(typeof port.postMessage, 'function', 'mixed transfer preserves the port type');
+            } finally {
+              if (port) port.close();
+              port1.close();
+              port2.close();
+            }
+
+            break;
+          }
           case 'graph': {
             let reads = 0;
             const value = { source, map: new Map([[source, source]]), set: new Set([source]) };
@@ -1066,22 +1107,32 @@ QUnit.module('structuredClone', () => {
   // Non-serializable types
   QUnit.test('Non-serializable types', assert => {
     const nons = [
-      function () { return 1; },
-      Symbol('desc'),
-      GLOBAL,
+      ['Function', function () { return 1; }],
+      ['Symbol', Symbol('desc')],
+      ['global object', GLOBAL],
+      ['WeakMap', new WeakMap()],
+      ['WeakSet', new WeakSet()],
     ];
 
     const event = fromSource('new Event("")');
-    const port = fromSource('new MessageChannel().port1');
 
     // NodeJS events are simple objects
-    if (event && !NODE) nons.push(event);
-    if (port) nons.push(port);
+    if (event && !NODE) nons.push(['Event', event]);
 
-    for (const it of nons) {
-      // native NodeJS `structuredClone` throws a `TypeError` on transferable non-serializable instead of `DOMException`
-      // https://github.com/nodejs/node/issues/40841
-      assert.throws(() => structuredClone(it));
+    for (const [name, it] of nons) {
+      assert.throws(() => structuredClone(it), error => error.name === 'DataCloneError', name);
+    }
+
+    const channel = fromSource('new MessageChannel()');
+    if (channel) {
+      try {
+        // Old NodeJS throws a TypeError for a MessagePort omitted from the transfer list.
+        // https://github.com/nodejs/node/issues/40841
+        assert.throws(() => structuredClone(channel.port1), error => error.name === 'DataCloneError' || NODE && error instanceof TypeError, 'MessagePort');
+      } finally {
+        channel.port1.close();
+        channel.port2.close();
+      }
     }
   });
 });

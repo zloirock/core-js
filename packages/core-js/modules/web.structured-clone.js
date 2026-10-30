@@ -252,6 +252,11 @@ var structuredCloneInternal = function (value, map) {
   var C, name, cloned, dataTransfer, i, length, keys, key, entries;
 
   switch (type) {
+    case 'WeakMap':
+    case 'WeakSet':
+    case 'MessagePort':
+      throwUncloneable(type);
+      break;
     case 'Array':
       cloned = Array(lengthOfArrayLike(value));
       break;
@@ -545,8 +550,9 @@ var prepareTransfer = function (rawTransfer, map) {
   var i = 0;
   var length = lengthOfArrayLike(transfer);
   var buffers = new Set();
+  var nativeTransfer = [];
   var hasObjects = false;
-  var value, type;
+  var value, type, isMedia;
 
   while (i < length) {
     value = transfer[i++];
@@ -558,11 +564,14 @@ var prepareTransfer = function (rawTransfer, map) {
 
     if (type === 'ArrayBuffer') {
       setAdd(buffers, value);
+      if (PROPER_STRUCTURED_CLONE_TRANSFER) push(nativeTransfer, value);
       continue;
     }
 
+    // Native buffer transfer does not imply support for AudioData / VideoFrame transfer.
+    isMedia = type === 'AudioData' || type === 'VideoFrame';
     // WebKit rejects shared buffers only after serialization.
-    if (!PROPER_STRUCTURED_CLONE_TRANSFER || type === 'SharedArrayBuffer') switch (type) {
+    if (isMedia || !PROPER_STRUCTURED_CLONE_TRANSFER || type === 'SharedArrayBuffer') switch (type) {
       case 'ImageBitmap':
         if (!isConstructor(globalThis.OffscreenCanvas)) throwUnpolyfillable(type, TRANSFERRING);
         break;
@@ -586,13 +595,14 @@ var prepareTransfer = function (rawTransfer, map) {
         throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
     }
 
+    if (PROPER_STRUCTURED_CLONE_TRANSFER && !isMedia) push(nativeTransfer, value);
     hasObjects = true;
     mapSet(map, value, { type: type });
   }
 
   if (PROPER_STRUCTURED_CLONE_TRANSFER && hasObjects) {
     try {
-      nativeStructuredClone(transferCheck, { transfer: transfer });
+      nativeStructuredClone(transferCheck, { transfer: nativeTransfer });
     } catch (error) {
       if (error !== transferCheck) throw error;
     }
@@ -614,7 +624,7 @@ var performTransfer = function (transfer, map, replacements) {
     placeholder = mapGet(map, value);
     type = placeholder.type;
     transferred = undefined;
-    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
+    if (PROPER_STRUCTURED_CLONE_TRANSFER && type !== 'AudioData' && type !== 'VideoFrame') {
       transferred = nativeStructuredClone(value, { transfer: [value] });
     } else {
       switch (type) {
