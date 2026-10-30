@@ -17,7 +17,7 @@ var STOP = { valueOf: function () { throw STOP; } };
 var throwsOnDetached = function (O, slice) {
   try {
     if (NATIVE_UINT8_ARRAY) {
-      // A buffer can be larger than the maximum typed array length.
+      // a buffer can be larger than the maximum typed array length
       // eslint-disable-next-line no-new -- thrower
       new Uint8Array(O, 0, 0);
     } else if (slice) {
@@ -31,14 +31,16 @@ var throwsOnDetached = function (O, slice) {
 };
 
 module.exports = function (O) {
-  // A full polyfill never has a detachable backing store.
-  if (getInternalState(O).type === 'ArrayBuffer') return false;
+  var state = getInternalState(O);
+  if (state.detached) return true;
+  // a full polyfill never has a detachable backing store
+  if (state.type === 'ArrayBuffer') return false;
   if (NATIVE_UINT8_ARRAY && CHECK_BY_CLONING === false) return throwsOnDetached(O);
   var prototype = getNativePrototype(O, true);
   if (prototype && classof(prototype) === 'SharedArrayBuffer') return false;
   var slice = prototype && prototype.slice;
   if (CHECK_BY_CLONING === undefined && postMessage) {
-    // Old WebKit accepts detached buffers in both view constructors and slice.
+    // old WebKit accepts detached buffers in both view constructors and slice
     CHECK_BY_CLONING = fails(function () {
       var Constructor = prototype && prototype.constructor;
       var buffer = NATIVE_UINT8_ARRAY ? new Uint8Array(1).buffer : new Constructor(1);

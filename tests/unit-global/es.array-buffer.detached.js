@@ -16,6 +16,9 @@ QUnit.test('ArrayBuffer#detached', assert => {
 
   if (detached.byteLength === 0) {
     assert.true(detached.detached, 'detached');
+    const empty = new ArrayBuffer(0);
+    structuredClone(empty, { transfer: [empty] });
+    assert.true(empty.detached, 'detached empty buffer');
   }
 
   if (DESCRIPTORS) {
