@@ -10,10 +10,8 @@ import {
   isConstantLiteralReceiver,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
-  paramDefaultInstanceSynthAllowed,
   planSynthReceiverGuard,
   patternHopKeysToHost,
-  synthPropDedupKey,
   decidedRunningOperand,
   liftedRealmNavEffect,
   observablePrefixElements,
@@ -64,7 +62,6 @@ import {
   peelParenAndTSParentPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
-  propBindingIdentifier,
   proxySurfaceIdentifier,
   SINGLE_STATEMENT_SLOTS,
   soleChainToProp,
@@ -77,6 +74,7 @@ import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provid
 import {
   forInitNeedsReceiverMemo,
   planDestructureKeySegments,
+  planDestructureInstanceSynth,
   sentinelMemoInitShape,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
@@ -1422,8 +1420,8 @@ export function anchorAssignmentResidual(assignment, jobs, reanchor, surfaceInit
 // ... never over a slot THIS pass minted (`of: _Array$of` inside a rendered mirror): the static
 // mirror hands the leaf below it the ponyfill VALUE, and a second mirror there would dispatch on it
 export function registerHopInstanceSynthSlot({ metaPath, kind, entry, hintName },
-  { adapter, resolvePure, synthLedger, instanceSynthCtx, injectorState }) {
-  if (kind !== 'instance' || !propBindingIdentifier(metaPath.node.value)) return false;
+  { adapter, synthLedger, instanceSynthCtx, injectorState }) {
+  if (kind !== 'instance') return false;
   const innerPattern = metaPath.parentPath;
   // the shared climb admits the host: a default's left or an IIFE parameter, an array wrapper on
   // the way being one of its hops
@@ -1433,34 +1431,34 @@ export function registerHopInstanceSynthSlot({ metaPath, kind, entry, hintName }
   const basePath = host.node.type === 'AssignmentPattern' ? host.get('right')
     : detectIifeArgReceiverPath(host, climbed.hostPattern.node, adapter);
   const slotPath = basePath ? descendReceiverPathByKeys(basePath, climbed.hops, adapter) : null;
-  if (!slotPath || (slotPath.node.type === 'Identifier'
-    && ownOutputTests(injectorState).isOwnPassBinding(slotPath.node.name))) return false;
-  return paramDefaultInstanceSynthAllowed({
-    objectPatternNode: innerPattern.node,
-    receiverNode: slotPath.node,
-    scope: metaPath.scope,
-    adapter,
-    path: metaPath,
-    resolvePure: m => resolvePure(m, metaPath),
-  }) && registerInstanceSynthSlot({
+  return registerInstanceSynthSlot({
     metaPath,
-    pattern: innerPattern.node,
     entry,
     hintName,
-    receiver: slotPath.node,
-    synthLedger,
-    ctx: instanceSynthCtx,
+    synthLedger, ctx: instanceSynthCtx,
     receiverPath: slotPath,
+    isOwnPassBinding: ownOutputTests(injectorState).isOwnPassBinding,
   });
 }
 
 // `receiverPath`: the receiver's own path - the type resolver descends by PATH (an array literal's common
 // element type is a per-element walk), and that is where the receiver's own position lives
 export function registerInstanceSynthSlot({
-  metaPath, pattern, entry, hintName, receiver, synthLedger, ctx, receiverPath,
+  metaPath, entry, hintName, synthLedger, ctx, receiverPath, isOwnPassBinding = null,
 }) {
-  const dedupKey = synthPropDedupKey(metaPath.node, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter });
-  if (!dedupKey) return false;
+  const choice = planDestructureInstanceSynth({
+    path: metaPath,
+    receiverPath,
+    pureResult: { entry, hintName },
+    adapter: ctx.adapter,
+    resolvePure: ctx.resolvePure,
+    resolveNodeType: ctx.resolveNodeType,
+    toHint: ctx.toHint,
+    isOwnPassBinding,
+  });
+  if (!choice) return false;
+  const pattern = metaPath.parentPath.node;
+  const receiver = receiverPath.node;
   let pending = synthLedger.get(pattern);
   if (!pending) {
     const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter });
@@ -1471,15 +1469,8 @@ export function registerInstanceSynthSlot({
       sealedProbePlan: captureSealedNavProbe(receiver, metaPath, ctx) };
     synthLedger.set(pattern, pending);
   }
-  const lookupKey = pending.plan.find(item => item.dedupKey === dedupKey)?.lookupKey ?? null;
-  const objectHint = lookupKey && receiverPath && ctx.resolveNodeType && ctx.toHint
-    ? ctx.toHint(ctx.resolveNodeType(receiverPath)) : null;
-  const typed = objectHint
-    ? ctx.resolvePure({ kind: 'property', object: objectHint, key: lookupKey, placement: 'prototype' }, metaPath)
-    : null;
-  const use = typed?.kind === 'instance' ? typed : { entry, hintName };
   ctx.skippedNodes.add(receiver);
-  pending.slots.set(dedupKey, { helper: ctx.injectPureImport(use.entry, use.hintName), receiver });
+  pending.slots.set(choice.key, { helper: ctx.injectPureImport(choice.entry, choice.hintName), receiver });
   return true;
 }
 

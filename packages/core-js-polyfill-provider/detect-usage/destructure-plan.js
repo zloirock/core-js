@@ -97,7 +97,7 @@ import {
   renderSynthActivation,
   sequenceExpression,
 } from '../render.js';
-import { nodeRangeContains } from '../resolve-node-type/base.js';
+import { literalNodeValue, nodeRangeContains } from '../resolve-node-type/base.js';
 import {
   classifyVariableDeclarationHost,
   deadDefaultElementPattern,
@@ -135,6 +135,7 @@ import {
   resolveKey as sharedResolveKey,
   memberTargetTakesExtraction,
   resolveObjectName,
+  resolveSynthKeys,
   callYieldedLiteral,
   realmLevelNamesCtor,
   yieldedSlotValue,
@@ -147,6 +148,12 @@ import {
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
   namedDefaultReceiver,
+  nearestInnerDefaultDead,
+  paramDefaultInstanceSynthAllowed,
+  refineInstanceEntryByReceiver,
+  resolveNestedDestructureReceiver,
+  synthPropDedupKey,
+  destructureAssignmentValueIsCaptured,
   planSideEffectKeyStrategy,
   planSynthReceiverGuard,
   nestedSlotMemoPlan,
@@ -206,6 +213,105 @@ export function discardedReceiverEffects(init, ctx) {
 // not its right child: a deferred binding must render later rewrites of that live slot.
 export function liveDestructureDefault(value, kind) {
   return kind === 'instance' && value?.type === 'AssignmentPattern' ? value : null;
+}
+
+// A default or paired argument can carry an instance synth only as a whole receiver.
+// Both bindings ask the same admission, slot identity and receiver-specific entry question;
+// locating the live path and registering the replacement remain native. A paired slot minted
+// by this pass already holds its ponyfill value and must not be mirrored again.
+export function planDestructureInstanceSynth({
+  path, receiverPath, pureResult, adapter, resolvePure, resolveNodeType, toHint, isOwnPassBinding = null,
+}) {
+  const receiver = receiverPath?.node;
+  if (!receiver || !propBindingIdentifier(path.node.value) || (receiver.type === 'Identifier' && isOwnPassBinding?.(receiver.name))
+    || !paramDefaultInstanceSynthAllowed({
+      objectPatternNode: path.parentPath.node, receiverNode: receiver, scope: path.scope, adapter, path,
+      resolvePure: meta => resolvePure(meta, path),
+    })) return null;
+  const key = synthPropDedupKey(path.node, { scope: path.scope, path, adapter });
+  if (!key) return null;
+  const { lookupKey } = resolveSynthKeys({ node: path.node, scope: path.scope, adapter, path });
+  const pure = refineInstanceEntryByReceiver({
+    pureResult, key: lookupKey, receiverPath, resolveNodeType, toHint, resolvePure, path,
+  });
+  return { key, entry: pure.entry, hintName: pure.hintName };
+}
+
+// The outer read that can feed a nested default's extraction. A static import is defined;
+// an instance dispatch still needs the live default guard. Typeless receivers keep the generic
+// dispatch, but an instance of a substituted constructor already reads its ponyfill prototype.
+function nestedDefaultHopPure({ defaultPath, receiverPath, path }, {
+  adapter, resolvePure, resolveNodeType, toHint, hasSubstitutedConstructor,
+}) {
+  const outerProp = defaultPath?.parentPath;
+  const keyNode = isPropertyNode(outerProp?.node) && !outerProp.node.computed ? outerProp.node.key : null;
+  const key = keyNode?.name ?? (typeof literalNodeValue(keyNode) === 'string' ? literalNodeValue(keyNode) : null);
+  if (!receiverPath?.node || typeof key !== 'string') return null;
+  const hopPattern = outerProp.parentPath;
+  let owner = hopPattern?.parentPath;
+  if (owner?.node?.type === 'AssignmentPattern' && owner.node.left === hopPattern.node) owner = owner.parentPath;
+  function resolveStatic(ctorName) {
+    return staticHopPure({ ctorName, key, resolvePure: meta => resolvePure(meta, path) });
+  }
+  if (isPropertyNode(owner?.node)) {
+    const container = resolveNestedDestructureReceiver(owner, adapter);
+    return container ? resolveStatic(container) : null;
+  }
+  const ctorName = resolveObjectName({ objectNode: receiverPath.node, scope: path.scope, adapter, path });
+  if (ctorName && isStaticPlacement(ctorName)) {
+    const pure = resolveStatic(ctorName);
+    if (pure) return pure;
+  }
+  const type = resolveNodeType?.(receiverPath);
+  const hint = type && toHint ? toHint(type) : null;
+  if (!type?.primitive && type?.constructor && hasSubstitutedConstructor?.(type.constructor)) return null;
+  const pure = resolvePure({ kind: 'property', object: hint ?? undefined, key, placement: 'prototype' }, hint ? path : null);
+  return pure?.kind === 'instance' ? pure : null;
+}
+
+// Source shape, not ownership of the eventual rewrite: a typed navigation or an outer
+// dispatch takes BOTH default arms. Mirroring only the fallback would leave the live read raw.
+function nestedDefaultHasExtraction(options, ctx) {
+  return (options.kind === 'instance' && typedNavClaimShape(options.path, { allowLeafSiblings: true, adapter: ctx.adapter }))
+    || nestedDefaultHopPure(options, ctx);
+}
+
+// Whether the climb must stop at a default's own receiver. Pairing and named outer slots
+// can prove that receiver dead. With no outer source receiver, keep the default route;
+// Native host discovery is lazy: an empty or proven-dead default needs no outer walk.
+export function destructureDefaultCarriesReceiver({ defaultPath, path, getReceiverPath, kind, slotStatic }, ctx) {
+  if (!destructureRightIsReceiver(defaultPath.node.right) || slotStatic
+    || nearestInnerDefaultDead(path.parentPath, ctx.adapter)) return false;
+  if (isPropertyNode(defaultPath.parentPath?.node)
+    && resolveNestedDestructureReceiver(defaultPath.parentPath, ctx.adapter, null, { innerDefault: false })) return false;
+  const receiverPath = getReceiverPath(defaultPath);
+  return !receiverPath?.node || !nestedDefaultHasExtraction({ defaultPath, receiverPath, path, kind }, ctx);
+}
+
+// After sibling normalization declined, the remaining mirror may serve a literal default.
+// A captured assignment or sibling claims prevent the whole-hop fold; otherwise the same
+// two-arm extraction question used by the climb owns it. Named defaults were settled there.
+export function shouldMirrorNestedDestructureDefault({ path, receiverPath, kind }, ctx) {
+  const patternPath = path.parentPath;
+  const pattern = patternPath.node;
+  const defaultPath = patternPath.parentPath;
+  if (defaultPath?.node?.type !== 'AssignmentPattern' || defaultPath.node.left !== pattern
+    || namedDefaultReceiver(defaultPath.node.right)) return false;
+  return (kind === 'instance' && pattern.properties.length > 1 && hopPatternLeafClaims({
+    pattern, resolvePure: ctx.resolvePure, keyCtx: { scope: path.scope, adapter: ctx.adapter, path },
+  })) || destructureAssignmentValueIsCaptured(path)
+    || !nestedDefaultHasExtraction({ defaultPath, receiverPath, path, kind }, ctx);
+}
+
+// The composed outer-read/leaf-dispatch product keeps the source DEFAULT SLOT, not its
+// current right child. Deferred rendering must observe child rewrites made after this decision.
+export function planNestedDefaultHop({ chain, kind, entry, path, receiverPath }, ctx) {
+  const patternPath = path.parentPath;
+  const defaultPath = patternPath?.parentPath;
+  const defaultHost = chain.length && defaultPath?.node?.left === patternPath.node
+    && entry !== 'get-iterator-method' && liveDestructureDefault(defaultPath.node, kind);
+  return defaultHost ? { pure: nestedDefaultHopPure({ defaultPath, receiverPath, path }, ctx), defaultHost }
+    : { pure: null, defaultHost: null };
 }
 
 // What a fully consumed initializer leaves at its original evaluation position. Both bindings
