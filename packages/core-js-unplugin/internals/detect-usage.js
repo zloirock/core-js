@@ -11,7 +11,6 @@ import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import { mergeVisitors } from '@core-js/polyfill-provider/helpers/source-scan';
 import {
-  aliasSpanDominatesUse,
   ancestorChainDetached,
   bareAssignmentPatternLeafPath,
   bindingInvisibleFromUseRegion,
@@ -41,7 +40,7 @@ import {
   liveBindingWrites,
   syntheticNodeAncestry,
   unwrapExportedDeclaration,
-  usableAliasInfo,
+  trustedBindingHint,
   useAnchorStart,
   unwrapTransparentSeq,
   varScopeBlockOfBinding,
@@ -668,7 +667,8 @@ export function createEstreeAdapter(options = {}) {
       // declaration kind) and rejects user-declared shadows of the same name
       // binding-first: the per-binding registry is exact - see the babel twin
       const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
-      const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, useAnchorStart(path)) ?? null;
+      const useStart = useAnchorStart(path);
+      const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, useStart) ?? null;
       const { isImportBinding, isRequireBinding, importSource, importKind } =
         importBindingView(b.path.node, b.path.parent, { adapter, scope, path });
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
@@ -697,19 +697,14 @@ export function createEstreeAdapter(options = {}) {
       const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
         info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name, path,
       });
-      // guarded registration = flow-trust refused: the member read stays native. the dominance
-      // gate keeps a use textually BEFORE its trusted write / declaration native too.
-      // a plugin-MINTED memo (a guard ref) reaches here once its `var _ref` IS in the scope
-      // registry - the synthetic branch above serves it only while that lags. the minted arm is
-      // the babel twin's: the ref is allocator-owned (user code cannot rebind it) and its hint was
-      // set from a resolved surface, so a claim rebuilt onto it resolves through the ref
-      // an in-file `require` binding shadows the CJS import - the require-style arm only
-      // fires for the real module function (the node-local view cannot see the shadow)
-      // the shadow discipline already rode in through `importBindingView`'s shadowCtx
-      const requireBindingLive = isRequireBinding;
-      const polyfillHint = usableAliasInfo(info)
-        && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
-        && aliasSpanDominatesUse({ info, useStart: useAnchorStart(path), usagePath: path }) ? info.hint : null;
+      const polyfillHint = trustedBindingHint({
+        info,
+        isAliasBindingShape,
+        isImportBinding,
+        isRequireBinding,
+        useStart,
+        usagePath: path,
+      });
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
       // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding

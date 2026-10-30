@@ -39,7 +39,7 @@ import {
   walkPatternIdentifiers,
   cleanDestructureAliasWrites,
   aliasSpanDominatesUse,
-  usableAliasInfo,
+  trustedBindingHint,
   CHAIN_HOP_WRAPPER_TYPES,
   unwrapTransparentSeq,
   stillWrites,
@@ -232,18 +232,14 @@ export function createBabelAdapter(options = {}) {
         const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
           info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name, path,
         });
-        // a GUARDED registration means flow-trust was REFUSED - the hint must never drive a
-        // direct narrow (babel's mutated `var M = _Map` declarator is indistinguishable from a
-        // clean alias here); the member read stays native. the dominance gate keeps a use
-        // textually BEFORE its trusted write / declaration native too
-        // a plugin-MINTED memo (`_ref = (() => globalThis)()` from an optional-chain deopt) carries a
-        // `var _ref` scope binding that is NOT an alias-init shape, so the shape checks above miss it -
-        // but it is allocator-owned (no user rebind) and its hint was set from a resolved proxy-global
-        // root, so trust it directly. the dominance gate still bounds a use textually before the write
-        // the shadow discipline already rode in through `importBindingView`'s shadowCtx
-        const requireBindingLive = isRequireBinding;
-        const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
-          && aliasSpanDominatesUse({ info, useStart, usagePath: path }) ? info.hint : null;
+        const polyfillHint = trustedBindingHint({
+          info,
+          isAliasBindingShape,
+          isImportBinding,
+          isRequireBinding,
+          useStart,
+          usagePath: path,
+        });
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module
         // source so `bindingSymbolKey` can fold `obj[iterator]`. the shadow gate rejects a nested
