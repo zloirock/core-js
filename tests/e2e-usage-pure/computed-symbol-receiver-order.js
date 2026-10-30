@@ -1,5 +1,6 @@
 /* eslint-disable @stylistic/no-extra-parens -- nested computed receiver and key sequence hosts */
 
+import { withWindowPresence } from './unbacked-window-host.cjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
 QUnit.test('symbol optional invocation keeps the first getter value through key and argument effects', assert => {
@@ -147,11 +148,11 @@ QUnit.test('symbol receiver proof keeps live window guards and sealed argument o
       assert.same(this, realm);
       return { next: () => ({ value: 'held' }) };
     }, () => {
-      for (const present of [false, true]) withTemporaryProperty(realm, 'window', present ? realm : null, () => {
+      for (const present of [false, true]) withWindowPresence(present, live => {
         log.length = 0;
         const iterator = globalThis.window?.[(log.push('hop'), 'self')][(log.push('key'), Symbol.iterator)]();
-        assert.same(iterator?.next().value, present ? 'held' : undefined);
-        assert.deepEqual(log, present ? ['hop', 'key'] : []);
+        assert.same(iterator?.next().value, live ? 'held' : undefined);
+        assert.deepEqual(log, live ? ['hop', 'key'] : []);
         log.length = 0;
         let result;
         try {
@@ -162,8 +163,8 @@ QUnit.test('symbol receiver proof keeps live window guards and sealed argument o
         } catch (error) {
           result = error.name;
         }
-        assert.same(result, present ? 'held' : 'TypeError');
-        assert.deepEqual(log, present ? ['hop', 'key', 'argument'] : ['argument']);
+        assert.same(result, live ? 'held' : 'TypeError');
+        assert.deepEqual(log, live ? ['hop', 'key', 'argument'] : ['argument']);
       });
     });
   });
