@@ -6,8 +6,6 @@ import {
   carriedInitReceiverNode,
   classifyCallBranchForSynth,
   visitFallbackSynthBranches,
-  consumedAssignmentSlotDropsHost,
-  dispatchMayReadNav,
   consumedAssignmentSlotPrunes,
   destructureAssignmentValueIsCaptured,
   receiverPerformsEveryInitEffect,
@@ -16,9 +14,7 @@ import {
   destructureRetainsLiteralWrapper,
   liftedPrefixSplit,
   flattenArrayWrapperInits,
-  isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
-  isReReadableSurfaceNav,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
   patternComputedKeysSynthSafe,
@@ -68,6 +64,7 @@ import {
   destructureDefaultCarriesReceiver,
   shouldMirrorNestedDestructureDefault,
   planNestedDefaultHop,
+  planNestedAssignmentReceiver,
   planLiteralResidual,
   planLiteralRoute,
   synthPlanFullyCovered,
@@ -164,6 +161,7 @@ import {
   variableDeclaration,
   variableDeclarator,
   renderParameterInstanceCapture,
+  renderNestedExtractionReceiver,
   renderDestructureStatements,
   exportDeclaration,
 } from '@core-js/polyfill-provider/render';
@@ -2988,136 +2986,48 @@ export default function createAstDestructureEmitter({
     // the two emitters on the assignment form alone
     if (kind === 'instance' && chain.length > 0) {
       const bindingId = propBindingIdentifier(prop.value) ?? overwriteMemberTarget(metaPath, keyCtx);
-      // NO nav segments here: this arm resolves during the WALK and clones at drain, so a spelling
-      // built over the captured root can never carry the substitution the walk performs on it
-      // (`globalThis` -> `_globalThis`) - it printed the raw global beside a residual reading the
-      // pure import. the consume route below spells such a receiver through the passthrough
-      const copyReceiver = bindingId && resolveNestedReceiverNode(metaPath, { allowSePeeledFragment: true, adapter });
-      // ... and where the HOST dies with the slot, an EFFECT-bearing receiver qualifies too: nothing
-      // survives to read it a second time, so the dispatch performs the effects the dropped residual
-      // would have performed, exactly once (`({ y: { at: v } } = { y: eff() })`). the second-read rule
-      // below protects a residual - with none left it has nothing to protect
-      // the receiver is spelled a SECOND time here (the residual keeps the source's own read), so it
-      // must be a bare token: the resolution above hands out no nav, and a member-valued literal slot
-      // never reaches this arm - measured, the surface allowance this once carried was dead
-      const plainCopy = copyReceiver && isReReferenceableReceiver(copyReceiver) ? copyReceiver : null;
-      const carriedReceiver = plainCopy || !bindingId || !consumedAssignmentSlotDropsHost(metaPath)
-        ? null
-        : carriedInitReceiverNode({
-          path: metaPath,
-          initNode: hostParent.node.right,
-          resolveOptions: { allowSePeeledFragment: true },
-          adapter,
-        });
-      const capturedReceiver = !copyReceiver && !carriedReceiver && bindingId
-        ? resolveNestedReceiverNode(metaPath, { allowSeFreeSingleRead: true, allowSePeeledFragment: true, adapter }) : null;
-      if (capturedReceiver && !isReReferenceableAcrossReads(capturedReceiver, keyCtx)) {
-        const capture = planNestedKeyedPatternCapture({
-          pattern: hostParent.node.left,
-          init: hostParent.node.right,
-          force: true,
-          plansLeaf: true,
-          prop,
-          kind,
-          entry,
-          ctx: keyCtx,
-          ancestors: chain.toReversed().map(level => ({ pattern: level.outerPattern, prop: level.hopProp })),
-        });
-        if (capture) {
-          const rendered = renderNestedKeyedPatternCapture(capture, {
-            mintRef: () => injector.generateDeclaredRef(metaPath), assignment: true, embed: cloneNode,
-            renderLeaf: capture.inlineLeaf ? receiverNode => assignmentExpression('=', cloneNode(bindingId), buildValue({
-              kind,
-              entry,
-              hintName,
-              receiverNode,
-              prop,
-              nested: false,
-              chainKeys: [],
-              metaPath,
-              literalRoute: true,
-              guardCtx: navGuardCtx(metaPath),
-            })()) : null,
-          });
-          // the capture copies the pattern's targets: the source pattern leaves
-          noteRenderRetiredWrites(hostParent.node.left);
-          if (!seqHostStatement) {
-            const statements = rendered.expression.expressions.map(expressionStatement);
-            if (bodyless) exprStmtPath.replaceWith(bodylessSlotReplacement(exprStmtPath.node, statements));
-            else exprStmtPath.replaceWithMultiple(statements);
-          } else hostParent.replaceWith(rendered.expression);
-          markRewrite();
-          return;
-        }
-      }
-      // ... and a NAV the hops name off a realm slot (`{ w: { Array: { prototype: { at } } } } = { w:
-      // globalThis }`) dispatches on that surface, spelled at drain off the root's pure binding - the
-      // shared dispatch decision, the declaration host's own channel
-      // ... asked of a LITERAL host only: a bare realm init keeps the consume route below, whose
-      // jobs drain in source order beside the statics of the same statement
-      const surfaceNav = !plainCopy && !carriedReceiver && bindingId
-        && peelTransparentExpr(hostParent.node.right)?.type === 'ObjectExpression'
-        ? resolveNestedNavDispatch(metaPath, { adapter, resolvePure }).dispatch : null;
-      // ... asking, beside another reader of its hops, the shared re-read question the other arms ask
-      const navSurfaceRoot = surfaceNav?.kind === 'surface' && surfaceNav.root
-        && dispatchMayReadNav(metaPath, surfaceNav.node,
-          { isOwnAlias: isOwnPureAlias, adapter, allowOptionalHops: surfaceNav.allowOptionalHops }) ? surfaceNav : null;
-      // ... and a nav ending on a polyfillable STATIC dispatches on that static's ponyfill - an
-      // import binding, re-referenceable by nature - never on the raw static off the realm, which
-      // the floor lacks (`({ Array: { of: { name } } } = globalThis)` -> `name = _name(_Array$of)`):
-      // the typed-base question the declaration host asks, so the two hosts answer alike
-      // ... with LEAF siblings admitted: the residual they keep re-anchors on the static's ponyfill
-      // (the drain's sole static hop), so the overwrite dispatches beside them like the declaration
-      // host's hop split
-      // ... asked PAST the built-in-surface refusal: that refusal hands a chain to the anchored
-      // machinery, which re-homes the residual onto the surface's own pure binding and never
-      // dispatches, so an instance leaf under such a hop had no route of its own at all
-      const typedChain = !plainCopy && !carriedReceiver && !navSurfaceRoot && bindingId
-        ? typedNavClaimChain(metaPath,
-          { adapter, allowAssignmentHost: true, allowLeafSiblings: true, allowSurfaceBase: true }) : null;
-      const typedBase = typedChain && resolveNestedReceiverBase({
-        rootName: typedChain.root.name,
-        keys: typedChain.keys,
-        binding: adapter.getBinding({ scope: metaPath.scope, name: typedChain.root.name, path: metaPath, read: typedChain.root }),
-        adapter,
+      const receiverPlan = bindingId && planNestedAssignmentReceiver({
+        path: metaPath,
+        assignment: hostParent.node,
+        entry,
+        chain,
+        pending: true,
+      }, {
+        ...keyCtx,
+        isOwnAlias: isOwnPureAlias,
+        resolvePure,
         resolveGlobalPolyfill,
-        read: { node: typedChain.root, path: metaPath },
+        injectorState,
         resolveStaticPolyfill: (ctor, key) => staticHopPure(ctor, key, metaPath),
       });
-      // ... a SLOT default on the chain keeps the consume route below, the host's own answer at
-      // the floor: over a static ponyfill it is dead text that route already drops with the host
-      const typedStatic = typedBase?.static && !typedChain.slotDefault ? typedBase : null;
-      // ... and a hop naming a BUILT-IN SURFACE dispatches the same way, off that surface's own pure
-      // binding - a ctor entry (`_Promise`), or the realm's with the hop left to navigate
-      // (`_globalThis.Object`): the very receiver the residual's anchor re-homes on, so the claim
-      // reads what the anchor reads instead of staying native beside it. a DEFAULTED SYMBOL leaf is
-      // the one shape left to the key-swap - the shared plan's rule for a prop-level default on
-      // `[Symbol.iterator]`, whose helper result is DEFINED where the raw read is undefined, so a
-      // dispatch here would flip which side of the default runs
-      // ... and it spells the surface's hops again, so beside another reader of them it asks the shared
-      // re-read question of the nav the source wrote
-      const typedSurface = !typedStatic && typedBase?.pure && !typedChain.slotDefault
-        && !(entry === 'get-iterator-method' && prop.value?.type === 'AssignmentPattern')
-        && dispatchMayReadNav(metaPath, typedChain.keys.reduce(memberFromKeyName, typedChain.root),
-          { isOwnAlias: isOwnPureAlias, adapter })
-        ? typedBase : null;
-      // ... and a TYPED user nav the extraction OWNS - every level dies with the claim, the host
-      // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
-      // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape
-      // A computed root has no binding name; the chain carries its source spelling for the same
-      // sole-read extraction, just as it does on a declaration host. A pure realm base supplies
-      // that root too; its user keys still name the values the source reads.
-      // A known namespace keeps the surface/default gate above.
-      const typedUserNav = !typedStatic && typedBase && !typedBase.ctor
-        && !isBuiltInSurfaceNav(typedChain.keys.reduce(memberFromKeyName, typedChain.root), { ctx: keyCtx, isOwnAlias: isOwnPureAlias })
-        && !typedChain.slotDefault && consumedAssignmentSlotDropsHost(metaPath) ? typedBase : null;
-      // ... and a nav off a name this plugin minted for a built-in surface (a capture's ref) is the
-      // re-readable surface the shared rule admits: it carries no substitution the drain could miss
-      const navCopy = !plainCopy && !carriedReceiver && !navSurfaceRoot && !typedStatic && !typedSurface && !typedUserNav
-        && bindingId ? resolveNestedReceiverNode(metaPath, { allowSePeeledFragment: true, allowNavSegments: true, adapter }) : null;
-      const aliasNav = navCopy && isReReadableSurfaceNav(navCopy, name => !!injectorState?.getBindingInfo?.(name),
-        { ownAliasRoot: true, ctx: keyCtx }) ? navCopy : null;
-      if (plainCopy || carriedReceiver || navSurfaceRoot || typedStatic || typedSurface || typedUserNav || aliasNav) {
+      if (receiverPlan?.kind === 'capture') {
+        const { capture } = receiverPlan;
+        const rendered = renderNestedKeyedPatternCapture(capture, {
+          mintRef: () => injector.generateDeclaredRef(metaPath), assignment: true, embed: cloneNode,
+          renderLeaf: capture.inlineLeaf ? receiverNode => assignmentExpression('=', cloneNode(bindingId), buildValue({
+            kind,
+            entry,
+            hintName,
+            receiverNode,
+            prop,
+            nested: false,
+            chainKeys: [],
+            metaPath,
+            literalRoute: true,
+            guardCtx: navGuardCtx(metaPath),
+          })()) : null,
+        });
+        // the capture copies the pattern's targets: the source pattern leaves
+        noteRenderRetiredWrites(hostParent.node.left);
+        if (!seqHostStatement) {
+          const statements = rendered.expression.expressions.map(expressionStatement);
+          if (bodyless) exprStmtPath.replaceWith(bodylessSlotReplacement(exprStmtPath.node, statements));
+          else exprStmtPath.replaceWithMultiple(statements);
+        } else hostParent.replaceWith(rendered.expression);
+        markRewrite();
+        return;
+      }
+      if (receiverPlan) {
         const id = injectPureImport(entry, hintName);
         // a DEFAULTED leaf keeps its guard: the pure entry answers `it.method` verbatim off a
         // receiver that is not the polyfilled surface, so the dispatch may be undefined and burying
@@ -3139,32 +3049,22 @@ export default function createAstDestructureEmitter({
           // the raw slot goes with the dispatch that re-spells it - the shared canon answers which
           // slots may leave, and the drain removes the prop and drops an emptied host
           prunesSlot: prunes,
-          carriesInit: !!carriedReceiver || !!typedUserNav,
+          carriesInit: !!receiverPlan.carriesInit,
           prop,
           pattern,
           chain,
           sentinel,
           assignment: hostParent.node,
           value: () => {
-            // a CARRIED receiver re-resolves at drain: a claim inside it renders by REPLACING its
-            // node, and the walk-time copy predates that rewrite
-            const spelled = carriedReceiver
-                ? resolveNestedReceiverNode(metaPath,
-                  { allowSePeeledFragment: true, allowInitCarriedEffects: true, adapter }) ?? carriedReceiver
-                : navSurfaceRoot ? navSurfaceRoot.root : aliasNav ?? copyReceiver;
-              // ... and a receiver LIFTED out of a consumed literal is a node the walk never
-              // revisits: a bare proxy global spells the pure binding that stands for it
-            const barePure = typedStatic || typedSurface || typedUserNav ? null
-              : bareProxyGlobalPure(peelTransparentExpr(spelled), metaPath, { adapter, resolveGlobalPolyfill });
-            const pureBase = typedStatic ?? typedSurface ?? (typedUserNav?.pure ? typedUserNav : null);
-            const root = pureBase ? identifier(injectPureImport(pureBase.pure.entry, pureBase.pure.hintName))
-                : typedUserNav ? typeof typedUserNav.name === 'string' ? identifier(typedUserNav.name)
-                    : duplicateReceiver(typedChain.rootSpelling, injector)
-                : barePure ? identifier(injectPureImport(barePure.entry, barePure.hintName))
-                : duplicateReceiver(spelled, injector);
-            const receiver = typedUserNav ? typedUserNav.path.reduce(memberFromKeyName, root)
-                : typedSurface ? typedSurface.path.reduce(memberFromKeyName, root)
-                : navSurfaceRoot ? navSurfaceRoot.keys.reduce(memberFromKeyName, root) : root;
+            // Follow the plan's borrowed slot after child rewrites, then embed it once.
+            const node = receiverPlan.refresh ? resolveNestedReceiverNode(metaPath,
+              { allowSePeeledFragment: true, allowInitCarriedEffects: true, adapter }) ?? receiverPlan.node : receiverPlan.node;
+            const pure = receiverPlan.rebind
+              ? bareProxyGlobalPure(peelTransparentExpr(node), metaPath, { adapter, resolveGlobalPolyfill }) : receiverPlan.pure;
+            const receiver = renderNestedExtractionReceiver({ ...receiverPlan, node, pure }, {
+              embed: source => duplicateReceiver(source, injector),
+              importPure: target => identifier(injectPureImport(target.entry, target.hintName)),
+            });
             const call = callExpression(identifier(id), [receiver]);
             return overwriteRef
                 ? overwriteDefaultGuard({ call,
@@ -3348,11 +3248,10 @@ export default function createAstDestructureEmitter({
     // feeds the leaf dispatch, the pattern is consumed whole, and the local re-binds through the
     // composition - the declarator host's arrangement, one host over. without it the slot fell to
     // the fallback mirror, which fires the source's default on the path the ponyfill answers
-    const { pure: typedHopPure, defaultHost: typedHopDefaultHost } = planNestedDefaultHop({
+    const { pure: typedHopPure, defaultHost: typedHopDefaultHost, consumesPattern } = planNestedDefaultHop({
       chain, kind, entry, path: metaPath, receiverPath: hostReceiverPath(hostParent),
     }, defaultCtx);
-    const typedHopConsume = !!typedHopPure && !sentinel && !hasRestSibling(pattern, keyCtx)
-      && pattern.properties.length === 1 && prop.value.type === 'Identifier';
+    const typedHopConsume = consumesPattern && !sentinel;
     const chainKeys = hopChainKeys(chain);
     // ... and a DEFAULTED nested leaf over an OPAQUE receiver has no slot for its default: the
     // overwrite spells the dispatch alone, and one answering undefined would skip the default the
