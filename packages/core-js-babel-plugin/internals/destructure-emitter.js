@@ -148,7 +148,6 @@ import {
   destructurePropLeafMeta,
   hopComposesSoleLeaf,
   residualHuskIsDead,
-  residualInitRunsEffects,
   decidedRunningOperand,
   decidedRunningOperandPath,
   liftedPrefixSplit,
@@ -172,6 +171,7 @@ import {
   planLoopHeadExtraction,
   planLiteralRoute,
   orderDestructureParts,
+  destructureResidualFirst,
   releasedDestructureCaptureTail,
   probedNavProbeKey,
   resolvePolyfillableStaticProp,
@@ -3132,11 +3132,9 @@ export default function createDestructureEmitter({
     // host keeps the statement-level insert so later same-declaration emissions (an instance
     // residual-extract) anchor after it in dispatch order
     if (extracted.length) {
-      // a residual whose init RUNS code keeps the source's order: the init evaluates before the
-      // pattern binds anything, so the extractions follow it, and its own prefix stays with it
-      // (the shared residual canon)
+      // Ask after anchoring and prefix relocation, against the live residual.
       const after = !patternEmpties
-        && residualInitRunsEffects({ init: declarator.node.init, scope: declarator.scope, adapter, path: declarator });
+        && destructureResidualFirst([], { init: declarator.node.init, scope: declarator.scope, adapter, path: declarator });
       if (isForInit || declCount > 1) {
         if (isForInit && !after && !patternEmpties && !plan.anchor && !forInitCarries.has(declarator.node)) {
           forInitCarries.set(declarator.node, extracted[0]);
@@ -3672,10 +3670,9 @@ export default function createDestructureEmitter({
     if (declaration.node?.declarations?.length > 1 && plan.memoizeReceiver) {
       noteSlotMemoHost(declaration, prop.findParent(pp => pp.isVariableDeclarator())?.node);
     }
-    const extractAfterResidual = (kind === 'instance' && !!objectNode && inSlotMemoRefs.has(objectNode))
-      || residualInitRunsEffects({
-        init: prop.findParent(pp => pp.isVariableDeclarator())?.node.init, scope: prop.scope, adapter, path: prop,
-      });
+    const extractAfterResidual = destructureResidualFirst([{
+      captureInResidual: kind === 'instance' && !!objectNode && inSlotMemoRefs.has(objectNode),
+    }], { init: prop.findParent(pp => pp.isVariableDeclarator())?.node.init, scope: prop.scope, adapter, path: prop });
     const valueNode = propBindingIdentifier(prop.node.value);
     // a pattern-valued `[Symbol.iterator]` prop consumes like the identifier form, destructuring
     // the helper RESULT (`{ next } = _getIteratorMethod(recv)`): value-correct on modern engines
@@ -5830,14 +5827,11 @@ export default function createDestructureEmitter({
     return declaration.node.kind ?? findStatementParent(declaration).node?.kind ?? 'var';
   }
 
-  // the extraction statement lands ahead of its residual's host statement, the residual's prefix
-  // lifted ahead of both - except where the residual's value (a declarator's init, an assignment's
-  // right) RUNS code: it evaluates before the pattern binds anything, so the extractions follow it
-  // in source order, its own prefix staying with it (the shared residual canon). a later INSTANCE
-  // sibling that memoizes the tail keeps the prefix too: its memo is where the sequence runs
+  // Apply the shared order at the native statement host. A later sibling's receiver memo
+  // owns its prefix; otherwise a leading extraction lifts it ahead of both statements.
   function insertBesideResidualHost(host, residual, statement, prop = null) {
     const key = residual.isAssignmentExpression() ? 'right' : 'init';
-    if (residualInitRunsEffects({ init: residual.node[key], scope: residual.scope, adapter, path: residual })) {
+    if (destructureResidualFirst([], { init: residual.node[key], scope: residual.scope, adapter, path: residual })) {
       const inserted = (hostLastAfterInsert.get(host.node) ?? host).insertAfter(statement);
       hostLastAfterInsert.set(host.node, inserted.at(-1));
       return undefined;
@@ -5918,10 +5912,8 @@ export default function createDestructureEmitter({
         // queued sibling declarators in sync. `declaration.insertBefore` would wrap a
         // for-init in an arrow-IIFE and lose the loop-header shape
         const extractedDeclarator = t.variableDeclarator(localBinding, value);
-        // a residual whose init RUNS code evaluates before the pattern binds anything: the
-        // extractions follow it (the shared residual canon), as on the sole-declaration route - and
-        // its prefix stays in it, since neither the carry nor the split group lands ahead of it then
-        const after = residualInitRunsEffects({ init: parent.node.init, scope: parent.scope, adapter, path: parent });
+        // The shared order also determines which native slot can carry the prefix.
+        const after = destructureResidualFirst([], { init: parent.node.init, scope: parent.scope, adapter, path: parent });
         if (ctx.isForInit) {
           forInitExtractionDecls.add(extractedDeclarator);
           // the carry waits for the finished shape: whether a residual SURVIVES this host, and what

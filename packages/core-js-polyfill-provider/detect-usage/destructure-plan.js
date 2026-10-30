@@ -317,31 +317,60 @@ export function planNestedDefaultHop({ chain, kind, entry, path, receiverPath },
 
 // Classify reads before consuming their source properties. A detached guard, nested hop or
 // effectful kept key needs the residual first; unrelated flat reads retain their own slot.
+// In one declarator group, a nested receiver read orders the whole group after its residual.
+// A deferred group keeps its pristine key proof (`seKey`); independent reads ask the live key.
 // The returned lists borrow the caller's records and carry no rendered nodes or native edits.
-export function partitionDestructureReads(reads, frameOf) {
+export function partitionDestructureReads(reads, frameOf, { grouped = false } = {}) {
   const before = [];
   const after = [];
   let keyFirst = false;
   for (const read of reads) {
-    const keyed = read.sentinel && read.prop?.computed && computedKeyHasSideEffects(read.prop, frameOf(read));
-    if (keyed) keyFirst = true;
-    (read.guardDetach === 'after' || read.chain?.length || keyed ? after : before).push(read);
+    const keyed = read.sentinel && (grouped && read.seKey !== undefined
+      ? read.seKey : read.prop?.computed && computedKeyHasSideEffects(read.prop, frameOf(read)));
+    const nested = read.chain?.length && (!grouped || read.readsReceiver);
+    if (keyed || (grouped && nested)) keyFirst = true;
+    (read.guardDetach === 'after' || (!grouped && nested) || keyed ? after : before).push(read);
   }
-  return { before, after, keyFirst };
+  return grouped && keyFirst ? { before: reads, after: [], keyFirst } : { before, after, keyFirst };
 }
 
-// Order the live residual and its extractions. A retained initializer runs before any
-// binding write unless a leading capture already evaluated it. Anchored residuals are
-// independent source slots and join the extractions in source order, as does a full consume.
-// A kept key still precedes its lookup; synthetic slots follow known source slots.
+// Does this live residual have to run before the extraction group? A kept key or a capture
+// written IN the residual is a prerequisite. An uncaptured initializer runs before binding
+// writes. Re-anchored source slots keep their original order. `reads` are the still-pending
+// read records; already composed native groups carry only their surviving capture obligation.
+// `initRuns` may be a pristine proof retained across child rewrites; otherwise ask the live init.
+export function destructureResidualFirst(reads, {
+  init,
+  scope,
+  adapter,
+  path,
+  initRuns,
+  captured = false,
+  keyFirst = false,
+  anchored = false,
+  pattern = null,
+  sourceProps = null,
+} = {}) {
+  return keyFirst || reads.some(read => read.captureInResidual)
+    || (!captured && (initRuns ?? residualInitRunsEffects({ init, scope, adapter, path })))
+    || (anchored && residualPrecedesExtractions(pattern,
+      reads.map(read => read.source ?? read.chain?.at(-1)?.hopProp ?? read.prop), sourceProps));
+}
+
+// Order the live residual and its extractions. Anchored residuals are independent source
+// slots and join the extractions in source order, as does a full consume. A kept key or
+// residual-owned capture still precedes its lookup; synthetic slots follow known source slots.
 // Records keep their native payload; source/sourceProps describe only their original slot.
 export function orderDestructureParts(partition, residuals, {
   sourceProps = null, captured = false, initRuns = false,
 } = {}) {
   const { before, after, keyFirst } = partition;
   const reads = [...before, ...after];
-  if (keyFirst && residuals.length) return [...residuals, ...reads];
-  if (!residuals.length || residuals.every(part => part.anchored)) {
+  const anchored = !residuals.length || residuals.every(part => part.anchored);
+  if (residuals.length && destructureResidualFirst(reads, { keyFirst, captured, initRuns: !anchored && initRuns })) {
+    return [...residuals, ...reads];
+  }
+  if (anchored) {
     const positions = new Map(sourceProps?.map((prop, index) => [prop, index]));
     function at(part) {
       if (part.sourceProps) return Math.min(...part.sourceProps.map(prop => positions.get(prop) ?? Infinity));
@@ -349,7 +378,7 @@ export function orderDestructureParts(partition, residuals, {
     }
     return [...reads, ...residuals].sort((left, right) => at(left) - at(right));
   }
-  return !captured && initRuns ? [...residuals, ...reads] : [...before, ...residuals, ...after];
+  return [...before, ...residuals, ...after];
 }
 
 // A name can be read by several destructure claims only where intervening getters

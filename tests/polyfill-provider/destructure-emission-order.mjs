@@ -2,8 +2,13 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
-  assignmentNeedsReceiverMemo, buildNestedDestructurePlan, orderDestructureParts, partitionDestructureReads,
-  releasedDestructureCaptureTail, symbolIteratorMemberTarget,
+  assignmentNeedsReceiverMemo,
+  buildNestedDestructurePlan,
+  destructureResidualFirst,
+  orderDestructureParts,
+  partitionDestructureReads,
+  releasedDestructureCaptureTail,
+  symbolIteratorMemberTarget,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { peelTransparentExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
@@ -57,6 +62,55 @@ runBoth('flat, nested, kept keys and guarded reads retain their obligations',
     check(`${ label } source unchanged`, JSON.stringify(host.node), before);
     keyed.key = flat.key;
     check(`${ label } a later key rewrite is read live`, partitionDestructureReads(reads, () => ctx).keyFirst, false);
+  });
+
+runBoth('declaration groups retain initializer, capture and source-slot prerequisites',
+  'const { keep, Array: { of: nested }, from: flat, [(key(), "Map")]: keyed, last } = getRealm();',
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const sourceProps = [...host.node.id.properties];
+    const [keep, hop, flat, keyed, last] = sourceProps;
+    const ctx = context(parser, host);
+    const reads = [
+      { prop: flat, name: 'flat' },
+      { prop: hop.value.properties[0], chain: [{ hopProp: hop }], readsReceiver: true, name: 'nested' },
+      { prop: last, guardDetach: 'after', name: 'guard' },
+    ];
+    const before = JSON.stringify(host.node);
+    const partition = partitionDestructureReads(reads, () => ctx, { grouped: true });
+    const residual = { name: 'residual' };
+    checkDeep(`${ label } nested receiver orders its whole group`,
+      orderDestructureParts(partition, [residual]).map(part => part.name), ['residual', 'flat', 'nested', 'guard']);
+    reads[1].readsReceiver = false;
+    const quiet = partitionDestructureReads(reads, () => ctx, { grouped: true });
+    checkDeep(`${ label } receiverless nested read does not move the group`,
+      orderDestructureParts(quiet, [residual]).map(part => part.name), ['flat', 'nested', 'residual', 'guard']);
+    const keyedReads = [{ prop: keyed, sentinel: true, name: 'keyed' }, ...reads];
+    checkDeep(`${ label } effectful key keeps registration order within its group`,
+      orderDestructureParts(partitionDestructureReads(keyedReads, () => ctx, { grouped: true }), [residual])
+        .map(part => part.name), ['residual', 'keyed', 'flat', 'nested', 'guard']);
+    check(`${ label } running live initializer`, destructureResidualFirst(reads, { ...ctx, init: host.node.init }), true);
+    check(`${ label } whole initializer already captured`,
+      destructureResidualFirst(reads, { ...ctx, init: host.node.init, captured: true }), false);
+    check(`${ label } quiet initializer`, destructureResidualFirst(reads, { ...ctx, init: flat.key }), false);
+    reads[0].captureInResidual = true;
+    check(`${ label } a slot capture still runs in its residual`,
+      destructureResidualFirst(reads, { ...ctx, init: host.node.init, captured: true }), true);
+    delete reads[0].captureInResidual;
+    const anchor = { anchored: true, pattern: { type: 'ObjectPattern', properties: [keep] }, sourceProps, initRuns: false };
+    check(`${ label } earlier anchored source slot`, destructureResidualFirst(reads, anchor), true);
+    anchor.pattern.properties = [last];
+    check(`${ label } later anchored source slot`, destructureResidualFirst(reads, anchor), false);
+    anchor.pattern.properties = [keep];
+    check(`${ label } unanchored residual keeps its native position`,
+      destructureResidualFirst(reads, { ...anchor, anchored: false }), false);
+    check(`${ label } source untouched by all order questions`, JSON.stringify(host.node), before);
+    keyedReads[0].seKey = true;
+    keyed.key = flat.key;
+    check(`${ label } a deferred group retains its source key proof`,
+      partitionDestructureReads(keyedReads, () => ctx, { grouped: true }).keyFirst, true);
+    check(`${ label } a live assignment asks its current key`,
+      partitionDestructureReads(keyedReads, () => ctx).keyFirst, false);
   });
 
 for (const size of [64, 128]) runBoth(`source-order lookup cost/${ size }`,
