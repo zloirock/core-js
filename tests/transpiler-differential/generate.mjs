@@ -21205,6 +21205,31 @@ function * generateNestedExtractionReceivers() {
   }
 }
 
+// Alias provenance survives rewritten bindings, but never blesses a shadow or an earlier read.
+function * generateTrustedBindingReads() {
+  for (const [name, setup, after = ''] of [
+    ['declaration', 'const { Symbol: held } = globalThis;'],
+    ['assignment', 'let held; ({ Symbol: held } = globalThis);'],
+    ['redeclaration', 'var { Symbol: held } = globalThis; var held;'],
+    ['reassigned', 'let { Symbol: held } = globalThis; held = { iterator: "own" };'],
+    ['before-write', 'let held;', '({ Symbol: held } = globalThis);'],
+    ['guarded-empty', 'if (flag) var { Symbol: held } = globalThis;'],
+    ['guarded-live', 'if (flag) var { Symbol: held } = globalThis;'],
+    ['shadow', 'const { Symbol: held } = globalThis; { const held = { iterator: "own" };', '}'],
+  ]) {
+    for (const optional of [false, true]) {
+      yield { ...snippet(`trusted-binding-read/${ name }/${ optional ? 'optional' : 'plain' }`, `((flag) => {
+        let result;
+        ${ setup }
+        try { result = held${ optional ? '?.' : '.' }iterator; log.push("read"); }
+        catch (error) { result = error.name; log.push("throw"); }
+        ${ after }
+        return [result, Array.of(3)];
+      })(${ name === 'guarded-live' })`), strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21618,4 +21643,5 @@ export function * generate() {
   yield * generateNestedDefaultReceiverChoices();
   yield * generateDestructureResidualOrder();
   yield * generateNestedExtractionReceivers();
+  yield * generateTrustedBindingReads();
 }
