@@ -1,12 +1,13 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
 /* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
-import { GLOBAL, NODE, BUN } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, NODE, BUN } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
 import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
+import objectCreate from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import keys from 'core-js-pure/es/object/keys';
@@ -431,6 +432,82 @@ QUnit.module('structuredClone', () => {
     });
   });
 
+  if (DESCRIPTORS) {
+    QUnit.test('Map entries changed during cloning', assert => {
+      for (const mutateKey of [false, true]) {
+        const map = new Map();
+        const shared = { value: 1 };
+        const order = [];
+        const mutator = defineProperty({}, 'value', {
+          enumerable: true,
+          get() {
+            order.push('mutator');
+            map.delete('deleted');
+            map.set('updated', 'new');
+            map.set('added', 'late');
+            shared.value = 2;
+            return map;
+          },
+        });
+        const other = defineProperty({}, 'value', {
+          enumerable: true,
+          get() {
+            order.push('other');
+            return shared;
+          },
+        });
+        map.set(mutateKey ? mutator : other, mutateKey ? other : mutator);
+        map.set('deleted', shared);
+        map.set('updated', shared);
+        map.set(map, shared);
+
+        const copy = structuredClone(map);
+        const entries = from(copy);
+        const copiedMutator = entries[0][mutateKey ? 0 : 1];
+        const copiedOther = entries[0][mutateKey ? 1 : 0];
+        assert.arrayEqual(from(copy.keys()), [entries[0][0], 'deleted', 'updated', copy], 'entry snapshot and order');
+        assert.same(copiedMutator.value, copy, 'circular reference preserved');
+        assert.same(copy.get('deleted'), copiedOther.value, 'deleted value retains its reference');
+        assert.same(copy.get('updated'), copiedOther.value, 'replaced value retains its reference');
+        assert.same(copy.get(copy), copiedOther.value, 'self key retains its value');
+        assert.same(copiedOther.value.value, mutateKey ? 2 : 1, 'values are cloned when visited');
+        assert.arrayEqual(order, mutateKey ? ['mutator', 'other'] : ['other', 'mutator'], 'keys are cloned before values');
+      }
+    });
+
+    QUnit.test('Set entries changed during cloning', assert => {
+      for (const clear of [false, true]) {
+        const set = new Set();
+        const shared = { value: 1 };
+        let reads = 0;
+        const mutator = defineProperty({}, 'value', {
+          enumerable: true,
+          get() {
+            reads++;
+            if (clear) set.clear();
+            else set.delete(shared);
+            set.add('late');
+            shared.value = 2;
+            return set;
+          },
+        });
+        set.add(mutator);
+        set.add(shared);
+        set.add(set);
+
+        const copy = structuredClone(set);
+        const entries = from(copy);
+        assert.same(copy.size, 3, 'entry snapshot size');
+        assert.same(entries[0].value, copy, 'circular reference preserved');
+        assert.deepEqual(entries[1], { value: 2 }, 'deleted value is cloned when visited');
+        assert.notSame(entries[1], shared, 'deleted value is copied');
+        assert.same(entries[2], copy, 'self entry preserves its position');
+        assert.false(copy.has('late'), 'added entry is ignored');
+        assert.same(reads, 1, 'getter runs once');
+      }
+    });
+  }
+
   // Error
   QUnit.test('Error', assert => {
     // IE's native Error treats the second argument as the message.
@@ -506,6 +583,64 @@ QUnit.module('structuredClone', () => {
       }
     });
   });
+
+  if (DESCRIPTORS) {
+    QUnit.test('Object properties changed during cloning', assert => {
+      for (const inherited of [false, true]) {
+        const prototype = {};
+        let inheritedReads = 0;
+        let reads = 0;
+        if (inherited) defineProperty(prototype, 'deleted', {
+          get() {
+            inheritedReads++;
+            return 'inherited';
+          },
+        });
+        const object = objectCreate(prototype);
+        defineProperty(object, 'first', {
+          enumerable: true,
+          get() {
+            reads++;
+            delete object.deleted;
+            delete object.replaced;
+            object.replaced = 3;
+            object.added = 4;
+            defineProperty(object, 'hidden', { enumerable: false });
+            return 1;
+          },
+        });
+        defineProperty(object, 'deleted', { value: 2, enumerable: true, configurable: true });
+        object.replaced = 2;
+        object.hidden = 5;
+
+        const copy = structuredClone(object);
+        assert.deepEqual(copy, { first: 1, replaced: 3, hidden: 5 }, 'deleted and added properties are ignored');
+        assert.arrayEqual(keys(copy), ['first', 'replaced', 'hidden'], 'original key order and enumerability');
+        assert.same(inheritedReads, 0, 'inherited getter is not called');
+        assert.same(reads, 1, 'own getter runs once');
+      }
+    });
+
+    QUnit.test('Array properties changed during cloning', assert => {
+      const array = [0, 1];
+      let reads = 0;
+      defineProperty(array, '0', {
+        enumerable: true,
+        get() {
+          reads++;
+          delete array[1];
+          array[2] = 2;
+          return 1;
+        },
+      });
+
+      const copy = structuredClone(array);
+      assert.same(copy.length, 2, 'original length preserved');
+      assert.arrayEqual(keys(copy), ['0'], 'deleted index stays a hole and added index is ignored');
+      assert.same(copy[0], 1, 'getter result copied');
+      assert.same(reads, 1, 'getter runs once');
+    });
+  }
 
   // [Serializable] Platform objects
 

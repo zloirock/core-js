@@ -9,7 +9,7 @@ const [flavor, mode] = process.argv.slice(2);
 
 if (!flavor) {
   for (const variant of ['core-js', 'core-js-pure']) {
-    for (const scenario of ['missing', 'broken', 'identity', 'shared', 'shared-copy', 'buffer-errors']) {
+    for (const scenario of ['missing', 'broken', 'identity', 'shared', 'shared-copy', 'buffer-errors', 'collections']) {
       const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.url), variant, scenario]);
       console.log(stdout.trim());
     }
@@ -19,7 +19,7 @@ if (!flavor) {
   const prototype = Object.getPrototypeOf(Uint8Array.prototype);
   const nativeClone = globalThis.structuredClone;
   const lengths = new Map();
-  if (mode === 'buffer-errors') {
+  if (mode === 'buffer-errors' || mode === 'collections') {
     const configure = flavor === 'core-js'
       ? require('../../packages/core-js/configurator')
       : require('../../packages/core-js-pure/configurator');
@@ -40,7 +40,7 @@ if (!flavor) {
       }
       return nativeClone(value, options);
     };
-  } else if (mode !== 'shared' && mode !== 'buffer-errors') {
+  } else if (mode !== 'shared' && mode !== 'buffer-errors' && mode !== 'collections') {
     if (mode === 'missing') delete prototype.set;
     else prototype.set = function () { throw new Error('Broken native set'); };
     const previous = prototype.set;
@@ -81,6 +81,28 @@ if (!flavor) {
     assert.equal(copy.tracking.length, 16);
   }
   assert.equal(buffer.byteLength, shared ? 16 : 8);
+
+  if (mode === 'collections') {
+    assert.notEqual(clone, nativeClone);
+    const PureMap = require('../../packages/core-js-pure/es/map');
+    const PureSet = require('../../packages/core-js-pure/es/set');
+    for (const [M, S] of [[Map, Set], [PureMap, PureSet]]) {
+      const value = { data: 1 };
+      const map = new M([[value, 1], [2, value]]);
+      const set = new S([value, map]);
+      map.set(map, set);
+      set.add(set);
+      const copy = clone({ map, set });
+      const [key] = copy.map.keys();
+      assert.notEqual(key, value);
+      assert.deepEqual(key, value);
+      assert.equal(copy.map.get(2), key);
+      assert.equal(copy.map.get(copy.map), copy.set);
+      assert.ok(copy.set.has(key));
+      assert.ok(copy.set.has(copy.map));
+      assert.ok(copy.set.has(copy.set));
+    }
+  }
 
   if (mode === 'buffer-errors') {
     assert.notEqual(clone, nativeClone);

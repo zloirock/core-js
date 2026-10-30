@@ -249,7 +249,7 @@ var structuredCloneInternal = function (value, map) {
   if (mapHas(map, value)) return mapGet(map, value);
 
   var type = classof(value);
-  var C, name, cloned, dataTransfer, i, length, keys, key;
+  var C, name, cloned, dataTransfer, i, length, keys, key, entries;
 
   switch (type) {
     case 'Array':
@@ -448,18 +448,24 @@ var structuredCloneInternal = function (value, map) {
       keys = objectKeys(value);
       for (i = 0, length = lengthOfArrayLike(keys); i < length; i++) {
         key = keys[i];
-        createProperty(cloned, key, structuredCloneInternal(value[key], map));
+        if (hasOwn(value, key)) createProperty(cloned, key, structuredCloneInternal(value[key], map));
       } break;
     case 'Map':
+      entries = [];
       value.forEach(function (v, k) {
-        mapSet(cloned, structuredCloneInternal(k, map), structuredCloneInternal(v, map));
+        push(entries, [k, v]);
       });
-      break;
+      for (i = 0; i < entries.length; i++) {
+        mapSet(cloned, structuredCloneInternal(entries[i][0], map), structuredCloneInternal(entries[i][1], map));
+      } break;
     case 'Set':
+      entries = [];
       value.forEach(function (v) {
-        setAdd(cloned, structuredCloneInternal(v, map));
+        push(entries, v);
       });
-      break;
+      for (i = 0; i < entries.length; i++) {
+        setAdd(cloned, structuredCloneInternal(entries[i], map));
+      } break;
     case 'Error':
       // in old FF, an own property check is needed to resolve a lazy Error#message
       hasOwn(value, 'message');
