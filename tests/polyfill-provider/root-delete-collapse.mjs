@@ -31,6 +31,8 @@ for (const [expression, writes, deleted, kinds] of [
   ['(held = globalThis.window).self.custom', true, false, ['refresh', 'receiver']],
   ['(held = globalThis).self.custom', true, false, []],
   ['(held = globalThis).self.custom', false, false, ['receiver']],
+  ['((held = globalThis.window)?.self).self[custom]', false, false, []],
+  ['((held = globalThis.window)?.self).self?.[custom]', false, false, []],
 ]) runBoth(`root/${ expression }/${ writes }/${ deleted }`, `let held; ${ expression };`, (parser, program, label) => {
   const path = member(parser, program, 'custom');
   const aliasCtx = context(parser, path);

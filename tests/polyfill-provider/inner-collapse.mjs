@@ -84,6 +84,22 @@ for (const [expression, facts, admitted] of [
     check(`${ label }/admitted`, !!planInnerProxyCollapse(node, { aliasCtx, resolvePure, ...facts }), admitted);
   });
 
+// An optional on the outer reader does not protect reads erased below it.
+for (const init of ['globalThis.window?.self', 'globalThis.window == null ? void 0 : globalThis.self']) {
+  for (const [expression, guarded, admitted] of [
+    ['alias.self.window', false, false],
+    ['alias.self.window?.value', false, false],
+    ['alias.self.window?.value', true, true],
+  ]) runBoth(`held read/${ init }/${ expression }/${ guarded }`,
+    `const alias = ${ init }; ${ guarded ? 'if (alias)' : '' } { const result = ${ expression }; }`,
+    (parser, program, label) => {
+      const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'self'
+        && unwrapRuntimeExpr(item.node.object)?.name === 'alias');
+      const aliasCtx = context(parser, path);
+      check(`${ label }/admitted`, !!planInnerProxyCollapse(path.node, { aliasCtx, resolvePure }), admitted);
+    });
+}
+
 for (const [source, admitted] of [
   ['const { value } = globalThis.self.window;', true],
   ['const { value } = globalThis.window;', false],
@@ -104,6 +120,21 @@ for (const [source, admitted] of [
   check(`${ label }/fallback observes its value`, planInnerProxyCollapse(node, { aliasCtx, resolvePure, root,
     valueConsumer: { target: path.node.id, observed: true } }), null);
 });
+
+for (const [expression, admitted] of [
+  ['alias.self.value', true],
+  ['alias.self["value"]', true],
+  ['alias.self?.value', false],
+  ['alias.self[key()]', false],
+]) runBoth(`retained reader/${ expression }`,
+  `const alias = globalThis.window?.self; const result = ${ expression };`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const reader = unwrapRuntimeExpr(path.node.init);
+    const aliasCtx = context(parser, path);
+    const plan = planInnerProxyCollapse(reader.object, { aliasCtx, resolvePure, reader });
+    check(`${ label }/admitted`, !!plan, admitted);
+    if (admitted) check(`${ label }/source alias`, plan.aliasRoot, reader.object.object);
+  });
 
 runBoth('targets and patched realm slots', 'const result = globalThis.self.window;', (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator');

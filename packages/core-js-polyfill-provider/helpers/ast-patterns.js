@@ -478,6 +478,12 @@ export function memberKeyName(node) {
   return property?.type === 'Identifier' ? null : plainSynthKeyName(property);
 }
 
+// A retained member reproduces its receiver's nullish throw before any new work.
+// Optional reads can skip it; a dynamic key can perform effects or throw first.
+export function memberKeepsReceiverThrow(node) {
+  return isMemberAccessNode(node) && !node.optional && (!node.computed || memberKeyName(node) !== null);
+}
+
 // is the member's OWN hop a pristine proxy-global name - dotted, static-string computed, or
 // an SE-keyed computed folding to one? a nav CHAIN-END with such a hop belongs to the alias /
 // kept canons: a value-canon render of only its OBJECT would strand the proxy hop outside the
@@ -14915,7 +14921,11 @@ export function aliasReadGuardedAgainstNullish(path, name) {
     const isMemberish = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
       || node.type === 'CallExpression' || node.type === 'OptionalCallExpression';
     if (isMemberish) {
-      if (node.optional && (node.object === prev || node.callee === prev)) return true;
+      const probe = node.optional && unwrapRuntimeExpr(node.object ?? node.callee);
+      // A later optional tests the completed receiver, after its earlier reads:
+      // `alias.self?.X` still throws while evaluating `alias.self`.
+      if (probe?.type === 'Identifier' && probe.name === name
+        && (node.object === prev || node.callee === prev)) return true;
       continue;
     }
     if (node.type === 'ConditionalExpression' && (node.consequent === prev || node.alternate === prev)
