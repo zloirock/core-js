@@ -62,6 +62,7 @@
     "test-unit-deno": "run-s bundle-tests-unit test-unit-deno-run",
     "test-unit-deno-run": "npm run zxi time cd tests/unit-deno/runner.mjs",
     "test-saucelabs": "npm run zxi time tests/saucelabs/unit.mjs",
+    "test-saucelabs-matrix": "node --test tests/saucelabs/all-platforms.test.mjs",
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",
     "test-babel-plugin": "npm run zxi time cd tests/babel-plugin/index.mjs",
