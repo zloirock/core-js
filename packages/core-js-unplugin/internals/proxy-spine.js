@@ -5,6 +5,7 @@ import {
   proxyHopClaimRoutes,
   spineHoldsKeptWrite,
   staticClaimNavigationRoutes,
+  sealedClaimDisposition,
   staticClaimNeedsGuard,
   navGuardKeepsStoredProbe,
   probeHopInValue,
@@ -95,8 +96,6 @@ import {
   replaceGuardedHop,
   sealedClaimThrowProbe,
   sealedLayerAbove,
-  sealedPristineHopCollapse,
-  sealedThrowRidesTheClaim,
 } from './claim-guards.js';
 import {
   foldTailPristineProxyHops,
@@ -520,6 +519,7 @@ export default function createProxySpineChannel(ctx) {
     const aliasCtx = metaPath ? { scope: metaPath.scope, adapter, path: metaPath } : null;
     function resolve(meta) { return resolvePure(meta, metaPath); }
     return planInnerProxyCollapse(node, { ...facts, aliasCtx, resolvePure: resolve,
+      reader: metaPath?.node === node ? climbTransparentWrapperPath(metaPath).parentPath?.node : metaPath?.node,
       deleteFold: !!metaPath && !!deleteHostForClaim(metaPath, node, { forFold: true })
         && !dispatchConsumesRun({ path: metaPath, resolvePure: resolve, aliasCtx }) });
   }
@@ -1257,7 +1257,6 @@ export default function createProxySpineChannel(ctx) {
       aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
       resolvePure: m => resolvePure(m, metaPath),
       deletion: () => deleteHostForClaim(metaPath, node, { forFold: true }),
-      sealedThrow: () => sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx),
       rootRun(allowOptional) {
         const deadOptionalHop = deadOptionalHopAt(metaPath);
         return { run: plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional, deadOptionalHop }), deadOptionalHop };
@@ -1309,9 +1308,15 @@ export default function createProxySpineChannel(ctx) {
     // optional hop's own spelling) becomes the null test, the claim rides the alternate
     // (`condFn?.()?.Array.of(12)` -> `null == condFn?.() ? void 0 : _Array$of(12)`) - a
     // seq rescue would erase the short-circuit
-    if (staticClaimNeedsGuard(node, () => sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx))
+    if (staticClaimNeedsGuard(node, m => resolvePure(m, metaPath), { scope: metaPath.scope, adapter, path: metaPath })
       && emitLiveOptionalProbeGuard({ metaPath, node, entry, hintName, effects, receiverEffectCount: meta.receiverEffectCount })) return;
-    if (!effects?.length && sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure, markRewrite })) return;
+    const sealed = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName) && !effects?.length
+      && sealedClaimDisposition(node, m => resolvePure(m, metaPath), { scope: metaPath.scope, adapter, path: metaPath });
+    if (sealed?.kind === 'collapse') {
+      markRewrite();
+      metaPath.replaceWith(sealed.node);
+      return;
+    }
     if (node.type === 'MemberExpression') effects = erasedReceiverEffects({ meta, metaPath, node });
     // a pristine hop reading a KEPT-WRITE surface re-reads the ROOT after the write
     // (`(a = _globalThis).self` -> `(a = _globalThis, _globalThis)`, babel's re-read canon)

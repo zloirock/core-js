@@ -145,4 +145,28 @@ runBoth('outward boundaries', 'let held; const result = (held = globalThis.windo
     check(`${ label }/forced fold takes root`, proxyCollapseBase({ rootPure, claimPure }).pure, rootPure);
   });
 
+for (const [reader, admitted] of [
+  ['.value', true],
+  ['["value"]', true],
+  ['?.value', false],
+  ['[key()]', false],
+]) runBoth(`nullable alias outer reader/${ reader }`,
+  `const alias = globalThis.window?.self; const result = alias.self.window${ reader };`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression', item => item.node.property?.name === 'window'
+      && item.node.object.property?.name === 'self');
+    const host = unwrapRuntimeExpr(parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result').node.init);
+    const aliasRoot = path.node.object.object;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path, resolvePure };
+    const { plan, step } = createOuterCollapsePlanner({ resolvePure });
+    step({ kind: 'member', node: path.node, keyName: 'window' });
+    const before = JSON.stringify(program.node);
+    const result = planOuterCollapseValue({ target: path, ...plan }, { aliasRoot, effects: [] },
+      resolvePure({ name: 'self' }), ctx, { consumer: { node: path.node, host } });
+    check(`${ label }/final reader owns the earlier throw`, !!result, admitted);
+    if (admitted) check(`${ label }/same source binding`, result.base.alias, aliasRoot);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+
 finish();
