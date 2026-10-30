@@ -46,3 +46,29 @@ QUnit.test('optional receiver keeps nested prefixes and its stored value', asser
   assert.same(held, null);
   assert.deepEqual(log, ['outer', 'inner']);
 });
+
+QUnit.test('optional receiver keeps live neighbours and a user method receiver', assert => {
+  const log = [];
+  let held;
+  const realm = globalThis;
+  const value = (held = (log.push('prefix'), realm))?.Array.from((log.push('argument'), ['held'])).at(0);
+  assert.same(value, 'held');
+  assert.same(held, globalThis);
+  assert.deepEqual(log, ['prefix', 'argument']);
+  log.length = 0;
+  // eslint-disable-next-line es/no-nonstandard-array-properties -- the absent user slot keeps a live optional
+  assert.same(globalThis?.Array.vestigialReceiverMissing?.at((log.push('skipped'), 0)), undefined);
+  assert.same(log.length, 0);
+  function read(receiver) {
+    return receiver?.items?.at((log.push('index'), 0));
+  }
+  const items = { at() {
+    log.push(this === items ? 'receiver' : 'lost');
+    return 'user';
+  } };
+  assert.same(read(null), undefined);
+  assert.same(read({ items: null }), undefined);
+  assert.same(log.length, 0);
+  assert.same(read({ items }), 'user');
+  assert.deepEqual(log, ['index', 'receiver']);
+});

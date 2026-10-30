@@ -601,34 +601,6 @@ export function isDeleteOperand(metaPath) {
   return claimDeleteOperand(metaPath);
 }
 
-// does the member chain read a MUTATED static anywhere (`globalThis.Array.of = patched`
-// above `...Array.of(5)`)? the deopt keeps every source `?.` spelled. node-DOWN spine twin
-// of the provider's path-UP `mutatedStaticLandingVerdict` (annotations.js) - different
-// anchor and direction, and the erase-verdict here asks it of a DETACHED object node the
-// path-up walk cannot reach
-export function chainContainsMutatedStatic(objectNode, { metaPath, adapter }) {
-  for (let cur = unwrapRuntimeExpr(objectNode); ;) {
-    if (cur?.type === 'CallExpression' && !cur.optional) {
-      cur = unwrapRuntimeExpr(cur.callee);
-      continue;
-    }
-    if (cur?.type !== 'MemberExpression') return false;
-    const key = cur.computed
-      ? (unwrapRuntimeExpr(cur.property)?.type === 'Literal' ? unwrapRuntimeExpr(cur.property).value : null)
-      : cur.property?.name;
-    if (typeof key === 'string') {
-      const objName = resolveObjectName({
-        objectNode: cur.object,
-        scope: metaPath.scope,
-        adapter,
-        path: metaPath,
-      });
-      if (objName && adapter.isMutatedStatic?.(objName, key)) return true;
-    }
-    cur = unwrapRuntimeExpr(cur.object);
-  }
-}
-
 // the frame a node evaluates in, keyed by the node itself. an IIFE call-ARG runs at the CALL SITE,
 // not inside the function whose parameter the pattern is, and a same-named parameter shadows its
 // bindings there - so every scope-aware answer about it (binding resolution, purity, what a discard
