@@ -2792,7 +2792,7 @@ export default function createAstDestructureEmitter({
         memoRecv,
         // a slot memo WRITTEN in its slot: the residual performs the write, so the extraction
         // reading the ref lands after it (the array wrapper's effectful-neighbour order)
-        extractAfterResidual: !!memoRecv?.inSlot,
+        captureInResidual: !!memoRecv?.inSlot,
         capturedSibling: capturedSiblingHosts.has(declarator),
         siblingAppend: siblingAppend || capturedSiblingHosts.has(declarator),
         memoSibling,

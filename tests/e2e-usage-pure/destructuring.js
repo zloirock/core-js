@@ -9400,3 +9400,55 @@ QUnit.test('destructuring: anchored residual setters keep their turn around an i
   if (target) ({ Set: { customSet: target.left }, [Symbol.iterator]: target.middle, Map: { customMap: target.right } } = globalThis);
   assert.deepEqual(events, [['left', 'again', 'undefined'], ['middle', 'again', 'undefined'], ['right', 'after', 'undefined']]);
 });
+
+QUnit.test('destructuring: declaration and for-init writes follow their initializer', assert => {
+  const events = [];
+  function rows() {
+    events.push(['init', typeof at]);
+    return [4, 9];
+  }
+  // eslint-disable-next-line no-var -- observes the binding before initialization
+  var { at, length } = rows();
+  assert.same(at.call([4, 9], -1), 9);
+  assert.same(length, 2);
+  assert.deepEqual(events, [['init', 'undefined']]);
+  events.length = 0;
+  function loopRows() {
+    // eslint-disable-next-line block-scoped-var -- the source for-init uses a hoisted var
+    events.push(['init', typeof includes]);
+    return [4, 9];
+  }
+  // eslint-disable-next-line no-var -- exercises declaration insertion in a loop header
+  for (var before = (events.push('before'), 0), { includes, length: size } = loopRows(), after = events.push(['after', typeof includes]); before < 1; before++) {
+    assert.same(includes.call([4, 9], 9), true);
+    assert.same(size, 2);
+    assert.same(after, 3);
+  }
+  assert.deepEqual(events, ['before', ['init', 'undefined'], ['after', 'function']]);
+});
+
+QUnit.test('destructuring: kept keys precede the for-init body', assert => {
+  const events = [];
+  const rows = [4, 9];
+  // eslint-disable-next-line no-var -- the key observes the binding before initialization
+  for (var { [(events.push(['key', typeof at]), 'at')]: at, length: size } = rows, once = true; once; once = false) {
+    events.push(['body', typeof at]);
+    assert.same(at.call(rows, -1), 9);
+    assert.same(size, 2);
+  }
+  assert.deepEqual(events, [['key', 'undefined'], ['body', 'function']]);
+});
+
+QUnit.test('destructuring: for-init static rest keeps the prefix before its binding', assert => {
+  const events = [];
+  function observe() {
+    // eslint-disable-next-line block-scoped-var -- observes the source for-init var before its write
+    events.push(typeof from);
+  }
+  // eslint-disable-next-line no-var -- exercises the source for-init binding and its prefix
+  for (var { Array: { from }, ...rest } = (observe(), globalThis), once = true; once; once = false) {
+    assert.deepEqual(from([4, 9]), [4, 9]);
+    assert.same(Object.hasOwn(rest, 'Array'), false);
+  }
+  assert.deepEqual(events, ['undefined']);
+});
