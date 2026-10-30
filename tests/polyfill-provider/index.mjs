@@ -56,6 +56,7 @@ import './ast-context-complexity.mjs';
 import './destructure-host-shape.mjs';
 import './destructure-write-order.mjs';
 import './destructure-evaluation.mjs';
+import './destructure-emission-order.mjs';
 import './destructure-products.mjs';
 import './destructure-default-choice.mjs';
 import './destructure-receiver-capture.mjs';
