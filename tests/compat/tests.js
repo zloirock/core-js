@@ -2328,7 +2328,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return test.name === 'AggregateError' && test.errors[0] === 1 && test.message === 'message' && test.cause === 3;
     }
 
-    return checkErrorsCloning(structuredClone, Error)
+    var buffer = new ArrayBuffer(8);
+    var clone = structuredClone(buffer, { transfer: [buffer] });
+    return buffer.byteLength === 0 && clone.byteLength === 8
+      && checkErrorsCloning(structuredClone, Error)
       && checkErrorsCloning(structuredClone, DOMException)
       && checkNewErrorsCloningSemantic(structuredClone);
   },

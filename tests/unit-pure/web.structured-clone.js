@@ -156,12 +156,18 @@ QUnit.module('structuredClone', () => {
     });
 
     if (GLOBAL.WebAssembly?.Memory) QUnit.test('empty WebAssembly memory', assert => {
-      const { buffer } = new GLOBAL.WebAssembly.Memory({ initial: 0 });
+      const memory = new GLOBAL.WebAssembly.Memory({ initial: 0 });
+      const { buffer } = memory;
+      const view = new Uint8Array(buffer);
       const clone = structuredClone(buffer);
       assert.notSame(clone, buffer, 'buffer copied');
       assert.same(clone.byteLength, 0, 'empty buffer');
-      assert.same(structuredClone(new Uint8Array(buffer)).length, 0, 'empty view');
+      assert.same(structuredClone(view).length, 0, 'empty view');
       assert.same(new DataView(buffer).byteLength, 0, 'source is attached');
+      // V8 in Node 10.24 and Chrome 67 still accepts an empty buffer after WebAssembly memory growth.
+      memory.grow(1);
+      assert.throws(() => structuredClone(buffer), error => error.name === 'DataCloneError', 'old buffer is detached');
+      assert.throws(() => structuredClone(view), error => error.name === 'DataCloneError', 'old view is detached');
     });
 
     const SharedArrayBuffer = fromSource('SharedArrayBuffer');
@@ -887,8 +893,50 @@ QUnit.module('structuredClone', () => {
   });
   else if (typeof Uint8Array == 'function') QUnit.test('unsupported transfer', assert => {
     const buffer = new ArrayBuffer(4);
-    assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'unavailable transfer');
+    let reads = 0;
+    const value = defineProperty({}, 'buffer', { enumerable: true, get() {
+      reads++;
+      return buffer;
+    } });
+    assert.throws(() => structuredClone(value, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'unavailable transfer');
+    assert.same(reads, 0, 'unsupported transfer is rejected before serialization');
     assert.same(buffer.byteLength, 4, 'source is preserved');
+  });
+
+  // Deno 1.13 can transfer MessagePorts, but neither structuredClone nor MessageChannel can detach ArrayBuffers.
+  if (/^1\.13\./.test(GLOBAL.Deno?.version?.deno)) QUnit.test('partial transfer support', assert => {
+    assert.same(typeof GLOBAL.ArrayBuffer.prototype.transfer, 'undefined', 'unavailable transfer is not installed');
+    assert.same(typeof GLOBAL.ArrayBuffer.prototype.transferToFixedLength, 'undefined', 'unavailable transferToFixedLength is not installed');
+    assert.true(structuredClone.sham, 'incomplete transfer support is marked');
+    for (const bufferFirst of [false, true]) {
+      const { port1, port2 } = new MessageChannel();
+      const buffer = new ArrayBuffer(4);
+      new Uint8Array(buffer)[0] = 42;
+      let reads = 0;
+      const value = defineProperty({}, 'buffer', { enumerable: true, get() {
+        reads++;
+        return buffer;
+      } });
+      let copy;
+      // Close the ports even if cloning throws unexpectedly.
+      try {
+        assert.throws(() => structuredClone(value, { transfer: bufferFirst ? [buffer, port1] : [port1, buffer] }), isTransferError, 'unsupported buffer transfer');
+        assert.same(reads, 0, 'unsupported transfer is rejected before serialization');
+        assert.same(buffer.byteLength, 4, 'source buffer is preserved');
+        assert.same(new Uint8Array(buffer)[0], 42, 'source data is preserved');
+        copy = structuredClone({ port: port1, again: port1, buffer }, { transfer: [port1] });
+        assert.notSame(copy.port, port1, 'port remains transferable');
+        assert.same(copy.port, copy.again, 'port references are preserved');
+        assert.notSame(copy.buffer, buffer, 'buffer can still be cloned without transfer');
+        assert.same(new Uint8Array(copy.buffer)[0], 42, 'cloned data is preserved');
+        assert.same(buffer.byteLength, 4, 'cloning does not detach the buffer');
+        assert.throws(() => structuredClone(port1, { transfer: [port1] }), isTransferError, 'successful transfer detaches the original port');
+      } finally {
+        if (copy) copy.port.close();
+        port1.close();
+        port2.close();
+      }
+    }
   });
 
   if (typeof MessageChannel == 'function' && !structuredClone.sham) {

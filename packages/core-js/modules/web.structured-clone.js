@@ -27,6 +27,7 @@ var mapIterate = require('../internals/map-iterate');
 var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
 var isDetached = require('../internals/array-buffer-is-detached');
+var ENVIRONMENT = require('../internals/environment');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
@@ -103,6 +104,8 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // only FF103+ supports new (html/5749) error cloning semantic
 var nativeStructuredClone = globalThis.structuredClone;
 var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone);
+// Deno 1.13 can transfer MessagePorts even though ArrayBuffer transfer is unavailable.
+var NATIVE_TRANSFER = PROPER_STRUCTURED_CLONE_TRANSFER || ENVIRONMENT === 'DENO' && !!nativeStructuredClone;
 // Native preflight relies on transfer-list validation preceding serialization.
 // Deno validates non-buffer entries after serialization, so the sentinel getter
 // hides invalid entries; newer Deno also detaches ArrayBuffers before the getter.
@@ -577,6 +580,7 @@ var prepareTransfer = function (rawTransfer, map) {
     }
 
     if (type === 'ArrayBuffer') {
+      if (!detachTransferable && !arrayBufferTransfer) throwUnpolyfillable(type, TRANSFERRING);
       setAdd(buffers, value);
       if (PROPER_TRANSFER_VALIDATION) push(nativeTransfer, value);
       continue;
@@ -587,7 +591,7 @@ var prepareTransfer = function (rawTransfer, map) {
     // Deno validates transferables after serialization; WebKit does so for shared buffers.
     if (isMedia || !PROPER_TRANSFER_VALIDATION || type === 'SharedArrayBuffer') switch (type) {
       case 'ImageBitmap':
-        if (PROPER_STRUCTURED_CLONE_TRANSFER) break;
+        if (NATIVE_TRANSFER) break;
         if (!isConstructor(globalThis.OffscreenCanvas)) throwUnpolyfillable(type, TRANSFERRING);
         break;
       case 'AudioData':
@@ -604,7 +608,7 @@ var prepareTransfer = function (rawTransfer, map) {
       case 'WebTransportReceiveStream':
       case 'WebTransportSendStream':
       case 'WritableStream':
-        if (PROPER_STRUCTURED_CLONE_TRANSFER) break;
+        if (NATIVE_TRANSFER) break;
         throwUnpolyfillable(type, TRANSFERRING);
         // break omitted
       default:
@@ -640,7 +644,7 @@ var performTransfer = function (transfer, map, replacements) {
     placeholder = mapGet(map, value);
     type = placeholder.type;
     transferred = undefined;
-    if (PROPER_STRUCTURED_CLONE_TRANSFER && type !== 'AudioData' && type !== 'VideoFrame') {
+    if (NATIVE_TRANSFER && type !== 'AudioData' && type !== 'VideoFrame') {
       transferred = nativeStructuredClone(value, { transfer: [value] });
     } else {
       switch (type) {

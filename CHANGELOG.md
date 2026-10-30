@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
 - Stopped replacing the native `Promise` in Deno < 1.24 solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
+- Fixed falsely detected `ArrayBuffer` transfer support in Deno 1.13, preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
 - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
 - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
 - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
@@ -9,6 +10,7 @@
 - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
 - Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
 - Fixed lost error messages in the `structuredClone` polyfill in old Firefox
+- Fixed detection of detached WebAssembly buffers in old V8 without `MessageChannel`, including incorrect `structuredClone` errors in NodeJS 8
 - Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer
 - Fixed `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills losing the source on allocation failure, using species, ignoring changes during length coercion, and accepting non-detachable buffers; `transfer` preserves the original maximum length
 - Fixed native `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` crashing on allocation failure in NodeJS 21 and 22.0-22.3
