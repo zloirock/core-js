@@ -688,16 +688,13 @@ export function climbPatternChain(patternPath, keyCtx = null) {
   return { chain, hostPatternPath, hostParent };
 }
 
-// A rendered default guard keeps the dispatch whose receiver accepts an initializer prefix.
-const instanceDefaultReads = new WeakMap();
-
 // The binding adapter gives a moved default its own source/comment span. Its receiver's later
 // offsets must not flush annotations out of that subtree, including after the default is rewritten.
 // A transparent owner survives replacing the expression inside it before the print transfers its span.
 export function buildInstanceDefaultGuard({ defaultValue, defaultPattern = null, ...options }) {
   const start = defaultPattern?.defaultCommentsAt ?? unwrapParens(defaultValue).start;
   const end = defaultPattern?.end ?? defaultValue.end;
-  const value = renderInstanceDefaultGuard({
+  return renderInstanceDefaultGuard({
     ...options,
     defaultValue: stampReplacementSpan({
       type: 'ParenthesizedExpression',
@@ -706,8 +703,6 @@ export function buildInstanceDefaultGuard({ defaultValue, defaultPattern = null,
       ownedCommentsEnd: end,
     }, { start, end }),
   });
-  instanceDefaultReads.set(value, options.call);
-  return value;
 }
 
 // the guard an overwrite owes: the pure entry answers `it.method` verbatim off a receiver that is not
@@ -1561,20 +1556,6 @@ export function carriedInitPrefix(declarator, declJobs, ctx) {
   if (declJobs.every(job => !job.seCarried)) return [];
   // The live operand of a decided selection owes the same prefix as a bare sequence.
   return observablePrefixElements(liftableInitPrefix(decidedRunningOperand(declarator.init, ctx))?.prefix ?? [], ctx);
-}
-
-// the prefix travels WITH the extraction's value: inside the dispatch ARGUMENT where the claim has
-// one, including the read in its default guard; otherwise it prefixes the value (`from = (eff(), _Array$from)`).
-// this is the ONE shape every host accepts - a control slot hosts no statements at all - which is why
-// no host analysis is left here and why both legs print it
-export function carryInitPrefix(value, prefix) {
-  if (!prefix.length) return value;
-  const read = instanceDefaultReads.get(value) ?? value;
-  if (read?.type === 'CallExpression' && read.arguments.length === 1) {
-    read.arguments[0] = sequenceExpression([...prefix, read.arguments[0]]);
-    return value;
-  }
-  return sequenceExpression([...prefix, value]);
 }
 
 // the PROXY-NAV base a synth receiver reduces to: pristine hops fold away, the root identifier
