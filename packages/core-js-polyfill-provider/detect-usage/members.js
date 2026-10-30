@@ -29,6 +29,7 @@ import {
   mayHaveSideEffects,
   memberChainEndPath,
   memberKeyName,
+  memberKeepsReceiverThrow,
   memberProxyHopName,
   nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
@@ -86,6 +87,7 @@ import {
 import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-node-type/value-ops.js';
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
+  aliasRootedReadMayThrow,
   pristineRealmHopKey,
   callValueCanBeUndefined,
   proxyCollapseConsumer,
@@ -280,6 +282,7 @@ export function collapseRootHoldsItsGlobal(root, aliasCtx) {
 // alias instead. Delete can land navigation on the root while a retained write still
 // stores the ordinary, deepest backed value. Without a scope context the root is
 // classified by name and only its own entry can supply the landing.
+// A nullable alias needs a retained plain static `reader` to inherit its erased throw.
 export function planInnerProxyCollapse(node, {
   aliasCtx = null,
   resolvePure,
@@ -291,6 +294,7 @@ export function planInnerProxyCollapse(node, {
   provenCallRoot = false,
   deleteFold = false,
   valueConsumer = null,
+  reader = null,
 }) {
   if (valueConsumer) {
     if (!isDestructurePattern(valueConsumer.target) || valueConsumer.observed
@@ -327,6 +331,10 @@ export function planInnerProxyCollapse(node, {
   keptStore ??= keptWrite && keptProbeStore(node, resolvePure, aliasCtx);
   const writeStoreSpellable = !keptStore;
   if (!resolvedValue && isAliasProxyRoot(root, aliasCtx) && !valueConsumer) {
+    // Keeping a nullable binding does not keep the erased read through it: an
+    // outer optional or computed member could skip or postpone its exception.
+    if (aliasRootedReadMayThrow(root, resolvePure, aliasCtx)
+      && !(memberKeepsReceiverThrow(reader) && unwrapRuntimeExpr(reader.object) === node)) return null;
     if (!admittedRoot) {
       const { scope, adapter, path } = aliasCtx;
       if (adapter.getBinding({ scope, name: root.name })?.polyfillHint
@@ -521,6 +529,7 @@ export function planProxyReceiver(receiver, {
   if (leafKey && POSSIBLE_GLOBAL_OBJECTS.has(leafKey)) return null;
   const source = planInnerProxyCollapse(receiver.object, {
     aliasCtx, resolvePure, root: throughRoot, keptStore: keptAssignRoot, allowOptional: true, deleteFold: deleteConsumer,
+    reader: receiver,
   });
   if (!source || source.unbackedRoot) return null;
   return {

@@ -525,7 +525,7 @@ const CASES = [
     emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
     bounds: { 'usage-global': { unplugin: 2 }, 'usage-pure': { unplugin: 2 } } },
   { name: 'three.core.js', source: () => threeFile('build/three.core.js'), bounds: {
-    'usage-global': { babel: 5, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeFile('build/three.module.js'), bounds: {
     'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
@@ -533,7 +533,7 @@ const CASES = [
   // generated decoder code stresses nested control flow, parameter reads and member analysis
   { name: 'draco_decoder.js, generated decoder',
     source: () => threeFile('examples/jsm/libs/draco/draco_decoder.js'),
-    bounds: { 'usage-global': { babel: 9, unplugin: 9 }, 'usage-pure': { babel: 11, unplugin: 10 } } },
+    bounds: { 'usage-global': { babel: 9, unplugin: 9 }, 'usage-pure': { babel: 10, unplugin: 9 } } },
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
@@ -557,10 +557,10 @@ const CASES = [
   } },
   // keep both Babel codegen paths covered independently of the calibrated source size
   { name: 'synthetic single-scope, 550 reassigned names, compact Babel', source: () => syntheticSingleScope(550), compact: true, bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -593,7 +593,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic written slot reads, 1000 slots', source: () => syntheticWrittenSlotReads(1000), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic decided selections, 2000 of each spelling', source: () => syntheticDecidedSelections(2000), bounds: {
     'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
@@ -617,16 +617,16 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic shared container names, 1300 functions', source: () => syntheticSharedContainerNames(1300), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'synthetic namespace parameter, 1200 reads and callers', source: () => syntheticNamespaceParameterReads(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic call-dense top level, 2700 sites', source: () => syntheticCallDenseTopLevel(2700), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic directive-dense, 3600 opt-outs', source: () => syntheticDirectiveDense(3600), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic lagged aliases, 700 names', source: () => syntheticLaggedAliases(700), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -663,7 +663,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } })),
   { name: 'synthetic parameter body and callers, 400 each', source: () => syntheticParameterBodyCalls(400), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic positional array reads, 1200 references', source: () => syntheticArraySlotReads(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },

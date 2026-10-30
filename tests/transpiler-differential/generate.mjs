@@ -20868,6 +20868,52 @@ function * generateSymbolFirstReceiverReads() {
   }
 }
 
+// The same guarded claim keeps keys, arguments and consuming operators on their
+// own side of a source seal. The rig exercises both the missing and present probe.
+function * generateGuardedClaimBoundaries() {
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['open-key-call', 'globalThis.window?.self.Array[(log.push("key"), "from")]((log.push("arg"), [7]))?.[0]'],
+    ['sealed-key-call', '(globalThis.window?.self).Array[(log.push("key"), "from")]((log.push("arg"), [7]))[0]'],
+    ['stored-key-call', '(held = globalThis.window)?.self.Array[(log.push("key"), "from")]((log.push("arg"), [7]))?.[0]'],
+    ['sealed-call', '(globalThis.window?.self.Array.from)((log.push("arg"), [7]))[0]'],
+    ['member-tail', 'globalThis.window?.self.Array.from([7]).length'],
+    ['optional-tail', 'globalThis.window?.self.Array.from.guardBoundaryAbsent?.value'],
+    ['open-delete', 'delete globalThis.window?.self.Array.from.guardBoundaryAbsent'],
+    ['sealed-delete', 'delete (globalThis.window?.self.Array.from).guardBoundaryAbsent'],
+    ['stored-sealed', '((held = globalThis.window)?.self).Array.from((log.push("arg"), [7]))[0]'],
+    ['sealed-realm-key', '(globalThis.window?.self).self[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-optional-reader', '(globalThis.window?.self).self?.[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-static-reader', '(globalThis.window?.self).self["guardBoundaryAbsent"]'],
+    ['sealed-realm-key-reference', '(globalThis.window?.self).self[missingGuardBoundaryKey]'],
+    ['sealed-realm-window', '(globalThis.window?.self).self.window?.[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-prefix', '((log.push("before"), globalThis).window?.self).self[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-stored', '((held = globalThis.window)?.self).self[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-computed', '(globalThis.window?.self)["self"]?.[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-deep', '(globalThis.window?.self).self.self[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-live-tail', '(globalThis.window?.self).self?.guardBoundaryAbsent?.[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-delete', 'delete (globalThis.window?.self).self[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['sealed-realm-call-root', '((() => globalThis)().window?.self).self[(log.push("key"), "guardBoundaryAbsent")]'],
+    ['alias-realm-key', '(() => { const h = globalThis.window?.self; return (h).self[(log.push("key"), "guardBoundaryAbsent")]; })()'],
+    ['alias-realm-window', '(() => { const h = globalThis.window?.self; return (h).self.window?.[(log.push("key"), "guardBoundaryAbsent")]; })()'],
+    ['alias-realm-unsealed', '(() => { const h = globalThis.window?.self; return h.self.window?.[(log.push("key"), "guardBoundaryAbsent")]; })()'],
+    ['alias-realm-guarded', '(() => { const h = globalThis.window?.self; return h && h.self.window?.[(log.push("key"), "guardBoundaryAbsent")]; })()'],
+    ['alias-realm-live', '(() => { const h = globalThis.window?.self; return h?.self.window?.[(log.push("key"), "guardBoundaryAbsent")]; })()'],
+  ]) yield { ...snippet(`guarded-claim-boundaries/${ name }/${ rig ? 'present' : 'absent' }`, `(() => {
+    let held = "unset", result;
+    try { result = ${ expression }; }
+    catch (error) { result = error.name; }
+    return [result, held === "unset" ? "unset" : held === undefined ? "absent" : "present"];
+  })()`, { rig }), strip: true };
+  for (const rig of [false, true]) yield { ...snippet(`guarded-claim-boundaries/deleted-slot/${ rig ? 'present' : 'absent' }`, `(() => {
+    const box = { value: 7 };
+    globalThis.guardBoundaryBox = box;
+    try {
+      const result = delete globalThis.window?.self.guardBoundaryBox.value;
+      return [result, 'value' in box];
+    } finally { delete globalThis.guardBoundaryBox; }
+  })()`, { rig }), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21275,4 +21321,5 @@ export function * generate() {
   yield * generateRootDeleteCarriers();
   yield * generateDeletedRealmEnumCarriers();
   yield * generateSymbolFirstReceiverReads();
+  yield * generateGuardedClaimBoundaries();
 }
