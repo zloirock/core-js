@@ -20949,6 +20949,40 @@ function * generateVestigialReceiverProofs() {
   })()`, { rig }), strip: true };
 }
 
+// Prefix placement crosses the bare/default product and the declaration, assignment,
+// bodyless and loop slots. A lookalike call in a live default must never acquire the receiver role.
+function * generateDestructureProductPrefixes() {
+  for (const host of ['declaration', 'assignment', 'bodyless', 'loop']) {
+    for (const defaulted of [false, true]) for (const foreign of [false, true]) {
+      const binding = `at: method${ defaulted ? ' = fallback(row)' : '' }`;
+      const init = '(log.push("prefix"), row)';
+      const read = host === 'declaration' ? `const { ${ binding } } = ${ init };`
+        : host === 'assignment' ? `let method; ({ ${ binding } } = ${ init });`
+        : host === 'bodyless' ? `if (true) var { ${ binding } } = ${ init };`
+        : `for (var { ${ binding } } = ${ init }; false;) {}`;
+      const row = foreign ? '{ get at() { log.push("get"); return undefined; } }' : '[4, 9]';
+      yield { ...snippet(`destructure-product-prefix/${ host }/${ defaulted ? 'default' : 'bare' }/${ foreign ? 'foreign' : 'array' }`, `(() => {
+        const row = ${ row };
+        function fallback(value) { log.push(value === row ? "default" : "wrong receiver"); return function () { return this === row ? 17 : 0; }; }
+        ${ read }
+        return method === undefined ? "absent" : method.call(row, -1);
+      })()`), strip: true };
+    }
+  }
+  for (const host of ['declaration', 'loop', 'bodyless', 'skipped-bodyless']) {
+    const binding = 'Array: { prototype: { at: method } }';
+    const init = '(held = (log.push("prefix"), globalThis))';
+    const read = host === 'declaration' ? `const { ${ binding } } = ${ init };`
+      : host === 'loop' ? `for (var { ${ binding } } = ${ init }; false;) {}`
+      : `if (${ host === 'bodyless' }) var { ${ binding } } = ${ init };`;
+    yield { ...snippet(`destructure-product-prefix/nested/${ host }`, `(() => {
+      let held;
+      ${ read }
+      return [typeof method === "function" ? method.call([4, 9], -1) : "absent", held === globalThis];
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21358,4 +21392,5 @@ export function * generate() {
   yield * generateSymbolFirstReceiverReads();
   yield * generateGuardedClaimBoundaries();
   yield * generateVestigialReceiverProofs();
+  yield * generateDestructureProductPrefixes();
 }

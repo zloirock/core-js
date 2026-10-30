@@ -1031,6 +1031,26 @@ export function renderCtorIdentityNarrow(plan, rawBranch, {
   return captureReceiver ? renderCapturedReceiver(spellRecv(), captureReceiver, guard) : guard;
 }
 
+// A destructure lookup over an injected binding declares its receiver when it is built, never by searching its output.
+// `product` is optional, belongs to one value() call and is consumed before cloning or host conversion.
+// Its call owns arguments[0]: moving the call or replacing that child keeps the slot live. A cloned
+// value needs a fresh product; absent metadata carries no receiver role, even for a lookalike call.
+export function renderDestructureDispatch(callee, receiver, product = null) {
+  const call = callExpression(callee, [receiver]);
+  if (product) product.receiver = call;
+  return call;
+}
+
+// Apply an already-placed initializer prefix at the producer's receiver slot, including under a
+// default guard. With no declared slot it precedes the value. The caller owns placement and supplies
+// live, embedded effects; this operation neither searches the tree nor follows source spelling.
+export function renderDestructurePrefix(value, prefix, receiver = null) {
+  if (!prefix.length) return value;
+  if (!receiver) return sequenceExpression([...prefix, value]);
+  receiver.arguments[0] = sequenceExpression([...prefix, receiver.arguments[0]]);
+  return value;
+}
+
 // the `(ref = <dispatcher call>) === void 0 ? <default> : ref` guard for an instance
 // extraction carrying a user default: the dispatcher may return undefined on a foreign
 // receiver (its own-property read), so the default stays LIVE - polyfill-always-wins covers
