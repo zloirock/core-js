@@ -63,6 +63,7 @@ import './destructure-default-choice.mjs';
 import './destructure-receiver-capture.mjs';
 import './key-effects.mjs';
 import './method-call.mjs';
+import './logical-slot-patch.mjs';
 import './receiver-effects.mjs';
 import './nested-receiver-base.mjs';
 import './nested-extraction-receiver.mjs';

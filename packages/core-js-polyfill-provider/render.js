@@ -68,6 +68,26 @@ export function memberExpression(object, property, { computed = false, optional 
   return { type: 'MemberExpression', object, property, computed, optional };
 }
 
+// The served read is the condition; only the source fallback writes the native target.
+// Receiver and computed key run before dispatch, once, and a failed lookup reuses the
+// captured receiver with the proven key. The live target wrappers and RHS move unchanged.
+// Bindings install receiver/property in that target before inserting the expression.
+export function renderLogicalSlotPatch({ host, operator, receiverMemo, pure, key, computed, keyNode }, {
+  injectImport, cloneReceiver, mintRef, embed = node => node,
+}) {
+  const helper = identifier(injectImport(pure.entry, pure.hintName));
+  const memo = renderReceiverMemo(receiverMemo, {
+    mintRef,
+    embed: (node, role) => embed(role === 'receiver' ? cloneReceiver(node) : node),
+  });
+  const read = computed ? sequenceExpression([memo.firstRead, embed(keyNode), memo.makeBase()]) : memo.firstRead;
+  return {
+    receiver: memo.makeBase(),
+    property: computed ? literal(key) : embed(keyNode),
+    expression: logicalExpression(operator, callExpression(helper, [read]), assignmentExpression('=', embed(host.left), embed(host.right))),
+  };
+}
+
 // A selected extraction receiver has one root (source or pure binding) followed by named keys.
 // Source embedding and import allocation belong to the binding; neither chooses a different read.
 export function renderNestedExtractionReceiver({ node, pure, keys }, { embed, importPure }) {

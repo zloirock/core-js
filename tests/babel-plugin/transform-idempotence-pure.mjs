@@ -244,6 +244,20 @@ for (const importStyle of ['import', 'require']) {
   }
 }
 
+// Typed write targets keep the same prior-output boundary after a reparse.
+for (const importStyle of ['import', 'require']) for (const source of [
+  '(Array.prototype.flatMap as any) ||= shim;',
+  'Array.prototype.flatMap! ??= shim;',
+]) {
+  const config = {
+    configFile: false, babelrc: false, filename: 'input.ts', parserOpts: { plugins: ['typescript'] },
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle }]],
+  };
+  const first = (await transformAsync(source, config)).code;
+  const second = (await transformAsync(first, config)).code;
+  check(`typed patch is stable/${ importStyle }/${ source }`, second, first);
+}
+
 // A prior iterator sentinel has already been paired with its explicit terminal read.
 // First-pass read counts matter too: later-pass byte stability alone hides one added getter.
 for (const [label, source] of [

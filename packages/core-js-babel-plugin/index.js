@@ -15,7 +15,6 @@ import {
   isForXWriteTarget,
   isInUpdateOperand,
   isMemberWriteHost,
-  logicalSlotPatchHost,
   isThisReceiver,
   isDeoptedGlobalSlotRead,
   isDeoptedStaticRead,
@@ -65,7 +64,6 @@ import {
   propBindingIdentifier,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  ownEmittedLogicalPatch,
   ownEmittedNavClaim,
   ownEmittedPatternClaim,
   ownOutputTests,
@@ -104,6 +102,7 @@ import {
   renderGuardedChainTail,
   renderDeleteShortCircuitGuard,
   renderInExpressionPlan,
+  renderLogicalSlotPatch,
   planMethodCall,
   renderMethodCall,
   renderShortCircuitGuard,
@@ -165,6 +164,7 @@ import {
   resolveSymbolIteratorEntry,
   symbolIteratorHint,
   planDeletedProxyClaim,
+  planLogicalSlotPatch,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -1315,16 +1315,21 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // `isMemberWriteHost` covers update operands too (`(obj.at)++` - the rewrite would
             // be a function call receiver, not writable), climbing the same wrapper set
             if (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)) {
-              // ... except a logical-assignment PATCH, whose detect no node spells: this binding puts
-              // core-js's own dispatch ahead of the third-party value, leaving the write conditional
-              const patch = ownEmittedLogicalPatch(path, ownOutputTests(injector)) ? null : logicalSlotPatchHost(path);
-              const patchPure = patch && resolvePure(meta, path);
-              if (patch && patchPure?.kind === 'instance' && !skippedNodes.has(patch.host)) {
-                patch.host.right = t.logicalExpression(patch.operator, t.callExpression(
-                  t.cloneNode(injectPureImport(patchPure.entry, patchPure.hintName)),
-                  [t.cloneNode(patch.receiverNode, true)],
-                ), patch.host.right);
-                skippedNodes.add(patch.host);
+              // The shared patch serves one read before the conditional fallback write.
+              const patch = planLogicalSlotPatch(meta, path, {
+                tests: ownOutputTests(injector), skippedNodes, resolvePure,
+                ctx: { path, scope: path.scope, adapter, injectorState: injector },
+              });
+              if (patch) {
+                const product = renderLogicalSlotPatch(patch, {
+                  injectImport: (entry, hint) => injectPureImport(entry, hint).name,
+                  cloneReceiver: node => t.cloneNode(node, true),
+                  mintRef: () => generateRef(path.scope, path.node).name,
+                  embed: hostSlot,
+                });
+                path.node.object = estreeToBabel(product.receiver);
+                path.node.property = estreeToBabel(product.property);
+                patch.hostPath.replaceWith(estreeToBabel(product.expression));
               }
               return;
             }
