@@ -5,9 +5,10 @@ import {
   proxyHopClaimRoutes,
   staticClaimNavigationRoutes,
   staticClaimNeedsGuard,
+  sealedClaimDisposition,
   navGuardKeepsStoredProbe,
 } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
-import { canCollapseDeletedNavigation, planProvenNavGuardCollapse } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { canCollapseDeletedNavigation, planProvenNavGuardCollapse, sealedChainBoundary } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -82,7 +83,6 @@ runBoth('native continuation is lazy', 'const result = globalThis.self;', (parse
   let sourceRun = null;
   const routes = staticClaimNavigationRoutes({ node, kind: 'global', hintName: 'globalThis', meta: {}, aliasCtx, resolvePure,
     deletion() { deleteQueries++; return false; },
-    sealedThrow() { throw new Error('a bare root has no sealed member read'); },
     rootRun() { runQueries++; return { run: sourceRun }; } });
   check(`${ label }/creation performs no query`, deleteQueries, 0);
   check(`${ label }/host first`, routes.next().value.kind, 'root-host');
@@ -95,7 +95,7 @@ runBoth('native continuation is lazy', 'const result = globalThis.self;', (parse
   check(`${ label }/root landing`, collapse.pure.entry, 'self');
   check(`${ label }/exhausted`, routes.next().done, true);
   check(`${ label }/one run query`, runQueries, 1);
-  check(`${ label }/bare root needs no guard`, staticClaimNeedsGuard(node, () => true), false);
+  check(`${ label }/bare root needs no guard`, staticClaimNeedsGuard(node, resolvePure, aliasCtx), false);
 });
 
 runBoth('mutated middle and deleted leaf differ', 'delete globalThis.window.self.chrome;', (parser, program, label) => {
@@ -167,5 +167,93 @@ runBoth('call-root priority and lazy landing', 'const result = (() => globalThis
   check(`${ label }/delete queried after declines`, deletes, 1);
   check(`${ label }/finished`, declined.next().done, true);
 });
+
+// A seal owns a read only when its value can vanish; a pristine realm hop can
+// instead leave that read to its surviving member consumer.
+for (const [expression, key, expected, mutated = false, rootAvailable = true] of [
+  ['globalThis.window?.self.Array?.from', 'from', null],
+  ['(globalThis.window?.self).Array?.from', 'from', 'throw'],
+  ['(globalThis.window).Array?.from', 'from', 'throw'],
+  ['(globalThis.window?.self)?.Array?.from', 'from', null],
+  ['(globalThis.self).Array?.from', 'from', null],
+  ['(globalThis.window?.self).self.box', 'self', 'collapse'],
+  ['(globalThis.window?.self).self["box"]', 'self', 'collapse'],
+  ['(globalThis.window?.self).self?.box', 'self', 'throw'],
+  ['(globalThis.window?.self).self[(effect(), "box")]', 'self', 'throw'],
+  ['(globalThis.window?.self).self[key]', 'self', 'throw'],
+  ['(globalThis.window).self?.box', 'self', 'collapse'],
+  ['(effect(), globalThis.window).self[key]', 'self', 'collapse'],
+  ['(globalThis.window?.self).self', 'self', null],
+  ['(globalThis.window?.self)["self"].box', 'self', null],
+  ['(globalThis.window?.self).self.box', 'self', 'throw', true],
+  ['(globalThis.window).self.box', 'self', null, false, false],
+]) runBoth(`sealed disposition/${ expression }/${ mutated }/${ rootAvailable }`, `const result = ${ expression };`,
+  (parser, program, label) => {
+    const paths = parser.collectPaths(program, 'MemberExpression');
+    if (parser.name === 'babel') paths.push(...parser.collectPaths(program, 'OptionalMemberExpression'));
+    const [path] = paths.filter(item => (item.node.property.name ?? item.node.property.value) === key)
+      .sort((a, b) => b.node.end - a.node.end);
+    const aliasCtx = context(parser, path);
+    if (mutated) aliasCtx.adapter = { ...aliasCtx.adapter, isMutatedStatic: (object, name) => object === 'globalThis' && name === 'self' };
+    function resolve(meta) { return !rootAvailable && meta.name === 'globalThis' ? null : resolvePure(meta); }
+    const before = JSON.stringify(program.node);
+    const decision = sealedClaimDisposition(path.node, resolve, aliasCtx);
+    check(`${ label }/route`, decision?.kind ?? null, expected);
+    if (expected === 'collapse') check(`${ label }/retained source slot`, decision.node, path.node.object);
+    else if (expected === 'throw') check(`${ label }/guard cannot swallow throw`, staticClaimNeedsGuard(path.node, resolve, aliasCtx), false);
+    check(`${ label }/repeat`, sealedClaimDisposition(path.node, resolve, aliasCtx)?.kind ?? null, expected);
+    check(`${ label }/query is read only`, JSON.stringify(program.node), before);
+  });
+
+for (const tail of ['[effect()]', '?.[effect()]', '[key]']) {
+  runBoth(`sealed read before consumer/${ tail }`, `const result = (globalThis.window?.self).self${ tail };`,
+    (parser, program, label) => {
+      const paths = parser.collectPaths(program, 'MemberExpression');
+      if (parser.name === 'babel') paths.push(...parser.collectPaths(program, 'OptionalMemberExpression'));
+      const path = paths.find(item => item.node.computed);
+      const aliasCtx = context(parser, path);
+      const before = JSON.stringify(program.node);
+      const source = unwrapRuntimeExpr(path.node.object);
+      const boundary = sealedChainBoundary(path.node);
+      check(`${ label }/sealed member`, boundary.member, source);
+      check(`${ label }/surviving reader`, boundary.reader, path.node);
+      check(`${ label }/source alone has no reader`, sealedChainBoundary(source).reader, null);
+      check(`${ label }/whole run retains throw`, sealedClaimDisposition(source, resolvePure, aliasCtx, path.node).kind, 'throw');
+      const plan = planProvenNavGuardCollapse({ rootNode: source, ...aliasCtx, resolvePure,
+        allowUndefinableRoot: true, allowSequenceRoot: true, descendSequenceTail: true });
+      const routes = [...navGuardCollapseRoutes(plan, {
+        source: () => source, reader: () => path.node, aliasCtx, deleteHosted: () => false,
+      })];
+      checkDeep(`${ label }/probe before value`, routes.map(route => route.kind), ['sealed-probe']);
+      check(`${ label }/probe retains read`, routes[0].probe.boundary.member, source);
+      check(`${ label }/successful read yields defined value`, routes[0].defined, true);
+      check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+    });
+}
+
+for (const [expression, defined] of [
+  ['(globalThis.window?.self).self.self', true],
+  ['(globalThis.window?.self).self.window', false],
+  ['((held = globalThis.window)?.self).self', true],
+  ['((() => globalThis)().window?.self).self', true],
+]) runBoth(`whole replacement retains reader/${ expression }`, `let held; const result = ${ expression }?.[effect()];`,
+  (parser, program, label) => {
+    const paths = parser.collectPaths(program, 'MemberExpression');
+    if (parser.name === 'babel') paths.push(...parser.collectPaths(program, 'OptionalMemberExpression'));
+    const path = paths.find(item => item.node.computed);
+    const source = unwrapRuntimeExpr(path.node.object);
+    const aliasCtx = context(parser, path);
+    const before = JSON.stringify(program.node);
+    const plan = planProvenNavGuardCollapse({ rootNode: source, ...aliasCtx, resolvePure, throughKeptAssign: true });
+    const routes = [...navGuardCollapseRoutes(plan, {
+      source: () => source, reader: () => path.node, aliasCtx, deleteHosted: () => false,
+    })];
+    checkDeep(`${ label }/throw survives erased inner readers`, routes.map(route => route.kind),
+      [defined ? 'sealed-probe' : 'sealed-tail']);
+    if (defined) check(`${ label }/value definedness`, routes[0].defined, true);
+    else check(`${ label }/retained tail owns the read`, routes[0].probe.boundary.member, null);
+    check(`${ label }/probe source identity`, routes[0].probe.source, source);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
 
 finish();

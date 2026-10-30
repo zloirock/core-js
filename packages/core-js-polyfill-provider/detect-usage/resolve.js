@@ -58,6 +58,7 @@ import {
   isDestructurePattern,
   isDirectiveStatement,
   isMemberAccessNode,
+  memberKeepsReceiverThrow,
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isNullLiteralNode,
@@ -2284,6 +2285,10 @@ export function servedRead(node, ctx) {
   // settled in its owner's scope: `decidedGuards`)
   const readCtx = ctx.usageNode ? ctx : { ...ctx, usageNode: value };
   const name = resolveObjectName({ objectNode: value, ...readCtx });
+  // Serving the defined branch does not fill an alias's stored void branch. A
+  // presence test still reads that binding, including after its guard was lowered.
+  if (name && value?.type === 'Identifier'
+    && aliasHeldValueCanBeUndefined(value, resolveBuiltInMeta, readCtx)) return null;
   // ... a read before every write of the slot excepted, which still sees what this build serves, and a read
   // of this build's own import, which no write of the global reaches. an alias read the global where it
   // captured it, so that read is the one asked - its use only re-reads the binding - and the alias is
@@ -4617,23 +4622,6 @@ export function planProvenNavGuardCollapse({
   const rootName = identRootName
     ?? (rootId && (asProxyGlobalName(rootId.name) ?? bareProxyGlobalAliasName(rootId, aliasCtx)));
   if (!rootName || !isPristineProxyGlobal(adapter, rootName)) return null;
-  // the probe hop the shared exception keeps for a MUTATING consumer survives that fold: over a
-  // ponyfill a read really does pass through such a hop, while a write or a delete performs its act
-  // on the ponyfill instead of taking the source's branch
-  const keptHop = mutationGuardKeepingHop(core, resolvePure, aliasCtx);
-  const keptProbe = keptHop ? unwrapRuntimeExpr(peelReceiverSequenceTail(keptHop.object)) : null;
-  // A guard observes the store before dereferencing it. A plain consumer owns the stored
-  // realm value instead, including after its claim has become a generated sequence.
-  const optionalStore = topAssign && ownChainOptionalObjects(path?.node)
-    .some(object => peelChainAssignment(peelReceiverSequenceTail(object)).outer === topAssign);
-  // A cloned value differs by identity from its source RHS without gaining a consumer.
-  // Only a source member surrounding the store supplies the anchor's dereference proof.
-  const consumedStore = topAssign && !optionalStore && !runStandsInLoweredGuardTest(path, unwrapRuntimeExpr)
-    && (storedValueConsumedAbove(path)
-      || (isMemberAccessNode(path?.node) && nodeRangeContains(path.node, topAssign)));
-  hops.splice(0, hops.length, ...foldReadThroughRealmHops(hops,
-    { adapter, resolvePure, keptProbe, keepTerminal: !consumedStore && !readThrough, path }));
-  let collapseIdx = -1;
   // proving WHICH global a call root yields is not proving it yields a DEFINED one: a body reaching
   // the environment probe (`() => globalThis.window`) is undefined off-window, and every render this
   // plan offers reads THROUGH that value. only where the `?.` it would ERASE guards the call value
@@ -4651,6 +4639,26 @@ export function planProvenNavGuardCollapse({
   const rootUndefinable = !!identRoot && !!hops[0]?.optional
     && undefinableProxyRootValue(identRoot, resolvePure, aliasCtx);
   if (rootUndefinable && !allowUndefinableRoot) return null;
+  // the probe hop the shared exception keeps for a MUTATING consumer survives that fold: over a
+  // ponyfill a read really does pass through such a hop, while a write or a delete performs its act
+  // on the ponyfill instead of taking the source's branch
+  const keptHop = mutationGuardKeepingHop(core, resolvePure, aliasCtx);
+  const keptProbe = keptHop ? unwrapRuntimeExpr(peelReceiverSequenceTail(keptHop.object)) : null;
+  // A guard observes the store before dereferencing it. A plain consumer owns the stored
+  // realm value instead, including after its claim has become a generated sequence.
+  const optionalStore = topAssign && ownChainOptionalObjects(path?.node)
+    .some(object => peelChainAssignment(peelReceiverSequenceTail(object)).outer === topAssign);
+  // A cloned value differs by identity from its source RHS without gaining a consumer.
+  // Only a source member surrounding the store supplies the anchor's dereference proof.
+  const consumedStore = topAssign && !optionalStore && !runStandsInLoweredGuardTest(path, unwrapRuntimeExpr)
+    && (storedValueConsumedAbove(path)
+      || (isMemberAccessNode(path?.node) && nodeRangeContains(path.node, topAssign)));
+  // A root guard already protects the backed claim. Its continuation folds the
+  // same realm hops as the claim-tail planner; a kept mutation probe still wins.
+  hops.splice(0, hops.length, ...foldReadThroughRealmHops(hops,
+    { adapter, resolvePure, keptProbe,
+      keepTerminal: !consumedStore && !readThrough && !rootUndefinable, path }));
+  let collapseIdx = -1;
   // the winning entry travels with the plan: every renderer needs exactly this resolution, and
   // re-asking it there also carried a `!pure` bail that the plan's own existence rules out
   let leafPure = null;
@@ -5361,13 +5369,18 @@ export function proxyCollapseBase({
 // Finish an outward collapse without rendering or mutating it. Consumer facts describe
 // live native slots; memo membership and a delete's owning run come from the binding.
 // A live memo keeps its terminal probe, and a source store keeps effects inside its value.
+// Extending a nullable alias collapse must leave a reader that owns its earlier throw;
+// the inward admission's reader may already have been swallowed by this outward span.
 // The returned route names the replacement and the optional handoff, never a host API.
 export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   const { target, keptTail, writeStep, innerKeptTail, seqPrefixEffects, valueEffects, outerHopName, outerBacked } = outer;
   const { resolvePure } = ctx;
+  const { consumer } = facts;
+  if (collapsed.aliasRoot && aliasRootedReadMayThrow(collapsed.aliasRoot, resolvePure, ctx)
+    && !(memberKeepsReceiverThrow(consumer.host) && consumer.host.object === consumer.node)) return null;
   const deadOptional = facts.allowOptional
     || (!facts.mutatedGuards && proxyRunValueIsProven(target.node, resolvePure, ctx));
-  const source = { ...facts.consumer, keptWrite: collapsed.keptWrite ?? writeStep, hasKeptTail: !!keptTail.length };
+  const source = { ...consumer, keptWrite: collapsed.keptWrite ?? writeStep, hasKeptTail: !!keptTail.length };
   const navigation = proxyCollapseConsumer({ ...source, deadOptional,
     storeHoldsProbe: !!collapsed.keptWrite && !collapsed.writeStoreSpellable }, ctx);
   const sealedDeleteValue = facts.sealed && facts.deletedAbove && !facts.deleteFold;
@@ -5548,17 +5561,18 @@ export function sealedLayerBetween(rawObj, object) {
 }
 
 // the FIRST sealed boundary of a nav chain: the member whose object is a sealed layer, plus
-// the peeled inner nav. probe/render callers need both - the member's KEY spells the read the
-// source performs on the sealed value (the throw the erase must reproduce)
+// the peeled inner nav and its member reader, if one belongs to this source chain.
+// The member's KEY spells the read on the sealed value; its reader may own later effects.
 export function sealedChainBoundary(node) {
   let cur = peelReceiverSequenceTail(node);
+  let reader = null;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const object = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
     // an OPTIONAL consumer performs no read of the sealed value - its short-circuit IS the guard's
-    // void-0 branch, the same exemption `chainReadsThroughSeal` spells. the throw probes on both
-    // legs are this function's only callers, and reproducing a read the source never performs made
-    // the polyfilled output throw off-window where the source answers `undefined`
-    if (!cur.optional && sealedLayerBetween(cur.object, object)) return { member: cur, inner: object };
+    // void-0 branch, the same exemption `chainReadsThroughSeal` spells. Reproducing a read
+    // the source never performs would throw off-window where the source answers `undefined`.
+    if (!cur.optional && sealedLayerBetween(cur.object, object)) return { member: cur, inner: object, reader };
+    reader = cur;
     cur = object;
   }
   return null;

@@ -3197,6 +3197,20 @@ for (const adapter of adapters) {
     check(`aliasReadGuardedAgainstNullish/logical/${ left } [${ adapter.name }]`,
       aliasReadGuardedAgainstNullish(read, 'value'), expected);
   }
+  for (const [expression, expected] of [
+    ['value?.member', true],
+    ['(value)?.member', true],
+    ['value.member?.next', false],
+    ['value.member?.()', false],
+    ['(value.member)?.next', false],
+    ['other?.[value.member]', false],
+    ['value && value.member?.next', true],
+  ]) {
+    const program = adapter.parseAndScope(`const out = ${ expression };`);
+    const read = adapter.collectPaths(program, 'Identifier', p => p.node.name === 'value').at(-1);
+    check(`aliasReadGuardedAgainstNullish/optional/${ expression } [${ adapter.name }]`,
+      aliasReadGuardedAgainstNullish(read, 'value'), expected);
+  }
 }
 
 // --- isBindingDeclarationPath: the complete declaration predicate, through pattern shells ---
