@@ -18,6 +18,7 @@ import {
   identifier as canonIdentifier,
   memberExpression as canonMember,
   renderInstanceDefaultGuard,
+  renderNestedExtractionReceiver,
   renderParameterInstanceCapture,
   renderKeyedDestructureRead,
   nullGuardTest,
@@ -88,7 +89,6 @@ import {
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
   peelChainAssignment,
-  seKeyKeepsReceiverRead,
   isDeclaratorSelfViolation,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -102,7 +102,6 @@ import {
   computedRootMemoChain,
   conditionalDestructureLeftUntouchedWarning,
   consumedAssignmentSlotDropsHost,
-  consumedAssignmentSlotDropsNav,
   dispatchMayReadNav,
   consumedAssignmentSlotPrunes,
   descendReceiverPathByKeys,
@@ -154,6 +153,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   discardedReceiverEffects,
+  planNestedAssignmentReceiver,
   liveDestructureDefault,
   planDestructureInstanceSynth,
   planForInitSink,
@@ -4029,100 +4029,22 @@ export default function createDestructureEmitter({
       ? discardedSequenceElementPath(hostAssign) : null;
     if (!rawStatement && !seqElement) return false;
     const spanAnchor = rawStatement ?? seqElement;
-    // `resolveNestedReceiverNode` gates the receiver (Identifier / side-effect-free literal); `propBinding-
-    // Identifier` unwraps a defaulted binding (`{ flat: m = [] }` is an AssignmentPattern), so a raw
-    // `value?.type === 'Identifier'` check wouldn't drop the overwrite and lose the polyfill to the native read
-    // read-after consumer: the overwrite runs AFTER the residual evaluated the init in place,
-    // so a receiver peeled from under an SE prefix keeps native order here
-    // ... and a NAV receiver resolves through the same canon now that it spells its own segments
-    // (`globalThis.Array.prototype`): the overwrite reads it once in its dispatch, which is the
-    // single-read contract that gate names. without it the claim shipped native in this host alone.
-    // ... a DEFAULTED prop rides it too: the guard below keeps whatever the raw slot bound, so a
-    // dispatch that answers undefined off a foreign receiver no longer buries the source's default
-    // ... but the SPELLED nav is a second read of the source's own receiver, beside the residual's,
-    // so only a BUILT-IN surface qualifies - a user key may be a getter, and re-spelling it fired
-    // that getter twice where the source reads it once
-    // a nav the source wrote with `?.` answers every question below the same way: the hop
-    // short-circuits the WHOLE chain, so a residual and a re-spelling read one value - and the
-    // collapse then renders the nav without the marker, as it does for every other host
-    const OPTIONAL_HOPS = { allowOptionalHops: true };
-    const plainReceiver = resolveNestedReceiverNode(prop, { allowSePeeledFragment: true, allowNavSegments: true, adapter });
-    // ... and where the HOST dies with the slot, an EFFECT-bearing receiver qualifies too: nothing
-    // survives to read it a second time, so the dispatch performs the effects the dropped residual
-    // would have performed, exactly once (`({ y: { at: v } } = { y: eff() })`). the re-read gate
-    // above protects a residual - with none left it has nothing to protect
-    const carriedReceiver = plainReceiver || !consumedAssignmentSlotDropsHost(prop) ? null : carriedInitReceiverNode({
-      path: prop,
-      initNode: prop.findParent(item => item.isAssignmentExpression())?.node?.right,
-      resolveOptions: { allowSePeeledFragment: true, allowNavSegments: true },
-      adapter,
-    });
-    const resolvedReceiver = plainReceiver ?? carriedReceiver;
-    // ... and a FLAT SE-keyed prop over a MEMBER read owes that member exactly ONE evaluation: its key
-    // keeps the slot, so the residual performs the source's own read, and a dispatch spelling the
-    // member again would read it twice. only a flat one - a NESTED claim's hops name the polyfilled
-    // surface themselves, and that the canon does re-spell (a re-referenceable token and a constant
-    // literal re-spell freely too). The receiver is the assignment's own right.
-    const sourceReceiver = prop.findParent(item => item.isAssignmentExpression())?.node?.right;
-    const seKeyOverMember = seKeyKeepsReceiverRead({
-      prop: prop.node,
-      ctx: aliasCtxFromPath(prop),
-      receiver: sourceReceiver,
-      nested: !!prop.parentPath?.parentPath?.isObjectProperty?.(),
-      restSibling: hasRestSiblingExcept(prop.parent.properties, prop.node),
-    });
-    if (seKeyOverMember) return false;
-    // every surface question below asks the ROOT with the hops: a capitalised key off the user's own
-    // object only looks like a built-in surface
     const propCtx = { scope: prop.scope, adapter, path: prop };
-    const surfaceOptions = { ...OPTIONAL_HOPS, ctx: propCtx, isOwnAlias: isOwnPureAlias };
-    // ... and a nav into the BUILT-IN namespace must NAME the instance surface it dispatches on: a
-    // leaf off the object the hops merely REACH is a name match (`[{ Array: { keys: k } }] =
-    // [globalThis]`), which every other host of both legs keeps native - the shared rule the nested
-    // render asks. a receiver that is not such a nav resolved through its own TYPE and keeps its claim,
-    // and so does one off the user's own object, whatever its keys spell
-    if (resolvedReceiver && isBuiltInSurfaceNav(resolvedReceiver, surfaceOptions)
-      && !isInstanceSurfaceNav(resolvedReceiver, surfaceOptions)) {
-      return false;
-    }
-    // ... and a slot that takes the NAV with it leaves the dispatch as the only reader of a surface its
-    // root names, so the re-read gate has nothing left to protect. a USER namespace
-    // (`userNs.Array.prototype`) is the user's nav: a sibling the residual keeps would read ahead of the
-    // dispatch, so it dispatches only where the typed arm below owns every level, the host included
-    // a POSITIONAL segment inside the resolved nav is spelled by the canon as a COMPUTED literal
-    // (`x[0]`), which is an estree node the babel tree cannot host - and reading a property is not
-    // what the pattern does there anyway (it pulls from an iterator). the positional slot has its
-    // own route, on a declaration host; here the claim stays native, as it does on the other leg
-    for (let hop = resolvedReceiver; hop?.type === 'MemberExpression'; hop = hop.object) {
-      if (hop.property?.type === 'Literal') return false;
-    }
-    // ... and a nav ending on a polyfillable STATIC dispatches on that static's ponyfill - an import
-    // binding, re-referenceable by nature - never on the raw static off the realm, which the floor
-    // lacks (`({ Array: { of: { name } } } = globalThis)` -> `name = _name(_Array$of)`): the same
-    // typed-base question the declaration host asks, so the two hosts answer alike
-    const typedChain = typedNavClaimChain(prop, { adapter, allowAssignmentHost: true });
-    const typedBase = typedChain && resolveNestedReceiverBase({
-      rootName: typedChain.root.name,
-      keys: typedChain.keys,
-      binding: adapter.getBinding({ scope: prop.scope, name: typedChain.root.name, path: prop, read: typedChain.root }),
-      adapter,
+    const receiverPlan = planNestedAssignmentReceiver({
+      path: prop,
+      assignment: prop.findParent(item => item.isAssignmentExpression()).node,
+      entry,
+    }, {
+      ...propCtx,
+      isOwnAlias: isOwnPureAlias,
+      injectorState: injector,
       resolveGlobalPolyfill: resolveGlobalPure,
       resolveStaticPolyfill: staticHopPure,
     });
-    const staticReceiver = typedBase?.static ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : null;
-    // ... and a TYPED user nav the extraction OWNS - every level dies with the claim, the host
-    // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
-    // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape.
-    // A pure realm base still reads the user's slot; only a constructor base belongs to the anchor.
-    const typedUserNav = !staticReceiver && typedBase && !typedBase.ctor
-      && !typedChain.slotDefault && consumedAssignmentSlotDropsHost(prop)
-      ? estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(typedBase.pure
-        ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : t.cloneNode(typedChain.rootSpelling)))) : null;
-    const receiverNode = staticReceiver ?? typedUserNav ?? (resolvedReceiver
-      && (carriedReceiver || isReReferenceableReceiver(resolvedReceiver)
-        || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name), { ...OPTIONAL_HOPS, ctx: propCtx })
-        || (consumedAssignmentSlotDropsNav(prop, isOwnPureAlias, propCtx) && isInstanceSurfaceNav(resolvedReceiver, surfaceOptions)))
-      ? resolvedReceiver : null);
+    const receiverNode = receiverPlan && estreeToBabel(renderNestedExtractionReceiver(receiverPlan, {
+      embed: hostSlot,
+      importPure: pure => hostSlot(t.cloneNode(injectPureImport(pure.entry, pure.hintName))),
+    }));
     const bindingId = propBindingIdentifier(prop.node.value);
     // the overwrite re-spells the receiver nav the residual reads, so the raw slot has no reader
     // left once the dispatch lands - unless its KEY still owes an in-place effect
@@ -4155,7 +4077,7 @@ export default function createDestructureEmitter({
           seqElement,
           overwriteAssign,
           dropsResidual: prunesSlot && pruneOverwrittenSlotInElement({
-            prop, seqElement, carriesInit: !!carriedReceiver || !!typedUserNav,
+            prop, seqElement, carriesInit: !!receiverPlan.carriesInit,
           }),
         });
         return true;
@@ -4170,7 +4092,7 @@ export default function createDestructureEmitter({
       // lifting effects off this bodyless slot would run them outside the source's branch; the
       // block below keeps that lift inside the branch.
       if (prunesSlot && consumedAssignmentSlotDropsHost(prop) && !nestedOverwriteLastInsert.has(rawStatement.node)
-        && (carriedReceiver || typedUserNav
+        && (receiverPlan.carriesInit
           || !mayHaveSideEffects(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }))
         && isBodylessStatementSlot(rawStatement.parentPath?.node, rawStatement.node)) {
         rawStatement.replaceWith(overwriteStmt);
@@ -4187,7 +4109,7 @@ export default function createDestructureEmitter({
         && extractionSourceAt.get(item.node) > extractionSourceAt.get(overwriteStmt));
       const [inserted] = before ? before.insertBefore(overwriteStmt) : (prevInsert ?? statement).insertAfter(overwriteStmt);
       nestedOverwriteLastInsert.set(statement.node, before ? prevInsert : inserted);
-      if (prunesSlot) pruneOverwrittenSlot({ prop, statement, carriesInit: !!carriedReceiver || !!typedUserNav });
+      if (prunesSlot) pruneOverwrittenSlot({ prop, statement, carriesInit: !!receiverPlan.carriesInit });
       return true;
     }
     // nothing safely spelled the receiver (a call with surviving readers, an unrepeatable nav): the overwrite
