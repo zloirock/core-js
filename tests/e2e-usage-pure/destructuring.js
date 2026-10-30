@@ -9353,3 +9353,50 @@ QUnit.test('destructuring: instance mirrors preserve child rewrites and supplied
   assert.same((({ k: { at } }) => at.call('ab', -1))({ k: String.fromCharCode(97, 98) }), 'b');
   assert.deepEqual(events, ['flat', 'nested']);
 });
+
+QUnit.test('destructuring: assignment hosts share a receiver capture with their residual', assert => {
+  const events = [];
+  const holder = {
+    get rows() { events.push('get'); return [4, 9]; },
+  };
+  let at, includes, length;
+  ({ at, includes } = (events.push('prefix'), holder.rows));
+  assert.same(at.call([4, 9], -1), 9);
+  assert.same(includes.call([4, 9], 4), true);
+  if (events.length) ({ at, length } = holder.rows);
+  assert.same(at.call([4, 9], -1), 9);
+  assert.same(length, 2);
+  (events.push('before'), ({ at, includes } = holder.rows), events.push('after'));
+  const returned = ({ at, length } = holder.rows);
+  assert.same(returned.length, 2);
+  assert.same(at.call(returned, -1), 9);
+  assert.deepEqual(events, ['prefix', 'get', 'get', 'before', 'get', 'after', 'get']);
+});
+
+QUnit.test('destructuring: a bodyless kept key runs before its extraction', assert => {
+  const events = [];
+  const row = [4, 9];
+  let at, length;
+  if (row.length) ({ [(events.push('key'), 'at')]: at, length } = row);
+  assert.same(at.call(row, -1), 9);
+  assert.same(length, 2);
+  assert.deepEqual(events, ['key']);
+  if (!row.length) ({ [(events.push('skipped'), 'at')]: at, length } = row);
+  assert.deepEqual(events, ['key']);
+});
+
+QUnit.test('destructuring: anchored residual setters keep their turn around an iterator write', assert => {
+  const events = [];
+  let phase = 'before';
+  const target = {
+    set left(value) { events.push(['left', phase, typeof value]); },
+    set middle(value) { events.push(['middle', phase, typeof value]); phase = 'after'; },
+    set right(value) { events.push(['right', phase, typeof value]); },
+  };
+  ({ Set: { customSet: target.left }, [Symbol.iterator]: target.middle, Map: { customMap: target.right } } = globalThis);
+  assert.deepEqual(events, [['left', 'before', 'undefined'], ['middle', 'before', 'undefined'], ['right', 'after', 'undefined']]);
+  events.length = 0;
+  phase = 'again';
+  if (target) ({ Set: { customSet: target.left }, [Symbol.iterator]: target.middle, Map: { customMap: target.right } } = globalThis);
+  assert.deepEqual(events, [['left', 'again', 'undefined'], ['middle', 'again', 'undefined'], ['right', 'after', 'undefined']]);
+});

@@ -7,8 +7,6 @@ import {
   conditionalDestructureLeftUntouchedWarning,
   descendReceiverPathByKeys,
   fallbackDestructureHasPolyfillableBranch,
-  isConstantLiteralReceiver,
-  isReReferenceableAcrossReads,
   isReReferenceableReceiver,
   planSynthReceiverGuard,
   patternHopKeysToHost,
@@ -34,7 +32,6 @@ import {
   peelReceiverSequenceTail,
   isPureNavReceiver,
   guardedNavPassthroughPlan,
-  realmSelectionCollapseOperand,
   resolveObjectName,
   agreeingTernaryArm,
   resolveSynthKeys,
@@ -72,7 +69,10 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
+  assignmentNeedsReceiverMemo,
   forInitNeedsReceiverMemo,
+  orderDestructureParts,
+  partitionDestructureReads,
   planDestructureKeySegments,
   planDestructureInstanceSynth,
   sentinelMemoInitShape,
@@ -318,10 +318,8 @@ export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 
   return observableSequenceElements(takeSourceSequencePrefix(declarator, key, ctx), ctx).map(expr => expressionStatement(expr));
 }
 
-// a BODYLESS assignment host (`if (c) ({ Map: M } = g);`) has no statement list to splice into:
-// it rewrites only when the whole destructure collapses into exactly one assignment, or when a
-// memoized receiver braces the slot around both its reads
-// eslint-disable-next-line max-statements -- per-form drain dispatch sequence
+// A bodyless assignment has no statement list to splice into. Bind the same capture and
+// read order as a statement host, keeping a sole replacement bare and bracing several parts.
 export function drainBodylessAssignment({ hostNode, jobs }, {
   program,
   markRewrite,
@@ -332,6 +330,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   memoCtx = null,
 }) {
   const sentinelKept = jobs.some(job => job.sentinel);
+  const partition = partitionDestructureReads(jobs, job => ({ ...nodeSite(job.prop, job.metaPath), adapter: memoCtx?.adapter }));
   const statements = renderDestructureStatements(jobs.map(job => ({ id: propBindingTarget(job.prop), init: job.value() })));
   // the lifted SE prefix runs first, once - re-derived from the CURRENT right, the way the statement
   // drain derives its own: the walk rewrites the claims INSIDE the prefix in place, and the nodes the
@@ -377,11 +376,11 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // lifted prefix leaves no slot for - unless the quiet tail is a surface both may re-read for free
   if (residualSurvives && seqPrefix?.length && jobs.some(job => job.readsReceiver)
     && !isPureNavReceiver(liveSeq ? liveSeq.at(-1) : peeledRight)) return;
-  statements.unshift(...prefixStatements);
   // the SOURCE slot of every prop, read before the consume empties the pattern: a residual that
   // SPLITS lands each of its hops where the source wrote it, among the extractions
   const sourceProps = bodylessAssign.left?.type === 'ObjectPattern' ? [...bodylessAssign.left.properties] : null;
   removeConsumedProps(jobs);
+  const residualSourceProps = [...bodylessAssign.left.properties];
   // an assignment-position sentinel writes an undeclared name, so its `var` rides whichever branch
   // below renders - the MEMO one owes it exactly as the plain sentinel one does. read AFTER the
   // consumed props leave, which is where the rename mints the name
@@ -391,7 +390,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // a SURVIVING residual then reads the quiet tail the prefix left behind - a kept write stays whole
   if (liveSeq && !writeRight && bodylessAssign.left.properties?.length) bodylessAssign.right = liveSeq.at(-1);
   // the memo verdict needs the residual as it SURVIVES - after the consumed props leave
-  const memoRef = assignmentMemoRef(bodylessAssign, jobs, mintRefName, memoCtx);
+  const memoRef = assignmentNeedsReceiverMemo(bodylessAssign, jobs, memoCtx) ? mintRefName() : null;
   const memoInit = memoRef ? bodylessAssign.right : null;
   // a MEMOIZED receiver hosts both reads in ONE block: the `_ref` declaration and the
   // residual reading it belong together, so the slot braces exactly once
@@ -400,64 +399,35 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       statements[index].expression.right = job.value(memoRef);
     }
     bodylessAssign.right = identifier(memoRef);
-    statements.unshift(...renderDestructureStatements([], { capture: { name: memoRef, value: memoInit } }));
-    // ... behind the memo, which the extractions read: the declaration order both legs print
-    if (varDecl.length) statements.splice(1, 0, ...varDecl);
-    if (bodylessAssign.left.properties.length !== 0) statements.push(expressionStatement(bodylessAssign));
-    if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body: statements })) markRewrite();
-    return;
-  }
-  // a SENTINEL residual rides the block as it stands: the slot keeps what it renames - a rest must
-  // go on excluding the key, an SE key must still run where the source wrote it - and the extraction
-  // joins it. the ORDER is what the residual OWES: an SE key runs before the lookup it feeds, so the
-  // residual leads there; a rest exclusion owes nothing and follows the extraction
-  if (sentinelKept) {
-    if (seqPrefix?.length || mayHaveSideEffects(bodylessAssign.right)) return;
-    const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
-    const seKeyFirst = jobs.some(job => job.sentinel && job.prop.computed
-      && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter: memoCtx?.adapter }));
-    // the sentinel `var` LEADS the block whatever the order below: it declares, it does not run, and
-    // that is where the other leg plants it
-    const body = [...varDecl, ...renderDestructureStatements(statements.map(statement => ({ statement })), {
-      residual, residualAt: seKeyFirst ? 0 : statements.length,
-    })];
+    const residuals = bodylessAssign.left.properties.length ? [{ statement: expressionStatement(bodylessAssign) }] : [];
+    const body = [...prefixStatements, ...renderDestructureStatements([], {
+      capture: { name: memoRef, value: memoInit },
+    }), ...varDecl, ...orderedStatements(residuals)];
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
-  // a SURVIVING residual rides the same block. a RE-ANCHORED one re-reads the hop's own pure and
-  // leads the extractions (`if (c) { ({ customI } = _Iterator); g = _Iterator$zip; }`); a plain one
-  // keeps the SOURCE order its props were written in, behind them. without this the consumed props
-  // were already gone and their extractions were dropped on the floor - nothing wrote the bindings
+  // A kept key remains in the native residual. Its extraction is ordered by the same
+  // live-key rule as a statement host; declarations of minted sentinels lead the block.
+  if (sentinelKept) {
+    if (seqPrefix?.length || mayHaveSideEffects(bodylessAssign.right)) return;
+    const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
+    const body = [...varDecl, ...orderedStatements([{ statement: residual }])];
+    if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
+    return;
+  }
+  // Native anchoring supplies source slots; the shared order keeps each resulting
+  // hop beside its extractions, including a residual that splits into several hops.
   if (bodylessAssign.left.properties.length !== 0) {
     const anchored = anchorAssignmentResidual(bodylessAssign, jobs,
       view => reanchorSoleCtorHopResidual(view, { metaPath: jobs[0]?.metaPath ?? null }), surfaceInitInfo);
-    // ... in the cascade the statement host prints: a FLAT extraction runs ahead of the residual, a
-    // NESTED hop behind it, and the lifted prefix leads them all - the source ran it first
-    const jobStatements = statements.slice(prefixStatements.length);
-    const paired = jobs.map((job, index) => ({ job, statement: jobStatements[index] }));
-    // ... and SEVERAL anchored hops take one assignment each, every piece - extraction or hop - where
-    // the source wrote it, exactly as the statement host orders the same split
-    if (anchored?.split) {
-      const pieces = [
-        ...paired.map(entry => ({
-          stmt: entry.statement,
-          at: sourceProps?.indexOf(jobOuterProp(entry.job)) ?? -1,
-        })),
-        ...anchored.split.map(({ hop, view }) => ({
-          stmt: expressionStatement(assignmentExpression('=', view.id, view.init)),
-          at: sourceProps?.indexOf(hop) ?? -1,
-        })),
-      ].sort((left, right) => left.at - right.at);
-      const split = [...prefixStatements, ...pieces.map(piece => piece.stmt)];
-      if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body: split })) markRewrite();
-      return;
-    }
-    const flat = paired.filter(entry => !entry.job.chain?.length).map(entry => entry.statement);
-    const nested = paired.filter(entry => entry.job.chain?.length).map(entry => entry.statement);
-    const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
-    const body = [...prefixStatements, ...renderDestructureStatements(flat.map(statement => ({ statement })), {
-      residual, residualAt: anchored ? 0 : flat.length,
-    }), ...nested];
+    const residuals = anchored?.split ? anchored.split.map(({ hop, view }) => ({
+      source: hop, anchored: true, statement: expressionStatement(assignmentExpression('=', view.id, view.init)),
+    })) : [{
+      sourceProps: residualSourceProps,
+      anchored: !!anchored,
+      statement: receiverHolder ? hostNode : expressionStatement(bodylessAssign),
+    }];
+    const body = [...prefixStatements, ...orderedStatements(residuals)];
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
@@ -465,35 +435,19 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   if (jobs.length > 1 && !seqPrefix?.length && mayHaveSideEffects(bodylessAssign.right)) return;
   // several extractions wrap the bodyless slot in a block (babel's scope.push shape);
   // a single one keeps the bare statement
-  const replacement = bodylessSlotReplacement(hostNode, statements);
+  const replacement = bodylessSlotReplacement(hostNode, [...prefixStatements, ...orderedStatements()]);
   if (replaceNodeInTree(program, hostNode, replacement)) markRewrite();
+
+  function orderedStatements(residuals = []) {
+    const entries = new Map(jobs.map((job, index) => [job, { source: jobOuterProp(job), statement: statements[index] }]));
+    return orderDestructureParts({
+      before: partition.before.map(job => entries.get(job)),
+      after: partition.after.map(job => entries.get(job)),
+      keyFirst: partition.keyFirst,
+    }, residuals, { sourceProps, captured: !!memoRef }).map(part => part.statement);
+  }
 }
 
-// the shared `_ref` an assignment-form destructure owes, or null: a receiver read by an extraction
-// AND by the surviving residual is read twice, and an unreusable spelling cannot be. `ctx` (adapter
-// plus injector state) is what lets the realm clause below run - every caller passes it, so the two
-// host spellings answer alike
-export function assignmentMemoRef(assignment, jobs, mintRefName, ctx = null) {
-  if (jobs.every(job => !job.readsReceiver)) return null;
-  const whole = peelTransparentExpr(assignment.right);
-  // a lifted sequence PREFIX leaves the readers the tail: one they re-read for free keeps the lift,
-  // any other takes the memo, the prefix riding it where the source ran it
-  const right = jobs.some(job => job.seqPrefix?.length) ? peelNestedSequenceExpressions(whole).tail : whole;
-  const [{ metaPath }] = jobs;
-  if (right?.type === 'ThisExpression' || (right?.type === 'Identifier'
-    && isReReferenceableAcrossReads(right, { scope: metaPath?.scope, adapter: ctx?.adapter, path: metaPath }))) return null;
-  // ... and a selection every value of which IS the realm needs none either: every branch hands back
-  // the same object, free to re-read, so its readers share an identity without a ref of their own -
-  // the declarator host's `allProxyInit` clause, asked here on the REWRITTEN spelling
-  if (ctx && realmSelectionCollapseOperand(right, ctx)) return null;
-  // a kept-binding residual reads the RAW right in place and the overwrite re-spells a
-  // constant literal - no shared identity to memoize
-  if (jobs.every(job => job.keepSentinelBinding) && isConstantLiteralReceiver(right)) return null;
-  const residualSurvives = assignment.left?.type !== 'ObjectPattern' || assignment.left.properties.length !== 0;
-  return jobs.length + (residualSurvives ? 1 : 0) > 1 ? mintRefName() : null;
-}
-
-// the STATEMENT a path sits in - the slot a generated declaration plants beside
 // a RE-ANCHORED residual is the declarator the discarded init belongs to: the sink's prefix rides
 // that declarator's own value instead of a slot of its own (`for (const { customFR: fr } = (<prefix>,
 // _Promise); ...)`), which is where the source wrote it. true when it took the prefix
@@ -505,6 +459,7 @@ export function foldSinkPrefixIntoResidual(extracted, slot) {
   return true;
 }
 
+// the STATEMENT a path sits in - the slot a generated declaration plants beside
 export function hostStatementOf(path) {
   let up = path;
   while (up?.node && !statementListOf(up.parentPath?.node)) up = up.parentPath;
@@ -2038,27 +1993,30 @@ export function joinSeKeySiblingDeclarator({
 // runs here, after the source order is taken and before the residual is asked
 export function orderResidualDeclarators({ declarator, jobs, values }, { removeConsumedProps, surfaceInitInfo, reanchor }) {
   const sourceOrder = [...declarator.id.properties];
-  function at(node) {
-    return sourceOrder.includes(node) ? sourceOrder.indexOf(node) : sourceOrder.length;
-  }
   removeConsumedProps(jobs);
   const pieces = jobs.map((job, index) => ({
-    at: at(jobOuterProp(job)),
+    source: jobOuterProp(job),
     item: variableDeclarator(jobBindingTarget(job), values[index]),
   }));
+  const residuals = [];
   let residualTaken = false;
   const split = splitCtorHopResidual(declarator, { surfaceInitInfo, reanchor });
   if (split) {
-    pieces.push(...split.map(({ hop, view }) => ({ at: at(hop), item: variableDeclarator(view.id, view.init) })));
+    residuals.push(...split.map(({ hop, view }) => ({
+      source: hop, anchored: true, item: variableDeclarator(view.id, view.init),
+    })));
     declarator.id.properties = [];
   } else if (declarator.id.properties.length) {
     const [first] = declarator.id.properties;
     if (reanchor(declarator)) {
-      pieces.push({ at: at(first), item: declarator });
+      residuals.push({ source: first, anchored: true, item: declarator });
       residualTaken = true;
     }
   }
-  return { declarators: pieces.sort((left, right) => left.at - right.at).map(piece => piece.item), residualTaken };
+  return {
+    declarators: orderDestructureParts({ before: pieces, after: [] }, residuals, { sourceProps: sourceOrder }).map(part => part.item),
+    residualTaken,
+  };
 }
 
 // a residual left holding SEVERAL ctor hops over a plain surface identifier, each a sole-hop
