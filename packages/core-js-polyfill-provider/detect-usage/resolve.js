@@ -6334,27 +6334,26 @@ export function createGuardTailPlanner({
   };
 }
 
-// THE vestigial-`?.` verdict of a proxy nav, shared by every guard render of both emitters:
-// an optional whose RECEIVER cannot be undefined is dead text (a proven inline-call root, a
-// pristine global, a hop below the first unresolvable one) and the renders drop it; over a
-// value that genuinely short-circuits the optional is LOAD-BEARING and survives - stripping
-// it throws where the source yields undefined. returns the nav nodes whose own `?.` is dead
+// Within a substituted proxy navigation, the optional is dead only when its receiver
+// cannot be undefined. This is a VALUE proof: a source receiver also needs a replacement
+// claim (isPolyfillableOptional). Guard renders already carry that claim in their plan.
+export function isVestigialOptionalHop(node, resolvePure, aliasCtx = null) {
+  if (!isMemberAccessNode(node) || !node.optional) return false;
+  const object = unwrapRuntimeExpr(node.object);
+  // A kept write observes its value; a sequence hands its tail on. The same probe can
+  // therefore be live in a store even when the surrounding navigation would collapse.
+  const value = peelChainAssignmentDeep(peelReceiverSequenceTail(object));
+  const undefinable = isCallShape(value)
+    ? callValueCanBeUndefined(value, aliasCtx, resolvePure)
+    : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, value === object ? undefined : { observableRead: true });
+  return !undefinable && realmRootIsSpellable(value, resolvePure);
+}
+
+// Every guard renderer applies the same value proof to its claimed navigation.
 export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
   const dead = [];
-  for (let cur = navNode; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
-    cur = unwrapRuntimeExpr(cur.object)) {
-    const object = unwrapRuntimeExpr(cur.object);
-    // a KEPT WRITE holds its VALUE, and the write makes the read observable - a proxy
-    // spine below the probe hop counts as one surface (`(w = globalThis.window)?.X`
-    // keeps its guard, `(w = globalThis)?.X` is dead)
-    // a SEQUENCE hands its tail on, so a store standing there is the value this `?.` reads
-    // (`(eff(), t = globalThis.window)?.self` guards the probe the write kept)
-    const value = peelChainAssignmentDeep(peelReceiverSequenceTail(object));
-    const undefinable = isCallShape(value)
-      ? callValueCanBeUndefined(value, aliasCtx, resolvePure)
-      : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx,
-        value === object ? undefined : { observableRead: true });
-    if (cur.optional && !undefinable && realmRootIsSpellable(value, resolvePure)) dead.push(cur);
+  for (let cur = navNode; isMemberAccessNode(cur); cur = unwrapRuntimeExpr(cur.object)) {
+    if (isVestigialOptionalHop(cur, resolvePure, aliasCtx)) dead.push(cur);
   }
   return dead;
 }

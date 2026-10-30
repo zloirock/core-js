@@ -20914,6 +20914,41 @@ function * generateGuardedClaimBoundaries() {
   })()`, { rig }), strip: true };
 }
 
+// Removing redundant receiver guards must preserve a live neighbour, the stored
+// value, and key/argument effects. Missing and present realms exercise the probe.
+function * generateVestigialReceiverProofs() {
+  for (const [name, receiver, setup = ''] of [
+    ['realm', 'globalThis'],
+    ['prefix', '(log.push("prefix"), globalThis)'],
+    ['stored', '(held = globalThis)'],
+    ['stored-prefix', '(held = (log.push("prefix"), globalThis))'],
+    ['nested-prefix', '(log.push("outer"), (log.push("inner"), held = globalThis))'],
+    ['alias', 'realm', 'const realm = globalThis;'],
+    ['stored-alias', '(held = realm)', 'const realm = globalThis;'],
+    ['call', 'realm()', 'const realm = () => globalThis;'],
+    ['stored-call', '(held = realm())', 'const realm = () => { log.push("call"); return globalThis; };'],
+    ['literal-call', '(() => globalThis)()'],
+  ]) yield { ...snippet(`vestigial-receiver-proof/${ name }`, `(() => {
+    let held; ${ setup }
+    const result = ${ receiver }?.Array.from((log.push("argument"), [7])).at((log.push("index"), 0));
+    return [result, held === undefined ? "unset" : held === globalThis ? "realm" : "other"];
+  })()`), strip: true };
+  yield { ...snippet('vestigial-receiver-proof/unknown-receiver', `(() => {
+    function read(realm) { return realm?.Array?.from((log.push("argument"), [7])).at(0); }
+    return [read(null), read({ Array: { from(value) { log.push("user"); return value; } } })];
+  })()`), strip: true };
+  for (const rig of [false, true]) for (const [name, expression] of [
+    ['stored-probe', '(held = globalThis.window)?.self?.Array.from((log.push("argument"), [7])).at(0)'],
+    ['alias-probe', 'realm?.self?.Array.from((log.push("argument"), [7])).at(0)'],
+    ['live-tail', 'globalThis?.Array.vestigialReceiverMissing?.at((log.push("argument"), 0))'],
+  ]) yield { ...snippet(`vestigial-receiver-proof/${ name }/${ rig ? 'present' : 'absent' }`, `(() => {
+    let held = "unset";
+    const realm = globalThis.window;
+    const result = ${ expression };
+    return [result, held === "unset" ? "unset" : held === undefined ? "absent" : "present"];
+  })()`, { rig }), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21322,4 +21357,5 @@ export function * generate() {
   yield * generateDeletedRealmEnumCarriers();
   yield * generateSymbolFirstReceiverReads();
   yield * generateGuardedClaimBoundaries();
+  yield * generateVestigialReceiverProofs();
 }

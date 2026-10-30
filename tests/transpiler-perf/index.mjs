@@ -533,7 +533,7 @@ const CASES = [
   // generated decoder code stresses nested control flow, parameter reads and member analysis
   { name: 'draco_decoder.js, generated decoder',
     source: () => threeFile('examples/jsm/libs/draco/draco_decoder.js'),
-    bounds: { 'usage-global': { babel: 9, unplugin: 9 }, 'usage-pure': { babel: 10, unplugin: 9 } } },
+    bounds: { 'usage-global': { babel: 9, unplugin: 8 }, 'usage-pure': { babel: 10, unplugin: 9 } } },
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
