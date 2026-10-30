@@ -65,10 +65,46 @@ for (const [name, prelude, expression, capture, firstEffects] of [
     embed: cloneNode,
   });
   check(`${ label } allocations only on apply`, allocations, capture ? 1 : 0);
+  check(`${ label } explicit leading capture`, product.leadingCapture, capture ? product.effects[0] : null);
   const source = `${ prelude } const result = ${ expression };`;
   checkDeep(`${ label } ordered reads`, product.effects?.map(node => node.type === 'AssignmentExpression'
     && node.left.name === '_held' ? 'capture' : source.slice(node.start, node.end)) ?? [], firstEffects);
 });
+
+runBoth('capture role belongs to the rendered first read', 'const result = box.rows[(key(), "at")];',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const member = unwrapRuntimeExpr(path.node.init);
+    const [key] = peelNestedSequenceExpressions(member.property).prefix;
+    const plan = planReceiverEffects({ receiver: member.object, sideEffects: [key], receiverReads: 1 });
+    let capture;
+    const hooks = {
+      mintRef: () => '_held',
+      embed: hostSlot,
+      recordCapture(node) { capture = node; return node; },
+    };
+    const product = renderReceiverEffects(plan, hooks);
+    check(`${ label } declared role is the minted write`, product.leadingCapture, capture);
+    check(`${ label } role and first effect share identity`, product.effects[0], capture);
+    check(`${ label } receiver key remains after capture`, hostSlotNode(product.effects[1]), key);
+    const prefixed = renderReceiverEffects({ ...plan, prefixEffects: [key] }, hooks);
+    check(`${ label } earlier effects prevent moving the capture alone`, prefixed.leadingCapture, null);
+    check(`${ label } the nonleading write stays in its effect slot`, prefixed.effects[1], capture);
+    const guarded = renderReceiverEffects({ ...plan, disjuncts: [member.object] }, hooks);
+    check(`${ label } a prepared guard owns the first check`, guarded.leadingCapture, null);
+    check(`${ label } its capture stays in the guarded branch`, guarded.effects[0], capture);
+    const settled = renderReceiverEffects({ ...plan, disjuncts: [] }, hooks);
+    check(`${ label } settled checks do not invent a tail guard`, settled.leadingCapture, null);
+    check(`${ label } a settled guard keeps its capture effect`, settled.effects[0], capture);
+    const prepared = renderReceiverEffects({
+      ...plan,
+      capture: false,
+      firstReceiver: sequenceExpression([capture, identifier('_held')]),
+      receiver: identifier('_held'),
+    }, { mintRef() { throw new Error('A prepared receiver must not allocate another capture'); } });
+    check(`${ label } an assignment spelling does not declare a capture role`, prepared.leadingCapture, null);
+    check(`${ label } an unowned first write remains an ordinary effect`, prepared.effects[0], capture);
+  });
 
 runBoth('symbol source slots', 'const rows = []; const result = (first(), rows)[(key(), Symbol.iterator)];',
   (parser, program, label) => {

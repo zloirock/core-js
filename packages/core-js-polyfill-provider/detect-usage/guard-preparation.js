@@ -186,7 +186,6 @@ export function planSymbolReceiverEffects({
   memberOptional,
   liveOptionalReceiver,
   callOptional,
-  sealed,
   collapsed,
   ctx,
   split,
@@ -194,7 +193,7 @@ export function planSymbolReceiverEffects({
   if (callOptional) return { receiver, effects: null };
   const keyEffects = sideEffects.filter(effect => !receiverEffects.has(effect));
   const receiverSE = sideEffects.filter(effect => receiverEffects.has(effect));
-  if (memberOptional || liveOptionalReceiver && sealed) {
+  if (memberOptional) {
     const peeled = unwrapRuntimeExpr(receiver);
     const reusable = !receiverSE.length && isReusableReceiver(peeled, { interveningEffects: sideEffects.length > 0, ctx });
     if (!reusable && receiverSE.some(effect => !subtreeContainsNode(receiver, effect))) return null;

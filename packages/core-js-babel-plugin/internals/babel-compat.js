@@ -2632,38 +2632,31 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // message parity is unreachable: the only emit matching native's message calls the bare
     // method without `.call`, which drops the `this=receiver` binding the parens preserve and
     // breaks the success case. both are TypeError - same accepted tradeoff as the instance-
-    // method paren-lookup. receiver is the sole arg (evaluated once), inner `?.` stays intact,
-    // so no memoization / null-guard is needed
-    if (isParenLookupOnly) {
-      if (!effectiveSE?.length) {
-        callerPath.parentPath.replaceWith(t.callExpression(id, [t.cloneNode(path.node.object)]));
-        return;
-      }
-      // the receiver is optional (parens terminate the `?.`), so the receiver-derived SE (a computed
-      // key) must fire only when the receiver is non-null - native short-circuits before evaluating
-      // it. guard the SE behind the receiver's nullishness (the polyfill still throws on null);
-      // prepending it to the whole call would fire it on the short-circuit too
-      const [memoAssign, memoRef] = memoize(path.node.object, path.scope, path.node, true, {
-        scope: path.scope,
-        path,
-        adapter: getAdapter?.(),
-        injectorState: getInjector(),
-      });
-      const decision = planMethodCall({
-        receiver: memoRef, prepared: true,
-        sideEffects: effectiveSE.filter(effect => !subtreeContainsNode(path.node.object, effect)),
-      });
-      const { built } = renderGuardedMethodCall(decision, {
-        helper: hostSlot(id), guard: { checks: [hostSlot(memoAssign)], receiver: memoRef },
-        invoke: false, sealed: true, embed: node => hostSlot(t.cloneNode(node)),
-      });
-      callerPath.parentPath.replaceWith(estreeToBabel(built));
+    // method paren-lookup. Without key effects the receiver stays intact and evaluates once.
+    if (isParenLookupOnly && !effectiveSE?.length) {
+      callerPath.parentPath.replaceWith(t.callExpression(id, [t.cloneNode(path.node.object)]));
       return;
     }
     const [check, object] = extractCheck(path, skipOptional,
       (effectiveSE?.length ?? 0) > (seMode === 'suppress' ? 0 : receiverEffectCount));
     const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope,
       seMode, receiverEffectCount, path, 1, receiverSource);
+    if (isParenLookupOnly) {
+      // Keep the native guard's checks: an inner optional tests its root, not the
+      // receiver reached past it. The shared renderer guards that receiver and key.
+      const decision = planMethodCall({
+        receiver: recvNode, prepared: true, sideEffects: hoistedSE,
+      });
+      const { built } = renderGuardedMethodCall(decision, {
+        helper: hostSlot(id),
+        guard: { checks: guardChecks(check).map(hostSlot), receiver: recvNode },
+        invoke: false,
+        sealed: true,
+        embed: node => hostSlot(t.cloneNode(node)),
+      });
+      callerPath.parentPath.replaceWith(estreeToBabel(built));
+      return;
+    }
     replaceAndWrap({
       replacePath: callerPath.parentPath,
       // wrap with the caller's accumulated side effects (e.g. computed-key SE from
