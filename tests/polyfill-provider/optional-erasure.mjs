@@ -19,6 +19,11 @@ for (const [name, source, expected, mutated = []] of [
   ['root', 'const value = globalThis?.self;', ['self']],
   ['backed hop', 'const value = globalThis.self?.Array;', ['Array']],
   ['computed hop', 'const value = globalThis["self"]?.Array;', ['Array']],
+  ['effectful hop before symbol', 'const value = globalThis?.[(hop(), "self")].window;', ['self']],
+  ['effectful deep hop before symbol', 'const value = globalThis?.[(hop(), "self")].window.self;', ['self']],
+  ['live effectful hop before symbol', 'const value = globalThis.window?.[(hop(), "self")];', []],
+  ['live effectful hop above dead', 'const value = globalThis?.[(prefix(), "self")].window?.[(hop(), "self")];', []],
+  ['shadowed effectful hop', 'function read(globalThis) { const value = globalThis?.[(hop(), "self")].window; }', []],
   ['static claim', 'const value = Array?.from;', ['from']],
   ['unknown value', 'const value = unknown?.self;', []],
   ['unknown call', 'const value = unknown()?.self;', []],
@@ -61,7 +66,10 @@ for (const [name, source, expected, mutated = []] of [
   };
   const before = JSON.stringify(object);
   const slots = vestigialReceiverOptionals(options);
-  checkDeep(label, slots.map(hop => hop.property.name), expected);
+  checkDeep(label, slots.map(hop => {
+    const property = unwrapRuntimeExpr(hop.property);
+    return property.name ?? property.expressions?.at(-1)?.value;
+  }), expected);
   const sourceNodes = new Set();
   walkAstNodes({ root: object, visit: node => { sourceNodes.add(node); } });
   check(`${ label }/returns source slots`, slots.every(hop => sourceNodes.has(hop) && hop.optional), true);

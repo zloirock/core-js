@@ -287,6 +287,7 @@ export default function createAstUsagePureCallback({
     composeGuardTest,
     emitInheritedStatic,
     emitInstanceWithPeeledSe,
+    eraseVestigialReceiverOptionals,
     guardObject,
     replaceInstanceLike,
     splitOptionalReceiver,
@@ -430,7 +431,6 @@ export default function createAstUsagePureCallback({
       memberOptional: state.memberOptional,
       liveOptionalReceiver: state.liveOptionalReceiver,
       callOptional: state.callOptional,
-      sealed: isSealedDirectSymbolCall(metaPath),
       collapsed: state.proxyPlanFired,
       ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState, resolvePure: meta => resolvePure(meta, metaPath) },
     };
@@ -446,6 +446,7 @@ export default function createAstUsagePureCallback({
     });
     state.object = result.receiver;
     state.effects = result.effects;
+    state.receiverCapture = result.leadingCapture;
     state.splitDisjuncts = plan.disjuncts ?? null;
     return true;
   }
@@ -455,6 +456,8 @@ export default function createAstUsagePureCallback({
   function handleSymbolIterator(meta, metaPath) {
     const { node } = metaPath;
     if (node.object?.type === 'Super') return;
+    // Consume the shared source-slot proof before proxy collapse or native guard splitting.
+    eraseVestigialReceiverOptionals({ memberOptional: node.optional === true, object: node.object, metaPath });
     // asked of the PROVIDER, before the collapse erases the span that carried the `?.` - the
     // same flag-based verdict the other two emitters read, so all three route alike
     const proxyRootOptional = meta.symbolReceiverProxyRoot?.isOptionalAccess;
@@ -473,6 +476,7 @@ export default function createAstUsagePureCallback({
       liveOptionalReceiver: proxyRootFired ? !!proxyRootOptional : receiverCarriesLiveOptional(node.object),
       receiverSe: new Set((meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)),
       effects: null,
+      receiverCapture: null,
       // the guard checks of a receiver the effect route split at its live `?.`
       splitDisjuncts: null,
     };
@@ -558,14 +562,23 @@ export default function createAstUsagePureCallback({
       && callerPath?.node?.type === 'CallExpression' && !callerPath.node.optional
       && unwrapRuntimeExpr(callerPath.node.callee) === node;
     const hopPath = consumesCall || (sealed && memberOptional) || methodCallConsume ? callerPath : metaPath;
-    // a SEALED optional lookup with a KEY effect: native short-circuits the `?.` before the key
-    // runs, so the effect rides a guard of its own while the helper call stays unconditional -
-    // it throws on null exactly like `(undefined)()` (`(arr?.[(log(), S)])()` ->
-    // `(arr == null ? void 0 : (log(), void 0), _getIterator(arr))`)
+    // A seal leaves invocation outside the source optional's short circuit. A whole-call
+    // helper receives the guarded lookup value; a method call keeps its receiver and
+    // evaluates arguments outside the lookup guard.
     if ((sealedDirectCall || (sealed && methodCallConsume))
       && (memberOptional || state.liveOptionalReceiver)
       && (effects?.length || methodCallConsume || meta.sideEffects?.length)) {
-      return emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects: effects ?? [], methodCallConsume }, {
+      return emitSealedKeySeConsume({
+        id,
+        object,
+        metaPath,
+        hopPath,
+        callerPath,
+        effects: effects ?? [],
+        capture: state.receiverCapture,
+        checks: splitDisjuncts,
+        methodCallConsume,
+      }, {
         guardObject,
         adapter,
         injectorState,

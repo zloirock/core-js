@@ -807,6 +807,25 @@ function countOr(n) {
     && stmt.expression.arguments[0].name === 'arr');
 }
 
+// Sealed consumption still uses the provider proof; a nullable or shadowed realm
+// keeps its guard even when a neighboring known-global form can discard it.
+for (const [label, source, guarded] of [
+  ['sealed realm', 'export const r = (globalThis?.[(hop(), "self")][(key(), Symbol.iterator)])();', false],
+  ['middle realm', 'export const r = globalThis?.[(hop(), "self")].window[(key(), Symbol.iterator)]();', false],
+  ['deep realm', 'export const r = globalThis?.[(hop(), "self")].window.self[(key(), Symbol.iterator)]();', false],
+  ['live window', 'export const r = globalThis.window?.[(hop(), "self")][(key(), Symbol.iterator)]();', true],
+  ['shadow', 'export function read(globalThis) { return globalThis?.[(hop(), "self")][(key(), Symbol.iterator)](); }', true],
+]) {
+  const { ast } = await transformAsync(source, {
+    configFile: false, babelrc: false, ast: true, code: false,
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  check(`symbol receiver proof/${ label }/guard`,
+    someNode(ast, node => node.type === 'ConditionalExpression' || node.optional === true), guarded);
+  checkTruthy(`symbol receiver proof/${ label }/served iterator`,
+    ast.program.body.some(node => node.type === 'ImportDeclaration' && node.source.value.includes('/get-iterator')));
+}
+
 // --- undriven private-branch coverage ---
 // These branches are reached by the fixture suite but not by the unit cases above, so a
 // dispatch regression would only surface behind a fixture-output diff. Each case constructs
@@ -1047,12 +1066,17 @@ for (const [name, code, receiverType] of [
   const { helpers, program } = setup('(arr?.[(sideKey(), Symbol.iterator)])();');
   const se = [t.callExpression(t.identifier('sideKey'), [])];
   const stmt = firstExprStmt(runSimple(helpers, program, '_getIterator', { optional: true, sideEffects: se }));
-  // `arr == null ? void 0 : (sideKey(), void 0), _getIterator(arr)` - guarded SE then the call
+  // `_getIterator(arr == null ? void 0 : (sideKey(), arr))` keeps the helper outside the guard.
+  const argument = stmt.expression.arguments?.[0];
   checkTruthy('replaceCallWithSimple/paren-lookup guards key SE behind receiver nullishness',
-    stmt.expression.type === 'SequenceExpression'
-    && stmt.expression.expressions[0].type === 'ConditionalExpression'
-    && containsCallee(stmt.expression.expressions[0].alternate, 'sideKey')
-    && stmt.expression.expressions[1].callee.name === '_getIterator');
+    stmt.expression.type === 'CallExpression'
+    && stmt.expression.callee.name === '_getIterator'
+    && argument?.type === 'ConditionalExpression'
+    && containsCallee(argument.alternate, 'sideKey'));
+  check('replaceCallWithSimple/paren-lookup returns the live receiver after key SE',
+    argument?.alternate?.expressions?.at(-1)?.name, 'arr');
+  check('replaceCallWithSimple/paren-lookup passes undefined on the skipped branch',
+    argument?.consequent?.operator, 'void');
 }
 
 // replaceInstanceLike paren-lookup SE-fold-into-alternate: `(arr?.includes)(1)` with a receiver SE
