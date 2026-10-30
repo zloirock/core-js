@@ -1,5 +1,6 @@
 import { run } from './helpers.mjs';
 import platforms from './platforms.mjs';
+import allPlatforms from './all-platforms.mjs';
 
 const { cyan } = chalk;
 
@@ -30,7 +31,8 @@ await run({
     'unit-browser/global.html',
     'unit-browser/pure.html',
   ],
-  platforms,
+  platforms: argv.all ? await allPlatforms(process.env.SAUCE_REGION || 'us-west-1') : platforms,
+  concurrency: argv.all ? 10 : platforms.length,
   reporter: 'qunitResults',
   evaluate,
 });

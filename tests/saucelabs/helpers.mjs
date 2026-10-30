@@ -141,8 +141,16 @@ export async function run(suite) {
 
   echo(green(`running ${ cyan(base) } on Sauce Labs, browsers: ${ cyan(suite.platforms.length) }`));
 
-  const outcomes = await Promise.all(suite.platforms.map(async platform => report(await runPlatform(suite, platform))));
-  let passed = outcomes.every(Boolean);
+  // Limit queued session requests as well as active sessions; the catalog can have hundreds of versions.
+  const concurrency = Math.min(suite.concurrency, suite.platforms.length);
+  const workers = Array.from({ length: concurrency }, async (_, worker) => {
+    let workerPassed = true;
+    for (let index = worker; index < suite.platforms.length; index += concurrency) {
+      if (!report(await runPlatform(suite, suite.platforms[index]))) workerPassed = false;
+    }
+    return workerPassed;
+  });
+  let passed = (await Promise.all(workers)).every(Boolean);
 
   if (COMMIT) {
     const deployed = await deployedCommit();
