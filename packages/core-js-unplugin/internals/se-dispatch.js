@@ -1,10 +1,13 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
-import { planSymbolReceiverRoot, prepareStaticReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
-import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { instanceSynthReceiverPure, isConstantLiteralReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  observableSequenceElements,
+  planReceiverEffects,
+  planSymbolReceiverRoot,
+  prepareStaticReceiver,
+} from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
   calleeParenWrapped,
   subtreeContainsNode,
   unwrapRuntimeExpr,
@@ -22,10 +25,10 @@ import {
   planReceiverMemo,
   renderMethodCall,
   renderReceiverMemo,
+  renderReceiverEffects,
   renderGuardedMethodCall,
   renderSymbolReceiverRoot,
 } from '@core-js/polyfill-provider/render';
-import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop, sealedLayerAbove } from './claim-guards.js';
 import { climbToCallerPath, markSubtreeSkipped } from './nav-spine.js';
 
@@ -86,11 +89,9 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
   });
 }
 
-// a READ form whose receiver's own evaluation is OBSERVABLE (a member get off a nullish-able
-// value, a call): the substitution erases the key spelling, and ECMA runs the receiver BEFORE
-// the key, so the memo leads and the harvested effects ride behind it
-// (`probeHeld.Object[(k++, 'keys')]` -> `(_ref = probeHeld.Object, k++, _keys(_ref))`).
-// A literal may read a binding in its slots, so it too is evaluated before the key.
+// Bind an ordinary member read to the common receiver/effect plan. Native optional
+// preparation owns the first guard read; the plan sees its prepared receiver. Effects
+// already carried by the source stay there across static-receiver preparation.
 export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx) {
   const { injectPureImport, injector, markRewrite, skippedNodes } = ctx;
   const sourceReceiver = unwrapRuntimeExpr(node.object);
@@ -100,52 +101,42 @@ export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx
   };
   const prepared = prepareStaticReceiver(sourceReceiver, receiverCtx, { injectImport: injectPureImport, embed: cloneNode });
   const id = injectPureImport(entry, hintName);
-  const effects = meta.sideEffects.filter(effect => !subtreeContainsNode(sourceReceiver, effect)).map(effect => cloneNode(effect));
-  const firstReceiver = cloneNode(prepared);
-  const decision = planReceiverMemo(firstReceiver, { interveningEffects: effects.length > 0, ctx: receiverCtx });
-  // A sole lookup cannot hand a constant literal to the key before that literal exists.
-  // Its one helper argument needs no held identity, unlike the two reads of a method call.
-  if (!node.optional && isConstantLiteralReceiver(unwrapRuntimeExpr(firstReceiver))) {
-    markRewrite();
-    replaceGuardedHop({
-      hopPath: metaPath,
-      test: null,
-      built: withSideEffects(callExpression(identifier(id), [firstReceiver]), effects),
-      skippedNodes,
-    });
-    return;
-  }
-  const { firstRead, makeBase } = renderReceiverMemo(decision, {
-    mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
+  const effects = (meta.sideEffects ?? []).filter(effect => !subtreeContainsNode(sourceReceiver, effect));
+  const hooks = { mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode };
+  const guard = node.optional && renderReceiverMemo(planReceiverMemo(prepared, {
+    interveningEffects: effects.length > 0, ctx: receiverCtx,
+  }), hooks);
+  const plan = planReceiverEffects({
+    receiver: guard ? guard.makeBase() : prepared,
+    sideEffects: effects,
+    guarded: !!guard,
+    receiverReads: 1,
+    ctx: receiverCtx,
   });
+  const product = renderReceiverEffects(plan, hooks);
   markRewrite();
   replaceGuardedHop({
     hopPath: metaPath,
-    test: node.optional ? nullGuardTest(firstRead) : null,
+    test: guard ? nullGuardTest(guard.firstRead) : null,
     built: sequenceExpression([
-      ...node.optional ? [] : observableSequenceElements([firstRead], receiverCtx, { preserveSourceReads: true }),
-      ...effects,
-      callExpression(identifier(id), [makeBase()]),
+      ...product.effects ?? [],
+      callExpression(identifier(id), [product.receiver]),
     ]),
     skippedNodes,
   });
 }
 
-// the sealed optional-lookup emission: the KEY effect rides its own nullish guard while the
-// helper call stays unconditional (it throws on null like the native `(undefined)()`)
-export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects, methodCallConsume }, ctx) {
-  // a MEMO'd receiver carries its own store as the leading effect: that store IS what the guard
-  // tests (`null == (_ref = (mark(), _globalThis)) ? void 0 : (tag(), void 0)`), so it moves into
-  // the test instead of running ahead of it
-  const memoStore = object?.type === 'Identifier' && effects[0]?.type === 'AssignmentExpression'
-    && ctx.injectorState.isOwnPassGeneratedName(object.name)
-    && effects[0].left?.type === 'Identifier' && effects[0].left.name === object.name ? effects[0] : null;
-  const { disjuncts, makeBase } = memoStore
-    ? { disjuncts: [memoStore], makeBase: () => cloneNode(object) }
+// Bind a sealed lookup to its prepared checks and ordered effects. Invocation and
+// arguments stay outside that lookup's guard; a whole-call helper receives its value.
+export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects, capture, checks, methodCallConsume }, ctx) {
+  // The producer declares the leading capture that can move into this guard. Move
+  // that same node and remove its old effect slot; no generated spelling is inspected.
+  const { disjuncts, makeBase } = checks || capture
+    ? { disjuncts: checks ?? [capture], makeBase: () => cloneNode(object) }
     : ctx.guardObject(object, metaPath, { interveningEffects: effects.length > 0 });
   const decision = planMethodCall({
     receiver: makeBase(), prepared: true,
-    sideEffects: effects.slice(memoStore ? 1 : 0), args: callerPath.node.arguments,
+    sideEffects: effects.slice(capture ? 1 : 0), args: callerPath.node.arguments,
     ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
   });
   const { built } = renderGuardedMethodCall(decision, {
@@ -174,18 +165,6 @@ export function collapseSymbolProxyRoot(meta, metaPath, { resolvePure, injectPur
   metaPath.node.object = root.receiver;
   if (root.optional) metaPath.node.optional = true;
   return true;
-}
-
-// the READ whose receiver spelling already carries every harvested effect. a KEPT WRITE
-// anchors the prefix and the whole sequence rides INSIDE the dispatch (`((v = g)).Map.name`
-// -> `_name((v = _globalThis, _Map))`). The helper reads its whole receiver once, so the
-// prefix stays in that argument together with quiet reads that can throw before the lookup;
-// it owes no memo unless another reader or a later key effect needs the captured value
-export function emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
-  { injectPureImport, markRewrite, skippedNodes }) {
-  const id = injectPureImport(entry, hintName);
-  markRewrite();
-  replaceGuardedHop({ hopPath: metaPath, test: null, built: callExpression(identifier(id), [cloneNode(node.object)]), skippedNodes });
 }
 
 // the `?.()` of an inherited static resolves like its plain twin: the ponyfill is always
