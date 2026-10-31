@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-array-find-from-last)
 
 ## Modules
-[`es.array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-last.js), [`es.array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-last-index.js), [`es.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last.js) and [`es.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last-index.js).
+[`es.array.find-last`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.find-last.js), [`es.array.find-last-index`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.find-last-index.js), [`es.typed-array.find-last`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.find-last.js) and [`es.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.find-last-index.js).
 
 ## Built-ins signatures
 ```ts

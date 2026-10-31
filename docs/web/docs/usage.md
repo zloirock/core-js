@@ -51,7 +51,7 @@ import 'core-js/proposals/async-iterator-helpers';
 import 'core-js/stage/2';
 ```
 
-Proposals are also available by stages, in `{ core-js, @core-js/pure }/stage/3`, `{ core-js, @core-js/pure }/stage/2.7`, `{ core-js, @core-js/pure }/stage/2`, `{ core-js, @core-js/pure }/stage/1`, `{ core-js, @core-js/pure }/stage/0` and `{ core-js, @core-js/pure }/stage/pre` entry points. `core-js/stage/3` entry point contains stage 3 and all higher-stage proposals (including finished ones and obsolete versions kept for compatibility), `core-js/stage/2.7` - stage 2.7 and higher, etc.
+Proposals are also available by stages, in `{ core-js, @core-js/pure }/stage/3`, `{ core-js, @core-js/pure }/stage/2.7`, `{ core-js, @core-js/pure }/stage/2`, `{ core-js, @core-js/pure }/stage/1` and `{ core-js, @core-js/pure }/stage/0` entry points. `core-js/stage/3` entry point contains stage 3 and all higher-stage proposals (including finished ones), `core-js/stage/2.7` - stage 2.7 and higher, etc.
 
 > [!TIP]
 > The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.
@@ -461,7 +461,7 @@ By default, `@babel/plugin-transform-runtime` only polyfills stable features, bu
 > [!WARNING]
 > `babel-plugin-polyfill-corejs3` is deprecated in favor of [`@core-js/babel-plugin`](#h-core-jsbabel-plugin).
 
-[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
+[`babel-plugin-polyfill-corejs3`](https://github.com/babel/babel-polyfills/tree/main/packages/babel-plugin-polyfill-corejs3) is a `babel` plugin for injection of `core-js` polyfills. In Babel 8, `useBuiltIns` and `corejs` options were removed from `@babel/preset-env` and `@babel/plugin-transform-runtime` in favor of this plugin; it also works with Babel 7. It has 3 methods: `entry-global` (like `useBuiltIns: 'entry'`), `usage-global` (like `useBuiltIns: 'usage'`) and `usage-pure` (like `@babel/plugin-transform-runtime` with `corejs: 3` option). Like with `corejs` option, it's recommended to specify the used minor `core-js` version by `version` option, and polyfilling of proposals can be enabled by `proposals: true` option. Example of configuration in `babel.config.json`:
 ```json
 {
   "plugins": [["polyfill-corejs3", { "method": "usage-global", "version": "3.51" }]]

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-array-grouping)
 
 ## Modules
-[`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js) and [`es.object.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.group-by.js).
+[`es.map.group-by`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.map.group-by.js) and [`es.object.group-by`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.group-by.js).
 
 ## Built-ins signatures
 ```ts

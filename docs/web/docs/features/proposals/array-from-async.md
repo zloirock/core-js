@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-array-from-async)
 
 ## Modules
-[`es.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from-async.js).
+[`es.array.from-async`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.from-async.js).
 
 ## Built-ins signatures
 ```ts
