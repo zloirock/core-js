@@ -4,6 +4,7 @@ var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
 var isCallable = require('../internals/is-callable');
@@ -51,6 +52,7 @@ var objectKeys = getBuiltIn('Object', 'keys');
 var push = uncurryThis([].push);
 var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
 var arrayBufferResize = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.resize);
+var dataViewByteLength = globalThis.DataView && uncurryThisAccessor(globalThis.DataView.prototype, 'byteLength', 'get');
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
@@ -104,15 +106,17 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // only FF103+ supports new (html/5749) error cloning semantic
 var nativeStructuredClone = globalThis.structuredClone;
 var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone);
+// modern engines trust any `structuredClone` with transfers, but not one that fails basic cloning
+var PROPER_TRANSFER = PROPER_STRUCTURED_CLONE_TRANSFER && !!nativeRestrictedStructuredClone;
 // Deno 1.13 can transfer MessagePorts even though ArrayBuffer transfer is unavailable.
-var NATIVE_TRANSFER = PROPER_STRUCTURED_CLONE_TRANSFER || ENVIRONMENT === 'DENO' && !!nativeStructuredClone;
+var NATIVE_TRANSFER = PROPER_TRANSFER || ENVIRONMENT === 'DENO' && !!nativeRestrictedStructuredClone;
 // Native preflight relies on transfer-list validation preceding serialization.
 // Deno validates non-buffer entries after serialization, so the sentinel getter
 // hides invalid entries; newer Deno also detaches ArrayBuffers before the getter.
 // Deno 1.13 additionally wraps getter exceptions in DataCloneError, losing the sentinel.
 // Probe with a harmless invalid entry and record getter access without throwing.
 // If serialization starts, skip native preflight and use the type checks below.
-var PROPER_TRANSFER_VALIDATION = PROPER_STRUCTURED_CLONE_TRANSFER && !fails(function () {
+var PROPER_TRANSFER_VALIDATION = PROPER_TRANSFER && !fails(function () {
   var serialized = false;
   var value = defineProperty({}, 'value', { enumerable: true, get: function () { serialized = true; } });
   try {
@@ -220,9 +224,9 @@ var cloneView = function (value, type, map) {
   var isGrowable = buffer.growable;
   var offset, length, cloned, clonedBuffer, byteLength, shared, sharedClone;
 
-  if (buffer.resizable || isGrowable) {
+  if (nativeRestrictedStructuredClone && (buffer.resizable || isGrowable)) {
     // native cloning validates the view and preserves its length-tracking mode
-    cloned = tryNativeRestrictedStructuredClone(value, type);
+    cloned = nativeRestrictedStructuredClone(value);
     // older WebKit clones shared buffers as non-shared buffers
     sharedClone = isGrowable && cloned.buffer.growable;
     if (isGrowable && !sharedClone && !cloned.buffer.resizable) throwUnpolyfillable(type);
@@ -252,6 +256,14 @@ var cloneView = function (value, type, map) {
       })) length = undefined;
     }
   } else {
+    // like native cloning, reject out-of-bounds views: the probe above relies on it when pure core-js uses this polyfill
+    // out-of-bounds data views throw on native accessors, out-of-bounds typed arrays - on copying
+    if (buffer.resizable && fails(function () {
+      if (isDataView) dataViewByteLength(value);
+      // eslint-disable-next-line no-new -- thrower
+      else new C(value);
+    })) throw new DOMException(type + ' is out of bounds', DATA_CLONE_ERROR);
+    // without native cloning, length-tracking views are cloned as fixed-length views
     offset = value.byteOffset;
     length = isDataView ? value.byteLength : value.length;
   }
@@ -684,7 +696,7 @@ var detachBuffer = function (buffer) {
 
 // `structuredClone` method
 // https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone
-$({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, forced: FORCED_REPLACEMENT }, {
+$({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;

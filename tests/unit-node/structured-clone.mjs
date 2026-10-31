@@ -27,6 +27,14 @@ if (!flavor) {
   }
   if (mode === 'identity') {
     globalThis.structuredClone = function (value) { return value; };
+    if (flavor === 'core-js') {
+      // loaded before the `structuredClone` polyfill replaces the identity global, the transfer methods keep trusting it
+      require('../../packages/core-js/configurator')({
+        usePolyfill: ['ArrayBuffer.prototype.transfer', 'ArrayBuffer.prototype.transferToFixedLength'],
+      });
+      require('../../packages/core-js/modules/es.array-buffer.transfer');
+      require('../../packages/core-js/modules/es.array-buffer.transfer-to-fixed-length');
+    }
   } else if (mode === 'shared-copy') {
     // Model WebKit preserving view modes while copying shared memory into an ArrayBuffer.
     globalThis.structuredClone = function cloneShared(value, options) {
@@ -65,7 +73,70 @@ if (!flavor) {
     assert.notEqual(copy, plain);
     assert.notEqual(copy.a, plain.a);
     assert.deepEqual(copy, plain);
-    assert.throws(() => clone(input), { name: 'DataCloneError' });
+    // without native cloning, views share one cloned buffer and keep their offsets and data, but lose length tracking
+    tracking.set([1, 2, 3, 4, 5, 6, 7, 8]);
+    const views = clone(input);
+    assert.notEqual(views.buffer, buffer);
+    assert.equal(views.fixed.buffer, views.buffer);
+    assert.equal(views.tracking.buffer, views.buffer);
+    assert.equal(views.buffer.maxByteLength, 16);
+    assert.deepEqual([...views.tracking], [1, 2, 3, 4, 5, 6, 7, 8]);
+    views.buffer.resize(16);
+    assert.equal(views.fixed.length, 8);
+    const sharedBuffer = new SharedArrayBuffer(8, { maxByteLength: 16 });
+    const sharedView = clone(new Uint8Array(sharedBuffer, 2));
+    assert.equal(sharedView.byteOffset, 2);
+    assert.equal(sharedView.length, 6);
+    new Uint8Array(sharedBuffer)[2] = 73;
+    assert.equal(sharedView[0], 73);
+    for (const C of [Uint8Array, Uint16Array, DataView]) {
+      const bytes = C.BYTES_PER_ELEMENT || 1;
+      const source = new ArrayBuffer(16, { maxByteLength: 32 });
+      const outOfBounds = [new C(source, 0, 16 / bytes), new C(source, 8, 8 / bytes), new C(source, 8), new C(source, 16, 0)];
+      const inBounds = [new C(source, 0, 0), new C(source, 4), new C(source, 4, 0)];
+      source.resize(4);
+      for (const view of outOfBounds) assert.throws(() => clone(view), { name: 'DataCloneError' }, C.name);
+      for (const view of inBounds) {
+        const viewCopy = clone(view);
+        assert.equal(viewCopy.byteOffset, view.byteOffset);
+        assert.equal(viewCopy.byteLength, 0);
+      }
+    }
+    const marker = new Error('View getter failed');
+    for (const C of [DataView, Uint8Array]) {
+      for (const key of ['byteOffset', C === DataView ? 'byteLength' : 'length']) {
+        const view = new C(new ArrayBuffer(4, { maxByteLength: 8 }));
+        Object.defineProperty(view, key, { get() { throw marker; } });
+        assert.throws(() => clone(view), error => error === marker, `${ C.name }.${ key }`);
+      }
+    }
+    // the identity `structuredClone` is trusted to detach transferred buffers, but leaves them attached
+    const transferable = new ArrayBuffer(4);
+    new Uint8Array(transferable).set([1, 2, 3, 4]);
+    const transferred = clone(transferable, { transfer: [transferable] });
+    assert.equal(transferable.byteLength, 0);
+    assert.deepEqual([...new Uint8Array(transferred)], [1, 2, 3, 4]);
+    // the identity `structuredClone` fails basic cloning, so transfer lists are checked here and platform objects are not transferred
+    assert.equal(clone.sham, true);
+    const kept = new ArrayBuffer(4);
+    assert.throws(() => clone(kept, { transfer: [kept, {}] }), { name: 'DataCloneError' });
+    assert.equal(kept.byteLength, 4);
+    const { port1, port2 } = new MessageChannel();
+    try {
+      assert.throws(() => clone(port1, { transfer: [port1] }), { name: 'DataCloneError' });
+    } finally {
+      port1.close();
+      port2.close();
+    }
+    if (flavor === 'core-js') for (const method of ['transfer', 'transferToFixedLength']) {
+      for (const length of [undefined, 2]) {
+        const source = new ArrayBuffer(4);
+        new Uint8Array(source).set([1, 2, 3, 4]);
+        const moved = source[method](length);
+        assert.equal(source.byteLength, 0, `${ method }(${ length })`);
+        assert.deepEqual([...new Uint8Array(moved)], [1, 2, 3, 4].slice(0, length), `${ method }(${ length })`);
+      }
+    }
   } else {
     const copy = clone(input);
     assert.equal(copy.fixed.buffer, copy.buffer);

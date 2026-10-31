@@ -1,5 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
+var uncurryThis = require('../internals/function-uncurry-this-clause');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 var isDetached = require('../internals/array-buffer-is-detached');
 var enforceInternalState = require('../internals/internal-state').enforce;
@@ -8,12 +9,21 @@ var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-pr
 
 var structuredClone = globalThis.structuredClone;
 var $ArrayBuffer = globalThis.ArrayBuffer;
+// captured before the transfer polyfill of this copy can replace it
+var arrayBufferTransfer = $ArrayBuffer && uncurryThis($ArrayBuffer.prototype.transfer);
 var detach = false;
 var buffer, $detach;
 
 if (PROPER_STRUCTURED_CLONE_TRANSFER) {
   detach = function (transferable) {
     structuredClone(transferable, { transfer: [transferable] });
+    // modern engines trust any `structuredClone` to detach, but a non-native one leaves the buffer attached
+    if (isDetached(transferable)) return;
+    if (postMessage) postMessage(null, [transferable]);
+    // the callers report buffers that stay attached
+    else if (arrayBufferTransfer) try {
+      arrayBufferTransfer(transferable);
+    } catch (error) { /* empty */ }
   };
 } else if ($ArrayBuffer) try {
   if (postMessage) {

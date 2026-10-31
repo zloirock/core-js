@@ -7,6 +7,7 @@
 - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
 - Fixed `structuredClone` preserving length-tracking views of resizable and growable shared buffers and throwing `DataCloneError` for out-of-bounds views
 - Fixed `structuredClone` transferring platform objects before validating the transfer list and cloning the value, and processing mixed transfer lists out of order
+- Fixed `structuredClone` and `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills relying on a non-native `structuredClone` installed before core-js in modern engines: `ArrayBuffer`s were left attached, and `structuredClone` accepted invalid transfer lists and returned untransferred platform objects
 - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
 - Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
 - Fixed lost error messages in the `structuredClone` polyfill in old Firefox

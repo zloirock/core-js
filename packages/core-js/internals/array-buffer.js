@@ -216,9 +216,10 @@ if (!NATIVE_ARRAY_BUFFER) {
     return NativeArrayBuffer.length !== 1 || INCORRECT_ARRAY_BUFFER_NAME && !CONFIGURABLE_FUNCTION_NAME;
   })) {
     /* eslint-enable no-new, sonarjs/inconsistent-function-call -- required for testing */
-    $ArrayBuffer = function ArrayBuffer(length) {
+    $ArrayBuffer = function ArrayBuffer(length /* , options */) {
       anInstance(this, ArrayBufferPrototype);
-      return inheritIfRequired(new NativeArrayBuffer(toIndex(length)), this, $ArrayBuffer);
+      var options = arguments.length > 1 ? arguments[1] : undefined;
+      return inheritIfRequired(new NativeArrayBuffer(toIndex(length), options), this, $ArrayBuffer);
     };
 
     $ArrayBuffer[PROTOTYPE] = ArrayBufferPrototype;

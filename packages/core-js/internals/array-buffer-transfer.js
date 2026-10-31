@@ -25,6 +25,11 @@ var getInt8 = uncurryThis(DataViewPrototype.getInt8);
 var setInt8 = uncurryThis(DataViewPrototype.setInt8);
 var set = Uint8Array && uncurryThis(Uint8Array.prototype.set);
 
+var throwNotDetachable = function (error) {
+  if (error.name === 'DataCloneError') throw new TypeError('ArrayBuffer is not detachable');
+  throw error;
+};
+
 module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && function (arrayBuffer, newLength, preserveResizability) {
   var byteLength = arrayBufferByteLength(arrayBuffer);
   var newByteLength = newLength === undefined ? byteLength : toIndex(newLength);
@@ -33,35 +38,39 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
   notDetached(arrayBuffer);
   // coercing `newLength` can resize the source
   byteLength = arrayBufferByteLength(arrayBuffer);
-  var transferWithoutCopy = PROPER_STRUCTURED_CLONE_TRANSFER && byteLength === newByteLength && (preserveResizability || fixedLength);
-  if (!transferWithoutCopy) {
-    var options = preserveResizability && !fixedLength && maxByteLength
-      ? { maxByteLength: maxByteLength(arrayBuffer) }
-      : undefined;
-    // allocation must succeed before the source is detached; species is not used
+  if (PROPER_STRUCTURED_CLONE_TRANSFER && byteLength === newByteLength && (preserveResizability || fixedLength)) {
     try {
-      newBuffer = new ArrayBuffer(newByteLength, options);
+      newBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
     } catch (error) {
-      // IE11 throws a TypeError when the requested allocation is too large.
-      if (error instanceof TypeError) throw new RangeError('Wrong length');
-      throw error;
+      throwNotDetachable(error);
     }
-    var copyLength = min(newByteLength, byteLength);
-    // typed array views have stricter size limits than buffers on some hosts.
-    if (copyLength && (!set || fails(function () {
-      set(new Uint8Array(newBuffer, 0, copyLength), new Uint8Array(arrayBuffer, 0, copyLength));
-    }))) {
-      var a = new DataView(arrayBuffer);
-      var b = new DataView(newBuffer);
-      for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
-    }
+    // modern engines trust any `structuredClone` to transfer, but a non-native one keeps the source attached
+    if (isDetached(arrayBuffer)) return newBuffer;
+  }
+  var options = preserveResizability && !fixedLength && maxByteLength
+    ? { maxByteLength: maxByteLength(arrayBuffer) }
+    : undefined;
+  // allocation must succeed before the source is detached; species is not used
+  try {
+    newBuffer = new ArrayBuffer(newByteLength, options);
+  } catch (error) {
+    // IE11 throws a TypeError when the requested allocation is too large.
+    if (error instanceof TypeError) throw new RangeError('Wrong length');
+    throw error;
+  }
+  var copyLength = min(newByteLength, byteLength);
+  // typed array views have stricter size limits than buffers on some hosts.
+  if (copyLength && (!set || fails(function () {
+    set(new Uint8Array(newBuffer, 0, copyLength), new Uint8Array(arrayBuffer, 0, copyLength));
+  }))) {
+    var a = new DataView(arrayBuffer);
+    var b = new DataView(newBuffer);
+    for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
   }
   try {
-    if (transferWithoutCopy) newBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
-    else detachTransferable(arrayBuffer);
+    detachTransferable(arrayBuffer);
   } catch (error) {
-    if (error.name === 'DataCloneError') throw new TypeError('ArrayBuffer is not detachable');
-    throw error;
+    throwNotDetachable(error);
   }
   // some hosts silently copy non-detachable buffers, such as WebAssembly memory
   if (!isDetached(arrayBuffer)) throw new TypeError('ArrayBuffer is not detachable');

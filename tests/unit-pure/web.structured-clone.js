@@ -177,6 +177,8 @@ QUnit.module('structuredClone', () => {
     });
 
     const SharedArrayBuffer = fromSource('SharedArrayBuffer');
+    // without native structured cloning, length-tracking views are cloned as fixed-length views
+    const NATIVE_STRUCTURED_CLONE = typeof GLOBAL.structuredClone == 'function';
     // Deno 1.11 PerformanceMark rejects SharedArrayBuffer.
     if (SharedArrayBuffer && DENO_VERSION !== 111) QUnit.test('SharedArrayBuffer', assert => {
       const buffer = new SharedArrayBuffer(8);
@@ -231,9 +233,9 @@ QUnit.module('structuredClone', () => {
             assert.same(copy.map.get(copy.buffer), copy.fixed, 'Map buffer key');
             assert.arrayEqual(from(copy.set), ['first', copy.tracking, copy.buffer, copy.fixed, copy.set], 'Set order and cycle');
             copy.buffer.grow(16);
-            assert.same(copy.tracking.byteLength, 14, 'tracking view grows');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.tracking.byteLength, 14, 'tracking view grows');
             assert.same(copy.fixed.byteLength, 6, 'fixed view keeps its length');
-            assert.same(copy.emptyTracking.byteLength, 8, 'empty tracking view grows');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.emptyTracking.byteLength, 8, 'empty tracking view grows');
             assert.same(copy.emptyFixed.byteLength, 0, 'empty fixed view stays empty');
             assert.same(buffer.byteLength, 16, 'growth stays shared');
             new Uint8Array(copy.buffer)[0] = 73;
@@ -252,7 +254,7 @@ QUnit.module('structuredClone', () => {
             assert.same(copy.tracking.buffer, copy.buffer, 'tracking buffer reference');
             assert.same(copy.fixed.buffer, copy.buffer, 'fixed buffer reference');
             copy.buffer.grow(maxByteLength);
-            assert.same(copy.tracking.byteLength, maxByteLength, 'tracking view follows the buffer');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.tracking.byteLength, maxByteLength, 'tracking view follows the buffer');
             assert.same(copy.fixed.byteLength, 0, 'fixed view stays empty');
           }
         }
@@ -332,12 +334,12 @@ QUnit.module('structuredClone', () => {
             }
             assert.arrayEqual(bufferToArray(copy.buffer), data, 'cloned bytes');
             copy.buffer.resize(32);
-            assert.same(copy.tracking.byteLength, 24, 'tracking view grows');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.tracking.byteLength, 24, 'tracking view grows');
             assert.same(copy.fixed.byteLength, 8, 'fixed view keeps its length');
-            assert.same(copy.emptyTracking.byteLength, 16, 'empty tracking view grows');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.emptyTracking.byteLength, 16, 'empty tracking view grows');
             assert.same(copy.emptyFixed.byteLength, 0, 'empty fixed view stays empty');
             copy.buffer.resize(8);
-            assert.same(copy.tracking.byteLength, 0, 'tracking view shrinks to an empty view');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.tracking.byteLength, 0, 'tracking view shrinks to an empty view');
             copy.buffer.resize(16);
             assert.same(copy.fixed.byteLength, 8, 'fixed view returns in bounds');
             assert.same(buffer.byteLength, 16, 'source length is unchanged');
@@ -345,7 +347,7 @@ QUnit.module('structuredClone', () => {
 
             const standalone = structuredClone(tracking);
             standalone.buffer.resize(32);
-            assert.same(standalone.byteLength, 24, 'standalone tracking view grows');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(standalone.byteLength, 24, 'standalone tracking view grows');
           }
         }
       });
@@ -360,7 +362,7 @@ QUnit.module('structuredClone', () => {
             assert.same(copy.tracking.buffer, copy.buffer, 'tracking view shares the cloned buffer');
             assert.same(copy.fixed.buffer, copy.buffer, 'fixed view shares the cloned buffer');
             copy.buffer.resize(maxByteLength);
-            assert.same(copy.tracking.byteLength, maxByteLength, 'tracking view follows the buffer');
+            if (NATIVE_STRUCTURED_CLONE) assert.same(copy.tracking.byteLength, maxByteLength, 'tracking view follows the buffer');
             assert.same(copy.fixed.byteLength, 0, 'fixed view stays empty');
           }
         }
@@ -396,7 +398,7 @@ QUnit.module('structuredClone', () => {
           assert.same(copy.tracking.buffer, copy.buffer, 'tracking view shares the transferred buffer');
           assert.same(copy.fixed.buffer, copy.buffer, 'fixed view shares the transferred buffer');
           copy.buffer.resize(16);
-          assert.same(copy.tracking.byteLength, 16, 'tracking view grows');
+          if (NATIVE_STRUCTURED_CLONE) assert.same(copy.tracking.byteLength, 16, 'tracking view grows');
           assert.same(copy.fixed.byteLength, 8, 'fixed view keeps its length');
           assert.throws(() => structuredClone(tracking), error => error.name === 'DataCloneError', 'detached tracking view');
           assert.throws(() => structuredClone(fixed), error => error.name === 'DataCloneError', 'detached fixed view');
