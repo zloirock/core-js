@@ -65,6 +65,7 @@ import {
   soleChainToProp,
   stmtRebindNames,
   peelNestedSequenceExpressions,
+  peelChainAssignmentDeep,
   peelTransparentExpr,
   peelZeroArgIifeReturn,
   peelToExpressionStatement,
@@ -155,6 +156,8 @@ import {
   memberTargetTakesExtraction,
   proxyGlobalRootName,
   resolveObjectName,
+  agreeingTernaryArm,
+  findProxyGlobal,
   resolveSynthKeys,
   callYieldedLiteral,
   realmLevelNamesCtor,
@@ -229,6 +232,77 @@ import {
   decidedRunningValue,
   constructorRestIndex,
 } from './destructure.js';
+
+// A selection may supply one proved operand, one complete instance receiver, a mirror,
+// or a native read. A capture keeps the value it stores: admitting its extraction never
+// authorizes replacing that value by a synthesized object. A retained receiver may also
+// keep a logical over known library surfaces; an opaque operand still bars extraction.
+// readSite supplies the scope of source nodes borrowed from another evaluation frame.
+export function planSelectingExtraction({
+  receiver, kind, object = null, soleBinding = false, nested = false, keepsReceiver = false,
+}, ctx) {
+  let selecting = peelTransparentExpr(receiver);
+  const captured = isChainAssignment(selecting);
+  if (captured) {
+    selecting = peelTransparentExpr(peelChainAssignmentDeep(selecting));
+    selecting = decidedRunningOperand(selecting, selectionReadContext(selecting, ctx));
+  }
+  if (selecting?.type !== 'ConditionalExpression' && selecting?.type !== 'LogicalExpression') return null;
+  const site = selectionReadContext(selecting, ctx);
+  const operand = kind === 'instance' ? null
+    : selectedExtractionOperand({ selecting, object, soleBinding, nested }, site);
+  if (captured) {
+    return { kind: operand || allProxySelectingInit(selecting, site) ? 'preserve' : 'native', captured: true };
+  }
+  if (operand) return { kind: 'operand', node: operand };
+  if (keepsReceiver) {
+    const known = selecting.type === 'LogicalExpression' && knownSelectionSurfaces(selecting, site);
+    return { kind: known || allProxySelectingInit(selecting, site) ? 'preserve' : 'native' };
+  }
+  if (kind === 'instance') {
+    if (nested) return { kind: 'mirror' };
+    return soleBinding ? { kind: 'receiver', node: receiver } : { kind: 'memo' };
+  }
+  if (selecting.type === 'LogicalExpression' && selecting.operator === '&&' && nested) return { kind: 'native' };
+  return { kind: 'mirror' };
+}
+
+// A static/global claim may use a decided operand or a proved matching primary.
+// An instance meta proves no definedness. A partial consume must keep the effects
+// of the complete selection; matching ternary arms owe an effect-free test.
+function selectedExtractionOperand({ selecting, object, soleBinding, nested }, ctx) {
+  const { adapter, path } = ctx;
+  if (selecting.type === 'ConditionalExpression') return agreeingTernaryArm(selecting, path, adapter);
+  const running = decidedRunningOperand(selecting, selectionReadContext(selecting, ctx));
+  if (running !== selecting) return running;
+  if (selecting.operator === '&&' || !object || nested || !soleBinding && mayHaveSideEffects(selecting)) return null;
+  const left = peelTransparentExpr(selecting.left);
+  const named = peelTransparentExpr(peelReceiverSequenceTail(left));
+  const site = selectionReadContext(left, ctx);
+  const name = resolveObjectName({ objectNode: named, ...site }) ?? staticContainerReceiverName({ node: named, ...site });
+  return name === object ? left : null;
+}
+
+// Keeping a logical receiver preserves its branch and effects. Each written operand
+// must still name a known library surface; a ternary belongs to the mirror instead.
+function knownSelectionSurfaces(node, ctx) {
+  const operand = peelTransparentExpr(peelReceiverSequenceTail(node));
+  if (operand?.type === 'LogicalExpression') {
+    return knownSelectionSurfaces(operand.left, ctx) && knownSelectionSurfaces(operand.right, ctx);
+  }
+  const site = selectionReadContext(operand, ctx);
+  if (operand?.type === 'Identifier') {
+    return !!proxySurfaceIdentifier(operand, site)
+      || (!ctx.adapter.getBinding({ scope: site.scope, name: operand.name, path: site.path })
+        && !!ctx.resolveGlobalPolyfill?.(operand.name));
+  }
+  return !!findProxyGlobal(operand, site);
+}
+
+// Native bindings retain the read frame of borrowed nodes; source nodes use this context.
+function selectionReadContext(node, ctx) {
+  return ctx.readSite ? { ...ctx, ...ctx.readSite(node) } : ctx;
+}
 
 // A discarded proxy receiver owes its harvested effects, or null when its read must stay.
 // Ask on the source initializer: a rewritten root no longer carries the navigation proof.

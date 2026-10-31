@@ -13,7 +13,6 @@ import {
   liftedRealmNavEffect,
   observablePrefixElements,
   liftedPrefixSplit,
-  staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
 import { harvestDiscardedReceiverSE, readStandsOverAbsentableStore } from
@@ -28,11 +27,9 @@ import {
   findProxyGlobal,
   peelChainRootValue,
   peelRealmLogicalDefault,
-  peelReceiverSequenceTail,
   isPureNavReceiver,
   guardedNavPassthroughPlan,
   resolveObjectName,
-  agreeingTernaryArm,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -57,7 +54,6 @@ import {
   peelNestedSequenceExpressions,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
-  proxySurfaceIdentifier,
   SINGLE_STATEMENT_SLOTS,
   soleChainToProp,
   statementListOf,
@@ -78,6 +74,7 @@ import {
   planDiscardedInit,
   planDiscardedInitPlacement,
   sentinelMemoInitShape,
+  planSelectingExtraction,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
@@ -128,13 +125,9 @@ export function emitAssignStaticDefaultOverwrite({ hostParent, prop, chain, kind
     || !soleChainToProp(hostParent.node.left, prop)) return false;
   const discardable = isPureNavReceiver(hostParent.node.right)
     || allProxySelectingInit(hostParent.node.right, { adapter: ctx.adapter, injectorState: ctx.injectorState })
-    || staticallySelectedLeft({
-      selecting: peelTransparentExpr(hostParent.node.right), meta: null, metaPath,
-      soleBinding: true,
-      chain,
-      adapter: ctx.adapter,
-      kind,
-    });
+    || planSelectingExtraction({
+      receiver: hostParent.node.right, kind, nested: true, soleBinding: true,
+    }, { ...nodeSite(hostParent.node.right, metaPath), ...ctx, readSite: node => nodeSite(node, metaPath) })?.kind === 'operand';
   if (!discardable) return false;
   const id = ctx.injectPureImport(entry, hintName);
   ctx.markRewrite();
@@ -643,34 +636,6 @@ export function buildInstanceDefaultGuard({ defaultValue, defaultPattern = null,
   });
 }
 
-// a value-SELECTING init under a sentinel-kept prop: a LOGICAL over KNOWN library surfaces
-// keeps extracting - whichever branch selects, the slot answers the polyfill - and so does
-// one whose LEFT statically selects (the right is dead text). one carrying a USER operand
-// (`sel || globalThis`) declines whole: the extraction would answer
-// the ponyfill on the user branch too. the ternary mirror owns its own shapes
-export function divergingSentinelSelectorDeclines({ declarator, meta, metaPath, chain, kind },
-  { adapter, injectorState, resolveGlobalPolyfill }) {
-  const selectingInit = peelTransparentExpr(declarator.init);
-  function knownSurfaceOperand(node) {
-    let operand = peelTransparentExpr(node);
-    if (operand?.type === 'SequenceExpression') operand = peelTransparentExpr(operand.expressions.at(-1));
-    if (operand?.type === 'LogicalExpression') {
-      return knownSurfaceOperand(operand.left) && knownSurfaceOperand(operand.right);
-    }
-    if (operand?.type === 'Identifier') {
-      return proxySurfaceIdentifier(operand, { adapter, injectorState })
-        || (!adapter.getBinding({ scope: nodeSite(operand, metaPath).scope, name: operand.name, path: nodeSite(operand, metaPath).path })
-          && !!resolveGlobalPolyfill(operand.name));
-    }
-    return !!findProxyGlobal(operand, { ...nodeSite(operand, metaPath), adapter });
-  }
-  return (selectingInit?.type === 'ConditionalExpression'
-    || (selectingInit?.type === 'LogicalExpression'
-      && !staticallySelectedLeft({ selecting: selectingInit, meta, metaPath, soleBinding: false, chain, adapter, kind })
-      && !knownSurfaceOperand(selectingInit)))
-    && !allProxySelectingInit(declarator.init, { adapter, injectorState });
-}
-
 // the assignment-form twin of the declarator-host alias registrations: the ctor hint /
 // fold source is what lets a later read resolve through the extracted alias
 export function registerAssignmentExtractAlias({ prop, kind, entry, hintName, hostParent, exprStmtPath, metaPath },
@@ -1169,42 +1134,6 @@ export function residualKeepsSibling(declarator, declJobs) {
     && declarator.id.properties.some(item => item.type === 'RestElement' || !claimed.has(item));
 }
 
-// Returns the matching logical left, the operand an `&&` the build decides yields, or an agreeing
-// ternary arm with no test effects. Instance claims and unproven selections return null.
-export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding, chain, adapter, kind }) {
-  // only a STATIC / ctor claim proves the left operand IS the named built-in, so the
-  // fallback right is dead. an INSTANCE claim resolved off an opaque receiver proves
-  // nothing about its definedness - the whole logical stays the receiver
-  // (`{ keys } = Stub ?? Object` -> `_keys(Stub ?? Object)`)
-  if (kind === 'instance') return null;
-  // a PARTIAL consume leaves the residual reading the whole logical, which is sound while
-  // that read carries no effects (`{ from, other } = globalThis.Array || Set` extracts
-  // `from` and keeps `{ other } = _globalThis.Array || _Set`)
-  // ... and a TERNARY whose ARMS name the same surface selects as one: the branch is the
-  // receiver either way, so the test is dead text and the read is the source's own
-  // (`{ Array: { of } } = g.setTimeout ? g.window : g.window`)
-  if (selecting.type === 'ConditionalExpression') return agreeingTernaryArm(selecting, metaPath, adapter);
-  // ... a logical the build decides selects the operand of it that runs (`decidedRunningOperand`), as a decided
-  // ternary arm does: a test is a plain read, a `||` / `??` its left decides never runs its right, and the
-  // operand's own effects are the receiver's. an `&&` selects nothing otherwise
-  if (selecting.type === 'LogicalExpression') {
-    const running = decidedRunningOperand(selecting, { ...nodeSite(selecting, metaPath), adapter });
-    if (running !== selecting) return running;
-    if (selecting.operator === '&&') return null;
-  }
-  if (selecting.type !== 'LogicalExpression' || !meta?.object || chain.length > 0) return null;
-  if (!soleBinding && mayHaveSideEffects(selecting)) return null;
-  // an SE-bearing left names its built-in through the sequence TAIL - the prefix is the
-  // effect the discarded read re-emits, not part of the name
-  // (`{ from } = (e++, globalThis.self.Array) || Set`) - and a static container's slot names the one it
-  // holds, as the meta named it (`box.U` over `const box = { U: Map }`)
-  const left = peelTransparentExpr(selecting.left);
-  const named = peelTransparentExpr(peelReceiverSequenceTail(left));
-  const site = { ...nodeSite(left, metaPath), adapter };
-  const leftName = resolveObjectName({ objectNode: named, ...site }) ?? staticContainerReceiverName({ node: named, ...site });
-  return leftName === meta.object ? left : null;
-}
-
 // can the flatten and extraction routes CONSUME this destructure prop as a leaf of its own - bind
 // the claim off the prop and take the prop out of the pattern? a plain key with a binding value,
 // a defaulted one, or (for a ctor claim, `ctorPattern`) a pattern value that re-anchors on the
@@ -1417,14 +1346,6 @@ export function proxyNavSynthBase(receiver, { scope, adapter, path, resolveGloba
     passthroughPrefix: keys,
     leadingEffects: seqPrefix?.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr)) ? seqPrefix : null,
   };
-}
-
-// a DIVERGING selection in a wrapped slot is the per-branch MIRROR's shape: an extraction
-// off it would answer the ponyfill on the USER branch too
-export function divergingSelection(node, ctx) {
-  const inner = peelTransparentExpr(node);
-  return (inner?.type === 'ConditionalExpression' || inner?.type === 'LogicalExpression')
-    && !allProxySelectingInit(inner, ctx);
 }
 
 // Allocate the loop-header refs selected by the shared evaluation decision.

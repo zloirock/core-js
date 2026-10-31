@@ -161,3 +161,35 @@ QUnit.test('destructuring: a kept realm selection guards the static it nests', a
   }
   assert.same(prefixes, 2);
 });
+
+QUnit.test('destructuring: selecting captures keep key, getter and default order', assert => {
+  function read(flag, shim) {
+    const log = [];
+    let held;
+    const { Array: { [(log.push('key'), 'from')]: from = (log.push('default'), 9), ...rest } }
+      = held = (log.push('select'), flag) ? globalThis : shim(log);
+    return [held, from, rest.extra, log];
+  }
+  let supplied;
+  const user = read(false, log => supplied = {
+    get Array() {
+      log.push('hop');
+      return { get from() {
+        log.push('get');
+        return undefined;
+      }, extra: 7 };
+    },
+  });
+  assert.same(user[0], supplied);
+  assert.deepEqual(user.slice(1), [9, 7, ['select', 'hop', 'key', 'get', 'default']]);
+});
+
+QUnit.test('destructuring: a selected operand carries its effects beside a surviving read', assert => {
+  let calls = 0;
+  function read(other) {
+    const { from, length } = (calls++, Array) || other;
+    return [from([5]), length];
+  }
+  assert.deepEqual(read(null), [[5], 1]);
+  assert.same(calls, 1);
+});
