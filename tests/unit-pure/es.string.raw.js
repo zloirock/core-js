@@ -12,7 +12,7 @@ QUnit.test('String.raw', assert => {
   assert.same(raw({ raw: [] }), '', 'empty template');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     const symbol = Symbol('raw test');
     assert.throws(() => raw({ raw: [symbol] }, 0), TypeError, 'throws on symbol #1');
     assert.throws(() => raw({ raw: 'test' }, symbol), TypeError, 'throws on symbol #2');
