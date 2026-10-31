@@ -149,6 +149,7 @@ import {
 import {
   discardedReceiverEffects,
   planAssignmentOverwrite,
+  planSelectingExtraction,
   planNestedDeclarationReceiver,
   planNestedLeafTwin,
   liveDestructureDefault,
@@ -4107,6 +4108,7 @@ export default function createDestructureEmitter({
     // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node. for the
     // nested-receiver path `objectNode` is a bare node (no path); the SE-computed-key path resolves the
     // declarator init, which `resolveNestedReceiverNode` also reaches - either way it gates memo / re-ref
+    // Resolve the declarator by ancestry: relocated declarations may have no source span.
     let declarator = prop.findParent(pp => pp.isVariableDeclarator())?.node;
     const bindingCount = originalBindingCount(prop);
     // does the residual DIE with this extraction? the same three facts the plan reads, asked here
@@ -4327,21 +4329,13 @@ export default function createDestructureEmitter({
     // unextractable - leave native. the planner's `receiverIsSafe` short-circuit used to catch this, but the
     // `eliminateResidual` relaxation (which admits a side-effect-free member) no longer does, so guard here
     if (kind === 'instance' && !objectNode) return true;
-    // the declarator hosting this leaf + whether it is the declaration's only binding and its init is pure -
-    // lets the planner drop a dead residual / memoize a duplicated constant-literal receiver.
-    // resolved by PARENT WALK, not source positions: a catch-born relocated declaration is
-    // synthesized (no start/end), and a position find would miss it - initIsPure then reads
-    // false and the dead-residual drop never fires
-    // a CONDITIONAL / LOGICAL receiver (`c ? globalThis : userObj`, `m && globalThis`, `g || self`)
-    // must NOT extract `const f = _polyfill` unconditionally: on a diverging ternary that binds the
-    // polyfill on the user branch too, corrupting its legitimate `undefined`. decline (no emission) so
-    // it falls through to the receiver-aware nested mirror, which swaps only the proxy operand(s) and
-    // keeps the SE key in the residual LHS (runs once). a bare unconditional receiver keeps the sound
-    // SE-extraction (the effect is preserved by the residual and the polyfill always wins). keyed on
-    // receiver SHAPE, not proxy-name: the receiver may already be rewritten to an injected `_global`.
-    // ... and a selection the build decides diverges nowhere: the receiver read is what it yields
+    // A static extraction may not answer for an unresolved user branch. The shared
+    // source proof chooses its operand or leaves this claim to the receiver mirror.
     const recv = kind === 'instance' ? null : outerDestructureReceiver(prop.parentPath, prop.scope, adapter);
-    if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
+    const selection = recv && planSelectingExtraction({
+      receiver: recv, kind, object: meta?.object, soleBinding: residualDies, nested: prop.parentPath.node !== declarator?.id,
+    }, { scope: prop.scope, path: prop, adapter, injectorState: injector, resolveGlobalPolyfill: resolveGlobalPure });
+    if (selection?.kind === 'mirror' || selection?.kind === 'native') return false;
     // ... and a FOR-HEAD drops its slot too when the extraction takes the declarator whole AND its
     // receiver is a resolved SURFACE: what the drop needs is a DECLARATOR slot, not a statement one,
     // and the header has that (`for (const m = _m(_g.Array.prototype); ...)`, the other leg's
