@@ -6,4 +6,4 @@ var _ref, _ref2;
 // proxy-global leaf still resolves to its polyfill and the inner `?.` deopts where the
 // substituted leaf is always-defined. covers chain receiver + outer instance polyfill
 export const a = null == (_ref = _globalThis.foo) ? void 0 : _includes(_ref).call(_ref, 1);
-export const b = null == (_ref2 = _Promise?.foo) ? void 0 : _includes(_ref2).call(_ref2, 2);
+export const b = null == (_ref2 = _Promise.foo) ? void 0 : _includes(_ref2).call(_ref2, 2);

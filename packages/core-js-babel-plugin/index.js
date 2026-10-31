@@ -1384,6 +1384,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             ? peelSkippableWrapperPath(path.get('object')).get('expressions').at(-1)
             : meta.placement === 'prototype'
               ? peelSkippableWrapperPath(path.get('object')).get('object') : path.get('object');
+          // The receiver proof may erase this member's guard. An optional call
+          // above it still guards the raw method, whose value was not replaced.
+          if (fallbackPlan.definedReceiverRead) deoptionalizeAstNode(fallbackPlan.definedReceiverRead);
           if (fallbackPlan.kind === 'guard') {
             const { guard, detached, effects } = fallbackPlan;
             // Collapse the kept value against the source reader, before replacing the slot.
@@ -1420,8 +1423,6 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
             cloneHost: node => t.cloneWithoutRetiring(node), embed: hostSlot,
           })));
-          // The member itself remains raw: its optional call must still guard a missing
-          // method. Only dead assignment-chain link types need native retyping.
           normalizeOptionalChain(path, false);
           if (fallbackPlan.hadChainAssign) retypeDeadOptionalLinks(path);
           return;

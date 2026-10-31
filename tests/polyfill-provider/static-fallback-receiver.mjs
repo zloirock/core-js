@@ -17,8 +17,14 @@ for (const [source, kind, setup = '', placement = 'static'] of [
   ['Promise.noSuchStatic', 'replace'],
   ['globalThis.Promise.noSuchStatic', 'replace'],
   ['globalThis.Map.prototype.noSuchStatic', 'replace', '', 'prototype'],
+  ['globalThis.Map?.prototype.noSuchStatic', 'replace', '', 'prototype'],
+  ['(held = globalThis)?.Map?.prototype.noSuchStatic', 'replace', 'let held;', 'prototype'],
+  ['globalThis.Map?.noSuchStatic', 'replace'],
   ['globalThis.window?.self.Promise.noSuchStatic', 'guard'],
+  ['globalThis.window?.Map?.prototype.noSuchStatic', 'guard', '', 'prototype'],
+  ['(held = globalThis.window)?.Map?.prototype.noSuchStatic', 'guard', 'let held;', 'prototype'],
   ['(held = globalThis.window)?.self.Promise.noSuchStatic', 'guard', 'let held;'],
+  ['(held = globalThis.window)?.window?.self.Promise.noSuchStatic', 'guard', 'let held;'],
   ['(held = globalThis.self).Promise.noSuchStatic', 'replace', 'let held;'],
   ['(globalThis.window?.Promise).noSuchStatic', 'replace'],
   ['(globalThis.window?.Promise)[(effect(), "noSuchStatic")]', 'retain'],
@@ -41,8 +47,14 @@ for (const [source, kind, setup = '', placement = 'static'] of [
   check(`${ label } original source slot`, plan.receiver === (placement === 'prototype' ? node.object.object : node.object), true);
   if (source.includes('?.Promise).')) check(`${ label } sealed source has throw probe`, !!plan.probe, true);
   if (source.includes('held =')) check(`${ label } kept write is owned`, plan.hadChainAssign, true);
+  const reader = placement === 'prototype' ? unwrapRuntimeExpr(node.object) : node;
+  check(`${ label } only the replaced receiver is defined`, plan.definedReceiverRead, reader.optional ? reader : null);
   if (kind === 'guard') {
     check(`${ label } original probe`, !!plan.guard?.type, true);
+    if (source.includes('?.window?.')) {
+      check(`${ label } second read stays in guard`, plan.guard, node.object.object.object);
+      check(`${ label } lifted read owns root substitution`, plan.detached, true);
+    }
     check(`${ label } guard owns its write`, plan.effects.length, 0);
     return;
   }

@@ -1,3 +1,4 @@
+import { nestedOptionalClaim } from '@core-js/polyfill-provider/detect-usage/optional-split';
 import { navGuardCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // babel-specific AST primitives + optional-chain handling. covers ref memoization,
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
@@ -19,7 +20,6 @@ import {
   navPlanNeedsGuard,
   descendToChainRoot,
   keySideEffectsOnly,
-  chainReadsThroughSeal,
   collectChainAssignsThroughMemberChain,
   createGuardTailPlanner,
   navHasUnresolvableProxyHop,
@@ -50,7 +50,6 @@ import { decidedReusableReceiver } from '@core-js/polyfill-provider/detect-usage
 import {
   classifyReceiverSE,
   chainValueCarrier,
-  isDeoptedGlobalSlotRead,
   createTypeAnnotationChecker,
   deleteHostAboveChain,
   deleteOverOpenContinuation,
@@ -360,63 +359,6 @@ function navPlanValueAst(t, plan, pureId, renderedPlanTails) {
     renderedPlanTails.add(cur);
   }
   return out;
-}
-
-// a CLAIM sitting BELOW the chain end (`(nav).Map.prototype`) is the erase channel's: it re-emits
-// the read as a throw probe AND swaps the claim, while the guard render spells the nav and leaves
-// the claim native (`(guard).Map.prototype` - the realm's prototype, not the ponyfill's). a claim
-// that IS the end (`(nav).Array`) has no such owner and stays with that render. through the canon:
-// a claim spelled with a FOLDED key (`(nav)[(c++, 'Map')].prototype`) owns the chain exactly like
-// the dotted one, and a narrower reader answered null there - the render then took a chain the
-// claim was going to swap, leaving the constructor read raw off the guarded nav. down the WHOLE run
-// below the end, not one step: a non-claimable key can stand between the end and the claim
-// (`.Map.prototype.noSuchMethod`), and stopping at it took the chain anyway
-// asked as the CLAIM channel asks it - a DEOPTED name reads verbatim there, so it owns nothing and
-// standing down for it leaves the nav unguarded. under a `delete` the fold owns the chain either
-// way, and the guard render would spell the value instead
-function claimBelowEndOwnsChain(memberPath, {
-  adapter,
-  resolvePureGlobalEntry,
-  resolvePureStaticEntry = null,
-  resolvePurePrototypeEntry = null,
-}) {
-  const deleteFolds = deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr);
-  // does the nav's own short-circuit REACH the claim above it? a seal ends the chain, so the read
-  // over it is plain and observes the void - the instance channel below reads that receiver without
-  // guarding it, and this render owes the guard. unsealed, the claim's chain carries the same `?.`
-  // and its split spells the test
-  const sealedFromClaim = chainReadsThroughSeal(memberPath.node,
-    ({ name }) => resolvePureGlobalEntry(name, memberPath),
-    { scope: memberPath.scope, adapter, path: memberPath });
-  for (let belowEnd = memberPath.node.object; belowEnd;) {
-    while (belowEnd && TS_EXPR_WRAPPERS.has(belowEnd.type)) belowEnd = belowEnd.expression;
-    if (belowEnd?.type !== 'MemberExpression' && belowEnd?.type !== 'OptionalMemberExpression') break;
-    if (memberProxyHopName(belowEnd)) break;
-    // a key this walk cannot NAME is a step, not a stop: a computed one (`.Promise[k].zzz`) names
-    // no claim of its own, and ending the walk there handed the chain to the render while the
-    // constructor below it still owed a swap - the raw ctor read off the ponyfill
-    const belowKey = staticMemberKeyName(belowEnd);
-    if (belowKey && (deleteFolds || !isDeoptedGlobalSlotRead({ kind: 'global', name: belowKey }, adapter))
-      && resolvePureGlobalEntry(belowKey, memberPath)) return true;
-    // ... and a STATIC of a host below the end owns it the same way (`<nav>.Number.MAX_SAFE_INTEGER
-    // .name`): asked by GLOBAL name alone the key answered nothing, the guard render took the chain
-    // and the static stayed native off the ponyfill - a lost polyfill leg parity cannot see. the HOST
-    // must be a real constructor / namespace (a proxy-global hop hosts the realm, not a static), and
-    // an INSTANCE answer off such a host belongs to the instance channel, which renders its own receiver
-    const belowHost = belowKey ? staticMemberKeyName(belowEnd.object) : null;
-    if (belowHost && belowKey && !POSSIBLE_GLOBAL_OBJECTS.has(belowHost)
-      && resolvePureStaticEntry?.(belowHost, belowKey, memberPath)?.kind === 'static') return true;
-    // ... and a PROTOTYPE method read below the end (`<nav>.Array.prototype.at.call(...)`) is the
-    // instance channel's claim, and that channel splits its receiver and composes the nav's guard
-    // into its own test - the other leg's order, where the outer claim renders before the hops it
-    // reads through. the guard render taking the chain first spelled the same test by a second
-    // channel (`null == x` against the split's `x == null`), one source in two spellings
-    const belowCtor = !sealedFromClaim && belowHost === 'prototype'
-      ? staticMemberKeyName(unwrapRuntimeExpr(belowEnd.object).object) : null;
-    if (belowCtor && belowKey && resolvePurePrototypeEntry?.(belowCtor, belowKey, memberPath)) return true;
-    belowEnd = belowEnd.object;
-  }
-  return false;
 }
 
 // does this value flow straight into a DESTRUCTURING pattern - the pattern's own read, and not a
@@ -1753,8 +1695,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       && !navValueCanShortCircuit(memberPath.node, ({ name }) => resolvePureGlobalEntry(name, memberPath),
         { scope: memberPath.scope, adapter, path: memberPath },
         { throughChainAssign: true, observableRead: navObserved })) return false;
-    if (claimBelowEndOwnsChain(memberPath,
-      { adapter, resolvePureGlobalEntry, resolvePureStaticEntry, resolvePurePrototypeEntry })) return false;
+    if (nestedOptionalClaim(memberPath.node, {
+      path: memberPath,
+      scope: memberPath.scope,
+      adapter,
+      resolveGlobal: name => resolvePureGlobalEntry(name, memberPath),
+      resolvePure: meta => resolvePureStaticEntry?.(meta.object, meta.key, memberPath),
+      resolvePrototype: (object, key) => resolvePurePrototypeEntry?.(object, key, memberPath),
+    }, { deleteHosted: !!deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr) })) return false;
     // TS wrappers erase in the render. The common source decision retains a sealed
     // read whose consumer cannot keep its throw, before the collapsed value.
     // both spellings of a seal peel here: the default parser hangs the flag on the wrapped node,

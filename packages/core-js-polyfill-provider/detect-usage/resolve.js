@@ -12,6 +12,7 @@ import {
   argumentOverridesSlot,
   ALWAYS_TRUTHY_OBJECT_NODES,
   computedKeyHasSideEffects,
+  computedKeyStaticName,
   isIdentifierPropValue,
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
@@ -325,6 +326,18 @@ export function peelChainRootValue(node) {
     if (next === cur) return cur;
     cur = next;
   }
+}
+
+// an EFFECT-bearing computed key folds to the static name it spells, the effects it carries coming
+// back for the caller to re-emit (`[(c++, 'values')]` -> `values` plus the prefix); null when the
+// key spells no static name. both halves are the canon's: the NAME through `computedKeyStaticName`,
+// which folds a sequence tail, a `+` concat and a template nested in any combination, and the
+// EFFECTS through the harvest that mirrors exactly those shapes. spelled here by hand it peeled one
+// sequence layer and declined everything deeper, so a nested key took a heavier route than its
+// single-layer twin - two rules for one question
+export function foldSeqKeyLiteralTail(property, ctx = null) {
+  const key = computedKeyStaticName(property);
+  return key === null ? null : { key, effects: collectFoldedReceiverSideEffects(property, { ctx }) };
 }
 
 // walk a receiver MemberExpression chain peeling chain-assigns at each `.object` hop.
@@ -712,7 +725,9 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
           ? deepestUnresolvableHopSource(unwrapRuntimeExpr(sealedAt.object), aliasCtx, resolvePure) : null;
         if (sealedInner) source = sealedInner.node;
         const sourceNames = new Set(sealedSource ? [sealedInner?.name ?? sealedSource] : []);
-        for (const hop of hopsInfo) {
+        let storedProbe = null;
+        for (let index = 0; index < hopsInfo.length; index++) {
+          const hop = hopsInfo[index];
           const { name } = hop;
           // the strict criterion (ANY unresolvable name) belongs to an opaque CALL root, whose
           // members are target-dependent. a nav under a SEAL is a proxy navigation like the ident
@@ -726,9 +741,13 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
             // the shortest expression carrying the source of undefined - the guard tests THAT
             // value (`null == _globalThis.window`), not the whole navigation above it
             source = hop.node;
+            storedProbe = crossedAssign && index === crossedAssign.hopsAbove - 1 ? hop.node : storedProbe;
             sourceNames.add(name ?? '<opaque>');
           }
         }
+        // A read above a kept store observes that value anew. Its guard already
+        // contains the stored probe, so it must not dedupe onto the earlier read.
+        source = storedProbe ?? source;
         // the ROOT answers the same entry-existence gate as every hop (the deepest-source canon's
         // own rule): a bare probe name proves WHICH realm the run reads, not that the read is
         // defined - `window?.self.X` takes its undefinedness from `window` itself, and the guard
@@ -797,7 +816,10 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         const guardObj = objAssign || !realmRootIsSpellable(value, resolvePure) ? obj
           : crossedAssign && hopsInfo.findIndex(hop => hop.node === source) >= crossedAssign.hopsAbove
             ? crossedAssign.node : source;
-        if (!prior || depth < prior.depth) provenSources.set(key, { obj: guardObj, depth });
+        if (!prior || (storedProbe && !prior.storedProbe)
+          || (!!storedProbe === !!prior.storedProbe && depth < prior.depth)) {
+          provenSources.set(key, { obj: guardObj, depth, storedProbe });
+        }
         continue;
       }
     }
@@ -950,7 +972,7 @@ export function probedDestructureInitValue(initNode, resolvePure, aliasCtx) {
 // the probe, native order), an optional spelling keeps its guard channel, an SE computed key
 // keeps its migration canon. returns `{ object, key, computed, navStart }` for the emitters'
 // renders, or null
-export function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder = false } = {}) {
+function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder = false } = {}) {
   // through the wrapper canon: a paren or TS skin on the read is value-transparent, and a seal
   // over a plain run is not load-bearing - the probe answers both spellings like the bare one.
   // a SEQUENCE around the read hands its TAIL on, and that tail is the read: the prefix rides the
@@ -4245,7 +4267,7 @@ export function storedAbsenceObservedAbove(assignPath, { resolvePureGlobal, reso
       continue;
     }
     if (node.type === 'OptionalMemberExpression' || node.type === 'OptionalCallExpression') {
-      // both resolution arms of `claimBelowEndOwnsChain`, asked of the chain ABOVE including
+      // Global and static claims observe the chain ABOVE including
       // its end: a global's own name, or a static off a named host. an unnameable key is a
       // step, not a stop
       for (let m = up; m?.node; m = m.parentPath) {
@@ -4480,12 +4502,12 @@ function navFoldsInFallbackSlot(hops, path) {
 // over a root that IS the environment read (an alias holding the probe's value, a bare probe name)
 // every unbacked hop is such a deeper one, and the root's own test covers what it reads.
 // the probe earns it only where the source's own `?.` reads its value - the hop right above it - and
-// the two reads the value canon keeps observable earn it the same way: the hop a MUTATING consumer
-// holds (`mutationGuardKeepingHop`) and the value a kept write stores
-function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure, rootIsProbe, keptProbe, storedValue }) {
+// the reads the value canon keeps observable earn it the same way: the hop a MUTATING consumer
+// holds (`mutationGuardKeepingHop`), the value a kept write stores, and its next read
+function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure, rootIsProbe, keptProbe, storedValue, storedProbe }) {
   if (rootIsProbe || navFoldsInFallbackSlot(hops, path)) return -1;
   for (let i = collapseIdx - 1; i >= 0; i--) {
-    const probe = i === 0 || hops[i].node === keptProbe || hops[i].node === storedValue;
+    const probe = i === 0 || hops[i].node === keptProbe || hops[i].node === storedValue || hops[i].node === storedProbe;
     if (hops[i + 1].optional && probe && !resolvePure({ kind: 'global', name: hops[i].name })) return i;
   }
   return -1;
@@ -4498,7 +4520,9 @@ function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure, rootIsPr
 // environment PROBE - the unbacked prefix reading off the source root, where the `?.` the source
 // wrote is load-bearing. what a computed key spells is not part of the question: the hop is named by
 // the canon like any other. Effectful keys never enter the collapse plan.
-function foldReadThroughRealmHops(hops, { adapter, resolvePure, keptProbe = null, keepTerminal = true, path = null }) {
+function foldReadThroughRealmHops(hops, {
+  adapter, resolvePure, keptProbe = null, storedProbe = null, storedValue = null, keepTerminal = true, path = null,
+}) {
   let overPure = false;
   return hops.filter((hop, index) => {
     if (!foldableRealmHopKey(hop.name, { adapter, resolvePure }, path && { node: hop.node, path })) {
@@ -4509,7 +4533,8 @@ function foldReadThroughRealmHops(hops, { adapter, resolvePure, keptProbe = null
     // there is not the value of a read but the branch deciding whether the write lands
     // The terminal hop IS this plan's value. Its environment probe stays readable even when
     // the backed span below it is replaced; only an actual reader may fold through the hop.
-    if (hop.node === keptProbe || (keepTerminal && index === hops.length - 1)) return true;
+    if (hop.node === keptProbe || hop.node === storedProbe || hop.node === storedValue
+      || (keepTerminal && index === hops.length - 1)) return true;
     return !overPure;
   });
 }
@@ -4600,9 +4625,9 @@ export function planProvenNavGuardCollapse({
     const { outer, value } = peelChainAssignment(host);
     const below = outer ? unwrapTransparentSeq(value) : n;
     if (!throughKeptAssign || !outer || !hops[0]?.optional) return { outer, below };
-    return { outer, below: descendHops(below), stored: below };
+    return { outer, storedProbe: hops[0].node, below: descendHops(below), stored: below };
   }
-  const { outer: chainAssign, below: call, stored: storedValue = null } = keptWriteRoot();
+  const { outer: chainAssign, below: call, stored: storedValue = null, storedProbe = null } = keptWriteRoot();
   if (call === null) return null;
   const aliasCtx = { scope, adapter, path };
   // an ALIAS root (`const g = globalThis; g.window?.self...`) resolves to the global it names -
@@ -4659,7 +4684,7 @@ export function planProvenNavGuardCollapse({
   // A root guard already protects the backed claim. Its continuation folds the
   // same realm hops as the claim-tail planner; a kept mutation probe still wins.
   hops.splice(0, hops.length, ...foldReadThroughRealmHops(hops,
-    { adapter, resolvePure, keptProbe,
+    { adapter, resolvePure, keptProbe, storedProbe, storedValue,
       keepTerminal: !consumedStore && !readThrough && !rootUndefinable, path }));
   let collapseIdx = -1;
   // the winning entry travels with the plan: every renderer needs exactly this resolution, and
@@ -4678,7 +4703,7 @@ export function planProvenNavGuardCollapse({
   }
   if (collapseIdx === -1) return null;
   const lastUnresolvableIdx = lastGuardEarningHopIdx(hops,
-    { collapseIdx, path, resolvePure, rootIsProbe: rootUndefinable, keptProbe, storedValue });
+    { collapseIdx, path, resolvePure, rootIsProbe: rootUndefinable, keptProbe, storedValue, storedProbe });
   // per-hop `?.` verdict for the TAIL, the spelling both emitters read off the plan: an optional
   // is load-bearing only over a value that can short-circuit, and above the collapse that value
   // starts as the always-defined ponyfill leaf (`_self.window?.global`). the KEPT prefix's own
@@ -6176,10 +6201,11 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   // off `globalThis.self`); a PLAIN multi-hop nav collapses whole and its `?.` deopts instead
   // An unspellable root leaves the navigation raw, so its terminal probe is an observable
   // read too. The effect-bearing spelling of a hop has the same value as its dotted twin.
-  // A value query also observes the surface stored BELOW the terminal probe. The
-  // store fixes that base: `(held = globalThis.self).window` still reads window,
+  // A value query or an optional read observes the surface stored BELOW the probe.
+  // Plain read-through keeps its ordinary collapse unless the caller observes its value.
+  // The store fixes that base: `(held = globalThis.self).window` still reads window,
   // including when effects and further assignments wrap the stored surface.
-  if (observableRead || (throughChainAssign && peelChainAssignment(rootRaw).outer)
+  if (observableRead || ((throughChainAssign || core.optional) && peelChainAssignment(rootRaw).outer)
     || !realmRootIsSpellable(core, resolvePure)) {
     while (rootObj?.type === 'MemberExpression' || rootObj?.type === 'OptionalMemberExpression') {
       const hopName = realmHopKeyName(rootObj, aliasCtx, { allowSideEffectKeys: true });

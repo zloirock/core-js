@@ -123,7 +123,9 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
   resolvePure, resolveGlobal = resolvePure, mintedAliasRef, pendingReceiver = null,
 }) {
   if (!fallback || !isMemberAccessNode(node) || node.object?.type === 'Super') return null;
-  const receiver = meta.placement === 'prototype' ? unwrapRuntimeExpr(node.object).object : node.object;
+  const reader = meta.placement === 'prototype' ? unwrapRuntimeExpr(node.object) : node;
+  const receiver = reader.object;
+  const definedReceiverRead = reader.optional ? reader : null;
   const receiverEffects = receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects) ?? [];
   const sequence = unwrapRuntimeExpr(receiver);
   if (meta.placement !== 'prototype' && meta.sideEffects?.length && sequence?.type === 'SequenceExpression'
@@ -132,7 +134,7 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
     && (meta.sideEffects ?? []).slice(meta.receiverEffectCount ?? 0).every(effect => subtreeContainsNode(node.property, effect))) {
     const tail = sequence.expressions.at(-1);
     if (!discardRescueNodes({ ...ctx, node: tail }).length) {
-      return { kind: 'replace', receiver: tail, sequence, fallback, effects: [], hadChainAssign: false };
+      return { kind: 'replace', receiver: tail, sequence, fallback, effects: [], hadChainAssign: false, definedReceiverRead };
     }
   }
   if (probeRenderedReceiver(node.object, ctx)) return { kind: 'retain' };
@@ -149,10 +151,14 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
     meta.protoCtorChainAssignAt ?? meta.chainAssignInsertAt ?? ordered.length) ?? [];
   const hadChainAssign = effects.length > ordered.length;
   const guardAssigns = effects.filter(effect => !ordered.includes(effect));
-  let guard = guardAssigns.length === 1 && effects.length === 1 && !staticMayEraseReceiver(node, resolveGlobal, ctx)
-    ? guardAssigns[0] : null;
+  const optional = undefinableOptionalGuard(node, resolvePure, ctx);
+  // The canonical probe can include a second read above the kept store. A root-only
+  // assignment guard is a fallback, never a substitute for that observed read.
+  const readAboveStore = optional.kind === 'guard' && isMemberAccessNode(unwrapRuntimeExpr(optional.object))
+    && guardAssigns.some(assignment => subtreeContainsNode(optional.object, assignment));
+  let guard = !readAboveStore && guardAssigns.length === 1 && effects.length === 1
+    && !staticMayEraseReceiver(node, resolveGlobal, ctx) ? guardAssigns[0] : null;
   if (!guard) {
-    const optional = undefinableOptionalGuard(node, resolvePure, ctx);
     if (optional.kind === 'standdown' && effects.length <= 1) return { kind: 'retain' };
     const sequenceGuard = ownChainOptionalObjects(node).find(nestedSequenceValueSpelling) ?? null;
     guard = optional.kind === 'guard'
@@ -160,7 +166,7 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
       : optional.kind === 'erase' ? sequenceGuard : null;
   }
   if (guard) return {
-    kind: 'guard', receiver, fallback, guard, detached: !hadChainAssign, hadChainAssign,
+    kind: 'guard', receiver, fallback, guard, detached: !hadChainAssign || readAboveStore, hadChainAssign, definedReceiverRead,
     effects: effects.filter(effect => !guardAssigns.includes(effect) && !subtreeContainsNode(guard, effect)),
   };
   const boundary = sealedChainBoundary(node);
@@ -176,6 +182,9 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
   if (!probe && !node.optional && aliasRootedReadMayThrow(node.object, resolveGlobal, ctx)) return { kind: 'retain' };
   return {
     kind: 'replace', receiver, fallback, hadChainAssign, probe,
+    // This replacement ends in the constructor itself, after every throw/effect.
+    // Only the member reading that value is defined, not a method above it.
+    definedReceiverRead,
     effects: probe ? directClaimProbeEffects({ decision: probe, node: probe }, effects) : effects,
   };
 }

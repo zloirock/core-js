@@ -1,38 +1,34 @@
+import {
+  planOptionalMemberSplit, optionalSplitReusesSurface, planSplitMemberLanding, splitConstructorClaim,
+} from '@core-js/polyfill-provider/detect-usage/optional-split';
 import { spineHoldsKeptWrite } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // the optional-dispatch channel of the usage-pure emitter: the `?.` split forms (a doubly
 // optional call, an optional member hop, the receiver splits) and the instance/inherited
 // dispatches with their guard spellings. created per transform over the factory's context
 import {
-  findProxyGlobal,
-  navValueCanShortCircuit,
   navRootPrefixNodes,
   peelReceiverSequenceTail,
   proxyGlobalMemberCtorPureSwap,
   proxyReceiverValueCanBeUndefined,
   resolveKey,
   resolveObjectName,
-  unbackedProxyHopKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { vestigialReceiverOptionals } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { decidedReusableReceiver, instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   calleeParenWrapped,
   TS_EXPR_WRAPPERS,
-  isMutatedGlobalSlot,
-  isPristineProxyGlobal,
   isReusableReceiver,
   peelNestedSequenceExpressions,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
   subtreeContainsNode,
-  isAliasProxyRoot,
-  peelChainAssignmentDeep,
   climbTransparentWrapperPath,
   valueIsDroppedAt,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -73,7 +69,6 @@ import {
   cloneSpinePeeled,
   cloneStamped,
   foldSeqKeyLiteralTail,
-  foldedResolvedKey,
   isDeleteOperand,
   markSubtreeSkipped,
   memoizedCallResultType,
@@ -105,7 +100,6 @@ export default function createOptionalDispatchChannel(ctx) {
     markRewrite,
     memoValueClones,
     peelNonNullWraps,
-    proxyHopKey,
     resolveGlobalPolyfill,
     resolveNodeType,
     resolvePure,
@@ -410,113 +404,32 @@ export default function createOptionalDispatchChannel(ctx) {
     });
   }
 
-  // one OPTIONAL member hop of the split: the guard, the proxy-surface drop, the
-  // proven chains - extracted from the recursion for its size
+  // Bind the native scope and entry services; source decisions remain in the provider.
+  function splitLandingContext(metaPath) {
+    return { scope: metaPath.scope, adapter, path: metaPath, injectorState,
+      resolvePure: meta => resolvePure(meta, metaPath), resolveGlobal: resolveGlobalPolyfill };
+  }
+
+  // Allocate only the guard and landing chosen for this optional member.
   function splitOptionalMemberHop(node, metaPath) {
-    // the `?.` tests a value that COLLAPSES to a pure CTOR binding - the polyfill makes it
-    // always-defined, so the guard is dead and the hop reads straight off the ponyfill
-    // (`globalThis.Map?.list.at(0)` -> `_at(_ref = _Map.list).call(_ref, 0)`, babel's
-    // flatten). an identifier-rooted navigation carries its effects ahead of that binding;
-    // a call root keeps the memo route, which preserves the call's own guard spelling
-    const deadCtorSwap = proxyGlobalMemberCtorPureSwap({
-      receiver: node.object,
-      aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
-      resolvePure: meta => resolvePure(meta, metaPath),
-    });
-    // ... unless the navigation still owes an ENVIRONMENT PROBE: a live `?.` over a hop pure
-    // cannot back short-circuits the whole read off-engine, and swapping the always-defined
-    // ponyfill in its place answers a value where the source answers undefined
-    // (`globalThis.window?.self?.Array.of(1)` must keep `null == _globalThis.window`)
-    // asked THROUGH the seal: a paren or a TS cast around the navigation is printer trivia here, and
-    // reading the sealed node raw answered "no live `?.`" for a nav whose probe the read still owes -
-    // the swap then handed back the always-defined ponyfill where the source yields undefined
-    // ... asked of the value canon, which sees the ROOT too: an alias holding a probe read short-
-    // circuits at its own `?.` with every hop above it backed (`w?.self?.WeakSet.name` off
-    // `w = globalThis.window`), and the hop census alone called that nav always-defined
-    const probedNavObject = unwrapRuntimeExpr(node.object);
-    const probedNav = navValueCanShortCircuit(probedNavObject, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath });
-    const navAliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-    const navRoot = deadCtorSwap && findProxyGlobal(node.object, navAliasCtx, true);
-    if (deadCtorSwap && (!deadCtorSwap.se.length || navRoot) && !probedNav) {
-      // an ALIAS root keeps its OWN binding and only drops the hops (the alias canon): landing the
-      // leaf ponyfill here would re-root the read on a binding the source never named, where every
-      // other spelling of the same nav keeps the alias (`ga.window.self?.Array.prototype`)
-      // ... only where the swapped leaf is a PROXY HOP: a CTOR leaf names its own ponyfill and the
-      // alias cannot stand for it (`g.Set?.foo` reads `_Set.foo`, never `g.foo`)
-      const base = POSSIBLE_GLOBAL_OBJECTS.has(deadCtorSwap.pure.hintName)
-        && isAliasProxyRoot(navRoot, navAliasCtx) ? cloneNode(navRoot)
-        : identifier(injectPureImport(deadCtorSwap.pure.entry, deadCtorSwap.pure.hintName));
-      return {
-        hopKind: 'member',
-        disjuncts: [],
-        receiver: stampReplacementSpan(memberExpression(withSideEffects(base, deadCtorSwap.se),
-          cloneNode(node.property), { computed: node.computed }), node),
-      };
+    const landing = planOptionalMemberSplit(node, splitLandingContext(metaPath));
+    function member(base) {
+      return stampReplacementSpan(memberExpression(base, cloneNode(node.property), { computed: node.computed }), node);
     }
-    const surfaceHeld = holdsProxySurface(node.object, metaPath);
-    const surfaceHop = surfaceHeld ? proxyHopKey(node, { allowOptional: true, metaPath }) : null;
-    const leafKey = node.computed ? null : node.property?.name ?? null;
-    // a hop off a selection the build decides re-reads the name it folds to (`decidedReusableReceiver`), the
-    // other leg's chain-base memo: the read above it then takes the identity guard that name's read takes
-    const decided = decidedReusableReceiver(node.object, { ...navAliasCtx, injectorState });
-    const { disjuncts, makeBase } = decided ? { disjuncts: [cloneNode(node.object)], makeBase: () => cloneNode(decided) }
-      : guardObject(node.object, metaPath, {
-        bareMemo: !!surfaceHop,
-        mutatedLeaf: !!leafKey && isMutatedGlobalSlot(adapter, leafKey),
-        readerKey: leafKey,
-      });
-    // a pristine hop read off a guarded PROXY-surface value drops - `(q = gw)?.self
-    // .Array` reads `_ref.Array` (window.self is the same surface, babel's kept canon).
-    if (surfaceHop) {
-      return { hopKind: 'member', disjuncts, receiver: makeBase(), proxySurface: true };
-    }
-    // a key that names a pure CTOR is answered by the substitution below, never by the chain
-    // respell: respelled off the memo it reads the constructor off the ponyfill surface, which is
-    // the polyfill this claim exists for
-    const surfaceCtorPure = surfaceHeld && !node.computed && node.property?.type === 'Identifier'
-      ? surfaceCtorPureForKey(node.property.name) : null;
-    // a guarded base holding a PROVEN global through an ALIAS surfaces its statics: the
-    // hops above are the same claim they were before the memo (`(w = g)?.Array.of(1)` -
-    // babel requeues the memo and resolves `_Array$of`). the DIRECT spellings belong to
-    // the older guarded-nav routes - only the alias gap rides the chain up
-    // a SEQ-wrapped base rides the chain too: the older guarded-nav routes stage
-    // sequence wrappers out, so nothing else resolves its statics
-    if (!surfaceCtorPure && !node.computed && node.property?.type === 'Identifier'
-      && (!holdsProxySurface(node.object, metaPath)
-        || unwrapRuntimeExpr(node.object)?.type === 'SequenceExpression')) {
-      // the base VALUE folds through effectful sequence tails and kept writes - the
-      // memo test keeps their spelling, the chain only needs the surface they yield
-      let baseValue = unwrapRuntimeExpr(node.object);
-      for (;;) {
-        if (baseValue?.type === 'SequenceExpression') {
-          baseValue = unwrapRuntimeExpr(baseValue.expressions.at(-1));
-          continue;
-        }
-        const dechained = peelChainAssignmentDeep(baseValue);
-        if (dechained === baseValue) break;
-        baseValue = unwrapRuntimeExpr(dechained);
-      }
-      const aliasName = resolveObjectName({ objectNode: baseValue, scope: metaPath.scope, adapter, path: metaPath });
-      if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName) && isPristineProxyGlobal(adapter, aliasName)) {
-        return {
-          hopKind: 'member', disjuncts, receiver: makeBase(),
-          provenChain: [node.property.name], provenBase: makeBase,
-        };
-      }
-    }
-    // a resolvable CTOR read off the guarded SURFACE base substitutes its pure
-    // (`(n = gw)?.WeakSet` -> `_WeakSet` in the alternate - babel's requeue resolves
-    // it off the memo); a MUTATED slot keeps the live read off the memo (`_ref.Set`)
-    if (surfaceCtorPure) {
-      return {
-        hopKind: 'member', disjuncts,
-        receiver: identifier(injectPureImport(surfaceCtorPure.entry, surfaceCtorPure.hintName)),
-      };
-    }
-    const receiver = stampReplacementSpan(
-      memberExpression(makeBase(), cloneNode(node.property), { computed: node.computed }), node);
-    return { hopKind: 'member', disjuncts, receiver };
+    function pure(entry) { return identifier(injectPureImport(entry.entry, entry.hintName)); }
+    if (landing.kind === 'unguarded') return {
+      hopKind: 'member', disjuncts: [],
+      receiver: member(withSideEffects(landing.source ? cloneNode(landing.source) : pure(landing.pure), landing.effects)),
+    };
+    const { decided, ...options } = landing.guard;
+    const { disjuncts, makeBase } = decided
+      ? { disjuncts: [cloneNode(node.object)], makeBase: () => cloneNode(decided) }
+      : guardObject(node.object, metaPath, options);
+    if (landing.kind === 'surface') return { hopKind: 'member', disjuncts, receiver: makeBase(), proxySurface: true };
+    if (landing.kind === 'proven') return {
+      hopKind: 'member', disjuncts, receiver: makeBase(), provenKey: landing.key, provenBase: makeBase,
+    };
+    return { hopKind: 'member', disjuncts, receiver: landing.kind === 'pure' ? pure(landing.pure) : member(makeBase()) };
   }
 
   // split a receiver chain at its LAST-evaluated optional hop: the guard disjuncts hoist
@@ -530,38 +443,13 @@ export default function createOptionalDispatchChannel(ctx) {
     const split = splitOptionalReceiverInner(node, metaPath);
     // a proven chain nothing above consumed respells its hops off the memo base
     // (`(w = g)?.Array` terminal - the `.Array` read must survive)
-    if (split && split !== STAGED_SPLIT && split.provenChain) {
-      let spelled = split.provenBase();
-      for (const key of split.provenChain) {
-        // the same substitution the hop route makes: a respelled CTOR key would read the
-        // constructor off the memoized ponyfill surface
-        const ctorPure = surfaceCtorPureForKey(key);
-        spelled = ctorPure ? identifier(injectPureImport(ctorPure.entry, ctorPure.hintName))
-          : memberFromKeyName(spelled, key);
-      }
+    if (split && split !== STAGED_SPLIT && split.provenKey) {
+      const pure = splitConstructorClaim(split.provenKey, splitLandingContext(metaPath));
+      const spelled = pure ? identifier(injectPureImport(pure.entry, pure.hintName))
+        : memberFromKeyName(split.provenBase(), split.provenKey);
       return { hopKind: split.hopKind, disjuncts: split.disjuncts, receiver: spelled };
     }
     return split;
-  }
-
-  // the proven chain, spelled: a hop naming a polyfillable CTOR is answered by its own substitution,
-  // never by a respell off the memo - read off `_ref` it is the native constructor on exactly the
-  // hosts the ponyfill exists for. the hops above it keep their source spelling off that binding
-  function spellProvenChain(inner) {
-    let chainKeys = inner.provenChain;
-    // a PRISTINE proxy hop names the surface the base already holds (`globalThis`, `self` and
-    // `window` are one object), so it drops here exactly as it drops on the surface route - spelled
-    // off the memo it reads an engine `window` the ponyfill exists to stand in for
-    while (chainKeys.length && isPristineProxyGlobal(adapter, chainKeys[0])
-      && !surfaceCtorPureForKey(chainKeys[0])) chainKeys = chainKeys.slice(1);
-    const chainCtor = chainKeys.length ? surfaceCtorPureForKey(chainKeys[0]) : null;
-    let spelled = inner.provenBase();
-    if (chainCtor) {
-      spelled = identifier(injectPureImport(chainCtor.entry, chainCtor.hintName));
-      chainKeys = chainKeys.slice(1);
-    }
-    for (const key of chainKeys) spelled = memberFromKeyName(spelled, key);
-    return spelled;
   }
 
   function splitOptionalReceiverInner(node, metaPath) {
@@ -577,10 +465,8 @@ export default function createOptionalDispatchChannel(ctx) {
       const inner = splitOptionalReceiverInner(node.callee, metaPath);
       if (!inner || inner === STAGED_SPLIT) return inner;
       let callee = inner.receiver;
-      if (inner.provenChain) {
-        // an unconsumed proven chain respells its hops before the call reads them
-        callee = inner.provenBase();
-        for (const key of inner.provenChain) callee = memberFromKeyName(callee, key);
+      if (inner.provenKey) {
+        callee = memberFromKeyName(inner.provenBase(), inner.provenKey);
       }
       return {
         hopKind: inner.hopKind,
@@ -590,30 +476,7 @@ export default function createOptionalDispatchChannel(ctx) {
     }
     if (node.type === 'MemberExpression') {
       if (node.optional) {
-        // a SECOND `?.` over the same surface folds into the first probe instead of
-        // nesting a guard of its own (`(w)?.self?.self.Array` - both hops read the memo's
-        // value, which the outer test already proved)
-        // ... but only while the INNER probe is the live one: over a provably defined object
-        // its guard is dead, and folding into it drops the hop this `?.` actually tests
-        // (`globalThis?.window?.self.box` must test `_globalThis.window`, not `_globalThis`)
-        // Only quiet keys enter the hop collapse; effectful keys keep their source slots.
-        const foldKey = receiverCarriesOptional(node.object)
-          ? proxyHopKey(node, { allowOptional: true, metaPath }) : null;
-        const innerHop = foldKey ? unwrapRuntimeExpr(node.object) : null;
-        // ... and only while the inner probe's own value stays SPELLABLE off the memo: a PLAIN
-        // proxy nav collapses to a ponyfill, leaving no member read to re-run off the memo base,
-        // so the inner hop renders its own guard and THAT is what the memo holds
-        // (`globalThis.window?.self?.self.Array` memoizes `null == _globalThis.window ? void 0
-        // : _self`). a write or an effect-bearing sequence has a spelling that MUST be kept
-        // whole in the memo, and the hops fold onto it as before (`(sc++, p = globalThis.window)
-        // ?.self?.self.Array`)
-        const innerNav = unwrapRuntimeExpr(innerHop?.object);
-        // An unbacked hop is a separate read: `realm?.window?.self` must test the
-        // window slot even when the earlier assignment already captured the realm.
-        if (innerHop && !unbackedProxyHopKey(innerHop, meta => resolvePure(meta, metaPath))
-          && !(innerNav?.type === 'MemberExpression' && holdsProxySurface(innerNav, metaPath))
-          && (innerHop.type !== 'MemberExpression' || !innerHop.optional
-            || guardProbeUndefinable(innerHop.object, { metaPath, adapter, resolvePure }))) {
+        if (optionalSplitReusesSurface(node, splitLandingContext(metaPath))) {
           const surfaced = splitOptionalReceiverInner(node.object, metaPath);
           if (surfaced && surfaced !== STAGED_SPLIT && surfaced.proxySurface) return surfaced;
         }
@@ -621,76 +484,19 @@ export default function createOptionalDispatchChannel(ctx) {
       }
       const inner = splitOptionalReceiverInner(node.object, metaPath);
       if (!inner || inner === STAGED_SPLIT) return inner;
-      if (inner.proxySurface && !node.computed && isPristineProxyGlobal(adapter, node.property?.name)) {
-        return inner;
-      }
-      // a resolvable CTOR read off the surface memo substitutes its own pure inside the
-      // alternate (`(o = gw)?.self.Map.prototype.has.name` -> `_Map.prototype.has`), the
-      // same requeue the hop split does one level down; a MUTATED slot keeps the live read
-      // a COMPUTED key folds the same way the proven-chain route already does: an SE-bearing
-      // spelling keeps its prefix around the substituted ctor (`[(c += 1, 'Set')]` ->
-      // `(c += 1, _Set)`), a quiet one resolves through the canonical key resolver
-      const surfaceKey = inner.proxySurface
-        ? (node.computed
-          ? foldSeqKeyLiteralTail(node.property, { scope: metaPath.scope, adapter, path: metaPath })
-            ?? foldedResolvedKey(node.property, metaPath, adapter)
-          : node.property?.type === 'Identifier' ? { key: node.property.name, effects: [] } : null)
-        : null;
-      if (surfaceKey) {
-        const ctorPure = surfaceCtorPureForKey(surfaceKey.key);
-        if (ctorPure) {
-          return {
-            hopKind: inner.hopKind,
-            disjuncts: inner.disjuncts,
-            receiver: withSideEffects(identifier(injectPureImport(ctorPure.entry, ctorPure.hintName)),
-              surfaceKey.effects),
-          };
-        }
-      }
-      if (inner.provenChain) {
-        // two hops in: `<ctor>.<static>` resolves as the claim it spells - a SEQ-prefixed
-        // computed key folds to its literal tail, the prefix riding the substitution
-        // (`[(k++, 'values')]` -> `(k++, _Object$values)`, babel's requeue); an
-        // unresolved pair falls back to the spelled members off the memo base
-        const folded = node.computed ? foldSeqKeyLiteralTail(node.property, { scope: metaPath.scope, adapter, path: metaPath })
-          : node.property?.type === 'Identifier' ? { key: node.property.name, effects: [] } : null;
-        if (folded && inner.provenChain.length === 1) {
-          const claim = resolvePure({
-            kind: 'property', object: inner.provenChain[0], key: folded.key, placement: 'static',
-          }, metaPath);
-          if (claim && claim.kind !== 'instance') {
-            return {
-              hopKind: inner.hopKind,
-              disjuncts: inner.disjuncts,
-              receiver: withSideEffects(identifier(injectPureImport(claim.entry, claim.hintName)), folded.effects),
-            };
-          }
-        }
-        const spelled = spellProvenChain(inner);
-        return {
-          hopKind: inner.hopKind,
-          disjuncts: inner.disjuncts,
-          receiver: stampReplacementSpan(
-            memberExpression(spelled, cloneNode(node.property), { computed: node.computed }), node),
-        };
-      }
-      return {
-        hopKind: inner.hopKind,
-        disjuncts: inner.disjuncts,
-        receiver: stampReplacementSpan(
-          memberExpression(inner.receiver, cloneNode(node.property), { computed: node.computed }), node),
-      };
+      const landing = planSplitMemberLanding(node, inner, splitLandingContext(metaPath));
+      if (landing.kind === 'surface') return inner;
+      const { base } = landing;
+      const object = base?.pure ? identifier(injectPureImport(base.pure.entry, base.pure.hintName))
+        : base?.key ? memberFromKeyName(inner.provenBase(), base.key)
+          : base ? inner.provenBase() : inner.receiver;
+      const receiver = landing.kind === 'pure'
+        ? withSideEffects(identifier(injectPureImport(landing.pure.entry, landing.pure.hintName)), landing.effects)
+        : stampReplacementSpan(memberExpression(object,
+          cloneNode(node.property), { computed: node.computed }), node);
+      return { hopKind: inner.hopKind, disjuncts: inner.disjuncts, receiver };
     }
     return null;
-  }
-
-  // does this KEY name a constructor the read off a guarded proxy SURFACE substitutes? a
-  // proxy-global name is a hop, not a claim, and a MUTATED slot keeps the live read off the memo.
-  // one spelling for the three routes that spell a surface read: the hop split, the member arm
-  // above it, and the proven-chain respell
-  function surfaceCtorPureForKey(key) {
-    return typeof key === 'string' && !POSSIBLE_GLOBAL_OBJECTS.has(key)
-      && !isMutatedGlobalSlot(adapter, key) ? resolveGlobalPolyfill(key) : null;
   }
 
   // Native frame binding for the shared realm-value classifier.
