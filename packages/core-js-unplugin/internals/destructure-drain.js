@@ -6,7 +6,6 @@ import {
   isSeFreeMemberReceiver,
   liftedPrefixSplit,
   staticHopPure,
-  provenRealmCallRoot,
   discardRescueNodesWithReads,
   observablePrefixElements,
   residualHuskIsDead,
@@ -20,6 +19,7 @@ import {
 import {
   renderSynthLiteral,
   renderSynthReplacement,
+  planConsumedInitializerCarrier,
   planDiscardedInit,
   planDiscardedInitPlacement,
   liveDestructureDefault,
@@ -103,7 +103,6 @@ import {
   carriedInitPrefix,
   carryForInitPrefixIntoFirst,
   takeForInitPrefix,
-  chainAssignOverPureNav,
   drainBodylessAssignment,
   drainBodylessMultiMemo,
   drainBodylessWrapKinds,
@@ -113,14 +112,12 @@ import {
   splitDeclaratorMemo,
   emitLiteralReceiverMemos,
   forInitMemoVerdicts,
-  guardedPureBinding,
   hopChainKeys,
   interleavedSeKeySegments,
   isMintedOrProxyName,
   jobHostSiblingDeclarators,
   joinSeKeySiblingDeclarator,
   keptSymbolSentinelResidual,
-  liftableInitPrefix,
   liftAssignInitPrefix,
   liftedPrefixStatements,
   liftSurvivingInitPrefix,
@@ -934,56 +931,29 @@ export default function createDestructureDrains(ctx) {
       || hostLevelSurvives(declarator, { ctx: patternCtx })) {
       return emitPartialMemo({ hostNode, declarator, declJobs, consumed, statements, exported });
     }
-    const needsValue = declJobs.some(job => job.kind === 'instance');
+    const carrier = planConsumedInitializerCarrier(declarator.init, declJobs, {
+      ...patternCtx, injectorState, resolveGlobalPolyfill,
+    });
+    const needsValue = carrier.carrier !== 'effects';
     let refName = null;
     const seqRescues = [];
-    // a chain-assignment init with a pure-nav RHS inlines: the WRITE is the receiver the dispatch
-    // takes, so it rides inside the call and evaluates exactly once, where the source evaluated it
-    // (`{ [S]: it } = (g = globalThis)` -> `const it = _gim(g = _globalThis)`) - one rule with the
-    // hop-bearing spelling, whose receiver carries the write the same way
-    const chainAssignInline = needsValue && declJobs.length === 1
-      ? chainAssignOverPureNav(declarator.init) : null;
-    // a SOLE instance extraction reads the init exactly once inside its dispatch, so it
-    // inlines with no memo slot (`const at = _atMaybeArray((foo(), [1]))`, babel's inline
-    // consume) - the memo exists for the SECOND read, and there is none
-    // ... and a SYMBOL-pattern value is that same single read: the extracted pattern binds off
-    // the helper result, so the receiver rides inside the dispatch with no memo of its own.
-    // a COLLAPSED leaf is not that shape - its dispatch reads the memo, like the plain route's
-    const singleReadInline = needsValue && declJobs.length === 1 && !declJobs[0].collapseLeaf
-      && (declJobs[0].prop.value?.type !== 'ObjectPattern' || declJobs[0].symbolPattern);
-    if (chainAssignInline || singleReadInline) {
+    if (carrier.carrier === 'dispatch') {
       const [job] = declJobs;
       const guardRefs = new Map();
-      const value = memoJobValue({ job, guardRefs, receiver: chainAssignInline ?? duplicateReceiver(declarator.init, injector) });
+      const value = memoJobValue({ job, guardRefs, receiver: carrier.receiver ?? duplicateReceiver(declarator.init, injector) });
       statements.push(...memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }));
       markSubtreeSkipped(skippedNodes, job.prop);
       return 'consumed';
     }
-    // an SE-prefixed re-readable receiver needs no memo of its own: the prefix lifts as its
-    // own statements and the tail IS the token every extraction reads (`(se(), globalThis)`
-    // -> `se(); const it = _gim(_globalThis)`, babel's lift)
-    // ... and a kept WRITE lifts whole the same way - the statement performs the store, and the tail
-    // every extraction reads is what it stored (`(kw = (se(), globalThis))` -> `kw = (se(), _globalThis);`)
-    // The whole pattern was consumed above: a bare binding is re-readable by the
-    // adjacent extractions, as in the other binding's whole-init memo demotion.
-    const lift = liftableInitPrefix(declarator.init);
-    // ... and a tail that is a CALL the inline canon proves to yield a proxy global lifts the same
-    // way: the prefix as statements, the call dropped for the global it stands for (its run has no
-    // effect) - the shape the realm-spelled twin takes, and the other leg's fold
-    const provenTail = lift && provenRealmCallRoot(lift.tail, declJobs[0].metaPath, adapter);
-    const provenPure = provenTail && bareProxyGlobalPure(provenTail, declJobs[0].metaPath, { adapter, resolveGlobalPolyfill });
-    const liftTail = provenPure ? identifier(injectPureImport(provenPure.entry, provenPure.hintName)) : lift?.tail;
-    if (needsValue && liftTail?.type === 'Identifier'
-      && isReReferenceableAcrossReads(liftTail, { scope: declJobs[0].metaPath.scope, adapter, path: declJobs[0].metaPath })) {
-      const lifted = observablePrefixElements(lift.prefix, patternFrame(declJobs[0].metaPath));
+    if (carrier.carrier === 'lift') {
+      const liftTail = carrier.pure
+        ? identifier(injectPureImport(carrier.pure.entry, carrier.pure.hintName)) : carrier.tail;
+      const lifted = observablePrefixElements(carrier.prefix, patternCtx);
       for (const expr of lifted) statements.push(expressionStatement(expr));
       declarator.init = liftTail;
       refName = liftTail.name;
     }
-    // a GUARDED init the walk collapsed onto a pure BINDING needs no memo of its own: the
-    // binding is re-readable, and the guarded read the consume discards re-emits as the
-    // extraction's own probe (`((null == _globalThis.window ? void 0 : _self)[_S], _gim(_self))`)
-    const guardedPureTail = !refName && needsValue && guardedPureBinding(declarator.init, injectorState);
+    const guardedPureTail = carrier.guarded;
     if (guardedPureTail) refName = guardedPureTail;
     // the probe the full consume owes for the read it discards, decided BEFORE the rescue harvest:
     // the harvest asks whether this probe is coming, and the extraction below reuses the same node

@@ -63,6 +63,7 @@ import {
   planNestedAssignmentReceiver,
   planLiteralResidual,
   planLiteralRoute,
+  planInitializerNavigation,
   synthPlanFullyCovered,
   planSynthReceiverActivation,
   buildNestedDestructurePlan,
@@ -91,7 +92,6 @@ import {
   realmProbeArmSelection,
   realmSelectionCollapseOperand,
   resolveSynthKeys,
-  isCallShape,
   memberTargetTakesExtraction,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
@@ -198,7 +198,6 @@ import {
   registerInstanceSynthSlot,
   registerSeKeyDefaultOverwrite,
   routeSelectionMirror,
-  seCarriedHopNav,
   SELECTING_INIT_TYPES,
   hopDefaultCarriesEffect,
   nestedLeafSelectingReceiver,
@@ -1712,7 +1711,6 @@ export default function createAstDestructureEmitter({
   // an OPAQUE / effect-bearing init with no direct receiver: the defaulted sole-consume
   // takes it whole, a proven logical left or agreeing ternary arm extracts, otherwise it records
   // the whole-init memo job ('handled') or stands down
-  // eslint-disable-next-line max-statements -- per-route init dispatch sequence
   function routeOpaqueInit({
     metaPath,
     meta,
@@ -1727,6 +1725,7 @@ export default function createAstDestructureEmitter({
     forInit,
     exported,
     soleBinding,
+    initializerNavigation,
   }) {
     // an opaque / effect-bearing init: the WHOLE-INIT MEMO path - the init hoists into a
     // `const _ref = <init>;` the extractions read. sound only when the extraction consumes
@@ -1813,33 +1812,8 @@ export default function createAstDestructureEmitter({
       }
       return 'handled';
     }
-    // ... unless the init performs EFFECTS ahead of a provable nav and this claim is not its sole
-    // reader: there the whole init memoizes (the prefix runs ONCE inside that memo) and every claim
-    // dispatches off the ref, which is the same shape the receiver-less claims take one branch down.
-    // without it the whole multi-claim family stayed native on this leg while the other extracted
-    // ... a DEFAULTED leaf rides the same memo: its guard reads the dispatch off the ref (the drain's
-    // memo-job value), where admitting the bare identifier alone left the defaulted twin native
-    // ... and a kept WRITE is that same shape with the store as its last expression: the write lifts
-    // whole and the nav reads what it stored (`(kw = (eff(), globalThis))` -> `kw = ...;` + the dispatch)
-    const seqInitTail = peelTransparentExpr(declarator.init)?.type === 'SequenceExpression'
-      || peelTransparentExpr(declarator.init)?.type === 'AssignmentExpression'
-      ? peelChainRootValue(declarator.init) : null;
-    // ... a tail that is a CALL the inline canon proves to yield a proxy global is that global for the
-    // nav question (the memo holds what the call returned, read once); the memo still spells the call
-    // ... and a BARE call the canon proves only up to its EFFECTS takes the memo too: the memo runs it
-    // once where the source did and the nav reads what it returned - the fold that drops an
-    // effect-free call is the declaration route's, which this one leaves alone
-    const bareInit = peelTransparentExpr(declarator.init);
-    const effectfulRealmCall = !seqInitTail && isCallShape(bareInit) && !provenRealmCallRoot(bareInit, metaPath, adapter)
-      && provenRealmCallRoot(bareInit, metaPath, adapter, { allowEffects: true }) ? bareInit : null;
-    const memoTail = seqInitTail ?? effectfulRealmCall;
-    const seqNavRoot = memoTail ? provenRealmCallRoot(memoTail, metaPath, adapter, { allowEffects: true }) ?? memoTail : null;
-    if (chain.length > 0 && kind === 'instance' && !forInit && memoTail
-      && (prop.value.type === 'Identifier' || defaultedIdent) && entry !== 'get-iterator-method'
-      && patternBindingCount(declarator.id) !== patternBindingCount(prop.value)
-      && isPureNavReceiver(seqNavRoot, navGuardCtx(metaPath))
-      && isInstanceSurfaceNav(hopChainKeys(chain).reduce(memberFromKeyName, seqNavRoot),
-        { ctx: navGuardCtx(metaPath).aliasCtx, isOwnAlias: isOwnPureAlias })) {
+    // Source admission has already chosen a shared receiver for the surviving readers.
+    if (initializerNavigation?.carrier === 'memo') {
       recordJob({
         hostPath: exported ? declarationPath.parentPath : declarationPath,
         job: {
@@ -2388,30 +2362,13 @@ export default function createAstDestructureEmitter({
     // sentinel residual re-reads the init
     const proxyInitSurface = selectingInitSurface(declarator.init, metaPath);
     const allProxyInit = !!proxyInitSurface;
-    // an ANCHORED symbol prop keeps its key-swap instead of extracting when the extraction
-    // would change what the slot answers: a DEFAULT fires on the raw read's undefined, which
-    // the helper result need not be, and an SE KEY has no slot outside the kept key
-    // ... and a plain SE PREFIX ahead of the nav qualifies once the pattern consumes WHOLE:
-    // the declarator empties and the lift spells the prefix as its own statement, so the
-    // extraction still reads it exactly once, in source order
-    // A decided selection exposes the same prefix as its bare running operand.
-    const runningInit = decidedRunningOperand(declarator.init, keyCtx);
-    const seCarried = seCarriedHopNav({
-      forInit,
-      chain,
-      declarator,
-      prop,
-      kind,
-      initNode: runningInit,
-      tailRoot: provenRealmCallRoot(peelChainRootValue(runningInit), metaPath, adapter),
-    });
-    // a LIFTED prefix leaves the value the nav reads: a sequence leaves its tail, a kept WRITE leaves
-    // what it stores - and the lift emits the write itself, so reading its value here loses nothing
-    // ... a carried tail that is a CALL the inline canon proves to yield a proxy global reads as that
-    // global: the fold drops the call with the navigation (its run has no effect; the other leg's shape)
-    const carriedInitValue = seCarried
-      ? provenRealmCallRoot(peelChainRootValue(runningInit), metaPath, adapter) ?? peelChainRootValue(runningInit)
-      : declarator.init;
+    // Source admission records the prefix owner before children rewrite its live nodes.
+    const initializerNavigation = planInitializerNavigation({
+      init: declarator.init, prop, kind, entry, keys: hopChainKeys(chain),
+      sourcePattern: declarator.id, forInit,
+    }, { ...keyCtx, resolvePure: guardCtx.resolvePure, isOwnAlias: isOwnPureAlias });
+    const seCarried = !!initializerNavigation?.carried;
+    const carriedInitValue = seCarried ? initializerNavigation.receiver : declarator.init;
     // ... and an init the pattern DESCENDS - a literal holding the receiver in one of its slots -
     // is a nav receiver by what the hops land on, not by what the init spells: the shared decision
     // walks through the literal and hands back the nav those hops name, which is what dispatches
@@ -2428,6 +2385,8 @@ export default function createAstDestructureEmitter({
       chain, kind, entry, path: metaPath, receiverPath: hostReceiverPath(hostParent),
     }, defaultCtx);
     const typedNavChain = typedNavChainFor({ kind, entry, chain, metaPath, allowSurfaceBase: true });
+    // An anchored symbol keeps its key swap when extraction would change a raw default
+    // or leave an effectful key without its source slot.
     const literalRoute = planLiteralRoute({
       metaPath,
       prop,
@@ -2519,6 +2478,7 @@ export default function createAstDestructureEmitter({
         forInit,
         exported,
         soleBinding,
+        initializerNavigation,
       });
       if (opaque === 'handled') return;
       ({ literalReceiver, forInitLiteral } = opaque);

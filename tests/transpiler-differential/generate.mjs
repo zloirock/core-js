@@ -21574,6 +21574,52 @@ function * generateNestedLeafTwins() {
   }
 }
 
+// One prefix/store owner across statement, bodyless and loop declaration slots.
+function * generateInitializerCarriers() {
+  for (const [name, body] of [
+    ['sole-nested-prefix', `
+      function outer() { log.push("outer"); }
+      function inner() { log.push("inner"); }
+      const { prototype: { at: method } } = (outer(), (inner(), Array));
+      return method.call([4, 9], -1);
+    `],
+    ['shared-call', `
+      function getRows() { log.push("receiver"); return [4, 9]; }
+      const { Array: { from } } = globalThis, { at, concat } = getRows();
+      return [from([1]), at.call([4, 9], -1), concat.call([4, 9], [2])];
+    `],
+    ['stored-symbol', `
+      let held;
+      const { [Symbol.iterator]: iterator } = held = (log.push("prefix"), Array.prototype);
+      return [iterator.call([4, 9]).next().value, held === Array.prototype];
+    `],
+  ]) yield { ...snippet(`initializer-carrier/${ name }`, `(() => { ${ body } })()`), strip: true };
+  for (const store of [false, true]) for (const host of ['statement', 'bodyless', 'header']) {
+    const init = store ? '(held = (log.push("prefix"), globalThis))' : '(log.push("prefix"), globalThis)';
+    const pattern = '{ Array: { prototype: { at: method, includes: contains } } }';
+    const read = host === 'statement' ? `const ${ pattern } = ${ init }; result = [method.call([4, 9], -1), contains.call([4, 9], 9)];`
+      : host === 'bodyless' ? `if (true) var ${ pattern } = ${ init }; result = [method.call([4, 9], -1), contains.call([4, 9], 9)];`
+        : `for (let ${ pattern } = ${ init }, once = true; once; once = false) { result = [method.call([4, 9], -1), contains.call([4, 9], 9)]; }`;
+    yield { ...snippet(`initializer-carrier/${ host }/${ store ? 'store' : 'sequence' }`, `(() => {
+      let held, result;
+      ${ read }
+      return [result, ${ store ? 'held === globalThis' : 'true' }];
+    })()`), strip: true };
+  }
+  for (const throws of [false, true]) for (const rebuilt of [false, true]) {
+    const body = `(() => {
+      const rows = [4, 9];
+      const source = { get data() { log.push("getter"); ${ throws ? 'throw new Error("stop");' : 'return rows;' } } };
+      try {
+        const lead = (log.push("lead"), 1), { data: { at: method } } = (log.push("prefix"), source), tail = (log.push("tail"), 2);
+        return [lead, method.call(rows, -1), tail];
+      } catch (error) { return error.message; }
+    })()`;
+    yield { ...snippet(`initializer-carrier/${ throws ? 'throw' : 'getter' }/${ rebuilt ? 'rebuilt' : 'plain' }`,
+      rebuilt ? `[1].map(() => ${ body })[0]` : body), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21996,4 +22042,5 @@ export function * generate() {
   yield * generateResidualAnchors();
   yield * generateNestedDeclarationReceivers();
   yield * generateNestedLeafTwins();
+  yield * generateInitializerCarriers();
 }
