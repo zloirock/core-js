@@ -948,6 +948,15 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
   return sequence(plan.prefix.map(clone), read);
 }
 
+// Apply the fallback's decided receiver and ordered effects. Probe slots keep their
+// own canonical render; every other slot is borrowed source in the host dialect.
+export function renderStaticFallbackReceiver(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
+  const receiver = identifier(injectImport(plan.fallback.entry, plan.fallback.hintName));
+  const effects = plan.effects.map(effect => effect === plan.probe
+    ? renderClaimProbe(plan.probe, { injectImport, cloneHost, embed }) : embed(cloneHost(effect)));
+  return effects.length ? sequenceExpression([...effects, receiver]) : receiver;
+}
+
 // the render half of `planKeptSequenceTail`: the tail folds onto its outermost hop's own ponyfill,
 // and a plan that keeps the environment PROBE wraps it in the short-circuit guard (`null == <probe>
 // ? void 0 : _self`), so the test reads at most the probe hop and never dereferences past it
