@@ -8,8 +8,8 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 
 | Directory | Command | Covers |
 |---|---|---|
-| `unit-global/`, `unit-pure/` | `npm run test-unit-node`, `test-unit-karma`, `test-unit-bun` | QUnit tests, one file per polyfill module |
-| `unit-node/`, `karma/`, `unit-bun/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, and static HTML pages for manual runs |
+| `unit-global/`, `unit-pure/` | `npm run test-unit-node`, `test-unit-karma`, `test-unit-bun`, `test-unit-deno` | QUnit tests, one file per polyfill module |
+| `unit-node/`, `karma/`, `unit-bun/`, `unit-deno/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, Deno, and static HTML pages for manual runs |
 | `e2e-usage-pure/` | `npm run test-e2e-usage-pure`, `test-e2e-usage-pure-karma` | runtime behavior of polyfilled code after transformation |
 | `transpiler-fixtures/` | the two plugin runners below | shared input/output fixtures for both emitters |
 | `babel-plugin/`, `babel-plugin-v7/` | `npm run test-babel-plugin`, `-unit`, `-v7`, `-unit-v7` | `@core-js/babel-plugin` against `@babel/core` 8 and 7 |

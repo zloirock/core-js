@@ -31,7 +31,7 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.prototype.chunks` method
-// https://github.com/tc39/proposal-iterator-chunking
+// https://tc39.es/ecma262/#sec-iterator.prototype.chunks
 // @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   chunks: function chunks(chunkSize) {

@@ -17,8 +17,8 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-padding
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/pad-end
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/pad-start
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/pad-end
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/pad-start
 ```
 
 ## Examples
