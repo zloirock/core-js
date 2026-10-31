@@ -60,9 +60,11 @@ var setRemove = SetHelpers.remove;
 var setForEach = SetHelpers.forEach;
 var objectKeys = $Object.keys;
 var push = uncurryThis([].push);
-var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
-var arrayBufferResize = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.resize);
-var dataViewByteLength = globalThis.DataView && uncurryThisAccessor(globalThis.DataView.prototype, 'byteLength', 'get');
+// eslint-disable-next-line es/no-arraybuffer-prototype-transfer -- safe
+var arrayBufferTransfer = uncurryThis($ArrayBuffer.prototype.transfer);
+// eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+var arrayBufferResize = uncurryThis($ArrayBuffer.prototype.resize);
+var dataViewByteLength = uncurryThisAccessor(DataViewPrototype, 'byteLength', 'get');
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
@@ -74,7 +76,7 @@ var SHARED_OBJECTS = {};
 // Native validation finishes before serialization reaches this getter, without transferring anything.
 var transferCheck = PROPER_STRUCTURED_CLONE_TRANSFER && defineProperty({}, 'value', {
   enumerable: true,
-  get: function () { throw transferCheck; }
+  get: function () { throw transferCheck; },
 });
 
 var checkBasicSemantic = function (structuredCloneImplementation) {

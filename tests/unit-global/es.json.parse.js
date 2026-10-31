@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-proxy, unicorn/escape-case -- testing */
-import { FREEZING, GLOBAL, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
+import { GLOBAL, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
 QUnit.test('JSON.parse', assert => {
   const { parse } = JSON;
@@ -245,28 +245,26 @@ QUnit.test('JSON.parse', assert => {
     defineProperty(this, '1', { get: () => { throw new EvalError('t262'); } });
   }), EvalError, 'reviver-get-name-err');
 
-  if (FREEZING) {
-    for (const array of [false, true]) {
-      for (const change of ['keep', 'delete', 'shorten']) {
-        if (!array && change === 'shorten') continue;
-        const first = array ? '0' : 'a';
-        const second = array ? '1' : 'b';
-        const calls = [];
-        const result = parse(array ? '[1,2]' : '{"a":1,"b":2}', function (key, value) {
-          calls.push(key);
-          if (key === first) {
-            if (change === 'delete') delete this[second];
-            if (change === 'shorten') this.length = 1;
-            preventExtensions(this);
-          }
-          return key === second ? 22 : value;
-        });
-        assert.same(result[first], 1, `non-extensible first property ${ array } ${ change }`);
-        assert.same(hasOwn(result, second), change === 'keep', `non-extensible second property ${ array } ${ change }`);
-        if (change === 'keep') assert.same(result[second], 22, `non-extensible existing property ${ array }`);
-        if (array) assert.same(result.length, change === 'shorten' ? 1 : 2, `non-extensible array length ${ change }`);
-        assert.arrayEqual(calls, [first, second, ''], `non-extensible reviver order ${ array } ${ change }`);
-      }
+  for (const array of [false, true]) {
+    for (const change of ['keep', 'delete', 'shorten']) {
+      if (!array && change === 'shorten') continue;
+      const first = array ? '0' : 'a';
+      const second = array ? '1' : 'b';
+      const calls = [];
+      const result = parse(array ? '[1,2]' : '{"a":1,"b":2}', function (key, value) {
+        calls.push(key);
+        if (key === first) {
+          if (change === 'delete') delete this[second];
+          else if (change === 'shorten') this.length = 1;
+          preventExtensions(this);
+        }
+        return key === second ? 22 : value;
+      });
+      assert.same(result[first], 1, `non-extensible first property ${ array } ${ change }`);
+      assert.same(hasOwn(result, second), change === 'keep', `non-extensible second property ${ array } ${ change }`);
+      if (change === 'keep') assert.same(result[second], 22, `non-extensible existing property ${ array }`);
+      if (array) assert.same(result.length, change === 'shorten' ? 1 : 2, `non-extensible array length ${ change }`);
+      assert.arrayEqual(calls, [first, second, ''], `non-extensible reviver order ${ array } ${ change }`);
     }
   }
 
@@ -337,10 +335,10 @@ QUnit.test('JSON.parse', assert => {
               return false;
             },
           });
-          const revive = function (key, value) {
+          function revive(key, value) {
             if (key === 'before') this.target = proxy;
             return key === name ? operation === 'deleteProperty' ? undefined : 2 : value;
-          };
+          }
           if (abrupt) {
             assert.throws(() => parse('{"before":0,"target":0}', revive), caught => caught === error, `proxy abrupt ${ operation } ${ array }`);
           } else {

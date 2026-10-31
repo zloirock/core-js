@@ -19,17 +19,15 @@ QUnit.test('JSON.rawJSON', assert => {
   }), '1', 'created in toJSON');
   assert.same(calls, 1, 'toJSON called once');
 
-  {
-    calls = 0;
-    assert.same(stringify(defineProperty({}, 'a', {
-      enumerable: true,
-      get() {
-        calls += 1;
-        return rawJSON('1');
-      },
-    })), '{"a":1}', 'created in getter');
-    assert.same(calls, 1, 'getter called once');
-  }
+  calls = 0;
+  assert.same(stringify(defineProperty({}, 'a', {
+    enumerable: true,
+    get() {
+      calls += 1;
+      return rawJSON('1');
+    },
+  })), '{"a":1}', 'created in getter');
+  assert.same(calls, 1, 'getter called once');
 
   calls = 0;
   assert.same(stringify({ a: 0 }, (key, value) => {

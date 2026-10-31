@@ -1032,7 +1032,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     iterable[Symbol.iterator] = function () {
       return {
         next: function () { throw 1; },
-        'return': function () { closed = true; return {}; }
+        return: function () { closed = true; return {}; },
       };
     };
     try {

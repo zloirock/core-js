@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-error-cause)
 
 ## Modules
-[`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js) and [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js).
+[`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.cause.js) and [`es.error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.cause.js).
 
 ## Built-ins signatures
 ```ts

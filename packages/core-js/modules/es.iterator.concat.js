@@ -22,7 +22,7 @@ if (nativeConcat) try {
   iterable[wellKnownSymbol('iterator')] = function () {
     return {
       next: function () { throw new Error('Iterator step'); },
-      'return': function () { INCORRECT_ITERATOR_CLOSING = true; return {}; }
+      return: function () { INCORRECT_ITERATOR_CLOSING = true; return {}; },
     };
   };
   nativeConcat(iterable).next();

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-float16array)
 
 ## Modules
-[`es.data-view.get-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.get-float16.js), [`es.data-view.set-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.set-float16.js) and [`es.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.f16round.js).
+[`es.data-view.get-float16`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.data-view.get-float16.js), [`es.data-view.set-float16`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.data-view.set-float16.js) and [`es.math.f16round`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.math.f16round.js).
 
 ## Built-ins signatures
 ```ts

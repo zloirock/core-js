@@ -56,6 +56,7 @@ var $NumericRangeIterator = createIteratorConstructor(function NumericRangeItera
     throw new $RangeError(INCORRECT_RANGE);
   }
   // https://github.com/tc39/proposal-iterator.range/issues/83
+  // eslint-disable-next-line unicorn/no-chained-comparison -- compare range and step directions
   var hitsEnd = start !== end && ifIncrease !== step > zero;
   setInternalState(this, {
     type: NUMERIC_RANGE_ITERATOR,

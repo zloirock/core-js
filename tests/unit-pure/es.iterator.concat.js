@@ -100,8 +100,10 @@ QUnit.test('Iterator.concat', assert => {
 // https://issues.chromium.org/issues/580293064
 QUnit.test('Iterator.concat, abrupt iterator steps', assert => {
   const expectedError = new Error('iterator step');
-  const isExpectedError = error => error === expectedError;
-  const check = (next, expected, message) => {
+  function isExpectedError(error) {
+    return error === expectedError;
+  }
+  function check(next, expected, message) {
     let returnCalls = 0;
     const iterator = concat(createIterable([], {
       next,
@@ -115,14 +117,12 @@ QUnit.test('Iterator.concat, abrupt iterator steps', assert => {
     assert.deepEqual(iterator.next(), { done: true, value: undefined }, 'completed after the error');
     iterator.return();
     assert.same(returnCalls, 0, 'does not close the source after the error');
-  };
+  }
   check(() => { throw expectedError; }, isExpectedError, 'next throws');
   check(() => 42, TypeError, 'next returns a primitive');
-  {
-    for (const key of ['done', 'value']) {
-      check(() => defineProperty({ done: false }, key, {
-        get() { throw expectedError; },
-      }), isExpectedError, `${ key } getter throws`);
-    }
+  for (const key of ['done', 'value']) {
+    check(() => defineProperty({ done: false }, key, {
+      get() { throw expectedError; },
+    }), isExpectedError, `${ key } getter throws`);
   }
 });

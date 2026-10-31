@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-promise-allSettled)
 
 ## Modules
-[`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js).
+[`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.promise.all-settled.js).
 
 ## Built-ins signatures
 ```ts

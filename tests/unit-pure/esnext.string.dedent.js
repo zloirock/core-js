@@ -1,6 +1,6 @@
 import defineProperties from '@core-js/pure/es/object/define-properties';
 import isFrozen from '@core-js/pure/es/object/is-frozen';
-import { FREEZING, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import Symbol from '@core-js/pure/es/symbol';
 import cooked from '@core-js/pure/full/string/cooked';
 import dedent from '@core-js/pure/full/string/dedent';
@@ -76,15 +76,11 @@ QUnit.test('String.dedent, template identity', assert => {
   assert.notSame(tag({ raw: freeze(['\n  a\n']) }), result, 'equal raw strings with a different identity');
   assert.arrayEqual(result, ['a']);
   assert.arrayEqual(result.raw, ['a']);
-  if (FREEZING) {
-    assert.true(isFrozen(result), 'cooked array is frozen');
-    assert.true(isFrozen(result.raw), 'raw array is frozen');
-  }
-  {
-    assert.nonEnumerable(result, 'raw');
-    assert.nonWritable(result, 'raw');
-    assert.nonConfigurable(result, 'raw');
-  }
+  assert.true(isFrozen(result), 'cooked array is frozen');
+  assert.true(isFrozen(result.raw), 'raw array is frozen');
+  assert.nonEnumerable(result, 'raw');
+  assert.nonWritable(result, 'raw');
+  assert.nonConfigurable(result, 'raw');
 });
 
 QUnit.test('String.dedent, captured RegExp methods', assert => {

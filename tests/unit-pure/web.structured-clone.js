@@ -888,7 +888,6 @@ QUnit.module('structuredClone', () => {
     assert.throws(() => structuredClone(buffer), error => error.name === 'DataCloneError', 'a detached buffer is not cloneable');
     assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'detached transfer list entry');
     const other = new ArrayBuffer(4);
-    // eslint-disable-next-line es/no-object-defineproperty -- native buffers support descriptors
     Object.defineProperty(other, 'transfer', { get() { throw new Error('transfer must not be read'); } });
     assert.same(structuredClone(1, { transfer: [other] }), 1, 'does not call an own transfer method');
     assert.same(other.byteLength, 0, 'unreferenced buffer detached');
@@ -973,12 +972,27 @@ QUnit.module('structuredClone', () => {
           return scenario === 'shared' ? 1 : function () { /* uncloneable */ };
         } });
         const transfer = scenario === 'detached buffer' ? [buffer, port1] : [port1];
-        if (scenario === 'uncloneable' || scenario === 'getter') transfer.push(buffer);
-        if (scenario === 'invalid') transfer.push({});
-        if (scenario === 'duplicate') transfer.push(port1);
-        if (scenario === 'duplicate buffer') transfer.push(buffer, buffer);
-        if (scenario === 'view') transfer.push(new Uint8Array(1));
-        if (scenario === 'shared') transfer.push(shared);
+        switch (scenario) {
+          case 'uncloneable':
+          case 'getter':
+            transfer.push(buffer);
+            break;
+          case 'invalid':
+            transfer.push({});
+            break;
+          case 'duplicate':
+            transfer.push(port1);
+            break;
+          case 'duplicate buffer':
+            transfer.push(buffer, buffer);
+            break;
+          case 'view':
+            transfer.push(new Uint8Array(1));
+            break;
+          case 'shared':
+            transfer.push(shared);
+            break;
+        }
         let copy;
         try {
           assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter'
