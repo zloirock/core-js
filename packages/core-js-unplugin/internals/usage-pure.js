@@ -11,7 +11,7 @@ import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expressi
 import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   dispatchConsumesRun,
-  planClaimlessCallRootedNav,
+  planDeclinedNavigation,
   planLogicalSlotPatch,
   planProxyReceiver,
   resolveSymbolIteratorEntry,
@@ -46,6 +46,7 @@ import {
   nullGuardTest,
   nullFirstGuardTest,
   renderInExpressionPlan,
+  renderDeclinedNavigation,
   renderLogicalSlotPatch,
   renderStaticFallbackReceiver,
   renderMethodCall,
@@ -906,12 +907,6 @@ export default function createAstUsagePureCallback({
     const optionalReader = climbTransparentWrapperPath(metaPath).parentPath?.node;
     if (optionalReader?.type === 'MemberExpression' && optionalReader.optional
       && unwrapRuntimeExpr(optionalReader.object) === node) return;
-    // an SE-bearing meta normally belongs to the SE channels - the in-place drop has no slot
-    // for what the receiver buried. the shared fold DOES: its render re-emits the harvested
-    // prefix ahead of the base, so a meta whose receiver-share effects the spine walk harvests
-    // is admitted for exactly that arm (containment is re-checked against the walk's own
-    // harvest below); KEY-share effects stay in the surviving property node either way
-    const seFree = !meta.sideEffects?.length && !meta.receiverEffectCount;
     if (node.type === 'MemberExpression') {
       // an OPTIONAL hop joins the fold in two shapes. a `delete` reads nothing over its
       // navigation, so the hop the source wrote optionally folds with the spine below it, exactly
@@ -955,12 +950,12 @@ export default function createAstUsagePureCallback({
       // on its own ROOT still folds there (`null == (() => _globalThis)().window ? ...`)
       const testClone = insideMemoClone(metaPath, probeTestClones)
         || insideMemoClone(metaPath, memoValueClones);
-      // the claimless call-rooted verdicts come from the shared plan - the identifier twin's
-      // bytes, cell for cell; the `delete` fold keeps its own base arm below. the run's own END is
-      // the plan's to find - this claim fires one hop short of it whenever navigation continues
-      // above - and the path it climbed to comes back for the drop below to name
-      const callPlan = planClaimlessCallRootedNav({
+      // The common completion owns the final landing, source span and effect replay.
+      // The native query above supplies the already analyzed inner receiver.
+      const plan = planDeclinedNavigation({
         loweredGuardTest: testClone,
+        meta,
+        receiver: { node: spineNode, collapse: collapsed, deleteFold: deleteFolds, navigated: navigatedSpine },
         // the plan's BASE question, which a `delete` answers with the run's root only where it
         // names a slot ON that run: a dispatch between them consumes the run as its receiver, so
         // the read rule applies - the same gate the spine's own landing asks
@@ -974,56 +969,24 @@ export default function createAstUsagePureCallback({
         path: metaPath,
         resolvePure: m => resolvePure(m, metaPath),
       });
-      const planPath = callPlan.endPath;
-      // the shared plan spelled the base itself where it folded the nav whole - its own landing,
-      // the `delete` root arm included; the spine's landing answers the arms the plan declined
-      const planBase = callPlan?.verdict === 'fold-whole' ? callPlan.rootPure : null;
-      const foldBase = planBase ?? (deleteFolds && collapsed?.entry ? collapsed : null);
-      const droppedBase = collapsed?.aliasRoot
-        ?? (foldBase ? identifier(injectPureImport(foldBase.entry, foldBase.hintName)) : null);
-      // a sequence PREFIX around the folded run re-emits ahead of the base by IDENTITY (the
-      // keep-live carve keeps its inner claims landing in place), where the source ran it -
-      // `(a(), (b(), dh())).window.slot` -> `(a(), b(), _globalThis).slot`, the other leg's
-      // bytes. only for the shared plan's own fold: the delete/alias arms keep their gate,
-      // and an SE-bearing meta is admitted only when the walk's harvest CONTAINS its whole
-      // receiver share - anything less would drop an observable
-      const foldEffects = callPlan?.verdict === 'fold-whole' && !collapsed?.aliasRoot
-        ? collapsed?.effects ?? [] : null;
-      const receiverShareHeld = seFree || (foldEffects
-        && (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
-          .every(effect => foldEffects.includes(effect)
-            || foldEffects.some(held => subtreeContainsNode(held, effect))));
-      // the shared plan's own fold needs no second navigation test: it is handed the member ENDING
-      // the run, so a plan that folded WHOLE has already been told a real member reads through the
-      // hops - and the binding's positional gate, written for the value-vs-root question an
-      // identifier claim answers, called a WRITE TARGET over a call root "not navigated" and left
-      // the run raw where its identifier twin folds
-      if (droppedBase && (foldEffects ? receiverShareHeld : seFree && !collapsed.effects.length)
-        && (planBase || navigatedSpine)) {
+      if (plan.fold) {
         markRewrite();
-        // the plan's walk peels a SEQUENCE the spine read above does not (`(0, f().self).k`): with
-        // no spine node of its own the drop consumes the whole object it replaces
-        const consumed = planPath === metaPath ? spineNode ?? node.object : planPath.node.object;
-        const dropped = planPath !== metaPath ? planPath.get('object')
-          : spineNode === node ? metaPath : metaPath.get('object');
-        const baseNode = foldEffects?.length
-          ? withSideEffects(cloneNode(droppedBase), foldEffects) : cloneNode(droppedBase);
-        for (const effect of foldEffects ?? []) skippedNodes.keepLive?.add(effect);
+        const { path: dropped, source, effects } = plan.fold;
+        const baseNode = renderDeclinedNavigation(plan.fold, { injectImport: injectPureImport, carryEffect: effect => effect });
+        for (const effect of effects) skippedNodes.keepLive?.add(effect);
         dropped.replaceWith(baseNode);
-        markSubtreeSkipped(skippedNodes, consumed);
-        // the binding the drop lands is always defined, so a `?.` reading directly off it
-        // guards nothing - the vestigial verdict every substitution channel takes
-        deoptionalizeOverSubstituted({ metaPath: dropped, node: consumed, replacement: baseNode, proxyRoot: true });
-      } else if (callPlan?.verdict === 'swap-call') {
+        markSubtreeSkipped(skippedNodes, source, skippedNodes.keepLive);
+        deoptionalizeOverSubstituted({ metaPath: dropped, node: source, replacement: baseNode, proxyRoot: true });
+      } else if (plan.verdict === 'swap-call') {
         // the flat probe-leaf read keeps the probe spelled where the source wrote it - it is the
         // environment the read discriminates - and swaps the span below it for the deepest
         // ponyfill the run can ride: the identifier twin's bytes (`f().self.window` ->
         // `_self.window`); a STORED value stays with the kept-value canon (`v = f().self.window`
         // -> `v = _self`)
         markRewrite();
-        const base = identifier(injectPureImport(callPlan.basePure.entry, callPlan.basePure.hintName));
-        for (const effect of callPlan.droppedSe) skippedNodes.keepLive?.add(effect);
-        replaceNodeInTree(node, callPlan.swapNode, withSideEffects(base, callPlan.droppedSe));
+        const base = identifier(injectPureImport(plan.basePure.entry, plan.basePure.hintName));
+        for (const effect of plan.droppedSe) skippedNodes.keepLive?.add(effect);
+        replaceNodeInTree(node, plan.swapNode, withSideEffects(base, plan.droppedSe));
       }
     }
   }
