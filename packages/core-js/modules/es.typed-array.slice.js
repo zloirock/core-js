@@ -12,8 +12,9 @@ var FORCED = fails(function () {
 // `%TypedArray%.prototype.slice` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.slice
 exportTypedArrayMethod('slice', function slice(start, end) {
-  var list = arraySlice(aTypedArray(this), start, end);
-  var C = getTypedArrayConstructor(this);
+  // the constructor goes first: in Rhino 1.8, `getTypedArrayConstructor` called after `arraySlice` loses `list`
+  var C = getTypedArrayConstructor(aTypedArray(this));
+  var list = arraySlice(this, start, end);
   var index = 0;
   var length = list.length;
   var result = new C(length);

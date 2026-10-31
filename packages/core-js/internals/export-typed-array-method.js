@@ -2,12 +2,19 @@
 var globalThis = require('../internals/global-this');
 var defineBuiltIn = require('../internals/define-built-in');
 var hasOwn = require('../internals/has-own-property');
+var fails = require('../internals/fails');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 var TypedArrayPrototype = require('../internals/typed-array-core').TypedArrayPrototype;
 
+var Int8ArrayPrototype = Int8Array.prototype;
+
 module.exports = function (key, property, forced, options) {
-  // the native of `Int8Array` replaces own methods of every class, so `forced` must cover natives rejecting other classes
-  var exported = forced ? property : Int8Array.prototype[key] || property;
+  var native = Int8ArrayPrototype[key];
+  // the native of `Int8Array` replaces own methods of every class, so it should accept the other classes -
+  // FF34 `copyWithin` and own methods of each class in Rhino 1.7.13-1.8 reject them
+  var exported = forced || !native || hasOwn(Int8ArrayPrototype, key) && fails(function () {
+    native.call(new Float32Array(1), function () { return 0; }, 0);
+  }) ? property : native;
 
   Object.keys(TypedArrayConstructors).forEach(function (name) {
     var Prototype = globalThis[name] && globalThis[name].prototype;

@@ -2125,7 +2125,7 @@ export const data = {
     firefox: '90',
     hermes: '0.13',
     'react-native': '0.71',
-    rhino: '1.7.15',
+    rhino: '1.9.0',
     safari: '15.4',
   },
   'es.typed-array.copy-within': {
@@ -2149,7 +2149,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.fill': {
@@ -2164,7 +2164,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find': {
@@ -2172,7 +2172,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find-index': {
@@ -2180,21 +2180,21 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find-last': {
     chrome: '97',
     firefox: '104',
     hermes: '0.11',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '15.4',
   },
   'es.typed-array.find-last-index': {
     chrome: '97',
     firefox: '104',
     hermes: '0.11',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '15.4',
   },
   'es.typed-array.for-each': {
@@ -2202,7 +2202,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.includes': {
@@ -2210,7 +2210,7 @@ export const data = {
     edge: '14',
     firefox: '43',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.index-of': {
@@ -2218,7 +2218,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.join': {
@@ -2226,7 +2226,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   // TODO: recheck
@@ -2242,7 +2242,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.map': {
@@ -2250,7 +2250,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reduce': {
@@ -2258,7 +2258,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reduce-right': {
@@ -2266,7 +2266,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reverse': {
@@ -2274,7 +2274,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.set': {
@@ -2289,7 +2289,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.some': {
@@ -2297,14 +2297,14 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.sort': {
     chrome: '74',
     firefox: '67',
     hermes: '0.10',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
@@ -2321,28 +2321,28 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    rhino: '1.7.13',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.to-locale-string': {
     chrome: '49',
     firefox: '51',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.to-reversed': {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '16.0',
   },
   'es.typed-array.to-sorted': {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '16.0',
   },
   'es.typed-array.to-string': {
@@ -2375,7 +2375,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     // It should truncate a negative fractional index to zero, but instead throws an error
     safari: '26.0', // '16.4',
   },
