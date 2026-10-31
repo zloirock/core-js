@@ -14,7 +14,7 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-match-all
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/match-all
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/match-all
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

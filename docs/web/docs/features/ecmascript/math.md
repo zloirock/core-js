@@ -51,7 +51,6 @@ namespace Math {
 { core-js, @core-js/pure }/es|stable|actual|full/math/sum-precise
 { core-js, @core-js/pure }/es|stable|actual|full/math/tanh
 { core-js, @core-js/pure }/es|stable|actual|full/math/trunc
-{ core-js, @core-js/pure }/es|stable|actual|full/math/to-string-tag
 ```
 
 ## Examples

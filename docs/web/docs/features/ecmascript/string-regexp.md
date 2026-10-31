@@ -72,7 +72,6 @@ class RegExp {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 { core-js, @core-js/pure }/es|stable|actual|full/string
-{ core-js, @core-js/pure }/es|stable|actual|full/string/virtual
 { core-js, @core-js/pure }/es|stable|actual|full/string/from-code-point
 { core-js, @core-js/pure }/es|stable|actual|full/string/raw
 core-js/es|stable|actual|full/string/match

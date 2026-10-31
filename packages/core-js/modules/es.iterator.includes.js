@@ -15,7 +15,7 @@ var $Infinity = Infinity;
 var INVALID_SKIPPED_ELEMENTS = 'skippedElements should be a positive safe integer';
 
 // `Iterator.prototype.includes` method
-// https://github.com/tc39/proposal-iterator-includes
+// https://tc39.es/ecma262/#sec-iterator.prototype.includes
 // @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   includes: function includes(searchElement /* , skippedElements */) {
