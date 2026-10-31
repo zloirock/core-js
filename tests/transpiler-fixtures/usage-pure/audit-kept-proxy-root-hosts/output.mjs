@@ -11,7 +11,7 @@ import _self from "@core-js/pure/actual/self";
 let n;
 export const newCallee = new (n = _globalThis.window).Array(3);
 let w;
-(w = _globalThis.window).Set = function () {};
+(w = _globalThis.window, null == w ? null.self : w).Set = function () {};
 let l;
 export const logicalOperand = (null == (l = _globalThis.window) ? void 0 : _flatMapMaybeArray(l.Array.prototype)) || {};
 let f;

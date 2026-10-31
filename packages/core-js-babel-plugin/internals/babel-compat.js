@@ -1,4 +1,4 @@
-import { navGuardCollapseRoutes, sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
+import { navGuardCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // babel-specific AST primitives + optional-chain handling. covers ref memoization,
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
@@ -14,7 +14,6 @@ import {
   planGuardedClaimTail,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
-  directClaimProbePlan,
   destructureProbePlan,
   planProvenNavGuardCollapse,
   navPlanNeedsGuard,
@@ -93,6 +92,7 @@ import {
   literal,
   nullFirstGuardTest,
   renderClaimProbe,
+  renderResolvedStaticClaim,
   renderDeclinedNavigation,
   renderMethodCall,
   renderGuardedMethodCall,
@@ -964,10 +964,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     substituteGlobal = null, proxyRootClaim = false,
   }) {
     if (!guardObject || !resolvePureGlobalEntry || !getAdapter?.()) return false;
-    // A source seal may own a throw that this guard would swallow. Decline before
-    // rebuilding the receiver; the caller then renders the claim behind its throw probe.
-    if (sealedClaimDisposition(path.node, m => resolvePureGlobalEntry(m.name, path),
-      { scope: path.scope, adapter: getAdapter(), path })?.kind === 'throw') return false;
     // a kept chain-assign VALUE with collapsible pony hops spells through the shared plan
     // (`v = _globalThis.self.window` -> `v = _self.window`) before the test freezes it
     // ... and this test CLONES what it reads, so the render cannot wait for the store's own exit:
@@ -2051,22 +2047,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return { node, decision };
   }
 
-  // Bind the shared erased-read decision to Babel's scope, imports and node dialect. Source
-  // effects and the throw boundary stay in the decision; the emitted node is only marked as
-  // an effect owned by this binding, never inspected to recover those facts.
-  function sealedClaimThrowProbeNode(memberPath, probeNode = null) {
-    const adapter = getAdapter?.();
-    if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
-    const aliasCtx = { scope: memberPath.scope, adapter, path: memberPath };
-    const decision = directClaimProbePlan(
-      probeNode ?? memberPath.node,
-      ({ name }) => resolvePureGlobalEntry(name, memberPath),
-      aliasCtx,
-    );
-    if (!decision) return null;
-    const node = renderClaimProbeNode(decision);
-    mintedEffectNodes.add(node);
-    return { node, decision };
+  // Keep native sequence provenance and source-clone bookkeeping at insertion.
+  function renderResolvedStaticClaimNode(product) {
+    const node = estreeToBabel(renderResolvedStaticClaim(product, {
+      injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+      cloneHost: source => t.cloneWithoutRetiring(source), embed: hostSlot,
+    }));
+    if (product.kind === 'replace' && node.type === 'SequenceExpression') pluginSeqWraps.add(node);
+    return node;
   }
 
   // flush THIS assignment's kept nav-collapse at its own EXIT: every claim resolver over the
@@ -2841,7 +2829,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     probedNavGuardValueNode,
     destructureProbeNode,
     renderWriteHostProbeGuard,
-    sealedClaimThrowProbeNode,
+    renderResolvedStaticClaimNode,
     flushKeptNavCollapseAt,
     flushKeptNavCollapses,
     markThrowingExtraction,
