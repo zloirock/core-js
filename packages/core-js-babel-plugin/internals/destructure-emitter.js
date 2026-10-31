@@ -156,6 +156,8 @@ import {
   planDestructureInstanceSynth,
   planForInitSink,
   forInitSESinkParts,
+  initializerEffectParts,
+  planInitializerCarrier,
   planDiscardedInit,
   planDiscardedInitPlacement,
   consumedInitSink,
@@ -191,7 +193,6 @@ import {
   staticSlotTakesPonyfill,
   directClaimProbeEffects,
   patternBindingName,
-  peelReceiverSequenceTail,
   probedDestructureInitValue,
   realmSelectingHostCollapses,
   realmSelectionCollapseOperand,
@@ -4244,22 +4245,13 @@ export default function createDestructureEmitter({
         }
       }
       if (!objectNode) {
-        // A decided selection uses its running operand here too. A plain SE SEQUENCE spells its
-        // prefix INSIDE the dispatch, as the flat canon does (`_flat((eff(), Array.prototype))`): read once,
-        // in source order, and the residual it replaces discards nothing. the prefix nodes ride LIVE
-        // - their own claims land through them - and a WRITING tail is not this shape, since peeling
-        // it would drop the write
+        // The shared split keeps a store whole and exposes only its stored value.
         const seqInit = unwrapRuntimeExpr(decidedRunningOperand(declarator?.init,
           { scope: prop.scope, adapter, path: prop }));
-        // the EXPRESSIONS this init performs before it yields the receiver: a sequence's leading ones,
-        // and a kept WRITE (whole - it is both the effect and the store of what the nav then reads)
-        const seqParts = seqInit?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(seqInit) : null;
-        const prefixExprs = seqInit?.type === 'AssignmentExpression' && seqInit.operator === '=' ? [seqInit]
-          : seqParts
-            ? unwrapRuntimeExpr(seqParts.tail)?.type === 'AssignmentExpression'
-              ? [...seqParts.prefix, seqParts.tail] : seqParts.prefix
-            : null;
-        const overPrefix = prefixExprs
+        const parts = seqInit?.type === 'AssignmentExpression' && seqInit.operator !== '='
+          ? null : initializerEffectParts(seqInit);
+        const prefixExprs = parts?.prefix;
+        const overPrefix = parts
           ? resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter }) : null;
         // Hoisting this initializer must not cross an earlier declarator's effects.
         function precedingDeclaratorsPure() {
@@ -4280,83 +4272,67 @@ export default function createDestructureEmitter({
           // an EXPORTED host lifts around its export wrapper, as a loop head lifts around the loop
           const liftHost = isForInit || declaration.parentPath?.isExportNamedDeclaration()
             ? declaration.parentPath : declaration;
-          // the value the init yields once its prefix has been taken off it
-          // ... and a lifted WRITE leaves what it STORED: the store's own prefix ran inside the lifted
-          // write, so the slot keeps the stored tail alone - keeping the whole right side would run
-          // that prefix a second time wherever the slot is still read
-          function seqTailValue() {
-            const tail = seqParts?.tail ?? seqInit;
-            const stored = tail.type === 'AssignmentExpression' ? tail.right : null;
-            return stored ? peelReceiverSequenceTail(stored) : tail;
-          }
-          // a FOR-HEAD carries it like any other SOLE reader: its header holds the dispatch, the
-          // prefix inside that argument runs before the read, and that is the order the source has -
-          // one statement fewer than the lift, and the same shape the other leg prints
-          if (residualDies && (patternBindingCount(prop.node.value) === 1 || isForInit
-            || !statementListOf(declaration.parentPath?.node))) {
-            objectNode = t.sequenceExpression([...prefixExprs, overPrefix]);
-            receiverCarriesInit = true;
-            slotDropsAlone = true;
-          } else if (residualDies) {
-            // ... SEVERAL readers of a dying residual cannot each carry the prefix: on a statement host
-            // it lifts ahead of them all and every reader reads the surface directly (`effect(); const m
-            // = _values(_globalThis.Array.prototype); const a = _at(_globalThis.Array.prototype);`)
-            liftDeclaratorInitSE(t, declarator, declaration, { collapse: expr => collapseLiftedStore(expr, prop), adapter });
-            objectNode = overPrefix;
-          } else if (isBodylessStatementSlot(declaration.parentPath?.node, declaration.node)) {
-            // ... and a CONTROL slot gets its statement by BRACING first: the block keeps the effect
-            // conditional, which is what forbids the bare lift, and the pair the flatten route uses
-            // owns that surgery. the lift REPLACES the declaration path, so the anchors are taken
-            // again from the moved pair - reading the stale one is an undefined node downstream
-            liftDeclaratorInitSE(t, declarator, declaration, { adapter });
-            const moved = reanchorBlockWrappedDeclaration(declaration, declarator);
-            if (moved) {
-              declaration = moved.declaration;
-              declarator = moved.declarator.node ?? moved.declarator;
+          const carrier = planInitializerCarrier({
+            readCount: patternBindingCount(prop.node.value),
+            residual: !residualDies,
+            prefix: true,
+            repeatable: true,
+            forInit: isForInit,
+            statement: !!statementListOf(declaration.parentPath?.node),
+            bodyless: isBodylessStatementSlot(declaration.parentPath?.node, declaration.node),
+            liftStatement: !!statementListOf(liftHost.parentPath?.node),
+            consumesPattern: () => claimsConsumeWholePattern(prop, parts.tail),
+            precedersPure: precedingDeclaratorsPure,
+          });
+          switch (carrier) {
+            case 'dispatch':
+              objectNode = t.sequenceExpression([...prefixExprs, overPrefix]);
+              receiverCarriesInit = true;
+              slotDropsAlone = true;
+              break;
+            case 'lift': {
+              // A bodyless slot is braced by the lift; reacquire paths after that move.
+              liftDeclaratorInitSE(t, declarator, declaration, {
+                collapse: residualDies ? expr => collapseLiftedStore(expr, prop) : null, adapter,
+              });
+              const moved = !residualDies && reanchorBlockWrappedDeclaration(declaration, declarator);
+              if (moved) {
+                declaration = moved.declaration;
+                declarator = moved.declarator.node ?? moved.declarator;
+              }
+              objectNode = overPrefix;
+              break;
             }
-            objectNode = overPrefix;
-          } else if (!isForInit && statementListOf(liftHost.parentPath?.node)
-            && !claimsConsumeWholePattern(prop, seqTailValue())) {
-            // ... and a FLAT init whose residual SURVIVES every claim memoizes WHOLE, prefix and store
-            // inside the memo, so the residual and every claim read one `_ref` - the partial-memo canon
-            // both legs print for an opaque init (`const _ref = (eff(), _globalThis); const a = _at(_ref
-            // .Array.prototype); const { ...other } = _ref;`); only a proven built-in receives an alias
-            // hint: a user's object may carry getters even when its keys name constructors. a pattern the claims EMPTY
-            // lifts the prefix instead and reads the surface directly, as the other leg does
-            const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
-            memoizeWholeInit(hostDeclarator, prop.scope, null, resolveObjectName({
-              objectNode: seqTailValue(), scope: prop.scope, adapter, path: prop,
-            }));
-            flatTouchedMultiDecls.add(hostDeclarator.parentPath);
-            noteWholeInitMemoHost(hostDeclarator);
-            declarator = hostDeclarator.node;
-            objectNode = resolveNestedReceiverNode(prop, { allowNavSegments: true, adapter }) ?? overPrefix;
-          } else if (!isForInit && statementListOf(declaration.parentPath?.node) && !precedingDeclaratorsPure()) {
-            // ... and where an EFFECTFUL sibling declarator stands AHEAD of the slot, the prefix may
-            // not hoist over it - the declaration SPLITS at the slot instead: pre-siblings evaluate,
-            // then the prefix, then this declarator with the rest. the split keeps the declarator
-            // only when it is handed back as the slot's own list, and it REPLACES the path, so the
-            // host is read again from the prop that travelled with it
-            const at = declaration.node.declarations.indexOf(declarator);
-            declarator.init = seqTailValue();
-            splitDeclarationAtSlot({
-              declaration,
-              idx: at,
-              sePrefix: prefixExprs,
-              extractedDeclarators: [declarator],
-            });
-            const rehomed = hostDeclarationOf(prop);
-            if (!rehomed?.node) return true;
-            declaration = rehomed;
-            declarator = prop.findParent(pp => pp.isVariableDeclarator())?.node;
-            objectNode = overPrefix;
-          } else if (isForInit) {
-            // a LOOP HEAD hosts no statement of its own: the discarded init stays in the header,
-            // where the emptied residual becomes the `_unused` sink the flatten route prints there,
-            // and every reader spells the surface itself (`for (const m = _values(_g.Array.prototype),
-            // a = _at(_g.Array.prototype), _unused = (eff(), _g);;)`)
-            objectNode = overPrefix;
-            surfaceRespelledHosts.add(declarator);
+            case 'memo': {
+              // Only a proven builtin gives its capture an alias hint; user getters do not.
+              const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
+              memoizeWholeInit(hostDeclarator, prop.scope, null, resolveObjectName({
+                objectNode: parts.tail, scope: prop.scope, adapter, path: prop,
+              }));
+              flatTouchedMultiDecls.add(hostDeclarator.parentPath);
+              noteWholeInitMemoHost(hostDeclarator);
+              declarator = hostDeclarator.node;
+              objectNode = resolveNestedReceiverNode(prop, { allowNavSegments: true, adapter }) ?? overPrefix;
+              break;
+            }
+            case 'split': {
+              // Keep earlier declarators ahead of the prefix, then reacquire the moved slot.
+              const at = declaration.node.declarations.indexOf(declarator);
+              declarator.init = parts.tail;
+              splitDeclarationAtSlot({
+                declaration, idx: at, sePrefix: prefixExprs, extractedDeclarators: [declarator],
+              });
+              const rehomed = hostDeclarationOf(prop);
+              if (!rehomed?.node) return true;
+              declaration = rehomed;
+              declarator = prop.findParent(pp => pp.isVariableDeclarator())?.node;
+              objectNode = overPrefix;
+              break;
+            }
+            case 'residual':
+              // The later header drain retains the discarded initializer in its sink.
+              objectNode = overPrefix;
+              surfaceRespelledHosts.add(declarator);
           }
         }
       }
