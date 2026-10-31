@@ -1,7 +1,13 @@
 // A consumed initializer keeps its effects and observable reads exactly once, in source order.
 // The shared plan borrows those nodes; native bindings own their relocation and insertion.
 import {
-  discardedReceiverEffects, liveDestructureDefault, planDiscardedInit, planForInitSink,
+  consumedInitSink,
+  discardedReceiverEffects,
+  forInitSESinkParts,
+  liveDestructureDefault,
+  planDiscardedInit,
+  planDiscardedInitPlacement,
+  planForInitSink,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -168,5 +174,93 @@ for (const kind of ['instance', 'static', 'global']) {
     }
   });
 }
+
+// Host placement is decided before native rendering: one declared receiver slot can
+// carry a store, several readers need one leading effect group, and loops cannot lift.
+runBoth('effect ownership and placement', 'let held; const result = (effect(), held = Array);', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const effects = unwrapRuntimeExpr(path.node.init).expressions;
+  const before = JSON.stringify(program.node);
+  for (const [facts, expected] of [
+    [{}, 'statements'],
+    [{ carrier: 'receiver' }, 'value'],
+    [{ carrier: null }, 'statements'],
+    [{ forInit: true }, 'value'],
+    [{ forInit: true, readCount: 2 }, 'sink'],
+    [{ carrier: 'receiver', readCount: 2 }, 'statements'],
+    [{ carrier: null, forInit: true }, 'sink'],
+  ]) {
+    const plan = planDiscardedInitPlacement(effects, facts);
+    check(`${ label }/${ JSON.stringify(facts) }`, plan.placement, expected);
+    check(`${ label }/borrowed effects`, plan.effects, effects);
+    check(`${ label }/explicit initializer role`, plan.role, 'initializer');
+  }
+  check(`${ label }/sole plain prefix`, planDiscardedInitPlacement([effects[0]]).placement, 'value');
+  check(`${ label }/nothing to place`, planDiscardedInitPlacement([], { forInit: true, readCount: 2 }).placement, 'none');
+  const ctx = { scope: path.scope, path,
+    adapter: (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' }) };
+  for (const read of [{ readsReceiver: true }, { seCarried: true }]) {
+    checkDeep(`${ label }/owned ${ Object.keys(read)[0] }`, planDiscardedInit(path.node.init, ctx, null, null, [read]),
+      { effects: [], replay: false });
+  }
+  check(`${ label }/unowned effects survive`, planDiscardedInit(path.node.init, ctx, null, null, [{}]).effects.length > 0, true);
+  check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+});
+
+for (const [expression, expected, writes] of [
+  ['held = (effect(), Array)', ['held = (effect(), Array)'], true],
+  ['(effect(), held = Array)', ['effect()', 'held = Array'], true],
+  ['(held = Array, held.prototype)', ['held = Array'], true],
+  ['(held.value = Array, held.other)', ['held.value = Array', 'held'], false],
+  ['held.value = (effect(), Array)', ['held.value = (effect(), Array)'], true],
+  ['(effect(), Array.prototype)', ['effect()', 'Array'], false],
+  ['(effect(), holder[key()])', ['effect()', 'holder[key()]'], false],
+]) {
+  const source = `let held; const result = ${ expression };`;
+  runBoth(`consumed navigation/${ expression }`, source, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const before = JSON.stringify(program.node);
+    const plan = consumedInitSink(path.node.init);
+    checkDeep(`${ label }/remaining operands`, plan.effects.map(node => source.slice(node.start, node.end)), expected);
+    check(`${ label }/whole write`, plan.writes, writes);
+    checkDeep(`${ label }/repeatable query`, consumedInitSink(path.node.init), plan);
+    check(`${ label }/source is unchanged`, JSON.stringify(program.node), before);
+  });
+}
+
+for (const [pattern, expression, expected] of [
+  ['{ from }', '(effect(), Array)', ['effect()', 'Array']],
+  ['[{ from }]', '[(effect(), Array)]', ['effect()', 'Array']],
+  ['[[{ from }]]', '(outer(), [[(inner(), Array)]])', ['outer()', 'inner()', 'Array']],
+  ['{ from }', 'Array', null],
+]) {
+  const source = `const ${ pattern } = ${ expression };`;
+  runBoth(`header source parts/${ expression }`, source, (parser, program, label) => {
+    const declarator = parser.pickPath(program, 'VariableDeclarator').node;
+    const before = JSON.stringify(declarator);
+    const parts = forInitSESinkParts(declarator, true);
+    checkDeep(`${ label }/source parts`, parts ? [...parts.prefix, parts.tail].map(node => source.slice(node.start, node.end)) : null, expected);
+    check(`${ label }/ordinary host`, forInitSESinkParts(declarator, false), null);
+    check(`${ label }/not a consuming query`, JSON.stringify(declarator), before);
+  });
+}
+
+runBoth('consumed header roles', 'let held; const result = held = (effect(), Array);', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, path, adapter, resolvePure };
+  const source = JSON.stringify(path.node);
+  for (const reads of [[{ initRidesValue: true }], [{ readsReceiver: true }], [{ readsReceiver: true, sinkKeep: true }]]) {
+    check(`${ label }/owned initializer`, planForInitSink(path.node.init, ctx, { reads }).placement, 'none');
+  }
+  const read = { chain: [{}], sinkKeep: true };
+  const sole = planForInitSink(path.node.init, ctx, { reads: [read] });
+  check(`${ label }/sole write carrier`, sole.placement, 'value');
+  check(`${ label }/write identity`, sole.effects[0], path.node.init);
+  const many = planForInitSink(path.node.init, ctx, { reads: [read, read] });
+  check(`${ label }/multiple readers`, many.placement, 'sink');
+  check(`${ label }/one store`, many.effects.length, 1);
+  check(`${ label }/query leaves source intact`, JSON.stringify(path.node), source);
+});
 
 finish();

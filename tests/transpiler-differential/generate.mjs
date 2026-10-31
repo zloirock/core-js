@@ -21348,6 +21348,39 @@ function * generateLogicalSlotPatches() {
   })()`), strip: false };
 }
 
+// Initializer effects must observe the old binding, and the next source sibling the new
+// one. Stores use a setter as well as a local so keeping their value cannot hide a replay.
+function * generateConsumedInitializerPlacement() {
+  const patterns = [
+    ['nested', '{ Array: { prototype: { at: method } } }', 'method.call([4, 9], -1)'],
+    ['flat', '{ from: method, of: other }', 'method([4, 9])[1]'],
+  ];
+  for (const [shape, pattern, observe] of patterns) {
+    const receiver = shape === 'nested' ? 'globalThis' : 'Array';
+    const prefix = `(log.push(["init", typeof method, Array.from([1])[0]]), ${ receiver })`;
+    for (const [kind, init] of [['prefix', prefix], ['binding', `held = ${ prefix }`], ['member', `box.value = ${ prefix }`]]) {
+      for (const host of ['decl', 'bodyless', 'for-init']) {
+        const declaration = `var before = log.push("before"), ${ pattern } = ${ init }, after = log.push(["after", typeof method]);`;
+        const body = host === 'for-init'
+          ? `for (${ declaration };) { result = ${ observe }; break; }`
+          : `${ host === 'bodyless' ? 'if (log.length === 0) ' : '' }${ declaration } result = ${ observe };`;
+        const expr = '(() => { let held, result; const box = { set value(value) { held = value; log.push(["store", typeof method]); } };'
+          + ` ${ body } return [result, before, after, ${ kind === 'prefix' ? 'true' : `typeof held === '${ shape === 'nested' ? 'object' : 'function' }'` }]; })()`;
+        yield { ...snippet(`consumed-initializer-placement/${ shape }-${ kind }-${ host }`, expr), strip: true };
+      }
+    }
+  }
+  for (const [shape, first] of [
+    ['static-kept', '{ from: first, custom } = Array'],
+    ['instance-kept', '{ at: first, custom } = [4, 9]'],
+    ['consumed', '{ from: first, of: second } = Array'],
+  ]) {
+    const expr = `(() => { for (var ${ first }, middle = log.push("middle"),`
+      + ' { from: last } = (log.push(["last", typeof first]), Array);;) return [typeof first, typeof last, middle]; })()';
+    yield { ...snippet(`consumed-initializer-placement/source-owner-${ shape }`, expr), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21763,4 +21796,5 @@ export function * generate() {
   yield * generateNestedExtractionReceivers();
   yield * generateTrustedBindingReads();
   yield * generateLogicalSlotPatches();
+  yield * generateConsumedInitializerPlacement();
 }
