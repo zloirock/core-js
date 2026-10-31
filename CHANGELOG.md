@@ -36,6 +36,7 @@
 - Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
 - Fixed `Number.prototype.toExponential` polyfill accuracy with decimals close to a rounding half, values next to powers of ten and big fraction digits - it generates exact digits now, for some decimals it's a regression since 3.49.0
 - Added missed detection of imprecise native `Math.log2` on powers of two in [V8 ~ Chrome < 41](https://issues.chromium.org/issues/42206893), [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257) and [Rhino < 1.9.2](https://github.com/mozilla/rhino/pull/2522), the polyfill is also exact on them now
+- Added missed detection of imprecise native `Math.log10` on powers of ten in [V8 ~ Chrome < 41](https://issues.chromium.org/issues/42206893), the polyfill is also exact on them now
 - Entries fixes:
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
@@ -56,6 +57,7 @@
   - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
   - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
   - `Math.log2` marked as properly supported from Chrome 41, FF48 and Rhino 1.9.2 because of imprecision on powers of two (see above)
+  - `Math.log10` marked as properly supported from Chrome 41 because of imprecision on powers of ten (see above)
   - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 because of the resizable buffer and `read` count bugs (see above)
   - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0

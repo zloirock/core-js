@@ -15,12 +15,21 @@ QUnit.test('Math.log10', assert => {
   assert.same(log10(-0), -Infinity);
   assert.same(log10(1), 0);
   assert.same(log10(Infinity), Infinity);
-  assert.closeTo(log10(0.1), -1, 1e-11);
+  assert.same(log10(0.1), -1);
   assert.closeTo(log10(0.5), -0.3010299956639812, 1e-11);
   assert.closeTo(log10(1.5), 0.17609125905568124, 1e-11);
   assert.closeTo(log10(5), 0.6989700043360189, 1e-11);
   assert.closeTo(log10(50), 1.6989700043360187, 1e-11);
-  assert.closeTo(log10(1000), 3, 1e-11);
+  assert.same(log10(1000), 3);
+  // exact on powers of ten, unlike `log(x) * LOG10E`
+  assert.same(log10(1e15), 15);
+  assert.same(log10(1e-61), -61);
+  assert.same(log10(1e308), 308);
+  assert.same(log10(1e-307), -307);
+  // strictly increasing next to a power of ten
+  assert.true(log10(1e15 + 1e3) > 15);
+  // subnormals are too far from powers of ten for an integer logarithm
+  assert.true(log10(1e-312) < -312);
 
   const checker = createConversionChecker(0.5);
   assert.closeTo(log10(checker), -0.3010299956639812, 1e-11);

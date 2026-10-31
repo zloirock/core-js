@@ -1023,7 +1023,7 @@ export const data = {
     safari: '9.0',
   },
   'es.math.log10': {
-    chrome: '38',
+    chrome: '41',
     edge: '12',
     firefox: '25',
     hermes: '0.1',

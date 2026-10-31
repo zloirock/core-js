@@ -995,7 +995,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Math.imul(0xFFFFFFFF, 5) === -5 && Math.imul.length === 2;
   },
   'es.math.log10': function () {
-    return Math.log10;
+    // V8 ~ Chrome < 41 bug: https://issues.chromium.org/issues/42206893
+    return Math.log10(1e15) === 15;
   },
   'es.math.log1p': function () {
     return Math.log1p;
