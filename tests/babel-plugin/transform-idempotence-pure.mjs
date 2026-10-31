@@ -18,6 +18,10 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  ['live residual after a guarded prefix',
+    'export const { Map: { missing = "ab".at(-1) } } = (before(), globalThis.window?.self);'],
+  ['live residual after a stored prefix',
+    'let held; export const { Map: { missing } } = (held = (before(), globalThis)); use(held);'],
   ['later assignment before a guarded instance read',
     'let realm; realm = globalThis.window; export const value = realm?.window?.self.items.at(-1);'],
   ['guarded assignment before a receiver capture',

@@ -30,6 +30,7 @@ import {
   renderDestructureHeadCapture,
   renderMemoReadTarget,
   renderForInitSink,
+  renderResidualAnchor,
 } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { firstSpelledOffset, ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -2599,18 +2600,15 @@ export default function createDestructureEmitter({
     // an UNDEFINABLE probe nav init: the anchored read must ride the guard-value spelling
     // (`(null == _globalThis.window ? void 0 : _self).Math`) so the destructure still throws
     // where the source does; the always-defined ctor / receiver bindings below erase that
-    // throw. the swap is DEFERRED to program exit: this emitter mutates the AST in place, and
+    // throw. the swap is DEFERRED to host exit (program exit is a backstop): this emitter mutates the AST in place, and
     // an early conditional init would read as a diverging receiver to the per-prop channels
     // still due to visit the pattern (an SE-key extraction declined on it) - the defined-nav
     // render below stays resolvable through the traversal, the flush retypes it in place.
     // bails to the plain defined-nav render when the shared plan cannot guard this nav shape
-    const emitted = plan.anchorPure
-      ? t.cloneNode(injectPureImport(plan.anchorPure.entry, plan.anchorPure.hintName))
-      : t.memberExpression(
-        resolveGlobalPure(plan.receiver)
-          ? t.cloneNode(injectPureImport(resolveGlobalPure(plan.receiver).entry, resolveGlobalPure(plan.receiver).hintName))
-          : t.identifier(plan.receiver),
-        t.identifier(plan.anchor));
+    const emitted = estreeToBabel(renderResidualAnchor(plan, {
+      injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+      embed: node => hostSlot(t.cloneNode(node)),
+    }));
     if (plan.probedNav && initNode && anchorPath) {
       const navNode = peelNestedSequenceExpressions(initNode).tail ?? initNode;
       const guarded = destructureProbeNode?.(navNode, anchorPath);
@@ -2628,7 +2626,9 @@ export default function createDestructureEmitter({
     for (let i = pendingProbedAnchorSwaps.length - 1; i >= 0; i--) {
       const swap = pendingProbedAnchorSwaps[i];
       if (hostNode && swap.hostNode !== hostNode) continue;
-      const swapped = t.memberExpression(swap.guarded, t.identifier(swap.anchor));
+      const swapped = estreeToBabel(renderResidualAnchor({ anchor: swap.anchor, guarded: swap.guarded }, {
+        embed: hostSlot,
+      }));
       for (const key of Object.keys(swap.emitted)) delete swap.emitted[key];
       Object.assign(swap.emitted, swapped);
       pendingProbedAnchorSwaps.splice(i, 1);

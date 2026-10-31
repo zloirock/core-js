@@ -1028,16 +1028,6 @@ export function isMintedOrProxyName(name, injectorState) {
   return POSSIBLE_GLOBAL_OBJECTS.has(name) || mintedProxyGlobalName(name, injectorState) !== null;
 }
 
-export function reanchoredInit(declarator, info, replacement) {
-  const value = replacement ?? cloneNode(info.tail);
-  if (info.shape === 'guard') return value;
-  if (info.shape === 'ident') return replacement ?? declarator.init;
-  if (info.shape === 'seq') {
-    return sequenceExpression([...info.init.expressions.slice(0, -1).map(cloneNode), value]);
-  }
-  return sequenceExpression([info.init, value]);
-}
-
 // a ctor-hop job (pattern-valued, the anchored render) stands down when a LIVE sibling
 // prop survives in its pattern: the residual must keep reading the proxy root whole
 // (`{ Iterator: { a }, navigator: nav } = _globalThis` stays - babel's boundary); a
@@ -1427,27 +1417,6 @@ export function registerInstanceSynthSlot({
   ctx.skippedNodes.add(receiver);
   pending.slots.set(choice.key, { helper: ctx.injectPureImport(choice.entry, choice.hintName), receiver });
   return true;
-}
-
-// the anchoring bar the slot DEFAULTS set: a re-anchored render spells a default verbatim, so
-// one that would need its own injection defers the whole anchor. an INERT default (a literal,
-// an empty object / array) needs none and lets the anchor through (`{ [S]: d = null }`)
-const INERT_DEFAULT_TYPES = new Set(['Literal', 'TemplateLiteral', 'Identifier']);
-export function patternHasPolyfillableDefault(node) {
-  while (node?.type === 'RestElement' || node?.type === 'SpreadElement') node = node.argument;
-  switch (node?.type) {
-    case 'AssignmentPattern': {
-      const value = peelTransparentExpr(node.right);
-      const inert = INERT_DEFAULT_TYPES.has(value?.type)
-        || ((value?.type === 'ObjectExpression' && !value.properties.length)
-          || (value?.type === 'ArrayExpression' && !value.elements.length));
-      return !inert || patternHasPolyfillableDefault(node.left);
-    }
-    case 'ArrayPattern': return node.elements.some(patternHasPolyfillableDefault);
-    case 'ObjectPattern': return node.properties.some(prop => patternHasPolyfillableDefault(
-      prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value));
-    default: return false;
-  }
 }
 
 // a plain SE PREFIX ahead of a HOP nav, with the pattern consuming the declarator WHOLE: the
