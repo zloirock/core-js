@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-object-from-entries)
 
 ## Modules
-[`es.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.from-entries.js).
+[`es.object.from-entries`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.from-entries.js).
 
 ## Built-ins signatures
 ```ts

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-relative-indexing-method)
 
 ## Modules
-[`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js) and [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js).
+[`es.array.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.at.js), [`es.string.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.at.js) and [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.at.js).
 
 ## Built-ins signatures
 ```ts

@@ -593,8 +593,6 @@ const base = {
   'promise/valid-params': ERROR,
 
   // unicorn
-  // prefer better DOM traversal APIs
-  'unicorn/better-dom-traversing': ERROR,
   // enforce a specific parameter name in `catch` clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
   // enforce consistent assertion style with `node:assert`

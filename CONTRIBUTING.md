@@ -208,7 +208,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare bundle-package test-publint
   ```
-- Checks for V8 protectors invalidation, unused modules, outdated `core-js-compat` data mapping and outdated dependencies (they only print reports, the last two require network access):
+- Checks for V8 protectors invalidation, unused modules, outdated `@core-js/compat` data mapping and outdated dependencies (they only print reports, the last two require network access):
   ```sh
   npx run-s prepare check
   ```

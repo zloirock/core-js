@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-promise-try)
 
 ## Modules
-[`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js).
+[`es.promise.try`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.promise.try.js).
 
 ## Built-ins signatures
 ```ts

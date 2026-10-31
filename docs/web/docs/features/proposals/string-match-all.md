@@ -2,7 +2,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-matchall)
 
 ## Modules
-[`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js).
+[`es.string.match-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.match-all.js).
 
 ## Built-ins signatures
 ```ts

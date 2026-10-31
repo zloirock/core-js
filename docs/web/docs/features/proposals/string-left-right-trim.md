@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-left-right-trim)
 
 ## Modules
-[`es.string.trim-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-end.js) and [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-start.js).
+[`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-end.js) and [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-start.js).
 
 ## Built-ins signatures
 ```ts

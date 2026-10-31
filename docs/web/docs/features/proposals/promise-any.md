@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-promise-any)
 
 ## Modules
-[`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js) and [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js).
+[`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.constructor.js) and [`es.promise.any`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.promise.any.js).
 
 ## Built-ins signatures
 ```ts

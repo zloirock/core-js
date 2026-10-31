@@ -941,12 +941,27 @@ QUnit.module('structuredClone', () => {
           return scenario === 'shared' ? 1 : function () { /* uncloneable */ };
         } });
         const transfer = scenario === 'detached buffer' ? [buffer, port1] : [port1];
-        if (scenario === 'uncloneable' || scenario === 'getter') transfer.push(buffer);
-        if (scenario === 'invalid') transfer.push({});
-        if (scenario === 'duplicate') transfer.push(port1);
-        if (scenario === 'duplicate buffer') transfer.push(buffer, buffer);
-        if (scenario === 'view') transfer.push(new Uint8Array(1));
-        if (scenario === 'shared') transfer.push(shared);
+        switch (scenario) {
+          case 'uncloneable':
+          case 'getter':
+            transfer.push(buffer);
+            break;
+          case 'invalid':
+            transfer.push({});
+            break;
+          case 'duplicate':
+            transfer.push(port1);
+            break;
+          case 'duplicate buffer':
+            transfer.push(buffer, buffer);
+            break;
+          case 'view':
+            transfer.push(new Uint8Array(1));
+            break;
+          case 'shared':
+            transfer.push(shared);
+            break;
+        }
         let copy;
         try {
           assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter'
@@ -1079,7 +1094,7 @@ QUnit.module('structuredClone', () => {
     if (!structuredClone.sham && typeof MessageChannel == 'function') scenarios.push('mixed-first', 'mixed-last');
     // Native engines can reject detached resources before the transfer phase; test partial order in the fallback.
     if (structuredClone.sham) scenarios.push('detached-last', 'closed-first', 'closed-last');
-    for (const scenario of scenarios) tasks.push(Promise.resolve().then(create).then(source => {
+    for (const scenario of scenarios) tasks.push(Promise.try(create).then(source => {
       let copy;
       try {
         switch (scenario) {

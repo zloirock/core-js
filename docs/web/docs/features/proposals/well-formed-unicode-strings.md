@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-is-usv-string)
 
 ## Modules
-[`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.is-well-formed.js) and [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.to-well-formed.js).
+[`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.is-well-formed.js) and [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.to-well-formed.js).
 
 ## Built-ins signatures
 ```ts

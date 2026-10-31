@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-regex-escaping)
 
 ## Modules
-[`es.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.escape.js).
+[`es.regexp.escape`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.escape.js).
 
 ## Built-ins signatures
 ```ts

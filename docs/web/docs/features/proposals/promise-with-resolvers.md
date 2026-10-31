@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-promise-with-resolvers)
 
 ## Modules
-[`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
+[`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.promise.with-resolvers.js).
 
 ## Built-ins signatures
 ```ts

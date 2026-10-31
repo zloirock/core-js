@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-regexp-dotall-flag)
 
 ## Modules
-[`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.exec`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.exec.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.flags.js).
+[`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.exec`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.exec.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.flags.js).
 
 ## Built-ins signatures
 ```ts
