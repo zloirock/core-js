@@ -997,7 +997,6 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '48',
-    rhino: '1.7.13',
     safari: '10',
   },
   // TODO: recheck
@@ -2159,6 +2158,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.every': {
@@ -2252,6 +2252,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.last-index-of': {
@@ -2330,7 +2331,6 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '41',
-    rhino: '1.7.13',
     safari: '10.0',
   },
   'es.typed-array.subarray': {
@@ -2376,7 +2376,7 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
-    rhino: '1.7.13',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   // TODO: recheck
