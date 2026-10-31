@@ -39,13 +39,14 @@ import {
   destructureResidualFirst,
   residualPrecedesExtractions,
   sentinelMemoInitShape,
+  residualAnchorSurface,
+  planResidualAnchorHop,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planMemoReadTarget } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   decidedRunningPart,
   proxyGlobalRootName,
   resolveObjectName,
-  realmLevelNamesCtor,
   isCallShape,
   isPureNavReceiver,
   keptWriteRidesValue,
@@ -68,20 +69,17 @@ import {
   patternDead,
   patternFullyConsumed,
   patternSlotTarget,
+  propertyKeyName,
   peelNestedSequenceExpressions,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   pruneEmptiedHopProps,
-  receiverCarriesLiveOptional,
   statementListOf,
   unwrapRuntimeExpr,
   unwrapParens,
   walkAstNodes,
-  allProxySelectingInit,
-  firstProxyBranch,
-  invocationNode,
-  proxySurfaceIdentifier,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { mintedProxyGlobalName, replaceNodeInTree } from './emit-shared.js';
 import {
   assignmentExpression,
@@ -103,6 +101,8 @@ import {
   renderDestructureDispatch,
   renderDestructurePrefix,
   renderForInitSink,
+  renderResidualAnchor,
+  renderResidualAnchorInit,
 } from '@core-js/polyfill-provider/render';
 import {
   anchorAssignmentResidual,
@@ -142,12 +142,10 @@ import {
   memoJobBindingTarget,
   orderDeclaratorJobs,
   orderResidualDeclarators,
-  patternHasPolyfillableDefault,
   probeEffectNodes,
   probeResidualEffects,
   jobBindingTarget,
   propBindingTarget,
-  reanchoredInit,
   renderDiscardedInitProbe,
   renderSealedNavProbe,
   residualKeepsSibling,
@@ -906,21 +904,34 @@ export default function createDestructureDrains(ctx) {
 
   // the ctor-pattern re-anchor arm of the memo declarator, extracted for its size
   function emitCtorPatternReanchor({ hostNode, declarator, soleJob, rescues, statements, exported }) {
-    // a HOP over a GUARD-shaped init reads off the guarded VALUE, never off a ctor binding: the
-    // ponyfill would answer where the source's own probe yields undefined and its read throws
-    // (`{ Map: { customY } } = (globalThis.window?.self)` -> `{ customY } = (guard).Map`)
-    const guardInfo = surfaceInitInfo(declarator);
-    if (guardInfo?.shape === 'guard') {
-      const guardRead = memberExpression(cloneNode(guardInfo.tail), cloneNode(soleJob.prop.key),
-        { computed: soleJob.prop.computed });
-      statements.push(exportDeclaration(
-        variableDeclaration(hostNode.kind, [variableDeclarator(soleJob.prop.value, guardRead)]), exported));
-      markSubtreeSkipped(skippedNodes, soleJob.prop.key);
-      return 'consumed';
-    }
-    const id = injectPureImport(soleJob.entry, soleJob.hintName);
-    const init = rescues.length
-      ? sequenceExpression([...rescues, identifier(id)]) : identifier(id);
+    const guardInfo = surfaceInitInfo(declarator, soleJob.metaPath);
+    const guarded = guardInfo?.shape === 'guard' ? guardInfo.tail : null;
+    const anchor = guarded && planResidualAnchorHop({
+      pattern: declarator.id,
+      receiver: 'globalThis',
+      adapter,
+      path: soleJob.metaPath,
+      resolveGlobalPolyfill,
+      resolvePure,
+      isDisabledProp: isDisabled,
+      guarded: true,
+      guardedValue: guarded,
+      wholeDeclarator: true,
+    });
+    const init = renderResidualAnchor({
+      anchor: anchor?.key,
+      anchorNode: soleJob.prop.key,
+      computed: soleJob.prop.computed,
+      anchorPure: soleJob,
+      narrow: anchor?.narrow,
+      guarded,
+      prefix: anchor?.narrow ? anchor.prefix : rescues,
+    }, {
+      injectImport: injectPureImport,
+      mintRef: () => injector.generateDeclaredRef(soleJob.metaPath),
+      // A rescued prefix still owns queued nested hosts; their later drain must reach it.
+      embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
+    });
     statements.push(exportDeclaration(variableDeclaration(hostNode.kind,
       [variableDeclarator(soleJob.prop.value, init)]), exported));
     markSubtreeSkipped(skippedNodes, soleJob.prop.key);
@@ -1990,149 +2001,55 @@ export default function createDestructureDrains(ctx) {
     body.splice(at, 1, ...anchorLeadingStatement({ statements, hostNode, statementNode: body[at], lifted }));
   }
 
-  // the init's SURFACE view: a bare identifier, a sequence whose tail reads the surface,
-  // or a kept write storing it - each re-anchors by swapping only the VALUE slot
-  // `metaPath`, when the caller has one: a CALL tail the inline canon proves to yield a proxy global
-  // reads as that global's pure binding - dropped where it runs no effect, kept ahead of the value
-  // as a sequence prefix where it does (the other leg lifts it as a statement)
+  // Bind the common surface query to this file's scope and import registry. No import or
+  // source edit occurs until a residual hop has accepted the result.
   function surfaceInitInfo(declarator, metaPath = null) {
-    let init = peelTransparentExpr(declarator.init);
-    // a CHAIN wrapper the collapse EMPTIED is a husk for THIS question: the substitution took its
-    // `?.` with it, so the surface the init names is the one its inner names
-    // (`({ Array: { k } } = globalThis?.globalThis)` holds `(_globalThis)` by now). asking the husk
-    // answered "not a surface" and left the sole hop in the pattern, where the other leg re-anchors
-    // it. the peel stays HERE and not in `peelDeadChainMarker`: that one answers whether a `?.` is
-    // dead, and its callers keep the wrapper wherever it cannot - measured, moving it there moves
-    // 254 fixtures
-    if (init?.type === 'ChainExpression' && !receiverCarriesLiveOptional(init.expression)) {
-      init = peelTransparentExpr(init.expression);
-    }
-    let tail = init;
-    let shape = 'ident';
-    if (tail?.type === 'SequenceExpression') {
-      shape = 'seq';
-      tail = peelTransparentExpr(tail.expressions.at(-1));
-    }
-    if (tail?.type === 'AssignmentExpression') {
-      shape = shape === 'seq' ? null : 'assign';
-      tail = peelTransparentExpr(tail.right);
-      // a stored value with a prefix of its own reads the surface in its tail: the whole write
-      // replays ahead of the re-read (`(kw = (eff(), _globalThis), _globalThis.Object)`)
-      if (tail?.type === 'SequenceExpression') tail = peelTransparentExpr(tail.expressions.at(-1));
-    }
-    // an ALL-proxy SELECTING tail names the same surface on every live branch, so the
-    // selection drops with the re-anchor (`c ? globalThis : self` -> `_globalThis.Array`)
-    if ((tail?.type === 'ConditionalExpression' || tail?.type === 'LogicalExpression')
-      && allProxySelectingInit(tail, { adapter, injectorState })) tail = firstProxyBranch(tail);
-    // a GUARD-shaped tail (the probe render) yields the surface its ALTERNATE names, and the
-    // residual reads the hop off the WHOLE guard - the source's own read, undefined where the
-    // probe is (`(null == _globalThis.window ? void 0 : _self).Object`)
-    const guarded = shape === 'ident' && tail?.type === 'ConditionalExpression'
-      && tail.consequent?.type === 'UnaryExpression' && tail.consequent.operator === 'void'
-      && !!proxySurfaceIdentifier(tail.alternate, { adapter, injectorState });
-    if (guarded) return { init, tail, shape: 'guard' };
-    if (shape && metaPath && invocationNode(tail)) {
-      const dropped = provenRealmCallRoot(tail, metaPath, adapter);
-      const proven = dropped ?? provenRealmCallRoot(tail, metaPath, adapter, { allowEffects: true });
-      const pure = proven && bareProxyGlobalPure(proven, metaPath, { adapter, resolveGlobalPolyfill });
-      if (pure) {
-        const prefix = [...shape === 'seq' ? init.expressions.slice(0, -1) : [], ...dropped ? [] : [tail]];
-        return {
-          init: prefix.length ? sequenceExpression([...prefix, tail]) : init,
-          tail: identifier(injectPureImport(pure.entry, pure.hintName)),
-          shape: prefix.length ? 'seq' : 'ident',
-        };
-      }
-    }
-    if (!shape || !proxySurfaceIdentifier(tail, { adapter, injectorState })) return null;
-    return { init, tail, shape };
+    return residualAnchorSurface(declarator.init, {
+      adapter, injectorState, path: metaPath, resolveGlobalPolyfill,
+    });
   }
 
-  // a residual whose SOLE prop is a ctor hop over the surface re-anchors on the pure ctor
-  // (`{ Promise: { customZ } } = _globalThis` -> `{ customZ } = _Promise`); pristine proxy
-  // KEYS peel first (`{ globalThis: { Map: { g } } }` anchors at Map). a sibling key at the
-  // outer level keeps the proxy-root residual (the boundary babel holds)
+  // Apply common hop decisions to the live residual. The drain owns source nodes and
+  // detached clones; constructor/member admission and effect spelling belong to the provider.
   function reanchorSoleCtorHopResidual(declarator,
     { forceMutatedHop = false, wholeDeclarator = false, metaPath = null, hopKeyName = null } = {}) {
     const info = surfaceInitInfo(declarator, metaPath);
     if (!info) return false;
     let changed = false;
     for (;;) {
-      const pattern = declarator.id;
-      if (pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1) return changed;
-      const [hop] = pattern.properties;
-      // a slot DEFAULT on the hop is dead for a step that navigates the same surface - the
-      // pattern under it is what binds (`{ self: { a } = {} }` anchors like `{ self: { a } }`)
-      const hopPattern = patternSlotTarget(hop.value);
-      if (hop.type !== 'Property' || hopPattern?.type !== 'ObjectPattern' || !hopPattern.properties.length
-        || hopPattern.properties.some(item => item.type === 'RestElement')) {
-        return changed;
-      }
-      // a `core-js-disable` mark on the hop or a leaf keeps the residual raw.
-      // a polyfillable default RIDES the re-anchor at any depth: this render re-homes the pattern by
-      // mutating it, so every default value stays the live node it was and its own claim renders in
-      // place - the shared plan takes the same view, and the other binding, whose render CLONES,
-      // rescues those subtrees from its skip seeding instead
-      if (isDisabled?.(hop) || hopPattern.properties.some(item => isDisabled?.(item))) return changed;
-      const key = hop.computed ? peelTransparentExpr(hop.key) : hop.key;
-      const keyName = hop.computed
-        ? (key?.type === 'Literal' && typeof key.value === 'string' ? key.value : hopKeyName)
-        : key?.name ?? (typeof key?.value === 'string' ? key.value : null);
-      if (typeof keyName !== 'string') return changed;
-      // a possible-global HOP over a guarded value navigates the same surface, so it drops with
-      // the guard standing - the ctor-hop arm below is the one the guard shape serves
-      if (POSSIBLE_GLOBAL_OBJECTS.has(keyName) && info.shape !== 'guard') {
-        if (!isPristineProxyGlobal(adapter, keyName, metaPath && { node: hop, path: metaPath })) return changed;
-        declarator.id = hopPattern;
-        // the flatten rewrote the pattern, so the init re-emits as the surface it resolved to: a
-        // TS assertion about the SOURCE spelling asserts nothing about that
-        // (`((eff(), globalThis) as any)` -> `(eff(), _globalThis)`)
+      const hop = planResidualAnchorHop({
+        pattern: declarator.id, receiver: 'globalThis', adapter, path: metaPath, resolveGlobalPolyfill,
+        keyName: prop => propertyKeyName(prop) ?? hopKeyName, isDisabledProp: isDisabled,
+        guarded: info.shape === 'guard', guardedValue: info.shape === 'guard' ? info.tail : null,
+        resolvePure, forceMutatedHop, wholeDeclarator,
+        isConsumedProp: prop => prop.value?.type === 'Identifier' && (injectorState.isOwnPassUnusedName(prop.value.name)
+          || metaPath && sentinelAlreadyProcessed(metaPath, { node: prop, injector: injectorState, adapter })),
+      });
+      if (!hop) return changed;
+      declarator.id = hop.pattern;
+      if (hop.kind === 'proxy') {
         if (info.init !== declarator.init) declarator.init = info.init;
-        // a kept-write init re-reads the surface AFTER the write (`(q = _globalThis,
-        // _globalThis)`); ident / seq spellings already read it
         if (info.shape === 'assign') {
-          declarator.init = reanchoredInit(declarator, info, null);
-          // the re-read is CLONED, and a flatten running DURING the walk clones a root the
-          // substitution has not reached yet - it swaps here, as every detached copy does
-          if (metaPath) {
-            declarator.init = substituteProxyRootsInClone(declarator.init, metaPath,
-              { adapter, resolveGlobalPolyfill, injectPureImport });
-          }
+          declarator.init = renderResidualAnchorInit(declarator.init, info, null, { injectImport: injectPureImport });
+          // A detached clone made before traversal still needs native root substitution.
+          if (metaPath) declarator.init = substituteProxyRootsInClone(declarator.init, metaPath,
+            { adapter, resolveGlobalPolyfill, injectPureImport });
         }
         changed = true;
         continue;
       }
-      // ... and a ctor hop re-anchors only where its key's level names the constructor (the shared
-      // ctor-key-anchor gate): a user global is an unknown slot, where the hop's default fires
-      // (`{ self: { A: { groupBy } = Map } }` keeps `= Map`), and so is a built-in no target is
-      // promised (`{ WeakRef: { of } = Array }`)
-      if (!realmLevelNamesCtor(keyName, hop.value, adapter)) return changed;
-      // a MUTATED slot holds the user's shim: no static behind it resolves, so the residual
-      // re-anchors on the hop's own member READ (`{ groupBy } = _globalThis.Map`) - it
-      // flattens whether or not the extraction consumed anything inside
-      // a residual an extraction LEFT BEHIND keeps its nested spelling on a mutated hop
-      // (babel anchors only what it consumed); a whole-declarator mutated hop flattens,
-      // and only the drain's own note reaches here with that proof
-      const mutatedHop = adapter.isMutatedStatic('globalThis', keyName, metaPath && { node: hop, path: metaPath });
-      if (mutatedHop && !forceMutatedHop) return changed;
-      // under a GUARD the hop is read off the guarded VALUE, never off a ctor binding: the
-      // ponyfill would answer where the source's probe yields undefined
-      const pure = mutatedHop || info.shape === 'guard' ? null : resolveGlobalPolyfill(keyName);
-      // the member-read anchor serves a hop the extraction consumed INSIDE (a sentinel
-      // rename or a rest exclusion prove it); an untouched hop - a duplicate-key bail's
-      // survivor included - keeps the raw residual (babel anchors only what it consumed)
-      // ... and a POLYFILLABLE DEFAULT on the hop's own prop is that proof too: its claim
-      // rendered in place, so the residual is no longer the raw one the source wrote
-      if (!mutatedHop && !pure && !wholeDeclarator && !patternHasPolyfillableDefault(hopPattern)
-        && hopPattern.properties.every(item => !(item.type === 'RestElement'
-          || (item.type === 'Property' && item.value?.type === 'Identifier'
-            && item.value.name?.startsWith('_unused'))))) return changed;
-      declarator.id = hopPattern;
-      // no pure ctor: the residual re-anchors on the hop's member READ off the surface
-      // (`{ from: _unused, ...arrRest } = _globalThis.Array` - babel's shape)
-      declarator.init = reanchoredInit(declarator, info, pure
-        ? identifier(injectPureImport(pure.entry, pure.hintName))
-        : memberFromKeyName(cloneNode(info.tail), keyName));
+      const value = renderResidualAnchor({
+        anchor: hop.key,
+        anchorPure: hop.pure,
+        receiverNode: info.pure ? null : info.tail,
+        receiverPure: info.pure,
+        narrow: hop.narrow,
+        prefix: hop.prefix,
+      }, {
+        injectImport: injectPureImport,
+        mintRef: () => injector.generateDeclaredRef(metaPath),
+      });
+      declarator.init = renderResidualAnchorInit(declarator.init, info, value, { injectImport: injectPureImport });
       return true;
     }
   }
