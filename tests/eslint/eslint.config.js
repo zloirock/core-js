@@ -696,8 +696,6 @@ const base = {
   'unicorn/prefer-blob-reading-methods': ERROR,
   // prefer class field declarations over this assignments in constructors
   'unicorn/prefer-class-fields': ERROR,
-  // prefer using `Element#classList.toggle()` to toggle class names
-  'unicorn/prefer-classlist-toggle': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': ERROR,
   // prefer default parameters over reassignment
