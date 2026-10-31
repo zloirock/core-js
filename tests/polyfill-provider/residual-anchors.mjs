@@ -1,6 +1,7 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planResidualAnchorHop, residualAnchorSurface } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { buildNestedParamSynthPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { markRenderedStoredValue, peelTransparentExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { cloneNode, identifier, renderResidualAnchor, renderResidualAnchorInit } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
@@ -162,6 +163,49 @@ runBoth('live rescued prefix', 'const { Map: { missing } } = (effect(), globalTh
     injectImport: () => 'Map', embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
   });
   check(`${ label }/late native edit reaches the emitted prefix`, rendered.expressions[0], prefix);
+});
+
+runBoth('captured source read', 'const value = (effect(), (guard() ? void 0 : self).Map);', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const [prefix, read] = peelTransparentExpr(path.node.init).expressions;
+  let imports = 0;
+  const rendered = renderResidualAnchor({ read, anchorPure: resolveGlobalPolyfill('Map'), prefix: [prefix] }, {
+    injectImport: () => { imports++; return 'Map'; },
+    embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
+  });
+  check(`${ label }/no unconditional constructor import`, imports, 0);
+  check(`${ label }/prefix keeps its queued children`, rendered.expressions[0], prefix);
+  check(`${ label }/read is cloned on apply`, rendered.expressions[1] === read, false);
+  checkDeep(`${ label }/whole guard and member retained`, rendered.expressions[1], cloneNode(read));
+});
+
+runBoth('stored source guard', 'let held; const { Map: { missing } } = held = (effect(), globalThis.window?.self);', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern');
+  const before = JSON.stringify(path.node);
+  const surface = residualAnchorSurface(path.node.init, { adapter: makeAdapter(parser), path, resolveGlobalPolyfill });
+  check(`${ label }/source value remains guarded`, surface?.shape, 'guard');
+  check(`${ label }/store and prefix remain inside the value`, surface?.tail, peelTransparentExpr(path.node.init));
+  check(`${ label }/query preserves the source`, JSON.stringify(path.node), before);
+});
+
+for (const [init, coerced] of [
+  ['held = (effect(), globalThis.window?.self)', true],
+  ['held = other = (effect(), globalThis.window?.self)', true],
+  ['box.value = (effect(), globalThis.window?.self)', true],
+  ['held = (effect(), globalThis)', false],
+]) runBoth(`stored mirror coercion/${ init }`, `let held, other; const { Map: { groupBy } } = ${ init };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'ObjectPattern', p => p.node.properties.some(prop => prop.value?.name === 'groupBy'));
+  const before = JSON.stringify(program.node);
+  const plan = buildNestedParamSynthPlan({
+    leafPatternPath: path, adapter: makeAdapter(parser),
+    meta: { kind: 'property', object: 'Map', key: 'groupBy', placement: 'static' },
+    resolvePure: meta => meta.key === 'groupBy' ? { kind: 'static', entry: 'actual/map/group-by', hintName: 'groupBy' }
+      : meta.kind === 'global' ? resolveGlobalPolyfill(meta.name) : null,
+  });
+  check(`${ label }/one source mirror`, plan?.targets?.length, 1);
+  check(`${ label }/nullable value keeps coercion`, !!plan?.targets?.[0].coerceReceiver, coerced);
+  check(`${ label }/whole store keeps its position`, plan?.targets?.[0].keepPrefix, true);
+  checkDeep(`${ label }/query preserves source`, JSON.stringify(program.node), before);
 });
 
 finish();

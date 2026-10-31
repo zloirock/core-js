@@ -805,11 +805,13 @@ export function nullGuardTest(check, { embed = node => node } = {}) {
 }
 
 // A live residual reads its decided constructor, or the member on its source surface. A
-// supplied guard is the rendered source value and must remain the member's receiver even
+// supplied guard carries the source value and must remain the member's receiver even
 // when the traversal temporarily used a defined constructor. Host conversion is external;
 // the `prefix` embed role lets a native drain retain its pending child edits.
+// An accepted source read already includes its guard and member; reuse it without
+// re-deriving either from the live initializer or registering an unconditional import.
 export function renderResidualAnchor({
-  anchor, anchorNode, computed = false, anchorPure, receiver, receiverPure, receiverNode, guarded, narrow, prefix = [],
+  anchor, anchorNode, computed = false, anchorPure, receiver, receiverPure, receiverNode, guarded, narrow, read, prefix = [],
 }, { injectImport, mintRef, embed = cloneNode }) {
   if (narrow) {
     const ref = mintRef();
@@ -820,7 +822,7 @@ export function renderResidualAnchor({
   }
   if (guarded) return anchorNode ? memberExpression(embed(guarded), embed(anchorNode), { computed })
     : memberFromKeyName(embed(guarded), anchor);
-  const value = anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
+  const value = read ? embed(read) : anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
     : memberFromKeyName(receiverNode ? embed(receiverNode)
     : receiverPure ? identifier(injectImport(receiverPure.entry, receiverPure.hintName)) : identifier(receiver), anchor);
   return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')), value]) : value;
@@ -1008,6 +1010,7 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
   if (plan.kind === 'alias') {
     return renderAliasHeldProbeRead(plan.aliasProbe, renderProbeSource(plan.object, context), own);
   }
+  if (plan.kind === 'stored') return renderProbeSource(plan.test.source, context);
   const { test, navPlan, leafPlan } = plan;
   const probe = renderNavGuardTest(test, context);
   let alternate = plan.kind === 'nav' ? renderNavCollapseValue(navPlan, pure(navPlan.leafPure), { cloneHost: clone, own })
