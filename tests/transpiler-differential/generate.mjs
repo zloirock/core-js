@@ -21381,6 +21381,50 @@ function * generateConsumedInitializerPlacement() {
   }
 }
 
+// A missed static still substitutes its constructor, but cannot erase receiver
+// effects, a source throw or an optional call's skipped argument. Catch throws in
+// the snippet so both the exception and the preceding log belong to the oracle.
+function * generateStaticFallbackReceiver() {
+  const receivers = [
+    ['plain', 'Promise'],
+    ['realm', 'globalThis.Promise'],
+    ['sequence', '(log.push("receiver"), Promise)'],
+    ['nested-sequence', '(log.push("outer"), (log.push("inner"), globalThis.Promise))'],
+    ['store', '(held = (log.push("store"), globalThis)).Promise'],
+    ['optional-store', '(held = globalThis.window)?.self.Promise'],
+    ['sealed', '(globalThis.window?.Promise)'],
+    ['alias', 'alias.Promise'],
+    ['alias-optional', 'alias?.Promise'],
+    ['many-guards', 'globalThis.window?.self?.Promise'],
+  ];
+  for (const [name, receiver] of receivers) {
+    for (const tail of ['read', 'call', 'delete']) {
+      const member = `${ receiver }[(log.push("key"), "noSuchStatic")]`;
+      const expression = tail === 'call' ? `${ member }?.(log.push("arg"))` : tail === 'delete' ? `delete ${ member }` : member;
+      yield { ...snippet(`static-fallback-receiver/${ name }/${ tail }`, `(() => {
+        let held; const alias = globalThis.window;
+        try { const value = ${ expression }; return [typeof value, value === true, typeof held]; }
+        catch (error) { return [error.name, typeof held]; }
+      })()`), strip: true };
+    }
+  }
+  for (const [name, receiver] of [
+    ['prototype', 'globalThis.Map.prototype'],
+    ['prototype-store', '(held = globalThis).Map.prototype'],
+    ['prototype-sequence', '(log.push("receiver"), globalThis).Map.prototype'],
+    ['prototype-optional', '(held = globalThis.window)?.self.Map.prototype'],
+  ]) yield { ...snippet(`static-fallback-receiver/${ name }`, `(() => {
+    let held;
+    try { return ${ receiver }.has.call(new Map([[1, 2]]), (log.push("arg"), 1)); }
+    catch (error) { return error.name; }
+  })()`), strip: true };
+  for (const [name, setup, expression] of [
+    ['shadow', 'const Promise = { noSuchStatic() { return this.value; }, value: 7 };', 'Promise.noSuchStatic()'],
+    ['super', 'class Base { static noSuchStatic() { return this.value; } }'
+      + ' class Child extends Base { static value = 9; static run() { return super.noSuchStatic(); } }', 'Child.run()'],
+  ]) yield { ...snippet(`static-fallback-receiver/${ name }`, `(() => { ${ setup } return ${ expression }; })()`), strip: false };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21797,4 +21841,5 @@ export function * generate() {
   yield * generateTrustedBindingReads();
   yield * generateLogicalSlotPatches();
   yield * generateConsumedInitializerPlacement();
+  yield * generateStaticFallbackReceiver();
 }
