@@ -21478,6 +21478,27 @@ function * generateResolvedStaticClaims() {
   }
 }
 
+// Live constructor residuals retain source effects, stores and nullish throws after extraction.
+function * generateResidualAnchors() {
+  for (const [shape, body] of [
+    ['declaration', 'const { Map: { missing: value } } = globalThis; return [value];'],
+    ['assignment', 'let value; ({ Map: { missing: value } } = globalThis); return [value];'],
+    ['prefix', 'const { Map: { missing: value } } = (log.push("prefix"), globalThis); return [value];'],
+    ['stored-prefix', 'const { Map: { missing: value } } = (kw = (log.push("prefix"), globalThis)); return [value, kw === globalThis];'],
+    ['proxy-hop', 'const { self: { Map: { missing: value } } } = globalThis; return [value];'],
+    ['default', 'const { Map: { missing: value = (log.push("default"), "ab".at(-1)) } } = globalThis; return [value];'],
+    ['for-init', 'let step = 0; for (const { Map: { missing: value } } = globalThis; step < 1; step++) return [value];'],
+    ['bodyless', 'let value; if (cond) ({ Map: { missing: value } } = globalThis); return [value];'],
+    ['guard', 'const { Map: { missing: value } } = globalThis.window?.self; return [value];'],
+    ['guarded-prefix', 'const { Map: { missing: value } } = (log.push("prefix"), globalThis.window?.self); return [value];'],
+  ]) for (const rig of [false, true]) {
+    yield { ...snippet(`residual-anchor/${ shape }/${ rig ? 'present' : 'absent' }`, `(() => {
+      try { ${ body } }
+      catch (error) { return [error.name]; }
+    })()`, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21897,4 +21918,5 @@ export function * generate() {
   yield * generateStaticFallbackReceiver();
   yield * generateDeclinedNavigation();
   yield * generateResolvedStaticClaims();
+  yield * generateResidualAnchors();
 }
