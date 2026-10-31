@@ -21499,6 +21499,36 @@ function * generateResidualAnchors() {
   }
 }
 
+// Nested declaration reads select one receiver before native insertion or deferred drain.
+function * generateNestedDeclarationReceivers() {
+  for (const [shape, read, result = 'method.call(rows, -1)'] of [
+    ['binding', 'const { data: { at: method } } = source;'],
+    ['prefix', 'const { data: { at: method } } = (log.push("prefix"), source);'],
+    ['call', 'const { data: { at: method } } = make();'],
+    ['new', 'const { data: { at: method } } = new Source();'],
+    ['this', 'const method = function () { const { data: { at } } = this; return at; }.call(source);'],
+    ['surviving sibling', 'const lead = (log.push("lead"), 1), { data: { at: method }, other } = make();'],
+    ['inner default', 'const { data: { at: method } = (log.push("default"), Array.from(rows)) } = empty;'],
+    ['leaf default', 'const { data: { at: method = (log.push("leaf-default"), null) } } = source;'],
+    ['user namespace', 'const { Array: { prototype: { at: method } } } = { Array: { prototype: rows } };'],
+    ['static', 'const { Array: { from: { name: method } } } = globalThis;', 'method'],
+    ['symbol', 'const { data: { [Symbol.iterator]: method } } = source;', 'method.call(rows).next().value'],
+    ['loop element', 'let method; for (const realm of [globalThis]) { const { Array: { prototype: { at } } } = realm; method = at; }'],
+  ]) for (const rebuilt of [false, true]) {
+    const body = `(() => {
+      const rows = [4, 9];
+      const source = { get data() { log.push("data"); return rows; }, other: 3 };
+      const empty = { get data() { log.push("empty"); return undefined; } };
+      function make() { log.push("make"); return source; }
+      function Source() { log.push("new"); this.data = rows; }
+      ${ read }
+      return ${ result };
+    })()`;
+    yield { ...snippet(`nested-declaration-receiver/${ shape }/${ rebuilt ? 'rebuilt' : 'plain' }`,
+      rebuilt ? `[1].map(() => ${ body })[0]` : body), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21919,4 +21949,5 @@ export function * generate() {
   yield * generateDeclinedNavigation();
   yield * generateResolvedStaticClaims();
   yield * generateResidualAnchors();
+  yield * generateNestedDeclarationReceivers();
 }

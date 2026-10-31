@@ -209,6 +209,7 @@ import {
   isStaticPlacement,
   memberTargetTakesExtraction,
   moduleDefaultSource,
+  navHopChain,
   navShortCircuitSource,
   navValueCanShortCircuit,
   peelRealmLogicalDefault,
@@ -3982,7 +3983,9 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
       navKeys.unshift(cur.property.name);
       cur = cur.object;
     }
-    const root = cur?.type === 'Identifier' ? cur : null;
+    // An admitted this-rooted surface keeps that receiver, including a CommonJS
+    // exports object. Carry it explicitly instead of requiring a named realm root.
+    const root = cur?.type === 'Identifier' || cur?.type === 'ThisExpression' ? cur : null;
     return { nav, dispatch: { kind: 'surface', node: nav, root, keys: navKeys, allowOptionalHops } };
   }
   if (!allowTrailingStatic || nav?.type !== 'MemberExpression' || nav.computed
@@ -9057,6 +9060,17 @@ export function buildPatternRenderPlan(patternNode, { scope, path, adapter }) {
     });
   }
   return keys;
+}
+
+// The proxy root and named hops of a receiver navigation. Leading pristine realm hops
+// are redundant; the final hop remains available to the passthrough's entry selection.
+// Flat and nested declaration reads use the same source/guard shape proof.
+export function proxyNavHead(receiver, { adapter, guardCtx = null }) {
+  const { root, keys: navKeys } = navHopChain(receiver, guardCtx);
+  let keys = navKeys;
+  if (!keys.length || keys.some(key => !key) || root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return null;
+  while (keys.length > 1 && isPristineProxyGlobal(adapter, keys[0])) keys = keys.slice(1);
+  return { rootName: root.name, keys };
 }
 
 // the BASE a nested hop chain reads through, shared by both emitters' extraction renders:

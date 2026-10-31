@@ -1852,9 +1852,12 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
       });
       if (alias) return alias;
     }
+  }
+  if (!declarator.init && declarator.id?.type === 'Identifier') {
     // ... and a declarator the HEAD of a for-x owns carries no init because its value is what the
     // loop ITERATES: the one value no init can spell, and the reason a hop under such a head read as
-    // a user object on one binding while the other folded it onto the constructor
+    // a user object on one binding while the other folded it onto the constructor. This source
+    // does not depend on the adapter's support for finding trusted assignment writes.
     const iterated = forXElementProxyGlobal({
       name, scope, adapter, seen, path: path ?? binding.declarationPath ?? null,
     });
