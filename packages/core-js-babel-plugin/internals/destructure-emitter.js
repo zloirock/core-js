@@ -14,7 +14,6 @@ import { ownEmittedPatternClaim, ownOutputTests, sentinelAlreadyProcessed } from
 import {
   renderAliasHeldProbeRead,
   hostSlot,
-  memberFromKeyName,
   renderInstanceDefaultGuard,
   renderNestedExtractionReceiver,
   renderNestedDeclarationReceiver,
@@ -98,7 +97,6 @@ import {
   buildNestedParamSynthPlan,
   buildParameterArgumentSynthPlan,
   canTransformDestructuring as sharedCanTransformDestructuring,
-  carriedInitReceiverNode,
   classifyCallBranchForSynth,
   computedRootMemoChain,
   conditionalDestructureLeftUntouchedWarning,
@@ -115,11 +113,9 @@ import {
   fallbackDestructureHasPolyfillableBranch,
   flattenArrayWrapperInits,
   noteRelocation,
-  hopSplitPlan,
   initRunsCode,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
-  isReReadableSurfaceNav,
   isReReferenceableReceiver,
   provenRealmCallRoot,
   nestedAssignmentStatementOf,
@@ -136,7 +132,6 @@ import {
   destructureHostThroughWrappers,
   resolveDestructureReceiverPlan,
   resolveNestedNavDispatch,
-  resolveNestedReceiverBase,
   resolveNestedReceiverChain,
   seKeyStaticOwesTheMirror,
   resolveNestedReceiverNode,
@@ -156,6 +151,7 @@ import {
   discardedReceiverEffects,
   planNestedAssignmentReceiver,
   planNestedDeclarationReceiver,
+  planNestedLeafTwin,
   liveDestructureDefault,
   planDestructureInstanceSynth,
   planForInitSink,
@@ -170,7 +166,6 @@ import {
   isSymbolIteratorPatternProp,
   descendArrayWrapperToSE,
   hopPatternLeafClaims,
-  leafPatternHoldsClaimedHop,
   hopNamesMissingAbleCtor,
   planCatchClauseExtraction,
   planLoopHeadExtraction,
@@ -214,9 +209,7 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
-  assignmentTwinLeafAdmitted,
   classifyVariableDeclarationHost,
-  planNestedLeafHost,
   isBodylessStatementSlot,
   isForInitDeclaration,
   planNestedKeyedPatternCapture,
@@ -1386,58 +1379,28 @@ export default function createDestructureEmitter({
   // above the leaf that keeps SIBLINGS splits the hop out into a twin of its own beside the host
   // (`hopSplitPlan`); the host goes on binding those siblings off the root
   function normalizeNestedLeafSiblings(prop) {
-    // the same walk `typedNavClaimShape` wraps, asked WITHOUT its built-in-surface refusal: that
-    // question is whether the typed-nav dispatch OWNS a claim, this one is where the shape is spelled
-    // best, and a surface nav has a flat twin like any other chain
-    const walk = resolveNestedReceiverChain(prop, {
-      soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true, siblingLevels: true, adapter,
-      allowAssignmentHost: true,
-    });
-    if (!walk && assignmentLeafTwin(prop, null)) return true;
-    // a SOLE claim needs no normalizing - the extraction owns the whole leaf - unless its own KEY
-    // carries an effect: that effect runs where the source wrote it, so the leaf has to survive,
-    // and a surviving leaf is a second reader of the hop. the flat twin is where both are already
-    // answered (the memo the residual reads), so the shape goes there instead of being extracted
-    // past its own key
-    // ... sized as the SOURCE wrote it: a static the flatten already took off this leaf still made it a
-    // multi-leaf level (`patternSizeOf` is recorded at the first dispatch)
-    if (!walk || !(walk.leafPattern?.node?.properties?.length > 1 || patternSizeOf(walk.leafPattern) > 1
-      || walk.leafPattern?.node?.properties?.some(item => item.type !== 'RestElement'
-        && computedKeyHasSideEffects(item, aliasCtxFromPath(prop))))) return false;
-    // at least one hop - a leaf with no hop above it IS the flat twin already. the count used to
-    // stop at ONE, because past a hop the two legs read the flattened receiver's type differently;
-    // that asymmetry was the slot read answering init-only on the nested side, and it is closed -
-    // both spellings now fold the same writer set, so the deeper chains flatten like the first
-    if (!walk.keys.length || leafPatternHoldsClaimedHop({
-      leafPattern: walk.leafPattern, claimProp: prop.node, scope: prop.scope, adapter, resolvePure,
-    })) return false;
-    // a REST in the leaf travels with it: the normalization hands the whole leaf pattern to the flat
-    // channel, which already spells a rest beside a claim off one memo
-    const { declarator } = walk;
-    if (declarator?.node?.type === 'AssignmentExpression') return assignmentLeafTwin(prop, walk);
-    const hostPlan = planNestedLeafHost(walk);
-    if (!hostPlan) return false;
-    const { declaration, siblingLevel } = hostPlan;
-    const binding = adapter.getBinding({ scope: prop.scope, name: walk.root.name, path: prop, read: walk.root });
-    const bound = !!binding;
-    const base = resolveNestedReceiverBase({
-      rootName: walk.root.name,
-      keys: walk.keys,
-      binding,
+    const plan = planNestedLeafTwin({ path: prop, sourceLeafCount: patternSizeOf(prop.parentPath) }, {
       adapter,
+      resolvePure,
       resolveGlobalPolyfill: resolveGlobalPure,
       resolveStaticPolyfill: staticHopPure,
+      isOwnAlias: isOwnPureAlias,
     });
-    // a pure base has no twin here: a CTOR pure's statics are the anchored residual's business, and a STATIC
-    // pure's level is the static's own claim, which takes it first
-    if (!base || base.pure) return false;
-    // a built-in root: an unbound name, or the collapsed proxy hop this leg already spelled into the init
-    // (`_globalThis.Array`) - its root asked too, as a capitalised key off the user's own object only looks
-    // like one (`wrap.Box`)
-    const builtInRoot = !bound || isBuiltInSurfaceNav(unwrapRuntimeExpr(declarator.node.init),
-      { ctx: { scope: prop.scope, adapter, path: prop }, isOwnAlias: isOwnPureAlias });
-    const split = siblingLevel ? hopSplitPlan(walk, { builtInRoot }) : null;
-    if (siblingLevel && !split) return false;
+    if (!plan) return false;
+    const { declarator, leafPattern, split } = plan;
+    const nav = estreeToBabel(renderNestedExtractionReceiver(plan.receiver, { embed: node => hostSlot(t.cloneNode(node)) }));
+    const init = plan.slotDefault ? buildInstanceDefaultGuard(t, {
+      call: nav,
+      defaultNode: t.cloneNode(plan.slotDefault),
+      ref: generateRef(prop.scope, prop.node),
+    }) : nav;
+    const { twinInit, memoDeclaration } = twinInitNode({ prop, init, memo: plan.memo });
+    if (plan.kind === 'assignment') {
+      declarator.get('right').replaceWith(twinInit);
+      declarator.get('left').replaceWith(t.cloneNode(leafPattern.node));
+      return true;
+    }
+    const { declaration } = plan.host;
     // every route below rewrites the host in place: it keeps its node but no longer spells the pattern
     // a claim ahead of this one planned, so each retires that plan, and the record that it rendered,
     // once its rewrite has landed
@@ -1447,32 +1410,8 @@ export default function createDestructureEmitter({
       flattenedDeclarators.delete(hostNode);
       return true;
     }
-    // spelled off the RAW init, so a TS cast the source wrote survives into the memo - dropping it
-    // resolves the flattened receiver against a different type than the source's own spelling
-    const navBase = walk.rootSpelling?.type !== 'TSAsExpression' ? t.cloneNode(walk.root) : t.cloneNode(walk.rootSpelling);
-    const nav = estreeToBabel(base.path.reduce(memberFromKeyName, hostSlot(navBase)));
-    // a DEFAULT on the slot folds into that same read: what the twin destructures is the slot's own
-    // value when it is defined and the default when it is not, through the render canon the sole-slot
-    // dispatch already spells. mirroring the default alone polyfills the arm that may never run and
-    // leaves the live one raw - which is the shape this normalization exists to route to one memo
-    const init = walk.slotDefault ? buildInstanceDefaultGuard(t, {
-      call: nav,
-      defaultNode: t.cloneNode(walk.slotDefault),
-      ref: generateRef(prop.scope, prop.node),
-    }) : nav;
-    let { twinInit, memoDeclaration } = twinInitNode({ prop, init, nav });
-    // ... and a leaf a flatten already thinned is the source's multi-claim twin all the same: its flat
-    // canon reads the nav into one memo (`const _ref2 = _ref.M; const nm = _nameMaybeFunction(_ref2)`)
-    // ... a nav INTO the built-in namespace re-reads for free and stays inline, as its flat twin does
-    if (!memoDeclaration && patternSizeOf(walk.leafPattern) > walk.leafPattern.node.properties.length
-      && !isReReadableSurfaceNav(twinInit, name => !!injector?.getBindingInfo?.(name),
-        { ctx: { scope: prop.scope, adapter, path: prop } })) {
-      const memo = injector.generateLocalRef(prop.scope);
-      memoDeclaration = t.variableDeclaration('const', [t.variableDeclarator(t.cloneNode(memo), twinInit)]);
-      twinInit = t.cloneNode(memo);
-    }
     if (split) {
-      splitHopOutOfHost({ declarator, declaration, split, leafPattern: walk.leafPattern.node, twinInit, memoDeclaration });
+      splitHopOutOfHost({ declarator, declaration, split, leafPattern: leafPattern.node, twinInit, memoDeclaration });
     } else {
       if (memoDeclaration) {
         // Earlier captures and sibling reads must precede this default's receiver.
@@ -1486,75 +1425,17 @@ export default function createDestructureEmitter({
       }
       declarator.get('init').replaceWith(twinInit);
       twinHopInits.add(twinInit);
-      declarator.get('id').replaceWith(t.cloneNode(walk.leafPattern.node));
+      declarator.get('id').replaceWith(t.cloneNode(leafPattern.node));
     }
     return rewritten();
   }
 
-  // ... and an ASSIGNMENT statement's twin: the leaf takes the pattern's place and the value it reads
-  // takes the right side's, so the requeued statement rides the flat assignment channel - one memo for
-  // every claim. that value is the nav the walk names (`({ y: { at, flat } } = box)` -> `({ at, flat } =
-  // box.y)`), or - over a LITERAL, which dies with the statement - its paired slot, carrying whatever
-  // the init performs (`= (n++, { y: g() })` -> `= (n++, g())`). a statement nothing reads, in a statement
-  // list, with no wrapper, split or slot fold, a plain binding per leaf
-  function assignmentLeafTwin(prop, walk) {
-    const leafPattern = walk?.leafPattern ?? prop.parentPath;
-    // the LITERAL pairing climbs plain one-key levels up to the statement's own pattern
-    let top = leafPattern;
-    if (!walk) {
-      while (top.parentPath?.isObjectProperty() && !top.parentPath.node.computed
-        && top.parentPath.parentPath?.isObjectPattern() && top.parentPath.parentPath.node.properties.length === 1) {
-        top = top.parentPath.parentPath;
-      }
-    }
-    const assignment = walk?.declarator ?? top.parentPath;
-    let statement = assignment?.parentPath;
-    while (statement?.isParenthesizedExpression()) statement = statement.parentPath;
-    if (!assignment?.isAssignmentExpression() || assignment.node.operator !== '=' || walk?.wrapper || walk?.slotDefault
-      || assignment.node.left?.type !== 'ObjectPattern' || assignment.node.left.properties.length !== 1
-      || !statement?.isExpressionStatement() || !statementListOf(statement.parentPath?.node)
-      || (walk && !planNestedLeafHost(walk, statement))
-      || !assignmentTwinLeafAdmitted(leafPattern.node, aliasCtxFromPath(leafPattern))) return false;
-    let twinInit;
-    if (walk) {
-      const base = resolveNestedReceiverBase({
-        rootName: walk.root.name,
-        keys: walk.keys,
-        binding: adapter.getBinding({ scope: prop.scope, name: walk.root.name, path: prop, read: walk.root }),
-        adapter,
-        resolveGlobalPolyfill: resolveGlobalPure,
-        resolveStaticPolyfill: staticHopPure,
-      });
-      if (!base || base.pure) return false;
-      const navBase = walk.rootSpelling?.type !== 'TSAsExpression' ? t.cloneNode(walk.root) : t.cloneNode(walk.rootSpelling);
-      const nav = estreeToBabel(base.path.reduce(memberFromKeyName, hostSlot(navBase)));
-      ({ twinInit } = twinInitNode({ prop, init: nav, nav }));
-    } else {
-      if (top === leafPattern || top.node !== assignment.node.left) return false;
-      // ... a slot the flat channel re-reads for free keeps the route it already takes (`= { y: box }`)
-      const carried = carriedInitReceiverNode({ path: prop, initNode: assignment.node.right, adapter });
-      if (!carried || isReReferenceableReceiver(carried)) return false;
-      twinInit = t.cloneNode(carried);
-      const type = resolvePropertyObjectType(prop);
-      if (type) resolvedType.set(twinInit, type);
-    }
-    assignment.get('right').replaceWith(twinInit);
-    assignment.get('left').replaceWith(t.cloneNode(leafPattern.node));
-    return true;
-  }
-
-  // the init the flat twin reads. a FOLD is an expression, and the twin's receiver has to be a NAME:
-  // the dispatch and whatever residual survives both read it, and reading a fold twice would run
-  // the guard twice - so the fold binds its own memo ahead of the declaration and the twin reads
-  // that name; a plain nav needs none of this, since the flat channel memoizes it itself when a
-  // second reader appears. either way the twin is RE-DETECTED off this tree, and neither a minted
-  // NAME nor a nav this pass built has a shape the type ladder can walk back to the source - so the
-  // receiver's type is stashed on the node first, the pre-mutation channel the resolver keeps for
-  // exactly this. without it the claim ships the generic dispatcher where the other leg - which
-  // never re-detects - ships the narrowed one
-  function twinInitNode({ prop, init, nav }) {
+  // Allocate the memo selected by the shared twin plan, and retain the source receiver's
+  // type on the node Babel will re-detect. A plain navigation is memoized by the flat
+  // channel itself; a fold or an earlier consumed read needs this explicit binding.
+  function twinInitNode({ prop, init, memo: needsMemo }) {
     const type = resolvePropertyObjectType(prop);
-    if (init === nav) {
+    if (!needsMemo) {
       if (type) resolvedType.set(init, type);
       return { twinInit: init, memoDeclaration: null };
     }
