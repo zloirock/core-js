@@ -1039,11 +1039,11 @@ export const data = {
     safari: '7.1',
   },
   'es.math.log2': {
-    chrome: '38',
+    chrome: '41',
     edge: '12',
-    firefox: '25',
+    firefox: '48',
     hermes: '0.1',
-    rhino: '1.7.13',
+    rhino: '1.9.2',
     safari: '7.1',
   },
   'es.math.sign': {

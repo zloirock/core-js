@@ -1001,7 +1001,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Math.log1p;
   },
   'es.math.log2': function () {
-    return Math.log2;
+    // V8 ~ Chrome < 41 and Rhino < 1.9.2 bug: https://issues.chromium.org/issues/42206893
+    return Math.log2(8) === 3
+      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+      && Math.log2(536870912) === 29;
   },
   'es.math.sign': function () {
     return Math.sign;
