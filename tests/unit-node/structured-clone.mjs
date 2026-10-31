@@ -9,7 +9,7 @@ const [flavor, mode] = process.argv.slice(2);
 
 if (!flavor) {
   for (const variant of ['core-js', 'core-js-pure']) {
-    for (const scenario of ['missing', 'broken', 'identity', 'shared', 'shared-copy', 'buffer-errors', 'collections']) {
+    for (const scenario of ['missing', 'broken', 'identity', 'shared', 'shared-copy', 'shared-fixed-copy', 'buffer-errors', 'collections']) {
       const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.url), variant, scenario]);
       console.log(stdout.trim());
     }
@@ -35,16 +35,18 @@ if (!flavor) {
       require('../../packages/core-js/modules/es.array-buffer.transfer');
       require('../../packages/core-js/modules/es.array-buffer.transfer-to-fixed-length');
     }
-  } else if (mode === 'shared-copy') {
-    // Model WebKit preserving view modes while copying shared memory into an ArrayBuffer.
+  } else if (mode === 'shared-copy' || mode === 'shared-fixed-copy') {
+    // Model WebKit preserving view modes while copying shared memory into an ArrayBuffer;
+    // a copy that cannot be resized loses them.
+    const fixedCopy = mode === 'shared-fixed-copy';
     globalThis.structuredClone = function cloneShared(value, options) {
       if (value instanceof SharedArrayBuffer) {
-        const copy = new ArrayBuffer(value.byteLength, value.growable ? { maxByteLength: value.maxByteLength } : undefined);
+        const copy = new ArrayBuffer(value.byteLength, value.growable && !fixedCopy ? { maxByteLength: value.maxByteLength } : undefined);
         new Uint8Array(copy).set(new Uint8Array(value));
         return copy;
       }
       if (ArrayBuffer.isView(value) && value.buffer instanceof SharedArrayBuffer) {
-        return new Uint8Array(cloneShared(value.buffer), value.byteOffset, lengths.get(value));
+        return new Uint8Array(cloneShared(value.buffer), value.byteOffset, fixedCopy ? value.length : lengths.get(value));
       }
       return nativeClone(value, options);
     };
@@ -61,7 +63,7 @@ if (!flavor) {
     ? require('../../packages/core-js/actual/structured-clone')
     : require('../../packages/core-js-pure/actual/structured-clone');
 
-  const shared = mode === 'shared' || mode === 'shared-copy';
+  const shared = mode === 'shared' || mode === 'shared-copy' || mode === 'shared-fixed-copy';
   const buffer = shared ? new SharedArrayBuffer(8, { maxByteLength: 16 }) : new ArrayBuffer(8, { maxByteLength: 16 });
   const fixed = new Uint8Array(buffer, 0, 8);
   const tracking = new Uint8Array(buffer);
@@ -142,14 +144,15 @@ if (!flavor) {
     assert.equal(copy.fixed.buffer, copy.buffer);
     assert.equal(copy.tracking.buffer, copy.buffer);
     if (shared) {
-      if (mode === 'shared-copy') assert.equal(copy.buffer, buffer);
-      else assert.notEqual(copy.buffer, buffer);
+      if (mode === 'shared') assert.notEqual(copy.buffer, buffer);
+      else assert.equal(copy.buffer, buffer);
       tracking[0] = 73;
       assert.equal(copy.tracking[0], 73);
       copy.buffer.grow(16);
     } else copy.buffer.resize(16);
     assert.equal(copy.fixed.length, 8);
-    assert.equal(copy.tracking.length, 16);
+    // without the mode, as without native cloning, length-tracking views are cloned as fixed-length views
+    assert.equal(copy.tracking.length, mode === 'shared-fixed-copy' ? 8 : 16);
   }
   assert.equal(buffer.byteLength, shared ? 16 : 8);
 

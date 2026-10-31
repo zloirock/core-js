@@ -229,7 +229,6 @@ var cloneView = function (value, type, map) {
     cloned = nativeRestrictedStructuredClone(value);
     // older WebKit clones shared buffers as non-shared buffers
     sharedClone = isGrowable && cloned.buffer.growable;
-    if (isGrowable && !sharedClone && !cloned.buffer.resizable) throwUnpolyfillable(type);
     if (sharedClone) {
       shared = mapGet(map, SHARED_OBJECTS);
       if (!shared) mapSet(map, SHARED_OBJECTS, shared = []);
@@ -246,8 +245,9 @@ var cloneView = function (value, type, map) {
     clonedBuffer = cloned.buffer;
     // probe a temporary copy, never the source or the buffer shared by cloned views
     // nonempty fixed views become out of bounds; empty tracking views grow by one element
+    // a copy that cannot be resized hides the mode, like without native cloning the view becomes fixed-length
     byteLength = offset + (length ? 0 : C.BYTES_PER_ELEMENT || 1);
-    if (byteLength <= clonedBuffer.maxByteLength) {
+    if (clonedBuffer.resizable && byteLength <= clonedBuffer.maxByteLength) {
       arrayBufferResize(clonedBuffer, byteLength);
       if (!fails(function () {
         // polyfilled typed array methods may accept out-of-bounds views
