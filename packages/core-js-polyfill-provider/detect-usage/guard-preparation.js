@@ -1,6 +1,7 @@
 import {
   isCallShape,
   chainSealsAShortCircuit,
+  chainReadsThroughSeal,
   navValueCanShortCircuit,
   descendToChainRoot,
   callYieldCanBeUndefined,
@@ -26,6 +27,16 @@ import {
   deleteHostAboveCarriedChain,
   unbackedProxyHopKey,
   sealedLayerBetween,
+  receiverSideEffectsOnly,
+  prependChainAssignmentEffect,
+  discardRescueNodes,
+  probeRenderedReceiver,
+  ownChainOptionalObjects,
+  staticMayEraseReceiver,
+  directClaimProbePlan,
+  directClaimProbeEffects,
+  sealedChainBoundary,
+  aliasRootedReadMayThrow,
 } from './resolve.js';
 import {
   isMemberAccessNode,
@@ -55,6 +66,7 @@ import {
   reEvaluationObservable,
   CHAIN_HOP_WRAPPER_TYPES,
   deleteHostAboveChain,
+  staticFallbackSwapRedundant,
 } from '../helpers/ast-patterns.js';
 import { instanceSynthReceiverPure, isConstantLiteralReceiver } from './destructure.js';
 import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
@@ -99,6 +111,73 @@ export function planGuardedClaimTail(path, { alwaysDefined = false, resolvePure 
   const call = isCallShape(parent?.node) && parent.node.callee === path.node && !parent.node.optional
     && !sealedLayerBetween(path.node, unwrapRuntimeExpr(path.node)) ? parent : null;
   return { sealedTail, deleteHost, call, absorb: !sealedTail && !deleteHost };
+}
+
+// A missed static still needs its backed constructor. The source receiver slot, its
+// effects and its throw/optional boundary are one decision. A prototype keeps its
+// `.prototype` hop; a surviving computed key keeps its own effects. Pending source
+// is a native traversal fact: a binding that cannot revisit a moved receiver leaves
+// its uncarried reads and live guard with the child visits, and records that owner.
+// No import or render is committed while this question may still refuse the swap.
+export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
+  resolvePure, resolveGlobal = resolvePure, mintedAliasRef, pendingReceiver = null,
+}) {
+  if (!fallback || !isMemberAccessNode(node) || node.object?.type === 'Super') return null;
+  const receiver = meta.placement === 'prototype' ? unwrapRuntimeExpr(node.object).object : node.object;
+  const receiverEffects = receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects) ?? [];
+  const sequence = unwrapRuntimeExpr(receiver);
+  if (meta.placement !== 'prototype' && meta.sideEffects?.length && sequence?.type === 'SequenceExpression'
+    && unwrapRuntimeExpr(sequence.expressions.at(-1))?.type === 'Identifier'
+    && receiverEffects.every(effect => sequence.expressions.slice(0, -1).some(prefix => subtreeContainsNode(prefix, effect)))
+    && (meta.sideEffects ?? []).slice(meta.receiverEffectCount ?? 0).every(effect => subtreeContainsNode(node.property, effect))) {
+    const tail = sequence.expressions.at(-1);
+    if (!discardRescueNodes({ ...ctx, node: tail }).length) {
+      return { kind: 'replace', receiver: tail, sequence, fallback, effects: [], hadChainAssign: false };
+    }
+  }
+  if (probeRenderedReceiver(node.object, ctx)) return { kind: 'retain' };
+  const redundant = staticFallbackSwapRedundant(node.object, meta.sideEffects, { mintedAliasRef });
+  if (pendingReceiver && (meta.placement === 'prototype'
+    || discardRescueNodes({ ...ctx, node: pendingReceiver })
+      .some(source => receiverEffects.every(effect => !subtreeContainsNode(effect, source)))
+    || redundant || receiverEffects.length && receiverCarriesLiveOptional(pendingReceiver))) {
+    return { kind: 'stage', receiver: pendingReceiver };
+  }
+  if (redundant) return { kind: 'retain' };
+  const ordered = meta.protoCtorReceiverSE ? [...meta.protoCtorReceiverSE, ...receiverEffects] : receiverEffects;
+  const effects = prependChainAssignmentEffect(receiver, ordered,
+    meta.protoCtorChainAssignAt ?? meta.chainAssignInsertAt ?? ordered.length) ?? [];
+  const hadChainAssign = effects.length > ordered.length;
+  const guardAssigns = effects.filter(effect => !ordered.includes(effect));
+  let guard = guardAssigns.length === 1 && effects.length === 1 && !staticMayEraseReceiver(node, resolveGlobal, ctx)
+    ? guardAssigns[0] : null;
+  if (!guard) {
+    const optional = undefinableOptionalGuard(node, resolvePure, ctx);
+    if (optional.kind === 'standdown' && effects.length <= 1) return { kind: 'retain' };
+    const sequenceGuard = ownChainOptionalObjects(node).find(nestedSequenceValueSpelling) ?? null;
+    guard = optional.kind === 'guard'
+      ? (sequenceGuard && subtreeContainsNode(sequenceGuard, optional.object) ? sequenceGuard : optional.object)
+      : optional.kind === 'erase' ? sequenceGuard : null;
+  }
+  if (guard) return {
+    kind: 'guard', receiver, fallback, guard, detached: !hadChainAssign, hadChainAssign,
+    effects: effects.filter(effect => !guardAssigns.includes(effect) && !subtreeContainsNode(guard, effect)),
+  };
+  const boundary = sealedChainBoundary(node);
+  const probe = directClaimProbePlan(node.object, resolveGlobal, ctx)
+    ?? (boundary?.member === node ? directClaimProbePlan(node, resolveGlobal, ctx) : null);
+  // An unnameable computed read cannot be replaced by a named throw probe. Keep
+  // the source member: its key still runs before a null receiver throws, once.
+  if (!probe && boundary?.member === node && chainReadsThroughSeal(node, resolveGlobal, ctx)) {
+    return { kind: 'retain', release: boundary.inner };
+  }
+  // A bare alias has no erased receiver read to respell; its surviving member owns
+  // the possible throw. Replacing that value would silently erase the exception.
+  if (!probe && !node.optional && aliasRootedReadMayThrow(node.object, resolveGlobal, ctx)) return { kind: 'retain' };
+  return {
+    kind: 'replace', receiver, fallback, hadChainAssign, probe,
+    effects: probe ? directClaimProbeEffects({ decision: probe, node: probe }, effects) : effects,
+  };
 }
 
 // A symbol receiver's collapsed root owns its dropped prefix. A later key effect

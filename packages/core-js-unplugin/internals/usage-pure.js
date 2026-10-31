@@ -1,13 +1,10 @@
 import { sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
-import { optionalMemberStaysGuarded, planSymbolReceiverEffects } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
-  aliasRootedReadMayThrow,
-  discardRescueNodes,
+  optionalMemberStaysGuarded, planSymbolReceiverEffects, planStaticFallbackReceiver,
+} from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import {
   navValueCanShortCircuit,
   navHasUnresolvableProxyHop,
-  probeRenderedReceiver,
-  sealedChainBoundary,
-  directClaimProbeEffects,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
@@ -34,7 +31,6 @@ import {
   patternSlotTarget,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
-  staticFallbackSwapRedundant,
   subtreeContainsNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -51,6 +47,7 @@ import {
   nullFirstGuardTest,
   renderInExpressionPlan,
   renderLogicalSlotPatch,
+  renderStaticFallbackReceiver,
   renderMethodCall,
   renderReceiverEffects,
   renderGuardedMethodCall,
@@ -59,9 +56,7 @@ import {
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
-  guardProbeUndefinable,
   replaceGuardedHop,
-  sealedClaimThrowProbe,
   sealedLayerAbove,
 } from './claim-guards.js';
 import {
@@ -116,23 +111,6 @@ function noteDeoptedSlotRead(meta, { getDebugOutput, adapter, noted }) {
   if (!debug || noted.has(meta?.name) || !isDeoptedGlobalSlotRead(meta, adapter)) return;
   noted.add(meta.name);
   debug.warn?.(mutatedSlotLeftNativeWarning(meta.name));
-}
-
-// does the receiver SPELL its own harvested effects - the prefix of a sequence whose tail
-// is the ctor the fallback resolves, the key's effects staying in the key's own subtree?
-// then the swap has no erasure to compensate: it lands on the tail and everything else
-// keeps running where the source wrote it
-function fallbackSwapsSequenceTail(node, meta) {
-  const receiver = unwrapRuntimeExpr(node.object);
-  if (receiver?.type !== 'SequenceExpression'
-    || unwrapRuntimeExpr(receiver.expressions.at(-1))?.type !== 'Identifier') return null;
-  const effects = meta.sideEffects ?? [];
-  const prefix = receiver.expressions.slice(0, -1);
-  const recvHeld = effects.slice(0, meta.receiverEffectCount ?? 0)
-    .every(effect => prefix.some(expr => subtreeContainsNode(expr, effect)));
-  const keyHeld = effects.slice(meta.receiverEffectCount ?? 0)
-    .every(effect => subtreeContainsNode(node.property, effect));
-  return recvHeld && keyHeld ? receiver : null;
 }
 
 // the receiver carries a chain-assignment the harvest EXCLUDED, leaving behind only the slot it
@@ -880,110 +858,38 @@ export default function createAstUsagePureCallback({
   // a claim with NO pure result: the ctor-fallback receiver swap, then the alias-spine
   // drop for hops the declined meta subsumed
   function handleUnresolvedClaim({ meta, metaPath, node, fallback }) {
-    // a SEQUENCE receiver spells its own effects, so the static-FALLBACK swap below needs no
-    // erasure budget: it replaces the TAIL and the prefix keeps running in place
-    const sequenceReceiver = fallback && node.type === 'MemberExpression'
-      && node.object?.type !== 'Super' && meta.placement !== 'prototype' && meta.sideEffects?.length
-      ? fallbackSwapsSequenceTail(node, meta) : null;
-    if (sequenceReceiver) {
-      const tail = sequenceReceiver.expressions.at(-1);
-      if (!discardRescueNodes({ node: tail, scope: metaPath.scope, adapter, path: metaPath }).length) {
-        markRewrite();
-        sequenceReceiver.expressions[sequenceReceiver.expressions.length - 1] =
-          identifier(injectPureImport(fallback.entry, fallback.hintName));
-        markSubtreeSkipped(skippedNodes, tail);
-        return;
-      }
-    }
-    // static-FALLBACK swap: a member that is NOT itself polyfilled but whose receiver
-    // resolves to a pure ctor (`Promise.noSuchStatic` -> `_Promise.noSuchStatic`).
-    // the prototype shape is out of the family; the SE-bearing and observable-burying ones are
-    // STAGED - raw source stays there, and the staging is recorded because a claim below reads
-    // this consumer's fate to decide whether it owns its own render
-    const fallbackSwappable = !!fallback && node.type === 'MemberExpression'
-      && node.object?.type !== 'Super' && meta.placement !== 'prototype'
-      // a receiver that IS our probe render (a prior pass's) keeps its throw - the swap would eat it
-      && !probeRenderedReceiver(node.object, { scope: metaPath.scope, adapter, path: metaPath });
-    // the object swap ERASES the receiver spelling - an observable buried in it (a
-    // chain-assignment, an SE-bearing root call) has no slot in this shape yet
-    // the receiver-SE the harvest recorded: the swap ERASES the receiver spelling, so these re-emit
-    // as a sequence prefix ahead of the substituted ctor. only RECEIVER effects ride - a computed
-    // KEY survives the swap and re-runs its own
-    const fallbackRecvSe = (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0);
-    // an observable the prefix does NOT carry (a chain-assignment, whose kept write has no slot in
-    // this shape) still stages - the prefix channel cannot express it
-    const rescuedNodes = fallbackSwappable
-      ? discardRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath }) : [];
-    function carriedByThePrefix(rescued) {
-      return fallbackRecvSe.some(effect => effect === rescued || subtreeContainsNode(effect, rescued));
-    }
-    const carriedByPrefix = rescuedNodes.filter(carriedByThePrefix);
-    const fallbackUncarried = carriedByPrefix.length !== rescuedNodes.length;
-    // a kept SE-bearing inline-call receiver already yields the substituted binding through its own
-    // rewritten return leaf - swapping over it would spell the binding twice
-    // ... and a LIVE `?.` in the receiver belongs to the guard family, which reads this staging to
-    // know it owns the render: un-staging there steals the short-circuit from the only arm spelling it
-    const fallbackStaged = fallbackSwappable && (fallbackUncarried
-      || staticFallbackSwapRedundant(node.object, meta.sideEffects,
-        { mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true })
-      || (!!fallbackRecvSe.length && receiverCarriesLiveOptional(node.object)));
-    if (fallbackStaged) stagedFallbackHosts.add(node);
-    if (fallbackSwappable && !fallbackStaged) {
-      const id = injectPureImport(fallback.entry, fallback.hintName);
-      // a LIVE `?.` over an undefinable probe keeps its guard, the fallback riding the
-      // alternate (`...window?.self?.Promise.noSuchStatic` -> `null == _globalThis.window
-      // ? void 0 : _Promise.noSuchStatic`, babel's guarded fallback)
-      if (receiverCarriesLiveOptional(node.object)) {
-        let probe = null;
-        for (let cur = unwrapRuntimeExpr(node.object); cur?.type === 'MemberExpression';
-          cur = unwrapRuntimeExpr(cur.object)) {
-          if (!cur.optional) continue;
-          // the descent stops at the SHALLOWEST hop whose own object can actually be absent:
-          // a deeper one over a provably DEFINED value is not the source of the undefinedness
-          // (`f()?.window?.Promise` with `f = () => globalThis` tests `f().window`, not `f()`)
-          if (!guardProbeUndefinable(cur.object, { metaPath, adapter, resolvePure })) break;
-          probe = cur.object;
-        }
-        // a provably DEFINED probe leaves the `?.` dead - the plain swap below erases it
-        if (probe) {
-          markRewrite();
-          const probeInner = cloneNode(unwrapRuntimeExpr(probe));
-          probeTestClones.add(probeInner);
-          // the dead `?.` inside the probe spelling erases with it - the canonical verdict
-          for (const hop of vestigialNavOptionals(probeInner, m => resolvePure(m, metaPath),
-            { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
-          const test = nullFirstGuardTest(
-            receiverCarriesOptional(probeInner) ? chainExpression(probeInner) : probeInner);
-          replaceGuardedHop({
-            hopPath: metaPath,
-            test,
-            built: memberExpression(identifier(id), cloneNode(node.property), { computed: node.computed }),
-            skippedNodes,
-            navAlternate: true,
-          });
-          return;
-        }
-      }
-      // the read a load-bearing SEAL made observable is the source's own, and this swap
-      // erases the receiver spelling - it rides back as a throw probe ahead of the ponyfill.
-      // a seal DIRECTLY under the member leaves the object walk boundary-less (the object IS
-      // the sealed span) - only there the whole-member walk owns the probe, spelling the
-      // guarded read the swap erases; everywhere else the member read survives the swap and
-      // a whole-member probe would run it twice
-      let objectProbe = sealedClaimThrowProbe(node.object, metaPath, sealedProbeCtx);
-      if (!objectProbe && sealedChainBoundary(node)?.member === node) {
-        objectProbe = sealedClaimThrowProbe(node, metaPath, sealedProbeCtx);
-      }
-      // a swap that OWES a probe but cannot spell one (a bare alias receiver - no erased read
-      // to respell, the throw lives in the surviving member) stands down whole: the raw read
-      // keeps the throw the re-base loses, and declining only degrades - the pure bias
-      if (!objectProbe && !node.optional && aliasRootedReadMayThrow(node.object, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath })) return;
+    const plan = fallback && planStaticFallbackReceiver(node, meta, fallback,
+      { scope: metaPath.scope, adapter, path: metaPath }, {
+        resolvePure: m => resolvePure(m, metaPath),
+        resolveGlobal: ({ name }) => resolveGlobalPolyfill(name),
+        mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true,
+        // This enter visit leaves the receiver's original children queued. Moving their
+        // live source would detach those visits; the common answer names the retained slot.
+        pendingReceiver: node.object,
+      });
+    if (plan?.kind === 'retain') return;
+    if (plan?.kind === 'stage') stagedFallbackHosts.add(node);
+    else if (plan?.kind === 'guard') {
+      const probeInner = cloneNode(unwrapRuntimeExpr(plan.guard));
+      probeTestClones.add(probeInner);
+      for (const hop of vestigialNavOptionals(probeInner, m => resolvePure(m, metaPath),
+        { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
+      const test = nullFirstGuardTest(receiverCarriesOptional(probeInner) ? chainExpression(probeInner) : probeInner);
       markRewrite();
-      metaPath.get('object').replaceWith(objectProbe
-        ? sequenceExpression([...directClaimProbeEffects(objectProbe, fallbackRecvSe)
-          .map(effect => effect === objectProbe.node ? effect : cloneNode(effect)), identifier(id)])
-        : withSideEffects(identifier(id), fallbackRecvSe));
+      replaceGuardedHop({
+        hopPath: metaPath, test,
+        built: memberExpression(identifier(injectPureImport(fallback.entry, fallback.hintName)),
+          cloneNode(node.property), { computed: node.computed }),
+        skippedNodes, navAlternate: true, prefixSe: plan.effects.map(cloneNode),
+      });
+      return;
+    } else if (plan) {
+      markRewrite();
+      const built = renderStaticFallbackReceiver(plan, { injectImport: injectPureImport });
+      if (plan.sequence) {
+        plan.sequence.expressions[plan.sequence.expressions.length - 1] = built;
+        markSubtreeSkipped(skippedNodes, plan.receiver);
+      } else metaPath.get('object').replaceWith(built);
       return;
     }
     dropDeclinedNavSpine({ meta, metaPath, node });
