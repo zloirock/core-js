@@ -15,7 +15,7 @@ if (Symbol) {
   // workaround of NodeJS 20.4 bug
   // https://github.com/nodejs/node/issues/48699
   // and incorrect descriptor from some transpilers and userland helpers
-  if (descriptor.enumerable && descriptor.configurable && descriptor.writable) {
+  if (descriptor.configurable) {
     defineProperty(Symbol, 'asyncDispose', { value: descriptor.value, enumerable: false, configurable: false, writable: false });
   }
 }

@@ -33,6 +33,7 @@
 - Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
 - Fixed defining unpolyfillable `Object.setPrototypeOf` as `undefined` in IE10-
 - Fixed property descriptors of `Symbol.prototype[@@toPrimitive]` and `Date.prototype[@@toPrimitive]` polyfills
+- Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
 - Entries fixes:
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
