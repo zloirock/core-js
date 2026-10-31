@@ -27,6 +27,7 @@ import {
   renderSynthLiteral,
   renderSynthReplacement,
   planDiscardedInit,
+  planDiscardedInitPlacement,
   liveDestructureDefault,
   planForInitSink,
   hostLevelSurvives,
@@ -101,6 +102,7 @@ import {
   renderDestructureHeadCapture,
   renderDestructureDispatch,
   renderDestructurePrefix,
+  renderForInitSink,
 } from '@core-js/polyfill-provider/render';
 import {
   anchorAssignmentResidual,
@@ -119,14 +121,12 @@ import {
   emitDeclaratorMemo,
   splitDeclaratorMemo,
   emitLiteralReceiverMemos,
-  foldSinkPrefixIntoResidual,
   forInitMemoVerdicts,
   guardedPureBinding,
   hopChainKeys,
   interleavedSeKeySegments,
   isMintedOrProxyName,
   jobHostSiblingDeclarators,
-  joinBodylessSiblingExtractions,
   joinSeKeySiblingDeclarator,
   keptSymbolSentinelResidual,
   liftableInitPrefix,
@@ -136,6 +136,7 @@ import {
   literalContainerRescue,
   liveHostStatement,
   liveTailOf,
+  livePrefixOf,
   groupMemoExtractions,
   jobOuterProp,
   memoJobBindingTarget,
@@ -1293,15 +1294,6 @@ export default function createDestructureDrains(ctx) {
     return emitPartialInstanceMemo();
   }
 
-  // does the discarded init STORE into a binding? a kept write is not a droppable effect - what it
-  // fills is read back, and the source fills it BEFORE the pattern binds
-  function sinkStoresBinding(node) {
-    const core = peelTransparentExpr(node);
-    return core?.type === 'AssignmentExpression'
-      || (core?.type === 'SequenceExpression'
-        && peelTransparentExpr(core.expressions.at(-1))?.type === 'AssignmentExpression');
-  }
-
   // for-init: consumed declarators are replaced IN PLACE by the extracted siblings, and an
   // effect-bearing consumed init stays live as an `_unused` dummy declarator
   // eslint-disable-next-line max-statements -- one loop-header drain preserves receiver, key and residual declaration order
@@ -1389,56 +1381,23 @@ export default function createDestructureDrains(ctx) {
       }
       const carried = declJobs.every(job => !job.initRidesValue && !job.seCarried)
         ? takeForInitPrefix(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath)) : [];
-      // ... unless the init needs no slot of its own: it already RIDES its own extraction (the
-      // for-init opaque route puts it at the head of the extraction's sequence, where the source
-      // evaluated it - a second slot would run it twice), or it is quiet and the sink says so.
-      // the sink question is the PRISTINE init's: a receiver that carried a call collapses to a
-      // quiet spelling, and babel still keeps the loop-header slot for it
-      // (`(() => globalThis)().self.Promise` -> `_ref = _Promise`)
-      if (declJobs.every(job => job.initRidesValue)
-        || (declJobs.every(job => !job.sinkKeep)
-          && (declJobs.some(job => job.readsReceiver)
-            || !mayHaveSideEffects(declarator.init, patternFrame(declJobs[0].metaPath))))) {
-        carryForInitPrefixIntoFirst(extracted, carried);
-        declarations.push(...extracted);
-        continue;
-      }
-      // a SOLE instance extraction reads the SE init exactly once inside its dispatch -
-      // no memo slot needed (`var at = _at(getObj())`, babel's inline consume)
-      if (declJobs.length === 1 && declJobs[0].readsReceiver && !declJobs[0].chain?.length) {
-        carryForInitPrefixIntoFirst(extracted, carried);
-        declarations.push(...extracted);
-        continue;
-      }
-      // the discarded SE init keeps a declarator slot; its ORDER splits on the CHANNEL:
-      // the nested flatten route rides AFTER the extractions as `_unused` (its sink's
-      // accepted reorder), flat claims memoize FIRST as `_ref` (source order - the effect
-      // runs before the bindings it fed)
-      // the discarded init respells bare - a TS wrapper around it has nothing left to
-      // assert (`(se(), _globalThis) as any` -> `(se(), _globalThis)`, babel's peel)
-      if (declJobs.some(job => job.chain?.length)) {
-        carryForInitPrefixIntoFirst(extracted, carried);
-        // A wrapper already added to the value owns its prefix; do not reach through it.
-        pushChainedSinkSlot({
-          declarator,
-          extracted,
-          declarations,
-          declJobs,
-          receiver: extracted[0].init === soleValue ? product?.receiver : null,
-        });
-      } else {
-        const [{ metaPath }] = declJobs;
-        const init = peelTransparentExpr(declarator.init);
-        const sinkPlan = planForInitSink(init, { ...patternFrame(metaPath), resolvePure: meta => resolvePure(meta, metaPath) }, {
-          dropReceiver: declJobs.some(job => job.sinkDrop), memo: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null,
-        });
-        const slot = sinkPlan.effects ? sinkPlan.effects.length ? sequenceExpression(sinkPlan.effects) : null
-          : renderMemoArg(sinkPlan.memo, metaPath) ?? init;
-        if (slot && !foldSinkPrefixIntoResidual(extracted, slot)) {
-          declarations.push(variableDeclarator(identifier(mintRefName()), sequenceExpression([...carried, slot])));
-        } else carryForInitPrefixIntoFirst(extracted, carried);
-        declarations.push(...extracted);
-      }
+      // Unowned initializer effects precede their own bindings. The common sink plan
+      // chooses whether a sole extraction carries them or a leading declarator does.
+      const [{ metaPath }] = declJobs;
+      const init = peelTransparentExpr(declarator.init);
+      const sinkPlan = planForInitSink(init, { ...patternFrame(metaPath), resolvePure: meta => resolvePure(meta, metaPath) }, {
+        reads: declJobs, dropReceiver: declJobs.some(job => job.sinkDrop), memo: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null,
+        binding: extracted.length === 1 ? extracted[0].id : null,
+      });
+      const sink = renderForInitSink(sinkPlan, {
+        init, value: extracted[0]?.init, prefix: carried,
+        receiver: !carried.length && extracted[0]?.init === soleValue ? product?.receiver : null,
+        renderMemo: memo => renderMemoArg(memo, metaPath),
+      });
+      if (extracted.length) extracted[0].init = sink.value;
+      if (sink.sink) declarations.push(variableDeclarator(identifier(
+        sinkPlan.placement === 'sink' ? mintUnusedName() : mintRefName()), sink.sink));
+      declarations.push(...extracted);
     }
     hostNode.declarations = declarations;
   }
@@ -1704,16 +1663,9 @@ export default function createDestructureDrains(ctx) {
   }
 
   function rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements, insertAt = -1 }) {
-    // an SE-LIFTED nav already re-emitted its prefix ahead of the extraction
-    if (declJobsHere.some(job => job.seCarried)) return;
-    // the emptied declarator's init keeps its observables (the discard-rescue harvest, a
-    // kept call with a claim-bearing body included)
-    // an extraction that READS the receiver already spells the init inside its own dispatch
-    // (`at = _at((sideEffect(), getObj()))`) - rescuing it again would run the effects twice
-    if (declJobsHere.some(job => job.readsReceiver)) return;
     const [{ metaPath }] = declJobsHere;
     const { effects } = planDiscardedInit(declarator.init, { ...patternFrame(metaPath), resolvePure },
-      null, pristineInitFacts.get(declarator));
+      null, pristineInitFacts.get(declarator), declJobsHere);
     // a value-SELECTING init re-emits WHOLE - an effect buried in an operand (a proxy-hop KEY) has
     // no slot of its own, so the rescue canon answers with the selection itself. the POSITION is the
     // separate half: whatever the rescue keeps LEADS the extraction where the caller knows its slot,
@@ -1754,22 +1706,6 @@ export default function createDestructureDrains(ctx) {
       ? [variableDeclaration('var', mintedNames.map(name => variableDeclarator(identifier(name))))] : [];
     const statements = [...varDecl, ...remains ?? [body[at]], ...overwrites];
     body.splice(at, 1, ...anchorLeadingStatement({ statements, hostNode: body[at] }));
-  }
-
-  // A fully consumed nested loop initializer carries its write, or its sequence prefix,
-  // in the sole extraction's dispatch. Other hosts retain a sink before their extractions.
-  function pushChainedSinkSlot({ declarator, extracted, declarations, declJobs, receiver }) {
-    const sinkValue = peelTransparentExpr(declarator.init);
-    const prefix = sinkStoresBinding(sinkValue) ? [sinkValue]
-      : declJobs.length === 1 && declJobs[0].carriesPrefix
-        ? observablePrefixElements(peelNestedSequenceExpressions(sinkValue).prefix, patternFrame(declJobs[0].metaPath)) : [];
-    if (prefix.length && extracted.length === 1) {
-      extracted[0].init = renderDestructurePrefix(extracted[0].init, prefix, receiver);
-      declarations.push(...extracted);
-      return;
-    }
-    const sink = variableDeclarator(identifier(mintUnusedName()), sinkValue);
-    declarations.push(sink, ...extracted);
   }
 
   // the shared dead-residual rule, asked of a declarator its claims left behind - the sentinels are
@@ -1963,7 +1899,10 @@ export default function createDestructureDrains(ctx) {
       const initPrefix = carriedInitPrefix(declarator, declJobsHere, patternFrame(declJobsHere[0]?.metaPath));
       // carried only into a SOLE extraction: several readers of one init cannot each hold the
       // prefix, so it lifts ahead of them all (the shape the babel leg prints there too)
-      const carryIntoFirst = initPrefix.length > 0 && jobsHere.length === 1 && !!jobsHere[0]?.carriesPrefix;
+      const initPlacement = planDiscardedInitPlacement(initPrefix, {
+        readCount: jobsHere.length, carrier: jobsHere[0]?.carriesPrefix ? 'receiver' : null,
+      });
+      const carryIntoFirst = initPlacement.placement === 'value';
       for (const job of jobsHere) {
         const leading = extractedHere.length !== 0 ? []
           : [...containerPrefix.map(expr => cloneNode(expr)), ...probeRead ? [probeRead] : []];
@@ -2446,23 +2385,12 @@ export default function createDestructureDrains(ctx) {
   // and a read the pristine init performs whole (`pristineInitFacts`) is then that respelled tail,
   // replayed as it now stands
   function bodylessQuietRescue(declarator, jobs) {
-    // an extraction that READS the receiver performs that read in its own dispatch - rescuing it again
-    // would run it twice (the statement drain's rule)
-    if (jobs.some(job => job.readsReceiver)) return { quietRescue: [], wholeReplay: false };
     const quietInit = jobs[0].seqPrefix?.length ? jobs[0].initTail : declarator.init;
     const facts = pristineInitFacts.get(declarator);
     if (!quietInit || mayHaveSideEffects(jobs[0].initTail ?? quietInit)) return { quietRescue: [], wholeReplay: false };
     const { effects } = planDiscardedInit(quietInit,
-      { ...nodeSite(quietInit, jobs[0].metaPath), adapter, resolvePure }, null, facts);
+      { ...nodeSite(quietInit, jobs[0].metaPath), adapter, resolvePure }, null, facts, jobs);
     return { quietRescue: effects, wholeReplay: !!jobs[0].seqPrefix?.length && effects.length > 0 && !!facts?.readWhole };
-  }
-
-  // the LIVE prefix behind a recorded one: a claim inside the prefix renders by REPLACING its
-  // node, so the nodes captured at registration are pre-swap copies - lifting those spells the
-  // source read again with its own polyfill lost (`(arr.flat(), globalThis)`)
-  function livePrefixOf(declarator, seqPrefix, frame) {
-    const { prefix } = liftedPrefixSplit(peelTransparentExpr(declarator.init), frame);
-    return prefix.length === seqPrefix.length ? prefix : seqPrefix;
   }
 
   // a bodyless `var` destructure hosts its extractions in the slot: a block of `var local = pure;`
@@ -2470,24 +2398,15 @@ export default function createDestructureDrains(ctx) {
   // that survives keeps its own declarator, ordered around the extractions by the shared residual canon
   function drainBodylessDeclaration({ hostNode, jobs }) {
     const [{ declaration }] = jobs;
-    // MULTI-declarator: the statement fits the slot as-is - each jobbed declarator keeps
-    // its (renamed) residual and appends the extraction as a SIBLING declarator after it
-    // (`var first = init, { [SE]: _unused } = rows, fm = _flatMapMaybeArray(rows);`)
-    // ... and a SOLE declarator whose SE-key sentinel takes a memo joins the same way: the memo
-    // leads the one `var`, the residual and its extraction follow (`if (c) var _ref = eff(), {...}`)
+    // Sibling declarations share one native slot; the common effect decision may leave
+    // a joined var or require a block. A sole SE-key sentinel joins its capture likewise.
     const soleSeKeyMemo = declaration.declarations.length === 1 && declaration.kind === 'var'
       && jobs.some(job => job.needsMemo)
       && jobs.every(job => job.sentinel && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)))
       && (jobs.length > 1 || residualKeepsSibling(jobs[0].declarator, jobs));
     if (declaration.declarations.length > 1 || soleSeKeyMemo) {
-      // a job needing a MEMO cannot ride the comma list: the memo is a statement, so the slot
-      // becomes a block and each declarator lands as its own statement inside it
-      if (jobs.some(job => job.needsMemo || job.seqPrefix?.length)) {
-        return drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter },
-          { program, mintRefName, removeConsumedProps, markRewrite });
-      }
-      joinBodylessSiblingExtractions({ declaration, jobs, adapter }, { removeConsumedProps, markRewrite });
-      return;
+      return drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter, resolvePure, sourceFacts: pristineInitFacts },
+        { program, mintRefName, removeConsumedProps, markRewrite });
     }
     const [declarator] = declaration.declarations;
     // asked before the drain reshapes the host (`statements` below replays it for an emptied pattern)
@@ -2521,7 +2440,9 @@ export default function createDestructureDrains(ctx) {
     // iter = _getIteratorMethod((se(), obj));`). a receiver-LESS static discards the read,
     // so its prefix must lift and the slot becomes a block. Only the declared BARE dispatch
     // qualifies here; a default-wrapped value retains this channel's separate prefix placement.
-    const ridesArgument = !!product?.receiver && product.receiver === values[0];
+    const prefixPlacement = planDiscardedInitPlacement(seqPrefix ?? [], {
+      readCount: jobs.length, carrier: product?.receiver === values[0] ? 'receiver' : null,
+    });
     // A slot capture leaves the enclosing initializer live; only a whole capture spends it.
     const capturedLeaf = jobs.some(job => job.consumeResidualRead);
     const residualFirst = destructureResidualFirst([], {
@@ -2538,7 +2459,7 @@ export default function createDestructureDrains(ctx) {
     // ... and a MEMOIZED init keeps its sequence WHOLE: the memo is where it evaluates, and
     // lifting the prefix out of it would take the claims rendered inside that prefix with it
     if ((seqPrefix?.length || discardsInit) && !memoRef && !residualFirst) {
-      if (ridesArgument) {
+      if (prefixPlacement.placement === 'value') {
         // the LIVE prefix, like the lift below: a claim inside it renders by REPLACING its node, so
         // the registration-time copy is pre-swap and would ship the raw call (`log.push("e")` beside
         // a polyfilled twin on the other leg)
