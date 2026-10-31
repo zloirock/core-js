@@ -94,6 +94,31 @@ export function renderNestedExtractionReceiver({ node, pure, keys }, { embed, im
   return keys.reduce(memberFromKeyName, pure ? importPure(pure) : embed(node));
 }
 
+// Render the decided declaration read and its live default before the method dispatch.
+// A pending root may have been replaced by its own claim; refreshing that slot preserves
+// the chosen pattern hops. Prefix source children remain live through host embedding;
+// the default guard's binding wrapper only attaches native source/comment ownership.
+export function renderNestedDeclarationReceiver(plan, {
+  embed, importPure, mintRef, liveReceiver = null, capturedReceiver = null, defaultGuard = renderInstanceDefaultGuard,
+}) {
+  const live = plan.refresh && (capturedReceiver ?? liveReceiver?.());
+  let node = live && live !== plan.refresh.source
+    ? plan.refresh.keys.reduce(memberFromKeyName, embed(live))
+    : renderNestedExtractionReceiver(plan, { embed, importPure });
+  if (plan.prefix?.length) node = sequenceExpression([...plan.prefix.map(part => embed(part, 'prefix')), node]);
+  if (plan.slotDefault) {
+    const ref = mintRef();
+    node = defaultGuard({
+      assignedRef: ref,
+      call: node,
+      defaultValue: embed(plan.defaultSlot?.right ?? plan.slotDefault),
+      defaultPattern: plan.defaultSlot,
+      reread: cloneNode(ref),
+    });
+  }
+  return node;
+}
+
 // One ordinary method invocation, after entry selection and any enclosing guard. The first
 // receiver owns its source prefix; harvested effects outside it precede that read, and key
 // effects follow it. Only a stable tail can be read again for lookup / this. A capture with
