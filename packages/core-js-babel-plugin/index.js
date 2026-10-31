@@ -1,5 +1,5 @@
 import { sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
-import { planSymbolReceiverRoot } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import { planSymbolReceiverRoot, planStaticFallbackReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   collectFoldedReceiverSideEffects,
   memberProxyHopName,
@@ -31,12 +31,10 @@ import {
   patternOrderReducer,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
-  nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
   isCalleeReference,
   valueIsDroppedAt,
   unwrapRuntimeExpr,
-  staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
   leavingAnswerStatements,
   foldedOperandNeedsValue,
@@ -53,7 +51,6 @@ import {
   peelParenAndTSSlotPath,
   peelSkippableWrapperPath,
   peelTransparentExpr,
-  subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   usableAliasInfo,
@@ -107,6 +104,7 @@ import {
   renderMethodCall,
   renderShortCircuitGuard,
   renderSymbolReceiverRoot,
+  renderStaticFallbackReceiver,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
 import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -140,20 +138,15 @@ import {
   aliasHeldClaimProbe,
   aliasRootedReadMayThrow,
   isAliasProxyHopChain,
-  sealedChainBoundary,
-  ownChainOptionalObjects,
   prependChainAssignmentEffect,
   canCollapseDeletedNavigation,
   deleteHostAboveCarriedChain,
   receiverSequenceTailKeys,
-  probeRenderedReceiver,
   probeRunIsTheSourceValue,
-  staticMayEraseReceiver,
   storedUserAssignmentOf,
   directClaimProbeEffects,
   unbackedRealmHopFoldAbove,
   undefinableOptionalGuard,
-  receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
   realmSelectionCollapseOperand,
   writtenRunKeptProbeStore,
@@ -1383,72 +1376,30 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // is undefined (no static). skip fallback + bail; runtime `this.at(...)` throws on the
         // user's side rather than being silently miswired into a dead polyfill call
         if (inheritedStatic && !result) return;
-        if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())
-          && !t.isSuper(path.node.object)) {
-          // a kept SE-bearing inline-call receiver already yields the polyfill binding through its
-          // own rewritten return leaf - leave the member untouched, the inner visits do the job;
-          // a minted memo ref reads the substituted value off its own write the same way
-          if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects,
-            { mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true })) return;
-          // a receiver that IS our probe render (a prior pass's, or this one's re-read) keeps
-          // its throw - the swap would eat it
-          if (path.scope && probeRenderedReceiver(path.node.object, { scope: path.scope, adapter, path })) return;
-          // inject the pure ctor LAZILY - a multi-undefinable-hop chain stands down below (keeps the raw
-          // chain), and an eager import there would be dead. every real use funnels through `fallbackId()`
-          let fallbackImport = null;
-          function fallbackId() {
-            return fallbackImport ??= injectPureImport(fallback.entry, fallback.hintName);
+        const fallbackPlan = fallback && planStaticFallbackReceiver(path.node, meta, fallback,
+          { scope: path.scope, adapter, path }, {
+            resolvePure: m => resolvePure(m, path), resolveGlobal: ({ name }) => resolvePure({ kind: 'global', name }, path),
+            mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true,
+          });
+        if (fallbackPlan) {
+          if (fallbackPlan.kind === 'retain') {
+            // The declined member no longer owns this receiver's independent claim.
+            if (fallbackPlan.release) currentUsageVisitors?.[USAGE_VISITORS_RELEASE_HANDLED]?.(fallbackPlan.release);
+            return;
           }
-          // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
-          // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
-          // `_Map.prototype.has`; swapping the whole receiver (`globalThis.Map.prototype`) would drop
-          // `.prototype` -> the undefined `_Map.has`. a static placement swaps the whole receiver. peel
-          // transparent wrappers (parens / TS cast / non-null) on the `.prototype` receiver so a TS-wrapped
-          // one (`((c++, globalThis.self).Map.prototype as any).has`) reaches the ctor sub-receiver `X.Map`
-          const receiverPath = meta.placement === 'prototype'
-            ? peelSkippableWrapperPath(path.get('object')).get('object')
-            : path.get('object');
-          // mirror the main static-rewrite branch (`replacePath.replaceWith(withSideEffects(
-          // id, allEffects))` below): preserve `meta.sideEffects` (computed-key SE in the
-          // original member access) AND `prependChainAssignmentEffect` over the receiver
-          // (chain-assignment `(a = X).noStatic` writes to `a` are observable; the receiver
-          // replacement drops them). without this, `(called++, Promise).noSuchStatic`
-          // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`.
-          // receiver-only: the computed `[key]` property SURVIVES this swap and re-runs its own SE,
-          // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval.
-          // `protoCtorReceiverSE`: the effects buried in a prototype ctor sub-receiver the receiver-SE
-          // collect couldn't reach - a sequence prefix (`(c++, globalThis.self).Map.prototype.has`) or a
-          // hop's own computed KEY (`globalThis.self[(c++, 'Map')].prototype.has`) - re-emitted so the
-          // `_Map` swap keeps the `c++` (`(c++, _Map).prototype.has`)
-          const seOnlyEffects = receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects) ?? [];
-          // the sub-receiver's own effects sit DEEPER than this member's, so they lead; the chain-assign
-          // splices at the slot the harvest recorded inside them, not at the end - appending it ran the
-          // assignment after a folded key the source evaluates later
-          const ordered = meta.protoCtorReceiverSE ? [...meta.protoCtorReceiverSE, ...seOnlyEffects] : seOnlyEffects;
-          const allEffects = prependChainAssignmentEffect(receiverPath.node, ordered,
-            meta.protoCtorChainAssignAt ?? meta.chainAssignInsertAt ?? ordered.length) ?? [];
-          const hadChainAssign = allEffects.length > ordered.length;
-          // an undefinable optional root may NOT fold into the kept sequence - the fold eats the
-          // `?.` guard (native short-circuits to undefined where the folded read yields a value:
-          // `(c = gw)?.self.Set.prototype.has.call(x)` returned true on an absent `window`). the
-          // kept assign becomes the guard TEST, the swap plus its raw tail ride the alternate:
-          // `null == (c = gw) ? void 0 : _Set.prototype.has.call(x)`. SE channels keep the fold
-          const guardAssigns = allEffects.filter(effect => !ordered.includes(effect));
-          // re-hang the swapped receiver + its raw tail INSIDE a `null == <test> ? void 0 : ...`
-          // guard: the swap alone eats the `?.` short-circuit, so the guarded value rides the test
-          // `detached`: the test this render lifts out is a node no visitor reaches again - a kept
-          // WRITE stays live (the funnel below collapses it in place), a sequence prefix does not
-          function emitReceiverGuard(guardTest, { detached = false } = {}) {
-            // Plan against the source reader: replacing it first removes the optional link and
-            // makes the stored-value canon mistake this null probe for a consuming plain read.
-            // The kept value then reaches the test as `k = _self.window` on either claim channel.
-            collapseKeptNavValueNode(guardTest, path, { observed: true });
-            receiverPath.replaceWith(t.cloneNode(fallbackId()));
+          const receiverPath = fallbackPlan.sequence
+            ? peelSkippableWrapperPath(path.get('object')).get('expressions').at(-1)
+            : meta.placement === 'prototype'
+              ? peelSkippableWrapperPath(path.get('object')).get('object') : path.get('object');
+          if (fallbackPlan.kind === 'guard') {
+            const { guard, detached, effects } = fallbackPlan;
+            // Collapse the kept value against the source reader, before replacing the slot.
+            collapseKeptNavValueNode(guard, path, { observed: true });
+            receiverPath.replaceWith(t.cloneNode(injectPureImport(fallback.entry, fallback.hintName)));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
-            // the guard takes the chain the source `?.` short-circuits: a `!` between two links ends
-            // nothing and is stepped over, as the chain normalizer steps it, while a paren seals - the
-            // read past it is the source's own throw on the short-circuit
+            // Native paths retain Babel's Optional* types and transparent TS wrappers.
+            // Parentheses seal the continuation; a non-null assertion does not.
             let tip = path;
             while (!isWrappedInParens(tip)) {
               const slot = peelParenAndTSSlotPath(tip, TS_EXPR_WRAPPERS);
@@ -1463,98 +1414,23 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               }
               break;
             }
-            const test = nullFirstGuardTest(navGuardTestNode(guardTest, path, null, null, { detached }),
-              { embed: hostSlot });
-            // ... and a `delete` that chain runs on into takes its whole act into the guard: absorbed
-            // into the alternate the member it names is deleted from nothing
+            const test = nullFirstGuardTest(navGuardTestNode(guard, path, null, null, { detached }), { embed: hostSlot });
             const deleteHost = deleteOverOpenContinuation(tip.node, tip.parentPath);
             const guarded = estreeToBabel(deleteHost
               ? renderDeleteShortCircuitGuard(test, hostSlot(deleteHost.node.argument))
               : renderShortCircuitGuard(test, hostSlot(tip.node)));
-            // effects the swap would have carried ride AHEAD of the guard: the source runs them
-            // before the probe read, and the guard render has no slot for them inside its test.
-            // an effect standing INSIDE the guard object is not one of those - the test evaluates
-            // that object, so re-emitting it here ran it twice
-            const guardSe = allEffects.filter(effect => !guardAssigns.includes(effect)
-              && !subtreeContainsNode(guardTest, effect));
-            (deleteHost ?? tip).replaceWith(guardSe.length ? withSideEffects(guarded, guardSe) : guarded);
-          }
-          if (guardAssigns.length === 1 && allEffects.length === 1
-            && !staticMayEraseReceiver(path.node, resolveBuiltIn,
-              path.scope ? { scope: path.scope, adapter, path } : null)) {
-            emitReceiverGuard(guardAssigns[0]);
+            (deleteHost ?? tip).replaceWith(withSideEffects(guarded, effects));
             return;
           }
-          // a mid-chain `?.` over a plain proxy nav (no SE to fold into the kept sequence): the swap
-          // would eat the guard. re-hang inside the undefinable hop's OBJECT; a multi-undefinable
-          // chain stands down (keeps the raw source, no single test expresses the union)
-          // ... and where the ONLY effect is the kept WRITE: the guard render re-emits that write
-          // inside its own null test, so it is not an erasure the swap has to carry - dropping the
-          // guard there lost the source's short-circuit on the very shape the test spells
-          // ... and where the ONLY effect is the kept WRITE: the guard render re-emits that write
-          // inside its own null test, so it is not an erasure the swap has to carry - dropping the
-          // guard there lost the source's short-circuit on the very shape the test spells
-          // ... and where the ONLY effect is one this render owns itself - the kept WRITE its test
-          // spells, or a prefix it re-emits ahead of the guard
-          {
-            const eraseGuard = undefinableOptionalGuard(path.node, m => resolvePure(m, path),
-              path.scope ? { scope: path.scope, adapter, path } : null);
-            if (eraseGuard.kind === 'standdown' && allEffects.length <= 1) return;
-            // a NESTED-sequence receiver stays unproven under the kept-sequence boundary, so its
-            // `?.` is as load-bearing as one over a genuine probe - invisible to the erase verdict,
-            // which proves the value through the fixpoint peel. the swap may not eat it: re-hang
-            // the guard with the sequence itself as the test, exactly like a named source. a guard
-            // SOURCE standing inside such a receiver widens to it for the same reason - the kept
-            // test reads what the source wrote, the probe riding the tail with the prefix beside it
-            const seqReceiver = ownChainOptionalObjects(path.node)
-              .find(object => nestedSequenceValueSpelling(object)) ?? null;
-            // the effect COUNT was the gate, and it asks the wrong question: what the guard render
-            // owes is that every effect still runs exactly once, and it has a slot for each - an
-            // effect standing INSIDE the guard object rides the test itself (`(g = _globalThis,
-            // v = <nav>)` IS the test), every other one re-emits ahead of the whole guard. counted
-            // instead, a receiver carrying two of them lost the source's short-circuit
-            const guardObject = eraseGuard.kind === 'guard'
-              ? (seqReceiver && subtreeContainsNode(seqReceiver, eraseGuard.object) ? seqReceiver : eraseGuard.object)
-              : eraseGuard.kind === 'erase' ? seqReceiver : null;
-            if (guardObject) {
-              emitReceiverGuard(guardObject, { detached: !hadChainAssign });
-              return;
-            }
-          }
-          // the KEPT chain-assign value this arm re-emits beside the swap collapses through the
-          // claim funnel first (`(q = globalThis.self.window).Promise.noSuchStatic` re-emits
-          // `q = _self.window`): the guarded arms above collapse inside their own test render,
-          // and this plain arm owns the assignment's emission the same way the claim channel does
-          if (hadChainAssign) collapseKeptNavValueNode(receiverPath.node, path, { immediate: true });
-          // a SEALED probe receiver: the swap drops the read the source performs on the sealed
-          // VALUE - re-emit it as a THROW probe (carrying the nav's key SE) ahead of the swap.
-          // this swap replaces the RECEIVER, so the receiver read is what it erases and what the
-          // probe respells (`(a.Promise, _Promise).noSuchStatic`, the unplugin spelling - the
-          // surviving member still reads once); a shape only the whole-member walk can probe (a
-          // seal directly under the member) keeps that spelling
-          const throwProbe = sealedClaimThrowProbeNode(path, path.node.object)
-            ?? (sealedChainBoundary(path.node)?.member === path.node ? sealedClaimThrowProbeNode(path) : null);
-          // an ALIAS holding an absent-able value (its init is our minted guard): the receiver
-          // swap erases the member read that throws on the void branch, and the member itself
-          // owes no polyfill - stand down whole, the unplugin leg's twin verdict on this swap
-          if (!throwProbe && !path.node.optional && path.scope
-            && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
-          receiverPath.replaceWith(withSideEffects(fallbackId(),
-            throwProbe ? directClaimProbeEffects(throwProbe, allEffects) : allEffects));
-          // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
-          // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
-          // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
-          // would deoptionalize that trailing `?.(` (the first optional ancestor), turning native
-          // `undefined` into a TypeError. pass `false` so only the now-defined receiver's own `?.`
-          // (dead after the swap) is left as-is and the trailing guard is preserved (matches unplugin)
+          if (fallbackPlan.hadChainAssign) collapseKeptNavValueNode(receiverPath.node, path, { immediate: true });
+          receiverPath.replaceWith(estreeToBabel(renderStaticFallbackReceiver(fallbackPlan, {
+            injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+            cloneHost: node => t.cloneWithoutRetiring(node), embed: hostSlot,
+          })));
+          // The member itself remains raw: its optional call must still guard a missing
+          // method. Only dead assignment-chain link types need native retyping.
           normalizeOptionalChain(path, false);
-          // a CHAIN-ASSIGN receiver's surviving links stay Optional*-TYPED with
-          // `optional: false` - babel codegen then parenthesizes the chain boundary
-          // (`((..., _Map).prototype.has).call(...)`) where the unplugin emitter keeps the plain
-          // spelling. retype the dead links plain in BOTH directions from the swapped slot,
-          // stopping at a genuine `?.`. non-assign receivers (an optional-IIFE root) keep the
-          // sealed paren spelling - the unplugin emitter prints it for the consumed `?.()` there
-          if (hadChainAssign) retypeDeadOptionalLinks(path);
+          if (fallbackPlan.hadChainAssign) retypeDeadOptionalLinks(path);
           return;
         }
         if (!result) {
