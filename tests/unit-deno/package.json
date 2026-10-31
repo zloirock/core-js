@@ -1,0 +1,6 @@
+{
+  "name": "tests/unit-deno",
+  "devDependencies": {
+    "qunit": "^3.0.0"
+  }
+}

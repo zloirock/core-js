@@ -110,6 +110,10 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare bundle test-unit-bun
   ```
+- Unit test case in Deno (skipped if Deno is not installed):
+  ```sh
+  npx run-s prepare bundle test-unit-deno
+  ```
 - [Test262](https://github.com/tc39/test262) test case (it's not included in the default tests):
   ```sh
   npx run-s prepare bundle-package test262

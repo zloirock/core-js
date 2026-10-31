@@ -11,6 +11,7 @@ const ignore = new Set([
   'scripts/usage',
   'tests/test262',
   'tests/unit-bun',
+  'tests/unit-deno',
 ]);
 
 const folders = ['', ...(await Promise.all([
