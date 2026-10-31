@@ -81,8 +81,9 @@ module.exports = function (options, source) {
     // default case
     else resultProperty = sourceProperty;
 
-    // add a flag to not completely full polyfills
-    if (options.sham || (sourceProperty && sourceProperty.sham) || (targetProperty && targetProperty.sham)) {
+    // add a flag to not completely full polyfills without modifying natives used as is
+    if ((!USE_NATIVE || resultProperty !== nativeProperty)
+      && (options.sham || (sourceProperty && sourceProperty.sham) || (targetProperty && targetProperty.sham))) {
       createNonEnumerableProperty(resultProperty, 'sham', true);
     }
 
