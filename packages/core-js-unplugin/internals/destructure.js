@@ -24,6 +24,7 @@ import {
   renderSynthTree,
   resolveNestedNavDispatch,
   resolveNestedReceiverBase,
+  proxyNavHead,
   seKeyStaticOwesTheMirror,
   hopSplitPlan,
   resolveNestedReceiverChain,
@@ -366,7 +367,6 @@ export default function createAstDestructureEmitter({
     primeDestructureReceiverTypes,
     resolveForOfResolvedElement,
     resolveProxyNavReceiver: (...args) => resolveProxyNavReceiver(...args),
-    resolveProxyNavStatic: (...args) => resolveProxyNavStatic(...args),
     resolvePure,
     resolvedType,
     toHint,
@@ -3338,22 +3338,10 @@ export default function createAstDestructureEmitter({
     recordJob({ hostPath: seqHostStatement ? hostParent : exprStmtPath, job });
   }
 
-  // the ROOT and the hop keys of a pure member nav rooted in a POSSIBLE-GLOBAL identifier, or
-  // null when the receiver is not that shape. leading pristine possible-global hops are pure
-  // navigation into the same surface - the kept-root canon drops them (`globalThis.self.Array`
-  // reads as root + ['Array'])
-  function proxyNavHead(receiver, guardCtx = null) {
-    const { root: cur, keys: navKeys } = navHopChain(receiver, guardCtx);
-    let keys = navKeys;
-    if (!keys.length || keys.some(key => !key) || cur?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) return null;
-    while (keys.length > 1 && isPristineProxyGlobal(adapter, keys[0])) keys = keys.slice(1);
-    return { rootName: cur.name, keys };
-  }
-
   // a pure member nav rooted in a POSSIBLE-GLOBAL identifier, rendered via the shared
   // passthrough resolution; null when the receiver is not that shape
   function resolveProxyNavReceiver(receiver, guardCtx = null) {
-    const head = proxyNavHead(receiver, guardCtx);
+    const head = proxyNavHead(receiver, { adapter, guardCtx });
     if (!head) return null;
     const ref = resolvePassthroughRef({
       keyPath: head.keys,
@@ -3367,23 +3355,6 @@ export default function createAstDestructureEmitter({
       for (const key of ref.path) base = memberFromKeyName(base, key);
       return base;
     };
-  }
-
-  // the STATIC such a nav ENDS on once the pattern's own hops are read through it, as the pure
-  // entry spells it - null where the whole nav names no static (`{ of: { name } } = globalThis
-  // .Array` dispatches on `_Array$of`, never on a raw `.of` read off the realm)
-  function resolveProxyNavStatic(receiver, chainKeys, guardCtx, metaPath) {
-    const head = proxyNavHead(receiver, guardCtx);
-    if (!head) return null;
-    const ref = resolvePassthroughRef({
-      keyPath: [...head.keys, ...chainKeys ?? []],
-      receiverName: head.rootName,
-      receiverIsProxy: true,
-      resolveGlobalPolyfill,
-      adapter,
-      resolveStaticPolyfill: (ctor, key) => staticHopPure(ctor, key, metaPath),
-    });
-    return ref?.static ? ref.pure : null;
   }
 
   return {

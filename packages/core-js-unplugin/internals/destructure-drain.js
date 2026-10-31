@@ -1,16 +1,10 @@
 // the drain half of the destructure emitter: the per-host ledger drains that run once over
 // the final tree - pattern surgery, memo declarations, residual re-anchoring and the
 // literal renders. created per transform over the visit half's shared context
-import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import {
-  isBuiltInSurfaceNav,
-  isInstanceSurfaceNav,
-  destructurePatternHostPath,
-  dispatchMayReadNav,
   isReReferenceableAcrossReads,
   isSeFreeMemberReceiver,
   liftedPrefixSplit,
-  resolveNestedReceiverBase,
   staticHopPure,
   provenRealmCallRoot,
   discardRescueNodesWithReads,
@@ -41,12 +35,11 @@ import {
   sentinelMemoInitShape,
   residualAnchorSurface,
   planResidualAnchorHop,
+  planNestedDeclarationReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planMemoReadTarget } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   decidedRunningPart,
-  proxyGlobalRootName,
-  resolveObjectName,
   isCallShape,
   isPureNavReceiver,
   keptWriteRidesValue,
@@ -56,10 +49,8 @@ import {
   bindingDeclaratorNode,
   computedKeyHasSideEffects,
   exportedSentinelSplit,
-  forOfHeadDeclarationOf,
   invalidateScopeVarIndex,
   isDestructurePattern,
-  isPristineProxyGlobal,
   isTopLevelThisContext,
   mayHaveSideEffects,
   noteRelocatedHeadName,
@@ -72,7 +63,6 @@ import {
   propertyKeyName,
   peelNestedSequenceExpressions,
   peelTransparentExpr,
-  POSSIBLE_GLOBAL_OBJECTS,
   pruneEmptiedHopProps,
   statementListOf,
   unwrapRuntimeExpr,
@@ -103,6 +93,7 @@ import {
   renderForInitSink,
   renderResidualAnchor,
   renderResidualAnchorInit,
+  renderNestedDeclarationReceiver,
 } from '@core-js/polyfill-provider/render';
 import {
   anchorAssignmentResidual,
@@ -184,7 +175,6 @@ export default function createDestructureDrains(ctx) {
     primeDestructureReceiverTypes,
     resolveForOfResolvedElement,
     resolveProxyNavReceiver,
-    resolveProxyNavStatic,
     resolvePure,
     resolvedType,
     seqDrainedSlots,
@@ -195,69 +185,6 @@ export default function createDestructureDrains(ctx) {
   // the aliases this leg minted for a global (`_globalThis`): the re-read question's per-leg lookup
   function isOwnPureAlias(name) {
     return !!injector?.getBindingInfo?.(name);
-  }
-
-  // the PASSTHROUGH render: the resolution consumed the RECEIVER's keys, not the pattern's, so a
-  // nested leaf under `prototype` still reads through the pattern's own hops
-  // (`({ prototype: { flat: x } } = globalThis.Array)` dispatches on `_globalThis.Array.prototype`,
-  // not on the ctor - the ctor spelling bound undefined and threw at the first call). the passthrough
-  // exists because the in-place substitution may have been SUPPRESSED for this nav; where the tree
-  // shows it DID run (a claim on the leaf rendered its own dispatch), that rewrite is the
-  // authoritative spelling and re-rendering would ship the raw member instead
-  function proxyNavPassthroughValue({
-    entry,
-    hintName,
-    kind,
-    chainKeys,
-    proxyNav,
-    liveReceiver,
-    receiverNode,
-    guarded,
-    typedNavChain,
-    metaPath,
-  }) {
-    const id0 = injectPureImport(entry, hintName);
-    const patternHops = passthroughPatternHops(chainKeys);
-    // ... and the SURFACE rule is asked here too, of the hops this render is about to spell: an
-    // INSTANCE leaf off the object the hops merely REACH is a name match (`{ Array: { keys: k } }`),
-    // which every other path keeps native - the nested arm asks it of the receiver's own spelling,
-    // and a receiver that resolved as a proxy nav reaches the render through here. A typed user
-    // chain owns its one read and dispatches on the unknown value those keys hold instead.
-    if (kind === 'instance' && entry !== 'get-iterator-method' && !typedNavChain
-      && !passthroughHopsNameSurface(patternHops)) return null;
-    function passthroughBase(override) {
-      if (override) return identifier(override);
-      return liveReceiver && liveReceiver() !== receiverNode ? cloneNode(liveReceiver()) : proxyNav();
-    }
-    return guarded((override, product) => {
-      const base = patternHops.reduce(memberFromKeyName, passthroughBase(override));
-      if (!typedNavChain?.slotDefault) return renderDestructureDispatch(identifier(id0), base, product);
-      // The passthrough owns the same slot default as the nested channel, before method lookup.
-      const slotRef = injector.generateDeclaredRef(metaPath);
-      return renderDestructureDispatch(
-        identifier(id0),
-        buildInstanceDefaultGuard({
-          assignedRef: identifier(slotRef), call: base, defaultValue: typedNavChain.slotDefault, reread: identifier(slotRef),
-        }),
-        product,
-      );
-    });
-  }
-
-  // the pattern's OWN hop keys as the passthrough spells them: a LEADING pristine proxy hop drops,
-  // exactly as it does for the receiver's own keys - it navigates into the same surface
-  function passthroughPatternHops(chainKeys) {
-    return (chainKeys ?? []).filter((key, index, keys) => {
-      return !(index === 0 && keys.length > 1 && isPristineProxyGlobal(adapter, key));
-    });
-  }
-
-  // ... and do those hops NAME an instance surface? a leaf off the object they merely REACH is a name
-  // match, which every other path keeps native. hopless claims dispatch on the receiver itself and
-  // answer yes - the question is about the hops
-  function passthroughHopsNameSurface(patternHops) {
-    return !patternHops.length
-      || isInstanceSurfaceNav(patternHops.reduce(memberFromKeyName, identifier('_')));
   }
 
   // the extracted binding's value: a static / global claim is the import binding itself;
@@ -403,46 +330,52 @@ export default function createDestructureDrains(ctx) {
           product,
         ));
       }
-      // a pure member nav qualifies like a bare name: the lookup reads it once. a nav off a
-      // PROXY-GLOBAL root renders through the canonical passthrough resolution - the pure
-      // ctor when one exists (`_Promise`), else the proxy member read (`_globalThis.navigator`) -
-      // because the detection may have claimed the nav for the destructure and suppressed the
-      // in-place substitution the clone would otherwise carry
-      // ... asked WITH the guard context: a receiver wearing a dead chain marker is a provable
-      // nav all the same, and the predicate is the one that judges its `?.` (peeling the marker
-      // ahead of it would strip the wrapper and leave the hop flags saying the opposite)
-      // ... and a TYPED nav off a root with no NAME is not a nav at all - a call, a `new` - yet the
-      // walk granted it for the sole read, and the nested branch below spells it once
-      if (!literalRoute && !typedNavChain && !isPureNavReceiver(receiver, guardCtx)) return null;
-      // ... asked WITH the guard context for the same reason: the resolution WALKS the hops, and
-      // past a dead marker their `?.` flags are trivia. without it the nav resolved for the flat
-      // twin and not for the marked one, and the claim shipped native
-      // (`({ Array: { prototype: { flat: c } } } = globalThis?.globalThis)`)
-      // ... and a nav that ENDS on a polyfillable static once the pattern's own hops are read through
-      // it dispatches on that static's ponyfill - an import binding, always defined, so the leaf's own
-      // default guard is all it owes (`{ of: { name } } = globalThis.Array` -> `_name(_Array$of)`)
-      if (nested && entry !== 'get-iterator-method') {
-        const navStatic = resolveProxyNavStatic(receiver, chainKeys, guardCtx, metaPath);
-        if (navStatic) {
-          const staticId = injectPureImport(navStatic.entry, navStatic.hintName);
-          const leafId = injectPureImport(entry, hintName);
-          return guarded((override, product) => renderDestructureDispatch(identifier(leafId), identifier(staticId), product));
-        }
+      if (nested) {
+        const receiverPlan = planNestedDeclarationReceiver({
+          path: metaPath,
+          receiver,
+          keys: chainKeys,
+          entry,
+          typedChain: typedNavChain,
+          read: { node: receiver, ...nodeSite(receiver, metaPath) },
+          guardCtx,
+        }, {
+          adapter,
+          isOwnAlias: isOwnPureAlias,
+          injectorState,
+          resolveGlobalPolyfill,
+          resolveStaticPolyfill: (ctorName, key) => staticHopPure({ ctorName, key, resolvePure: meta => resolvePure(meta, metaPath) }),
+        });
+        if (!receiverPlan) return null;
+        const id = injectPureImport(entry, hintName);
+        const nestedValue = guarded((override, product) => renderDestructureDispatch(identifier(id),
+          renderNestedDeclarationReceiver(receiverPlan, {
+            embed: node => node === receiver ? duplicateReceiver(liveReceiver?.() ?? receiverSpelling, injector) : cloneNode(node),
+            importPure: pure => identifier(injectPureImport(pure.entry, pure.hintName)),
+            mintRef: () => identifier(injector.generateDeclaredRef(metaPath)),
+            liveReceiver,
+            capturedReceiver: override ? identifier(override) : null,
+            defaultGuard: buildInstanceDefaultGuard,
+          }), product));
+        nestedValue.spellsInit = receiverPlan.carriesInit;
+        return nestedValue;
       }
+      // Flat receivers use their admitted navigation; nested reads were decided above.
+      if (!isPureNavReceiver(receiver, guardCtx)) return null;
       const proxyNav = resolveProxyNavReceiver(receiver, guardCtx);
       // a DEFAULTED prop over a proxy-global receiver takes the GUARD path below, with the
       // passthrough as its dispatch receiver: the guard reads that receiver exactly once, which
       // is what the source's own read does. leaving it in the residual shipped the claim native,
       // and on a target without the method the source's default won over the ponyfill
-      if (proxyNav && (nested || !defaultPattern)) {
-        return proxyNavPassthroughValue({
-          entry, hintName, kind, chainKeys, proxyNav, liveReceiver, receiverNode, guarded, typedNavChain, metaPath,
-        });
+      if (proxyNav && !defaultPattern) {
+        const id = injectPureImport(entry, hintName);
+        return (override, product) => renderDestructureDispatch(identifier(id), override ? identifier(override)
+          : liveReceiver && liveReceiver() !== receiverNode ? cloneNode(liveReceiver()) : proxyNav(), product);
       }
       // a BARE pristine proxy-global receiver substitutes its pure binding: the clone is
       // built after the traversal, so the ordinary identifier claim never reaches it
-      // (!nested: hop chains resolve through the passthrough below, keys intact)
-      const barePure = nested ? null : bareProxyGlobalPure(receiver, metaPath, { adapter, resolveGlobalPolyfill });
+      // Nested hop chains have already selected their base above.
+      const barePure = bareProxyGlobalPure(receiver, metaPath, { adapter, resolveGlobalPolyfill });
       if (barePure) {
         if (defaultPattern) return null;
         const id1 = injectPureImport(entry, hintName);
@@ -450,116 +383,6 @@ export default function createDestructureDrains(ctx) {
         return (override, product) => renderDestructureDispatch(identifier(id1), identifier(override ?? recvId), product);
       }
       const id = injectPureImport(entry, hintName);
-      if (nested) {
-        // the symbol leaf under hop props: its receiver is the RESOLVED hop nav - the pure
-        // ctor when one exists (`_Map`), else the proxy member read (`_globalThis.Array`);
-        // leading pristine proxy hops are pure navigation into the same surface and drop
-        // (`{ self: { [S]: it } } = globalThis` reads `_gim(_globalThis)`)
-        if (!chainKeys?.length) return null;
-        // a TYPED nav off a root with no NAME - a call, a `new`, a member - spells that root inside
-        // its own dispatch: the walk granted the chain only where the declarator dies whole with the
-        // claim, so this is the source's one read of it (`{ data: { at } } = mk()` -> `_at(mk().data)`).
-        // read LIVE, like every receiver this dispatch spells itself
-        // Top-level this is a stable realm root even beside a surviving host sibling. Its spelling
-        // stays this, so the dispatch retains the source's receiver and ESM rejection behavior.
-        const realmThis = receiver?.type === 'ThisExpression' && isTopLevelThisContext(metaPath);
-        const namelessRoot = receiver?.type !== 'Identifier';
-        if (namelessRoot && !realmThis && (!typedNavChain || entry === 'get-iterator-method')) return null;
-        // an INSTANCE surface the chain NAMES dispatches on itself; everything else is the shared
-        // walk's to grant, and it grants a chain only when every slot it descends dies with it,
-        // leaving no residual to call the same getter a second time. so a leaf off the object the
-        // hops merely REACH stays native for want of a chain (`{ Array: { keys: k } } = globalThis`
-        // -> `_keys(_globalThis.Array)`, a name match), and a USER nav dispatches on the read the
-        // source performs (`{ y: { at } } = src` -> `_at(src.y)`) - a capitalised key off it too, its
-        // root naming no surface (`{ Data: { prototype: { at } } } = src`). the SYMBOL leaf keeps its
-        // own rule above: its receiver IS the hop surface, prototype or not
-        const navSpelling = namelessRoot && !realmThis ? null : chainKeys.reduce(memberFromKeyName, receiver);
-        const surfaceOptions = { ctx: { scope: metaPath.scope, adapter, path: metaPath }, isOwnAlias: isOwnPureAlias };
-        if (navSpelling && entry !== 'get-iterator-method' && !isInstanceSurfaceNav(navSpelling, surfaceOptions)
-          && !typedNavChain) return null;
-        // ... and a USER ALIAS of the realm is the realm, not a user object: the alias canon names it
-        // through the init peel (`const g = globalThis`), and without that the dispatch kept the
-        // source's raw read and lost the ponyfill outright - the other binding dispatches
-        // `_nameMaybeFunction(_Promise)` for the same source.
-        // An effect in a USER alias's init ran once at its declaration and settles nothing about the
-        // reads after it, so it takes no say here.
-        // A name OUR ref generator minted answers the realm the same way, but only for the
-        // RESOLUTION: a memo's point is its spelling, and a pure base REPLACES that spelling outright
-        // while a raw read through the realm would merely re-spell it. So where the realm read
-        // resolves no ponyfill, the memo keeps the read it stands for (`_ref.Array.prototype`), and
-        // where it does, the leaf dispatches on it. A loop head keeps its bound element
-        // when the pure base only names the same realm - a constructor or static still replaces it.
-        // A typed user chain also keeps its capture: replacing a captured this with the realm
-        // would read another object's user slot in CommonJS.
-        const receiverSite = namelessRoot ? null : nodeSite(receiver, metaPath);
-        const receiverBinding = namelessRoot ? null
-          : adapter.getBinding({ scope: receiverSite.scope, name: receiver.name, path: receiverSite.path, read: receiver });
-        const aliasedRealm = receiverBinding && !receiverBinding.polyfillHint
-          ? proxyGlobalRootName({ node: receiver, scope: receiverSite.scope, adapter, path: receiverSite.path }) : null;
-        const rootIsAlias = aliasedRealm !== null && aliasedRealm !== receiver.name;
-        const mintedMemo = rootIsAlias && ORPHAN_REF_PATTERN.test(receiver.name);
-        const resolvedBase = namelessRoot ? { path: chainKeys } : resolveNestedReceiverBase({
-          rootName: rootIsAlias ? aliasedRealm : receiver.name,
-          keys: chainKeys,
-          binding: rootIsAlias ? null : receiverBinding,
-          adapter,
-          resolveGlobalPolyfill,
-          // a nav ending on a polyfillable STATIC dispatches on the static's own ponyfill, never on
-          // the raw static off the realm (`{ Array: { of: { name } } } = globalThis`)
-          resolveStaticPolyfill: (ctor, key) => staticHopPure({ ctorName: ctor, key, resolvePure: m => resolvePure(m, metaPath) }),
-          // the chain is read where its receiver is
-          read: receiverSite && { node: receiver, path: receiverSite.path },
-        });
-        const ref = (mintedMemo && !resolvedBase?.pure) || (POSSIBLE_GLOBAL_OBJECTS.has(resolvedBase?.pure?.hintName)
-          && ((rootIsAlias && typedNavChain && !isBuiltInSurfaceNav(navSpelling, surfaceOptions))
-            || forOfHeadDeclarationOf(receiver.name, { ...receiverSite, adapter })))
-          ? { name: receiver.name, path: chainKeys } : resolvedBase;
-        if (!ref) return null;
-        // ... and a surface off a USER root is a getter each other reader of its hops - a sibling
-        // leaf, the residual - would fire again: the shared re-read question, unless this dispatch is
-        // the nav's only reader. it is asked of what the dispatch SPELLS: an alias the realm canon
-        // proves holds the realm at this read is spelled as the realm, so the alias is not read again.
-        // the SYMBOL leaf asks it too: its surface rule above says what it dispatches on, not how often
-        const hostPath = rootIsAlias && ref === resolvedBase ? destructurePatternHostPath(metaPath) : null;
-        const realmAtRead = hostPath
-          && resolveObjectName({ objectNode: receiver, scope: hostPath.scope, adapter, path: hostPath }) === aliasedRealm;
-        const spelledNav = realmAtRead ? chainKeys.reduce(memberFromKeyName, identifier(aliasedRealm)) : navSpelling;
-        if (navSpelling && !typedNavChain && !dispatchMayReadNav(metaPath, spelledNav, {
-          isOwnAlias: isOwnPureAlias, adapter, symbolLeaf: entry === 'get-iterator-method',
-        })) return null;
-        // ... and a nav ending ON a built-in surface dispatches off that surface's own PURE binding:
-        // the leaf reads THROUGH the surface, which the anchored residual re-homing onto it never
-        // does, so without this the claim shipped native beside the anchor (`{ Promise: { name } } =
-        // globalThis` bound `_Promise.name`, undefined on a floor without it, where the other leg
-        // dispatches `_nameMaybeFunction(_Promise)`). the root is asked with the hops: a capitalised
-        // key off the user's own object merely LOOKS like that surface (`{ Object: { keys } } = src`),
-        // and it dispatches through its own type, as on the other leg
-        if (navSpelling && entry !== 'get-iterator-method' && !ref.pure && !isInstanceSurfaceNav(navSpelling, surfaceOptions)
-          && isBuiltInSurfaceNav(navSpelling, surfaceOptions)) {
-          return null;
-        }
-        const navValue = guarded((override, product) => {
-          let base = namelessRoot ? duplicateReceiver(liveReceiver?.() ?? receiverSpelling, injector)
-            : ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
-          for (const key of ref.path) base = memberFromKeyName(base, key);
-          // a DEFAULT on the way up folds BOTH arms into the receiver: the slot's own value when it
-          // is defined, the default when it is not - one read of the nav, and the default evaluated
-          // only where the source evaluates it (mirroring the default alone leaves the live arm raw)
-          if (!typedNavChain?.slotDefault) return renderDestructureDispatch(identifier(id), base, product);
-          const slotRef = injector.generateDeclaredRef(metaPath);
-          return renderDestructureDispatch(
-            identifier(id),
-            buildInstanceDefaultGuard({
-              assignedRef: identifier(slotRef), call: base, defaultValue: typedNavChain.slotDefault, reread: identifier(slotRef),
-            }),
-            product,
-          );
-        });
-        // the nameless root is the init itself, so this dispatch is its one evaluation: a channel
-        // keeping the discarded init for its effects would run it again
-        navValue.spellsInit = namelessRoot;
-        return navValue;
-      }
       if (!defaultPattern) {
         return (override, product) => renderDestructureDispatch(
           identifier(id),

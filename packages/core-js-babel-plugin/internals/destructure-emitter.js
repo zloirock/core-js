@@ -15,10 +15,9 @@ import {
   renderAliasHeldProbeRead,
   hostSlot,
   memberFromKeyName,
-  identifier as canonIdentifier,
-  memberExpression as canonMember,
   renderInstanceDefaultGuard,
   renderNestedExtractionReceiver,
+  renderNestedDeclarationReceiver,
   renderParameterInstanceCapture,
   renderKeyedDestructureRead,
   nullGuardTest,
@@ -156,6 +155,7 @@ import {
 import {
   discardedReceiverEffects,
   planNestedAssignmentReceiver,
+  planNestedDeclarationReceiver,
   liveDestructureDefault,
   planDestructureInstanceSynth,
   planForInitSink,
@@ -4264,6 +4264,23 @@ export default function createDestructureEmitter({
       ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true, null, literalReceiverPlan) : null;
     // a memo hoisted ahead of a BODYLESS host braced its slot, and the held path now names the block
     if (declaration.isBlockStatement()) declaration = declaration.get('body').at(-1);
+    // Bind the common read product to Babel slots and native ref allocation.
+    function declarationReceiver(receiver, keys, typedChain = null, captured = false) {
+      const plan = planNestedDeclarationReceiver({ path: prop, receiver, keys, entry, typedChain, captured }, {
+        adapter,
+        isOwnAlias: isOwnNamespaceRef,
+        injectorState: injector,
+        resolveGlobalPolyfill: resolveGlobalPure,
+        resolveStaticPolyfill: staticHopPure,
+      });
+      if (!plan) return null;
+      const node = estreeToBabel(renderNestedDeclarationReceiver(plan, {
+        embed: source => hostSlot(t.cloneNode(source)),
+        importPure: pure => hostSlot(t.cloneNode(injectPureImport(pure.entry, pure.hintName))),
+        mintRef: () => hostSlot(generateRef(prop.scope, prop.node)),
+      }));
+      return { node, carriesInit: plan.carriesInit };
+    }
     let slotDropsAlone = kind === 'instance' && isSymbolIteratorPatternClaim(prop.node, entry) && residualDies;
     // set by the typed-nav branch below: that receiver is spelled by the extraction itself, so a
     // kept residual would read it a SECOND time
@@ -4280,19 +4297,7 @@ export default function createDestructureEmitter({
     if (kind === 'instance' && !objectNode && entry === SYMBOL_ITERATOR_PURE_RESULT.entry
       && originalBindingCount(prop) === patternBindingCount(prop.node.value)) {
       const chain = resolveNestedReceiverChain(prop, { adapter });
-      const base = chain && resolveNestedReceiverBase({
-        rootName: chain.root.name,
-        keys: chain.keys,
-        binding: adapter.getBinding({ scope: prop.scope, name: chain.root.name, path: prop, read: chain.root }),
-        adapter,
-        resolveGlobalPolyfill: resolveGlobalPure,
-      });
-      if (base) {
-        objectNode = estreeToBabel(base.path.reduce(
-          (acc, key) => canonMember(acc, canonIdentifier(key)),
-          hostSlot(base.pure ? injectPureImport(base.pure.entry, base.pure.hintName) : t.cloneNode(chain.root)),
-        ));
-      }
+      if (chain) objectNode = declarationReceiver(chain.root, chain.keys)?.node ?? null;
     }
     // every surface question below asks the ROOT with the hops: a capitalised key off the user's own
     // object only looks like a built-in surface
@@ -4318,10 +4323,8 @@ export default function createDestructureEmitter({
       });
       // ... a surface spelled beside another reader of its hops (a sibling claim, the residual) asks the
       // shared re-read question first: a memo of the nav would add a read, not share one
-      if (navDispatch?.kind === 'surface') {
-        if (dispatchMayReadNav(prop, navDispatch.node,
-          { isOwnAlias: isOwnPureAlias, adapter, allowOptionalHops: navDispatch.allowOptionalHops })
-          || navOffSlotRef(navDispatch.node)) objectNode = navDispatch.node;
+      if (navDispatch?.kind === 'surface' && navDispatch.root) {
+        objectNode = declarationReceiver(navDispatch.root, navDispatch.keys, null, navOffSlotRef(navDispatch.node))?.node ?? null;
       } else if (navDispatch?.kind === 'static') objectNode = t.cloneNode(injectPureImport(navDispatch.entry, navDispatch.hintName));
       // ... and a nav that does NOT enter that namespace resolved its leaf through the receiver's own
       // TYPE, where the surface question has nothing to judge: `{ y: { at } } = src` dispatches on
@@ -4352,56 +4355,11 @@ export default function createDestructureEmitter({
             typedChain = typedNavClaimChain(prop, { adapter });
           }
         }
-        const typedBase = typedChain && resolveNestedReceiverBase({
-          rootName: typedChain.root.name,
-          keys: typedChain.keys,
-          binding: adapter.getBinding({ scope: prop.scope, name: typedChain.root.name, path: prop, read: typedChain.root }),
-          adapter,
-          resolveGlobalPolyfill: resolveGlobalPure,
-          resolveStaticPolyfill: staticHopPure,
-        });
-        // ... a nav ending on a polyfillable STATIC dispatches on that static's ponyfill - an import
-        // binding, always defined, so a slot default folds through the static guard
-        // (`{ Array: { of: { name } } } = globalThis` -> `_name(_Array$of)`)
-        if (typedBase?.static) {
-          const staticId = injectPureImport(typedBase.pure.entry, typedBase.pure.hintName);
-          objectNode = typedChain.slotDefault ? estreeToBabel(renderStaticDefaultGuard({
-            read: hostSlot(t.cloneNode(staticId)),
-            defaultValue: hostSlot(t.cloneNode(typedChain.slotDefault)),
-            reread: hostSlot(t.cloneNode(staticId)),
-            alwaysDefined: true,
-          })) : t.cloneNode(staticId);
+        const typedReceiver = typedChain && declarationReceiver(typedChain.root, typedChain.keys, typedChain);
+        if (typedReceiver) {
+          objectNode = typedReceiver.node;
           typedNavReceiver = true;
-        } else if (typedBase && !typedBase.ctor) {
-          // A realm's pure entry supplies the root, while its user keys stay runtime reads.
-          // A prefixed name or this carries its prefix ahead of the nav inside the dispatch argument;
-          // a decided selection uses the shared value canon, while an opaque root stays whole.
-          const selectedRoot = unwrapRuntimeExpr(decidedRunningOperand(typedChain.root,
-            { scope: prop.scope, adapter, path: prop }));
-          const seqRoot = selectedRoot.type === 'SequenceExpression' ? selectedRoot : null;
-          const seqTail = seqRoot && unwrapRuntimeExpr(seqRoot.expressions.at(-1));
-          const prefixedRoot = seqTail?.type === 'Identifier' || seqTail?.type === 'ThisExpression';
-          objectNode = prefixedRoot
-            ? t.sequenceExpression([...seqRoot.expressions.slice(0, -1).map(expr => t.cloneNode(expr)),
-              estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(t.cloneNode(seqTail))))])
-            : estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(typedBase.pure
-              ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : t.cloneNode(typedChain.root))));
-          if (prefixedRoot) t.inheritsComments(objectNode, seqRoot);
-          typedNavReceiver = true;
-          // a root with no NAME - a call, a `new`, a member the walk admitted for the sole read - is
-          // spelled by this nav, so the dispatch performs the init's own evaluation: a residual kept
-          // for that init's effect would run it a second time
-          receiverCarriesInit ||= typedChain.root.type !== 'Identifier';
-          // ... and a DEFAULT on the way up folds BOTH arms into that receiver: the slot's own value
-          // when it is defined, the default when it is not - one read of the nav, and the default
-          // evaluated only where the source evaluates it
-          if (typedChain.slotDefault) {
-            objectNode = buildInstanceDefaultGuard(t, {
-              call: objectNode,
-              defaultNode: t.cloneNode(typedChain.slotDefault),
-              ref: generateRef(prop.scope, prop.node),
-            });
-          }
+          receiverCarriesInit ||= typedReceiver.carriesInit;
         }
       }
       if (!objectNode) {

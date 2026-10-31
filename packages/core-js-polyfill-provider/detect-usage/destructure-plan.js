@@ -33,6 +33,7 @@ import {
   followConstIdentifierInit,
   followConstLiteralAlias,
   forOfHeadIterableElements,
+  forOfHeadDeclarationOf,
   forEachPatternWriteMember,
   isChainAssignment,
   isDestructurePattern,
@@ -40,6 +41,7 @@ import {
   identifierReferencedInSubtree,
   isPropertyNode,
   isPristineProxyGlobal,
+  isTopLevelThisContext,
   isRenderedStoredValue,
   isMirrorablePatternValue,
   isRestProperty,
@@ -147,6 +149,7 @@ import {
   proxyReceiverValueCanBeUndefined,
   resolveKey as sharedResolveKey,
   memberTargetTakesExtraction,
+  proxyGlobalRootName,
   resolveObjectName,
   resolveSynthKeys,
   callYieldedLiteral,
@@ -178,6 +181,7 @@ import {
   dispatchMayReadNav,
   resolveNestedNavDispatch,
   resolveNestedReceiverBase,
+  proxyNavHead,
   typedNavClaimChain,
   resolveDestructureReceiverPlan,
   destructureHostThroughWrappers,
@@ -440,6 +444,95 @@ export function planNestedAssignmentReceiver({ path, assignment, entry, chain = 
     return pending ? { kind: 'receiver', node: fallback, keys: [], rebind: true } : direct;
   }
   return null;
+}
+
+// The receiver a nested declaration dispatch reads, after pairing/capture has supplied its
+// root and keys. A typed chain owns its user-slot read; a surface or Symbol.iterator claim
+// must also prove that surviving patterns can read the navigation again. Captures are facts
+// of this pass, never a spelling such as `_ref`. A loop element and a captured user receiver
+// keep that identity even when resolution can name the realm behind them.
+// The product owns the base, prefix, default and initializer read. It imports nothing and
+// borrows source slots; a deferred render can refresh the root but cannot resolve it again.
+export function planNestedDeclarationReceiver({
+  path, receiver, keys, entry, typedChain = null, read = null, guardCtx = null, captured = false,
+}, { adapter, isOwnAlias, injectorState, resolveGlobalPolyfill, resolveStaticPolyfill }) {
+  if (!receiver || !keys?.length) return null;
+  const ctx = { scope: path.scope, path, adapter };
+  const symbolLeaf = entry === 'get-iterator-method';
+  const root = peelTransparentExpr(receiver);
+  const surfaceOptions = { ctx, isOwnAlias };
+  const defaultHost = typedChain?.leafPattern?.parentPath?.node;
+  const defaultSlot = defaultHost?.type === 'AssignmentPattern' ? defaultHost : null;
+  const proxyNav = proxyNavHead(root, { adapter, guardCtx });
+  if (proxyNav) {
+    const { rootName, keys: headKeys } = proxyNav;
+    const ref = resolvePassthroughRef({
+      keyPath: [...headKeys, ...keys],
+      receiverName: rootName,
+      receiverIsProxy: true,
+      resolveGlobalPolyfill,
+      resolveStaticPolyfill: symbolLeaf ? null : resolveStaticPolyfill,
+      adapter,
+    });
+    if (ref?.static) return { pure: ref.pure, keys: [], carriesInit: false };
+    const base = resolvePassthroughRef({
+      keyPath: headKeys, receiverName: rootName, receiverIsProxy: true, resolveGlobalPolyfill, adapter,
+    });
+    const hops = keys.filter((key, index) => !(index === 0 && keys.length > 1 && isPristineProxyGlobal(adapter, key)));
+    if (!symbolLeaf && !typedChain && !isInstanceSurfaceNav(hops.reduce(memberFromKeyName, identifier('_')))) return null;
+    return {
+      pure: base.pure,
+      node: base.pure ? null : identifier(base.name),
+      keys: [...base.path, ...hops],
+      refresh: { source: receiver, keys: hops },
+      slotDefault: typedChain?.slotDefault,
+      defaultSlot,
+      carriesInit: false,
+    };
+  }
+  const named = root.type === 'Identifier';
+  const realmThis = root.type === 'ThisExpression' && isTopLevelThisContext(path);
+  if (!named && !realmThis && (!typedChain || symbolLeaf)) return null;
+  const nav = named || realmThis ? keys.reduce(memberFromKeyName, root) : null;
+  if (nav && !symbolLeaf && !isInstanceSurfaceNav(nav, surfaceOptions) && !typedChain) return null;
+  const site = read ?? { node: root, path, scope: path.scope };
+  const binding = named ? adapter.getBinding({ scope: site.scope, name: root.name, path: site.path, read: root }) : null;
+  const alias = binding && !binding.polyfillHint
+    ? proxyGlobalRootName({ node: root, scope: site.scope, path: site.path, adapter }) : null;
+  const aliased = alias !== null && alias !== root.name;
+  const base = named ? resolveNestedReceiverBase({
+    rootName: aliased ? alias : root.name,
+    keys,
+    binding: aliased ? null : binding,
+    adapter,
+    resolveGlobalPolyfill,
+    resolveStaticPolyfill: symbolLeaf ? null : resolveStaticPolyfill,
+    read: { node: root, path: site.path },
+  }) : { path: keys };
+  if (!base) return null;
+  const capture = captured || (named && injectorState?.isOwnPassGeneratedName?.(root.name));
+  const keepsRoot = (aliased && capture && !base.pure) || (POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName)
+    && ((aliased && typedChain && !isBuiltInSurfaceNav(nav, surfaceOptions))
+      || forOfHeadDeclarationOf(root.name, { ...site, adapter })));
+  const host = aliased && !keepsRoot ? destructurePatternHostPath(path) : null;
+  const realmAtRead = host && resolveObjectName({ objectNode: root, scope: host.scope, adapter, path: host }) === alias;
+  const spelledNav = realmAtRead ? keys.reduce(memberFromKeyName, identifier(alias)) : nav;
+  if (nav && !typedChain && !captured && !dispatchMayReadNav(path, spelledNav, { isOwnAlias, adapter, symbolLeaf })) return null;
+  if (nav && !symbolLeaf && !keepsRoot && !base.pure && !isInstanceSurfaceNav(nav, surfaceOptions)
+    && isBuiltInSurfaceNav(nav, surfaceOptions)) return null;
+  const selected = unwrapRuntimeExpr(decidedRunningOperand(receiver, ctx));
+  const seq = selected?.type === 'SequenceExpression' ? selected : null;
+  const tail = seq && unwrapRuntimeExpr(seq.expressions.at(-1));
+  const prefix = tail?.type === 'Identifier' || tail?.type === 'ThisExpression' ? seq.expressions.slice(0, -1) : [];
+  return {
+    pure: keepsRoot || prefix.length ? null : base.pure,
+    node: prefix.length ? tail : named ? identifier(keepsRoot ? root.name : base.name ?? root.name) : receiver,
+    keys: keepsRoot ? keys : base.path,
+    prefix,
+    slotDefault: base.static ? null : typedChain?.slotDefault,
+    defaultSlot: base.static ? null : defaultSlot,
+    carriesInit: !!typedChain && !named && !base.static,
+  };
 }
 
 // Classify reads before consuming their source properties. A detached guard, nested hop or

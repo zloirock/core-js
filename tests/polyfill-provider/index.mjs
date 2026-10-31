@@ -67,6 +67,7 @@ import './logical-slot-patch.mjs';
 import './receiver-effects.mjs';
 import './nested-receiver-base.mjs';
 import './nested-extraction-receiver.mjs';
+import './nested-declaration-receiver.mjs';
 import './prototype-hop-receiver.mjs';
 import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';
