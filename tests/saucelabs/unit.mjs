@@ -35,7 +35,7 @@ await run({
     'unit-browser/usage-pure-unplugin-pre-post.html',
   ],
   platforms: argv.all ? await allPlatforms(process.env.SAUCE_REGION || 'us-west-1') : platforms,
-  concurrency: argv.all ? 10 : platforms.length,
+  concurrency: 10,
   reporter: 'qunitResults',
   evaluate,
 });
