@@ -20,7 +20,9 @@ var ACCEPT_INCORRECT_ARGUMENTS = !!nativeSort && !(fails(function () {
   nativeSort(new $Uint16Array(2), {});
 }));
 
+// the sort below runs `nativeSort` on every class, which the own method of `Uint16Array` in Rhino 1.8 rejects
 var STABLE_SORT = !!nativeSort && !fails(function () {
+  nativeSort(new Float32Array(1));
   // feature detection can be too slow, so check engines versions
   if (V8) return V8 < 74;
   if (FF) return FF < 67;
