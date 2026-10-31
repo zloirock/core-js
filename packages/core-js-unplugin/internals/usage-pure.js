@@ -175,14 +175,6 @@ export default function createAstUsagePureCallback({
   const deoptCtx = { getDebugOutput, adapter, noted: deoptNotedNames };
   // an optional-spine shape whose babel spelling is not ported yet
   const STAGED_SPLIT = Symbol('staged');
-  // what the module-scope sealed-probe render needs from this closure.
-  const sealedProbeCtx = {
-    adapter,
-    resolvePure,
-    resolveGlobalPolyfill,
-    injectPureImport,
-    skippedNodes,
-  };
   // what the module-scope inherited-static split needs from it
   const inheritedCtx = {
     adapter,
@@ -257,7 +249,6 @@ export default function createAstUsagePureCallback({
     resolvedClaimNodes,
     stagedFallbackHosts,
     seKeyReadCtx,
-    sealedProbeCtx,
     skippedNodes,
   });
   Object.assign(destructureEmit.probeRenderCtx, { substituteProbeProxyRoot });
