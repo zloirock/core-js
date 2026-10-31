@@ -21425,6 +21425,33 @@ function * generateStaticFallbackReceiver() {
   ]) yield { ...snippet(`static-fallback-receiver/${ name }`, `(() => { ${ setup } return ${ expression }; })()`), strip: false };
 }
 
+// The declined leaf does not hide claims inside receiver setup or computed keys.
+// Rigged aliases make plain navigation runnable; unrigged optionals retain absence.
+function * generateDeclinedNavigation() {
+  for (const [shape, source] of [
+    ['plain', 'nrm().self.window'],
+    ['prefix', '(log.push("outer"), (log.push(Array.from("i").at(0)), nrm())).self.window'],
+    ['store-prefix', '(kw = log.push("store"), nrm()).self.window'],
+    ['alias', 'alias.self.window'],
+    ['alias-store', '(kw = alias).self.window'],
+    ['optional', 'nrm().window?.self'],
+    ['sealed', '(nrm().window?.self)'],
+  ]) for (const rig of [false, true]) for (const tail of ['read', 'write', 'delete']) {
+    const member = `${ source }[(log.push(["key", [7].includes(7)]), "declinedNavigationSlot")]`;
+    const expression = tail === 'write' ? `${ member } = (log.push("rhs"), 9)` : tail === 'delete' ? `delete ${ member }` : member;
+    // Plain realm navigation intentionally collapses absent browser aliases in pure
+    // mode. Native parity applies to a built realm; absence belongs to guarded/sealed reads.
+    if (!rig && shape !== 'optional' && shape !== 'sealed') continue;
+    if (tail === 'write' && shape === 'optional') continue;
+    yield { ...snippet(`declined-navigation/${ shape }/${ tail }/${ rig ? 'present' : 'absent' }`, `(() => {
+      const alias = globalThis;
+      try { const value = ${ expression }; return [typeof value, value === true, typeof kw]; }
+      catch (error) { return [error.name, typeof kw]; }
+      finally { delete globalThis.declinedNavigationSlot; }
+    })()`, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21842,4 +21869,5 @@ export function * generate() {
   yield * generateLogicalSlotPatches();
   yield * generateConsumedInitializerPlacement();
   yield * generateStaticFallbackReceiver();
+  yield * generateDeclinedNavigation();
 }
