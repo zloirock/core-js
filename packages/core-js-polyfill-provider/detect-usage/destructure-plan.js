@@ -475,25 +475,26 @@ export function destructureResidualFirst(reads, {
 // Order the live residual and its extractions. Anchored residuals are independent source
 // slots and join the extractions in source order, as does a full consume. A kept key or
 // residual-owned capture still precedes its lookup; synthetic slots follow known source slots.
-// Records keep their native payload; source/sourceProps describe only their original slot.
+// Records keep their native payload; source/sourceProps or sourceAt retain the original
+// slot. Unowned initializer products lead only THIS source group, not unrelated siblings.
 export function orderDestructureParts(partition, residuals, {
   sourceProps = null, captured = false, initRuns = false,
 } = {}) {
-  const { before, after, keyFirst } = partition;
+  const { before, after, keyFirst, initializers = [] } = partition;
   const reads = [...before, ...after];
   const anchored = !residuals.length || residuals.every(part => part.anchored);
   if (residuals.length && destructureResidualFirst(reads, { keyFirst, captured, initRuns: !anchored && initRuns })) {
-    return [...residuals, ...reads];
+    return [...initializers, ...residuals, ...reads];
   }
   if (anchored) {
     const positions = new Map(sourceProps?.map((prop, index) => [prop, index]));
     function at(part) {
       if (part.sourceProps) return Math.min(...part.sourceProps.map(prop => positions.get(prop) ?? Infinity));
-      return positions.get(part.source ?? part.chain?.at(-1)?.hopProp ?? part.prop) ?? Infinity;
+      return positions.get(part.source ?? part.chain?.at(-1)?.hopProp ?? part.prop) ?? part.sourceAt ?? Infinity;
     }
-    return [...reads, ...residuals].sort((left, right) => at(left) - at(right));
+    return [...initializers, ...[...reads, ...residuals].sort((left, right) => at(left) - at(right))];
   }
-  return [...before, ...residuals, ...after];
+  return [...initializers, ...before, ...residuals, ...after];
 }
 
 // A name can be read by several destructure claims only where intervening getters
@@ -541,7 +542,9 @@ export function assignmentNeedsReceiverMemo(assignment, reads, ctx = null) {
 // generated guard; analyzing that guard again would discard the read the source still owes.
 // Conversely, a source-proven dropped receiver stays dropped after its root is rewritten;
 // only its live effects survive. Re-proving that drop from a minted alias invents a read.
-export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null) {
+// Reads declaring ownership already perform the initializer; a rescue must not replay it.
+export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null, reads = null) {
+  if (reads?.some(read => read.seCarried || read.readsReceiver)) return { effects: [], replay: false };
   if (init && sourceFacts?.readWhole && !probe) return { effects: [unwrapRuntimeExpr(init)], replay: true };
   if (init && sourceFacts?.dropReceiver && !probe) {
     return { effects: harvestDiscardedReceiverSE(unwrapRuntimeExpr(init), ctx), replay: false, dropReceiver: true };
@@ -568,17 +571,73 @@ export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null) {
   return { effects: keptWhole ? [node] : effects, replay: true };
 }
 
+// Place one initializer's unowned effects before its extracted bindings. A declared
+// receiver slot can carry a store as well as a prefix. A plain value slot carries a
+// sole prefix, but an ordinary statement host lifts stores and receiverless setup.
+// Several readers share one leading effect group; a loop uses a sink instead of
+// lifting statements. The role survives native rendering and late declaration cleanup.
+export function planDiscardedInitPlacement(effects, { readCount = 1, forInit = false, carrier = 'value' } = {}) {
+  const carry = readCount === 1 && (carrier === 'receiver'
+    || (carrier === 'value' && (forInit || !effects.some(isChainAssignment))));
+  return { effects, placement: !effects.length ? 'none' : carry ? 'value' : forInit ? 'sink' : 'statements', role: 'initializer' };
+}
+
+// The value left by an already consumed receiver. A binding store publishes its
+// value before the pattern binds; a member write remains an effect, not a binding
+// dependency. Navigation appended by a residual rebuild no longer has a reader.
+// Return borrowed operands, never a native sequence or a guess from a generated name.
+export function consumedInitSink(init) {
+  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  function storesBinding(node) {
+    return isChainAssignment(node) && node.left?.type === 'Identifier';
+  }
+  if (storesBinding(tail) && !prefix.length) return { effects: [tail], writes: true };
+  if (prefix.length && storesBinding(peelNestedSequenceExpressions(prefix.at(-1)).tail)) {
+    return { effects: prefix, writes: true };
+  }
+  let root = tail;
+  while (root?.type === 'MemberExpression' && !root.computed) root = root.object;
+  return { effects: [...prefix, ...root ? [root] : []], writes: root?.type === 'AssignmentExpression' };
+}
+
+// A consumed loop-header sequence cannot lift statements. Transparent array wrappers
+// expose the same prefix/tail as a plain sequence; wrappers on the discarded value
+// assert nothing left. Borrow the source parts before native child replacement.
+export function forInitSESinkParts(declarator, forInit) {
+  if (!forInit) return null;
+  const descended = descendArrayWrapperToSE(declarator);
+  if (descended) return { prefix: descended.prefix, tail: descended.tail };
+  const init = unwrapRuntimeExpr(declarator.init);
+  return init?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(init) : null;
+}
+
 // A consumed loop initializer cannot lift statements out of its header. A decided
 // fallback/probe may leave no sink; a dropped navigation keeps its effects alone.
 // Otherwise the sink reads the shared memo target, retaining the source plan when
 // child rewrites have already replaced its root. Null effects mean a value sink.
-export function planForInitSink(init, ctx, { probe = null, dropReceiver = false, memo = null } = {}) {
+export function planForInitSink(init, ctx, { probe = null, dropReceiver = false, memo = null, binding = null, reads = null } = {}) {
+  if (reads?.length) {
+    if (reads.every(read => read.initRidesValue)
+      || (reads.every(read => !read.sinkKeep)
+        && (reads.some(read => read.readsReceiver) || !mayHaveSideEffects(init, ctx)))
+      || (reads.length === 1 && reads[0].readsReceiver && !reads[0].chain?.length)) {
+      return planDiscardedInitPlacement([], { forInit: true });
+    }
+    if (reads.some(read => read.chain?.length)) {
+      const sink = consumedInitSink(init);
+      const prefix = sink.writes ? sink.effects : reads.length === 1 && reads[0].carriesPrefix
+        ? observablePrefixElements(forInitSESinkParts({ init, id: reads[0].declarator?.id }, true)?.prefix ?? [], ctx) : [];
+      const placed = planDiscardedInitPlacement(prefix, { readCount: reads.length, forInit: true });
+      return placed.placement === 'value' ? placed : { effects: sink.effects, placement: 'sink', role: placed.role };
+    }
+  }
+  const placement = binding?.type === 'ObjectPattern' ? { residualPrefix: true } : {};
   if (probe || decidingFallbackLeft(peelNestedSequenceExpressions(init).tail, ctx)) {
-    return planDiscardedInit(init, ctx, probe);
+    return { ...planDiscardedInit(init, ctx, probe), ...placement };
   }
   const effects = dropReceiver ? discardRescueNodesWithReads({ node: init, ...ctx }) : discardedReceiverEffects(init, ctx);
-  if (effects?.length) return { effects, replay: false };
-  return { effects: null, memo: memo ?? planMemoReadTarget(init, { aliasCtx: ctx, resolvePure: ctx.resolvePure }) };
+  if (effects?.length) return { effects, replay: false, ...placement };
+  return { effects: null, memo: memo ?? planMemoReadTarget(init, { aliasCtx: ctx, resolvePure: ctx.resolvePure }), ...placement };
 }
 
 // collapse a fallback init (logical / ternary / chain-assignment / transparent IIFE) to the

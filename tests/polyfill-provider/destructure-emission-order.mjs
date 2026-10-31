@@ -206,4 +206,17 @@ runBoth('an iterator member write shares the ordered constructor plan',
     check(`${ label } source stays intact`, JSON.stringify(host.node), before);
   });
 
+runBoth('fully consumed source groups', 'const { from, of } = Array, after = later();', (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const [first, second] = host.node.id.properties;
+  const reads = [{ name: 'second', sourceAt: second.start }, { name: 'first', sourceAt: first.start }];
+  const initializers = [{ name: 'initializer' }];
+  const snapshot = JSON.stringify(program.node);
+  const ordered = orderDestructureParts({ before: reads, after: [], initializers }, []);
+  checkDeep(`${ label }/source position survives consumed properties`, ordered.map(part => part.name), ['initializer', 'first', 'second']);
+  check(`${ label }/initializer identity`, ordered[0], initializers[0]);
+  checkDeep(`${ label }/input not sorted in place`, reads.map(part => part.name), ['second', 'first']);
+  check(`${ label }/native host untouched`, JSON.stringify(program.node), snapshot);
+});
+
 finish();

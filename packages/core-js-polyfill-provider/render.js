@@ -1087,6 +1087,25 @@ export function renderDestructurePrefix(value, prefix, receiver = null) {
   return value;
 }
 
+// A consumed header's source plan owns its effects and memo landing. A re-anchored
+// pattern takes the planned prefix in its value; otherwise the remaining read gets a
+// leading sink. The binding supplies native embedding and memo rendering.
+// Return the sink role explicitly, before native conversion can erase its provenance.
+export function renderForInitSink(plan, { init, value = null, prefix = [], receiver = null, renderMemo, embed = node => node }) {
+  const effects = plan.effects?.map(embed);
+  if (plan.placement === 'value' || plan.placement === 'none') {
+    return { role: 'initializer', sink: null, value: sequenceExpression([
+      ...prefix.map(embed), renderDestructurePrefix(embed(value), effects, receiver),
+    ]) };
+  }
+  const slot = effects ? effects.length ? sequenceExpression(effects) : null
+    : renderMemo(plan.memo) ?? embed(init);
+  const residualPrefix = plan.residualPrefix && slot?.type === 'SequenceExpression' ? slot.expressions.slice(0, -1) : [];
+  const sink = residualPrefix.length ? null : slot;
+  return { role: 'initializer', sink: sink ? sequenceExpression([...prefix.map(embed), sink]) : null,
+    value: sink ? embed(value) : sequenceExpression([...prefix.map(embed), ...residualPrefix, embed(value)]) };
+}
+
 // the `(ref = <dispatcher call>) === void 0 ? <default> : ref` guard for an instance
 // extraction carrying a user default: the dispatcher may return undefined on a foreign
 // receiver (its own-property read), so the default stays LIVE - polyfill-always-wins covers
