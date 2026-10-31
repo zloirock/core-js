@@ -1452,7 +1452,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           // claim to drive any channel here, so the hops rode raw - a native `self` read where the
           // ponyfill is the point, and the unplugin leg collapsed the same source through its own
           // suppressed-hop callback (its visitor reaches the hops this leg's subtree-skip hides)
-          if (collapseClaimlessCallRootedNav(path)) return;
+          if (collapseClaimlessCallRootedNav(path, meta)) return;
           // a WRITE host consumes the nav without claiming it, so no claim channel leads a render
           // here - and the receiver's own probe still owes the guard that every READING consumer of
           // the same nav gets, on both emitters (`(eff(), null == _globalThis.window ? void 0 :
@@ -1559,7 +1559,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               && unwrapRuntimeExpr(up.node.object) === callChainEnd.node
               && memberProxyHopName(callChainEnd.node);
               up = callChainEnd.parentPath) callChainEnd = up;
-            if (callChainEnd !== path && collapseClaimlessCallRootedNav(callChainEnd)) return;
+            if (callChainEnd !== path && collapseClaimlessCallRootedNav(callChainEnd, meta)) return;
           }
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands

@@ -643,6 +643,16 @@ function renderProxyCollapseBase(base, { injectImport, embed, carry }) {
   return source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
 }
 
+// A declined navigation owns one replacement base and the effects of its dropped span.
+// Bindings choose source cloning/identity; they do not choose the landing or replay order.
+export function renderDeclinedNavigation(plan, {
+  injectImport, embed = node => node, cloneHost = cloneNode, carryEffect = cloneHost,
+}) {
+  const base = renderProxyCollapseBase(plan.base, { injectImport, embed, carry: cloneHost });
+  return plan.effects.length
+    ? sequenceExpression([...plan.effects.map(effect => embed(carryEffect(effect))), base]) : base;
+}
+
 // the collapsed spelling of a proxy-receiver plan (`planProxyReceiver` holds the decision -
 // which hops drop, whether the root is swapped, kept or aliased, where harvested effects
 // ride, whether an erased hop's guard re-hangs). `embed` wraps the plan's carried nodes,
