@@ -6,7 +6,6 @@ import {
   carriedInitReceiverNode,
   classifyCallBranchForSynth,
   visitFallbackSynthBranches,
-  consumedAssignmentSlotPrunes,
   destructureAssignmentValueIsCaptured,
   receiverPerformsEveryInitEffect,
   destructureKeyReadPlan,
@@ -60,7 +59,7 @@ import {
   destructureDefaultCarriesReceiver,
   shouldMirrorNestedDestructureDefault,
   planNestedDefaultHop,
-  planNestedAssignmentReceiver,
+  planAssignmentOverwrite,
   planLiteralResidual,
   planLiteralRoute,
   planInitializerNavigation,
@@ -117,6 +116,7 @@ import {
   isBodylessStatementSlot,
   peelFallbackBranchInner,
   peelTransparentExpr,
+  peelParenAndTSParentPath,
   peelToExpressionStatement,
   peelNestedSequenceExpressions,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -126,7 +126,6 @@ import {
   relocatedHostFoldsGuardRefs,
   resolveFallbackReceiver,
   statementListOf,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapInitValue,
   unwrapParens,
   walkPatternIdentifiers,
@@ -157,6 +156,7 @@ import {
   variableDeclarator,
   renderParameterInstanceCapture,
   renderNestedExtractionReceiver,
+  renderAssignmentOverwrite,
   renderDestructureStatements,
   exportDeclaration,
 } from '@core-js/polyfill-provider/render';
@@ -184,7 +184,6 @@ import {
   markMemoDeclarators,
   navSpineHasComputedKeyEffect,
   nodeHoldsSubtree,
-  overwriteDefaultGuard,
   overwriteRebindEmitted,
   planDiscardedInitProbe,
   captureProbePlan,
@@ -196,7 +195,6 @@ import {
   registerAssignmentExtractAlias,
   registerHopInstanceSynthSlot,
   registerInstanceSynthSlot,
-  registerSeKeyDefaultOverwrite,
   routeSelectionMirror,
   SELECTING_INIT_TYPES,
   hopDefaultCarriesEffect,
@@ -2754,15 +2752,122 @@ export default function createAstDestructureEmitter({
     return !!injectorState?.getBindingInfo?.(name);
   }
 
+  // Apply the common overwrite product in the native statement/sequence slot. The
+  // deferred render follows borrowed receiver and default slots after child rewrites.
+  function emitAssignmentOverwrite({
+    metaPath, kind, entry, hintName, prop, pattern, chain, sentinel, hostParent, exprStmtPath, seqHostStatement, bodyless,
+  }) {
+    if (exprStmtPath?.node?.type !== 'ExpressionStatement' && !seqHostStatement) return false;
+    const keyCtx = { scope: metaPath.scope, adapter, path: metaPath, injectorState };
+    const receiverPlan = planAssignmentOverwrite({
+      path: metaPath,
+      assignment: hostParent.node,
+      entry,
+      chain,
+      pending: true,
+    }, {
+      ...keyCtx,
+      isOwnAlias: isOwnPureAlias,
+      resolvePure,
+      resolveGlobalPolyfill,
+      injectorState,
+      resolveStaticPolyfill: (ctor, key) => staticHopPure(ctor, key, metaPath),
+    });
+    if (!receiverPlan) return false;
+    const bindingId = receiverPlan.target;
+    if (receiverPlan.kind === 'capture') {
+      const { capture } = receiverPlan;
+      const rendered = renderNestedKeyedPatternCapture(capture, {
+        mintRef: () => injector.generateDeclaredRef(metaPath), assignment: true, embed: cloneNode,
+        renderLeaf: capture.inlineLeaf ? receiverNode => assignmentExpression('=', cloneNode(bindingId), buildValue({
+          kind,
+          entry,
+          hintName,
+          receiverNode,
+          prop,
+          nested: false,
+          chainKeys: [],
+          metaPath,
+          literalRoute: true,
+          guardCtx: navGuardCtx(metaPath),
+        })()) : null,
+      });
+      // the capture copies the pattern's targets: the source pattern leaves
+      noteRenderRetiredWrites(hostParent.node.left);
+      if (!seqHostStatement) {
+        const statements = rendered.expression.expressions.map(expressionStatement);
+        if (bodyless) exprStmtPath.replaceWith(bodylessSlotReplacement(exprStmtPath.node, statements));
+        else exprStmtPath.replaceWithMultiple(statements);
+      } else hostParent.replaceWith(rendered.expression);
+      markRewrite();
+      return true;
+    }
+    const id = injectPureImport(entry, hintName);
+    const overwriteRef = receiverPlan.fallback ? identifier(injector.generateDeclaredRef(metaPath)) : null;
+    markRewrite();
+    const overwriteJob = {
+      host: 'assign-overwrite',
+      local: bindingId.name ?? null,
+      bodyless,
+      seqHostStatement,
+      // the drain asks the consumed host's remains through the claim's own path (a realm nav lifts by it)
+      metaPath,
+      // the raw slot goes with the dispatch that re-spells it - the shared canon answers which
+      // slots may leave, and the drain removes the prop and drops an emptied host
+      prunesSlot: receiverPlan.prunesSlot,
+      carriesInit: !!receiverPlan.carriesInit,
+      prop,
+      pattern,
+      chain,
+      sentinel,
+      assignment: receiverPlan.liveReceiver ? null : hostParent.node,
+      value: () => {
+        // Follow the plan's borrowed slot after child rewrites, then embed it once.
+        const node = !receiverPlan.liveReceiver && receiverPlan.refresh ? resolveNestedReceiverNode(metaPath,
+          { allowSePeeledFragment: true, allowInitCarriedEffects: true, adapter }) ?? receiverPlan.node : receiverPlan.node;
+        const pure = !receiverPlan.liveReceiver && receiverPlan.rebind
+          ? bareProxyGlobalPure(peelTransparentExpr(node), metaPath, { adapter, resolveGlobalPolyfill }) : receiverPlan.pure;
+        const receiver = renderNestedExtractionReceiver({ ...receiverPlan, node, pure }, {
+          embed: source => duplicateReceiver(source, injector),
+          importPure: target => identifier(injectPureImport(target.entry, target.hintName)),
+        });
+        const call = callExpression(identifier(id), [receiver]);
+        return renderAssignmentOverwrite(receiverPlan, {
+          call, ref: overwriteRef, embed: source => source, defaultGuard: buildInstanceDefaultGuard,
+        });
+      },
+    };
+    attachAssignmentSentinelMinter(overwriteJob, { seqHostStatement, metaPath, injector, mintUnusedName });
+    recordJob({ hostPath: seqHostStatement ? hostParent : exprStmtPath, job: overwriteJob });
+    return true;
+  }
+
   // eslint-disable-next-line max-statements -- per-form host dispatch sequence
   function handleAssignmentHost({ metaPath, meta = null, kind, entry, hintName, prop, pattern, chain, sentinel, hostParent }) {
     const keyCtx = { scope: metaPath.scope, adapter, path: metaPath, injectorState };
-    // a DEFAULTED instance prop whose computed KEY carries an effect keeps the babel
-    // overwrite channel: the destructure stays whole so the key runs where the source runs
-    // it, and the ponyfill re-binds after. a plain key takes the `=== void 0` guard cascade
+    // An overwrite needs a statement or a discarded sequence element of its own.
+    // Transparent wrappers do not change that native insertion slot.
+    const exprStmtPath = peelParenAndTSParentPath(hostParent);
+    const seqHostStatement = exprStmtPath?.node?.type !== 'ExpressionStatement'
+      && discardedSequenceElement(hostParent) ? hostStatementOf(hostParent) : null;
+    const bodyless = !seqHostStatement && !statementListOf(exprStmtPath?.parentPath?.node);
+    // A defaulted instance prop with an effectful key keeps its raw destructure;
+    // the shared overwrite reads the binding that already ran the source default.
     if (prop.value.type === 'AssignmentPattern' && kind === 'instance' && computedKeyHasSideEffects(prop, keyCtx)) {
-      return registerSeKeyDefaultOverwrite({ prop, chain, entry, hintName, hostParent },
-        { injectPureImport, markRewrite, recordJob, injector });
+      return emitAssignmentOverwrite({
+        metaPath,
+        kind,
+        entry,
+        hintName,
+        prop,
+        pattern,
+        chain,
+        sentinel,
+        hostParent,
+        exprStmtPath,
+        seqHostStatement,
+        bodyless,
+      });
     }
     // the RHS as the route's QUESTIONS see it: a dead chain marker is a spelling of this
     // parser's dialect, not a shape, so every shape question below reads the nav it wraps.
@@ -2786,20 +2891,9 @@ export default function createAstDestructureEmitter({
       routeSelectionMirror(metaPath, handlePerBranch, meta);
       return;
     }
-    // only a statement-position assignment whose value nobody reads: a captured result
-    // (`x = ({ from } = Array)`) keeps the full object flowing - staged. oxc preserves the
-    // grouping parens the spelling requires, so the climb peels them
-    let exprStmtPath = hostParent.parentPath;
-    while (exprStmtPath && TRANSPARENT_EXPR_WRAPPER_TYPES.has(exprStmtPath.node?.type)) {
-      exprStmtPath = exprStmtPath.parentPath;
-    }
-    const seqHostStatement = exprStmtPath?.node?.type !== 'ExpressionStatement'
-            && discardedSequenceElement(hostParent) ? hostStatementOf(hostParent) : null;
     // the hop-host note is taken AHEAD of every route: a claim this host CONSUMES never reaches the
     // stand-down below, and the residual it leaves behind re-anchors like an untouched one
     noteStaticHopPatternCallHost();
-    const bodyless = !seqHostStatement
-            && !statementListOf(exprStmtPath?.parentPath?.node);
     // a CAPTURED result hands its reader the receiver itself, so no channel here may rewrite it: the
     // ordered capture is its route, and a leaf it declined keeps its read native
     if (exprStmtPath?.node?.type !== 'ExpressionStatement' && !seqHostStatement) return;
@@ -2855,104 +2949,10 @@ export default function createAstDestructureEmitter({
     // `({ [_Symbol$iterator]: it } = _Symbol)`, which reads no hop at all and needs exactly the symbol
     // import, and it is what the DECLARATION host renders on both legs. claimed here, the leaf parted
     // the two emitters on the assignment form alone
-    if (kind === 'instance' && chain.length > 0) {
-      const bindingId = propBindingIdentifier(prop.value) ?? overwriteMemberTarget(metaPath, keyCtx);
-      const receiverPlan = bindingId && planNestedAssignmentReceiver({
-        path: metaPath,
-        assignment: hostParent.node,
-        entry,
-        chain,
-        pending: true,
-      }, {
-        ...keyCtx,
-        isOwnAlias: isOwnPureAlias,
-        resolvePure,
-        resolveGlobalPolyfill,
-        injectorState,
-        resolveStaticPolyfill: (ctor, key) => staticHopPure(ctor, key, metaPath),
-      });
-      if (receiverPlan?.kind === 'capture') {
-        const { capture } = receiverPlan;
-        const rendered = renderNestedKeyedPatternCapture(capture, {
-          mintRef: () => injector.generateDeclaredRef(metaPath), assignment: true, embed: cloneNode,
-          renderLeaf: capture.inlineLeaf ? receiverNode => assignmentExpression('=', cloneNode(bindingId), buildValue({
-            kind,
-            entry,
-            hintName,
-            receiverNode,
-            prop,
-            nested: false,
-            chainKeys: [],
-            metaPath,
-            literalRoute: true,
-            guardCtx: navGuardCtx(metaPath),
-          })()) : null,
-        });
-        // the capture copies the pattern's targets: the source pattern leaves
-        noteRenderRetiredWrites(hostParent.node.left);
-        if (!seqHostStatement) {
-          const statements = rendered.expression.expressions.map(expressionStatement);
-          if (bodyless) exprStmtPath.replaceWith(bodylessSlotReplacement(exprStmtPath.node, statements));
-          else exprStmtPath.replaceWithMultiple(statements);
-        } else hostParent.replaceWith(rendered.expression);
-        markRewrite();
-        return;
-      }
-      if (receiverPlan) {
-        const id = injectPureImport(entry, hintName);
-        // a DEFAULTED leaf keeps its guard: the pure entry answers `it.method` verbatim off a
-        // receiver that is not the polyfilled surface, so the dispatch may be undefined and burying
-        // what the destructure bound loses the source's default
-        // (`({ y: { flat: m = null } } = { y: navigator })` bound undefined where the source binds null)
-        const overwriteRef = prop.value.type === 'AssignmentPattern'
-          ? injector.generateDeclaredRef(metaPath) : null;
-        // the raw slot goes with the dispatch that re-spells it - the shared canon answers which slots
-        // may leave, and the drain removes the prop and drops an emptied host
-        const prunes = consumedAssignmentSlotPrunes(metaPath, keyCtx);
-        markRewrite();
-        const overwriteJob = {
-          host: 'assign-overwrite',
-          local: bindingId.name ?? null,
-          bodyless,
-          seqHostStatement,
-          // the drain asks the consumed host's remains through the claim's own path (a realm nav lifts by it)
-          metaPath,
-          // the raw slot goes with the dispatch that re-spells it - the shared canon answers which
-          // slots may leave, and the drain removes the prop and drops an emptied host
-          prunesSlot: prunes,
-          carriesInit: !!receiverPlan.carriesInit,
-          prop,
-          pattern,
-          chain,
-          sentinel,
-          assignment: hostParent.node,
-          value: () => {
-            // Follow the plan's borrowed slot after child rewrites, then embed it once.
-            const node = receiverPlan.refresh ? resolveNestedReceiverNode(metaPath,
-              { allowSePeeledFragment: true, allowInitCarriedEffects: true, adapter }) ?? receiverPlan.node : receiverPlan.node;
-            const pure = receiverPlan.rebind
-              ? bareProxyGlobalPure(peelTransparentExpr(node), metaPath, { adapter, resolveGlobalPolyfill }) : receiverPlan.pure;
-            const receiver = renderNestedExtractionReceiver({ ...receiverPlan, node, pure }, {
-              embed: source => duplicateReceiver(source, injector),
-              importPure: target => identifier(injectPureImport(target.entry, target.hintName)),
-            });
-            const call = callExpression(identifier(id), [receiver]);
-            return overwriteRef
-                ? overwriteDefaultGuard({ call,
-                  localName: bindingId.name ?? null,
-                  ref: overwriteRef,
-                  defaultNode: prunes ? prop.value.right : null, defaultPattern: prunes ? prop.value : null })
-                : call;
-          },
-        };
-        attachAssignmentSentinelMinter(overwriteJob, { seqHostStatement, metaPath, injector, mintUnusedName });
-        recordJob({ hostPath: seqHostStatement ? hostParent : exprStmtPath, job: overwriteJob });
-        return;
-      }
-      // a BODYLESS slot falls through to the consume route like any other: its drain owns the slot
-      // (one statement stays bare, two take a block), so the claim there is not the emitter's to
-      // decline - standing down left the leg native where the other one polyfilled
-    }
+    if (kind === 'instance' && chain.length > 0 && emitAssignmentOverwrite({
+      metaPath, kind, entry, hintName, prop, pattern, chain, sentinel, hostParent, exprStmtPath, seqHostStatement, bodyless,
+    })) return;
+    // A bodyless slot can still use the consume route when the overwrite declined.
     // an opaque receiver still consumes when the extraction is its ONLY read: a sole
     // plain prop, instance kind (the dispatch reads once - `mapOfKept = _mapMaybeArray(X ?? {})`)
     // or an SE-free receiver a static may discard

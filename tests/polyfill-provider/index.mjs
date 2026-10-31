@@ -67,6 +67,7 @@ import './logical-slot-patch.mjs';
 import './receiver-effects.mjs';
 import './nested-receiver-base.mjs';
 import './nested-extraction-receiver.mjs';
+import './assignment-overwrite.mjs';
 import './nested-declaration-receiver.mjs';
 import './nested-leaf-twin.mjs';
 import './initializer-carrier.mjs';
