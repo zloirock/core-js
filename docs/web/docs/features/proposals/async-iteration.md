@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-async-iteration)
 
 ## Modules
-[`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js).
+[`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.async-iterator.js).
 
 ## Built-ins signatures
 ```ts

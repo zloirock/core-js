@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-object-values-entries)
 
 ## Modules
-[`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js) and [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js).
+[`es.object.entries`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.entries.js) and [`es.object.values`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.values.js).
 
 ## Built-ins signatures
 ```ts

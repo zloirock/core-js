@@ -3,6 +3,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
 var classof = require('../internals/classof');
+var getBuiltIn = require('../internals/get-built-in');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var inspectSource = require('../internals/inspect-source');
 

@@ -103,12 +103,10 @@ QUnit.test('Iterator.range', assert => {
     assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
   }
   // IE11 does not throw on computed-key assignment to getter-only properties.
-  {
-    assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
-    assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
-    assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
-    assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
-  }
+  assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
+  assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
+  assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
+  assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
 
   assert.throws(() => range(Infinity, 10, 0), RangeError);
   assert.throws(() => range(-Infinity, 10, 0), RangeError);
@@ -191,12 +189,10 @@ QUnit.test('Iterator.range', assert => {
       assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
     }
     // IE11 does not throw on computed-key assignment to getter-only properties.
-    {
-      assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
-      assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
-      assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
-      assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
-    }
+    assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
+    assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
+    assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
+    assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
 
     assert.throws(() => range(Infinity, BigInt(10), BigInt(0)), TypeError);
     assert.throws(() => range(-Infinity, BigInt(10), BigInt(0)), TypeError);

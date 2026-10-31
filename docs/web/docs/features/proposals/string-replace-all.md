@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-replaceall)
 
 ## Modules
-[`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js).
+[`es.string.replace-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.replace-all.js).
 
 ## Built-ins signatures
 ```ts

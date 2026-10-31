@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-object-getownpropertydescriptors)
 
 ## Modules
-[`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js).
+[`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.get-own-property-descriptors.js).
 
 ## Built-ins signatures
 ```ts

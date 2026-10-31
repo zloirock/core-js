@@ -167,6 +167,7 @@ for (const [name, symbol, create] of [
   QUnit.test(`Array.fromAsync, ${ name } iterator awaits primitive mapper results`, assert => {
     const values = [1, 2];
     return Array.fromAsync(create(values), (value, index) => {
+      // eslint-disable-next-line unicorn/prefer-promise-try -- a microtask is required for the test
       if (index === 0) Promise.resolve().then(() => { values[1] = 3; });
       return value;
     }).then(result => {

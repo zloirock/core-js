@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-pad-start-end)
 
 ## Modules
-[`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js) and [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js).
+[`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.pad-end.js) and [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.pad-start.js).
 
 ## Built-ins signatures
 ```ts

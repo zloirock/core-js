@@ -1,4 +1,3 @@
-/* eslint-disable es/no-resizable-and-growable-arraybuffers -- supported by development Node.js versions */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -19,19 +18,13 @@ if (!flavor) {
   const prototype = Object.getPrototypeOf(Uint8Array.prototype);
   const nativeClone = globalThis.structuredClone;
   const lengths = new Map();
-  if (mode === 'buffer-errors' || mode === 'collections') {
-    const configure = flavor === 'core-js'
-      ? require('../../packages/core-js/configurator')
-      : require('../../packages/core-js-pure/configurator');
-    configure({ usePolyfill: ['structuredClone'] });
-  }
   if (mode === 'identity') {
     globalThis.structuredClone = function (value) { return value; };
     if (flavor === 'core-js') {
+      // the polyfills install only where the methods are missing
+      delete ArrayBuffer.prototype.transfer;
+      delete ArrayBuffer.prototype.transferToFixedLength;
       // loaded before the `structuredClone` polyfill replaces the identity global, the transfer methods keep trusting it
-      require('../../packages/core-js/configurator')({
-        usePolyfill: ['ArrayBuffer.prototype.transfer', 'ArrayBuffer.prototype.transferToFixedLength'],
-      });
       require('../../packages/core-js/modules/es.array-buffer.transfer');
       require('../../packages/core-js/modules/es.array-buffer.transfer-to-fixed-length');
     }
@@ -176,38 +169,18 @@ if (!flavor) {
       assert.ok(copy.set.has(copy.map));
       assert.ok(copy.set.has(copy.set));
     }
-  }
-
-  if (mode === 'buffer-errors') {
+  } else if (mode === 'buffer-errors') {
     assert.notEqual(clone, nativeClone);
     const marker = new RangeError('Buffer copy failed');
-    for (const [object, key, target] of [
-      [ArrayBuffer.prototype, 'slice'],
-      [globalThis, 'ArrayBuffer'],
-      [globalThis, 'DataView'],
-      [globalThis, 'DataView', true],
-      [DataView.prototype, 'getUint8'],
-      [DataView.prototype, 'setUint8'],
-    ]) {
-      for (const resizable of [false, true]) {
-        if (key === 'slice' && resizable) continue;
-        const source = new ArrayBuffer(4, resizable ? { maxByteLength: 8 } : undefined);
-        new Uint8Array(source).set([0, 1, 254, 255]);
-        // Exercise the fallback for fixed buffers in engines without ArrayBuffer#slice.
-        if (key !== 'slice' && !resizable) source.slice = undefined;
-        const previous = object[key];
-        let calls = 0;
-        object[key] = function (data) {
-          if (target && !calls++) return Reflect.construct(previous, [data]);
-          throw marker;
-        };
-        try {
-          assert.throws(() => clone(source), error => error === marker, `${ key }, resizable: ${ resizable }, target: ${ !!target }`);
-        } finally {
-          object[key] = previous;
-        }
-        assert.deepEqual([...new Uint8Array(source)], [0, 1, 254, 255]);
-      }
+    {
+      // buffer built-ins are native and captured on load, so only the cloned value's own methods can throw
+      const source = new ArrayBuffer(4);
+      new Uint8Array(source).set([0, 1, 254, 255]);
+      source.slice = function () {
+        throw marker;
+      };
+      assert.throws(() => clone(source), error => error === marker, 'slice');
+      assert.deepEqual([...new Uint8Array(source)], [0, 1, 254, 255]);
     }
     for (const C of [ArrayBuffer, DataView, Uint8Array]) {
       const properties = C === ArrayBuffer ? ['slice', 'resizable', 'byteLength', 'maxByteLength']

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-accessible-object-hasownproperty)
 
 ## Modules
-[`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js).
+[`es.object.has-own`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.has-own.js).
 
 ## Built-ins signatures
 ```ts

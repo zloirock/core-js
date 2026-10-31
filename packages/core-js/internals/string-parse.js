@@ -47,7 +47,7 @@ module.exports = function (raw) {
   // Normalize literal CR / CRLF before cooking, preserving escaped `\r`.
   while ((i = stringIndexOf(raw, '\r', start)) > -1) {
     out += stringSlice(raw, start, i) + '\n';
-    start = i + (charAt(raw, i + 1) === '\n' ? 2 : 1);
+    start = i + (raw[i + 1] === '\n' ? 2 : 1);
   }
   if (start) raw = out + stringSlice(raw, start);
   out = '';

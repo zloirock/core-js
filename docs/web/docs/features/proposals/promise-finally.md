@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-promise-finally)
 
 ## Modules
-[`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js).
+[`es.promise.finally`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.promise.finally.js).
 
 ## Built-ins signatures
 ```ts
