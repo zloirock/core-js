@@ -75,6 +75,8 @@ import {
   partitionDestructureReads,
   planDestructureKeySegments,
   planDestructureInstanceSynth,
+  initializerEffectParts,
+  chainAssignOverPureNav,
   planDiscardedInit,
   planDiscardedInitPlacement,
   sentinelMemoInitShape,
@@ -549,20 +551,6 @@ export function planLiftedRhsPrefix(right, { anchorsInSequence, guardCtx = null,
   // leaves its tail behind (the drain swaps the residual's right the same way for both shapes)
   if (anchorsInSequence || !chainAssignOverPureNav(peeled, guardCtx)) return null;
   return { prefix: [right], receiver: peelChainRootValue(peeled) };
-}
-
-// a chain ASSIGNMENT storing a provable global nav (`(q = globalThis)`): the write is an
-// effect of the source's own, and the value it leaves behind is the receiver a claim reads
-export function chainAssignOverPureNav(node, guardCtx = null) {
-  const assign = peelTransparentExpr(node);
-  // the stored VALUE may carry its own SE prefix (`(q = (eff(), globalThis))`): only the TAIL is
-  // the nav, and the prefix is an effect the lift re-emits - the sibling predicate that already
-  // spells that rule is what answers here, else an SE-bearing write left the claim native
-  // ... and a sequence BELOW the hops rides along inside the write this lift re-emits VERBATIM, so
-  // here the nav question steps it through the canon peel: stopping at it called the stored value
-  // rootless, the lift declined, and the pattern then read its slots off the raw realm object
-  return assign?.type === 'AssignmentExpression' && assign.operator === '='
-    && isPureNavAfterSePrefix(peelChainRootValue(assign), guardCtx, { throughSequenceTails: true }) ? assign : null;
 }
 
 // the shared "conditional destructure left untouched" debug-warn, emitted where the per-branch
@@ -1185,16 +1173,6 @@ export function jobHostSiblingDeclarators(ledger) {
   return hostSiblings;
 }
 
-// the pure BINDING a rendered guard hands back on its live branch (`null == x ? void 0 : _self`),
-// re-readable wherever the guarded value was - null when the branch is anything else
-export function guardedPureBinding(initNode, injectorState) {
-  const init = peelTransparentExpr(initNode);
-  if (init?.type !== 'ConditionalExpression' || init.consequent?.type !== 'UnaryExpression'
-    || init.consequent.operator !== 'void') return null;
-  const live = peelTransparentExpr(init.alternate);
-  return live?.type === 'Identifier' && isMintedOrProxyName(live.name, injectorState) ? live.name : null;
-}
-
 export function memoJobBindingTarget(job) {
   if (job.collapseLeafName ?? job.collapseLeaf?.localName) {
     return identifier(job.collapseLeafName ?? job.collapseLeaf.localName);
@@ -1419,58 +1397,12 @@ export function registerInstanceSynthSlot({
   return true;
 }
 
-// a plain SE PREFIX ahead of a HOP nav, with the pattern consuming the declarator WHOLE: the
-// prefix lifts as its own statement ahead of the extraction (source order, exactly once). a
-// chain-assignment in the prefix is not liftable - it replays whole through its own channel
-// `tailRoot`: the proxy global a CALL tail provably yields (the caller's inline-canon answer) - the
-// nav question is asked of it instead of the call, which the lift then drops for that global.
-// `initNode` is the running operand where the caller has already decided the initializer.
-export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null, tailRoot = null, initNode = declarator.init }) {
-  const init = peelTransparentExpr(initNode);
-  // ... and a kept WRITE is a prefix of its own: the statement it lifts to STORES the same value the
-  // nav then reads (`(kw = globalThis)` -> `kw = _globalThis;` + the dispatch off `_globalThis`), so
-  // the write survives where re-spelling it inside the dispatch would run it twice.
-  // INSTANCE only: a static leaf binds its pure directly and both legs already carry the write inside
-  // that value (`const from = (a = _globalThis, _Array$from)`) - lifting there would part them
-  // ... and a SEQUENCE that ends in that write is the same shape one layer out: the whole init lifts,
-  // its last expression included, and the nav reads what the write stored
-  const writeTail = init?.type === 'AssignmentExpression' ? init
-    : init?.type === 'SequenceExpression' && peelTransparentExpr(init.expressions.at(-1))?.type === 'AssignmentExpression'
-      ? peelTransparentExpr(init.expressions.at(-1)) : null;
-  // a FOR-HEAD takes it too: its init runs exactly once, so the lifted write ahead of the loop
-  // stores what the header would have stored, in the same order
-  if (kind === 'instance' && chain.length > 0 && writeTail
-    && patternBindingCount(declarator.id) === patternBindingCount(prop.value)) {
-    return isPureNavReceiver(peelChainRootValue(writeTail));
-  }
-  // a WRITE among the lifted expressions is no obstacle for an INSTANCE claim: the whole prefix
-  // becomes statements ahead of the extraction, so the write runs where it ran, exactly once - the
-  // refusal below stands for the other kinds, whose value carries the prefix instead of lifting it
-  return !forInit && chain.length > 0 && init?.type === 'SequenceExpression'
-    && patternBindingCount(declarator.id) === patternBindingCount(prop.value)
-    && (kind === 'instance'
-      || init.expressions.slice(0, -1).every(expr => peelTransparentExpr(expr)?.type !== 'AssignmentExpression'))
-    && (tailRoot ? isPureNavReceiver(tailRoot) : isPureNavAfterSePrefix(init));
-}
-
-// the STATEMENTS an init performs ahead of the value it yields, and that value: a sequence's leading
-// expressions and its tail, a kept WRITE whole (the store is an effect and what the nav then reads)
-// with the stored value's own tail, null where the init is neither shape
-export function liftableInitPrefix(initNode) {
-  const init = peelTransparentExpr(initNode);
-  if (init?.type === 'AssignmentExpression') return { prefix: [init], tail: peelChainRootValue(init) };
-  if (init?.type !== 'SequenceExpression') return null;
-  const { prefix, tail } = peelNestedSequenceExpressions(init);
-  const storesTail = peelTransparentExpr(tail)?.type === 'AssignmentExpression';
-  return { prefix: storesTail ? [...prefix, tail] : prefix, tail: peelChainRootValue(init) };
-}
-
 // the EXPRESSIONS an SE-carrying init performs before it yields the receiver - the lift shape's
 // prefix, asked only where a claim carries it. The binding supplies its effect-trimming context.
 export function carriedInitPrefix(declarator, declJobs, ctx) {
   if (declJobs.every(job => !job.seCarried)) return [];
   // The live operand of a decided selection owes the same prefix as a bare sequence.
-  return observablePrefixElements(liftableInitPrefix(decidedRunningOperand(declarator.init, ctx))?.prefix ?? [], ctx);
+  return observablePrefixElements(initializerEffectParts(decidedRunningOperand(declarator.init, ctx))?.prefix ?? [], ctx);
 }
 
 // the PROXY-NAV base a synth receiver reduces to: pristine hops fold away, the root identifier

@@ -128,6 +128,7 @@ import {
   shouldDropRescueReceiver,
 } from './members.js';
 import { SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
+import { mintedProxyGlobalName } from './guard-preparation.js';
 import {
   chainSealsAShortCircuit,
   computedKeyIsWellKnownSymbol,
@@ -144,6 +145,8 @@ import {
   isStaticPlacement,
   navValueCanShortCircuit,
   peelReceiverSequenceTail,
+  peelChainRootValue,
+  isPureNavReceiver,
   peelRealmLogicalDefault,
   realmSelectionCollapseOperand,
   realmSelectionLeafKind,
@@ -691,6 +694,113 @@ export function orderDestructureParts(partition, residuals, {
 function canRepeatDestructureReceiver(node, ctx) {
   if (node?.type === 'Identifier' || node?.type === 'ThisExpression') return isReReferenceableAcrossReads(node, ctx);
   return !!(ctx && realmSelectionCollapseOperand(node, ctx));
+}
+
+// Split an initializer whose effects can move to one owner. A store moves whole, so
+// neither its RHS prefix nor an inner chained store is replayed by the remaining read.
+// Borrow nodes: a later consumer asks again on its live initializer after child rewrites.
+export function initializerEffectParts(initNode) {
+  const init = peelTransparentExpr(initNode);
+  if (init?.type === 'AssignmentExpression') return { prefix: [init], tail: peelChainRootValue(init) };
+  if (init?.type !== 'SequenceExpression') return null;
+  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  return { prefix: peelTransparentExpr(tail)?.type === 'AssignmentExpression' ? [...prefix, tail] : prefix,
+    tail: peelChainRootValue(init) };
+}
+
+// Source navigation behind an initializer prefix. Whole-pattern reads can carry the
+// prefix; a surviving sibling instead shares one memo of the effectful surface root.
+// Source and live queries remain separate: this result records admission before child
+// rewrites, while the consumed-reader query below chooses the final live carrier.
+export function planInitializerNavigation({ init, prop, kind, entry, keys, sourcePattern, forInit }, ctx) {
+  if (!keys.length) return null;
+  const running = peelTransparentExpr(decidedRunningOperand(init, ctx));
+  const whole = patternBindingCount(sourcePattern) === patternBindingCount(prop.value);
+  if (whole) {
+    const { tail } = peelNestedSequenceExpressions(running);
+    const stored = peelTransparentExpr(tail)?.type === 'AssignmentExpression';
+    const receiver = peelChainRootValue(running);
+    const proven = provenRealmCallRoot(receiver, ctx.path, ctx.adapter);
+    const carried = kind === 'instance' && stored ? isPureNavReceiver(receiver)
+      : !forInit && running?.type === 'SequenceExpression'
+        && (kind === 'instance' || running.expressions.slice(0, -1)
+          .every(node => peelTransparentExpr(node)?.type !== 'AssignmentExpression'))
+        && isPureNavReceiver(proven ?? tail);
+    return carried ? { carried: true, receiver: proven ?? receiver } : null;
+  }
+  if (forInit || kind !== 'instance' || entry === SYMBOL_ITERATOR_PURE_RESULT.entry
+    || !(prop.value.type === 'Identifier'
+      || (prop.value.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier'))) return null;
+  const parts = initializerEffectParts(init);
+  const bare = peelTransparentExpr(init);
+  const call = !parts && (bare?.type === 'CallExpression' || bare?.type === 'OptionalCallExpression')
+    && !provenRealmCallRoot(bare, ctx.path, ctx.adapter)
+    && provenRealmCallRoot(bare, ctx.path, ctx.adapter, { allowEffects: true }) ? bare : null;
+  const tail = parts?.tail ?? call;
+  const root = tail && (provenRealmCallRoot(tail, ctx.path, ctx.adapter, { allowEffects: true }) ?? tail);
+  const guardCtx = { resolvePure: ctx.resolvePure, aliasCtx: ctx };
+  return root && isPureNavReceiver(root, guardCtx)
+    && isInstanceSurfaceNav(keys.reduce(memberFromKeyName, root), { ctx, isOwnAlias: ctx.isOwnAlias })
+    ? { carried: false, carrier: planInitializerCarrier({ residual: true }), receiver: root } : null;
+}
+
+// Choose who evaluates an acquired initializer, before native insertion. One value slot
+// can carry its effects; several readers share a lifted prefix or a memo. A surviving
+// residual keeps its read unless the statement host can share or split the source slot.
+// Counts refer to the source readers at this boundary, not all bindings in the declaration.
+// The two callbacks are read-only facts and are asked only if their branch needs them.
+export function planInitializerCarrier({
+  readCount = 1, inline = true, residual = false, prefix = false, repeatable = false,
+  forInit = false, statement = true, bodyless = false, liftStatement = statement,
+  consumesPattern = () => false, precedersPure = () => true,
+}) {
+  if (!residual) {
+    if (inline && (readCount === 1 || forInit || !statement)) return 'dispatch';
+    return prefix && repeatable ? 'lift' : 'memo';
+  }
+  if (bodyless) return 'lift';
+  if (!forInit && liftStatement && !consumesPattern()) return 'memo';
+  if (!forInit && statement && !precedersPure()) return 'split';
+  return forInit ? 'residual' : null;
+}
+
+// An admitted store can ride inside its sole dispatch when its value has a navigation
+// shape. This is not a builtin-root proof. Sequence effects remain inside the store.
+export function chainAssignOverPureNav(node, guardCtx = null) {
+  const assign = peelTransparentExpr(node);
+  const stored = isChainAssignment(assign) && peelNestedSequenceExpressions(peelChainRootValue(assign)).tail;
+  return stored && isPureNavReceiver(stored, guardCtx, { throughSequenceTails: true }) ? assign : null;
+}
+
+// The consumed read can reuse the pure binding on a guard's live branch. The discarded
+// guard still owes its probe, so the product must retain that obligation beside the name.
+function guardedInitializerBinding(initNode, injectorState) {
+  const init = peelTransparentExpr(initNode);
+  if (init?.type !== 'ConditionalExpression' || init.consequent?.type !== 'UnaryExpression'
+    || init.consequent.operator !== 'void') return null;
+  const live = peelTransparentExpr(init.alternate);
+  return live?.type === 'Identifier' && (POSSIBLE_GLOBAL_OBJECTS.has(live.name)
+    || mintedProxyGlobalName(live.name, injectorState) !== null) ? live.name : null;
+}
+
+// A fully consumed receiver is read inside its only extraction, or shared by the
+// completed read group. A collapsed leaf still reads its capture; a symbol pattern
+// binds off the helper result and therefore needs only one receiver evaluation.
+export function planConsumedInitializerCarrier(init, reads, ctx) {
+  const needsValue = reads.some(read => read.kind === 'instance');
+  if (!needsValue) return { carrier: 'effects' };
+  const [first] = reads;
+  const stored = reads.length === 1 && chainAssignOverPureNav(init);
+  const inline = reads.length === 1 && (stored
+    || (!first.collapseLeaf && (first.prop.value?.type !== 'ObjectPattern' || first.symbolPattern)));
+  const parts = !inline && initializerEffectParts(init);
+  const proven = parts && provenRealmCallRoot(parts.tail, ctx.path, ctx.adapter);
+  const pure = proven && proxySurfaceIdentifier(proven, ctx) && ctx.resolveGlobalPolyfill(proven.name);
+  const tail = pure ? proven : parts?.tail;
+  const repeatable = !!pure || (tail?.type === 'Identifier' && isReReferenceableAcrossReads(tail, ctx));
+  const carrier = planInitializerCarrier({ readCount: reads.length, inline, prefix: !!parts, repeatable });
+  const guarded = carrier === 'memo' && guardedInitializerBinding(init, ctx.injectorState);
+  return { carrier: guarded ? 'guard' : carrier, receiver: stored || null, prefix: parts?.prefix, tail, pure, guarded };
 }
 
 // A whole-init capture whose residual has died may release its sequence prefix and let
@@ -1263,7 +1373,7 @@ export function hopPatternLeafClaims({ pattern, resolvePure, keyCtx }) {
 // memoize the hop eagerly, which unplugin cannot on a loop head or an unbraced `var`. asked of the funnel,
 // not of key names: a leaf it keeps native (under an instance hop, `{ at, flat: { name } }`) claims
 // nothing, and the twin still serves `at`
-export function leafPatternHoldsClaimedHop({ leafPattern, claimProp, scope, adapter, resolvePure }) {
+function leafPatternHoldsClaimedHop({ leafPattern, claimProp, scope, adapter, resolvePure }) {
   return leafPattern.get('properties').some(item => {
     if (!isPropertyNode(item.node) || item.node === claimProp) return false;
     const slot = item.get('value');
