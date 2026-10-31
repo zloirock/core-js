@@ -110,6 +110,7 @@ import {
 import { literalNodeValue, nodeRangeContains } from '../resolve-node-type/base.js';
 import {
   classifyVariableDeclarationHost,
+  assignmentTwinLeafAdmitted,
   deadDefaultElementPattern,
   isBodylessStatementSlot,
   planArrayWrapperCapture,
@@ -181,6 +182,9 @@ import {
   dispatchMayReadNav,
   resolveNestedNavDispatch,
   resolveNestedReceiverBase,
+  resolveNestedReceiverChain,
+  nestedAssignmentStatementOf,
+  hopSplitPlan,
   proxyNavHead,
   typedNavClaimChain,
   resolveDestructureReceiverPlan,
@@ -533,6 +537,85 @@ export function planNestedDeclarationReceiver({
     defaultSlot: base.static ? null : defaultSlot,
     carriesInit: !!typedChain && !named && !base.static,
   };
+}
+
+// A nested leaf with several source readers, or an effectful key, needs the same single
+// hop read as its flat twin. Source size is a host fact: an earlier eager extraction may
+// already have removed a leaf, while a deferred host still keeps it in the live pattern.
+// A queued receiver read similarly asks for a root capture before re-detection; it does
+// not grant a second read. Host placement, claimed hops and pure bases retain their own
+// shared gates. The result decides the twin, split and memo without changing the tree.
+export function planNestedLeafTwin({ path, sourceLeafCount, queuedReceiverRead = null }, {
+  adapter, resolvePure, resolveGlobalPolyfill, resolveStaticPolyfill, isOwnAlias,
+}) {
+  if (patternSlotTarget(path.node.value)?.type !== 'Identifier') return null;
+  const ctx = { scope: path.scope, path, adapter };
+  const options = { soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true,
+    siblingLevels: true, adapter, allowAssignmentHost: true };
+  function owed(walk) {
+    const leaves = walk.leafPattern?.node?.properties ?? [];
+    return (leaves.length > 1 || sourceLeafCount > 1
+      || leaves.some(item => !isRestProperty(item) && computedKeyHasSideEffects(item, ctx)))
+      && walk.keys.length > 0 && !leafPatternHoldsClaimedHop({
+      leafPattern: walk.leafPattern, claimProp: path.node, scope: path.scope, adapter, resolvePure,
+    });
+  }
+  const walk = resolveNestedReceiverChain(path, options);
+  if (!walk) {
+    const capture = queuedReceiverRead && resolveNestedReceiverChain(path, { ...options, rootMemoized: true });
+    const declarator = capture?.declarator;
+    if (declarator?.node?.type === 'VariableDeclarator' && owed(capture)
+      && planNestedLeafHost(capture) && hopSplitPlan(capture, { builtInRoot: false })
+      && queuedReceiverRead(declarator)
+      && declarator.parentPath.node.declarations.at(-1) === declarator.node) {
+      return { kind: 'capture', declarator };
+    }
+    return planLiteralLeafTwin(path, ctx);
+  }
+  if (!owed(walk)) return null;
+  const { declarator, leafPattern } = walk;
+  const assignment = declarator.node.type === 'AssignmentExpression';
+  const statement = assignment ? nestedAssignmentStatementOf(path) : null;
+  if (assignment && (!statement || declarator.node.operator !== '=' || walk.slotDefault
+    || declarator.node.left?.type !== 'ObjectPattern' || declarator.node.left.properties.length !== 1
+    || !statementListOf(statement.parentPath?.node) || !assignmentTwinLeafAdmitted(leafPattern.node, ctx))) return null;
+  const host = planNestedLeafHost(walk, statement);
+  if (!host) return null;
+  const binding = adapter.getBinding({ scope: path.scope, name: walk.root.name, path, read: walk.root });
+  const base = resolveNestedReceiverBase({ rootName: walk.root.name, keys: walk.keys, binding,
+    adapter, resolveGlobalPolyfill, resolveStaticPolyfill });
+  // A constructor's pure residual and a claimed static level keep their existing routes.
+  if (!base || base.pure) return null;
+  const builtInRoot = !binding || isBuiltInSurfaceNav(unwrapRuntimeExpr(declarator.node.init), { ctx, isOwnAlias });
+  const split = host.siblingLevel ? hopSplitPlan(walk, { builtInRoot }) : null;
+  if (host.siblingLevel && !split) return null;
+  const raw = declarator.node.init ?? declarator.node.right;
+  const node = walk.rootSpelling?.type === 'TSAsExpression' ? walk.rootSpelling
+    : !base.name ? unwrapRuntimeExpr(raw) : walk.root.name === base.name ? walk.root : identifier(base.name);
+  const nav = base.path.reduce(memberFromKeyName, node);
+  const memo = !!walk.slotDefault || (!assignment && sourceLeafCount > leafPattern.node.properties.length
+    && !isReReadableSurfaceNav(nav, isOwnAlias, { ctx }));
+  return { kind: assignment ? 'assignment' : 'declaration', declarator, leafPattern, walk, host, split,
+    receiver: { node, keys: base.path }, slotDefault: walk.slotDefault, memo };
+}
+
+// A discarded literal assignment can hand its paired slot to the same flat channel.
+// Plain sole levels disappear with the statement; a reusable slot already has its route.
+function planLiteralLeafTwin(path, ctx) {
+  const leafPattern = path.parentPath;
+  let top = leafPattern;
+  while (isPropertyNode(top.parentPath?.node) && !top.parentPath.node.computed
+    && top.parentPath.parentPath?.node?.type === 'ObjectPattern' && top.parentPath.parentPath.node.properties.length === 1) {
+    top = top.parentPath.parentPath;
+  }
+  const declarator = top.parentPath;
+  const statement = nestedAssignmentStatementOf(path);
+  if (top === leafPattern || declarator?.node?.type !== 'AssignmentExpression' || declarator.node.operator !== '='
+    || declarator.node.left !== top.node || !statement || !statementListOf(statement.parentPath?.node)
+    || !assignmentTwinLeafAdmitted(leafPattern.node, ctx)) return null;
+  const node = carriedInitReceiverNode({ path, initNode: declarator.node.right, adapter: ctx.adapter });
+  if (!node || isReReferenceableReceiver(node)) return null;
+  return { kind: 'assignment', declarator, leafPattern, receiver: { node, keys: [] }, memo: false };
 }
 
 // Classify reads before consuming their source properties. A detached guard, nested hop or

@@ -21529,6 +21529,51 @@ function * generateNestedDeclarationReceivers() {
   }
 }
 
+function * generateNestedLeafTwins() {
+  for (const [shape, read, result = '[method.call(rows, -1), size]'] of [
+    ['siblings', 'const { data: { at: method, length: size } } = source;'],
+    ['plain rest', 'const plain = { data: rows }; const { data: { at: method, ...rest } } = plain;', '[method.call(rows, -1), rest[0], rest[1]]'],
+    ['consumed static sibling', 'const { Array: { from, name: method } } = globalThis;', '[from([4, 9]).length, method]'],
+    ['rest', 'const { data: { at: method, ...rest } } = source;', '[method.call(rows, -1), rest[0], rest[1]]'],
+    ['effectful key', 'const { data: { [(log.push("key"), "at")]: method } } = source;', 'method.call(rows, -1)'],
+    ['slot default', 'const { data: { at: method, length: size } = (log.push("default"), rows) } = empty;'],
+    ['leaf default', 'const { data: { at: method = (log.push("fallback"), null), length: size } } = source;'],
+    ['leading split', 'const { data: { at: method, length: size }, after } = source;'],
+    ['trailing split', 'const { before, data: { at: method, length: size } } = source;'],
+    ['preceding declarator', 'const lead = (log.push("lead"), 1), { data: { at: method, length: size } } = (log.push("prefix"), source);'],
+    ['following declarator', 'const { data: { at: method, length: size } } = source, tail = (log.push("tail"), 1);'],
+    ['call with kept sibling', 'const { before, data: { at: method, length: size } } = make();'],
+    ['assignment', 'let method, size; ({ data: { at: method, length: size } } = source);'],
+    ['literal assignment', 'let method, size; ({ data: { at: method, length: size } } = (log.push("prefix"), { data: give() }));'],
+    ['nested kept leaf', 'rows.other = { value: 3 }; const { data: { other: { value }, at: method } } = source;', '[value, method.call(rows, -1)]'],
+    ['nested kept default', 'rows.other = { value: 3 }; const { data: { other: { value }, at: method } = (log.push("default"), rows) } = empty;', '[value, method.call(rows, -1)]'],
+    ['queued computed root', `rows.other = { value: 3 };
+      Object.defineProperty(source, "includes", { get() { log.push("claim"); return function () { return this === source; }; } });
+      const { includes, data: { at: method, other: { value } } } = make();`, '[includes.call(source), value, method.call(rows, -1)]'],
+    ['bodyless default', 'if (true) var { data: { at: method, length: size } = (log.push("default"), rows) } = empty;'],
+    ['for init default', `let method, size;
+      for (let { data: { at: take, length: length } = (log.push("default"), rows) } = empty; length; ) { method = take; size = length; break; }`],
+    ['wrapped static sibling', 'const { fn: { from, name: method } } = functions;', '[from([4, 9]).length, method]'],
+  ]) for (const rebuilt of [false, true]) {
+    const body = `(() => {
+      const rows = [4, 9];
+      const source = { get before() { log.push("before"); return 1; }, get data() { log.push("hop"); return rows; },
+        get after() { log.push("after"); return 2; } };
+      const empty = { get data() { log.push("empty"); return undefined; } };
+      const functions = { get fn() { log.push("fn"); return Array; } };
+      function make() { log.push("root"); return source; }
+      function give() { log.push("give"); return rows; }
+      ${ read }
+      return ${ result };
+    })()`;
+    yield { ...snippet(`nested-leaf-twin/${ shape }/${ rebuilt ? 'rebuilt' : 'plain' }`,
+      rebuilt ? `[1].map(() => ${ body })[0]` : body),
+    // Nested rest and wrapped statics retain their existing native reads in pure.
+    // Their full-environment effects and the independently armed global leg still run.
+    strip: shape !== 'plain rest' && shape !== 'rest' && shape !== 'wrapped static sibling' };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21950,4 +21995,5 @@ export function * generate() {
   yield * generateResolvedStaticClaims();
   yield * generateResidualAnchors();
   yield * generateNestedDeclarationReceivers();
+  yield * generateNestedLeafTwins();
 }
