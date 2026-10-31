@@ -640,7 +640,11 @@ export function renderSynthEntryKey(entry, {
 // an imported surface uses the canonical identifier builder.
 function renderProxyCollapseBase(base, { injectImport, embed, carry }) {
   const source = base.alias ?? base.keep;
-  return source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
+  const value = source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
+  return base.read ? sequenceExpression([value, conditionalExpression(
+    nullFirstGuardTest(embed(carry(base.read.object))),
+    renderAliasHeldProbeRead(base.read, literal(null)), embed(carry(base.read.object)),
+  )]) : value;
 }
 
 // A declined navigation owns one replacement base and the effects of its dropped span.
@@ -965,6 +969,15 @@ export function renderStaticFallbackReceiver(plan, { injectImport, cloneHost = c
   const effects = plan.effects.map(effect => effect === plan.probe
     ? renderClaimProbe(plan.probe, { injectImport, cloneHost, embed }) : embed(cloneHost(effect)));
   return effects.length ? sequenceExpression([...effects, receiver]) : receiver;
+}
+
+// A resolved value has already chosen its base and the probe's position among
+// source effects. Bindings only supply imports, source cloning and dialect slots.
+export function renderResolvedStaticClaim(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
+  const effects = plan.effects.map(effect => effect === plan.probe
+    ? renderClaimProbe(plan.probe, { injectImport, cloneHost, embed }) : embed(cloneHost(effect)));
+  effects.push(renderProxyCollapseBase(plan.base, { injectImport, embed, carry: cloneHost }));
+  return effects.length === 1 ? effects[0] : sequenceExpression(effects);
 }
 
 // the render half of `planKeptSequenceTail`: the tail folds onto its outermost hop's own ponyfill,
