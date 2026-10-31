@@ -21691,6 +21691,37 @@ function * generateSelectingExtractions() {
   }
 }
 
+// Split continuations keep the source store, computed key and method reference.
+function * generateOptionalSplitLandings() {
+  for (const [root, source] of [
+    ['alias', 'realm'],
+    ['store', '(held = realm)'],
+    ['sequence', "(log.push('root'), held = realm)"],
+  ]) for (const claim of ['static', 'prototype']) {
+    const read = claim === 'static'
+      ? `${ source }?.Object[(log.push('key'), 'values')]({ a: 5 }).at(0)`
+      : `${ source }?.Map?.prototype.has.call(new Map([[1, 3]]), (log.push('arg'), 1))`;
+    yield { ...snippet(`optional-split-landing/${ root }/${ claim }`,
+      `(() => { const realm = globalThis; let held; return [${ read }, ${ root === 'alias' ? 'true' : 'held === realm' }]; })()`), strip: true };
+  }
+  const rig = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const present of [false, true]) for (const ts of [false, true]) {
+    const root = ts ? '(globalThis.window as any)' : 'globalThis.window';
+    const row = snippet(`optional-split-landing/probe/${ present }/${ ts ? 'ts' : 'js' }`,
+      `withWindowPresence(${ present }, () => ${ root }?.self?.Object[(log.push('key'), 'values')]({ a: 5 }).at(0))`);
+    yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(rig) };\n${ row.code }`, ts, strip: true };
+  }
+  for (const [claim, read] of [
+    ['static', 'Array.from([7]).at(0)'],
+    ['prototype', 'Map.prototype.has.call(new Map(), 1)'],
+  ]) for (const prefix of [false, true]) {
+    const store = prefix ? "(log.push('root'), held = globalThis.window)" : '(held = globalThis.window)';
+    const changing = snippet(`optional-split-landing/two-probe-reads/${ claim }/${ prefix }`,
+      `withChangingWindow(() => { let held; return ${ store }?.window?.self.${ read }; })`);
+    yield { ...changing, code: `import { withChangingWindow } from ${ JSON.stringify(rig) };\n${ changing.code }`, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22116,4 +22147,5 @@ export function * generate() {
   yield * generateInitializerCarriers();
   yield * generateAssignmentOverwriteDefaults();
   yield * generateSelectingExtractions();
+  yield * generateOptionalSplitLandings();
 }

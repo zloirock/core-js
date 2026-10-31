@@ -878,6 +878,7 @@ export default function createAstUsagePureCallback({
     } else if (plan) {
       markRewrite();
       const built = renderStaticFallbackReceiver(plan, { injectImport: injectPureImport });
+      if (plan.definedReceiverRead) plan.definedReceiverRead.optional = false;
       if (plan.sequence) {
         plan.sequence.expressions[plan.sequence.expressions.length - 1] = built;
         markSubtreeSkipped(skippedNodes, plan.receiver);

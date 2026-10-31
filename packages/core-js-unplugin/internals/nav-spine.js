@@ -3,6 +3,7 @@
 import { prepareKeptMemoTail } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   foldableRealmHop,
+  foldSeqKeyLiteralTail,
   navValueCanShortCircuit,
   planProvenNavGuardCollapse,
   resolveKey,
@@ -27,8 +28,6 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
   stepOverChainWrappers,
-  collectFoldedReceiverSideEffects,
-  computedKeyStaticName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   walkAstNodes,
@@ -43,6 +42,8 @@ import {
   renderNavCollapseValue,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional } from './emit-shared.js';
+
+export { foldSeqKeyLiteralTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 // clone a receiver with source parens peeled off its member/call SPINE: babel holds parens
 // as printer trivia, so a memo respells without them, while TS casts stay - babel memoizes
@@ -487,18 +488,6 @@ export function spineCarriesComputedHop(objectNode) {
   for (let cur = unwrapRuntimeExpr(objectNode); cur?.type === 'MemberExpression';
     cur = unwrapRuntimeExpr(cur.object)) if (cur.computed) return true;
   return false;
-}
-
-// an EFFECT-bearing computed key folds to the static name it spells, the effects it carries coming
-// back for the caller to re-emit (`[(c++, 'values')]` -> `values` plus the prefix); null when the
-// key spells no static name. both halves are the canon's: the NAME through `computedKeyStaticName`,
-// which folds a sequence tail, a `+` concat and a template nested in any combination, and the
-// EFFECTS through the harvest that mirrors exactly those shapes. spelled here by hand it peeled one
-// sequence layer and declined everything deeper, so a nested key took a heavier route than its
-// single-layer twin - two rules for one question
-export function foldSeqKeyLiteralTail(property, ctx = null) {
-  const key = computedKeyStaticName(property);
-  return key === null ? null : { key, effects: collectFoldedReceiverSideEffects(property, { ctx }) };
 }
 
 export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destructureEmit }) {
