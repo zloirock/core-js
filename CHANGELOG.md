@@ -30,6 +30,7 @@
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator (Firefox < 46)
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
+- Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
 - Entries fixes:
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0

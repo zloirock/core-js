@@ -6,6 +6,7 @@ var defineBuiltIn = require('../internals/define-built-in');
 var defineGlobalProperty = require('../internals/define-global-property');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var isForced = require('../internals/is-forced');
+var isObject = require('../internals/is-object');
 
 /*
   options.target          - name of the target object
@@ -48,7 +49,7 @@ module.exports = function (options, source) {
     // contained in target
     if (!FORCED && targetProperty !== undefined) {
       if (typeof sourceProperty == typeof targetProperty) continue;
-      copyConstructorProperties(sourceProperty, targetProperty);
+      if (isObject(sourceProperty) && isObject(targetProperty)) copyConstructorProperties(sourceProperty, targetProperty);
     }
     // add a flag to not completely full polyfills
     if (options.sham || (targetProperty && targetProperty.sham)) {
